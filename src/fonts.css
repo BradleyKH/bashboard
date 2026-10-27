@@ -1,0 +1,17 @@
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font Mono';
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  src: local('JetBrainsMono Nerd Font Mono'),
+    url('./assets/fonts/JetBrainsMonoNerdFontMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font Mono';
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+  src: local('JetBrainsMono Nerd Font Mono Bold'),
+    url('./assets/fonts/JetBrainsMonoNerdFontMono-Bold.woff2') format('woff2');
+}

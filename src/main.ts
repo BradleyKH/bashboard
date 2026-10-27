@@ -29,7 +29,9 @@ import { ConfirmDialog } from './confirmDialog';
 import { Picker, type PickerItem } from './picker';
 import { HelpDialog } from './helpDialog';
 import { helpSections } from './helpModel';
+import { gitInstall, gitInstallStatus, openGitDownload } from './gitInstall';
 import { hookInstall, hookInstallPreview } from './hookInstall';
+import { shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
 import { SettingsDialog } from './settingsDialog';
 import { SetupWizard } from './setupWizard';
 import { HookInstallDialog } from './hookInstallDialog';
@@ -75,6 +77,8 @@ import { TabStrip } from './tabStrip';
 import { closePadConfirm, closeTabConfirm, replaceConfirm } from './paneConfirm';
 import type { PaneKind } from './paneKinds';
 import { Workspace } from './workspace';
+import { fontsReady } from './fontsReady';
+import { checkForUpdate } from './updater';
 
 trackCtrlHeld();
 
@@ -88,6 +92,10 @@ try {
 } catch (err) {
   showToast(`Could not start the background animation: ${String(err)}`);
 }
+
+// xterm.js measures glyph cells when a terminal opens, so the bundled font must be loaded before
+// the first pane (docs/design.md section 4.4).
+await fontsReady();
 
 // getCurrentWindow() throws synchronously outside Tauri (plain `pnpm dev`), which would abort the
 // rest of startup before the first pane mounts.
@@ -544,6 +552,7 @@ const settingsDialog = new SettingsDialog({
   onOpenFile: openSettingsFile,
   getProfiles: () => profiles,
   onRunSetup: () => void showSetup(),
+  onCheckForUpdates: () => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) }),
 });
 const showSettings = async (): Promise<void> => {
   await refreshProfiles();
@@ -575,17 +584,39 @@ const setupWizard = new SetupWizard({
         return false;
       },
     ),
+  getHookState: () =>
+    hookInstallPreview().then((p) => ({ claudeDetected: p.claudeDetected, hooksInstalled: p.alreadyInstalled })),
+  installGit: () => gitInstall().then(refreshProfiles),
+  openGitDownload: () => {
+    openGitDownload().catch((e: unknown) => console.warn('open_url failed', e));
+  },
+  getShellIntegrationPreview: shellIntegrationPreview,
+  installShellIntegration: shellIntegrationInstall,
 });
 const showSetup = async (): Promise<void> => {
   await refreshProfiles();
-  const preview = await hookInstallPreview().catch((e: unknown) => {
-    console.warn('hook install state unavailable:', e);
-    return null;
-  });
+  const [preview, git, shellIntegration] = await Promise.all([
+    hookInstallPreview().catch((e: unknown) => {
+      console.warn('hook install state unavailable:', e);
+      return null;
+    }),
+    gitInstallStatus().catch((e: unknown) => {
+      console.warn('git install state unavailable:', e);
+      return null;
+    }),
+    shellIntegrationPreview().catch((e: unknown) => {
+      console.warn('shell integration state unavailable:', e);
+      return null;
+    }),
+  ]);
   if (settingsDialog.isOpen()) settingsDialog.close();
   setupWizard.open({
     claudeDetected: preview?.claudeDetected ?? false,
     hooksInstalled: preview?.alreadyInstalled ?? false,
+    // An unknown Git state skips the Git step rather than offering an install that may not apply.
+    gitBashFound: git?.gitBashFound ?? true,
+    wingetFound: git?.wingetFound ?? false,
+    shellIntegration,
   });
 };
 // Opened before the first pane mounts so the pane fits the narrowed area and keeps focus.
@@ -705,6 +736,7 @@ try {
 if (!restored) workspace.addPane();
 trackRepo();
 if (payload.firstRun) void showSetup();
+void checkForUpdate({ manual: false, confirm: (o) => confirmDialog.open(o) });
 onSettingsChanged((p) => {
   currentSettings = p.settings;
   latestPayload = p;

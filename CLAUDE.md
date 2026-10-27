@@ -18,11 +18,18 @@ pnpm exec vitest run -t 'cycleScrim'        # tests matching a name
 pnpm exec tsc --noEmit                      # type check
 pnpm build                                  # tsc + vite build
 pnpm tauri build                            # release build and installer
+pnpm version:set <version>                  # set the app version in package.json, Cargo.toml, Cargo.lock
 ```
 
 Rust tests run from `src-tauri/` with `cargo test` (`cargo test settings` for one module). In
 Git Bash, cargo may need `export PATH="$HOME/.cargo/bin:$PATH"` first. The Rust sources are not
 `cargo fmt` clean, so don't run `cargo fmt` repo-wide; format only what you touch.
+
+Releases: `pnpm version:set <version>`, commit, then push a `v<version>` tag. The release workflow
+(`.github/workflows/release.yml`) builds and publishes the installer, its `.sig`, and
+`latest.json` for the in-app updater (docs/design.md section 3.16); it needs the repo secrets
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Local and CI builds need no
+key.
 
 `BASHBOARD_KEYLOG=<file> pnpm tauri dev` logs every keystroke and paste sent to a shell, escaped,
 to confirm a chord reaches bash rather than being eaten by WebView2 or xterm.js.

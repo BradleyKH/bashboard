@@ -10,10 +10,13 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "build:bb": "cargo build --manifest-path src-tauri/Cargo.toml --bin bb",
-    "test": "vitest run"
+    "test": "vitest run",
+    "version:set": "node scripts/bump-version.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-unicode11": "^0.9.0",

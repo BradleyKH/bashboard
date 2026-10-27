@@ -5,7 +5,19 @@ import type { ShellProfile } from './profiles';
 import { repoCandidates } from './repoCandidates';
 import { SCRIM_PRESETS } from './scrim';
 import type { Settings } from './settings';
-import { editorChoices, favoritesToAdd, scrimPresetFor, setupSteps, type Choice, type SetupStep } from './setupModel';
+import { renderGitStep } from './setupGitStep';
+import {
+  editorChoices,
+  favoritesToAdd,
+  scrimPresetFor,
+  setupSteps,
+  type Choice,
+  type SetupStep,
+  type SetupStepOptions,
+  type SetupStepUi,
+} from './setupModel';
+import { renderShellIntegrationStep } from './setupShellIntegrationStep';
+import type { ShellIntegrationPreview } from './shellIntegration';
 
 export interface SetupWizardCallbacks {
   /** Closed by Escape, Skip setup, or Done; the caller refocuses the terminal. */
@@ -18,11 +30,22 @@ export interface SetupWizardCallbacks {
   addFavorites(list: Favorite[]): void;
   /** Runs the install with its confirmation; resolves when that closes, true if installed. */
   installHooks(): Promise<boolean>;
+  /** Re-read after Git installs, since the hook install's contents depend on Git Bash. */
+  getHookState(): Promise<{ claudeDetected: boolean; hooksInstalled: boolean }>;
+  /** Installs Git and refreshes the shell profiles; rejects with the installer's error. */
+  installGit(): Promise<void>;
+  openGitDownload(): void;
+  getShellIntegrationPreview(): Promise<ShellIntegrationPreview>;
+  installShellIntegration(): Promise<void>;
 }
 
 export interface SetupWizardOpenOptions {
   claudeDetected: boolean;
   hooksInstalled: boolean;
+  gitBashFound: boolean;
+  wingetFound: boolean;
+  /** Null when it could not be read, which hides the shell-integration step. */
+  shellIntegration: ShellIntegrationPreview | null;
 }
 
 interface Repo {
@@ -31,7 +54,9 @@ interface Repo {
 }
 
 const STEP_TEXT: Record<SetupStep, { title: string; intro: string }> = {
+  git: { title: 'Git', intro: 'Install Git for Windows, which brings Git Bash.' },
   shell: { title: 'Shell', intro: 'The shell new panes open with.' },
+  shellIntegration: { title: 'Shell integration', intro: 'A few lines in ~/.bashrc that report each prompt to the app.' },
   editor: { title: 'Editor', intro: 'Where files and folders open from the Files pane, the Git pane, and search.' },
   favorites: { title: 'Favorites', intro: 'Pin the repos you work in, so they are one click away in the dashboard.' },
   claude: { title: 'Claude Code', intro: 'Let the dashboard follow your Claude Code sessions.' },
@@ -77,6 +102,19 @@ export class SetupWizard {
   private hooksDone = false;
   private installing = false;
 
+  private stepOptions!: SetupStepOptions;
+  private wingetFound = false;
+  private gitInstalling = false;
+  private gitDone = false;
+  private shellPreview: ShellIntegrationPreview | null = null;
+  private shellInstalling = false;
+  private shellDone = false;
+
+  private readonly ui: SetupStepUi = {
+    note: (text) => this.note(text),
+    button: (text, onClick) => this.button(text, onClick),
+  };
+
   constructor(private readonly callbacks: SetupWizardCallbacks) {}
 
   isOpen(): boolean {
@@ -85,8 +123,20 @@ export class SetupWizard {
 
   open(opts: SetupWizardOpenOptions): void {
     if (this.backdrop) this.close();
-    this.steps = setupSteps(opts);
+    this.stepOptions = {
+      claudeDetected: opts.claudeDetected,
+      hooksInstalled: opts.hooksInstalled,
+      gitBashFound: opts.gitBashFound,
+      shellIntegrationStatus: opts.shellIntegration?.status ?? null,
+    };
+    this.steps = setupSteps(this.stepOptions);
     this.index = 0;
+    this.wingetFound = opts.wingetFound;
+    this.gitInstalling = false;
+    this.gitDone = false;
+    this.shellPreview = opts.shellIntegration;
+    this.shellInstalling = false;
+    this.shellDone = false;
     this.editors = null;
     this.editorsFailed = false;
     this.folder = '';
@@ -188,7 +238,9 @@ export class SetupWizard {
     this.setError('');
     this.refresh = null;
     this.content.replaceChildren();
-    if (step === 'shell') this.renderShell();
+    if (step === 'git') this.renderGit();
+    else if (step === 'shell') this.renderShell();
+    else if (step === 'shellIntegration') this.renderShellIntegration();
     else if (step === 'editor') this.renderEditor();
     else if (step === 'favorites') this.renderFavorites();
     else if (step === 'claude') this.renderClaude();
@@ -211,6 +263,93 @@ export class SetupWizard {
         }
       } else this.box.focus();
     }
+  }
+
+  /** Recomputes the step list after a step changes what applies, staying on the shown step. */
+  private resetSteps(): void {
+    const current = this.steps[this.index];
+    this.steps = setupSteps(this.stepOptions);
+    const at = this.steps.indexOf(current);
+    if (at >= 0) {
+      this.index = at;
+      this.rerender(current);
+    } else this.show(0);
+  }
+
+  private renderGit(): void {
+    renderGitStep(
+      this.content,
+      { wingetFound: this.wingetFound, installing: this.gitInstalling, done: this.gitDone },
+      this.ui,
+      { install: () => void this.installGit(), openDownload: () => this.callbacks.openGitDownload() },
+    );
+  }
+
+  private async installGit(): Promise<void> {
+    if (this.gitInstalling) return;
+    const owner = this.backdrop;
+    this.gitInstalling = true;
+    this.rerender('git');
+    let failure = '';
+    try {
+      await this.callbacks.installGit();
+    } catch (err) {
+      failure = errorText(err);
+    }
+    let preview: ShellIntegrationPreview | null = null;
+    let hooks: { claudeDetected: boolean; hooksInstalled: boolean } | null = null;
+    if (!failure) {
+      [preview, hooks] = await Promise.all([
+        this.callbacks.getShellIntegrationPreview().catch(() => null),
+        this.callbacks.getHookState().catch(() => null),
+      ]);
+    }
+    this.gitInstalling = false;
+    if (this.backdrop !== owner) return;
+    if (failure) {
+      this.rerender('git');
+      if (this.steps[this.index] === 'git') this.setError(failure);
+    } else {
+      this.gitDone = true;
+      this.shellPreview = preview;
+      this.stepOptions = {
+        ...this.stepOptions,
+        ...(hooks ?? {}),
+        gitInstalled: true,
+        shellIntegrationStatus: preview?.status ?? null,
+      };
+      this.resetSteps();
+    }
+    if (this.steps[this.index] === 'git') this.box.focus();
+  }
+
+  private renderShellIntegration(): void {
+    if (!this.shellPreview) return;
+    renderShellIntegrationStep(
+      this.content,
+      { preview: this.shellPreview, installing: this.shellInstalling, done: this.shellDone },
+      this.ui,
+      () => void this.installShellIntegration(),
+    );
+  }
+
+  private async installShellIntegration(): Promise<void> {
+    if (this.shellInstalling) return;
+    const owner = this.backdrop;
+    this.shellInstalling = true;
+    this.rerender('shellIntegration');
+    let failure = '';
+    try {
+      await this.callbacks.installShellIntegration();
+    } catch (err) {
+      failure = errorText(err);
+    }
+    this.shellInstalling = false;
+    if (this.backdrop !== owner) return;
+    if (!failure) this.shellDone = true;
+    this.rerender('shellIntegration');
+    if (failure && this.steps[this.index] === 'shellIntegration') this.setError(failure);
+    this.box.focus();
   }
 
   private renderShell(): void {

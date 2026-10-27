@@ -238,3 +238,20 @@
   border-color: transparent;
   color: #9aa6ad;
 }
+
+.setup-wizard-block {
+  margin: 0;
+  padding: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #d6dde2;
+  font: 11px Consolas, 'Cascadia Mono', monospace;
+  white-space: pre;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  user-select: text;
+}
+
+.setup-wizard-done code {
+  font-family: Consolas, 'Cascadia Mono', monospace;
+}

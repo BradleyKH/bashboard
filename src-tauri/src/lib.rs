@@ -5,6 +5,7 @@ mod containers;
 mod editors;
 mod files;
 mod git;
+mod git_install;
 mod git_watch;
 mod hook_install;
 mod hooks;
@@ -16,6 +17,7 @@ mod search;
 mod settings;
 mod settings_edit;
 mod setup;
+mod shell_integration;
 mod workspace;
 
 use tauri::Manager;
@@ -91,6 +93,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(pty::Ptys::default())
         .manage(settings::SettingsState::default())
         .manage(hooks::Hooks::default())
@@ -122,6 +126,10 @@ pub fn run() {
             pty::pty_list,
             profiles::shell_profiles,
             close_window,
+            shell_integration::shell_integration_preview,
+            shell_integration::shell_integration_install,
+            git_install::git_install_status,
+            git_install::git_install,
             links::open_url,
             links::open_folder,
             settings::settings_get,

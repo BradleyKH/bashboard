@@ -4,8 +4,26 @@ import { lastFolder } from './dashboardModel';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
 import { SCRIM_PRESETS } from './scrim';
+import type { ShellIntegrationStatus } from './shellIntegration';
 
-export type SetupStep = 'shell' | 'editor' | 'favorites' | 'claude' | 'look';
+export type SetupStep = 'git' | 'shell' | 'shellIntegration' | 'editor' | 'favorites' | 'claude' | 'look';
+
+export interface SetupStepOptions {
+  claudeDetected: boolean;
+  hooksInstalled: boolean;
+  /** Whether Git Bash was found when the wizard opened. */
+  gitBashFound: boolean;
+  /** Set once Git is installed from the wizard, which keeps the Git step listed. */
+  gitInstalled?: boolean;
+  /** Null when the `.bashrc` state could not be read, which hides that step. */
+  shellIntegrationStatus: ShellIntegrationStatus | null;
+}
+
+/** The wizard's element builders, shared with the step renderers in their own files. */
+export interface SetupStepUi {
+  note(text: string): HTMLElement;
+  button(text: string, onClick: () => void): HTMLButtonElement;
+}
 
 export interface Choice {
   value: string;
@@ -14,9 +32,19 @@ export interface Choice {
 
 const DEFAULT_EDITOR: Choice = { value: 'default', label: "The file's default app" };
 
-/** The steps to show, in order; Claude Code only when it is detected and the hooks are missing. */
-export function setupSteps(opts: { claudeDetected: boolean; hooksInstalled: boolean }): SetupStep[] {
-  const steps: SetupStep[] = ['shell', 'editor', 'favorites'];
+/**
+ * The steps to show, in order: Git only when Git Bash was missing, shell integration only once Git
+ * Bash is there and the lines are not current, Claude Code only when detected without the hooks.
+ */
+export function setupSteps(opts: SetupStepOptions): SetupStep[] {
+  const steps: SetupStep[] = [];
+  if (!opts.gitBashFound) steps.push('git');
+  steps.push('shell');
+  const hasBash = opts.gitBashFound || opts.gitInstalled === true;
+  if (hasBash && opts.shellIntegrationStatus !== null && opts.shellIntegrationStatus !== 'installed') {
+    steps.push('shellIntegration');
+  }
+  steps.push('editor', 'favorites');
   if (opts.claudeDetected && !opts.hooksInstalled) steps.push('claude');
   steps.push('look');
   return steps;

@@ -77,6 +77,7 @@ mapping. They talk through Tauri commands (request/response) and Tauri channels 
 | Code search | `ignore`, `grep-searcher`, and `grep-regex` (ripgrep's libraries) |
 | Git, containers | The `git`, `docker`, and `podman` command-line tools, run as child processes |
 | Pane CLI | `bb.exe`, a second binary in the Tauri crate, installed beside the app (3.13) |
+| Updates | `tauri-plugin-updater` against GitHub releases (3.16) |
 
 The chrome is a pane tree, the dashboard panel, and a few overlays, so plain TypeScript with
 one class per file is enough to start. If the dashboard panel grows into real UI (richer drag
@@ -477,6 +478,106 @@ tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
   `Workspace` carries it out exactly as the matching dashboard or keyboard action would, so `bb`
   can do nothing the UI cannot.
 
+### 3.14 Shell integration install (`src-tauri/src/shell_integration.rs`)
+
+Working-directory reporting (OSC 9;9) and the command-start and command-end markers (OSC 133)
+come from a few lines in Git Bash's `~/.bashrc`. The setup wizard (4.17) installs them with
+`shell_integration_preview` and `shell_integration_install`. The lines are the snippet in the
+README's "New panes in the current folder" section; a test requires the two to match byte for
+byte, ignoring line endings.
+
+The install writes the snippet between two marker lines at the end of the file:
+`# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<`. The home
+directory is `HOME`, then `USERPROFILE`, as Git Bash resolves it. `shell_integration_preview`
+returns the `.bashrc` path, the status, the block to add, whether `.bashrc` or `.bash_profile`
+would be created, and a warning about `.bash_profile`.
+
+| Status | Meaning | Install does |
+| --- | --- | --- |
+| `missing` | No `.bashrc`, or no Bashboard lines in it | Appends the block, after a blank line |
+| `installed` | A marked block equal to the current snippet | Nothing |
+| `outdated` | A marked block that differs from the current snippet | Replaces the block in place |
+| `handAdded` | The snippet appears verbatim, without markers | Replaces those lines with the marked block, in place |
+| `custom` | A begin marker with no end marker, or a `__bashboard_prompt` function that is not the snippet | Refuses; the user updates the lines by hand |
+
+- **Backup.** An existing `.bashrc` is copied to `~/.bashrc.bashboard-backup` before it is
+  rewritten. The write is atomic (the helper the hook install uses, 3.3).
+- **Line endings.** The file's own line endings are kept, and lines outside the block are
+  rewritten byte for byte. A `.bashrc` that is not UTF-8 is left alone with an error.
+- **Login shells.** Git Bash's login shell reads `~/.bash_profile`, not `~/.bashrc`. When that
+  file is missing, the install creates it with the two standard lines that source `~/.profile`
+  and `~/.bashrc`. When it exists and never mentions `.bashrc`, the preview carries a warning
+  and the file is left untouched.
+- Panes already open do not pick the lines up until their shell reads `~/.bashrc` again
+  (`source ~/.bashrc`).
+
+### 3.15 Git install (`src-tauri/src/git_install.rs`)
+
+Git Bash is the default shell, and the Claude Code hooks run through its `bash.exe`. When no
+Git Bash is found (3.1), the setup wizard's Git step (4.17) installs Git for Windows with
+winget. `git_install_status` reports whether Git Bash was found and whether `winget.exe` was;
+winget is looked up on `PATH`, then at the App Execution Alias under
+`%LOCALAPPDATA%\Microsoft\WindowsApps`, which a GUI process may not have on its `PATH`.
+
+`git_install` runs `winget install --id Git.Git -e --source winget --silent
+--accept-package-agreements --accept-source-agreements --scope user` with no console window.
+`--scope user` runs the installer for the current user, so there is no admin prompt and Git
+lands in `%LOCALAPPDATA%\Programs\Git`, a location the profile detection already checks
+(3.1). The command times out after 15 minutes. On failure the error carries the last lines of
+winget's output, with its progress spinner collapsed. When the install succeeds, the front end
+reloads the shell profiles so the new Git Bash is offered without a restart.
+
+When winget is missing, the step offers a link to git-scm.com instead (opened through
+`open_url`) and asks the user to run setup again once Git is installed.
+
+### 3.16 Updates and releases
+
+Installed apps update themselves through Tauri's updater plugin. `plugins.updater` in
+`tauri.conf.json` holds the public signing key and one endpoint,
+`https://github.com/BradleyKH/bashboard/releases/latest/download/latest.json`, which resolves to
+the newest non-prerelease release. The Windows install mode is `passive`: the NSIS installer
+shows its progress without prompts.
+
+`src/updater.ts` exports `checkForUpdate({ manual, confirm })`. It runs once at launch after the
+workspace is up, quietly, and again from the settings dialog's Check for updates button, which
+also reports "up to date" and failures. It does nothing in a dev build, which has no installed
+bundle to replace. An available update shows as a banner (`updateNotice.ts`) with Install and
+restart and Later. Installing first asks for confirmation through the shared confirm dialog,
+because restarting ends every running shell and any command or Claude session in it; the
+confirmation notes that the layout reopens on the next launch when `restore.enabled` is on. The
+update then downloads with progress shown in the banner, installs, and relaunches the app.
+
+**Signing.** Update packages are signed with a minisign key pair made by `tauri signer
+generate`. The public key is committed in `tauri.conf.json`; the private key and its password
+are never committed. The release workflow reads them from the repository secrets
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the maintainer keeps
+the key file (`~/.tauri/bashboard.key`) and its password outside the repo. Losing the private key
+means installed apps cannot verify later updates, so the key is backed up. The installer itself
+is not Authenticode-signed, so SmartScreen warns on first run. Local builds and the CI workflow
+need no key: only the release workflow turns on `bundle.createUpdaterArtifacts`, through
+`--config`.
+
+**Release workflow** (`.github/workflows/release.yml`). `pnpm version:set <version>`
+(`scripts/bump-version.ts`) sets the version in `package.json`, `src-tauri/Cargo.toml`, and
+`src-tauri/Cargo.lock`; `tauri.conf.json` reads `package.json`. Pushing a `v<version>` tag runs
+the workflow on a Windows runner: it checks that the tag matches `package.json`, runs the type
+check, the front end tests, and the Rust tests, then builds with `tauri-action` into a draft
+release named "Bashboard v<version> (alpha)", not marked as a prerelease, with the NSIS
+installer, its `.sig`, and `latest.json`. A step then checks that `bb.exe` was built and is
+listed in the installer script (3.13), and only after that is the release published, so a
+broken build never becomes the release the updater reads.
+
+**Installer.** The NSIS installer installs per user, shows the license page, carries the
+Bashboard header and sidebar images (`src-tauri/installer/`), sets the publisher, and offers a
+desktop shortcut on its finish page. The product name is Bashboard and the executable stays
+`bashboard.exe`.
+
+**Terminal font.** The JetBrainsMono Nerd Font Mono regular and bold weights ship inside the app
+as WOFF2 files (`src/assets/fonts/`, declared in `src/fonts.css`, licensed under the SIL Open
+Font License, whose text sits beside them). `fontsReady()` in `src/fontsReady.ts` resolves once
+both weights have loaded, or after 2 seconds, and `main.ts` awaits it before building the
+workspace, since xterm.js measures its character cell when a terminal opens.
+
 ## 4. Front end
 
 ### 4.1 Layers
@@ -576,8 +677,8 @@ is not active are off the DOM in the same way, expanded or not.
 ### 4.4 Terminal pane (`pane.ts`)
 
 One `TerminalPane` per terminal: an xterm `Terminal` with fit, WebGL, Unicode 11, and search
-addons, bound to one pty. Font defaults to the Windows Terminal stack
-(`JetBrainsMono Nerd Font Mono`, `Cascadia Mono`), 14 px.
+addons, bound to one pty. Font defaults to the bundled `JetBrainsMono Nerd Font Mono` (3.16),
+with `Cascadia Mono` as the fallback, 14 px.
 
 **WebGL context budget.** Chromium allows roughly 16 live WebGL contexts per page, and the backdrop uses
 one. Only expanded terminals in the active tab count: each uses the WebGL renderer until 8 are
@@ -1055,16 +1156,24 @@ Shown at launch when `settings.json` did not exist before that launch (the setti
 `settings_set` as soon as a choice is made, so leaving partway keeps what was chosen. Every step
 has Back, Next, and Skip setup.
 
-1. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
-2. **Editor.** The editors found (3.12) and the file's default app; sets `editor.preferred`.
-3. **Favorites.** A folder field, starting at `%USERPROFILE%\source\repos` when it exists,
+1. **Git.** Shown only while Git Bash is missing (3.15). With winget available, an Install Git
+   button runs the install and shows its progress and result; the step stays in the list once
+   Git is installed, reading "Git installed". Without winget, a button opens git-scm.com.
+2. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
+3. **Shell integration.** Shown when Git Bash is found and `~/.bashrc` does not already hold the
+   current block (3.14), and hidden when its state could not be read. It lists the lines and
+   the file they go in, notes the backup and any `.bash_profile` it will create, and runs the
+   install with Add to .bashrc. A `custom` status shows the lines and an error instead of the
+   button.
+4. **Editor.** The editors found (3.12) and the file's default app; sets `editor.preferred`.
+5. **Favorites.** A folder field, starting at `%USERPROFILE%\source\repos` when it exists,
    listing its subfolders that are git repos with checkboxes. The subfolders come from
    `setup_repo_candidates(dir?)` (`src-tauri/src/setup.rs`), which lists the direct subfolders
    holding `.git`, as a folder or as a worktree's file. Add appends the checked ones to
    favorites, skipping any already there.
-4. **Claude Code.** Shown while Claude Code is detected and the hooks are not installed;
+6. **Claude Code.** Shown while Claude Code is detected and the hooks are not installed;
    explains the hooks and runs the install with its confirmation (3.3).
-5. **Look.** The scrim presets (section 5) and the background animation on or off, applied live.
+7. **Look.** The scrim presets (section 5) and the background animation on or off, applied live.
 
 ## 5. Readability
 
@@ -1479,6 +1588,9 @@ Each milestone ends with a usable app.
     button (4.2), and window-edge docking (4.2).
 16. **Pane CLI.** `bb` (3.13): the binary and its bundling, `PATH` in pane environments, the
     `/cli` endpoint, and the front end's handling of each command.
+17. **Install and update.** The bundled terminal font, the Git install (3.15) and shell
+    integration install (3.14) with their wizard steps (4.17), the updater and release workflow
+    (3.16), and the installer's license page, images, and desktop shortcut.
 
 ## 12. Risks
 

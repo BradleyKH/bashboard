@@ -4,7 +4,52 @@ Bashboard
 A Windows terminal for Claude Code, built with Tauri: Git Bash panes rendered by xterm.js over
 a live backdrop. The full design is in [docs/design.md](docs/design.md).
 
+## Installing
+
+Bashboard ships as a single installer, `Bashboard_<version>_x64-setup.exe`. Download it from the
+[latest release](https://github.com/BradleyKH/bashboard/releases/latest), or build it yourself
+(see [Releasing](#releasing)). The installer holds everything Bashboard needs: the app, the `bb`
+pane CLI, and the terminal font. It installs for the current user without admin rights, adds
+Bashboard to the Start menu, and offers a desktop shortcut on its last page.
+
+The installer is not code-signed, so Windows SmartScreen shows "Windows protected your PC" the
+first time. Click **More info**, then **Run anyway**.
+
+Once installed, Bashboard checks for a newer release at launch and offers it in a banner; the
+update installs from inside the app. **Check for updates** in the settings dialog checks on
+demand.
+
+Bashboard runs the tools you already use:
+
+1. **Git for Windows**, which provides Git Bash, the default shell. When Git Bash is missing, the
+   setup wizard offers to install it for you with winget (no admin rights needed). To install it
+   yourself:
+
+   ```sh
+   winget install --id Git.Git -e
+   ```
+
+   Without Git, panes open in PowerShell or Command Prompt instead. A per-user Git install is
+   found automatically; anywhere else, set `shell.path` (see [Settings](#settings)).
+
+2. **Claude Code**, for the session status, attention badges, and dashboard. Run `claude` once
+   before starting Bashboard so the setup wizard offers to install the hooks
+   (see [Claude Code hooks](#claude-code-hooks)).
+
+3. **Optional:** Docker Desktop or Podman for the dashboard's containers list.
+
+On first launch, a setup wizard walks through installing Git when it is missing, the default
+shell, adding the `~/.bashrc` lines that let new panes open in the current folder (see
+[New panes in the current folder](#new-panes-in-the-current-folder)), the editor, favorite repos,
+Claude Code hooks, and look.
+
+WebView2 comes with Windows 11; on a machine without it, the installer downloads it. Uninstall
+from **Settings > Apps > Installed apps**.
+
 ## Setting up a new machine
+
+These steps set up a machine to build Bashboard from source. To just use it, see
+[Installing](#installing).
 
 Bashboard targets Windows 11, which already includes the WebView2 runtime. Everything else
 installs with `winget` from a terminal; admin rights are needed for the Visual Studio build
@@ -43,27 +88,20 @@ tools and for machine-wide installs of the rest.
    rustup installs the stable `x86_64-pc-windows-msvc` toolchain by default. If `rustup show`
    reports a `gnu` toolchain, run `rustup default stable-msvc`.
 
-5. **Optional font.** Terminals use JetBrainsMono Nerd Font when installed and fall back to
-   Cascadia Mono, which ships with Windows 11:
-
-   ```sh
-   winget install --id DEVCOM.JetBrainsMonoNerdFont -e
-   ```
-
-6. **Open a new terminal** so the updated `PATH` takes effect, then confirm the tools:
+5. **Open a new terminal** so the updated `PATH` takes effect, then confirm the tools:
 
    ```sh
    git --version && node -v && pnpm -v && rustc -V && cargo -V
    ```
 
-7. **Get the code.** When copying the folder from another machine, leave out `node_modules/`,
+6. **Get the code.** When copying the folder from another machine, leave out `node_modules/`,
    `dist/`, and `src-tauri/target/`; they hold build output with machine-specific paths and are
    recreated by the build.
 
-8. **Configure Git Bash** as described in
+7. **Configure Git Bash** as described in
    [New panes in the current folder](#new-panes-in-the-current-folder).
 
-9. **Build and run** from the repo root:
+8. **Build and run** from the repo root:
 
    ```sh
    pnpm install
@@ -73,9 +111,10 @@ tools and for machine-wide installs of the rest.
    The first run compiles every Rust dependency and takes several minutes; later runs are
    incremental.
 
-Panes run `C:\Program Files\Git\bin\bash.exe --login -i` by default. If Git is installed
-somewhere else, such as a per-user install at `%LOCALAPPDATA%\Programs\Git`, set `shell.path`
-in the settings file (see [Settings](#settings)).
+Panes run `C:\Program Files\Git\bin\bash.exe --login -i` by default. When that file is missing,
+Bashboard looks for a per-user install at `%LOCALAPPDATA%\Programs\Git` and then for the Git
+for Windows install whose `git.exe` is on `PATH`. If Git is somewhere else, set `shell.path` in
+the settings file (see [Settings](#settings)).
 
 ## Development
 
@@ -84,6 +123,7 @@ pnpm tauri dev      # run the app with hot reload
 pnpm test           # frontend unit tests (Vitest)
 pnpm tauri build    # release build and installer
 pnpm build:bb       # rebuild bb.exe after editing src-tauri/src/bin/bb.rs
+pnpm version:set 0.2.0  # set the app version everywhere (see Releasing)
 ```
 
 `pnpm tauri dev` builds `bb.exe` at startup, so the debug app finds it beside `bashboard.exe`.
@@ -97,8 +137,12 @@ installed app's workspace. The first debug run copies the installed app's `setti
 ## New panes in the current folder
 
 A new pane opens in the focused pane's working directory. Git Bash does not report its working
-directory by default, so add these lines to `~/.bashrc`, below any prompt framework's init line
-(such as `eval "$(starship init bash)"`):
+directory by default, so the setup wizard offers to add these lines to `~/.bashrc`, in a block
+marked `# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<` at the
+end of the file, below any prompt framework's init line. It backs the file up to
+`~/.bashrc.bashboard-backup` first, and creates `~/.bash_profile` when it is missing so login
+shells read `~/.bashrc`. To add them yourself, put these lines at the end of `~/.bashrc` (below
+a line such as `eval "$(starship init bash)"`):
 
 ```sh
 PS0="${PS0-}"'\e]133;C\e\\'
@@ -550,10 +594,12 @@ on first run, accepts `//` comments, and reloads when you save it. An invalid va
 to its default and shows a notice naming the field. If a save leaves the file as invalid JSON,
 the running settings stay in effect and a notice appears until the file is fixed.
 
-On first launch, a setup wizard picks the default shell, the editor, favorite repos, the Claude
-Code hooks, and the look. Each choice saves as soon as you make it, and **Run setup** in the
-settings dialog reopens the wizard. The Claude Code hooks step appears only when Claude Code is
-detected and the hooks are not yet installed.
+On first launch, a setup wizard installs Git when it is missing, picks the default shell, adds
+the shell integration lines to `~/.bashrc`, and picks the editor, favorite repos, the Claude Code
+hooks, and the look. Each choice saves as soon as you make it, and **Run setup** in the settings
+dialog reopens the wizard. The Git step appears only when Git Bash is missing, the shell
+integration step only when `~/.bashrc` does not already hold the current lines, and the Claude
+Code hooks step only when Claude Code is detected and the hooks are not yet installed.
 
 Most settings take effect on save. `dashboard.visibleOnStart` and `restore.*` apply at the next
 launch, and `shell.*` applies to panes opened after the change.
@@ -665,6 +711,22 @@ open; other schemes are ignored.
 `.github/workflows/ci.yml` workflow runs the type check, tests, and Rust tests on every push to
 `main` and every pull request, then builds the installer and uploads it as the
 `bashboard-installer` artifact on the workflow run.
+
+To publish a release:
+
+1. Run `pnpm version:set <version>` (for example `0.2.0`). It sets the version in
+   `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`; `tauri.conf.json` reads
+   it from `package.json`.
+2. Commit the change, then create and push a `v<version>` tag: `git tag v<version>` and
+   `git push origin main v<version>`.
+
+The `.github/workflows/release.yml` workflow runs on the tag. It checks that the tag matches
+`package.json`, runs the checks, builds a draft GitHub release named
+"Bashboard v<version> (alpha)" holding the installer, its `.sig` signature, and `latest.json`
+(the file installed apps read to find updates), checks that the installer ships `bb.exe`, and
+then publishes the release. The workflow needs two repository secrets,
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, holding the updater
+signing key. Local builds and CI runs need no key; only the release workflow signs.
 
 Before each release, run through this keyboard checklist in a `pnpm tauri dev` session or the
 built app:

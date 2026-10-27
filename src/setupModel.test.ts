@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { editorChoices, favoritesToAdd, scrimPresetFor, setupSteps } from './setupModel';
 
 describe('setupSteps', () => {
+  const base = { gitBashFound: true, shellIntegrationStatus: 'installed' as const };
+
   it('includes claude only when detected and not installed', () => {
-    expect(setupSteps({ claudeDetected: true, hooksInstalled: false })).toEqual([
+    expect(setupSteps({ ...base, claudeDetected: true, hooksInstalled: false })).toEqual([
       'shell', 'editor', 'favorites', 'claude', 'look',
     ]);
     for (const opts of [
@@ -11,8 +13,39 @@ describe('setupSteps', () => {
       { claudeDetected: false, hooksInstalled: false },
       { claudeDetected: false, hooksInstalled: true },
     ]) {
-      expect(setupSteps(opts)).toEqual(['shell', 'editor', 'favorites', 'look']);
+      expect(setupSteps({ ...base, ...opts })).toEqual(['shell', 'editor', 'favorites', 'look']);
     }
+  });
+
+  const hooks = { claudeDetected: false, hooksInstalled: false };
+
+  it('puts git first only when Git Bash is not found', () => {
+    expect(setupSteps({ ...hooks, gitBashFound: false, shellIntegrationStatus: null })).toEqual([
+      'git', 'shell', 'editor', 'favorites', 'look',
+    ]);
+  });
+
+  it('shows shell integration after shell unless installed or unknown', () => {
+    for (const status of ['missing', 'outdated', 'handAdded', 'custom'] as const) {
+      expect(setupSteps({ ...hooks, gitBashFound: true, shellIntegrationStatus: status })).toEqual([
+        'shell', 'shellIntegration', 'editor', 'favorites', 'look',
+      ]);
+    }
+    expect(setupSteps({ ...hooks, gitBashFound: true, shellIntegrationStatus: null })).toEqual([
+      'shell', 'editor', 'favorites', 'look',
+    ]);
+  });
+
+  it('hides shell integration while Git Bash is missing', () => {
+    expect(setupSteps({ ...hooks, gitBashFound: false, shellIntegrationStatus: 'missing' })).toEqual([
+      'git', 'shell', 'editor', 'favorites', 'look',
+    ]);
+  });
+
+  it('keeps git and adds shell integration once Git is installed from the wizard', () => {
+    expect(
+      setupSteps({ ...hooks, gitBashFound: false, gitInstalled: true, shellIntegrationStatus: 'missing' }),
+    ).toEqual(['git', 'shell', 'shellIntegration', 'editor', 'favorites', 'look']);
   });
 });
 

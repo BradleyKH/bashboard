@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Check tag matches package.json version
+        shell: bash
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version ($expected)"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Front end tests
+        run: pnpm test
+
+      # The pty tests spawn Git Bash, which the runner image has installed.
+      - name: Rust tests
+        shell: bash
+        working-directory: src-tauri
+        run: cargo test
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Bashboard v__VERSION__ (alpha)'
+          releaseBody: |
+            Alpha release. The installer is unsigned, so Windows SmartScreen may warn on first run:
+            choose "More info", then "Run anyway".
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: --config '{"bundle":{"createUpdaterArtifacts":true}}'
+
+      # tauri-action owns the build, so the check runs on its output while the release is still a
+      # draft. bb.exe must sit beside bashboard.exe once installed, so the installer script has
+      # to list it as well as the build having produced it.
+      - name: Assert installer ships bb.exe
+        shell: bash
+        run: |
+          release=src-tauri/target/release
+          if [ ! -f "$release/bb.exe" ]; then
+            echo "::error::$release/bb.exe was not built"
+            exit 1
+          fi
+          nsi=$(find "$release/nsis" -name '*.nsi' | head -n 1)
+          if [ -z "$nsi" ]; then
+            echo "::error::no NSIS script found under $release/nsis"
+            exit 1
+          fi
+          if ! grep -q 'bb\.exe' "$nsi"; then
+            echo "::error::$nsi does not mention bb.exe"
+            exit 1
+          fi
+          echo "bb.exe is built and listed in $nsi"
+
+      # Publishing last keeps a broken build off releases/latest, which the updater reads.
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest

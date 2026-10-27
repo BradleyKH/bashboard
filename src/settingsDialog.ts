@@ -1,3 +1,4 @@
+import { getVersion } from '@tauri-apps/api/app';
 import type { SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
@@ -12,6 +13,8 @@ export interface SettingsDialogCallbacks {
   getProfiles(): ShellProfile[];
   /** Run setup was clicked; the dialog has already closed without onClose. */
   onRunSetup(): void;
+  /** Check for updates was clicked; the dialog stays open. Omit to hide the button. */
+  onCheckForUpdates?(): void;
 }
 
 const SLIDER_DEBOUNCE_MS = 250;
@@ -372,13 +375,34 @@ export class SettingsDialog {
       this.close();
       this.callbacks.onRunSetup();
     });
-    actions.append(open, setup, error);
+    actions.append(open, setup);
+    const checkForUpdates = this.callbacks.onCheckForUpdates;
+    if (checkForUpdates) {
+      const update = document.createElement('button');
+      update.type = 'button';
+      update.className = 'settings-dialog-open';
+      update.textContent = 'Check for updates';
+      update.addEventListener('click', () => checkForUpdates());
+      actions.append(update);
+    }
+    actions.append(error);
 
     const note = document.createElement('p');
     note.className = 'settings-dialog-note';
     note.textContent = 'Keybindings are edited in settings.json, in the "keybindings" list.';
 
-    footer.append(actions, note);
+    const version = document.createElement('p');
+    version.className = 'settings-dialog-note';
+    version.hidden = true;
+    // Fails outside Tauri (plain browser); the line just stays hidden.
+    getVersion()
+      .then((v) => {
+        version.textContent = `Bashboard ${v}`;
+        version.hidden = false;
+      })
+      .catch(() => {});
+
+    footer.append(actions, note, version);
     return footer;
   }
 

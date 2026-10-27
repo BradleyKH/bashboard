@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "bashboard",
-  "version": "0.1.0",
+  "productName": "Bashboard",
+  "mainBinaryName": "bashboard",
+  "version": "../package.json",
   "identifier": "dev.bashboard",
   "build": {
     "beforeDevCommand": "pnpm build:bb && pnpm dev",
@@ -45,6 +46,13 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0QTA4OEU1RTQxQTQ0NjIKUldSaVJCcms1WWlnRkoxbCtXTDltL0tKUzBvZmIva2hUTlZ0WFN1UDN1a1ZmRndLS3BPY2gwUTcK",
+      "endpoints": ["https://github.com/BradleyKH/bashboard/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
@@ -54,6 +62,20 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Bradley Harris",
+    "copyright": "Copyright (c) 2026 Bradley Harris",
+    "homepage": "https://github.com/BradleyKH/bashboard",
+    "licenseFile": "../LICENSE",
+    "shortDescription": "A Windows terminal for Claude Code: Git Bash panes over a live colony simulation.",
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
   }
 }
