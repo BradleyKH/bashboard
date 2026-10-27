@@ -1,11 +1,13 @@
-import { windowEdgeAt, type DockTarget, type WindowEdge } from './docking';
+import { windowEdgeAt, type DropTarget, type WindowEdge } from './docking';
 import { dockZoneAt, type DockZone } from './layout';
 
 export interface DockOverlayHooks {
   paneRects(): Map<string, DOMRect>;
   zonesFor(paneId: string): DockZone[];
   /** `null` means the layout is empty and the drop fills the window. */
-  onDrop(target: DockTarget | null): void;
+  onDrop(target: DropTarget | null): void;
+  /** A tab drop target under the point (a dashboard group), checked before every other target. */
+  tabAt?(x: number, y: number): { tabId: string; rect: DOMRect } | null;
   /** The pane area, or null when the active tab has no expanded pane (no window bands then). */
   areaRect?(): DOMRect | null;
   onCancel(): void;
@@ -64,6 +66,7 @@ export class DockOverlay {
 
     let hit: Hit | null = null;
     let windowHit: WindowEdge | null = null;
+    let tabHit: string | null = null;
     let empty = false;
 
     let lastX = e.clientX;
@@ -78,6 +81,18 @@ export class DockOverlay {
       empty = rects.size === 0;
       hit = null;
       windowHit = null;
+      tabHit = null;
+      const tab = this.hooks.tabAt?.(x, y) ?? null;
+      if (tab) {
+        tabHit = tab.tabId;
+        zone.style.display = 'block';
+        zone.dataset.zone = 'tab';
+        zone.style.left = `${tab.rect.left}px`;
+        zone.style.top = `${tab.rect.top}px`;
+        zone.style.width = `${tab.rect.width}px`;
+        zone.style.height = `${tab.rect.height}px`;
+        return;
+      }
       const area = this.hooks.areaRect?.() ?? null;
       const edge = area ? windowEdgeAt(area, x, y) : null;
       if (area && edge) {
@@ -144,12 +159,14 @@ export class DockOverlay {
     const onMove = (ev: PointerEvent) => track(ev.clientX, ev.clientY);
     const onUp = (ev: PointerEvent) => {
       track(ev.clientX, ev.clientY);
+      const tabTarget = tabHit;
       const edgeTarget = windowHit;
       const target = hit ? { paneId: hit.paneId, zone: hit.zone } : null;
       const wasEmpty = empty;
       cleanup();
       suppressNextClick();
-      if (edgeTarget) this.hooks.onDrop({ windowEdge: edgeTarget });
+      if (tabTarget) this.hooks.onDrop({ tabId: tabTarget });
+      else if (edgeTarget) this.hooks.onDrop({ windowEdge: edgeTarget });
       else if (target) this.hooks.onDrop(target);
       else if (wasEmpty) this.hooks.onDrop(null);
       else this.hooks.onCancel();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from './settings';
-import { appliesNote, installedChoices, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
 
 const fields = SETTINGS_SECTIONS.flatMap((s) => s.fields);
 const byPath = (p: string) => fields.find((f) => f.path.join('.') === p) as SettingsField;
@@ -26,6 +26,26 @@ describe('SETTINGS_SECTIONS', () => {
       const raw = f.kind === 'toggle' ? (d as boolean) : f.kind === 'list' ? (d as string[]).join('\n') : String(d);
       expect(parseInput(f, raw), f.path.join('.')).toEqual({ ok: true, value: d });
     }
+  });
+});
+
+describe('isShown', () => {
+  const withAnimate = (animate: boolean) => (path: string[]) =>
+    readField({ ...DEFAULT_SETTINGS, backdrop: { ...DEFAULT_SETTINGS.backdrop, animate } }, path);
+
+  it('hides the loop-only backdrop fields while the backdrop is frozen', () => {
+    const hidden = fields.filter((f) => !isShown(f, withAnimate(false))).map((f) => f.path.join('.'));
+    expect(hidden.sort()).toEqual(
+      ['maxFps', 'speed', 'capacity', 'mutationRate', 'lineageThreads', 'orbit', 'waitingPulse'].map((k) => `backdrop.${k}`).sort(),
+    );
+  });
+
+  it('shows every field while the backdrop animates', () => {
+    for (const f of fields) expect(isShown(f, withAnimate(true)), f.path.join('.')).toBe(true);
+  });
+
+  it('points every condition at a field the dialog has', () => {
+    for (const f of fields) if (f.shownWhen) expect(byPath(f.shownWhen.path.join('.')), f.path.join('.')).toBeDefined();
   });
 });
 

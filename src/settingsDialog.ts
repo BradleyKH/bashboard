@@ -2,7 +2,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import type { SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
-import { appliesNote, installedChoices, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
 
 export interface SettingsDialogCallbacks {
   /** Dismissed; the caller refocuses the terminal. */
@@ -22,6 +22,7 @@ const DEFAULT_EDITOR: Editor = { id: 'default', name: "The file's default app" }
 
 interface Control {
   field: SettingsField;
+  labelCell: HTMLElement;
   cell: HTMLElement;
   error: HTMLElement;
   /** The last value read from the file or sent to onSave; saves equal to it are skipped. */
@@ -142,6 +143,17 @@ export class SettingsDialog {
       c.show(value);
       setError(c, '');
     }
+    this.applyVisibility();
+  }
+
+  /** Hides fields whose `shownWhen` doesn't hold, judged from each control's last saved value. */
+  private applyVisibility(): void {
+    const read = (path: string[]): unknown => this.controls.find((c) => c.field.path.join('.') === path.join('.'))?.last;
+    for (const c of this.controls) {
+      const hide = !isShown(c.field, read);
+      c.labelCell.hidden = hide;
+      c.cell.hidden = hide;
+    }
   }
 
   close(): void {
@@ -186,7 +198,7 @@ export class SettingsDialog {
     error.hidden = true;
     describedBy.push(error.id);
 
-    const control: Control = { field, cell, error, last: undefined, show: () => {} };
+    const control: Control = { field, labelCell, cell, error, last: undefined, show: () => {} };
     const input = this.input(control);
     input.id = id;
     input.setAttribute('aria-describedby', describedBy.join(' '));
@@ -331,6 +343,7 @@ export class SettingsDialog {
     if (JSON.stringify(parsed.value) === JSON.stringify(c.last)) return;
     const previous = c.last;
     c.last = parsed.value;
+    this.applyVisibility();
     this.callbacks.onSave(c.field.path, parsed.value).catch((err: unknown) => {
       setError(c, errorText(err));
       if (c.last !== parsed.value) return; // a later edit or reload superseded this one
@@ -341,6 +354,7 @@ export class SettingsDialog {
         // Toggles and sliders show the file's value again, since nothing was written.
         c.last = previous;
         c.show(previous);
+        this.applyVisibility();
       }
     });
   }

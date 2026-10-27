@@ -25,6 +25,8 @@ export type DockResult =
 
 export type WindowEdge = Exclude<DockZone, 'center'>;
 export type DockTarget = { paneId: string; zone: DockZone } | { windowEdge: WindowEdge };
+/** A dock target, or a dashboard group whose tab a pane moves into (docs/design.md section 4.6). */
+export type DropTarget = DockTarget | { tabId: string };
 
 /** Width of the drop band along each edge of the pane area (docs/design.md section 4.2). */
 export const WINDOW_EDGE_BAND_PX = 24;

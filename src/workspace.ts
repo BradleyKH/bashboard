@@ -9,7 +9,15 @@ import { DockOverlay } from './dockOverlay';
 import { DoneTracker } from './doneStatus';
 import { FilesPane } from './filesPane';
 import { routeFilesRequest, type FilesRequest } from './filesRouting';
-import { applyDock, dropZones, expandInto, focusAfterRemoval, type DockTarget, type DragSource } from './docking';
+import {
+  applyDock,
+  dropZones,
+  expandInto,
+  focusAfterRemoval,
+  type DockTarget,
+  type DragSource,
+  type DropTarget,
+} from './docking';
 import { FindBar } from './findBar';
 import { GitPane } from './gitPane';
 import { routeGitRequest } from './gitModel';
@@ -125,6 +133,8 @@ export interface WorkspaceHooks {
   onAttention?: (paneId: string, cause: AttentionCause) => void;
   /** Pointer position during a pane drag, `null` when it ends. */
   onDragHover?: (pos: { x: number; y: number } | null) => void;
+  /** The dashboard tab group under the point during a pane drag (docs/design.md section 4.6). */
+  tabDropAt?: (x: number, y: number) => { tabId: string; rect: DOMRect } | null;
   /** Asks before closing a tab whose `busy` panes would lose work; true closes it. */
   onConfirmCloseTab?: (tabId: string, busy: PaneCardInput[]) => Promise<boolean>;
   /** Asks before Ctrl+W closes a scratch pad that has text; true closes it. */
@@ -242,6 +252,11 @@ export class Workspace {
       zonesFor: (paneId) => (this.drag ? dropZones(this.drag, paneId) : []),
       onDrop: (target) => this.onDrop(target),
       onHover: (pos) => this.hooks.onDragHover?.(pos),
+      tabAt: (x, y) => {
+        if (this.drag?.kind !== 'pane') return null;
+        const hit = this.hooks.tabDropAt?.(x, y) ?? null;
+        return hit && hit.tabId !== this.store.tabOf(this.drag.paneId)?.id ? hit : null;
+      },
       onCancel: () => {
         this.drag = null;
         this.paneViews.get(this.store.focusedId)?.focus();
@@ -595,6 +610,58 @@ export class Workspace {
     this.render();
     if (!inTree) pane.setExpanded(true);
     pane.focus();
+    this.notify();
+  }
+
+  /**
+   * Design 4.6: a card dropped on another tab's group moves its pane into that tab without
+   * switching to it. A collapsed pane stays collapsed; an expanded one splits that tab's focused
+   * pane as expanding does, or lands collapsed when there is no room. A tab it empties closes.
+   */
+  moveToTab(paneId: string, tabId: string): void {
+    const pane = this.paneViews.get(paneId);
+    const source = this.store.tabOf(paneId);
+    const target = this.store.find(tabId);
+    if (!pane || !source || !target || source.id === tabId) {
+      this.paneViews.get(this.store.focusedId)?.focus();
+      return;
+    }
+    const activeBefore = this.store.activeId;
+    const toActive = tabId === activeBefore;
+    const wasCollapsed = this.store.isCollapsed(paneId);
+    const wasOnScreen = source.id === activeBefore && !wasCollapsed;
+    let next: Layout | null = null;
+    if (!wasCollapsed) {
+      // Every tab fills the same pane area, so the active tab's rect stands in for the target's.
+      const cell = (toActive ? this.layoutCell() : null) ?? pane.cellSize();
+      next = expandInto(target.tree, target.focusedId, paneId, this.containerRect(), cell);
+      if (!next) showToast('Not enough room in that tab, so the pane moved collapsed');
+    }
+    this.store.moveTo(paneId, tabId, next === null);
+    if (next) this.store.update(tabId, { tree: next, focusedId: paneId });
+    else if (!wasCollapsed) this.markCollapsed(paneId);
+
+    if (this.store.activeId !== activeBefore) {
+      // The source was the active tab and the move emptied it.
+      this.zoom.forget(source.id);
+      this.zoomHidden.delete(source.id);
+      if (this.store.activeId !== tabId) {
+        const fallback = this.store.active;
+        this.store.state = switchTabState(this.store.state, tabId);
+        this.hideTab(fallback);
+      }
+      this.showActive();
+    } else if (toActive) {
+      this.render();
+      if (next) {
+        pane.setExpanded(true);
+        pane.focus();
+      }
+    } else {
+      if (wasOnScreen && next) pane.setExpanded(false);
+      if (wasOnScreen) this.render();
+      this.paneViews.get(this.store.focusedId)?.focus();
+    }
     this.notify();
   }
 
@@ -984,11 +1051,13 @@ export class Workspace {
     e.stopPropagation();
   }
 
-  private onDrop(target: DockTarget | null): void {
+  private onDrop(target: DropTarget | null): void {
     const source = this.drag;
     this.drag = null;
     if (!source) return;
-    if (source.kind === 'pane') {
+    if (target && 'tabId' in target) {
+      if (source.kind === 'pane') this.moveToTab(source.paneId, target.tabId);
+    } else if (source.kind === 'pane') {
       this.dock(source.paneId, target);
     } else if (target) {
       this.openTerminal(source.path, { dock: target });

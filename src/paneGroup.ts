@@ -12,6 +12,7 @@ export function renderPaneGroup(
   const el = document.createElement('div');
   el.className = 'terminal-group';
   el.classList.toggle('active', group.active);
+  el.dataset.tabId = group.tabId;
 
   const header = document.createElement('div');
   header.className = 'terminal-group-header';

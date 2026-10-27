@@ -820,6 +820,13 @@ so only cards carry one. The active tab's header is brighter and its guide line 
 accent color, and clicking a header switches to that tab. With one tab there
 are no headers and the section reads as a plain list.
 
+Dragging a card or a title strip onto another tab's group (its header or cards) highlights the
+group, and dropping there moves the pane into that tab without switching to it. A collapsed pane
+stays collapsed. An expanded one splits that tab's focused pane in the auto direction, as
+expanding does (4.3), or fills its empty layout; when there is no room, a toast says so and it
+lands collapsed. A tab the move empties closes, and if that was the active tab, the target tab
+becomes active. A group takes precedence over any dock target beneath it, and dropping on the pane's own group does nothing.
+
 Each card shows:
 
 - For a terminal, the status dot (4.8): `idle`, `working` (animated), `waiting` (pulsing,
@@ -1234,7 +1241,9 @@ on, and held still while the OS asks for reduced motion). Two more: zoom
 and the camera glides to a changed value; `waitingPulse` (default off) turns on the waiting
 pulse below. The settings dialog groups them with
 `backdrop.animate`, `backdrop.maxFps`, and the scrim under "Background Animation"; the UI calls
-the backdrop the background animation.
+the backdrop the background animation. While `backdrop.animate` is off, the dialog hides the
+fields a still frame can't show (the frame rate cap, the simulation controls, auto-orbit, and
+`waitingPulse`), leaving zoom and the scrim, which still change the frozen view.
 
 ### 6.3 Sessions as organisms
 

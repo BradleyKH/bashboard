@@ -210,6 +210,19 @@ export class DashboardPanel {
     return this.open;
   }
 
+  /** The Panes section's tab group under the point, for dropping a dragged card into its tab. */
+  groupAt(x: number, y: number): { tabId: string; rect: DOMRect } | null {
+    if (!this.open && !this.peeking) return null;
+    for (const el of this.terminalList.querySelectorAll<HTMLElement>('.terminal-group[data-tab-id]')) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return { tabId: el.dataset.tabId!, rect };
+      }
+    }
+    return null;
+  }
+
   toggle(): void {
     this.setOpen(!this.open);
   }

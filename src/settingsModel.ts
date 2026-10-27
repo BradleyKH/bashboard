@@ -23,12 +23,17 @@ export interface SettingsField {
   installedFrom?: 'profiles' | 'editors';
   hint?: string;
   applies: AppliesWhen;
+  /** Shown only while the field at `path` holds `value`; for settings that do nothing otherwise. */
+  shownWhen?: { path: string[]; value: unknown };
 }
 
 export interface SettingsSection {
   title: string;
   fields: SettingsField[];
 }
+
+// The frozen backdrop redraws only for zoom, so these would do nothing while it is still.
+const WHILE_ANIMATED = { path: ['backdrop', 'animate'], value: true };
 
 /** Ranges mirror try_parse_settings in src-tauri/src/settings.rs so a saved value always loads. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -128,8 +133,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         minNonZero: 20,
         hint: '0 uses the display refresh rate; otherwise 20 to 240',
         applies: 'live',
+        shownWhen: WHILE_ANIMATED,
       },
-      { path: ['backdrop', 'speed'], label: 'Speed', kind: 'slider', min: 0.25, max: 12, step: 0.25, unit: 'gen/s', applies: 'live' },
+      { path: ['backdrop', 'speed'], label: 'Speed', kind: 'slider', min: 0.25, max: 12, step: 0.25, unit: 'gen/s', applies: 'live', shownWhen: WHILE_ANIMATED },
       {
         path: ['backdrop', 'capacity'],
         label: 'Population capacity',
@@ -140,6 +146,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         integer: true,
         hint: 'How many organisms the colony can sustain',
         applies: 'live',
+        shownWhen: WHILE_ANIMATED,
       },
       {
         path: ['backdrop', 'mutationRate'],
@@ -150,14 +157,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         step: 0.1,
         hint: 'How far offspring drift from their parents in color and strategy',
         applies: 'live',
+        shownWhen: WHILE_ANIMATED,
       },
-      { path: ['backdrop', 'lineageThreads'], label: 'Lineage threads', kind: 'toggle', hint: 'Faint lines from parents to offspring', applies: 'live' },
+      { path: ['backdrop', 'lineageThreads'], label: 'Lineage threads', kind: 'toggle', hint: 'Faint lines from parents to offspring', applies: 'live', shownWhen: WHILE_ANIMATED },
       {
         path: ['backdrop', 'orbit'],
         label: 'Orbit the camera',
         kind: 'toggle',
         hint: 'Stays still while Windows animation effects are off',
         applies: 'live',
+        shownWhen: WHILE_ANIMATED,
       },
       { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', hint: 'Above 1 brings the colony closer', applies: 'live' },
       {
@@ -166,6 +175,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         kind: 'toggle',
         hint: "Brightens a waiting Claude session's organisms in a steady pulse",
         applies: 'live',
+        shownWhen: WHILE_ANIMATED,
       },
       { path: ['scrim', 'opacity'], label: 'Dimming behind terminals', kind: 'slider', min: 0, max: 1, step: 0.05, applies: 'live' },
       { path: ['scrim', 'blurPx'], label: 'Blur behind terminals', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live' },
@@ -183,6 +193,12 @@ export function readField(settings: Settings, path: string[]): unknown {
 }
 
 export type ParseResult = { ok: true; value: unknown } | { ok: false; error: string };
+
+/** Whether a field is shown, given a reader for the current value at a path. */
+export function isShown(field: SettingsField, read: (path: string[]) => unknown): boolean {
+  const when = field.shownWhen;
+  return !when || read(when.path) === when.value;
+}
 
 export function parseInput(field: SettingsField, raw: string | boolean): ParseResult {
   if (field.kind === 'toggle') {

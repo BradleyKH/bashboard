@@ -487,6 +487,10 @@ splits that pane on that side, and the center swaps two terminals (a favorite or
 docks by edges only). A collapsed card dropped on a center takes that pane's place and collapses
 it.
 
+To move a pane to another tab without leaving the one you're in, drag its title strip or card onto
+that tab's group in the dashboard's Panes section. An expanded pane splits that tab's focused pane
+(or lands collapsed when there's no room), and a collapsed one stays collapsed.
+
 Dropping on the 24 px band along an edge of the pane area docks the dragged pane along the whole
 edge of the window, taking a third of the space (more when a third would be under the minimum
 size). A drop that would leave a pane below the minimum size is refused with a toast. A folder

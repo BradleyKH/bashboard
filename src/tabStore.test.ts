@@ -69,6 +69,31 @@ describe('TabStore', () => {
     expect(store.find('t1')?.panes).toEqual(['p1', 'p2', 'p3', 'p4']);
   });
 
+  it('moves a pane into a background tab, collapsed or not', () => {
+    const store = twoTabs();
+    store.moveTo('p1', 't2', true);
+    expect(store.find('t1')).toMatchObject({ tree: pane('p2'), focusedId: 'p2', panes: ['p2', 'p3'] });
+    expect(store.find('t2')).toMatchObject({ tree: pane('p4'), panes: ['p4', 'p1'], collapsed: ['p1'] });
+
+    const emptied = twoTabs();
+    emptied.moveTo('p4', 't1', true);
+    expect(emptied.state.tabs.map((t) => t.id)).toEqual(['t1']);
+    expect(emptied.find('t1')).toMatchObject({ panes: ['p1', 'p2', 'p3', 'p4'], collapsed: ['p3', 'p4'] });
+
+    const other = twoTabs();
+    other.moveTo('p3', 't2', false);
+    expect(other.find('t1')).toMatchObject({ panes: ['p1', 'p2'], collapsed: [] });
+    expect(other.find('t2')).toMatchObject({ tree: pane('p4'), panes: ['p4', 'p3'], collapsed: [] });
+  });
+
+  it('ignores a move into the pane\'s own tab or an unknown one', () => {
+    const store = twoTabs();
+    const before = store.state;
+    store.moveTo('p1', 't1', false);
+    store.moveTo('p1', 't9', false);
+    expect(store.state).toBe(before);
+  });
+
   it('reports the last pane of the last tab without changing state', () => {
     const store = new TabStore();
     store.addToActive('p1', false);

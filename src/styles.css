@@ -1307,6 +1307,11 @@ body.dashboard-resizing {
   padding-top: 3px;
 }
 
+.settings-dialog-label[hidden],
+.settings-dialog-control[hidden] {
+  display: none;
+}
+
 .settings-dialog-note {
   margin: 0;
   color: #7f8c94;

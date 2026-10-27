@@ -105,12 +105,20 @@ export class TabStore {
 
   /** Design 4.2: a pane docked from another tab leaves that tab's tree and lists for the active tab's. */
   moveToActive(paneId: string): void {
+    this.moveTo(paneId, this.state.activeId, false);
+  }
+
+  /**
+   * Moves the pane out of its tab's tree and lists into `tabId`'s lists, closing a source tab
+   * it empties; the caller places it in the target's tree when it is not `collapsed`.
+   */
+  moveTo(paneId: string, tabId: string, collapsed: boolean): void {
     const source = this.tabOf(paneId);
-    if (!source || source.id === this.state.activeId) return;
+    if (!source || source.id === tabId || !this.find(tabId)) return;
     this.removeFromTree(paneId);
-    // The active tab still holds panes, so this never empties the last tab.
+    // The target tab still holds panes, so this never empties the last tab.
     this.removePane(paneId);
-    this.addToActive(paneId, false);
+    this.state = addPane(this.state, tabId, paneId, collapsed);
   }
 
   /** Swaps a pane for one of another kind in place, as `replacePane` in tabs.ts. */
