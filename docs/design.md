@@ -1178,7 +1178,7 @@ has Back, Next, and Skip setup.
 ## 5. Readability
 
 Bloom behind text is the main readability risk. Each pane draws a scrim layer between the backdrop and
-its terminal: a dark fill at configurable opacity (default 0.45) with an optional
+its terminal: a dark fill at configurable opacity (default 0.5) with an optional
 `backdrop-filter: blur()` (default 0, since blur over a constantly moving WebGL canvas is the
 most expensive effect here). Ctrl+Shift+B cycles none, light, and medium presets and saves the
 choice. An opacity of 0 means no scrim, so blur is off there too. The backdrop itself is never dimmed;
@@ -1263,7 +1263,7 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
 
 ### 6.4 Performance
 
-- The backdrop renders at up to `backdrop.maxFps` (section 8), 60 by default, or at the display's full
+- The backdrop renders at up to `backdrop.maxFps` (section 8), 20 by default, or at the display's full
   frame rate when it is 0.
   The frame loop still runs on `requestAnimationFrame` and skips any frame that arrives sooner
   than `1 / maxFps` after the last rendered one. The simulation advances by elapsed time, so a
@@ -1462,18 +1462,18 @@ interface ShellProfile {
     "defaultProfile": "gitBash"
   },
   "font": { "family": "JetBrainsMono Nerd Font Mono, Cascadia Mono", "size": 14 },
-  "scrim": { "opacity": 0.45, "blurPx": 0 },
+  "scrim": { "opacity": 0.5, "blurPx": 0 },
   // maxFps 0 renders the backdrop at the display's refresh rate; animate false freezes it (6.4).
   // speed is generations per second; the rest are the simulation and camera controls (6.2).
   "backdrop": {
     "animate": true,
-    "maxFps": 60,
-    "speed": 2,
-    "capacity": 5000,
-    "mutationRate": 4,
+    "maxFps": 20,
+    "speed": 12,
+    "capacity": 1000,
+    "mutationRate": 0.2,
     "lineageThreads": false,
     "orbit": true,
-    "zoom": 1,
+    "zoom": 2,
     "waitingPulse": false
   },
   "scrollback": 10000,

@@ -8,7 +8,7 @@ export interface ScrimState {
 export const SCRIM_PRESETS = {
   none: 0,
   light: 0.25,
-  medium: 0.45,
+  medium: 0.5,
 } as const;
 
 const PRESET_OPACITIES: number[] = Object.values(SCRIM_PRESETS);

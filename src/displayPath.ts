@@ -21,14 +21,15 @@ export function displayPath(path: string, homeDir: string | null = home): string
 /**
  * Fills `el` with `path` for display: home abbreviated, the full path as the tooltip, and the
  * `path-text` class, which cuts an overlong path from the left so its distinctive end stays.
+ * `shown` replaces the visible text when it should differ from the tooltip's full path.
  */
-export function setPathText(el: HTMLElement, path: string): void {
+export function setPathText(el: HTMLElement, path: string, shown: string = path): void {
   el.classList.add('path-text');
   el.title = path;
   // The class sets direction: rtl to move the ellipsis to the left; this keeps the text itself
   // laid out left to right, or bidi would carry a leading ~ or slash to the far end.
   const text = document.createElement('bdi');
   text.dir = 'ltr';
-  text.textContent = displayPath(path);
+  text.textContent = displayPath(shown);
   el.replaceChildren(text);
 }

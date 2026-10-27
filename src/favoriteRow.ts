@@ -1,5 +1,5 @@
 import type { FavoritesCallbacks } from './favoritesSection';
-import type { Favorite } from './favorites';
+import { favoritePathText, type Favorite } from './favorites';
 import { setPathText } from './displayPath';
 import { folderButton } from './folderButton';
 import { openMenuButton } from './openMenu';
@@ -94,7 +94,7 @@ export function renderFavoriteRow(
 
   const path = document.createElement('div');
   path.className = 'favorite-path';
-  setPathText(path, favorite.path);
+  setPathText(path, favorite.path, favoritePathText(favorite));
 
   text.append(label, path);
 

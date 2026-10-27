@@ -69,7 +69,7 @@ body.resizing.column {
 }
 
 :root {
-  --scrim-opacity: 0.45;
+  --scrim-opacity: 0.5;
   --scrim-blur: 0px;
 }
 

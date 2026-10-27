@@ -84,7 +84,7 @@ describe('scrimPresetFor', () => {
   it('matches each preset', () => {
     expect(scrimPresetFor(0)).toBe('none');
     expect(scrimPresetFor(0.25)).toBe('light');
-    expect(scrimPresetFor(0.45)).toBe('medium');
+    expect(scrimPresetFor(0.5)).toBe('medium');
   });
 
   it('gives null between presets', () => {

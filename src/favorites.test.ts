@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveItem, parseFavorites, recentFolders, samePath } from './favorites';
+import { favoritePathText, moveItem, parseFavorites, recentFolders, samePath } from './favorites';
 import type { Session } from './sessions';
 
 function session(cwd: string, statusChangedAt: number): Session {
@@ -104,5 +104,21 @@ describe('parseFavorites profile', () => {
     expect(out[0].profile).toBe('cmd');
     expect(out[1]).not.toHaveProperty('profile');
     expect(out[2]).not.toHaveProperty('profile');
+  });
+});
+
+describe('favoritePathText', () => {
+  it('drops the last folder while the label is still its name', () => {
+    expect(favoritePathText({ label: 'bashboard', path: 'C:\\Users\\me\\repos\\bashboard' })).toBe('C:\\Users\\me\\repos');
+    expect(favoritePathText({ label: 'app', path: 'C:/work/app/' })).toBe('C:/work');
+  });
+
+  it('keeps the whole path for a renamed favorite', () => {
+    expect(favoritePathText({ label: 'Main', path: 'C:\\work\\app' })).toBe('C:\\work\\app');
+  });
+
+  it('shows a drive root as the parent of a top-level folder', () => {
+    expect(favoritePathText({ label: 'work', path: 'D:\\work' })).toBe('D:\\');
+    expect(favoritePathText({ label: 'C:', path: 'C:\\' })).toBe('C:\\');
   });
 });

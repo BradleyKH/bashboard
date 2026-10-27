@@ -12,8 +12,8 @@ describe('scrimFromSettings', () => {
 });
 
 describe('nextScrim', () => {
-  it('cycles from the default 0.45 through none, light, medium, and back to none', () => {
-    let state = scrimFromSettings({ opacity: 0.45, blurPx: 0 });
+  it('cycles from the default 0.5 through none, light, medium, and back to none', () => {
+    let state = scrimFromSettings({ opacity: 0.5, blurPx: 0 });
     const seen: number[] = [];
     for (let i = 0; i < 4; i++) {
       state = nextScrim(state, 0);
@@ -32,8 +32,8 @@ describe('nextScrim', () => {
 
   it('uses the configured blur for nonzero opacity and 0 at none', () => {
     expect(nextScrim({ opacity: 0, blurPx: 0 }, 6)).toEqual({ opacity: 0.25, blurPx: 6 });
-    expect(nextScrim({ opacity: 0.25, blurPx: 0 }, 6)).toEqual({ opacity: 0.45, blurPx: 6 });
-    expect(nextScrim({ opacity: 0.45, blurPx: 6 }, 6)).toEqual({ opacity: 0, blurPx: 0 });
+    expect(nextScrim({ opacity: 0.25, blurPx: 0 }, 6)).toEqual({ opacity: 0.5, blurPx: 6 });
+    expect(nextScrim({ opacity: 0.5, blurPx: 6 }, 6)).toEqual({ opacity: 0, blurPx: 0 });
   });
 });
 

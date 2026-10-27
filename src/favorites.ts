@@ -24,6 +24,20 @@ export function parseFavorites(raw: unknown): Favorite[] {
   return out;
 }
 
+/**
+ * The path a favorite's row shows under its label: the parent folder when the label is still the
+ * folder's own name, which would otherwise appear twice, and the whole path once it is renamed.
+ */
+export function favoritePathText(favorite: Favorite): string {
+  const trimmed = favorite.path.replace(/[\\/]+$/, '');
+  if (favorite.label !== lastFolder(trimmed)) return favorite.path;
+  const cut = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
+  if (cut <= 0) return favorite.path;
+  const parent = trimmed.slice(0, cut);
+  // A bare C: means the current folder on drive C, not its root.
+  return /^[A-Za-z]:$/.test(parent) ? trimmed.slice(0, cut + 1) : parent;
+}
+
 function normalize(p: string): string {
   return p.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
 }

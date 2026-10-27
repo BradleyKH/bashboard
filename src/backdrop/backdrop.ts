@@ -54,7 +54,7 @@ type Renderable = Object3D & { geometry: { dispose(): void }; material: Material
 
 class BackdropLoop implements BackdropHandle {
   private readonly viewport: Viewport;
-  private readonly sim = new Simulation({ capacity: 5000, mutationRate: 4 });
+  private readonly sim = new Simulation({ capacity: 1000, mutationRate: 0.2 });
   readonly colony = new SimSessionColony(this.sim);
   private readonly motion = new Motion();
   private readonly organisms = new OrganismLayer();
