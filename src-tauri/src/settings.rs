@@ -209,9 +209,9 @@ impl Default for Settings {
             },
             scrim: Scrim { opacity: 0.5, blur_px: 0.0 },
             backdrop: Backdrop {
-                animate: true,
+                animate: false,
                 max_fps: 20,
-                speed: 12.0,
+                speed: 10.0,
                 capacity: 1000,
                 mutation_rate: 0.2,
                 lineage_threads: false,
@@ -722,8 +722,8 @@ mod tests {
 
     #[test]
     fn backdrop_values_parse_and_out_of_range_fps_falls_back() {
-        let (s, w) = parse_settings(r#"{ "backdrop": { "animate": false, "maxFps": 0 } }"#);
-        assert_eq!(s.backdrop, Backdrop { animate: false, max_fps: 0, ..Settings::default().backdrop });
+        let (s, w) = parse_settings(r#"{ "backdrop": { "animate": true, "maxFps": 0 } }"#);
+        assert_eq!(s.backdrop, Backdrop { animate: true, max_fps: 0, ..Settings::default().backdrop });
         assert!(w.is_empty());
         for bad in ["10", "241", "-1", "30.5", "\"60\""] {
             let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "maxFps": {bad} }} }}"#));

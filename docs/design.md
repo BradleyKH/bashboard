@@ -1475,9 +1475,9 @@ interface ShellProfile {
   // maxFps 0 renders the backdrop at the display's refresh rate; animate false freezes it (6.4).
   // speed is generations per second; the rest are the simulation and camera controls (6.2).
   "backdrop": {
-    "animate": true,
+    "animate": false,
     "maxFps": 20,
-    "speed": 12,
+    "speed": 10,
     "capacity": 1000,
     "mutationRate": 0.2,
     "lineageThreads": false,

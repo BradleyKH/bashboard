@@ -5,6 +5,7 @@ import { FilePreview } from './filePreview';
 import { FileRowMenu, type FileRowMenuHandlers, type MoveTarget } from './fileRowMenu';
 import { FilesBreadcrumb } from './filesBreadcrumb';
 import { FilesList } from './filesList';
+import { openFolder } from './folderButton';
 import {
   back,
   currentFolder,
@@ -130,6 +131,7 @@ export class FilesPane implements PaneView {
       onBack: () => this.goBack(),
       onForward: () => this.goForward(),
       onNavigate: (folder) => void this.navigate(folder, null, true),
+      onOpenInExplorer: () => openFolder(this.currentPath),
       onOpenTerminalHere: () => opts.onOpenTerminalHere(this.currentPath),
       onTogglePin: () => this.togglePin(),
     });

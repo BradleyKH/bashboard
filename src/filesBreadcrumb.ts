@@ -1,9 +1,11 @@
+import { FOLDER_ICON } from './folderButton';
 import { breadcrumb, canBack, canForward, type History } from './filesModel';
 
 export interface FilesBreadcrumbOptions {
   onBack: () => void;
   onForward: () => void;
   onNavigate: (folder: string) => void;
+  onOpenInExplorer: () => void;
   onOpenTerminalHere: () => void;
   /** Pins the folder, or unpins it when it is already pinned. */
   onTogglePin: () => void;
@@ -16,7 +18,7 @@ export interface FilesBreadcrumbState {
   pinned: boolean;
 }
 
-/** Back and forward buttons, the path from the repo root, Open terminal here, and the pin button. */
+/** Back and forward buttons, the path from the repo root, Open in File Explorer, Open terminal here, and the pin button. */
 export class FilesBreadcrumb {
   readonly el: HTMLElement;
   private readonly backBtn: HTMLButtonElement;
@@ -31,9 +33,11 @@ export class FilesBreadcrumb {
     this.forwardBtn = this.button('›', 'Forward', opts.onForward);
     this.trail = document.createElement('div');
     this.trail.className = 'files-crumb-trail';
+    const explorer = this.button(FOLDER_ICON, 'Open in File Explorer', opts.onOpenInExplorer);
+    explorer.classList.add('files-crumb-folder');
     const term = this.button('>_', 'Open terminal here', opts.onOpenTerminalHere);
     this.pinBtn = this.button('☆', 'Pin this folder', opts.onTogglePin);
-    this.el.append(this.backBtn, this.forwardBtn, this.trail, term, this.pinBtn);
+    this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, term, this.pinBtn);
   }
 
   update(state: FilesBreadcrumbState): void {

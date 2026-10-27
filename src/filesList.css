@@ -32,6 +32,10 @@
   cursor: default;
 }
 
+.files-crumb-folder {
+  font-family: 'Segoe UI Symbol', system-ui, sans-serif;
+}
+
 .files-crumb-btn.on {
   color: #e6c15a;
 }

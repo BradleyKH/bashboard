@@ -639,10 +639,10 @@ Ctrl+Alt+1 through Ctrl+Alt+8 to it:
 { "keys": "ctrl+alt+1", "action": "switchToTab", "index": 1 }
 ```
 
-The background animation (the backdrop) renders at up to 20 frames per second. Raise or
-lower that with `backdrop.maxFps` (0 for the display's refresh rate), or set `backdrop.animate`
-to `false` to freeze it on a still frame. Ctrl+Shift+L pauses or resumes the animation and
-saves the choice to that setting. The simulation itself is tuned with `speed` (generations per
+The background animation (the backdrop) starts frozen on a still frame; set `backdrop.animate`
+to `true` to run it, at up to 20 frames per second. Raise or lower that with `backdrop.maxFps`
+(0 for the display's refresh rate). Ctrl+Shift+L pauses or resumes the animation and saves the
+choice to that setting. The simulation itself is tuned with `speed` (generations per
 second, 0.25 to 12), `capacity` (the population it sustains, 300 to 5000), `mutationRate` (0 to
 4), `lineageThreads` (faint lines from parents to offspring), `orbit` (a slow camera orbit,
 held still while Windows animation effects are off), `zoom` (0.5 to 3; above 1 brings the colony
@@ -652,9 +652,9 @@ Animation section of the settings dialog:
 
 ```jsonc
 "backdrop": {
-  "animate": true,
+  "animate": false,
   "maxFps": 20,
-  "speed": 12,
+  "speed": 10,
   "capacity": 1000,
   "mutationRate": 0.2,
   "lineageThreads": false,
