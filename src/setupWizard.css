@@ -1,0 +1,240 @@
+/* Below the other modals (5) so the hook install confirmation it opens stacks on top. */
+.setup-wizard-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 8vh;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.setup-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: min(560px, 90vw);
+  max-height: 84vh;
+  padding: 12px;
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.94);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  user-select: none;
+  outline: none;
+}
+
+.setup-wizard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setup-wizard-counter {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7f8c94;
+}
+
+.setup-wizard h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eef3f5;
+}
+
+.setup-wizard-intro,
+.setup-wizard-note {
+  margin: 0;
+  color: #9aa6ad;
+  overflow-wrap: anywhere;
+}
+
+.setup-wizard-content {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 96px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.setup-wizard-label {
+  color: #9aa6ad;
+}
+
+.setup-wizard-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setup-wizard-choice,
+.setup-wizard-repo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.setup-wizard-choice:hover,
+.setup-wizard-repo:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.setup-wizard-choice input,
+.setup-wizard-repo input {
+  flex: none;
+  margin: 0;
+  accent-color: #4fb3c8;
+  cursor: pointer;
+}
+
+.setup-wizard-repo input:disabled {
+  cursor: default;
+}
+
+.setup-wizard-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-wizard-input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #eef3f5;
+  font: inherit;
+  line-height: 18px;
+  outline: none;
+  user-select: text;
+}
+
+.setup-wizard-input:focus {
+  border-color: #4fb3c8;
+}
+
+.setup-wizard-repos {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 60px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.setup-wizard-repo-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.setup-wizard-repo-name {
+  color: #eef3f5;
+}
+
+.setup-wizard-repo-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.setup-wizard-repo-tag {
+  flex: none;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.setup-wizard-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.setup-wizard-presets [aria-pressed='true'] {
+  border-color: #4fb3c8;
+  background: rgba(79, 179, 200, 0.18);
+  color: #eef3f5;
+}
+
+.setup-wizard-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-wizard-done {
+  color: #6fcf7f;
+}
+
+.setup-wizard-error {
+  margin: 0;
+  color: #e87878;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.setup-wizard-error[hidden] {
+  display: none;
+}
+
+.setup-wizard-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.setup-wizard-nav {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.setup-wizard-button {
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #d6dde2;
+  font: inherit;
+  cursor: pointer;
+}
+
+.setup-wizard-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.setup-wizard-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.setup-wizard-button.setup-wizard-primary {
+  border-color: #4fb3c8;
+}
+
+.setup-wizard-skip {
+  border-color: transparent;
+  color: #9aa6ad;
+}

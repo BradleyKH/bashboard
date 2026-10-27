@@ -1,0 +1,5 @@
+[
+  { "id": "5f1c2b3a4d5e", "name": "myapp_web_1", "cpu_percent": "1.23%", "mem_usage": "12.5MB / 8.2GB", "mem_percent": "0.15%" },
+  { "id": "0a1b2c3d4e5f", "name": "ranged", "cpu_percent": 2.5, "mem_usage": "3MB / 8.2GB", "mem_percent": 0.4 },
+  { "id": "1b2c3d4e5f60", "name": "plain" }
+]

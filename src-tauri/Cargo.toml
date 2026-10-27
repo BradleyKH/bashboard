@@ -1,0 +1,52 @@
+[package]
+name = "bashboard"
+version = "0.1.0"
+description = "A terminal for Claude Code over a living backdrop"
+authors = ["Bradley Harris"]
+license = "MIT"
+edition = "2024"
+default-run = "bashboard"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "bashboard_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+portable-pty = "0.9.0"
+arboard = { version = "3.7.0", default-features = false }
+notify = "8"
+json_comments = "0.2"
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+tiny_http = "0.12"
+getrandom = "0.3"
+tauri-plugin-opener = "2.7.2"
+jsonc-parser = { version = "0.34.0", features = ["cst"] }
+tauri-plugin-dialog = "2"
+ignore = "0.4.33"
+grep-searcher = "0.1.17"
+grep-regex = "0.1.14"
+grep-matcher = "0.1.9"
+
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+[target."cfg(windows)".dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"

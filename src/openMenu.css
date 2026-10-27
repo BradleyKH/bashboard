@@ -1,0 +1,46 @@
+/* Hover button on dashboard rows; shown with the folder button. */
+#dashboard .open-menu-button {
+  flex: 0 0 auto;
+  opacity: 0;
+}
+
+#dashboard .open-menu-button:focus-visible,
+#dashboard .open-menu-button.open,
+#dashboard .favorite-row:hover .open-menu-button,
+#dashboard .recent-row:hover .open-menu-button,
+#dashboard .terminal-card:hover .open-menu-button,
+#dashboard .session-head:hover .open-menu-button {
+  opacity: 1;
+}
+
+.open-menu {
+  position: fixed;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.96);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  outline: none;
+}
+
+.open-menu-item {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.open-menu-item:hover,
+.open-menu-item:focus {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}

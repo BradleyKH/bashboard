@@ -1,0 +1,55 @@
+/* The dashboard's Containers section. Rows reuse the favorite row styles. */
+.containers-section[hidden] {
+  display: none;
+}
+
+#dashboard .containers-open {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.favorite-row.container-row {
+  padding-left: 8px;
+}
+
+.container-row.unavailable {
+  cursor: default;
+  color: #6c777e;
+}
+
+.container-dot.running {
+  background: #5fbf7a;
+}
+
+.container-dot.partial {
+  background: #d9a441;
+}
+
+.container-dot.stopped {
+  background: #56626a;
+}
+
+.container-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.container-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: #9aa6ad;
+}
+
+#dashboard .container-action {
+  flex: 0 0 auto;
+  opacity: 0;
+}
+
+#dashboard .container-action:focus-visible,
+.container-row:hover .container-action {
+  opacity: 1;
+}

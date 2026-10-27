@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Front end tests
+        run: pnpm test
+
+      # The pty tests spawn Git Bash, which the runner image has installed.
+      - name: Rust tests
+        shell: bash
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build installer
+        run: pnpm tauri build
+
+      # bb.exe must sit beside bashboard.exe in the installed folder, so the installer script
+      # has to list it as well as the build having produced it.
+      - name: Assert installer ships bb.exe
+        shell: bash
+        run: |
+          release=src-tauri/target/release
+          if [ ! -f "$release/bb.exe" ]; then
+            echo "::error::$release/bb.exe was not built"
+            exit 1
+          fi
+          nsi=$(find "$release/nsis" -name '*.nsi' | head -n 1)
+          if [ -z "$nsi" ]; then
+            echo "::error::no NSIS script found under $release/nsis"
+            exit 1
+          fi
+          if ! grep -q 'bb\.exe' "$nsi"; then
+            echo "::error::$nsi does not mention bb.exe"
+            exit 1
+          fi
+          echo "bb.exe is built and listed in $nsi"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bashboard-installer
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error

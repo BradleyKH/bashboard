@@ -1,0 +1,1471 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #01070c;
+}
+
+#backdrop {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#panes {
+  position: fixed;
+  inset: 8px;
+  z-index: 1;
+  display: flex;
+}
+
+.split {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split.row {
+  flex-direction: row;
+}
+
+.split.column {
+  flex-direction: column;
+}
+
+.divider {
+  flex: 0 0 4px;
+  background: transparent;
+  touch-action: none;
+}
+
+.divider.row {
+  cursor: col-resize;
+}
+
+.divider.column {
+  cursor: row-resize;
+}
+
+.divider:hover,
+.divider.dragging {
+  background: rgba(79, 179, 200, 0.25);
+}
+
+body.resizing {
+  user-select: none;
+}
+
+body.resizing.row {
+  cursor: col-resize;
+}
+
+body.resizing.column {
+  cursor: row-resize;
+}
+
+:root {
+  --scrim-opacity: 0.45;
+  --scrim-blur: 0px;
+}
+
+.pane {
+  position: relative;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane.focused {
+  border-color: #4fb3c8;
+}
+
+/* The scrim sits under the text layer so it darkens the backdrop without dimming glyphs. */
+.pane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, var(--scrim-opacity));
+  backdrop-filter: blur(var(--scrim-blur));
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Title strip (docs/design.md section 4.4): in the flow with two or more panes, otherwise an
+   overlay shown on hover so it never reflows a lone terminal. */
+.pane-strip {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0 4px 0 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #9aa6ad;
+  font: 11px system-ui, sans-serif;
+  user-select: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+#panes:not(.multi) .pane-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(6, 12, 18, 0.85);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+/* Revealed by hovering its own (invisible) band, so the pointer resting anywhere else in the
+   terminal never covers the first row. */
+#panes:not(.multi) .pane-strip:hover {
+  opacity: 1;
+}
+
+/* Ctrl+click opens links, so a held Ctrl lets the pointer through to the first row. */
+.ctrl-held #panes:not(.multi) .pane-strip {
+  pointer-events: none;
+}
+
+.pane.focused .strip-title {
+  color: #eef3f5;
+}
+
+.strip-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strip-collapse,
+.strip-close {
+  flex: none;
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: inherit;
+  font-size: 14px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.strip-collapse:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+.strip-close:hover {
+  background: rgba(196, 43, 28, 0.85);
+  color: #fff;
+}
+
+.strip-zoom {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: inherit;
+  font-size: 13px;
+  line-height: 14px;
+  cursor: pointer;
+}
+
+.strip-zoom[hidden] {
+  display: none;
+}
+
+.strip-zoom:hover,
+.strip-zoom.zoomed {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+/* Same rhythm and accent as .pane.attention. */
+.strip-zoom.attention {
+  border-color: #4fb3c8;
+  color: #4fb3c8;
+  animation: attention-pulse 1s ease-in-out infinite;
+}
+
+/* Find bar (docs/design.md section 4.4): below the title strip, above it in stacking order. */
+.find-bar {
+  position: absolute;
+  top: 24px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(79, 179, 200, 0.4);
+  border-radius: 4px;
+  background: rgba(6, 12, 18, 0.92);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+}
+
+.find-input {
+  width: 180px;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #eef3f5;
+  font: inherit;
+  outline: none;
+}
+
+.find-input:focus {
+  border-color: #4fb3c8;
+}
+
+.find-count {
+  min-width: 64px;
+  color: #9aa6ad;
+  white-space: nowrap;
+}
+
+.find-button {
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: inherit;
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.find-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+/* Collapsed terminals open here once so xterm can measure, then leave the DOM. */
+.pane-sizer {
+  position: fixed;
+  left: -100000px;
+  top: 0;
+  display: grid;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Docking drag (docs/design.md section 4.2); geometry is set inline by dockOverlay.ts. */
+.dock-layer {
+  background: transparent;
+}
+
+.dock-zone {
+  box-sizing: border-box;
+  border: 2px solid #4fb3c8;
+  border-radius: 4px;
+  background: rgba(79, 179, 200, 0.18);
+}
+
+/* A window-edge band reads as a different target than a pane zone. */
+.dock-zone[data-zone^='window-'] {
+  border-width: 4px;
+  background: rgba(79, 179, 200, 0.3);
+}
+
+.dock-ghost {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(6, 12, 18, 0.9);
+  border: 1px solid #4fb3c8;
+  color: #eef3f5;
+  font: 12px system-ui, sans-serif;
+}
+
+/* xterm.css paints the viewport black and always shows a scrollbar; let the backdrop through
+   and keep scrolling to the wheel, matching Windows Terminal's hidden scrollbar. */
+.xterm .xterm-viewport {
+  background-color: transparent !important;
+  scrollbar-width: none;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar {
+  display: none;
+}
+
+/* Dashboard (docs/design.md section 4.6): above the panes, below toasts. `--dashboard-width`
+   is set from JS as the user drags the panel's left edge. */
+:root {
+  --dashboard-width: 300px;
+}
+
+body.dashboard-open #panes {
+  right: calc(var(--dashboard-width) + 16px);
+}
+
+#dashboard {
+  display: none;
+  position: fixed;
+  top: 8px;
+  bottom: 8px;
+  right: 8px;
+  width: var(--dashboard-width);
+  z-index: 2;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px;
+  overflow-y: auto;
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.72);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  user-select: none;
+  scrollbar-width: thin;
+}
+
+body.dashboard-open #dashboard,
+body.dashboard-peek #dashboard {
+  display: flex;
+}
+
+/* The peek floats over the panes (no #panes inset), so nothing refits. */
+body.dashboard-peek:not(.dashboard-open) #dashboard {
+  animation: dashboard-peek-in 160ms ease-out;
+  box-shadow: 0 0 0 1px rgba(79, 179, 200, 0.5), 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes dashboard-peek-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+/* Pulled up into the panel's padding and over the column gap, so the row costs little height. */
+#dashboard .dashboard-top {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin: -6px -4px -12px 0;
+}
+
+/* Straddles the panel's left edge; fixed so the panel's scroll never carries it away. */
+.dashboard-resize {
+  position: fixed;
+  top: 8px;
+  bottom: 8px;
+  right: calc(var(--dashboard-width) + 8px - 4px);
+  width: 8px;
+  z-index: 3;
+  cursor: ew-resize;
+}
+
+.dashboard-resize:hover,
+body.dashboard-resizing .dashboard-resize {
+  background: linear-gradient(to right, transparent 3px, rgba(79, 179, 200, 0.6) 3px 5px, transparent 5px);
+}
+
+body.dashboard-resizing {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+#dashboard .dashboard-hide {
+  font-size: 14px;
+}
+
+#dashboard .dashboard-footer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#dashboard .dashboard-bottom-start {
+  margin-top: auto;
+}
+
+#dashboard .hooks-install,
+#dashboard .help-open {
+  padding: 4px 8px;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+#dashboard .hooks-install[hidden] {
+  display: none;
+}
+
+/* Repo, the top section, has no rule; neither does whichever section is first while it is hidden. */
+#dashboard .dashboard-section:not(.repo-section) {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#dashboard .repo-section[hidden] + .dashboard-section {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Cuts an overlong path from the left, keeping its distinctive end (setPathText in displayPath.ts). */
+.path-text {
+  direction: rtl;
+  text-align: left;
+}
+
+.dashboard-section h2 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7f8c94;
+}
+
+.dashboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dashboard-empty {
+  color: #6c777e;
+  padding: 4px 2px;
+}
+
+.terminal-card,
+.session-row {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.terminal-card {
+  padding: 6px 8px;
+}
+
+.terminal-card:hover,
+.session-head:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.terminal-card.focused {
+  border-color: #4fb3c8;
+}
+
+.terminal-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.terminal-group + .terminal-group {
+  margin-top: 6px;
+}
+
+/* The guide line ties a tab's cards to its header; it takes the accent on the active tab. */
+.terminal-group-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 5px;
+  padding-left: 7px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.terminal-group.active .terminal-group-cards {
+  border-left-color: rgba(79, 179, 200, 0.7);
+}
+
+.terminal-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #9aa6ad;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.terminal-group-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.terminal-group.active .terminal-group-header {
+  color: #d6dde1;
+}
+
+.group-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-count {
+  color: #6c777e;
+}
+
+.card-head,
+.session-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.session-head {
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.card-title,
+.session-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #eef3f5;
+}
+
+.card-age,
+.session-age {
+  color: #7f8c94;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-collapsed {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9aa6ad;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-badge {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(120, 170, 220, 0.16);
+  color: #a9c4dc;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.terminal-card.collapsed .card-title {
+  color: #b8c3c9;
+}
+
+.card-path {
+  margin: 2px 0 0 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+#dashboard button {
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: inherit;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+#dashboard button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+#dashboard .card-close {
+  font-size: 14px;
+}
+
+.card-confirm {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #eef3f5;
+}
+
+#dashboard .card-confirm-yes {
+  color: #e58a7a;
+}
+
+.session-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px 6px 22px;
+}
+
+.session-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.session-detail-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa6ad;
+  font-family: 'Cascadia Mono', monospace;
+  font-size: 11px;
+  user-select: text;
+  cursor: text;
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #56626a;
+}
+
+.hue-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+.status-dot.working {
+  background: #4fb3c8;
+  animation: dot-working 1.6s ease-in-out infinite;
+}
+
+.status-dot.waiting {
+  background: #4fb3c8;
+  animation: dot-waiting 1s ease-in-out infinite;
+}
+
+/* A still check mark in the same 8 px footprint; the mask cuts it from a solid fill. */
+.status-dot.done {
+  border-radius: 0;
+  background: #6cc487;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+@keyframes dot-working {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Same rhythm as the waiting dot; border-color only, since the pane's ::before is the scrim. */
+.pane.attention,
+.terminal-card.attention,
+.terminal-group-header.attention {
+  border-color: #4fb3c8;
+  animation: attention-pulse 1s ease-in-out infinite;
+}
+
+@keyframes attention-pulse {
+  50% {
+    border-color: rgba(79, 179, 200, 0.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane.attention,
+  .terminal-card.attention,
+  .terminal-group-header.attention,
+  .strip-zoom.attention {
+    animation: none;
+  }
+}
+
+@keyframes dot-waiting {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 179, 200, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(79, 179, 200, 0);
+  }
+}
+
+.dashboard-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.dashboard-section-head h2 {
+  margin: 0;
+}
+
+#dashboard .favorite-add {
+  font-size: 14px;
+}
+
+#dashboard .favorite-add:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+  color: #9aa6ad;
+}
+
+.dashboard-subhead {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6c777e;
+}
+
+.favorite-row,
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.favorite-row {
+  padding: 4px 8px 4px 2px;
+}
+
+.recent-row {
+  padding: 3px 4px 3px 8px;
+}
+
+.favorite-row.layout-row {
+  padding-left: 8px;
+}
+
+.layout-prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.layout-prompt[hidden] {
+  display: none;
+}
+
+.layout-confirm-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #eef3f5;
+}
+
+#dashboard .layout-rename {
+  flex: 0 0 auto;
+  opacity: 0;
+}
+
+#dashboard .layout-rename:focus-visible,
+.layout-row:hover .layout-rename {
+  opacity: 1;
+}
+
+.favorite-row:hover,
+.recent-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.favorite-row.reordering {
+  opacity: 0.5;
+}
+
+.favorite-row.drop-before {
+  box-shadow: 0 -2px 0 0 #4fb3c8;
+}
+
+.favorite-row.drop-after {
+  box-shadow: 0 2px 0 0 #4fb3c8;
+}
+
+.favorite-handle {
+  flex: 0 0 auto;
+  width: 14px;
+  color: #56626a;
+  text-align: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.favorite-handle:hover {
+  color: #9aa6ad;
+}
+
+.favorite-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.favorite-label,
+.recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #eef3f5;
+}
+
+.favorite-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+#dashboard .favorite-rename,
+.picker-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0 4px;
+  border: 1px solid #4fb3c8;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #eef3f5;
+  font: inherit;
+  line-height: 18px;
+  outline: none;
+  user-select: text;
+}
+
+.recent-row {
+  color: #9aa6ad;
+}
+
+.recent-name {
+  flex: 0 0 auto;
+  max-width: 40%;
+}
+
+.recent-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+#dashboard .favorite-remove,
+#dashboard .recent-star {
+  flex: 0 0 auto;
+}
+
+/* Segoe UI Symbol draws the folder glyph monochrome, matching the other row icons. */
+#dashboard .folder-open {
+  flex: 0 0 auto;
+  font-family: 'Segoe UI Symbol', system-ui, sans-serif;
+  opacity: 0;
+}
+
+#dashboard .folder-open:focus-visible,
+#dashboard .favorite-row:hover .folder-open,
+#dashboard .recent-row:hover .folder-open,
+#dashboard .terminal-card:hover .folder-open,
+#dashboard .session-head:hover .folder-open {
+  opacity: 1;
+}
+
+#dashboard .favorite-remove {
+  font-size: 14px;
+}
+
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 15vh;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: min(480px, 90vw);
+  max-height: 60vh;
+  padding: 10px;
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.94);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  user-select: none;
+}
+
+.picker-input {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.picker-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.picker-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.picker-row.selected {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #4fb3c8;
+}
+
+.picker-label {
+  flex: 0 0 auto;
+  color: #eef3f5;
+}
+
+.picker-detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.hook-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.hook-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: min(560px, 90vw);
+  max-height: 70vh;
+  padding: 12px;
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.94);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  outline: none;
+}
+
+.hook-dialog h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eef3f5;
+}
+
+.hook-dialog-line {
+  margin: 0;
+  color: #9aa6ad;
+  overflow-wrap: anywhere;
+}
+
+.hook-dialog-line code {
+  color: #eef3f5;
+}
+
+.hook-dialog-json {
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  font: 11px ui-monospace, Consolas, monospace;
+  scrollbar-width: thin;
+}
+
+.hook-dialog-error {
+  color: #e87878;
+  overflow-wrap: anywhere;
+}
+
+.hook-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hook-dialog-buttons button {
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #d6dde2;
+  font: inherit;
+  cursor: pointer;
+}
+
+.hook-dialog-buttons button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.hook-dialog-buttons button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hook-dialog-buttons .hook-dialog-install {
+  border-color: #4fb3c8;
+}
+
+.help-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 8vh;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.help-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: min(560px, 90vw);
+  max-height: 84vh;
+  padding: 12px;
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.94);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  user-select: none;
+  outline: none;
+}
+
+.help-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.help-dialog h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eef3f5;
+}
+
+.help-dialog-close {
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: 16px system-ui, sans-serif;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.help-dialog-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+.help-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.help-dialog h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7f8c94;
+}
+
+.help-dialog-rows {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 16px;
+  align-items: baseline;
+}
+
+.help-dialog-note {
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.help-dialog-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.help-dialog kbd {
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef3f5;
+  font: 11px ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.help-dialog-footer {
+  margin: 0;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.settings-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 8vh;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.settings-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: min(640px, 90vw);
+  max-height: 84vh;
+  padding: 12px;
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.94);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  user-select: none;
+  outline: none;
+}
+
+.settings-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-dialog h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eef3f5;
+}
+
+.settings-dialog-close {
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: 16px system-ui, sans-serif;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.settings-dialog-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+.settings-dialog-warnings {
+  padding: 6px 8px;
+  border-left: 2px solid #e0b050;
+  border-radius: 3px;
+  background: rgba(224, 176, 80, 0.08);
+  color: #e8cf96;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.settings-dialog-warnings[hidden] {
+  display: none;
+}
+
+.settings-dialog-warnings p {
+  margin: 0;
+}
+
+.settings-dialog-warnings p + p {
+  margin-top: 2px;
+}
+
+.settings-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* Keeps the scrollbar off the unit labels at the right edge. */
+  padding-right: 8px;
+}
+
+.settings-dialog-body > section {
+  position: relative;
+  padding-top: 10px;
+}
+
+/* A pseudo-element rather than border-top so the rule also spans the body's right padding. */
+.settings-dialog-body > section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: -8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.settings-dialog h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7f8c94;
+}
+
+.settings-dialog-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+  gap: 8px 16px;
+  align-items: start;
+}
+
+.settings-dialog-label {
+  padding-top: 3px;
+}
+
+.settings-dialog-note {
+  margin: 0;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.settings-dialog-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.settings-dialog-input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #eef3f5;
+  font: inherit;
+  line-height: 18px;
+  outline: none;
+  user-select: text;
+}
+
+.settings-dialog-input:focus {
+  border-color: #4fb3c8;
+}
+
+.settings-dialog-control.invalid .settings-dialog-input {
+  border-color: #e87878;
+}
+
+.settings-dialog-number {
+  flex: 0 0 96px;
+  color-scheme: dark;
+}
+
+.settings-dialog-list {
+  font: 11px ui-monospace, Consolas, monospace;
+  resize: vertical;
+}
+
+.settings-dialog-unit,
+.settings-dialog-readout {
+  color: #9aa6ad;
+  white-space: nowrap;
+}
+
+.settings-dialog-readout {
+  min-width: 44px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-dialog-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  accent-color: #4fb3c8;
+}
+
+.settings-dialog-toggle {
+  margin: 3px 0;
+  accent-color: #4fb3c8;
+  cursor: pointer;
+}
+
+.settings-dialog-error {
+  color: #e87878;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.settings-dialog-control .settings-dialog-error {
+  flex: 1 0 100%;
+  text-align: right;
+}
+
+.settings-dialog-error[hidden] {
+  display: none;
+}
+
+.settings-dialog-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-dialog-open {
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #d6dde2;
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings-dialog-open:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* A confirmation can be raised from inside another modal, so it stacks above all of them. */
+.confirm-dialog-backdrop {
+  z-index: 6;
+}
+
+.confirm-dialog {
+  width: min(420px, 90vw);
+}
+
+.confirm-dialog-line {
+  color: #d6dde2;
+}
+
+.collapsible-head {
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapsible-head h2::before,
+h2.collapsible-head::before {
+  content: '▾';
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: #6c777e;
+}
+
+.dashboard-section.collapsed .collapsible-head h2::before,
+h2.collapsible-head::before {
+  content: '▸';
+}
+
+.dashboard-section.collapsed > :not(.collapsible-head) {
+  display: none;
+}
+
+.dashboard-section.collapsed .collapsible-head {
+  margin-bottom: 0;
+}
+
+.kind-icon {
+  flex: none;
+  width: 8px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1;
+  color: #9aa6ad;
+}

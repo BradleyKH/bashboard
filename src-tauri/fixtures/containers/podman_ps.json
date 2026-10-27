@@ -1,0 +1,49 @@
+[
+  {
+    "AutoRemove": false,
+    "Command": ["nginx", "-g", "daemon off;"],
+    "Created": "2026-10-26T12:00:00.000000000-05:00",
+    "Id": "5f1c2b3a4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8",
+    "Image": "docker.io/library/nginx:alpine",
+    "Labels": {
+      "io.podman.compose.project": "myapp",
+      "io.podman.compose.service": "web"
+    },
+    "Names": ["myapp_web_1"],
+    "Ports": [
+      { "host_ip": "", "container_port": 80, "host_port": 8080, "range": 1, "protocol": "tcp" }
+    ],
+    "State": "running",
+    "Status": "Up 3 hours"
+  },
+  {
+    "Id": "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9",
+    "Image": "docker.io/library/redis:7-alpine",
+    "Labels": null,
+    "Names": ["ranged"],
+    "Ports": [
+      { "host_ip": "0.0.0.0", "container_port": 7000, "host_port": 9000, "range": 3, "protocol": "udp" },
+      { "host_ip": "", "container_port": 6379, "host_port": 0, "range": 1, "protocol": "tcp" }
+    ],
+    "State": "running",
+    "Status": "Up 1 minute"
+  },
+  {
+    "Id": "1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a",
+    "Image": "docker.io/library/alpine:latest",
+    "Labels": {},
+    "Names": ["plain"],
+    "Ports": null,
+    "State": "created",
+    "Status": "Created"
+  },
+  {
+    "Id": "2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b",
+    "Image": "docker.io/library/alpine:latest",
+    "Labels": {},
+    "Names": ["stopped-one"],
+    "Ports": [],
+    "State": "stopped",
+    "Status": "Exited (0) 2 hours ago"
+  }
+]

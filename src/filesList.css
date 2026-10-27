@@ -1,0 +1,236 @@
+.files-crumb {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  font: 12px system-ui, sans-serif;
+  color: #b8b8b8;
+}
+
+.files-crumb-btn,
+.files-crumb-seg {
+  flex: none;
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.files-crumb-btn:hover:not(:disabled),
+.files-crumb-seg:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+.files-crumb-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.files-crumb-btn.on {
+  color: #e6c15a;
+}
+
+.files-crumb-seg:disabled {
+  color: #e6e6e6;
+  cursor: default;
+}
+
+.files-crumb-trail {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.files-crumb-sep {
+  flex: none;
+  color: #6f7a80;
+}
+
+.files-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font: 12px system-ui, sans-serif;
+  color: #d6dde2;
+}
+
+.files-filter {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px 2px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.files-filter-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+.files-filter-clear {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: #9aa6ad;
+  font: inherit;
+  cursor: pointer;
+}
+
+.files-filter-clear:hover {
+  color: #eef3f5;
+}
+
+.files-list-rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  outline: none;
+  container-type: inline-size;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  cursor: default;
+  user-select: none;
+}
+
+.file-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.file-row.selected {
+  background: rgba(79, 179, 200, 0.22);
+}
+
+.files-list-rows:not(:focus) .file-row.selected {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.file-row-icon {
+  flex: none;
+  width: 16px;
+  text-align: center;
+}
+
+.file-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row-meta {
+  flex: none;
+  color: #8a959b;
+  white-space: pre;
+}
+
+.file-row-meta:empty {
+  display: none;
+}
+
+/* The name keeps the room in a narrow list: the date goes first, then the size. */
+@container (max-width: 240px) {
+  .file-row-date {
+    display: none;
+  }
+}
+
+@container (max-width: 170px) {
+  .file-row-size {
+    display: none;
+  }
+
+  .file-row:not(:hover, .selected) .file-row-menu {
+    display: none;
+  }
+}
+
+.file-row-menu {
+  flex: none;
+  visibility: hidden;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #b8b8b8;
+  font: inherit;
+  cursor: pointer;
+}
+
+.file-row:hover .file-row-menu,
+.file-row.selected .file-row-menu {
+  visibility: visible;
+}
+
+.file-row-menu:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eef3f5;
+}
+
+.file-menu {
+  position: fixed;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.96);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  outline: none;
+}
+
+.file-menu-item {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-menu-item:hover,
+.file-menu-item:focus {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.file-menu-sub {
+  display: flex;
+  flex-direction: column;
+  padding-left: 12px;
+}
+
+.files-filter[hidden],
+.file-menu-sub[hidden] {
+  display: none;
+}

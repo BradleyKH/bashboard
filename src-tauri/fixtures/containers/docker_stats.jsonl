@@ -1,0 +1,2 @@
+{"BlockIO":"0B / 0B","CPUPerc":"0.00%","Container":"bashboard-test-web","ID":"a9e523308c0d","MemPerc":"0.22%","MemUsage":"17.21MiB / 7.756GiB","Name":"bashboard-test-web","NetIO":"1.95kB / 126B","PIDs":"21"}
+{"BlockIO":"0B / 0B","CPUPerc":"0.33%","Container":"bashboard-test-cache","ID":"9e15c08c1203","MemPerc":"0.14%","MemUsage":"11.47MiB / 7.756GiB","Name":"bashboard-test-cache","NetIO":"1.56kB / 126B","PIDs":"6"}

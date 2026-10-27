@@ -1,0 +1,50 @@
+.scratch-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.scratch-toolbar {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  padding: 2px 4px;
+}
+
+.scratch-toolbar button {
+  font: 11px system-ui, sans-serif;
+  color: #b8b8b8;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.scratch-toolbar button:hover:not(:disabled) {
+  color: #e6e6e6;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.scratch-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.scratch-text {
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 8px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: #e6e6e6;
+  caret-color: #4fb3c8;
+  white-space: pre-wrap;
+}
+
+.scratch-text::selection {
+  background: #4fb3c880;
+}

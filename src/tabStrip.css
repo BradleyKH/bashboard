@@ -1,0 +1,133 @@
+/* Tab strip (docs/design.md section 4.10): chrome above the panes, below the dock layer. */
+#tab-strip {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  height: 28px;
+  z-index: 3;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #9aa6ad;
+  font: 12px system-ui, sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+#tab-strip[hidden] {
+  display: none;
+}
+
+body.dashboard-open #tab-strip,
+body.dashboard-peek #tab-strip {
+  right: calc(var(--dashboard-width) + 16px);
+}
+
+/* Overrides only `top`; the dashboard's `right` rule keeps working. */
+body.has-tabs #panes {
+  top: 36px;
+}
+
+.tab-item {
+  position: relative;
+  flex: 0 1 180px;
+  min-width: 56px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 0 4px 0 10px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.tab-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-item.active {
+  color: #eef3f5;
+  background: rgba(255, 255, 255, 0.09);
+  border-bottom-color: #4fb3c8;
+}
+
+.tab-item.dragging {
+  opacity: 0.7;
+}
+
+.tab-item.attention {
+  animation: tab-attention-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tab-attention-pulse {
+  50% {
+    background: rgba(79, 179, 200, 0.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-item.attention {
+    animation: none;
+    background: rgba(79, 179, 200, 0.22);
+  }
+}
+
+.tab-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-rename {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 1px 4px;
+  border: 1px solid #4fb3c8;
+  border-radius: 3px;
+  outline: none;
+  background: rgba(6, 12, 18, 0.9);
+  color: #eef3f5;
+  font: inherit;
+}
+
+.tab-close,
+.tab-add {
+  flex: none;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: 14px system-ui, sans-serif;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tab-close {
+  padding: 2px 6px;
+  opacity: 0;
+}
+
+.tab-item:hover .tab-close,
+.tab-close:focus-visible {
+  opacity: 1;
+}
+
+.tab-close:hover,
+.tab-add:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eef3f5;
+}
+
+.tab-add {
+  align-self: center;
+  padding: 3px 9px;
+}

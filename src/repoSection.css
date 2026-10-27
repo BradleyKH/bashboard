@@ -1,0 +1,60 @@
+/* The dashboard's Repo section. Pin rows reuse the favorite row styles. */
+.repo-section[hidden] {
+  display: none;
+}
+
+.repo-name {
+  text-transform: none;
+}
+
+.repo-branch {
+  margin-left: 8px;
+  font-weight: normal;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #4fb3c8;
+}
+
+.repo-branch[hidden] {
+  display: none;
+}
+
+.repo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+#dashboard .repo-button {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.pin-row .pin-icon {
+  flex: 0 0 auto;
+  font-family: 'Segoe UI Symbol', system-ui, sans-serif;
+  color: #9aa6ad;
+}
+
+.pin-row .pin-label {
+  flex: 1;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-row.missing {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#dashboard .pin-row .layout-rename {
+  flex: 0 0 auto;
+}
+
+#dashboard .pin-row:hover .layout-rename {
+  opacity: 1;
+}
