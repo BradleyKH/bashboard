@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Action, Keymap } from './keymap';
 import { isOpenableUrl } from './links';
 import { classifyLink, renderMarkdown } from './markdownRender';
+import { PreviewFind, revealIn, selectRange, type FindSurface } from './previewFind';
 import { fsReadText } from './repoFiles';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
@@ -22,6 +23,7 @@ export class MarkdownView {
   readonly el: HTMLElement;
   private readonly toggle: HTMLButtonElement;
   private readonly body: HTMLElement;
+  readonly find: PreviewFind;
   private readonly opts: MarkdownViewOptions;
   private text: string;
   private modified: number;
@@ -42,7 +44,8 @@ export class MarkdownView {
     this.toggle = document.createElement('button');
     this.toggle.type = 'button';
     this.toggle.addEventListener('click', () => void this.toggleEdit());
-    toolbar.appendChild(this.toggle);
+    this.find = new PreviewFind(() => this.findSurface());
+    toolbar.append(this.toggle, this.find.button, this.find.bar);
     this.body = document.createElement('div');
     this.body.className = 'markdown-body';
     this.body.tabIndex = -1;
@@ -90,6 +93,7 @@ export class MarkdownView {
 
   dispose(): void {
     this.disposed = true;
+    this.find.dispose();
     this.editor?.dispose();
     this.el.remove();
   }
@@ -102,6 +106,7 @@ export class MarkdownView {
       this.editor.dispose();
       this.editor = null;
       this.showRendered();
+      this.find.refresh();
       return;
     }
     this.editor = new TextEditor({
@@ -116,7 +121,20 @@ export class MarkdownView {
     this.body.classList.add('editing');
     this.toggle.textContent = 'Done';
     this.toggle.title = 'Show the rendered markdown';
-    this.editor.focus();
+    this.find.refresh();
+    if (!this.find.isOpen) this.editor.focus();
+  }
+
+  private findSurface(): FindSurface {
+    if (this.editor) return this.editor.findSurface();
+    return {
+      textRoot: this.body,
+      reveal: (range) => revealIn(this.body, range),
+      done: (range) => {
+        this.body.focus({ preventScroll: true });
+        selectRange(range);
+      },
+    };
   }
 
   private showRendered(): void {

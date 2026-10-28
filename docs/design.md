@@ -563,7 +563,9 @@ need no key: only the release workflow turns on `bundle.createUpdaterArtifacts`,
 the workflow on a Windows runner: it checks that the tag matches `package.json`, runs the type
 check, the front end tests, and the Rust tests, then builds with `tauri-action` into a draft
 release named "Bashboard v<version> (alpha)", not marked as a prerelease, with the NSIS
-installer, its `.sig`, and `latest.json`. A step then checks that `bb.exe` was built and is
+installer, its `.sig`, and `latest.json`. The release body, which also becomes the `notes` in
+`latest.json`, is the annotated tag's message (if any) followed by the standard alpha
+SmartScreen text; a lightweight tag gets the standard text alone. A step then checks that `bb.exe` was built and is
 listed in the installer script (3.13), and only after that is the release published, so a
 broken build never becomes the release the updater reads.
 
@@ -732,7 +734,7 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Alt+9 | Switch to the last tab |
 | Alt+Arrow | Move focus |
 | Alt+Shift+Arrow | Resize pane |
-| Ctrl+Shift+F | Find in scrollback |
+| Ctrl+Shift+F | Find in scrollback, or in the file preview of a Files pane (4.12) |
 | Ctrl+C | Copy if there's a selection, otherwise pass ^C |
 | Ctrl+Shift+C | Copy |
 | Ctrl+V, Ctrl+Shift+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image |
@@ -753,7 +755,8 @@ binding, and `"action": "unbound"` removes a default so the key reaches the shel
 
 In panes other than terminals, copy, paste, Shift+Enter, Ctrl+Shift+F, and typing act on the
 pane's own text fields as a browser would; every other action applies as it does in a
-terminal.
+terminal. The Files pane is the exception for Ctrl+Shift+F, which opens its preview's find bar
+(4.12).
 
 ### 4.6 Dashboard panel
 
@@ -1031,6 +1034,16 @@ The preview depends on the file:
 - **Plain text** (`.txt`, or no extension) opens in the text editor.
 - **Other text files** show read-only, monospaced, with line numbers.
 - **Binary files, and files over 2 MiB,** show their name, size, and an Open in editor button.
+
+**Find** (`previewFind.ts`): every text preview has a Find button on its toolbar, beside Edit
+for markdown; Ctrl+Shift+F anywhere in the Files pane does the same. It opens a bar in the
+toolbar that works like the terminal's (4.4): case-insensitive, literal, as you type, Enter for
+the next match and Shift+Enter for the previous, "n of m" or "No results". Matches are painted
+with the CSS Custom Highlight API, so the rendered markdown's DOM is never rewritten; past 5000
+matches it stops and the count reads "5000+ matches". In the text editor, a hidden copy of the
+text laid out under the transparent textarea carries the highlights. The search follows the
+text as it changes: an edit, a reload, or the Edit toggle re-runs it. Esc closes the bar and
+selects the current match (in the editor, as the caret's selection).
 
 **Text editor.** A monospaced text area. It saves one second after typing stops, on blur, and
 on Ctrl+S, through `fs_write_text` with the modified time it last read. When the file changes on

@@ -87,6 +87,6 @@ describe('helpSections', () => {
   });
 
   it('skips entries whose keys do not parse', () => {
-    expect(row([{ keys: 'ctrl+', action: 'find' }], 'Find in scrollback')).toBeUndefined();
+    expect(row([{ keys: 'ctrl+', action: 'find' }], 'Find in scrollback or file preview')).toBeUndefined();
   });
 });

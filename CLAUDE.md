@@ -25,7 +25,11 @@ Rust tests run from `src-tauri/` with `cargo test` (`cargo test settings` for on
 Git Bash, cargo may need `export PATH="$HOME/.cargo/bin:$PATH"` first. The Rust sources are not
 `cargo fmt` clean, so don't run `cargo fmt` repo-wide; format only what you touch.
 
-Releases: `pnpm version:set <version>`, commit, then push a `v<version>` tag. The release workflow
+Releases: `pnpm version:set <version>`, commit, then push a `v<version>` tag. For release notes,
+make it an annotated tag (`git tag -a v<version> --cleanup=whitespace -F notes.md`); its message
+leads the GitHub release body and the updater's `latest.json` notes, and a lightweight tag gets
+only the standard alpha text. `--cleanup=whitespace` keeps markdown `#` headings, which the
+default cleanup strips as comments. The release workflow
 (`.github/workflows/release.yml`) builds and publishes the installer, its `.sig`, and
 `latest.json` for the in-app updater (docs/design.md section 3.16); it needs the repo secrets
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Local and CI builds need no

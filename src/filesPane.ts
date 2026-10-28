@@ -536,9 +536,14 @@ export class FilesPane implements PaneView {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
+    const action = lookup(this.opts.keymap(), e);
+    if (action?.type === 'find' && this.preview.openFind()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     // The preview's editors run the same lookup on their own keys.
     if (this.preview.el.contains(e.target as Node)) return;
-    const action = lookup(this.opts.keymap(), e);
     if (action && !textFieldOwns(action) && this.opts.dispatch(action)) {
       e.preventDefault();
       e.stopPropagation();

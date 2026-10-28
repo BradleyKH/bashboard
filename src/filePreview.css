@@ -64,8 +64,57 @@
 .preview-toolbar {
   flex: none;
   display: flex;
+  align-items: center;
   gap: 4px;
   padding: 2px 4px;
+}
+
+.preview-frame {
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-frame > :not(.preview-toolbar) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.preview-toolbar button[hidden],
+.preview-find[hidden] {
+  display: none;
+}
+
+/* The bar reuses the terminal find bar's input, count, and buttons (styles.css). */
+.preview-find {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font: 11px system-ui, sans-serif;
+  color: #d6dde2;
+}
+
+.preview-find .find-input {
+  flex: 0 1 180px;
+  width: auto;
+  min-width: 60px;
+}
+
+.preview-toolbar .preview-find .find-button {
+  padding: 0 6px;
+  border: none;
+  font-size: 13px;
+  line-height: 16px;
+  color: #9aa6ad;
+}
+
+::highlight(preview-find) {
+  background-color: #2a5a66;
+}
+
+::highlight(preview-find-current) {
+  background-color: #4fb3c8;
+  color: #06121a;
 }
 
 .markdown-body {
@@ -193,19 +242,53 @@
   display: none;
 }
 
-.editor-text {
+.editor-field {
+  position: relative;
+  display: flex;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* The textarea and its find mirror must lay text out identically, line for line. */
+.editor-text,
+.editor-mirror {
   box-sizing: border-box;
   margin: 0;
   padding: 4px 8px;
   border: 0;
+  font: inherit;
+  line-height: normal;
+  tab-size: 8;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  scrollbar-gutter: stable;
+}
+
+.editor-text {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   outline: 0;
   resize: none;
   background: transparent;
   color: #e6e6e6;
   caret-color: #4fb3c8;
-  white-space: pre-wrap;
+}
+
+.editor-mirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Room to scroll as far as the textarea can, whatever its last line holds. */
+.editor-mirror::after {
+  content: '';
+  display: block;
+  height: 100%;
 }
 
 .editor-text::selection {
@@ -241,4 +324,10 @@
 .code-text {
   flex: 1 0 auto;
   user-select: text;
+}
+
+/* The textarea draws the text over its mirror, so the mirror's match keeps no text of its own. */
+.editor-mirror::highlight(preview-find-current) {
+  background-color: #3a8a9c;
+  color: transparent;
 }

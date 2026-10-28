@@ -1,5 +1,6 @@
 import { lookup, type Action, type Keymap } from './keymap';
 import { toFontFamily } from './pane';
+import { revealIn, type FindSurface } from './previewFind';
 import { classifyReadError, fsReadText, fsWriteText } from './repoFiles';
 import type { Settings } from './settings';
 import { editorStep, initialEditorState, type EditorEffect, type EditorEvent, type EditorState } from './textEditorModel';
@@ -19,6 +20,13 @@ export interface TextEditorOptions {
 export class TextEditor {
   readonly el: HTMLElement;
   private readonly area: HTMLTextAreaElement;
+  private readonly field: HTMLElement;
+  /**
+   * A copy of the text laid out exactly under the transparent textarea, so the find bar can
+   * highlight matches, which a textarea cannot show itself. Filled only while find is open.
+   */
+  private readonly mirror: HTMLElement;
+  private mirrorOn = false;
   private readonly bar: HTMLElement;
   private readonly error: HTMLElement;
   private readonly opts: TextEditorOptions;
@@ -56,11 +64,21 @@ export class TextEditor {
     this.area.className = 'editor-text';
     this.area.spellcheck = false;
     this.area.value = this.state.text;
+    this.mirror = document.createElement('div');
+    this.mirror.className = 'editor-mirror';
+    this.mirror.setAttribute('aria-hidden', 'true');
+    this.field = document.createElement('div');
+    this.field.className = 'editor-field';
+    this.field.append(this.mirror, this.area);
     this.applySettings(opts.settings);
 
-    this.el.append(this.bar, this.error, this.area);
+    this.el.append(this.bar, this.error, this.field);
 
-    this.area.addEventListener('input', () => this.send({ type: 'edit', text: this.area.value }));
+    this.area.addEventListener('input', () => {
+      this.syncMirror();
+      this.send({ type: 'edit', text: this.area.value });
+    });
+    this.area.addEventListener('scroll', () => (this.mirror.scrollTop = this.area.scrollTop));
     this.area.addEventListener('blur', () => this.send({ type: 'saveRequested' }));
     this.area.addEventListener('keydown', (e) => this.onKeyDown(e));
   }
@@ -79,8 +97,21 @@ export class TextEditor {
   }
 
   applySettings(settings: Settings): void {
-    this.area.style.fontFamily = toFontFamily(settings.font.family);
-    this.area.style.fontSize = `${settings.font.size}px`;
+    this.field.style.fontFamily = toFontFamily(settings.font.family);
+    this.field.style.fontSize = `${settings.font.size}px`;
+  }
+
+  findSurface(): FindSurface {
+    if (!this.mirrorOn) {
+      this.mirrorOn = true;
+      this.syncMirror();
+    }
+    return {
+      textRoot: this.mirror,
+      // The mirror sits exactly under the textarea, so its ranges measure the textarea's text.
+      reveal: (range) => revealIn(this.area, range),
+      done: (range) => this.findDone(range),
+    };
   }
 
   /** The folder watch saw this file's modified time change. */
@@ -137,7 +168,10 @@ export class TextEditor {
         break;
       }
       case 'setText':
-        if (this.area.value !== effect.text) this.area.value = effect.text;
+        if (this.area.value !== effect.text) {
+          this.area.value = effect.text;
+          this.syncMirror();
+        }
         this.showError(null);
         break;
     }
@@ -183,6 +217,23 @@ export class TextEditor {
     } catch (err) {
       this.showError(`Could not save: ${errorMessage(err)}`);
     }
+  }
+
+  private syncMirror(): void {
+    if (!this.mirrorOn) return;
+    this.mirror.textContent = this.area.value;
+    this.mirror.scrollTop = this.area.scrollTop;
+  }
+
+  /** Leaves the current match selected in the textarea, as the caret's new place. */
+  private findDone(range: Range | null): void {
+    // The mirror holds one text node, so range offsets are textarea offsets.
+    const start = range?.startOffset;
+    const end = range?.endOffset;
+    this.mirrorOn = false;
+    this.mirror.textContent = '';
+    this.area.focus({ preventScroll: true });
+    if (start !== undefined && end !== undefined) this.area.setSelectionRange(start, end);
   }
 
   private showError(message: string | null): void {

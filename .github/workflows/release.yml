@@ -37,6 +37,31 @@ jobs:
             exit 1
           fi
 
+      # Release notes are the annotated tag's message, if any. checkout leaves the tag pointing
+      # straight at the commit, so the tag object has to be fetched before its message can be
+      # read. A lightweight tag has no message (its %(contents) would be the commit's), so it
+      # gets only the standard text.
+      - name: Read release notes from tag
+        id: notes
+        shell: bash
+        run: |
+          git fetch --force --no-tags origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          notes=""
+          if [ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag ]; then
+            notes=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          fi
+          standard='Alpha release. The installer is unsigned, so Windows SmartScreen may warn on first run:
+          choose "More info", then "Run anyway".'
+          delim="NOTES_$(date +%s%N)"
+          {
+            echo "body<<$delim"
+            if [ -n "$notes" ]; then
+              printf '%s\n\n' "$notes"
+            fi
+            printf '%s\n' "$standard"
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -60,9 +85,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Bashboard v__VERSION__ (alpha)'
-          releaseBody: |
-            Alpha release. The installer is unsigned, so Windows SmartScreen may warn on first run:
-            choose "More info", then "Run anyway".
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true

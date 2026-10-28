@@ -45,7 +45,7 @@ const LABELS: Record<string, string> = {
   resizePane: 'Resize pane',
   copy: 'Copy selection',
   paste: 'Paste',
-  find: 'Find in scrollback',
+  find: 'Find in scrollback or file preview',
   toggleDashboard: 'Toggle dashboard',
   openFavorite: 'Open a favorite folder',
   openLayout: 'Open a saved layout',

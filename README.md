@@ -301,6 +301,10 @@ The preview depends on the file:
 - **Binary and large files** (over 2 MiB, or containing NUL bytes) show a notice with the name and
   size and an Open in editor button.
 
+Text previews have a Find button (or Ctrl+Shift+F in the Files pane) that searches the file,
+ignoring case, and highlights every match. Enter and Shift+Enter step through them, and Esc
+closes the bar and selects the current match, so the editor's caret lands on it.
+
 The text editor saves about a second after you stop typing, when it loses focus, and on Ctrl+S.
 If the file changes on disk while you have no unsaved edits, it reloads in place. If it changes
 while you do (or a save finds it changed), a bar offers Reload, which discards your edits, or Keep
@@ -722,7 +726,11 @@ To publish a release:
    `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`; `tauri.conf.json` reads
    it from `package.json`.
 2. Commit the change, then create and push a `v<version>` tag: `git tag v<version>` and
-   `git push origin main v<version>`.
+   `git push origin main v<version>`. To give the release notes, make it an annotated tag
+   instead: `git tag -a v<version> --cleanup=whitespace -F notes.md` (or `-m "..."`). The tag
+   message leads the release description and the update notes installed apps see; without one,
+   the release carries only the standard alpha text. `--cleanup=whitespace` keeps markdown `#`
+   headings, which git otherwise strips as comments.
 
 The `.github/workflows/release.yml` workflow runs on the tag. It checks that the tag matches
 `package.json`, runs the checks, builds a draft GitHub release named

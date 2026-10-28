@@ -4,6 +4,7 @@ import { CodeView } from './codeView';
 import { previewKind } from './filesModel';
 import type { Action, Keymap } from './keymap';
 import { MarkdownView } from './markdownView';
+import { PreviewFind } from './previewFind';
 import { classifyReadError, fsReadText } from './repoFiles';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
@@ -20,8 +21,8 @@ export interface FilePreviewOptions {
 
 type Current =
   | { kind: 'markdown'; path: string; view: MarkdownView }
-  | { kind: 'plain'; path: string; view: TextEditor }
-  | { kind: 'code'; path: string; view: CodeView; modified: number }
+  | { kind: 'plain'; path: string; view: TextEditor; find: PreviewFind }
+  | { kind: 'code'; path: string; view: CodeView; modified: number; find: PreviewFind }
   | { kind: 'notice'; path: string; view: BinaryNotice };
 
 /** The right half of a Files pane: shows the selected file (docs/design.md section 4.12). */
@@ -101,6 +102,14 @@ export class FilePreview {
     if (c?.kind === 'plain' || c?.kind === 'markdown') c.view.focus();
   }
 
+  /** Opens the find bar on a text preview; false when the preview has none. */
+  openFind(): boolean {
+    const c = this.current;
+    if (!c || c.kind === 'notice') return false;
+    (c.kind === 'markdown' ? c.view.find : c.find).open();
+    return true;
+  }
+
   applySettings(settings: Settings): void {
     this.settings = settings;
     const c = this.current;
@@ -135,12 +144,14 @@ export class FilePreview {
       this.el.replaceChildren(view.el);
     } else if (kind === 'plain') {
       const view = new TextEditor({ path, text, modified, settings: this.settings, keymap, dispatch });
-      this.current = { kind, path, view };
-      this.el.replaceChildren(view.el);
+      const find = new PreviewFind(() => view.findSurface());
+      this.current = { kind, path, view, find };
+      this.el.replaceChildren(framed(view.el, find));
     } else {
       const view = new CodeView(text, this.settings);
-      this.current = { kind, path, view, modified };
-      this.el.replaceChildren(view.el);
+      const find = new PreviewFind(() => view.findSurface());
+      this.current = { kind, path, view, modified, find };
+      this.el.replaceChildren(framed(view.el, find));
     }
   }
 
@@ -166,8 +177,21 @@ export class FilePreview {
   }
 
   private clear(): void {
-    this.current?.view.dispose();
+    const c = this.current;
+    if (c?.kind === 'plain' || c?.kind === 'code') c.find.dispose();
+    c?.view.dispose();
     this.current = null;
     this.el.replaceChildren();
   }
+}
+
+/** A view under a toolbar holding its find button and bar. */
+function framed(view: HTMLElement, find: PreviewFind): HTMLElement {
+  const frame = document.createElement('div');
+  frame.className = 'preview-frame';
+  const toolbar = document.createElement('div');
+  toolbar.className = 'preview-toolbar';
+  toolbar.append(find.button, find.bar);
+  frame.append(toolbar, view);
+  return frame;
 }
