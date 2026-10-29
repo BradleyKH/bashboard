@@ -27,6 +27,8 @@ export interface HookEvent {
   hookEventName: string;
   cwd: string | null;
   message: string | null;
+  /** Claude Code's notice kind on `Notification` (e.g. 'permission_prompt'), else null. */
+  notificationType: string | null;
   paneId: number | null;
   /** Epoch ms. */
   at: number;

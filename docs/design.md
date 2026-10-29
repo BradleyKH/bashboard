@@ -226,7 +226,7 @@ exact transitions as they happen.
   | --- | --- |
   | `SessionStart` | Session bound to its pane |
   | `UserPromptSubmit` | `busy` |
-  | `Notification` | `waiting` (permission prompt or idle prompt); carries `message` |
+  | `Notification` | `waiting` when its `notification_type` needs input (a permission prompt, an elicitation dialog, or an agent needing input; or no type, from older Claude Code); other notices, including the idle prompt, change nothing; carries `message` |
   | `Stop` | `idle`, shown as `done` until the pane is looked at (4.8) |
   | `SessionEnd` | Session unbound from its pane |
 

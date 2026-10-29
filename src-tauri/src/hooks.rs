@@ -44,6 +44,7 @@ pub struct HookEvent {
     pub hook_event_name: String,
     pub cwd: Option<String>,
     pub message: Option<String>,
+    pub notification_type: Option<String>,
     pub pane_id: Option<u32>,
     pub at: u64,
 }
@@ -236,6 +237,7 @@ fn handle(
         hook_event_name: field("hook_event_name").unwrap_or_default(),
         cwd: field("cwd"),
         message: field("message"),
+        notification_type: field("notification_type"),
         pane_id: pane_header.and_then(|p| p.trim().parse().ok()),
         at: now,
     };
@@ -282,7 +284,7 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
     entry.last_at = ev.at;
     let status = match ev.hook_event_name.as_str() {
         "UserPromptSubmit" => Some(HookStatus::Busy),
-        "Notification" => Some(HookStatus::Waiting),
+        "Notification" if needs_input(ev.notification_type.as_deref()) => Some(HookStatus::Waiting),
         "Stop" => Some(HookStatus::Idle),
         _ => None,
     };
@@ -292,6 +294,23 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
     if let Some(p) = ev.pane_id {
         entry.pane_id = Some(p);
     }
+}
+
+/// Claude Code sends `Notification` for many notices (auth success, plugin and quota notices,
+/// finished background agents); only these block on the user. `idle_prompt` is left out because
+/// it follows a `Stop`, which already shows `done`, and would re-flag a pane the user has seen.
+/// A missing type is an older Claude Code, whose notifications were all prompts.
+fn needs_input(notification_type: Option<&str>) -> bool {
+    matches!(
+        notification_type,
+        None | Some(
+            "permission_prompt"
+                | "worker_permission_prompt"
+                | "elicitation_dialog"
+                | "elicitation_url_dialog"
+                | "agent_needs_input"
+        )
+    )
 }
 
 #[cfg(test)]
@@ -312,6 +331,7 @@ mod tests {
             hook_event_name: name.into(),
             cwd: None,
             message: None,
+            notification_type: None,
             pane_id,
             at,
         }
@@ -356,7 +376,7 @@ mod tests {
     #[test]
     fn keeps_only_known_fields() {
         let body = r#"{"session_id":"s1","hook_event_name":"Notification","cwd":"C:\\x",
-            "message":"needs you","transcript_path":"C:\\t.jsonl","extra":1}"#;
+            "message":"needs you","notification_type":"permission_prompt","transcript_path":"C:\\t.jsonl","extra":1}"#;
         let (code, ev) = post(Some(TOKEN), Some("7"), body);
         assert_eq!(code, 204);
         let ev = ev.unwrap();
@@ -367,13 +387,14 @@ mod tests {
                 hook_event_name: "Notification".into(),
                 cwd: Some("C:\\x".into()),
                 message: Some("needs you".into()),
+                notification_type: Some("permission_prompt".into()),
                 pane_id: Some(7),
                 at: 42,
             }
         );
         let json = serde_json::to_value(&ev).unwrap();
         let keys: Vec<&str> = json.as_object().unwrap().keys().map(String::as_str).collect();
-        assert_eq!(keys, ["sessionId", "hookEventName", "cwd", "message", "paneId", "at"]);
+        assert_eq!(keys, ["sessionId", "hookEventName", "cwd", "message", "notificationType", "paneId", "at"]);
     }
 
     #[test]
@@ -406,6 +427,22 @@ mod tests {
         assert_eq!(o["s1"].status, Some((HookStatus::Idle, 5)));
         apply(&mut o, &event("SessionEnd", Some(9), 6));
         assert!(o.is_empty());
+    }
+
+    #[test]
+    fn only_blocking_notifications_wait() {
+        let notify = |kind: &str, at: u64| HookEvent {
+            notification_type: Some(kind.into()),
+            ..event("Notification", None, at)
+        };
+        let mut o = HashMap::new();
+        apply(&mut o, &event("Stop", None, 1));
+        for (i, kind) in ["idle_prompt", "auth_success", "plugin_notification", "agent_completed"].iter().enumerate() {
+            apply(&mut o, &notify(kind, 2 + i as u64));
+            assert_eq!(o["s1"].status, Some((HookStatus::Idle, 1)), "{kind}");
+        }
+        apply(&mut o, &notify("permission_prompt", 9));
+        assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 9)));
     }
 
     #[test]
