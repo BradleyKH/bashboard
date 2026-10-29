@@ -8,6 +8,7 @@ import { PreviewFind } from './previewFind';
 import { classifyReadError, fsReadText } from './repoFiles';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
+import { textZoom } from './textZoomStore';
 import { ZoomButtons } from './zoomButtons';
 
 export interface FilePreviewOptions {
@@ -41,7 +42,7 @@ export class FilePreview {
     this.settings = opts.settings;
     this.el = document.createElement('div');
     this.el.className = 'file-preview';
-    this.zoom = new ZoomButtons('', 'filePreview', opts.settings.textZoom.filePreview, (zoom) =>
+    this.zoom = new ZoomButtons('', 'filePreview', textZoom('filePreview'), (zoom) =>
       this.el.style.setProperty('--preview-zoom', String(zoom)),
     );
     opts.host.appendChild(this.el);

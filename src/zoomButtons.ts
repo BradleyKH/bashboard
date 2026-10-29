@@ -1,12 +1,9 @@
-import { saveSetting, type Settings } from './settings';
 import { stepZoom, zoomPercent, ZOOM_LEVELS } from './textZoom';
-import { showToast } from './toast';
-
-export type TextZoomKey = keyof Settings['textZoom'];
+import { setTextZoom, type TextZoomKey } from './textZoomStore';
 
 /**
  * A − and + button pair that steps a pane's zoom level; the titles show the current level. Each
- * step is saved to `textZoom.<key>`, so the next pane of that kind starts there; other open
+ * step is saved to workspace.json's `textZoom.<key>`, so the next pane of that kind starts there; other open
  * panes keep their own zoom.
  */
 export class ZoomButtons {
@@ -37,9 +34,7 @@ export class ZoomButtons {
     this.zoom = next;
     this.sync();
     this.apply(next);
-    saveSetting(['textZoom', this.key], next).catch((err: unknown) =>
-      showToast(`Could not save the zoom: ${String(err)}`),
-    );
+    setTextZoom(this.key, next);
   }
 
   private sync(): void {

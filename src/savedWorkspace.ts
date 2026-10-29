@@ -3,6 +3,7 @@ import { type Layout, close, leaves } from './layout';
 import type { PaneKind } from './paneKinds';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
+import { type TextZoom, parseTextZoom } from './textZoomStore';
 
 /** One pane (docs/design.md sections 4.11 and 7). Pane ids do not survive a restart, so entries use saved keys. */
 export type SavedPane = { key: string; collapsed: boolean } & (
@@ -53,6 +54,8 @@ export interface SavedWorkspace {
   collapsedSections: DashboardSection[];
   /** The dashboard's width in px as the user last dragged it; absent means the default. */
   dashboardWidth?: number;
+  /** The zoom new Files and Git panes start at; absent means 1 for each. */
+  textZoom?: TextZoom;
 }
 
 export const EMPTY_WORKSPACE: SavedWorkspace = { version: 3, tabs: [], activeTab: 0, collapsedSections: [] };
@@ -218,6 +221,7 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (typeof raw.dashboardWidth === 'number' && Number.isFinite(raw.dashboardWidth) && raw.dashboardWidth > 0) {
     saved.dashboardWidth = raw.dashboardWidth;
   }
+  if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;
 }
 

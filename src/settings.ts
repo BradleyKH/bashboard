@@ -24,7 +24,6 @@ export interface Settings {
   editor: { preferred: string; command: string };
   containers: { enabled: boolean };
   /** The zoom a new pane of each kind starts at, from 0.5 to 3; its zoom buttons save it. */
-  textZoom: { filesList: number; filePreview: number; gitDiff: number };
   keybindings: KeybindingEntry[];
 }
 
@@ -51,7 +50,6 @@ export const DEFAULT_SETTINGS: Settings = {
   restore: { enabled: true, resumeClaude: true },
   editor: { preferred: 'default', command: '' },
   containers: { enabled: true },
-  textZoom: { filesList: 1, filePreview: 1, gitDiff: 1 },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

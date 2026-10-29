@@ -40,6 +40,7 @@ import type { PaneView } from './paneView';
 import { fsList, repoRoot, type RepoInfo } from './repoFiles';
 import type { Settings } from './settings';
 import { textFieldOwns } from './textPaneKeys';
+import { textZoom } from './textZoomStore';
 import { showToast } from './toast';
 
 export interface GitPaneOptions {
@@ -178,7 +179,7 @@ export class GitPane implements PaneView {
     this.right.className = 'git-right';
     this.diffView = new GitDiffView(() => {
       if (this.selection?.type === 'commit') void this.undo(this.selection.hash);
-    }, opts.settings.textZoom.gitDiff);
+    }, textZoom('gitDiff'));
     this.right.append(this.diffView.el);
 
     this.notice = document.createElement('div');

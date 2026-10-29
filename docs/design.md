@@ -304,7 +304,7 @@ a file:
 
 | File | Commands | Contents |
 | --- | --- | --- |
-| `workspace.json` | `workspace_load`, `workspace_save` | Open tabs, their panes, and layouts (section 7), for restore (4.9) |
+| `workspace.json` | `workspace_load`, `workspace_save` | Open tabs, their panes, and layouts (section 7), for restore (4.9); dashboard state and pane text zoom |
 | `favorites.json` | `favorites_load`, `favorites_save` | Favorite folders (4.6) |
 | `layouts.json` | `layouts_load`, `layouts_save` | Named layouts (4.6) |
 | `repos.json` | `repos_load`, `repos_save` | Pinned files and folders per repo (4.12) |
@@ -1070,8 +1070,8 @@ selects the current match (in the editor, as the caret's selection).
 browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
 Open in File Explorer and Open terminal here. Each scales from its base size (the terminal font
 size for code and the text editor) and holds while browsing the pane. Every step is saved to
-`textZoom.filePreview` or `textZoom.filesList` (section 8), the level a new Files pane starts
-at; other open panes keep their own.
+`textZoom.filePreview` or `textZoom.filesList` in workspace.json (section 7), the level a new
+Files pane starts at; other open panes keep their own.
 
 **Text editor.** A monospaced text area. It saves one second after typing stops, on blur, and
 on Ctrl+S, through `fs_write_text` with the modified time it last read. When the file changes on
@@ -1129,7 +1129,7 @@ For one git repo, top to bottom:
 
 Diffs show in a panel beside the lists, unified, with added and removed lines colored and hunk
 headers kept. A diff over the cap says so. The bar above the diff ends in − and + zoom buttons
-that work as the Files pane's do (4.12), saving to `textZoom.gitDiff`.
+that work as the Files pane's do (4.12), saving to `textZoom.gitDiff` in workspace.json.
 
 **Undo commit** sits at the start of that bar while the selected commit is the newest one and
 HEAD. It asks
@@ -1426,6 +1426,11 @@ interface SavedWorkspace {
   collapsedSections: DashboardSection[];
   /** Dashboard width in px as last dragged (4.6); absent means the 300 px default. */
   dashboardWidth?: number;
+  /**
+   * The zoom, from 0.5 to 3, that new Files and Git panes start at, as their zoom buttons last
+   * left it (4.12, 4.13); absent, or a field out of range, means 1.
+   */
+  textZoom?: { filesList: number; filePreview: number; gitDiff: number };
 }
 
 /** favorites.json (3.7), in display order. */
@@ -1536,9 +1541,6 @@ interface ShellProfile {
   "editor": { "preferred": "default", "command": "" },
   // false hides the Containers section; the Containers pane still opens on request (4.16).
   "containers": { "enabled": true },
-  // The zoom new Files and Git panes start at, from 0.5 to 3; their zoom buttons save it
-  // (4.12, 4.13).
-  "textZoom": { "filesList": 1, "filePreview": 1, "gitDiff": 1 },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
   // a field: switchToTab takes "index" from 1 to 8.
   "keybindings": [

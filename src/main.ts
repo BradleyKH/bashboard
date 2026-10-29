@@ -71,6 +71,7 @@ import {
 import type { RepoPinState } from './repoSection';
 import { parseSavedWorkspace } from './savedWorkspace';
 import { loadSessions, onHookEvent, onSessionsChanged, type Session } from './sessions';
+import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
 import { showToast } from './toast';
 import { trackCtrlHeld } from './ctrlHeld';
 import { TabStrip } from './tabStrip';
@@ -673,6 +674,7 @@ const saver = new DebouncedSaver(
     ...workspace.snapshot(),
     collapsedSections: panel.collapsedSections(),
     dashboardWidth: panel.width(),
+    textZoom: textZoomSnapshot(),
   }),
   workspaceSave,
   1000,
@@ -683,6 +685,7 @@ workspace.onChange(() => {
   trackRepo();
   saver.schedule();
 });
+onTextZoomChange(() => saver.schedule());
 // listen() rejects outside Tauri (plain `pnpm dev`); live updates are simply unavailable there.
 onSessionsChanged((next) => {
   sessions = next;
@@ -727,9 +730,10 @@ appWindow
 let restored = false;
 try {
   const saved = parseSavedWorkspace(await workspaceLoad());
-  // Collapsed sections and the panel width apply even when restoring panes is switched off.
+  // Collapsed sections, the panel width, and text zoom apply even when restoring panes is switched off.
   if (saved) panel.setCollapsedSections(saved.collapsedSections);
   if (saved?.dashboardWidth !== undefined) panel.setWidth(saved.dashboardWidth);
+  if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, { resumeClaude: payload.settings.restore.resumeClaude });
     restored = true;

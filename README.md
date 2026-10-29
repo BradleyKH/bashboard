@@ -701,14 +701,6 @@ Containers pane and tab still open on request.
 "containers": { "enabled": true }
 ```
 
-`textZoom` holds the zoom, from 0.5 to 3, that new Files and Git panes start at for the Files
-list, the file preview, and the Git diff. The zoom buttons in those panes save it as you click,
-so you rarely need to edit it.
-
-```jsonc
-"textZoom": { "filesList": 1, "filePreview": 1, "gitDiff": 1 }
-```
-
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to
 `settings.json`. Bashboard rewrites `workspace.json` itself (version 3, holding every tab);
 `favorites.json`, `layouts.json`, and `repos.json` are plain JSON you can edit by hand, and the

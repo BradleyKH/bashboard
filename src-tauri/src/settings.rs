@@ -80,15 +80,6 @@ pub struct Containers {
     pub enabled: bool,
 }
 
-/// The zoom a new pane of each kind starts at; the zoom buttons save it (docs/design.md 4.12, 4.13).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TextZoom {
-    pub files_list: f64,
-    pub file_preview: f64,
-    pub git_diff: f64,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Editor {
@@ -126,7 +117,6 @@ pub struct Settings {
     pub restore: Restore,
     pub editor: Editor,
     pub containers: Containers,
-    pub text_zoom: TextZoom,
     pub keybindings: Vec<Keybinding>,
 }
 
@@ -235,7 +225,6 @@ impl Default for Settings {
             restore: Restore { enabled: true, resume_claude: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             containers: Containers { enabled: true },
-            text_zoom: TextZoom { files_list: 1.0, file_preview: 1.0, git_diff: 1.0 },
             keybindings: default_keybindings(),
         }
     }
@@ -511,13 +500,6 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
     let containers = Containers {
         enabled: pick(&root, &["containers", "enabled"], &mut w, boolean, d.containers.enabled),
     };
-    // Matches ZOOM_LEVELS in src/textZoom.ts.
-    let zoom = |v: &Value| number(v).filter(|n| (0.5..=3.0).contains(n));
-    let text_zoom = TextZoom {
-        files_list: pick(&root, &["textZoom", "filesList"], &mut w, zoom, d.text_zoom.files_list),
-        file_preview: pick(&root, &["textZoom", "filePreview"], &mut w, zoom, d.text_zoom.file_preview),
-        git_diff: pick(&root, &["textZoom", "gitDiff"], &mut w, zoom, d.text_zoom.git_diff),
-    };
     let keybindings = parse_keybindings(&root, &mut w);
 
     Ok((
@@ -531,7 +513,6 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             restore,
             editor,
             containers,
-            text_zoom,
             keybindings,
         },
         w,
@@ -554,11 +535,6 @@ fn default_file_text() -> String {
         "  \"containers\": {",
         "  // false hides the Containers section; the Containers pane still opens on request (4.16).
   \"containers\": {",
-    )
-    .replace(
-        "  \"textZoom\": {",
-        "  // The zoom new Files and Git panes start at, from 0.5 to 3; their zoom buttons save it.
-  \"textZoom\": {",
     )
     .replace(
         "  \"keybindings\": []",
@@ -815,17 +791,6 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "containers": { "enabled": "no" } }"#);
         assert_eq!(s.containers, Settings::default().containers);
         assert!(w.iter().any(|m| m.starts_with("containers.enabled")), "missing warning: {w:?}");
-    }
-
-    #[test]
-    fn text_zoom_parses_and_out_of_range_value_falls_back() {
-        let (s, w) = parse_settings(r#"{ "textZoom": { "filesList": 1.25, "filePreview": 0.5, "gitDiff": 3 } }"#);
-        assert_eq!(s.text_zoom, TextZoom { files_list: 1.25, file_preview: 0.5, git_diff: 3.0 });
-        assert!(w.is_empty(), "{w:?}");
-        let (s, w) = parse_settings(r#"{ "textZoom": { "gitDiff": 4 } }"#);
-        assert_eq!(s.text_zoom, Settings::default().text_zoom);
-        assert!(w.iter().any(|m| m.starts_with("textZoom.gitDiff")), "missing warning: {w:?}");
-        assert!(default_file_text().contains("\"textZoom\""));
     }
 
     #[test]

@@ -24,6 +24,7 @@ import type { PaneView } from './paneView';
 import { fsList, fsMove, fsUnwatch, fsWatch, repoRoot } from './repoFiles';
 import type { Settings } from './settings';
 import { textFieldOwns } from './textPaneKeys';
+import { textZoom } from './textZoomStore';
 import { showToast } from './toast';
 
 export interface FilesPaneOptions {
@@ -133,7 +134,7 @@ export class FilesPane implements PaneView {
       onNavigate: (folder) => void this.navigate(folder, null, true),
       onOpenInExplorer: () => openFolder(this.currentPath),
       onOpenTerminalHere: () => opts.onOpenTerminalHere(this.currentPath),
-      zoom: opts.settings.textZoom.filesList,
+      zoom: textZoom('filesList'),
       onZoom: (zoom) => this.left.style.setProperty('--files-zoom', String(zoom)),
       onTogglePin: () => this.togglePin(),
     });

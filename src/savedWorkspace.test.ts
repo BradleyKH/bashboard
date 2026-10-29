@@ -411,6 +411,12 @@ describe('parseSavedWorkspace', () => {
     }
   });
 
+  it('keeps text zoom, falling back per field to 1', () => {
+    const raw = { ...v3([]), textZoom: { filesList: 1.25, filePreview: 4, gitDiff: 'big' } };
+    expect(parseSavedWorkspace(raw)?.textZoom).toEqual({ filesList: 1.25, filePreview: 1, gitDiff: 1 });
+    expect(parseSavedWorkspace({ ...v3([]), textZoom: 2 })).not.toHaveProperty('textZoom');
+  });
+
   it('accepts the empty workspace', () => {
     expect(parseSavedWorkspace(EMPTY_WORKSPACE)).toEqual(EMPTY_WORKSPACE);
   });

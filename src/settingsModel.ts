@@ -42,9 +42,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     fields: [
       { path: ['font', 'family'], label: 'Font family', kind: 'text', applies: 'live' },
       { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live' },
-      { path: ['textZoom', 'filesList'], label: 'Files list zoom', kind: 'slider', min: 0.5, max: 3, step: 0.05, unit: 'x', applies: 'newPanes' },
-      { path: ['textZoom', 'filePreview'], label: 'File preview zoom', kind: 'slider', min: 0.5, max: 3, step: 0.05, unit: 'x', applies: 'newPanes' },
-      { path: ['textZoom', 'gitDiff'], label: 'Git diff zoom', kind: 'slider', min: 0.5, max: 3, step: 0.05, unit: 'x', applies: 'newPanes' },
     ],
   },
   {
