@@ -122,6 +122,7 @@ export interface TabInfo {
 
 export interface WorkspaceHooks {
   onToggleDashboard?: () => void;
+  onFocusDashboard?: () => void;
   onOpenFavoritePicker?: () => void;
   onOpenLayoutPicker?: () => void;
   onOpenProfilePicker?: () => void;
@@ -971,6 +972,9 @@ export class Workspace {
       case 'toggleDashboard':
         this.hooks.onToggleDashboard?.();
         return true;
+      case 'focusDashboard':
+        this.hooks.onFocusDashboard?.();
+        return true;
       case 'openFavorite':
         this.hooks.onOpenFavoritePicker?.();
         return true;
@@ -1045,10 +1049,15 @@ export class Workspace {
     if (this.store.tree || e.defaultPrevented || this.overlay.isActive()) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-    const action = lookup(this.config.keymap, e);
-    if (!action || !this.dispatch(action)) return;
+    if (!this.runKey(e)) return;
     e.preventDefault();
     e.stopPropagation();
+  }
+
+  /** Runs the workspace action bound to a key pressed outside any pane; true when one ran. */
+  runKey(e: KeyboardEvent): boolean {
+    const action = lookup(this.config.keymap, e);
+    return action !== null && this.dispatch(action);
   }
 
   private onDrop(target: DropTarget | null): void {

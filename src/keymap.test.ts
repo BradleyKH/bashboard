@@ -77,6 +77,7 @@ describe('default keybindings', () => {
       down: ['ArrowDown', 'ArrowDown'],
       enter: ['Enter', 'Enter'],
       f1: ['F1', 'F1'],
+      f6: ['F6', 'F6'],
       f11: ['F11', 'F11'],
       ',': [',', 'Comma'],
       '=': ['=', 'Equal'],

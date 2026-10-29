@@ -429,7 +429,10 @@ to 14. Each step is 1 px, from 6 to 48, applies to every terminal, and is saved 
 ## Dashboard
 
 The panel on the right opens on start (set `dashboard.visibleOnStart` to `false` to start
-without it) and Ctrl+Shift+S toggles it, as does the × button at its top right. Drag its left
+without it) and Ctrl+Shift+S toggles it, as does the × button at its top right. F6 moves focus
+into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
+clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,
+and F6 or Escape returns to the pane. Drag its left
 edge to make it wider or narrower; the width is saved with the workspace. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab). A terminal's card shows its status (a green check mark when it is done),
@@ -775,6 +778,8 @@ built app:
   in a tab with one pane
 - Ctrl+=, Ctrl+numpad +, Ctrl+-, and Ctrl+0 change the font size; confirm WebView2 does not take
   Ctrl+=
+- F6 moves focus into the dashboard (peeking it when hidden), the arrows and Enter work there,
+  and F6 or Esc returns to the pane
 
 ## Debugging input
 

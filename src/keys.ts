@@ -56,6 +56,7 @@ function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
     case 'cycleScrim':
     case 'toggleBackdrop':
     case 'toggleDashboard':
+    case 'focusDashboard':
     case 'collapsePane':
     case 'togglePaneZoom':
     case 'openFavorite':

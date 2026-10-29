@@ -800,7 +800,7 @@ body.dashboard-resizing {
 }
 
 #dashboard .layout-rename:focus-visible,
-.layout-row:hover .layout-rename {
+.layout-row:is(:hover, :focus-within) .layout-rename {
   opacity: 1;
 }
 
@@ -902,11 +902,17 @@ body.dashboard-resizing {
 }
 
 #dashboard .folder-open:focus-visible,
-#dashboard .favorite-row:hover .folder-open,
-#dashboard .recent-row:hover .folder-open,
-#dashboard .terminal-card:hover .folder-open,
-#dashboard .session-head:hover .folder-open {
+#dashboard .favorite-row:is(:hover, :focus-within) .folder-open,
+#dashboard .recent-row:is(:hover, :focus-within) .folder-open,
+#dashboard .terminal-card:is(:hover, :focus-within) .folder-open,
+#dashboard .session-head:is(:hover, :focus-within) .folder-open {
   opacity: 1;
+}
+
+/* Only the keyboard focuses dashboard rows and buttons (F6); a mouse press keeps focus on the pane. */
+#dashboard :focus:not(input, textarea) {
+  outline: 1px solid #4fb3c8;
+  outline-offset: -1px;
 }
 
 #dashboard .favorite-remove {

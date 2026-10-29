@@ -174,6 +174,7 @@ pub fn default_keybindings() -> Vec<Keybinding> {
         kb("ctrl+shift+v", "paste", None, None),
         kb("shift+enter", "sendInput", None, Some("\u{1b}\r")),
         kb("ctrl+shift+s", "toggleDashboard", None, None),
+        kb("f6", "focusDashboard", None, None),
         kb("ctrl+shift+b", "cycleScrim", None, None),
         kb("ctrl+shift+l", "toggleBackdrop", None, None),
         kb("ctrl+shift+m", "collapsePane", None, None),
@@ -944,6 +945,12 @@ mod tests {
     fn help_is_bound_to_f1_by_default() {
         let s = Settings::default();
         assert_eq!(find(&s, "f1").map(|k| k.action.as_str()), Some("showHelp"));
+    }
+
+    #[test]
+    fn focus_dashboard_is_bound_to_f6_by_default() {
+        let s = Settings::default();
+        assert_eq!(find(&s, "f6").map(|k| k.action.as_str()), Some("focusDashboard"));
     }
 
     #[test]

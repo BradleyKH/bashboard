@@ -508,6 +508,8 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onShowHelp: () => showHelp(),
   onShowSettings: () => showSettings(),
   onHide: () => focusTerminal(),
+  onLeave: () => focusTerminal(),
+  onKey: (e): boolean => workspace.runKey(e),
   onOpenLayout: (name) => openLayout(name),
   onSaveLayout: saveLayout,
   onRenameLayout: renameLayout,
@@ -630,6 +632,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
     panel.toggle();
     focusTerminal();
   },
+  onFocusDashboard: (): void => (panel.hasFocus() ? panel.leave() : panel.focusIn()),
   onOpenFavoritePicker: () => picker.open(favoriteItems(), 'Open a favorite folder'),
   onOpenProfilePicker: () => profilePicker.open(profileItems(), 'Split with a shell'),
   onOpenLayoutPicker: () => layoutPicker.open(layoutItems(), 'Open a layout'),

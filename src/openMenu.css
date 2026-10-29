@@ -6,10 +6,10 @@
 
 #dashboard .open-menu-button:focus-visible,
 #dashboard .open-menu-button.open,
-#dashboard .favorite-row:hover .open-menu-button,
-#dashboard .recent-row:hover .open-menu-button,
-#dashboard .terminal-card:hover .open-menu-button,
-#dashboard .session-head:hover .open-menu-button {
+#dashboard .favorite-row:is(:hover, :focus-within) .open-menu-button,
+#dashboard .recent-row:is(:hover, :focus-within) .open-menu-button,
+#dashboard .terminal-card:is(:hover, :focus-within) .open-menu-button,
+#dashboard .session-head:is(:hover, :focus-within) .open-menu-button {
   opacity: 1;
 }
 

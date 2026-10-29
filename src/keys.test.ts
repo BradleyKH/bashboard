@@ -144,6 +144,15 @@ describe('handleKey', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'toggleDashboard' });
   });
 
+  it('dispatches focusDashboard on F6 and swallows the rest of the key', () => {
+    const init = { key: 'F6', code: 'F6' };
+    expect(handleKey(ev('keydown', init), ctx)).toBe(false);
+    expect(handleKey(ev('keypress', init), ctx)).toBe(false);
+    expect(handleKey(ev('keyup', init), ctx)).toBe(false);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({ type: 'focusDashboard' });
+  });
+
   it.each([
     { key: 'M', code: 'KeyM', type: 'collapsePane' },
     { key: 'Z', code: 'KeyZ', type: 'togglePaneZoom' },

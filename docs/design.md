@@ -740,6 +740,7 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+V, Ctrl+Shift+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image |
 | Shift+Enter | Send ESC+CR (Claude Code's newline) |
 | Ctrl+Shift+S | Toggle dashboard panel |
+| F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) |
 | Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) |
 | Ctrl+Shift+L | Pause or resume the background animation (saved to `backdrop.animate`) |
 | Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
@@ -769,6 +770,26 @@ focused pane, sits at the top; the rest of the sections and the footer sit at th
 focus change never shifts them. Clicking a section's header
 collapses or expands it, and which sections are collapsed is saved with the workspace
 (section 7). A thin rule separates each section from the one above it.
+
+**Keyboard.** F6 moves focus into the panel, onto the row focused there last, else the focused
+pane's card, else the first row; F6 again, or Escape, returns focus to the focused pane. While the
+panel is hidden, F6 shows it as a peek that lasts until focus leaves it, instead of timing out.
+The rows are every section header, the Repo section's buttons, every favorite, recent folder,
+layout, pin, container, tab group header, pane card, and external session, and the footer's
+buttons, top to bottom, skipping collapsed sections:
+
+- Up and Down move one row, stopping at the ends; Home and End go to the first and last.
+- Enter or Space acts as a click on the row, and Ctrl+Enter as a Ctrl+click.
+- Left on a row goes to its section's header, and on an expanded header collapses the section.
+  Right on a collapsed header expands it, and on an expanded one goes to its first row.
+- Tab reaches the buttons inside rows (folder, Open menu, close, remove), which show while their
+  row has focus as they do on hover.
+- Any other key runs its workspace action (4.5), as it would in a pane.
+
+Only the keyboard focuses rows: the panel keeps mouse presses from taking focus off the pane, so
+a focus ring in the panel always means keyboard focus. When the panel rebuilds its rows (a status
+change, the 15 second age refresh), focus moves to the rebuilt row, or to the row now in its place
+when it is gone.
 
 Folder paths under row labels show the home folder as `~`, and an overlong path is cut from the
 left so its last folders stay visible; hovering shows the full path.

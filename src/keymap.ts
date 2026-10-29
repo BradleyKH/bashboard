@@ -14,6 +14,7 @@ export type Action =
   | { type: 'sendInput'; input: string }
   | { type: 'find' }
   | { type: 'toggleDashboard' }
+  | { type: 'focusDashboard' }
   | { type: 'cycleScrim' }
   | { type: 'toggleBackdrop' }
   | { type: 'collapsePane' }
@@ -68,6 +69,7 @@ const SIMPLE_ACTIONS = [
   'paste',
   'find',
   'toggleDashboard',
+  'focusDashboard',
   'cycleScrim',
   'toggleBackdrop',
   'collapsePane',
@@ -240,6 +242,7 @@ export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = [
   { keys: 'ctrl+shift+v', action: 'paste' },
   { keys: 'shift+enter', action: 'sendInput', input: '\u001b\r' },
   { keys: 'ctrl+shift+s', action: 'toggleDashboard' },
+  { keys: 'f6', action: 'focusDashboard' },
   { keys: 'ctrl+shift+b', action: 'cycleScrim' },
   { keys: 'ctrl+shift+l', action: 'toggleBackdrop' },
   { keys: 'ctrl+shift+m', action: 'collapsePane' },

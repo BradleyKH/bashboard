@@ -7,6 +7,7 @@ import {
   dashboardResizeHandle,
   DEFAULT_DASHBOARD_WIDTH,
 } from './dashboardResize';
+import { DashboardNav } from './dashboardNav';
 import { toggleSection } from './dashboardSections';
 import type { DashboardSection } from './dashboardSections';
 import { recentFolders, samePath } from './favorites';
@@ -49,6 +50,10 @@ export interface DashboardCallbacks
   onShowSettings: () => void;
   /** The hide button closed the panel. */
   onHide?: () => void;
+  /** Escape or F6 left the panel; focus goes back to the panes. */
+  onLeave?: () => void;
+  /** A key pressed in the panel that it does not use itself; true when a workspace action ran. */
+  onKey?: (e: KeyboardEvent) => boolean;
 }
 
 const AGE_REFRESH_MS = 15_000;
@@ -75,7 +80,10 @@ export class DashboardPanel {
   private peeking = false;
   private peekTimer: number | undefined;
   private peekExpired = false;
+  /** A peek opened by F6, which lasts while focus stays in the panel instead of timing out. */
+  private held = false;
   private hovered = false;
+  private readonly nav: DashboardNav;
   private readonly installButton: HTMLButtonElement;
   private readonly repoSection: RepoSection;
   private readonly favoritesSection: FavoritesSection;
@@ -172,6 +180,19 @@ export class DashboardPanel {
     footer.className = 'dashboard-footer';
     footer.append(this.installButton, helpButton, settingsButton);
     root.append(footer);
+    this.nav = new DashboardNav(root, {
+      onLeave: () => this.leave(),
+      onKey: (e) => this.callbacks.onKey?.(e) ?? false,
+    });
+    root.addEventListener('focusout', () => {
+      if (!this.held) return;
+      // A rebuild that replaced the focused row has already refocused its successor by the time
+      // this runs, and the Open menu takes focus only until it closes.
+      queueMicrotask(() => {
+        const active = document.activeElement;
+        if (this.held && !this.nav.hasFocus() && !active?.closest('.open-menu')) this.endPeek();
+      });
+    });
     root.addEventListener('pointerenter', () => {
       this.hovered = true;
     });
@@ -202,12 +223,43 @@ export class DashboardPanel {
   private renderContainers(): void {
     const store = this.containersStore;
     if (!store) return;
+    const focus = this.nav.capture();
     this.containersSection.update(store.current());
     this.containersSection.setVisible(store.available && this.containersEnabled);
+    this.nav.restore(focus);
   }
 
   isOpen(): boolean {
     return this.open;
+  }
+
+  /** Whether keyboard focus is in the panel. */
+  hasFocus(): boolean {
+    return this.nav.hasFocus();
+  }
+
+  /**
+   * Moves keyboard focus into the panel (docs/design.md section 4.6). A hidden panel shows as a
+   * peek that lasts until focus leaves it.
+   */
+  focusIn(): void {
+    if (!this.open && !this.held) {
+      this.peeking = true;
+      this.held = true;
+      this.peekExpired = false;
+      window.clearTimeout(this.peekTimer);
+      document.body.classList.add('dashboard-peek');
+      this.render();
+    }
+    this.nav.enter();
+  }
+
+  /** Hands focus back to the panes, ending an F6 peek. */
+  leave(): void {
+    this.callbacks.onLeave?.();
+    // With no pane to take it, focus would otherwise stay on a row of a panel that may be closing.
+    if (this.nav.hasFocus()) (document.activeElement as HTMLElement).blur();
+    if (this.held) this.endPeek();
   }
 
   /** The Panes section's tab group under the point, for dropping a dragged card into its tab. */
@@ -252,7 +304,7 @@ export class DashboardPanel {
 
   /** Shows the panel over the panes for a moment without narrowing them. */
   peek(ms = 4000): void {
-    if (this.open) return;
+    if (this.open || this.held) return;
     this.peeking = true;
     this.peekExpired = false;
     document.body.classList.add('dashboard-peek');
@@ -267,6 +319,7 @@ export class DashboardPanel {
   private endPeek(): void {
     if (!this.peeking) return;
     this.peeking = false;
+    this.held = false;
     window.clearTimeout(this.peekTimer);
     this.peekTimer = undefined;
     document.body.classList.remove('dashboard-peek');
@@ -324,6 +377,7 @@ export class DashboardPanel {
 
   private register(id: DashboardSection, section: HTMLElement, header: HTMLElement): void {
     this.sectionEls.set(id, section);
+    section.dataset.section = id;
     setSectionCollapsed(section, this.collapsed.includes(id));
     makeCollapsible(section, header, () => {
       this.collapsed = toggleSection(this.collapsed, id);
@@ -346,6 +400,12 @@ export class DashboardPanel {
   }
 
   private render(): void {
+    const focus = this.nav.capture();
+    this.renderSections();
+    this.nav.restore(focus);
+  }
+
+  private renderSections(): void {
     const now = Date.now();
     const cards = paneCards(this.panes, this.sessions);
     const external = externalSessions(this.sessions, this.panes);

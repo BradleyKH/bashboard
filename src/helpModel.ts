@@ -27,7 +27,7 @@ const SECTIONS: { title: string; actions: string[] }[] = [
     title: 'Terminal',
     actions: ['copy', 'paste', 'find', 'sendInput', 'increaseFontSize', 'decreaseFontSize', 'resetFontSize'],
   },
-  { title: 'Workspace', actions: ['toggleDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
+  { title: 'Workspace', actions: ['toggleDashboard', 'focusDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
 ];
 
 const LABELS: Record<string, string> = {
@@ -47,6 +47,7 @@ const LABELS: Record<string, string> = {
   paste: 'Paste',
   find: 'Find in scrollback or file preview',
   toggleDashboard: 'Toggle dashboard',
+  focusDashboard: 'Move focus to the dashboard and back',
   openFavorite: 'Open a favorite folder',
   openLayout: 'Open a saved layout',
   splitWithProfile: 'Split with a chosen shell',

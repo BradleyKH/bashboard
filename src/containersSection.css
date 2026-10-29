@@ -50,6 +50,6 @@
 }
 
 #dashboard .container-action:focus-visible,
-.container-row:hover .container-action {
+.container-row:is(:hover, :focus-within) .container-action {
   opacity: 1;
 }
