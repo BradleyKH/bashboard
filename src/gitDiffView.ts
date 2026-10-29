@@ -1,36 +1,40 @@
 import type { GitDiff } from './gitApi';
 import { diffLines } from './gitModel';
+import { ZoomButtons } from './zoomButtons';
 
 /** The unified diff panel beside the Git pane's lists (docs/design.md section 4.13). */
 export class GitDiffView {
   readonly el: HTMLElement;
-  private readonly bar: HTMLElement;
+  private readonly undo: HTMLButtonElement;
   private readonly undoError: HTMLElement;
   private readonly note: HTMLElement;
   private readonly body: HTMLElement;
 
-  /** `onUndo` is the Undo commit button in the bar above a commit's diff. */
-  constructor(onUndo: () => void) {
+  /** `onUndo` is the Undo commit button in the bar above a commit's diff; `zoom` is the starting zoom. */
+  constructor(onUndo: () => void, zoom: number) {
     this.el = document.createElement('div');
     this.el.className = 'git-diff';
-    this.bar = document.createElement('div');
-    this.bar.className = 'git-diff-bar';
-    this.bar.hidden = true;
-    const undo = document.createElement('button');
-    undo.type = 'button';
-    undo.className = 'git-row-btn git-undo';
-    undo.textContent = 'Undo commit';
-    undo.addEventListener('click', onUndo);
+    const bar = document.createElement('div');
+    bar.className = 'git-diff-bar';
+    this.undo = document.createElement('button');
+    this.undo.type = 'button';
+    this.undo.className = 'git-row-btn git-undo';
+    this.undo.textContent = 'Undo commit';
+    this.undo.hidden = true;
+    this.undo.addEventListener('click', onUndo);
     this.undoError = document.createElement('span');
     this.undoError.className = 'git-undo-error';
-    this.bar.append(undo, this.undoError);
+    const zoomButtons = new ZoomButtons('git-row-btn', 'gitDiff', zoom, (z) =>
+      this.el.style.setProperty('--diff-zoom', String(z)),
+    );
+    bar.append(this.undo, this.undoError, zoomButtons.el);
     this.note = document.createElement('div');
     this.note.className = 'git-diff-note';
     this.note.textContent = 'Diff truncated at 1 MiB';
     this.note.hidden = true;
     this.body = document.createElement('div');
     this.body.className = 'git-diff-body';
-    this.el.append(this.bar, this.note, this.body);
+    this.el.append(bar, this.note, this.body);
     this.clear();
   }
 
@@ -53,10 +57,10 @@ export class GitDiffView {
     this.body.scrollTop = 0;
   }
 
-  /** Shows the bar with Undo commit, and an inline refusal (3.9) beside it when `error` is set. */
+  /** Shows Undo commit, and an inline refusal (3.9) beside it when `error` is set. */
   setUndo(shown: boolean, error: string | null = null): void {
-    this.bar.hidden = !shown;
-    this.undoError.textContent = error ?? '';
+    this.undo.hidden = !shown;
+    this.undoError.textContent = shown ? (error ?? '') : '';
   }
 
   /** Nothing selected. */

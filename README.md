@@ -303,7 +303,9 @@ The preview depends on the file:
 
 Text previews have a Find button (or Ctrl+Shift+F in the Files pane) that searches the file,
 ignoring case, and highlights every match. Enter and Shift+Enter step through them, and Esc
-closes the bar and selects the current match, so the editor's caret lands on it.
+closes the bar and selects the current match, so the editor's caret lands on it. The − and +
+buttons beside Find zoom the preview, and the pair in the breadcrumb zooms the list. A new Files
+pane starts at the zoom you last chose for each.
 
 The text editor saves about a second after you stop typing, when it loses focus, and on Ctrl+S.
 If the file changes on disk while you have no unsaved edits, it reloads in place. If it changes
@@ -356,7 +358,8 @@ The left side stacks four regions, and the diff for the selected file or commit 
 
 Click a file row to see its diff: the unstaged change for a row in Changes, or the staged change for
 a row in Staged. An untracked file shows its whole content as added. Click a commit to see its
-changes. A diff over 1 MiB is cut off with a note that it was truncated.
+changes. A diff over 1 MiB is cut off with a note that it was truncated. The − and + buttons above
+the diff zoom it, and a new Git pane starts at the zoom you last chose.
 
 **Undo commit** appears above the diff when you select the newest commit, and only while it is HEAD. The confirm
 names the commit, and warns when it is already pushed: undoing it rewrites history the remote
@@ -693,6 +696,14 @@ Containers pane and tab still open on request.
 
 ```jsonc
 "containers": { "enabled": true }
+```
+
+`textZoom` holds the zoom, from 0.5 to 3, that new Files and Git panes start at for the Files
+list, the file preview, and the Git diff. The zoom buttons in those panes save it as you click,
+so you rarely need to edit it.
+
+```jsonc
+"textZoom": { "filesList": 1, "filePreview": 1, "gitDiff": 1 }
 ```
 
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to

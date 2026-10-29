@@ -46,7 +46,7 @@
 }
 
 .preview-notice button:hover,
-.preview-toolbar button:hover,
+.preview-toolbar button:hover:not(:disabled),
 .editor-bar button:hover {
   color: #e6e6e6;
   background: rgba(255, 255, 255, 0.08);
@@ -77,6 +77,16 @@
 .preview-frame > :not(.preview-toolbar) {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.preview-toolbar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.preview-toolbar .zoom-buttons {
+  display: flex;
+  gap: 4px;
 }
 
 .preview-toolbar button[hidden],
@@ -122,7 +132,7 @@
   min-height: 0;
   overflow: auto;
   padding: 4px 16px 16px;
-  font: 13px/1.5 system-ui, sans-serif;
+  font: calc(13px * var(--preview-zoom, 1)) / 1.5 system-ui, sans-serif;
   user-select: text;
 }
 

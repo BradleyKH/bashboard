@@ -24,6 +24,8 @@ export class MarkdownView {
   private readonly toggle: HTMLButtonElement;
   private readonly body: HTMLElement;
   readonly find: PreviewFind;
+  /** Where the owner adds its own controls, after Edit and Find. */
+  readonly toolbar: HTMLElement;
   private readonly opts: MarkdownViewOptions;
   private text: string;
   private modified: number;
@@ -41,6 +43,7 @@ export class MarkdownView {
     this.el.className = 'markdown-view';
     const toolbar = document.createElement('div');
     toolbar.className = 'preview-toolbar';
+    this.toolbar = toolbar;
     this.toggle = document.createElement('button');
     this.toggle.type = 'button';
     this.toggle.addEventListener('click', () => void this.toggleEdit());

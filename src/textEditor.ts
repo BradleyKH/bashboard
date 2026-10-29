@@ -98,7 +98,7 @@ export class TextEditor {
 
   applySettings(settings: Settings): void {
     this.field.style.fontFamily = toFontFamily(settings.font.family);
-    this.field.style.fontSize = `${settings.font.size}px`;
+    this.field.style.fontSize = `calc(${settings.font.size}px * var(--preview-zoom, 1))`;
   }
 
   findSurface(): FindSurface {

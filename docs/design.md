@@ -1045,6 +1045,13 @@ text laid out under the transparent textarea carries the highlights. The search 
 text as it changes: an edit, a reload, or the Edit toggle re-runs it. Esc closes the bar and
 selects the current match (in the editor, as the caret's selection).
 
+**Zoom.** The preview toolbar ends in − and + buttons that step the preview's text size through
+browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
+Open in File Explorer and Open terminal here. Each scales from its base size (the terminal font
+size for code and the text editor) and holds while browsing the pane. Every step is saved to
+`textZoom.filePreview` or `textZoom.filesList` (section 8), the level a new Files pane starts
+at; other open panes keep their own.
+
 **Text editor.** A monospaced text area. It saves one second after typing stops, on blur, and
 on Ctrl+S, through `fs_write_text` with the modified time it last read. When the file changes on
 disk and there are no unsaved edits, it reloads in place, so a to-do list Claude edits updates
@@ -1063,7 +1070,8 @@ file opens it in the editor (3.12). Each row's hover menu has:
 - Move to: the repo's pinned folders and the current folder's subfolders (`fs_move`).
 - Pin.
 
-The breadcrumb also has an Open terminal here button for the current folder.
+The breadcrumb also has an Open terminal here button for the current folder, and the list's zoom
+buttons.
 
 **Keyboard and filter.** While the list has focus:
 
@@ -1099,9 +1107,10 @@ For one git repo, top to bottom:
   no remote-tracking branch contains it. Clicking one shows its diff.
 
 Diffs show in a panel beside the lists, unified, with added and removed lines colored and hunk
-headers kept. A diff over the cap says so.
+headers kept. A diff over the cap says so. The bar above the diff ends in − and + zoom buttons
+that work as the Files pane's do (4.12), saving to `textZoom.gitDiff`.
 
-**Undo commit** sits in a bar above the diff while the selected commit is the newest one and
+**Undo commit** sits at the start of that bar while the selected commit is the newest one and
 HEAD. It asks
 first, naming the commit, noting that its changes stay staged, and warning when the commit is
 already pushed that a force push will follow; then it runs `git_undo_commit`
@@ -1506,6 +1515,9 @@ interface ShellProfile {
   "editor": { "preferred": "default", "command": "" },
   // false hides the Containers section; the Containers pane still opens on request (4.16).
   "containers": { "enabled": true },
+  // The zoom new Files and Git panes start at, from 0.5 to 3; their zoom buttons save it
+  // (4.12, 4.13).
+  "textZoom": { "filesList": 1, "filePreview": 1, "gitDiff": 1 },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
   // a field: switchToTab takes "index" from 1 to 8.
   "keybindings": [

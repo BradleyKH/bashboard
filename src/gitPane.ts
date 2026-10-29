@@ -178,7 +178,7 @@ export class GitPane implements PaneView {
     this.right.className = 'git-right';
     this.diffView = new GitDiffView(() => {
       if (this.selection?.type === 'commit') void this.undo(this.selection.hash);
-    });
+    }, opts.settings.textZoom.gitDiff);
     this.right.append(this.diffView.el);
 
     this.notice = document.createElement('div');

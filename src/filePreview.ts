@@ -8,6 +8,7 @@ import { PreviewFind } from './previewFind';
 import { classifyReadError, fsReadText } from './repoFiles';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
+import { ZoomButtons } from './zoomButtons';
 
 export interface FilePreviewOptions {
   host: HTMLElement;
@@ -29,6 +30,8 @@ type Current =
 export class FilePreview {
   readonly el: HTMLElement;
   private readonly opts: FilePreviewOptions;
+  /** Kept across files, so the zoom holds while browsing. */
+  private readonly zoom: ZoomButtons;
   private settings: Settings;
   private current: Current | null = null;
   private generation = 0;
@@ -38,6 +41,9 @@ export class FilePreview {
     this.settings = opts.settings;
     this.el = document.createElement('div');
     this.el.className = 'file-preview';
+    this.zoom = new ZoomButtons('', 'filePreview', opts.settings.textZoom.filePreview, (zoom) =>
+      this.el.style.setProperty('--preview-zoom', String(zoom)),
+    );
     opts.host.appendChild(this.el);
     this.showEmpty();
   }
@@ -140,18 +146,19 @@ export class FilePreview {
         dispatch,
         onOpenFile: this.opts.onOpenFile,
       });
+      view.toolbar.append(this.zoom.el);
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
     } else if (kind === 'plain') {
       const view = new TextEditor({ path, text, modified, settings: this.settings, keymap, dispatch });
       const find = new PreviewFind(() => view.findSurface());
       this.current = { kind, path, view, find };
-      this.el.replaceChildren(framed(view.el, find));
+      this.el.replaceChildren(framed(view.el, find, this.zoom.el));
     } else {
       const view = new CodeView(text, this.settings);
       const find = new PreviewFind(() => view.findSurface());
       this.current = { kind, path, view, modified, find };
-      this.el.replaceChildren(framed(view.el, find));
+      this.el.replaceChildren(framed(view.el, find, this.zoom.el));
     }
   }
 
@@ -185,13 +192,13 @@ export class FilePreview {
   }
 }
 
-/** A view under a toolbar holding its find button and bar. */
-function framed(view: HTMLElement, find: PreviewFind): HTMLElement {
+/** A view under a toolbar holding its find button and bar, then the zoom buttons. */
+function framed(view: HTMLElement, find: PreviewFind, zoom: HTMLElement): HTMLElement {
   const frame = document.createElement('div');
   frame.className = 'preview-frame';
   const toolbar = document.createElement('div');
   toolbar.className = 'preview-toolbar';
-  toolbar.append(find.button, find.bar);
+  toolbar.append(find.button, find.bar, zoom);
   frame.append(toolbar, view);
   return frame;
 }

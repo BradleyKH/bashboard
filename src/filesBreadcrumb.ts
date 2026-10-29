@@ -1,5 +1,6 @@
 import { FOLDER_ICON } from './folderButton';
 import { breadcrumb, canBack, canForward, type History } from './filesModel';
+import { ZoomButtons } from './zoomButtons';
 
 export interface FilesBreadcrumbOptions {
   onBack: () => void;
@@ -7,6 +8,10 @@ export interface FilesBreadcrumbOptions {
   onNavigate: (folder: string) => void;
   onOpenInExplorer: () => void;
   onOpenTerminalHere: () => void;
+  /** The list's starting zoom level. */
+  zoom: number;
+  /** Applies the list's zoom level. */
+  onZoom: (zoom: number) => void;
   /** Pins the folder, or unpins it when it is already pinned. */
   onTogglePin: () => void;
 }
@@ -18,7 +23,7 @@ export interface FilesBreadcrumbState {
   pinned: boolean;
 }
 
-/** Back and forward buttons, the path from the repo root, Open in File Explorer, Open terminal here, and the pin button. */
+/** Back and forward buttons, the path from the repo root, Open in File Explorer, the list's zoom buttons, Open terminal here, and the pin button. */
 export class FilesBreadcrumb {
   readonly el: HTMLElement;
   private readonly backBtn: HTMLButtonElement;
@@ -35,9 +40,10 @@ export class FilesBreadcrumb {
     this.trail.className = 'files-crumb-trail';
     const explorer = this.button(FOLDER_ICON, 'Open in File Explorer', opts.onOpenInExplorer);
     explorer.classList.add('files-crumb-folder');
+    const zoom = new ZoomButtons('files-crumb-btn', 'filesList', opts.zoom, opts.onZoom);
     const term = this.button('>_', 'Open terminal here', opts.onOpenTerminalHere);
     this.pinBtn = this.button('☆', 'Pin this folder', opts.onTogglePin);
-    this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, term, this.pinBtn);
+    this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, zoom.el, term, this.pinBtn);
   }
 
   update(state: FilesBreadcrumbState): void {

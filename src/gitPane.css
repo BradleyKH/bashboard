@@ -174,7 +174,7 @@
 }
 
 .git-section-btn:hover:not(:disabled),
-.git-row-btn:hover {
+.git-row-btn:hover:not(:disabled) {
   background: var(--git-hover);
   color: var(--git-fg);
 }
@@ -305,8 +305,21 @@
   border-bottom: 1px solid var(--git-border);
 }
 
-.git-diff-bar[hidden] {
+.git-undo[hidden] {
   display: none;
+}
+
+/* Undo commit stays at the left; the zoom buttons hold the right end. */
+.git-diff-bar .zoom-buttons {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.git-diff-bar .git-row-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .git-diff-note {
@@ -324,7 +337,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  font: 12px/1.4 ui-monospace, Consolas, monospace;
+  font: calc(12px * var(--diff-zoom, 1)) / 1.4 ui-monospace, Consolas, monospace;
 }
 
 .git-diff-line {

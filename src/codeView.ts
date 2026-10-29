@@ -43,7 +43,7 @@ export class CodeView {
 
   applySettings(settings: Settings): void {
     this.el.style.fontFamily = toFontFamily(settings.font.family);
-    this.el.style.fontSize = `${settings.font.size}px`;
+    this.el.style.fontSize = `calc(${settings.font.size}px * var(--preview-zoom, 1))`;
   }
 
   dispose(): void {
