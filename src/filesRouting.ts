@@ -53,3 +53,59 @@ export function insertPathText(root: string, path: string): string {
   if (rel === null) return path;
   return rel === '' ? '.' : rel;
 }
+
+/** The target terminal's shell profile id, and whether Claude Code is running in it. */
+export interface PathProfile {
+  shell: string;
+  claudeCode: boolean;
+}
+
+export function pathProfileFor(
+  profileId: string | undefined,
+  fallbackId: string,
+  claudeCode: boolean,
+): PathProfile {
+  return { shell: profileId ?? fallbackId, claudeCode };
+}
+
+const SAFE_PATH = /^[A-Za-z0-9._\-/:@+]+$/;
+
+function absoluteText(path: string, profile: PathProfile): string {
+  let p = path.replace(/\\/g, '/');
+  const root = /^[A-Za-z]:\/*$/.test(p) || /^\/+$/.test(p);
+  p = root ? p.replace(/\/+$/, '/') : p.replace(/\/+$/, '');
+  return profile.shell === 'cmd' && !profile.claudeCode ? p.replace(/\//g, '\\') : p;
+}
+
+function quoteFor(text: string, shell: string): string {
+  if (SAFE_PATH.test(text.replace(/\\/g, '/'))) return text;
+  switch (shell) {
+    case 'pwsh':
+    case 'powershell':
+      return `'${text.replace(/'/g, "''")}'`;
+    case 'cmd':
+      return `"${text}"`;
+    default:
+      return `'${text.replace(/'/g, "'\\''")}'`;
+  }
+}
+
+/**
+ * Text for inserting paths into a terminal (docs/v0.2.0-design.md section 6). Paths inside
+ * `baseRoot` are relative with forward slashes; the caller picks the base: a drop passes the
+ * target terminal's repo, Insert path the source pane's root. Slashes and quoting follow
+ * `profile`, which is always the target terminal's.
+ */
+export function pathInsertText(
+  paths: readonly string[],
+  baseRoot: string | null,
+  profile: PathProfile,
+): string {
+  if (paths.length === 0) return '';
+  const parts = paths.map((path) => {
+    const rel = baseRoot === null ? null : relativeWithin(baseRoot, path);
+    const text = rel === null ? absoluteText(path, profile) : rel === '' ? '.' : rel;
+    return quoteFor(text, profile.shell);
+  });
+  return `${parts.join(' ')} `;
+}

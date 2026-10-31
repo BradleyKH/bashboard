@@ -42,8 +42,10 @@ export interface FilesPaneOptions {
   /** The folder, selection, or root changed (title and saved state follow). */
   onChange: () => void;
   onOpenTerminalHere: (folder: string) => void;
-  /** Text from `insertPathText`, for the tab's last focused terminal. */
-  onInsertPath: (text: string) => void;
+  /** Insert path on a row: the entry's absolute path and this pane's root, to make it relative to. */
+  onInsertPath: (absolute: string, baseRoot: string) => void;
+  /** A row drag began; the workspace runs the path drag. */
+  onPathDragStart?: (paths: string[], e: PointerEvent) => void;
   onPin: (absolute: string, isDir: boolean) => void;
   /** The breadcrumb's pin button on an already pinned folder; without it the button only pins. */
   onUnpin?: (absolute: string) => void;
@@ -143,6 +145,8 @@ export class FilesPane implements PaneView {
       onActivate: (entry) => this.activate(entry),
       onUp: () => this.goUp(),
       onMenu: (entry, anchor) => this.openMenu(entry, anchor),
+      onDragStart: (entry, e) =>
+        this.opts.onPathDragStart?.([childPath(this.currentPath, entry.name)], e),
     });
     this.notice = document.createElement('div');
     this.notice.className = 'files-notice';
@@ -461,7 +465,7 @@ export class FilesPane implements PaneView {
       copyPath: (e) => {
         navigator.clipboard.writeText(pathOf(e)).catch((err) => showToast(`Could not copy: ${errorText(err)}`));
       },
-      insertPath: (e) => this.opts.onInsertPath(insertPathText(this.rootPath, pathOf(e))),
+      insertPath: (e) => this.opts.onInsertPath(pathOf(e), this.rootPath),
       moveTo: (e, toDir) => void this.move(e, toDir),
       pin: (e) => this.opts.onPin(pathOf(e), e.isDir),
     };

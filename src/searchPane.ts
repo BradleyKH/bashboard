@@ -38,6 +38,8 @@ export interface SearchPaneOptions {
   onFocus: () => void;
   /** The root, query, or options changed (title and saved state follow). */
   onChange: () => void;
+  /** A result row drag began; the workspace runs the path drag. */
+  onPathDragStart?: (paths: string[], e: PointerEvent) => void;
 }
 
 const MIN_SPLIT = 0.15;
@@ -148,6 +150,8 @@ export class SearchPane implements PaneView {
       onSelect: (item) => this.select(item),
       onOpen: (item) => this.open(item),
       onToggle: (path) => this.toggle(path),
+      onDragStart: (path, e) =>
+        this.opts.onPathDragStart?.([absolutePath(this.rootPath, path)], e),
     });
     this.left.appendChild(this.results.el);
     this.divider = document.createElement('div');

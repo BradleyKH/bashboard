@@ -1,5 +1,6 @@
 import { formatSize } from './formatSize';
 import { iconButton } from './rowControls';
+import { attachBodyDrag } from './bodyDrag';
 import type { FileEntry } from './filesModel';
 
 export interface FileRowOptions {
@@ -8,6 +9,8 @@ export interface FileRowOptions {
   onActivate: () => void;
   /** Called with the row's menu button so the menu can anchor to it. */
   onMenu: (anchor: HTMLElement) => void;
+  /** The body of the row was dragged past the threshold (a path drag). */
+  onDragStart?: (e: PointerEvent) => void;
 }
 
 function formatModified(ms: number): string {
@@ -52,5 +55,6 @@ export function renderFileRow(entry: FileEntry, opts: FileRowOptions): HTMLEleme
   row.append(icon, name, size, date, menu);
   row.addEventListener('click', () => opts.onSelect());
   row.addEventListener('dblclick', () => opts.onActivate());
+  if (opts.onDragStart) attachBodyDrag(row, opts.onDragStart);
   return row;
 }

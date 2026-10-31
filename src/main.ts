@@ -85,6 +85,7 @@ import { closePadConfirm, closeTabConfirm, replaceConfirm } from './paneConfirm'
 import type { PaneKind } from './paneKinds';
 import { Workspace } from './workspace';
 import { fontsReady } from './fontsReady';
+import { listenFileDrops } from './fileDrop';
 import { checkForUpdate } from './updater';
 
 // The built-in menu's Refresh reloads the page, and a reload kills every pane's pty as an orphan.
@@ -730,6 +731,12 @@ const tabStrip: TabStrip | undefined = new TabStrip(
   workspace,
   focusTerminal,
 );
+listenFileDrops({
+  targetAt: (x, y) => workspace.pathTargetAt(x, y),
+  highlight: (id) => workspace.setPathHighlight(id),
+  hover: (pos) => tabStrip?.dragHover(pos),
+  drop: (id, paths) => void workspace.insertPaths(id, paths),
+});
 workspace.setSessions(sessions);
 colonySync?.update(sessions);
 

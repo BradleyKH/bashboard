@@ -788,6 +788,29 @@ reads "n of m" or "No results". Esc closes the bar, clears the highlights, and r
 to the terminal. Closing the pane, collapsing it, moving focus to another pane, or switching
 tabs also closes the bar.
 
+**Dropping paths.** Dropping files onto a terminal inserts their paths as a bracketed paste
+without Enter, then focuses that terminal (a collapsed target is expanded). Sources are:
+
+- File Explorer, through Tauri's webview drag-drop events. The physical position is divided by
+  `devicePixelRatio` and hit-tested with `elementFromPoint`, and the window is brought forward on
+  the drop so the terminal can take keystrokes.
+- Rows inside the app: Files pane rows (4.12), Staged and Changes rows in the Git pane (4.13), and
+  Search pane match rows, file group headers, and file name rows (4.14). They drag with the
+  `attachBodyDrag` pointer threshold, so a click still selects, and a ghost with the file name
+  follows the pointer.
+
+An expanded terminal highlights while a path is over it and takes the paste. A scratch pad (4.15)
+takes the text at its caret, formatted for the terminal its Send would use. Nothing else is a
+target; a drop elsewhere does nothing.
+
+`pathInsertText(paths, baseRoot, profile)` in `filesRouting.ts` formats every path insertion,
+including the Files pane's Insert path. A path inside `baseRoot` is relative with forward slashes,
+`.` for the root itself, and otherwise absolute: forward slashes in Git Bash, PowerShell, and
+Claude Code, backslashes in Command Prompt. A path with any character outside `A-Z a-z 0-9 . _ - /
+: @ +` is quoted for the profile (single quotes in Git Bash and PowerShell, double quotes in
+Command Prompt). Paths are joined by spaces and the text ends with a space. A drop's `baseRoot` is
+the target terminal's repo; Insert path uses the Files pane's root.
+
 ### 4.5 Key handling
 
 The custom key handler (`keys.ts`) runs before xterm.js. Any key it handles is swallowed for
@@ -1145,8 +1168,9 @@ close button on hover. The tab's tooltip lists each waiting terminal's title and
 
 - Clicking a tab switches to it. Double-clicking its name renames it inline; Enter or blur
   saves, Esc cancels. Tabs reorder by drag, and the dashboard's groups follow.
-- Holding a dragged pane or card over a tab for half a second switches to that tab, so the
-  drag can continue into a dock target there (4.2) and move the terminal across tabs.
+- Holding a dragged pane, card, or path (4.4) over a tab for half a second switches to that tab,
+  so the drag can continue into a dock target there (4.2) and move the terminal across tabs, or
+  into a terminal there to drop the path.
 - The strip is chrome on z3 and draws over the backdrop with the same scrim as the title strips.
 
 **New tab** (Ctrl+Shift+T or the "+"): appends a tab with one terminal of the default profile in
@@ -1252,13 +1276,16 @@ file opens it in the editor (3.12). Each row's hover menu has:
   split of the Files pane.
 - Open in editor.
 - Copy path.
-- Insert path: pastes the repo-relative path into the tab's most recently focused terminal,
-  as a bracketed paste without Enter, then focuses that terminal.
+- Insert path: pastes the path, relative to the Files pane's root and quoted for the shell of
+  the tab's most recently focused terminal (`pathInsertText`, 4.4), as a bracketed paste without
+  Enter, then focuses that terminal.
 - Move to: the repo's pinned folders and the current folder's subfolders (`fs_move`).
 - Pin.
 
 The breadcrumb also has an Open terminal here button for the current folder, and the list's zoom
 buttons.
+
+Rows, files and folders alike, drag their path onto a terminal or scratch pad (4.4).
 
 **Keyboard and filter.** While the list has focus:
 
@@ -1290,7 +1317,8 @@ For one git repo, top to bottom:
   example) shows git's output under the box and keeps the message.
 - **Staged** and **Changes** lists. Changes holds unstaged and untracked files. Each row shows
   its status letter and path, with stage or unstage and Open in editor on hover; each list's
-  header has Stage all or Unstage all. Clicking a row shows its diff.
+  header has Stage all or Unstage all. Clicking a row shows its diff. Staged and Changes rows drag
+  their path onto a terminal or scratch pad (4.4), a deleted file's included.
 - **Recent commits:** the last 20, each with subject, short hash, relative time, and a mark when
   no remote-tracking branch contains it. Clicking one shows its diff.
 
@@ -1333,7 +1361,9 @@ with line numbers and the match highlighted. A footer gives the count, or says t
 at the first 5,000. Up and Down move through matches. Selecting one previews its file beside the
 list, read-only, scrolled to the line with it highlighted; Enter, a double click, or the Open
 button shown on a hovered or selected row opens the file in the editor at that line (3.12). A
-file's group header has the same Open button on hover, opening the file with no line.
+file's group header has the same Open button on hover, opening the file with no line. Match rows,
+file group headers, and file name rows drag the file's path, with no line number, onto a terminal
+or scratch pad (4.4).
 
 ### 4.15 Scratch pads
 
@@ -1346,6 +1376,8 @@ half a second after typing stops and comes back on restore.
   then focuses that terminal. It is disabled while the tab has no terminal.
 - **Copy** copies the whole text. **Clear** empties it.
 - **Save as** writes it to a file chosen in the native save dialog, opened from the core.
+
+A scratch pad is a drop target for dragged paths (4.4): they are inserted at its caret.
 
 Closing a pad that is not empty asks first, and closing it deletes its file. Closing a tab with
 pads that are not empty lists them in the tab's confirm dialog (4.10).
@@ -1851,7 +1883,8 @@ Each milestone ends with a usable app.
     changes in 4.5; and suppression of WebView2's context menu (4.4). The Git pane's Fetch,
     Pull, and Push / Publish buttons, last fetch label, and background fetch (3.9, 4.13).
     Worktrees in the Repo section: list, detail, primary branch, merged state, and delete
-    (3.9, 4.6).
+    (3.9, 4.6). Dragging paths from File Explorer and the Files, Search, and Git panes onto
+    terminals and scratch pads, with `pathInsertText` for Insert path (4.4).
 
 ## 12. Risks
 

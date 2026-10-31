@@ -68,6 +68,8 @@ export interface GitPaneOptions {
   onChange: () => void;
   /** Asks before Undo last commit; resolves true to go ahead. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  /** A file row drag began; the workspace runs the path drag. */
+  onPathDragStart?: (paths: string[], e: PointerEvent) => void;
 }
 
 const LOG_COUNT = 20;
@@ -180,6 +182,7 @@ export class GitPane implements PaneView {
       onToggle: (row) => void this.toggle([row], true),
       onToggleAll: (rows) => void this.toggle(rows, true),
       onOpen: (row) => void openInEditor(repoPath(this.rootPath, row.entry.path)),
+      onDragStart: (row, e) => this.opts.onPathDragStart?.([repoPath(this.rootPath, row.entry.path)], e),
     });
     this.changesList = new GitFileList({
       title: 'Changes',
@@ -188,6 +191,7 @@ export class GitPane implements PaneView {
       onToggle: (row) => void this.toggle([row], false),
       onToggleAll: (rows) => void this.toggle(rows, false),
       onOpen: (row) => void openInEditor(repoPath(this.rootPath, row.entry.path)),
+      onDragStart: (row, e) => this.opts.onPathDragStart?.([repoPath(this.rootPath, row.entry.path)], e),
     });
     this.logList = new GitLogList({
       onSelect: (hash) => this.selectCommit(hash),

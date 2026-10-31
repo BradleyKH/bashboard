@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insertPathText, pinTarget, routeFilesRequest } from './filesRouting';
+import { insertPathText, pathInsertText, pathProfileFor, pinTarget, routeFilesRequest } from './filesRouting';
 
 describe('routeFilesRequest', () => {
   const panes = [
@@ -54,5 +54,91 @@ describe('insertPathText', () => {
 
   it('gives a dot for the root itself', () => {
     expect(insertPathText('C:\\r\\app', 'C:\\r\\app\\')).toBe('.');
+  });
+});
+
+describe('pathInsertText', () => {
+  const bash = { shell: 'gitBash', claudeCode: false };
+  const pwsh = { shell: 'pwsh', claudeCode: false };
+  const powershell = { shell: 'powershell', claudeCode: false };
+  const cmd = { shell: 'cmd', claudeCode: false };
+  const cmdClaude = { shell: 'cmd', claudeCode: true };
+
+  it('gives a forward-slash relative path inside the base root, ignoring case', () => {
+    expect(pathInsertText(['C:\\r\\app\\src\\a.ts'], 'C:\\r\\app', bash)).toBe('src/a.ts ');
+    expect(pathInsertText(['C:\\r\\APP\\README.md'], 'c:/R/app', cmd)).toBe('README.md ');
+  });
+
+  it('gives the absolute path outside the base root', () => {
+    expect(pathInsertText(['D:\\notes\\a.md'], 'C:\\r\\app', bash)).toBe('D:/notes/a.md ');
+    expect(pathInsertText(['C:\\r\\application\\a.md'], 'C:\\r\\app', bash)).toBe('C:/r/application/a.md ');
+  });
+
+  it('gives absolute paths when there is no base root', () => {
+    expect(pathInsertText(['C:\\r\\app\\a.ts'], null, bash)).toBe('C:/r/app/a.ts ');
+  });
+
+  it('gives a dot for the root itself', () => {
+    expect(pathInsertText(['C:\\r\\app\\'], 'C:\\r\\app', bash)).toBe('. ');
+    expect(pathInsertText(['C:\\r\\app'], 'C:\\r\\app', cmd)).toBe('. ');
+  });
+
+  it('uses each profile\'s slashes for absolute paths', () => {
+    const path = 'D:\\notes\\a.md';
+    expect(pathInsertText([path], null, bash)).toBe('D:/notes/a.md ');
+    expect(pathInsertText([path], null, pwsh)).toBe('D:/notes/a.md ');
+    expect(pathInsertText([path], null, powershell)).toBe('D:/notes/a.md ');
+    expect(pathInsertText(['D:/notes/a.md'], null, cmd)).toBe('D:\\notes\\a.md ');
+    expect(pathInsertText([path], null, cmdClaude)).toBe('D:/notes/a.md ');
+  });
+
+  it('strips a trailing separator but keeps a drive root\'s', () => {
+    expect(pathInsertText(['D:\\notes\\'], null, bash)).toBe('D:/notes ');
+    expect(pathInsertText(['D:\\notes\\'], null, cmd)).toBe('D:\\notes ');
+    expect(pathInsertText(['D:\\'], null, bash)).toBe('D:/ ');
+    expect(pathInsertText(['D:/'], null, cmd)).toBe('D:\\ ');
+  });
+
+  it('quotes a spaced path for each profile', () => {
+    const path = 'D:\\my notes\\a b.md';
+    expect(pathInsertText([path], null, bash)).toBe("'D:/my notes/a b.md' ");
+    expect(pathInsertText([path], null, pwsh)).toBe("'D:/my notes/a b.md' ");
+    expect(pathInsertText([path], null, powershell)).toBe("'D:/my notes/a b.md' ");
+    expect(pathInsertText([path], null, cmd)).toBe('"D:\\my notes\\a b.md" ');
+    expect(pathInsertText([path], null, cmdClaude)).toBe('"D:/my notes/a b.md" ');
+    expect(pathInsertText(['C:\\r\\app\\my file.ts'], 'C:\\r\\app', cmd)).toBe('"my file.ts" ');
+  });
+
+  it('escapes a single quote for Git Bash and PowerShell', () => {
+    expect(pathInsertText(["C:\\r\\app\\it's.md"], 'C:\\r\\app', bash)).toBe("'it'\\''s.md' ");
+    expect(pathInsertText(["C:\\r\\app\\it's.md"], 'C:\\r\\app', pwsh)).toBe("'it''s.md' ");
+    expect(pathInsertText(["C:\\r\\app\\it's.md"], 'C:\\r\\app', powershell)).toBe("'it''s.md' ");
+  });
+
+  it('leaves a path of only safe characters bare', () => {
+    expect(pathInsertText(['C:\\r\\a-b_c.d\\x@y+z:1.ts'], null, bash)).toBe('C:/r/a-b_c.d/x@y+z:1.ts ');
+    expect(pathInsertText(['C:\\r\\a-b_c.d\\x@y+z.ts'], null, cmd)).toBe('C:\\r\\a-b_c.d\\x@y+z.ts ');
+  });
+
+  it('joins several paths with spaces and one trailing space', () => {
+    expect(
+      pathInsertText(['C:\\r\\app\\a.ts', 'C:\\r\\app\\b c.ts', 'D:\\x.md'], 'C:\\r\\app', bash),
+    ).toBe("a.ts 'b c.ts' D:/x.md ");
+  });
+
+  it('follows Git Bash rules for an unknown profile id', () => {
+    const container = { shell: 'docker-web', claudeCode: false };
+    expect(pathInsertText(["D:\\it's here\\a.md"], null, container)).toBe("'D:/it'\\''s here/a.md' ");
+  });
+
+  it('gives an empty string for no paths', () => {
+    expect(pathInsertText([], 'C:\\r\\app', bash)).toBe('');
+  });
+});
+
+describe('pathProfileFor', () => {
+  it('falls back to the default profile while the spawn is unresolved', () => {
+    expect(pathProfileFor(undefined, 'pwsh', false)).toEqual({ shell: 'pwsh', claudeCode: false });
+    expect(pathProfileFor('cmd', 'gitBash', true)).toEqual({ shell: 'cmd', claudeCode: true });
   });
 });

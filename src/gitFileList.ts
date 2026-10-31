@@ -1,3 +1,4 @@
+import { attachBodyDrag } from './bodyDrag';
 import type { GitRow } from './gitModel';
 
 export interface GitFileListOptions {
@@ -12,6 +13,8 @@ export interface GitFileListOptions {
   onToggleAll: (rows: readonly GitRow[]) => void;
   /** The hover Open in editor button. */
   onOpen: (row: GitRow) => void;
+  /** The row body was dragged; the caller starts a path drag. */
+  onDragStart?: (row: GitRow, e: PointerEvent) => void;
 }
 
 /** A titled list of changed files (docs/design.md section 4.13). */
@@ -89,6 +92,8 @@ export class GitFileList {
       this.render();
       this.opts.onSelect(row);
     });
+    const { onDragStart } = this.opts;
+    if (onDragStart) attachBodyDrag(el, (e) => onDragStart(row, e));
 
     const status = document.createElement('span');
     status.className = `git-status git-status-${entry.status === '?' ? 'new' : entry.status.toLowerCase()}`;

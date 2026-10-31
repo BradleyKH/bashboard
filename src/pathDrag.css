@@ -1,0 +1,12 @@
+/* A terminal or scratch pad under a path drag. Drawn on ::after because ::before is the scrim. */
+.pane.path-drop-target::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 2px solid #4fb3c8;
+  border-radius: 4px;
+  background: rgba(79, 179, 200, 0.18);
+  pointer-events: none;
+  z-index: 5;
+}

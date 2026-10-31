@@ -1,10 +1,13 @@
 import type { LineMatch } from './searchApi';
+import { attachBodyDrag } from './bodyDrag';
 import { highlightSegments, type FileGroup, type SearchItem, type SearchResults } from './searchModel';
 
 export interface SearchResultsListOptions {
   onSelect: (item: SearchItem) => void;
   onOpen: (item: SearchItem) => void;
   onToggle: (path: string) => void;
+  /** A row or group header was dragged; `path` is the file's repo-relative path. */
+  onDragStart?: (path: string, e: PointerEvent) => void;
 }
 
 /** A stable identity for a result row; a line appears at most once per file. */
@@ -131,6 +134,7 @@ export class SearchResultsList {
       text.className = 'search-text';
       text.textContent = path;
       row.append(text, openButton());
+      this.attachDrag(row, path);
       rows.appendChild(row);
     }
     section.append(head, rows);
@@ -153,6 +157,7 @@ export class SearchResultsList {
     count.className = 'search-group-count';
     count.textContent = String(group.matches.length);
     head.append(chevron, path, count, openButton());
+    this.attachDrag(head, group.path);
     const rows = document.createElement('div');
     rows.className = 'search-group-rows';
     for (const match of group.matches) rows.appendChild(this.matchRow(group.path, match));
@@ -180,7 +185,13 @@ export class SearchResultsList {
       }
     }
     row.append(line, text, openButton());
+    this.attachDrag(row, path);
     return row;
+  }
+
+  private attachDrag(el: HTMLElement, path: string): void {
+    const { onDragStart } = this.opts;
+    if (onDragStart) attachBodyDrag(el, (e) => onDragStart(path, e));
   }
 
   private row(item: SearchItem): HTMLElement {

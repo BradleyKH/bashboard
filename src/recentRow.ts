@@ -1,6 +1,6 @@
 import { lastFolder } from './dashboardModel';
 import { setPathText } from './displayPath';
-import { attachBodyDrag } from './favoriteRow';
+import { attachBodyDrag } from './bodyDrag';
 import type { FavoritesCallbacks } from './favoritesSection';
 import { folderButton } from './folderButton';
 import { openMenuButton } from './openMenu';

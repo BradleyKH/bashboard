@@ -134,6 +134,18 @@ export class ScratchPane implements PaneView {
     this.area.focus();
   }
 
+  /** Replaces the selection (or inserts at the caret) and leaves the caret after the text. */
+  insertAtCaret(text: string): boolean {
+    if (this.disposed || this.area.readOnly) return false;
+    this.area.focus();
+    // execCommand keeps the insertion on the textarea's native undo stack; setRangeText does not.
+    if (document.execCommand('insertText', false, text)) return true;
+    const { selectionStart: start, selectionEnd: end } = this.area;
+    this.area.setRangeText(text, start, end, 'end');
+    this.area.dispatchEvent(new Event('input'));
+    return true;
+  }
+
   setExpanded(_expanded: boolean): void {}
 
   applySettings(settings: Settings): void {

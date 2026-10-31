@@ -9,7 +9,7 @@ import { boundSession, isBusy, lastFolder, type PaneCardInput } from './dashboar
 import { DockOverlay } from './dockOverlay';
 import { DoneTracker } from './doneStatus';
 import { FilesPane } from './filesPane';
-import { routeFilesRequest, type FilesRequest } from './filesRouting';
+import { pathInsertText, pathProfileFor, routeFilesRequest, type FilesRequest } from './filesRouting';
 import {
   applyDock,
   dropZones,
@@ -47,6 +47,7 @@ import { LayoutView } from './layoutView';
 import { LiveSettings } from './liveSettings';
 import { TerminalPane, type CommandEvent } from './pane';
 import { PaneAttention } from './paneAttention';
+import { PathDragLayer } from './pathDragLayer';
 import { repoRoot } from './repoFiles';
 import type { PaneKind } from './paneKinds';
 import type { PaneView } from './paneView';
@@ -204,6 +205,9 @@ export class Workspace {
   private readonly config: LiveSettings;
   private readonly view: LayoutView;
   private readonly overlay: DockOverlay;
+  private readonly pathLayer: PathDragLayer;
+  /** The pane host showing the path drop highlight. */
+  private pathHighlightId: string | null = null;
   private drag: DragSource | null = null;
   private scrim: ScrimState;
   /** Tracked locally so quick repeats don't act on a size the file watcher hasn't reported back yet. */
@@ -267,6 +271,13 @@ export class Workspace {
         this.drag = null;
         this.paneViews.get(this.store.focusedId)?.focus();
       },
+    });
+    this.pathLayer = new PathDragLayer({
+      targetAt: (x, y) => this.pathTargetAt(x, y),
+      highlight: (id) => this.setPathHighlight(id),
+      onHover: (pos) => this.hooks.onDragHover?.(pos),
+      onDrop: (id, paths) => void this.insertPaths(id, paths),
+      onCancel: () => this.paneViews.get(this.store.focusedId)?.focus(),
     });
     this.attention = new PaneAttention({
       isSeen: (id) => this.isSeen(id),
@@ -1328,6 +1339,7 @@ export class Workspace {
       dispatch: (a) => this.dispatch(a),
       onFocus: () => this.setFocused(id),
       onChange: () => this.paneChanged(id),
+      onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
     });
   }
 
@@ -1348,6 +1360,7 @@ export class Workspace {
       onFocus: () => this.setFocused(id),
       onChange: () => this.paneChanged(id),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
+      onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
     });
   }
 
@@ -1391,10 +1404,13 @@ export class Workspace {
         this.focusPane(id);
         this.openTerminal(folder);
       },
-      onInsertPath: (text) => {
+      onInsertPath: (absolute, baseRoot) => {
         const tab = this.store.tabOf(id);
-        if (!tab || !this.pasteIntoTab(tab, text)) showToast('No terminal in this tab to insert the path into');
+        const targetId = tab ? recentTerminal(this.focusOrder, tab.panes, (p) => this.terminal(p) !== undefined) : null;
+        if (!targetId) showToast('No terminal in this tab to insert the path into');
+        else void this.insertPaths(targetId, [absolute], baseRoot);
       },
+      onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
       onPin: (absolute, isDir) => this.hooks.onPin?.(root(), absolute, isDir),
       onUnpin: (absolute) => this.hooks.onUnpin?.(root(), absolute),
       getPinnedFolders: () => this.hooks.getPinnedFolders?.(root()) ?? [],
@@ -1458,6 +1474,84 @@ export class Workspace {
       pane.notice(`[${msg}]`);
       showToast(msg);
     });
+  }
+
+  /** Starts an in-app path drag (v0.2.0 design section 6) from a row's pointerdown. */
+  startPathDrag(paths: string[], e: PointerEvent): void {
+    if (paths.length === 0) return;
+    this.pathLayer.begin(e, paths);
+  }
+
+  /**
+   * The expanded terminal or scratch pad in the active tab under the point, or null. Only the
+   * topmost element counts, so the dashboard, a dialog, or the tab strip over a pane blocks it.
+   */
+  pathTargetAt(x: number, y: number): string | null {
+    const top = document.elementsFromPoint(x, y).find((el) => !el.closest('.path-drag-layer'));
+    const host = top?.closest('.pane');
+    if (!host) return null;
+    let id: string | null = null;
+    for (const [hid, h] of this.hosts) {
+      if (h === host) {
+        id = hid;
+        break;
+      }
+    }
+    if (!id) return null;
+    const view = this.paneViews.get(id);
+    if (!(view instanceof TerminalPane || view instanceof ScratchPane)) return null;
+    const tab = this.store.active;
+    return tab.panes.includes(id) && !tab.collapsed.includes(id) ? id : null;
+  }
+
+  setPathHighlight(id: string | null): void {
+    if (id === this.pathHighlightId) return;
+    if (this.pathHighlightId) this.hosts.get(this.pathHighlightId)?.classList.remove('path-drop-target');
+    this.pathHighlightId = id;
+    if (id) this.hosts.get(id)?.classList.add('path-drop-target');
+  }
+
+  /**
+   * Inserts paths into a terminal (bracketed paste, no Enter) or at a scratch pad's caret, then
+   * shows the target. `baseRoot` undefined makes paths relative to the target terminal's repo, as
+   * a drop does; Insert path passes its Files pane's root.
+   */
+  async insertPaths(targetId: string, paths: string[], baseRoot?: string | null): Promise<void> {
+    if (this.terminal(targetId)) {
+      const text = await this.pathTextFor(targetId, paths, baseRoot);
+      const term = this.terminal(targetId);
+      if (!term) return;
+      term.pasteText(text);
+      if (this.store.isCollapsed(targetId)) this.expandPane(targetId);
+      else this.focusPane(targetId);
+      return;
+    }
+    if (!this.scratch(targetId)) return;
+    const tab = this.store.tabOf(targetId);
+    const termId = tab ? recentTerminal(this.focusOrder, tab.panes, (id) => this.terminal(id) !== undefined) : null;
+    const text = await this.pathTextFor(termId ?? null, paths, baseRoot);
+    const pad = this.scratch(targetId);
+    if (!pad) return;
+    pad.insertAtCaret(text);
+    this.focusPane(targetId);
+  }
+
+  /** Formats paths for a terminal's profile and repo; with no terminal, absolute for the default profile. */
+  private async pathTextFor(terminalId: string | null, paths: string[], baseRoot?: string | null): Promise<string> {
+    const term = terminalId ? this.terminal(terminalId) : undefined;
+    const fallback = this.config.settings.shell.defaultProfile;
+    let root: string | null = baseRoot ?? null;
+    if (baseRoot === undefined && term?.folder) {
+      try {
+        root = (await repoRoot(term.folder)).root;
+      } catch {
+        root = null;
+      }
+    }
+    const profile = term
+      ? pathProfileFor(term.profile, fallback, boundSession(term.ptyId, this.sessions) !== null)
+      : pathProfileFor(undefined, fallback, false);
+    return pathInsertText(paths, root, profile);
   }
 
   /**

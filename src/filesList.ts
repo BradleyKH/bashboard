@@ -11,6 +11,8 @@ export interface FilesListOptions {
   onUp: () => void;
   /** The row's menu button was pressed; the caller opens a `FileRowMenu` at the anchor. */
   onMenu: (entry: FileEntry, anchor: HTMLElement) => void;
+  /** A row's body was dragged past the threshold. */
+  onDragStart?: (entry: FileEntry, e: PointerEvent) => void;
 }
 
 /** Sorted, filtered, keyboard-driven list of a folder's entries (docs/design.md section 4.12). */
@@ -122,6 +124,7 @@ export class FilesList {
         onSelect: () => this.clicked(entry),
         onActivate: () => this.opts.onActivate(entry),
         onMenu: (anchor) => this.opts.onMenu(entry, anchor),
+        onDragStart: this.opts.onDragStart ? (e) => this.opts.onDragStart?.(entry, e) : undefined,
       }),
     );
     this.list.replaceChildren(...rows);

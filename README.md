@@ -313,9 +313,19 @@ while you do (or a save finds it changed), a bar offers Reload, which discards y
 mine, which overwrites the file.
 
 Hover a row for its menu: **Open terminal here** (folders), **Open in editor**, **Copy path**,
-**Insert path** (pastes the path relative to the repo, or the absolute path outside it, into the
-tab's most recently focused terminal without pressing Enter), **Move to** (files; the repo's pinned
+**Insert path** (pastes the path relative to the Files pane's root, or the absolute path outside
+it, quoted for the shell of the tab's most recently focused terminal, without pressing Enter),
+**Move to** (files; the repo's pinned
 folders and the current folder's subfolders), and **Pin**.
+
+### Dragging paths onto terminals
+
+Drag files from File Explorer, or rows from a Files pane, a Search pane (match rows, file headers,
+and file name rows), or a Git pane (Staged and Changes), onto an expanded terminal or a scratch
+pad. A terminal highlights while a path is over it; dropping pastes the paths without pressing
+Enter and focuses the terminal, and a scratch pad takes them at its caret. Paths inside the
+terminal's repo are relative, others are absolute, and paths with spaces or special characters are
+quoted for the shell. Holding a drag over a tab for half a second switches to it.
 
 ### Pins
 
