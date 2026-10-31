@@ -340,7 +340,7 @@ Paths must be absolute and are normalized before use, so `..` segments cannot st
 folder they name. `fs_write_text` and `fs_move` work on any existing file, and nothing creates or
 deletes files except the scratch commands above.
 
-### 3.9 Git (`src-tauri/src/git.rs`)
+### 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`)
 
 Runs `git` (from `PATH`, else beside Git Bash's `bash.exe`) as `git -C <root> ...` with an
 argument list, never through a shell, and with paths after `--`. Reads set
@@ -349,7 +349,7 @@ own git commands.
 
 | Command | Runs |
 | --- | --- |
-| `git_status(root)` | `status --porcelain=v2 --branch -z`: branch, upstream, ahead and behind, staged, unstaged, and untracked entries |
+| `git_status(root)` | `status --porcelain=v2 --branch -z`: branch, upstream, ahead and behind, staged, unstaged, and untracked entries, plus the repo's remote names from `remote`, as `remotes` |
 | `git_stage(root, paths)` | `add --` |
 | `git_unstage(root, paths)` | `restore --staged --`, or `rm --cached --` in a repo with no commits |
 | `git_diff(root, path, staged)` | One file's diff, capped at 1 MiB; an untracked file diffs against nothing |
@@ -357,6 +357,12 @@ own git commands.
 | `git_show(root, hash)` | One commit's diff, capped at 1 MiB |
 | `git_commit(root, message)` | `commit -F -` with the message on stdin; the repo's hooks run as usual |
 | `git_undo_commit(root, expectedHead) -> message` | `reset --soft HEAD~1`, returning the undone commit's message |
+| `git_fetch(root, background)` | `fetch --prune` |
+| `git_pull(root)` | `pull --ff-only` |
+| `git_push(root)` | `push`, or `push -u <remote> <branch>` for a branch with no upstream |
+| `git_last_fetch(root) -> {time, ok, message}` | The latest fetch attempt for the repo, or null when there has been none this session |
+| `git_fetch_roots(roots)` | Replaces the roots that have an open Git pane, for the background fetch |
+| `git_fetch_visible(visible)` | Tells the background fetch whether the window is on screen |
 | `git_watch(root)` | Starts (or shares) the metadata watcher below |
 | `git_unwatch(root)` | Releases one reference to that watcher |
 
@@ -365,6 +371,30 @@ rebase, cherry-pick, or revert is in progress. A pushed commit can be undone; re
 branch then takes a force push, which the pane leaves to the user. A soft
 reset moves only the branch; the working tree and index are untouched, so the commit's changes
 stay staged.
+
+Push never forces: a rejected push returns git's message, and a force push after undoing a
+pushed commit is left to a terminal. A branch with no upstream is published to `origin`, or to
+the repo's only remote; with several remotes and none named `origin`, `git_push` refuses and
+says to publish from a terminal. Manual fetch, pull, and push run with `GIT_TERMINAL_PROMPT=0`,
+so git never waits on a prompt it cannot show, while Git Credential Manager can still open its
+own sign-in window.
+
+Fetch records are kept per repo, keyed by common git dir, so Git panes on two worktrees of one
+repo share one record and one fetch. A fetch holds a per-repo lock, so a manual and a
+background fetch never run at once; `git_pull` waits on the same lock and `git_push` does not.
+Every fetch attempt, and every successful pull (which fetches), records its outcome and emits
+`git://fetched` with the roots that share the repo, plus the root a manual command ran on, since a
+failed fetch moves no refs and so raises no `git://changed`. A failed pull records nothing.
+
+A background scheduler fetches each repo that has an open Git pane (`git_fetch_roots`), once per
+common dir, every `git.autoFetchMinutes` (section 8; 0 turns it off). A pane opening on a repo
+with no fetch yet, or a stale one, fetches at once. The scheduler pauses while the window is
+hidden or minimized, on the signal the backdrop pauses on (6.4) reported through
+`git_fetch_visible`, and catches up when the window is shown. Background fetches also set
+`GCM_INTERACTIVE=never` and have no stdin, so they never show a credential window, and one is
+killed after 60 seconds. A background failure is quiet: it shows only as the pane's "Fetch failed" label. After three background failures in a row a repo
+is skipped until a manual Fetch runs. When a fetch moves refs, the watcher below emits
+`git://changed` and the pane refreshes.
 
 `git_watch(root)` and `git_unwatch(root)` run a watcher on the repo's git metadata and its
 worktree. Metadata is `HEAD` and `index` in the git dir and `packed-refs` and `refs` in the
@@ -1166,7 +1196,8 @@ longer exists is shown dimmed and opens nothing.
 
 For one git repo, top to bottom:
 
-- **Branch** with its upstream and the ahead and behind counts.
+- **Branch** with its upstream and the ahead and behind counts, the last fetch label, and the
+  Fetch, Pull, and Push buttons.
 - **Commit box.** A message field and a Commit button (Ctrl+Enter in the field), enabled while
   something is staged and the message is not empty. A failed commit (a hook rejecting it, for
   example) shows git's output under the box and keeps the message.
@@ -1186,6 +1217,20 @@ first, naming the commit, noting that its changes stay staged, and warning when 
 already pushed that a force push will follow; then it runs `git_undo_commit`
 (3.9) with the hash the pane showed, and puts the undone message into the commit box, above any
 draft already there. The refusal cases in 3.9 show as an inline error beside the button.
+
+**Remote buttons.** Fetch (`git fetch --prune`) is enabled when the repo has a remote. Pull
+shows the behind count, as "Pull (3)", and runs `git pull --ff-only`; it is enabled when the
+branch has an upstream and is behind it. Push is enabled when the branch has an upstream and is
+ahead of it; with no upstream it reads Publish and runs `git push -u` to `origin`, or to the only
+remote. Publish is disabled, with a tooltip, when the repo has no remote, HEAD is detached, there
+are no commits, or there are several remotes and none is named `origin`. While one of the three
+runs, all three are disabled and the running one shows an ellipsis, and the commit box stays
+usable. A failure shows git's output where a failed commit's output shows, under the commit box,
+until the next remote operation succeeds.
+
+The **last fetch label** reads "Fetched 3 min ago" after a fetch, background or manual, and
+"Fetch failed" after a failed one, with git's output as its tooltip. It is empty until the repo
+has been fetched this session, and updates on `git://fetched` (3.9).
 
 The pane refreshes on `git://changed`, when it comes on screen, and when the window regains
 focus. A folder that is not a git repo shows a notice instead.
@@ -1598,6 +1643,8 @@ interface ShellProfile {
   "editor": { "preferred": "default", "command": "" },
   // false hides the Containers section; the Containers pane still opens on request (4.16).
   "containers": { "enabled": true },
+  // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
+  "git": { "autoFetchMinutes": 5 },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
   // a field: switchToTab takes "index" from 1 to 8.
   "keybindings": [
@@ -1708,7 +1755,8 @@ Each milestone ends with a usable app.
 18. **v0.2.0.** The waiting reason on cards, title strips, tabs, and external sessions (3.3,
     4.6); `done` and `failed` for long shell commands (4.8) with `terminal.doneAfterSeconds`;
     `nextAttention`, which jumps to the next terminal that needs you (4.7), with the keybinding
-    changes in 4.5; and suppression of WebView2's context menu (4.4).
+    changes in 4.5; and suppression of WebView2's context menu (4.4). The Git pane's Fetch,
+    Pull, and Push / Publish buttons, last fetch label, and background fetch (3.9, 4.13).
 
 ## 12. Risks
 

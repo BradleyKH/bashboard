@@ -10,6 +10,7 @@ use std::{
     process::{Command, Stdio},
     sync::OnceLock,
     thread,
+    time::{Duration, Instant},
 };
 
 use serde::Serialize;
@@ -18,6 +19,7 @@ use tauri::State;
 use crate::{profiles, settings::SettingsState};
 
 const DIFF_CAP: usize = 1024 * 1024;
+const BACKGROUND_FETCH_TIMEOUT: Duration = Duration::from_secs(60);
 const NOT_FOUND: &str = "git was not found on PATH or beside Git Bash";
 
 #[cfg(windows)]
@@ -46,6 +48,7 @@ pub struct GitStatus {
     unstaged: Vec<GitFileEntry>,
     untracked: Vec<GitFileEntry>,
     conflicted: Vec<GitFileEntry>,
+    remotes: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -247,13 +250,61 @@ impl Output {
     }
 }
 
-struct Git {
+/// The remote a branch with no upstream is published to: `origin`, else the only remote.
+pub(crate) fn publish_remote(remotes: &[String]) -> Option<&str> {
+    match remotes {
+        [only] => Some(only),
+        _ => remotes.iter().find(|r| *r == "origin").map(String::as_str),
+    }
+}
+
+/// Runs `cmd` to completion, killing it once `timeout` passes.
+fn run_with_deadline(mut cmd: Command, timeout: Duration) -> Result<Output, String> {
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = cmd.spawn().map_err(|e| format!("could not run git: {e}"))?;
+    fn drain(mut pipe: impl Read + Send + 'static) -> thread::JoinHandle<Vec<u8>> {
+        thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = pipe.read_to_end(&mut buf);
+            buf
+        })
+    }
+    let out_reader = drain(child.stdout.take().expect("stdout is piped"));
+    let err_reader = drain(child.stderr.take().expect("stderr is piped"));
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+            break status;
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            // The reader threads are left to finish on their own: a killed git.exe can leave
+            // git-remote-https or ssh holding the pipes open, and joining would hang.
+            return Err(format!(
+                "git timed out after {} seconds",
+                timeout.as_secs_f64()
+            ));
+        }
+        thread::sleep((deadline - now).min(Duration::from_millis(100)));
+    };
+    Ok(Output {
+        ok: status.success(),
+        code: status.code(),
+        stdout: out_reader.join().unwrap_or_default(),
+        stderr: err_reader.join().unwrap_or_default(),
+        truncated: false,
+    })
+}
+
+pub(crate) struct Git {
     exe: PathBuf,
     root: PathBuf,
 }
 
 impl Git {
-    fn open(settings: &SettingsState, root: &str) -> Result<Self, String> {
+    pub(crate) fn open(settings: &SettingsState, root: &str) -> Result<Self, String> {
         let root = check_root(root)?;
         Ok(Self {
             exe: locate_git(settings)?,
@@ -401,7 +452,71 @@ impl Git {
         if !out.ok {
             return Err(out.message());
         }
-        Ok(parse_status(&out.stdout))
+        let mut status = parse_status(&out.stdout);
+        status.remotes = Self::ok(self.read(["remote"])?)?
+            .lines()
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+            .map(str::to_string)
+            .collect();
+        Ok(status)
+    }
+
+    /// The repo's common git dir, which every worktree of the repo shares.
+    pub(crate) fn common_dir(&self) -> Result<PathBuf, String> {
+        let dir = Self::ok(self.read(["rev-parse", "--git-common-dir"])?)?;
+        Ok(self.root.join(dir))
+    }
+
+    /// A command that talks to a remote. A background one must never wait on a credential
+    /// prompt; a manual one may still open Git Credential Manager's own window.
+    fn remote_command(&self, background: bool, args: &[&str]) -> Command {
+        let mut cmd = self.command(false, args);
+        if background {
+            cmd.env("GCM_INTERACTIVE", "never");
+        }
+        cmd
+    }
+
+    pub(crate) fn fetch(&self, background: bool) -> Result<(), String> {
+        let mut cmd = self.remote_command(background, &["fetch", "--prune"]);
+        let out = if background {
+            cmd.stdin(Stdio::null());
+            run_with_deadline(cmd, BACKGROUND_FETCH_TIMEOUT)?
+        } else {
+            self.exec(cmd, None, None)?
+        };
+        Self::ok(out).map(|_| ())
+    }
+
+    pub(crate) fn pull(&self) -> Result<(), String> {
+        let cmd = self.remote_command(false, &["pull", "--ff-only"]);
+        Self::ok(self.exec(cmd, None, None)?).map(|_| ())
+    }
+
+    /// Pushes the branch, or publishes it when it has no upstream. Never forces.
+    pub(crate) fn push(&self) -> Result<(), String> {
+        let status = self.status()?;
+        let Some(branch) = status.branch.as_deref() else {
+            return Err("HEAD is detached".into());
+        };
+        let cmd = if status.upstream.is_some() {
+            self.remote_command(false, &["push"])
+        } else {
+            let remote = match publish_remote(&status.remotes) {
+                Some(r) => r,
+                None if status.remotes.is_empty() => {
+                    return Err("This repo has no remote".into());
+                }
+                None => {
+                    return Err(
+                        "Several remotes and none named origin; publish from a terminal".into(),
+                    );
+                }
+            };
+            self.remote_command(false, &["push", "-u", remote, branch])
+        };
+        Self::ok(self.exec(cmd, None, None)?).map(|_| ())
     }
 
     fn stage(&self, paths: &[String]) -> Result<(), String> {
@@ -704,9 +819,7 @@ mod tests {
         }
     }
 
-    fn repo(tag: &str) -> Repo {
-        let root = temp_dir(tag);
-        sh(&root, &["init", "-q", "-b", "main"]);
+    fn configure(dir: &Path) {
         for (k, v) in [
             ("user.name", "Test"),
             ("user.email", "test@example.com"),
@@ -714,8 +827,14 @@ mod tests {
             ("core.hooksPath", ".git/hooks"),
             ("core.autocrlf", "false"),
         ] {
-            sh(&root, &["config", k, v]);
+            sh(dir, &["config", k, v]);
         }
+    }
+
+    fn repo(tag: &str) -> Repo {
+        let root = temp_dir(tag);
+        sh(&root, &["init", "-q", "-b", "main"]);
+        configure(&root);
         Repo {
             git: Git { exe: exe(), root },
             remotes: RefCell::new(Vec::new()),
@@ -745,6 +864,26 @@ mod tests {
             &["remote", "add", "origin", &bare.to_string_lossy()],
         );
         g.remotes.borrow_mut().push(bare);
+    }
+
+    /// A second clone of the repo's first bare remote, removed with the repo.
+    fn clone_of(g: &Repo) -> PathBuf {
+        let bare = g.remotes.borrow()[0].clone();
+        let dir = temp_dir("clone");
+        sh(
+            &dir,
+            &["clone", "-q", "-b", "main", &bare.to_string_lossy(), "."],
+        );
+        configure(&dir);
+        g.remotes.borrow_mut().push(dir.clone());
+        dir
+    }
+
+    fn commit_in(dir: &Path, name: &str, text: &str, msg: &str) -> String {
+        fs::write(dir.join(name), text).unwrap();
+        sh(dir, &["add", "--", name]);
+        sh(dir, &["commit", "-q", "-m", msg]);
+        sh(dir, &["rev-parse", "HEAD"])
     }
 
     #[test]
@@ -1017,5 +1156,171 @@ mod tests {
         let err = g.undo_commit(&head).unwrap_err();
         assert!(err.contains("merge is in progress"), "{err}");
         assert_eq!(sh(&g.root, &["rev-parse", "HEAD"]), head);
+    }
+
+    #[test]
+    fn git_status_lists_remotes() {
+        let g = repo("remotes");
+        assert!(g.status().unwrap().remotes.is_empty());
+        with_bare_remote(&g);
+        assert_eq!(g.status().unwrap().remotes, ["origin"]);
+    }
+
+    #[test]
+    fn git_publish_remote_choice() {
+        let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(publish_remote(&names(&[])), None);
+        assert_eq!(publish_remote(&names(&["origin", "fork"])), Some("origin"));
+        assert_eq!(publish_remote(&names(&["fork", "origin"])), Some("origin"));
+        assert_eq!(publish_remote(&names(&["fork"])), Some("fork"));
+        assert_eq!(publish_remote(&names(&["a", "b"])), None);
+    }
+
+    #[test]
+    fn git_common_dir_is_the_git_folder() {
+        let g = repo("common");
+        let dir = g.common_dir().unwrap();
+        assert!(dir.is_absolute(), "{dir:?}");
+        assert!(dir.join("HEAD").is_file(), "{dir:?}");
+    }
+
+    #[test]
+    fn git_fetch_moves_refs_and_prunes() {
+        let g = repo("fetch");
+        with_bare_remote(&g);
+        commit_file(&g, "a.txt", "1\n", "first");
+        sh(&g.root, &["push", "-q", "-u", "origin", "main"]);
+        sh(&g.root, &["push", "-q", "origin", "main:feature"]);
+        let clone = clone_of(&g);
+        commit_in(&clone, "a.txt", "2\n", "from the clone");
+        sh(&clone, &["push", "-q", "origin", "main"]);
+
+        g.fetch(false).unwrap();
+        assert_eq!(g.status().unwrap().behind, 1);
+        let has_feature = || {
+            g.read(["rev-parse", "--verify", "-q", "refs/remotes/origin/feature"])
+                .unwrap()
+                .ok
+        };
+        assert!(has_feature());
+
+        let bare = g.remotes.borrow()[0].clone();
+        sh(&bare, &["branch", "-D", "feature"]);
+        g.fetch(false).unwrap();
+        assert!(!has_feature());
+    }
+
+    #[test]
+    fn git_pull_fast_forwards_and_refuses_diverged() {
+        let g = repo("pull");
+        with_bare_remote(&g);
+        commit_file(&g, "a.txt", "1\n", "first");
+        sh(&g.root, &["push", "-q", "-u", "origin", "main"]);
+        let clone = clone_of(&g);
+        let theirs = commit_in(&clone, "a.txt", "2\n", "from the clone");
+        sh(&clone, &["push", "-q", "origin", "main"]);
+
+        g.pull().unwrap();
+        assert_eq!(sh(&g.root, &["rev-parse", "HEAD"]), theirs);
+
+        let ours = commit_file(&g, "b.txt", "local\n", "local");
+        commit_in(&clone, "c.txt", "remote\n", "remote");
+        sh(&clone, &["push", "-q", "origin", "main"]);
+        let err = g.pull().unwrap_err();
+        assert!(err.to_lowercase().contains("fast-forward"), "{err}");
+        assert_eq!(sh(&g.root, &["rev-parse", "HEAD"]), ours);
+    }
+
+    #[test]
+    fn git_push_and_publish() {
+        let g = repo("push");
+        with_bare_remote(&g);
+        commit_file(&g, "a.txt", "1\n", "first");
+        assert_eq!(g.status().unwrap().upstream, None);
+        g.push().unwrap();
+        let s = g.status().unwrap();
+        assert_eq!(s.upstream.as_deref(), Some("origin/main"));
+        assert_eq!(s.ahead, 0);
+
+        commit_file(&g, "a.txt", "2\n", "second");
+        assert_eq!(g.status().unwrap().ahead, 1);
+        g.push().unwrap();
+        assert_eq!(g.status().unwrap().ahead, 0);
+
+        let clone = clone_of(&g);
+        commit_in(&clone, "b.txt", "theirs\n", "theirs");
+        sh(&clone, &["push", "-q", "origin", "main"]);
+        let ours = commit_file(&g, "c.txt", "ours\n", "ours");
+        let err = g.push().unwrap_err();
+        assert!(err.contains("rejected"), "{err}");
+        assert_eq!(sh(&g.root, &["rev-parse", "HEAD"]), ours);
+    }
+
+    #[test]
+    fn git_push_refusals() {
+        let g = repo("push-detached");
+        with_bare_remote(&g);
+        commit_file(&g, "a.txt", "1\n", "first");
+        sh(&g.root, &["switch", "-q", "--detach"]);
+        let err = g.push().unwrap_err();
+        assert!(err.contains("detached"), "{err}");
+
+        let g = repo("push-none");
+        commit_file(&g, "a.txt", "1\n", "first");
+        let err = g.push().unwrap_err();
+        assert!(err.contains("no remote"), "{err}");
+
+        let g = repo("push-two");
+        commit_file(&g, "a.txt", "1\n", "first");
+        sh(&g.root, &["remote", "add", "a", "../a.git"]);
+        sh(&g.root, &["remote", "add", "b", "../b.git"]);
+        let err = g.push().unwrap_err();
+        assert!(err.contains("none named origin"), "{err}");
+    }
+
+    #[test]
+    fn git_remote_environment() {
+        let g = repo("env");
+        let env = |background: bool| {
+            g.remote_command(background, &["fetch"])
+                .get_envs()
+                .map(|(k, v)| {
+                    (
+                        k.to_string_lossy().into_owned(),
+                        v.map(|v| v.to_string_lossy().into_owned()),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let pair = |k: &str, v: &str| (k.to_string(), Some(v.to_string()));
+        let bg = env(true);
+        assert!(bg.contains(&pair("GIT_TERMINAL_PROMPT", "0")), "{bg:?}");
+        assert!(bg.contains(&pair("GCM_INTERACTIVE", "never")), "{bg:?}");
+        let manual = env(false);
+        assert!(
+            manual.contains(&pair("GIT_TERMINAL_PROMPT", "0")),
+            "{manual:?}"
+        );
+        assert!(
+            !manual.iter().any(|(k, _)| k == "GCM_INTERACTIVE"),
+            "{manual:?}"
+        );
+    }
+
+    #[test]
+    fn git_run_with_deadline_kills_a_hung_git() {
+        let g = repo("hung");
+        let mut cmd = g.command(true, ["cat-file", "--batch"]);
+        cmd.stdin(Stdio::piped());
+        let start = Instant::now();
+        let Err(err) = run_with_deadline(cmd, Duration::from_millis(300)) else {
+            panic!("a hung git should time out");
+        };
+        assert!(err.contains("timed out"), "{err}");
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "{:?}",
+            start.elapsed()
+        );
     }
 }

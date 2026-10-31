@@ -1,6 +1,6 @@
 /** Pure helpers behind the Git pane (docs/design.md section 4.13); no DOM. */
 
-import type { GitCommit, GitFileEntry, GitStatus } from './gitApi';
+import type { GitCommit, GitFileEntry, GitLastFetch, GitStatus } from './gitApi';
 import { samePath } from './favorites';
 
 export type GitRowKind = 'staged' | 'unstaged' | 'untracked' | 'conflicted';
@@ -128,4 +128,91 @@ export function routeGitRequest(
 ): { reuse: string } | { open: true } {
   const hit = panes.find((p) => samePath(p.root, root));
   return hit ? { reuse: hit.paneId } : { open: true };
+}
+
+/** The remote Publish pushes to: `origin`, else the only remote, else null. Mirrors the core's rule. */
+export function publishRemote(remotes: readonly string[]): string | null {
+  if (remotes.includes('origin')) return 'origin';
+  return remotes.length === 1 ? remotes[0] : null;
+}
+
+export type RemoteOp = 'fetch' | 'pull' | 'push';
+
+export interface RemoteButton {
+  enabled: boolean;
+  label: string;
+  title: string;
+}
+
+export interface RemoteButtons {
+  fetch: RemoteButton;
+  pull: RemoteButton;
+  push: RemoteButton;
+}
+
+const NO_REMOTE = 'This repo has no remote';
+
+/** The branch row's Fetch, Pull, and Push / Publish buttons (docs/design.md section 4.13). */
+export function remoteButtons(status: GitStatus, running: RemoteOp | null): RemoteButtons {
+  const hasRemote = status.remotes.length > 0;
+  const fetch: RemoteButton = {
+    enabled: hasRemote,
+    label: 'Fetch',
+    title: hasRemote ? 'git fetch --prune' : NO_REMOTE,
+  };
+
+  const behind = status.behind > 0;
+  const pull: RemoteButton = {
+    enabled: status.upstream !== null && behind,
+    label: behind ? `Pull (${status.behind})` : 'Pull',
+    title:
+      status.upstream === null
+        ? 'No upstream to pull from'
+        : behind
+          ? 'git pull --ff-only'
+          : `Up to date with ${status.upstream}`,
+  };
+
+  let push: RemoteButton;
+  if (status.branch === null) {
+    push = { enabled: false, label: 'Push', title: 'HEAD is detached' };
+  } else if (status.upstream !== null) {
+    const ahead = status.ahead > 0;
+    push = { enabled: ahead, label: 'Push', title: ahead ? 'git push' : 'Nothing to push' };
+  } else {
+    const remote = publishRemote(status.remotes);
+    if (!hasRemote) {
+      push = { enabled: false, label: 'Publish', title: NO_REMOTE };
+    } else if (remote === null) {
+      push = {
+        enabled: false,
+        label: 'Publish',
+        title: 'Several remotes and none named origin; publish from a terminal',
+      };
+    } else if (status.oid === null) {
+      push = { enabled: false, label: 'Publish', title: 'No commits to publish' };
+    } else {
+      push = { enabled: true, label: 'Publish', title: `git push -u ${remote} ${status.branch}` };
+    }
+  }
+
+  if (running !== null) {
+    fetch.enabled = false;
+    pull.enabled = false;
+    push.enabled = false;
+    if (running === 'fetch') fetch.label = 'Fetching...';
+    else if (running === 'pull') pull.label = 'Pulling...';
+    else push.label = push.label === 'Publish' ? 'Publishing...' : 'Pushing...';
+  }
+  return { fetch, pull, push };
+}
+
+/** The branch row's last fetch label; a failure carries git's output as the title. */
+export function lastFetchText(
+  last: GitLastFetch | null,
+  now: number,
+): { text: string; title: string } {
+  if (last === null) return { text: '', title: '' };
+  if (!last.ok) return { text: 'Fetch failed', title: last.message };
+  return { text: `Fetched ${relativeTime(last.time, now)}`, title: '' };
 }

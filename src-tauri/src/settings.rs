@@ -82,6 +82,13 @@ pub struct Containers {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GitSettings {
+    /// Minutes between background fetches of repos with an open Git pane; 0 turns it off.
+    pub auto_fetch_minutes: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Terminal {
     /// Shell commands running at least this many seconds mark the terminal done or failed; 0 turns it off.
     pub done_after_seconds: u32,
@@ -125,6 +132,7 @@ pub struct Settings {
     pub restore: Restore,
     pub editor: Editor,
     pub containers: Containers,
+    pub git: GitSettings,
     pub keybindings: Vec<Keybinding>,
 }
 
@@ -235,6 +243,7 @@ impl Default for Settings {
             restore: Restore { enabled: true, resume_claude: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             containers: Containers { enabled: true },
+            git: GitSettings { auto_fetch_minutes: 5 },
             keybindings: default_keybindings(),
         }
     }
@@ -519,6 +528,15 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
     let containers = Containers {
         enabled: pick(&root, &["containers", "enabled"], &mut w, boolean, d.containers.enabled),
     };
+    let git = GitSettings {
+        auto_fetch_minutes: pick(
+            &root,
+            &["git", "autoFetchMinutes"],
+            &mut w,
+            |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n <= 1440),
+            d.git.auto_fetch_minutes,
+        ),
+    };
     let keybindings = parse_keybindings(&root, &mut w);
 
     Ok((
@@ -533,6 +551,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             restore,
             editor,
             containers,
+            git,
             keybindings,
         },
         w,
@@ -561,6 +580,11 @@ fn default_file_text() -> String {
         "  \"containers\": {",
         "  // false hides the Containers section; the Containers pane still opens on request (4.16).
   \"containers\": {",
+    )
+    .replace(
+        "  \"git\": {",
+        "  // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
+  \"git\": {",
     )
     .replace(
         "  \"keybindings\": []",
@@ -823,6 +847,31 @@ mod tests {
     fn containers_defaults_to_enabled_and_is_in_default_file() {
         assert_eq!(Settings::default().containers, Containers { enabled: true });
         assert!(default_file_text().contains("\"containers\""));
+    }
+
+    #[test]
+    fn git_auto_fetch_minutes_defaults_to_5_and_is_in_default_file() {
+        assert_eq!(Settings::default().git, GitSettings { auto_fetch_minutes: 5 });
+        assert!(default_file_text().contains("\"git\""));
+    }
+
+    #[test]
+    fn git_auto_fetch_minutes_parses_bounds() {
+        for n in [0u32, 30, 1440] {
+            let (s, w) = parse_settings(&format!(r#"{{ "git": {{ "autoFetchMinutes": {n} }} }}"#));
+            assert_eq!(s.git.auto_fetch_minutes, n);
+            assert!(w.is_empty(), "{w:?}");
+        }
+    }
+
+    #[test]
+    fn git_auto_fetch_minutes_rejects_invalid_values() {
+        for bad in ["-1", "1.5", "\"5\"", "1441"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "git": {{ "autoFetchMinutes": {bad} }} }}"#));
+            assert_eq!(s.git.auto_fetch_minutes, 5, "{bad}");
+            assert_eq!(w.len(), 1, "{bad}: {w:?}");
+            assert!(w[0].starts_with("git.autoFetchMinutes"), "{bad}: {w:?}");
+        }
     }
 
     #[test]

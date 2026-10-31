@@ -50,7 +50,8 @@ per pane via `portable-pty` and streams output to the front end over a Tauri `Ch
 default with a warning), layers user keybindings over the built-in defaults, and watches the
 file, emitting `settings://changed` on save. `hooks.rs` is the loopback hook receiver and the
 per-session status overlay that the roster merges; `hook_install.rs` installs the hook script
-and registers it in `~/.claude/settings.json`. `lib.rs` registers commands and disables WebView2's
+and registers it in `~/.claude/settings.json`. `git_fetch.rs` holds the remote git commands and
+the background fetch scheduler keyed by common dir. `lib.rs` registers commands and disables WebView2's
 browser accelerator keys so Ctrl+F, Ctrl+R, and similar reach the shell.
 
 **Front end (`src`)** is no-framework TypeScript, one class or module per file. Don't introduce
@@ -77,7 +78,7 @@ driven by the `--scrim-opacity` and `--scrim-blur` custom properties on `:root`.
 `sim/` must stay DOM-free. `src/backdrop/backdrop.ts` is the only entry point the rest of the
 app uses (`mountBackdrop` returns a `BackdropHandle`); `render/skyDome.ts` is the sky-dome mesh
 behind the colony. The loop pauses while the window
-is hidden or minimized (`backdropVisibility.ts`), honors `backdrop.maxFps` through
+is hidden or minimized (`windowVisibility.ts`), honors `backdrop.maxFps` through
 `framePacer.ts`, and freezes on a still frame when `backdrop.animate` is false.
 
 ## Changes that span files

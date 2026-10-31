@@ -344,7 +344,14 @@ do the Repo section and the Open menu on dashboard rows, which offer Git only fo
 The left side stacks four regions, and the diff for the selected file or commit sits on the right:
 
 - **Branch line** shows the branch, its upstream, and how many commits it is ahead and behind. A
-  detached HEAD is shown as such.
+  detached HEAD is shown as such. It also holds a last fetch label ("Fetched 3 min ago", or "Fetch
+  failed" with git's output as its tooltip) and the **Fetch**, **Pull**, and **Push** buttons.
+  Fetch runs `git fetch --prune`. Pull shows how many commits you are behind and runs
+  `git pull --ff-only`, so it never merges. Push sends your commits; on a branch with no upstream
+  it reads **Publish** and pushes to `origin` (or the repo's only remote) and sets the upstream.
+  Publish is disabled, with a tooltip, in a repo with no remote or with several and none named
+  `origin`. The three buttons are disabled while one runs, and a failure shows git's output under
+  the commit box.
 - **Commit box** takes a multi-line message. Commit is enabled when something is staged and the
   message is not blank. Ctrl+Enter in the box also commits. Commit runs the repo's hooks as usual,
   so a failing `pre-commit` hook stops the commit: its output shows under the box and your message
@@ -360,6 +367,16 @@ Click a file row to see its diff: the unstaged change for a row in Changes, or t
 a row in Staged. An untracked file shows its whole content as added. Click a commit to see its
 changes. A diff over 1 MiB is cut off with a note that it was truncated. The − and + buttons above
 the diff zoom it, and a new Git pane starts at the zoom you last chose.
+
+Push never forces. A rejected push shows git's message, and after undoing a pushed commit the
+force push stays in a terminal.
+
+Bashboard fetches in the background for every repo with an open Git pane, every
+`git.autoFetchMinutes` (5 by default; see [Settings](#settings)), so the behind count and the
+label stay current. It pauses while the window is minimized or hidden and catches up when you come
+back. A background fetch never prompts for credentials, and after three failures in a row it stops
+for that repo until you press Fetch; a manual Fetch, Pull, or Push may show Git Credential
+Manager's sign-in window.
 
 **Undo commit** appears above the diff when you select the newest commit, and only while it is HEAD. The confirm
 names the commit, and warns when it is already pushed: undoing it rewrites history the remote
@@ -722,6 +739,14 @@ the `~/.bashrc` lines only.
 
 ```jsonc
 "terminal": { "doneAfterSeconds": 30 }
+```
+
+`git.autoFetchMinutes` (default 5, 0 to 1440) is the number of minutes between background fetches
+of repos with an open Git pane; 0 turns them off. It applies on save and is also in the Git
+section of the settings dialog.
+
+```jsonc
+"git": { "autoFetchMinutes": 5 }
 ```
 
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to

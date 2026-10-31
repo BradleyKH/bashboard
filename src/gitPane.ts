@@ -5,7 +5,11 @@ import { samePath } from './favorites';
 import {
   gitCommit,
   gitDiff,
+  gitFetch,
+  gitLastFetch,
   gitLog,
+  gitPull,
+  gitPush,
   gitShow,
   gitStage,
   gitStatus,
@@ -14,10 +18,13 @@ import {
   gitUnwatch,
   gitWatch,
   onGitChanged,
+  onGitFetched,
   type GitCommit,
   type GitDiff,
+  type GitLastFetch,
   type GitStatus,
 } from './gitApi';
+import { GitBranchRow } from './gitBranchRow';
 import { GitCommitBox } from './gitCommitBox';
 import { GitDiffView } from './gitDiffView';
 import { GitFileList } from './gitFileList';
@@ -26,11 +33,14 @@ import {
   branchLine,
   canCommit,
   changesList,
+  lastFetchText,
   mergeUndoMessage,
+  remoteButtons,
   shortHash,
   stagedList,
   undoTarget,
   type GitRow,
+  type RemoteOp,
 } from './gitModel';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
@@ -105,7 +115,7 @@ export class GitPane implements PaneView {
   private readonly left: HTMLElement;
   private readonly right: HTMLElement;
   private readonly notice: HTMLElement;
-  private readonly branch: HTMLElement;
+  private readonly branch: GitBranchRow;
   private readonly commitBox: GitCommitBox;
   private readonly stagedList: GitFileList;
   private readonly changesList: GitFileList;
@@ -129,6 +139,12 @@ export class GitPane implements PaneView {
   private diffGen = 0;
   private watchedRoot: string | null = null;
   private unlistenChanged: (() => void) | null = null;
+  private unlistenFetched: (() => void) | null = null;
+  private remoteOp: RemoteOp | null = null;
+  private lastFetch: GitLastFetch | null = null;
+  /** Whether the error under the commit box came from a remote operation, so only those clear it. */
+  private remoteError = false;
+  private labelTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
   private readonly listeners: Array<() => void> = [];
 
@@ -148,8 +164,11 @@ export class GitPane implements PaneView {
 
     this.left = document.createElement('div');
     this.left.className = 'git-left';
-    this.branch = document.createElement('div');
-    this.branch.className = 'git-branch';
+    this.branch = new GitBranchRow({
+      onFetch: () => void this.runRemote('fetch'),
+      onPull: () => void this.runRemote('pull'),
+      onPush: () => void this.runRemote('push'),
+    });
     this.commitBox = new GitCommitBox({
       onCommit: (message) => void this.commit(message),
       onInput: () => this.updateCommitEnabled(),
@@ -173,7 +192,7 @@ export class GitPane implements PaneView {
     this.logList = new GitLogList({
       onSelect: (hash) => this.selectCommit(hash),
     });
-    this.left.append(this.branch, this.commitBox.el, this.stagedList.el, this.changesList.el, this.logList.el);
+    this.left.append(this.branch.el, this.commitBox.el, this.stagedList.el, this.changesList.el, this.logList.el);
 
     this.right = document.createElement('div');
     this.right.className = 'git-right';
@@ -204,6 +223,17 @@ export class GitPane implements PaneView {
       },
       () => {},
     );
+
+    onGitFetched((roots) => {
+      if (roots.some((r) => samePath(r, this.rootPath))) void this.reloadLastFetch();
+    }).then(
+      (off) => {
+        if (this.disposed) off();
+        else this.unlistenFetched = off;
+      },
+      () => {},
+    );
+    this.labelTimer = setInterval(() => this.renderLastFetch(), 30_000);
 
     void this.init();
   }
@@ -290,6 +320,10 @@ export class GitPane implements PaneView {
     this.watchedRoot = null;
     this.unlistenChanged?.();
     this.unlistenChanged = null;
+    this.unlistenFetched?.();
+    this.unlistenFetched = null;
+    if (this.labelTimer !== null) clearInterval(this.labelTimer);
+    this.labelTimer = null;
     for (const off of this.listeners) off();
     this.listeners.length = 0;
     this.body.remove();
@@ -341,8 +375,13 @@ export class GitPane implements PaneView {
     const root = this.rootPath;
     let status: GitStatus;
     let log: GitCommit[];
+    let lastFetch: GitLastFetch | null;
     try {
-      [status, log] = await Promise.all([gitStatus(root), gitLog(root, LOG_COUNT)]);
+      [status, log, lastFetch] = await Promise.all([
+        gitStatus(root),
+        gitLog(root, LOG_COUNT),
+        gitLastFetch(root).catch(() => null),
+      ]);
     } catch (e) {
       if (this.disposed) return;
       this.status = null;
@@ -353,9 +392,11 @@ export class GitPane implements PaneView {
     this.hideNotice();
     this.status = status;
     this.log = log;
+    this.lastFetch = lastFetch;
 
-    this.branch.textContent = branchLine(status);
-    this.branch.title = this.branch.textContent;
+    this.branch.setBranch(branchLine(status));
+    this.branch.setButtons(remoteButtons(status, this.remoteOp));
+    this.renderLastFetch();
     const staged = stagedList(status);
     const changes = changesList(status);
     this.stagedList.setRows(staged);
@@ -371,6 +412,42 @@ export class GitPane implements PaneView {
     }
     this.updateCommitEnabled();
     this.restoreSelection(staged, changes);
+  }
+
+  private renderLastFetch(): void {
+    this.branch.setLastFetch(lastFetchText(this.lastFetch, Date.now()));
+  }
+
+  private async reloadLastFetch(): Promise<void> {
+    const last = await gitLastFetch(this.rootPath).catch(() => null);
+    if (this.disposed) return;
+    this.lastFetch = last;
+    this.renderLastFetch();
+  }
+
+  private async runRemote(op: RemoteOp): Promise<void> {
+    if (this.remoteOp !== null || this.status === null) return;
+    this.remoteOp = op;
+    this.branch.setButtons(remoteButtons(this.status, op));
+    try {
+      if (op === 'fetch') await gitFetch(this.rootPath);
+      else if (op === 'pull') await gitPull(this.rootPath);
+      else await gitPush(this.rootPath);
+      if (this.disposed) return;
+      if (this.remoteError) {
+        this.commitBox.showError(null);
+        this.remoteError = false;
+      }
+    } catch (e) {
+      if (this.disposed) return;
+      this.commitBox.showError(errorText(e));
+      this.remoteError = true;
+    } finally {
+      this.remoteOp = null;
+    }
+    if (this.status !== null) this.branch.setButtons(remoteButtons(this.status, null));
+    void this.reloadLastFetch();
+    this.refresh();
   }
 
   /** Keeps the selected row's diff (re-fetched) while it still exists, else clears it. */

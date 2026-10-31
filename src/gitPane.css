@@ -44,12 +44,49 @@
 
 .git-branch {
   flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
   padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.git-branch-name {
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--git-accent);
   font-weight: 600;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The label and buttons wrap below a long branch name as one group, the label giving way first. */
+.git-remote {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.git-fetched {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 4px;
+  color: var(--git-muted);
+  font-size: 0.85em;
+}
+
+.git-remote-btn {
+  flex: none;
+}
+
+.git-branch.busy .git-remote-btn {
+  opacity: 0.5;
 }
 
 .git-notice {

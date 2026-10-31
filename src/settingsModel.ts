@@ -104,6 +104,23 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    title: 'Git',
+    fields: [
+      {
+        path: ['git', 'autoFetchMinutes'],
+        label: 'Background fetch interval',
+        kind: 'number',
+        min: 0,
+        max: 1440,
+        step: 1,
+        unit: 'min',
+        integer: true,
+        hint: '0 turns background fetch off',
+        applies: 'live',
+      },
+    ],
+  },
+  {
     title: 'Dashboard',
     fields: [
       { path: ['dashboard', 'visibleOnStart'], label: 'Show the dashboard at launch', kind: 'toggle', applies: 'nextLaunch' },

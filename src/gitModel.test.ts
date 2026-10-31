@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { GitCommit, GitStatus } from './gitApi';
+import type { GitCommit, GitLastFetch, GitStatus } from './gitApi';
 import {
   branchLine,
   canCommit,
   changesList,
   diffLines,
+  lastFetchText,
   mergeUndoMessage,
+  publishRemote,
   relativeTime,
+  remoteButtons,
   routeGitRequest,
   shortHash,
   stagedList,
@@ -26,6 +29,7 @@ function status(over: Partial<GitStatus> = {}): GitStatus {
     unstaged: [],
     untracked: [],
     conflicted: [],
+    remotes: [],
     ...over,
   };
 }
@@ -201,5 +205,95 @@ describe('routeGitRequest', () => {
   it('opens a new pane for a different repo or none', () => {
     expect(routeGitRequest(panes, 'C:\\Repos\\Other')).toEqual({ open: true });
     expect(routeGitRequest([], 'C:\\Repos\\App')).toEqual({ open: true });
+  });
+});
+
+describe('publishRemote', () => {
+  it('prefers origin, else the only remote, else null', () => {
+    expect(publishRemote([])).toBeNull();
+    expect(publishRemote(['fork', 'origin'])).toBe('origin');
+    expect(publishRemote(['fork'])).toBe('fork');
+    expect(publishRemote(['a', 'b'])).toBeNull();
+  });
+});
+
+describe('remoteButtons', () => {
+  const tracked = { remotes: ['origin'], upstream: 'origin/main' };
+
+  it('disables Fetch and Publish without a remote', () => {
+    const b = remoteButtons(status(), null);
+    expect(b.fetch).toEqual({ enabled: false, label: 'Fetch', title: 'This repo has no remote' });
+    expect(b.push).toEqual({ enabled: false, label: 'Publish', title: 'This repo has no remote' });
+    expect(b.pull).toEqual({ enabled: false, label: 'Pull', title: 'No upstream to pull from' });
+  });
+  it('enables Pull with the count while behind', () => {
+    const b = remoteButtons(status({ ...tracked, behind: 3 }), null);
+    expect(b.fetch).toEqual({ enabled: true, label: 'Fetch', title: 'git fetch --prune' });
+    expect(b.pull).toEqual({ enabled: true, label: 'Pull (3)', title: 'git pull --ff-only' });
+    expect(b.push).toEqual({ enabled: false, label: 'Push', title: 'Nothing to push' });
+  });
+  it('disables Pull and Push when up to date', () => {
+    const b = remoteButtons(status(tracked), null);
+    expect(b.pull).toEqual({ enabled: false, label: 'Pull', title: 'Up to date with origin/main' });
+    expect(b.push.enabled).toBe(false);
+  });
+  it('enables Push while ahead', () => {
+    const b = remoteButtons(status({ ...tracked, ahead: 2 }), null);
+    expect(b.push).toEqual({ enabled: true, label: 'Push', title: 'git push' });
+  });
+  it('publishes an unpublished branch to origin', () => {
+    const b = remoteButtons(status({ remotes: ['origin'] }), null);
+    expect(b.push).toEqual({ enabled: true, label: 'Publish', title: 'git push -u origin main' });
+  });
+  it('publishes to the only remote when it is not origin', () => {
+    const b = remoteButtons(status({ remotes: ['fork'] }), null);
+    expect(b.push).toEqual({ enabled: true, label: 'Publish', title: 'git push -u fork main' });
+  });
+  it('disables Publish with several remotes and no origin', () => {
+    const b = remoteButtons(status({ remotes: ['a', 'b'] }), null);
+    expect(b.push).toEqual({
+      enabled: false,
+      label: 'Publish',
+      title: 'Several remotes and none named origin; publish from a terminal',
+    });
+  });
+  it('disables Push on a detached HEAD', () => {
+    const b = remoteButtons(status({ branch: null, remotes: ['origin'] }), null);
+    expect(b.push).toEqual({ enabled: false, label: 'Push', title: 'HEAD is detached' });
+  });
+  it('disables Publish with no commits', () => {
+    const b = remoteButtons(status({ oid: null, remotes: ['origin'] }), null);
+    expect(b.push).toEqual({ enabled: false, label: 'Publish', title: 'No commits to publish' });
+  });
+  it('disables everything while an operation runs and relabels it', () => {
+    const s = status({ ...tracked, behind: 1, ahead: 1 });
+    const none = (r: ReturnType<typeof remoteButtons>) => [r.fetch, r.pull, r.push].every((x) => !x.enabled);
+    const f = remoteButtons(s, 'fetch');
+    expect(none(f)).toBe(true);
+    expect(f.fetch.label).toBe('Fetching...');
+    const pl = remoteButtons(s, 'pull');
+    expect(none(pl)).toBe(true);
+    expect(pl.pull.label).toBe('Pulling...');
+    const ps = remoteButtons(s, 'push');
+    expect(none(ps)).toBe(true);
+    expect(ps.push.label).toBe('Pushing...');
+    expect(remoteButtons(status({ remotes: ['origin'] }), 'push').push.label).toBe('Publishing...');
+  });
+});
+
+describe('lastFetchText', () => {
+  const now = new Date(2026, 9, 26, 12, 0, 0).getTime();
+  const ok = (ago: number): GitLastFetch => ({ time: now - ago, ok: true, message: '' });
+  it('is empty before any fetch', () => {
+    expect(lastFetchText(null, now)).toEqual({ text: '', title: '' });
+  });
+  it('reads the age of a successful fetch', () => {
+    expect(lastFetchText(ok(5_000), now)).toEqual({ text: 'Fetched just now', title: '' });
+    expect(lastFetchText(ok(3 * 60_000), now)).toEqual({ text: 'Fetched 3 min ago', title: '' });
+    expect(lastFetchText(ok(2 * 3_600_000), now).text).toBe('Fetched 2 h ago');
+  });
+  it('reports a failure with git output as the title', () => {
+    const last: GitLastFetch = { time: now, ok: false, message: 'fatal: no route' };
+    expect(lastFetchText(last, now)).toEqual({ text: 'Fetch failed', title: 'fatal: no route' });
   });
 });

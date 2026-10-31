@@ -1,17 +1,26 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { BackdropHandle } from './backdrop/backdrop';
 
-export function isBackdropVisible(documentVisible: boolean, minimized: boolean): boolean {
+export function isWindowVisible(documentVisible: boolean, minimized: boolean): boolean {
   return documentVisible && !minimized;
 }
 
-/** Pauses the backdrop while the page is hidden or the window is minimized (docs/design.md section 6.4). */
-export function bindBackdropVisibility(handle: BackdropHandle): void {
+/**
+ * Reports whether the window is on screen: once at bind time, then only when the value changes.
+ * The backdrop and the background git fetch both pause on it (docs/design.md section 6.4).
+ */
+export function bindWindowVisibility(onChange: (visible: boolean) => void): void {
   let minimized = false;
-  const apply = () => handle.setVisible(isBackdropVisible(document.visibilityState === 'visible', minimized));
+  let last: boolean | undefined;
+  const apply = () => {
+    const visible = isWindowVisible(document.visibilityState === 'visible', minimized);
+    if (visible === last) return;
+    last = visible;
+    onChange(visible);
+  };
 
   // WebView2 reports a fully covered window as hidden here.
   document.addEventListener('visibilitychange', apply);
+  apply();
 
   // Minimizing does not always flip visibilityState, so ask the window itself. Absent outside Tauri.
   try {

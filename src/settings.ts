@@ -25,6 +25,8 @@ export interface Settings {
   restore: { enabled: boolean; resumeClaude: boolean };
   editor: { preferred: string; command: string };
   containers: { enabled: boolean };
+  /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
+  git: { autoFetchMinutes: number };
   /** The zoom a new pane of each kind starts at, from 0.5 to 3; its zoom buttons save it. */
   keybindings: KeybindingEntry[];
 }
@@ -53,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   restore: { enabled: true, resumeClaude: true },
   editor: { preferred: 'default', command: '' },
   containers: { enabled: true },
+  git: { autoFetchMinutes: 5 },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

@@ -5,6 +5,7 @@ mod containers;
 mod editors;
 mod files;
 mod git;
+mod git_fetch;
 mod git_install;
 mod git_watch;
 mod hook_install;
@@ -102,10 +103,12 @@ pub fn run() {
         .manage(workspace::WorkspaceState::default())
         .manage(files::FilesState::default())
         .manage(git_watch::GitWatches::default())
+        .manage(git_fetch::GitFetches::default())
         .manage(containers::ContainersState::default())
         .manage(search::SearchState::default())
         .setup(|app| {
             settings::init(app.handle());
+            git_fetch::init(app.handle());
             hooks::init(app.handle());
             roster::init(app.handle());
             workspace::init(app.handle());
@@ -167,6 +170,12 @@ pub fn run() {
             git::git_show,
             git::git_commit,
             git::git_undo_commit,
+            git_fetch::git_fetch,
+            git_fetch::git_pull,
+            git_fetch::git_push,
+            git_fetch::git_last_fetch,
+            git_fetch::git_fetch_roots,
+            git_fetch::git_fetch_visible,
             git_watch::git_watch,
             git_watch::git_unwatch,
             containers::containers_list,

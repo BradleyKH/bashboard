@@ -12,7 +12,9 @@ import {
   type Settings,
   type SettingsPayload,
 } from './settings';
-import { bindBackdropVisibility } from './backdropVisibility';
+import { bindWindowVisibility } from './windowVisibility';
+import { gitFetchVisible } from './gitApi';
+import { syncGitFetchRoots } from './gitFetchRoots';
 import { onCliCommand } from './cli';
 import { runCliCommand, type CliTarget } from './cliDispatch';
 import { ColonySync } from './colonySync';
@@ -91,11 +93,14 @@ let backdrop: BackdropHandle | undefined;
 let colonySync: ColonySync | undefined;
 try {
   backdrop = mountBackdrop(document.getElementById('backdrop') as HTMLCanvasElement);
-  bindBackdropVisibility(backdrop);
   colonySync = new ColonySync(backdrop.colony);
 } catch (err) {
   showToast(`Could not start the background animation: ${String(err)}`);
 }
+bindWindowVisibility((visible) => {
+  backdrop?.setVisible(visible);
+  void gitFetchVisible(visible).catch(() => {});
+});
 
 // xterm.js measures glyph cells when a terminal opens, so the bundled font must be loaded before
 // the first pane (docs/design.md section 4.4).
@@ -686,6 +691,7 @@ const refreshPanel = (): void => panel.update(workspace.panes(), workspace.tabs(
 workspace.onChange(() => {
   refreshPanel();
   trackRepo();
+  syncGitFetchRoots(workspace.panes());
   saver.schedule();
 });
 onTextZoomChange(() => saver.schedule());
@@ -746,6 +752,7 @@ try {
 }
 if (!restored) workspace.addPane();
 trackRepo();
+syncGitFetchRoots(workspace.panes());
 if (payload.firstRun) void showSetup();
 void checkForUpdate({ manual: false, confirm: (o) => confirmDialog.open(o) });
 onSettingsChanged((p) => {

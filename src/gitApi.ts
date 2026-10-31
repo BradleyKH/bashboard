@@ -21,6 +21,8 @@ export interface GitStatus {
   untracked: GitFileEntry[];
   /** Unmerged entries; the pane lists them under Changes with status U. */
   conflicted: GitFileEntry[];
+  /** Remote names; empty when the repo has none. */
+  remotes: string[];
 }
 
 export interface GitDiff {
@@ -85,4 +87,47 @@ export function gitUnwatch(root: string): Promise<void> {
 /** The callback gets the root exactly as it was passed to `gitWatch`. */
 export function onGitChanged(cb: (root: string) => void): Promise<UnlistenFn> {
   return listen<{ root: string }>('git://changed', (e) => cb(e.payload.root));
+}
+
+/** The app's last fetch attempt for a repo; `message` is git's output on failure, empty on success. */
+export interface GitLastFetch {
+  /** Epoch ms. */
+  time: number;
+  ok: boolean;
+  message: string;
+}
+
+/** Rejects with git's output when the fetch fails. */
+export function gitFetch(root: string): Promise<void> {
+  return invoke<void>('git_fetch', { root, background: false });
+}
+
+/** Fast-forward only; rejects with git's output. */
+export function gitPull(root: string): Promise<void> {
+  return invoke<void>('git_pull', { root });
+}
+
+/** Publishes an unpublished branch; never forces. Rejects with git's output. */
+export function gitPush(root: string): Promise<void> {
+  return invoke<void>('git_push', { root });
+}
+
+/** Null when the app has not fetched that repo this session. */
+export function gitLastFetch(root: string): Promise<GitLastFetch | null> {
+  return invoke<GitLastFetch | null>('git_last_fetch', { root });
+}
+
+/** Tells the background fetch scheduler which repos have an open Git pane. */
+export function gitFetchRoots(roots: string[]): Promise<void> {
+  return invoke<void>('git_fetch_roots', { roots });
+}
+
+/** Background fetch pauses while the window is hidden or minimized. */
+export function gitFetchVisible(visible: boolean): Promise<void> {
+  return invoke<void>('git_fetch_visible', { visible });
+}
+
+/** The callback gets every registered root sharing the fetched repo, plus the root a manual command ran on. */
+export function onGitFetched(cb: (roots: string[]) => void): Promise<UnlistenFn> {
+  return listen<{ roots: string[] }>('git://fetched', (e) => cb(e.payload.roots));
 }
