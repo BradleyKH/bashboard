@@ -59,7 +59,7 @@ export class TabItem {
     this.el.classList.toggle('attention', info.attention);
     this.dot.className = `status-dot ${info.status}`;
     this.title.textContent = info.title;
-    this.el.title = info.title;
+    this.el.title = [info.title, ...info.waiting.map((w) => `${w.title}: ${w.reason}`)].join('\n');
   }
 
   private beginRename(): void {

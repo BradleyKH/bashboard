@@ -1,7 +1,16 @@
 import type { Session } from './sessions';
 
-/** 'done' is 'idle' after a Stop the user has not looked at yet (docs/design.md section 7). */
-export type TerminalStatus = 'idle' | 'working' | 'waiting' | 'done';
+/**
+ * 'done' is 'idle' after a Stop the user has not looked at yet (docs/design.md section 7).
+ * 'failed' is display state beside it, set by a long shell command that exited nonzero.
+ */
+export type TerminalStatus = 'idle' | 'working' | 'waiting' | 'done' | 'failed';
+
+/** The text shown with a `waiting` dot: the trimmed reason, or a generic one when it is blank. */
+export function waitingText(reason: string | null | undefined): string {
+  const trimmed = reason?.trim() ?? '';
+  return trimmed === '' ? 'Waiting for you' : trimmed;
+}
 
 /** OSC 133 state a pane tracks: `seen` once any 133 marker arrived. */
 export interface OscShellState {

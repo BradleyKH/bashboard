@@ -27,7 +27,7 @@ const SECTIONS: { title: string; actions: string[] }[] = [
     title: 'Terminal',
     actions: ['copy', 'paste', 'find', 'sendInput', 'increaseFontSize', 'decreaseFontSize', 'resetFontSize'],
   },
-  { title: 'Workspace', actions: ['toggleDashboard', 'focusDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
+  { title: 'Workspace', actions: ['nextAttention', 'toggleDashboard', 'focusDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
 ];
 
 const LABELS: Record<string, string> = {
@@ -50,6 +50,7 @@ const LABELS: Record<string, string> = {
   focusDashboard: 'Move focus to the dashboard and back',
   openFavorite: 'Open a favorite folder',
   openLayout: 'Open a saved layout',
+  nextAttention: 'Jump to the next terminal that needs you',
   splitWithProfile: 'Split with a chosen shell',
   cycleScrim: 'Cycle backdrop dimming',
   toggleBackdrop: 'Pause or resume the background animation',

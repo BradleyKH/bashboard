@@ -48,6 +48,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     title: 'Terminal',
     fields: [
       { path: ['scrollback'], label: 'Scrollback', kind: 'number', min: 0, max: 1000000, step: 1000, unit: 'lines', integer: true, applies: 'live' },
+      { path: ['terminal', 'doneAfterSeconds'], label: 'Mark long commands done after', kind: 'number', min: 0, max: 86400, step: 1, unit: 's', integer: true, hint: '0 turns it off; Git Bash with the ~/.bashrc lines only', applies: 'live' },
       {
         path: ['shell', 'defaultProfile'],
         label: 'Default shell',

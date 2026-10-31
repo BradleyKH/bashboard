@@ -469,7 +469,7 @@ pane's kind, its folder and shell (for terminals), its collapsed state, and how 
 Scratch pads are saved as panes but open empty. The "+" button asks
 for a name; saving under an existing name (any capitalization) asks before it replaces that
 layout. Each row shows the name and pane count; click it to open the layout, and use the row's
-buttons to rename it or remove it (removing asks first). Ctrl+Shift+P opens a picker that filters
+buttons to rename it or remove it (removing asks first). Ctrl+Shift+R opens a picker that filters
 your layouts as you type.
 
 Opening a layout adds a tab named after the layout and leaves your other tabs alone. Layouts never
@@ -595,11 +595,26 @@ When a terminal starts waiting or rings the bell, its pane border (or its card, 
 pulses until you look at it, and the taskbar button flashes if the window is unfocused. A
 terminal you are already looking at (the focused pane in a focused window) is not marked.
 
+A waiting terminal shows why: the pane card, the status dot's tooltip on the title strip, the
+tab's tooltip, and an external session's row carry the message from Claude's notification (for
+example that it needs your permission to use a tool), or "Waiting for you" when there is none.
+
+Ctrl+Shift+L jumps to the next terminal that needs you, across all tabs: waiting ones first,
+oldest first, then done and failed ones. It switches to the pane's tab, expands a collapsed card,
+and ends a zoom in the way. Repeated presses walk the list, and a toast says "Nothing needs you"
+when it is empty.
+
 When a Claude session's turn ends, its `Stop` hook marks the terminal `done` unless you are
 looking at it. The status dot becomes a still green check mark on the terminal's title strip,
 card, and tab. It clears when you focus that pane (typing in it focuses it), or
 as soon as the session starts working or waits. `done` applies to terminals only, raises no
 pulse, taskbar flash, or peek, and is not saved, so restored terminals start without it.
+
+A long shell command marks its terminal the same way, with no Claude session needed. A command that
+runs at least `terminal.doneAfterSeconds` and finishes while you are not looking at the terminal
+marks it `done`, or `failed` (a still red cross) when it exited nonzero; Ctrl+C is not a failure.
+Only Git Bash with the `~/.bashrc` lines from [New panes in the current folder](#new-panes-in-the-current-folder)
+reports commands, and a bound Claude session's own status takes precedence.
 
 ## Settings
 
@@ -651,7 +666,7 @@ Ctrl+Alt+1 through Ctrl+Alt+8 to it:
 
 The background animation (the backdrop) starts frozen on a still frame; set `backdrop.animate`
 to `true` to run it, at up to 20 frames per second. Raise or lower that with `backdrop.maxFps`
-(0 for the display's refresh rate). Ctrl+Shift+L pauses or resumes the animation and saves the
+(0 for the display's refresh rate). Ctrl+Shift+D pauses or resumes the animation and saves the
 choice to that setting. The simulation itself is tuned with `speed` (generations per
 second, 0.25 to 12), `capacity` (the population it sustains, 300 to 5000), `mutationRate` (0 to
 4), `lineageThreads` (faint lines from parents to offspring), `orbit` (a slow camera orbit,
@@ -699,6 +714,14 @@ Containers pane and tab still open on request.
 
 ```jsonc
 "containers": { "enabled": true }
+```
+
+`terminal.doneAfterSeconds` (default 30) is the shortest shell command that marks its terminal
+`done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
+the `~/.bashrc` lines only.
+
+```jsonc
+"terminal": { "doneAfterSeconds": 30 }
 ```
 
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to
@@ -772,6 +795,8 @@ built app:
   Ctrl+=
 - F6 moves focus into the dashboard (peeking it when hidden), the arrows and Enter work there,
   and F6 or Esc returns to the pane
+- Ctrl+Shift+L jumps to the next waiting, done, or failed terminal
+- a right-click in a terminal shows no browser menu
 
 ## Debugging input
 

@@ -19,6 +19,8 @@ export interface TitleStripState {
   path: string;
   /** Shown as the status dot for terminals; other kinds omit it. */
   status?: TerminalStatus;
+  /** What a waiting session is waiting on; the dot's tooltip while the status is waiting. */
+  reason?: string;
 }
 
 export interface TitleStripZoomState {
@@ -119,7 +121,7 @@ export class TitleStrip {
     this.dot.hidden = this.kind !== 'terminal' || state.status === undefined;
     if (state.status !== undefined) {
       this.dot.className = `status-dot ${state.status}`;
-      this.dot.title = state.status;
+      this.dot.title = state.status === 'waiting' && state.reason ? state.reason : state.status;
     }
     this.title.textContent = state.title;
     this.title.title = state.path;

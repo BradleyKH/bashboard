@@ -82,6 +82,13 @@ pub struct Containers {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Terminal {
+    /// Shell commands running at least this many seconds mark the terminal done or failed; 0 turns it off.
+    pub done_after_seconds: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Editor {
     /// One of `EDITOR_IDS`.
     pub preferred: String,
@@ -113,6 +120,7 @@ pub struct Settings {
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
+    pub terminal: Terminal,
     pub dashboard: Dashboard,
     pub restore: Restore,
     pub editor: Editor,
@@ -166,11 +174,12 @@ pub fn default_keybindings() -> Vec<Keybinding> {
         kb("ctrl+shift+s", "toggleDashboard", None, None),
         kb("f6", "focusDashboard", None, None),
         kb("ctrl+shift+b", "cycleScrim", None, None),
-        kb("ctrl+shift+l", "toggleBackdrop", None, None),
+        kb("ctrl+shift+d", "toggleBackdrop", None, None),
+        kb("ctrl+shift+l", "nextAttention", None, None),
         kb("ctrl+shift+m", "collapsePane", None, None),
         kb("ctrl+shift+z", "togglePaneZoom", None, None),
         kb("ctrl+shift+o", "openFavorite", None, None),
-        kb("ctrl+shift+p", "openLayout", None, None),
+        kb("ctrl+shift+r", "openLayout", None, None),
         kb("alt+shift+t", "splitWithProfile", None, None),
         kb("ctrl+shift+t", "newTab", None, None),
         kb("ctrl+shift+n", "newScratch", None, None),
@@ -221,6 +230,7 @@ impl Default for Settings {
                 waiting_pulse: false,
             },
             scrollback: 10000,
+            terminal: Terminal { done_after_seconds: 30 },
             dashboard: Dashboard { visible_on_start: true, peek_on_waiting: true },
             restore: Restore { enabled: true, resume_claude: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
@@ -467,6 +477,15 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         |v| v.as_u64().and_then(|n| u32::try_from(n).ok()),
         d.scrollback,
     );
+    let terminal = Terminal {
+        done_after_seconds: pick(
+            &root,
+            &["terminal", "doneAfterSeconds"],
+            &mut w,
+            |v| v.as_u64().filter(|n| *n <= 86_400).and_then(|n| u32::try_from(n).ok()),
+            d.terminal.done_after_seconds,
+        ),
+    };
     let dashboard = Dashboard {
         visible_on_start: pick(
             &root,
@@ -509,6 +528,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             scrim,
             backdrop,
             scrollback,
+            terminal,
             dashboard,
             restore,
             editor,
@@ -530,6 +550,12 @@ fn default_file_text() -> String {
         "  // zed, vscode, cursor, visualStudio, notepadpp, sublime, or default (the file's default
   // app). A non-empty command replaces it, with {path} and {line} filled in.
   \"editor\": {",
+    )
+    .replace(
+        "  \"terminal\": {",
+        "  // Shell commands that run at least this many seconds mark the terminal done, or failed on a
+  // nonzero exit, when they finish unseen. 0 turns it off.
+  \"terminal\": {",
     )
     .replace(
         "  \"containers\": {",
@@ -815,7 +841,8 @@ mod tests {
     #[test]
     fn layout_and_profile_chords_are_bound_by_default() {
         let s = Settings::default();
-        assert_eq!(find(&s, "ctrl+shift+p").map(|k| k.action.as_str()), Some("openLayout"));
+        assert_eq!(find(&s, "ctrl+shift+r").map(|k| k.action.as_str()), Some("openLayout"));
+        assert!(find(&s, "ctrl+shift+p").is_none());
         assert_eq!(find(&s, "alt+shift+t").map(|k| k.action.as_str()), Some("splitWithProfile"));
         assert_eq!(find(&s, "ctrl+shift+t").map(|k| k.action.as_str()), Some("newTab"));
         assert_eq!(find(&s, "ctrl+shift+n").map(|k| k.action.as_str()), Some("newScratch"));
@@ -927,7 +954,47 @@ mod tests {
     #[test]
     fn backdrop_toggle_is_bound_by_default() {
         let s = Settings::default();
-        assert_eq!(find(&s, "ctrl+shift+l").map(|k| k.action.as_str()), Some("toggleBackdrop"));
+        assert_eq!(find(&s, "ctrl+shift+d").map(|k| k.action.as_str()), Some("toggleBackdrop"));
+    }
+
+    #[test]
+    fn next_attention_is_bound_by_default() {
+        let s = Settings::default();
+        assert_eq!(find(&s, "ctrl+shift+l").map(|k| k.action.as_str()), Some("nextAttention"));
+    }
+
+    #[test]
+    fn terminal_done_after_seconds_defaults_to_30() {
+        assert_eq!(Settings::default().terminal, Terminal { done_after_seconds: 30 });
+        let (s, w) = parse_settings("{}");
+        assert_eq!(s.terminal.done_after_seconds, 30);
+        assert!(w.is_empty());
+    }
+
+    #[test]
+    fn terminal_done_after_seconds_accepts_valid_values() {
+        for n in [0u32, 120] {
+            let (s, w) = parse_settings(&format!(r#"{{ "terminal": {{ "doneAfterSeconds": {n} }} }}"#));
+            assert_eq!(s.terminal.done_after_seconds, n);
+            assert!(w.is_empty());
+        }
+    }
+
+    #[test]
+    fn terminal_done_after_seconds_rejects_invalid_values() {
+        for bad in ["-1", "1.5", r#""x""#, "100000"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "terminal": {{ "doneAfterSeconds": {bad} }} }}"#));
+            assert_eq!(s.terminal.done_after_seconds, 30, "{bad}");
+            assert_eq!(w.len(), 1, "{bad}");
+            assert!(w[0].starts_with("terminal.doneAfterSeconds"), "{bad}");
+        }
+    }
+
+    #[test]
+    fn default_file_text_lists_terminal_after_scrollback() {
+        let text = default_file_text();
+        let at = text.find("\"terminal\"").expect("terminal section");
+        assert!(text.find("\"scrollback\"").unwrap() < at);
     }
 
     #[test]
@@ -986,9 +1053,9 @@ mod tests {
     #[test]
     fn new_chord_is_added() {
         let (s, _) =
-            parse_settings(r#"{ "keybindings": [ { "keys": "ctrl+shift+d", "action": "splitAuto" } ] }"#);
+            parse_settings(r#"{ "keybindings": [ { "keys": "ctrl+shift+k", "action": "splitAuto" } ] }"#);
         assert_eq!(s.keybindings.len(), default_keybindings().len() + 1);
-        assert!(find(&s, "ctrl+shift+d").is_some());
+        assert!(find(&s, "ctrl+shift+k").is_some());
         assert!(find(&s, "ctrl+w").is_some());
     }
 

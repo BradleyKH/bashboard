@@ -13,6 +13,7 @@ function session(cwd: string, statusChangedAt: number): Session {
     startedAt: 0,
     version: null,
     paneId: null,
+    waitingReason: null,
   };
 }
 

@@ -1,7 +1,7 @@
 import type { PaneKind } from './paneKinds';
 import { sessionHue } from './sessionHue';
 import type { Session, SessionStatus } from './sessions';
-import { terminalStatus, type ShellStatus, type TerminalStatus } from './terminalStatus';
+import { terminalStatus, waitingText, type ShellStatus, type TerminalStatus } from './terminalStatus';
 
 export type { TerminalStatus };
 
@@ -17,8 +17,8 @@ export interface TerminalCardInput {
   collapsed: boolean;
   shell: ShellStatus;
   attention: boolean;
-  /** An unseen Stop is pending (docs/design.md section 4.8); shows an idle terminal as done. */
-  done: boolean;
+  /** An unseen `Stop` or long command (docs/design.md section 4.8), already resolved over the status. */
+  mark: { status: 'done' | 'failed'; at: number } | null;
   /** Set for a container shell, which the card titles by the container's name. */
   containerName?: string;
 }
@@ -51,6 +51,8 @@ export interface TerminalCard {
   profile: string;
   status: TerminalStatus;
   statusChangedAt: number;
+  /** What a waiting session is waiting on; null for any other status. */
+  reason: string | null;
   focused: boolean;
   sessionId: string | null;
   /** See `isBusy`; closing the card asks first. */
@@ -118,7 +120,7 @@ function terminalCard(t: TerminalCardInput, sessions: Session[]): TerminalCard {
   const session = boundSession(t.ptyId, sessions);
   const folder = t.cwd ? lastFolder(t.cwd) : '';
   const base = terminalStatus(session, t.shell);
-  const { status, changedAt } = t.done && base.status === 'idle' ? { ...base, status: 'done' as const } : base;
+  const { status, changedAt } = t.mark ? { status: t.mark.status, changedAt: t.mark.at } : base;
   return {
     kind: 'terminal',
     paneId: t.paneId,
@@ -128,6 +130,7 @@ function terminalCard(t: TerminalCardInput, sessions: Session[]): TerminalCard {
     profile: t.profile,
     status,
     statusChangedAt: changedAt,
+    reason: status === 'waiting' ? waitingText(session?.waitingReason) : null,
     focused: t.focused,
     sessionId: session ? session.sessionId : null,
     busy: isBusy(t, sessions),

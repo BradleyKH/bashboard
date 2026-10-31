@@ -147,11 +147,18 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     head.append(close);
   }
 
-  const path = document.createElement('div');
-  path.className = 'card-path';
-  if (card.path) setPathText(path, card.path);
-
   el.append(head);
-  if (card.path) el.append(path);
+  if (card.kind === 'terminal' && card.reason !== null) {
+    const reason = document.createElement('div');
+    reason.className = 'card-reason';
+    reason.textContent = card.reason;
+    reason.title = card.reason;
+    el.append(reason);
+  } else if (card.path) {
+    const path = document.createElement('div');
+    path.className = 'card-path';
+    setPathText(path, card.path);
+    el.append(path);
+  }
   return el;
 }

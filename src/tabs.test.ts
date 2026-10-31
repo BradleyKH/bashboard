@@ -196,4 +196,10 @@ describe('combinedStatus', () => {
     expect(combinedStatus(['done', 'idle'])).toBe('done');
     expect(combinedStatus(['done', 'waiting', 'working'])).toBe('waiting');
   });
+
+  it('orders failed over done and working, under waiting', () => {
+    expect(combinedStatus(['done', 'failed', 'working'])).toBe('failed');
+    expect(combinedStatus(['failed', 'done'])).toBe('failed');
+    expect(combinedStatus(['failed', 'waiting', 'done'])).toBe('waiting');
+  });
 });

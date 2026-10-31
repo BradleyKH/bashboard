@@ -255,6 +255,10 @@ exact transitions as they happen.
   success. The receiver keeps only `session_id`, `hook_event_name`, `cwd`, and `message`, and
   emits `sessions://hook` with those fields plus the pane id from the header and the receive
   time.
+- The hook overlay keeps the `message` of the `Notification` that set `waiting`, trimmed and cut
+  at 200 characters, and clears it whenever the overlay's status leaves `waiting`. Held in the
+  core, it survives a page reload and covers external sessions. The roster payload carries it as
+  `waitingReason` (section 7).
 
 ### 3.4 Pane to session binding
 
@@ -692,11 +696,20 @@ switching back attaches one again if the budget allows. If the browser drops a W
 **Title strip:** the kind menu (4.11), the status dot (4.8), the bound session's name or the
 shell's working directory, then a collapse button, a zoom button (with two or more expanded
 panes in the tab, 4.2), and a close button that acts as Ctrl+W (`requestClosePane`); the rest of
-the strip is the drag handle for docking. Every pane kind
+the strip is the drag handle for docking. The status dot's tooltip shows the waiting reason
+(3.3) while the terminal is `waiting`; the strip's text is unchanged. Every pane kind
 has the same strip, with its own title and no status dot. With two or more panes in the tab the strip
 sits in the layout above each terminal. A lone pane's strip is an overlay, so it never reflows
 the terminal; it is invisible until the pointer enters its own top band, so the pointer resting
 elsewhere in the terminal never covers the first row.
+
+**Right-click.** A right-click in a terminal does whatever xterm.js and the running program do
+with it, in every profile, and no menu opens. `main.ts` registers one `contextmenu` listener on
+`window` in the capture phase, before anything else mounts, that cancels the default and never
+stops propagation, so xterm.js still sees the event (it moves its hidden textarea under the
+pointer, and passes the button to a program that turned on mouse reporting). The cancelled
+default is WebView2's built-in menu, whose Refresh reloads the page and kills every pty as an
+orphan.
 
 **Find bar** (`findBar.ts`): Ctrl+Shift+F opens one bar over the top-right corner of the
 focused pane, or refocuses its input if it is already open. Matching is case-insensitive and
@@ -721,7 +734,7 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+M | Collapse pane |
 | Ctrl+Shift+Z | Zoom or unzoom the focused pane (4.2) |
 | Ctrl+Shift+O | Open a favorite (picker; Enter opens it as a split, Ctrl+Enter opens it collapsed) |
-| Ctrl+Shift+P | Open a named layout (picker; opens it as a new tab, 4.6) |
+| Ctrl+Shift+R | Open a named layout (picker; opens it as a new tab, 4.6) |
 | Alt+Shift+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) |
 | Ctrl+Shift+T | New tab (4.10) |
 | Ctrl+Shift+W | Close tab |
@@ -742,7 +755,8 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+S | Toggle dashboard panel |
 | F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) |
 | Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) |
-| Ctrl+Shift+L | Pause or resume the background animation (saved to `backdrop.animate`) |
+| Ctrl+Shift+D | Pause or resume the background animation (saved to `backdrop.animate`) |
+| Ctrl+Shift+L | Focus the next terminal that needs you, across all tabs (4.7) |
 | Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+0 | Reset the terminal font size to the default, 14 px (saved to `font.size`; applies to every terminal) |
@@ -830,7 +844,7 @@ One row per layout, showing its name and pane count:
 - Clicking a row opens the layout as a new tab, named after the layout and made active. Every
   other tab is left as it was. A layout with no panes opens as a tab with one default
   terminal. Opening a layout does not resume Claude (4.9).
-- Rows can be renamed and removed; removing asks inline first. Ctrl+Shift+P opens a picker over
+- Rows can be renamed and removed; removing asks inline first. Ctrl+Shift+R opens a picker over
   the layouts that opens the selection the same way.
 
 **Panes.** One card per pane in this app, of any kind (4.11), expanded or collapsed, grouped by
@@ -838,7 +852,7 @@ tab. Groups follow the tab strip's order, and within a group cards are in the or
 were opened or moved into the tab. The order stays fixed as statuses change so a card never
 moves out from under the pointer.
 
-With two or more tabs, each group has a header showing the tab's name and its pane count, with
+A group's combined status follows the tab urgency order (4.10). With two or more tabs, each group has a header showing the tab's name and its pane count, with
 the group's cards indented beneath it along a vertical guide line. The header has no status dot,
 so only cards carry one. The active tab's header is brighter and its guide line takes the
 accent color, and clicking a header switches to that tab. With one tab there
@@ -854,10 +868,13 @@ becomes active. A group takes precedence over any dock target beneath it, and dr
 Each card shows:
 
 - For a terminal, the status dot (4.8): `idle`, `working` (animated), `waiting` (pulsing,
-  accent color), or `done` (a still check mark), plus the attention pulse (4.7). Other kinds
-  show their kind's icon.
+  accent color), `done` (a still check mark), or `failed` (a still cross in the error color),
+  plus the attention pulse (4.7). Other kinds show their kind's icon.
 - The bound Claude session's name, or the working directory's last folder, with the full path
-  beneath. Other kinds show the pane's title (4.11) and its folder, if any.
+  beneath. While the terminal is `waiting`, the line beneath is the waiting reason (3.3) in the
+  accent color in place of the folder, one line with an ellipsis, full text on hover. A
+  `waiting` with no message reads "Waiting for you". Other kinds show the pane's title (4.11)
+  and its folder, if any.
 - For a terminal, time since the last status change.
 - A profile badge when the terminal's shell is not Git Bash.
 - Whether it is expanded or collapsed. Clicking an expanded card switches to its tab if needed
@@ -871,7 +888,8 @@ button in the header. Shown while a container engine is available (3.10) and
 
 **External sessions.** Claude Code sessions running outside this app (Windows Terminal, VS
 Code), sorted waiting, then busy, then idle, then by most recent change. Clicking a row shows
-its cwd and session id with copy buttons. The section is hidden while there are none.
+its cwd and session id with copy buttons. A `waiting` row shows the reason under the folder,
+the same as a card. The section is hidden while there are none.
 
 **Footer.** Three buttons sit at the bottom of the panel. Install Claude Code hooks is shown only
 while Claude Code is detected and the hooks are not installed (3.3). Keyboard shortcuts opens the help dialog, also bound to
@@ -913,12 +931,25 @@ existing `printf '\a'` hook):
 - If the window is unfocused, the taskbar button flashes. A toast is not sent, because the
   existing `Notification` hook already raises one.
 
-`done` (4.8) is quieter: it changes the status dot on the title strip, card, tab, and group
-header, and nothing else. It raises no attention, so no pulse, taskbar flash, or panel peek.
+`done` and `failed` (4.8) are quieter: they change the status dot on the title strip, card,
+tab, and group header, and nothing else. They raise no attention, so no pulse, taskbar flash, or
+panel peek.
+
+**Next terminal that needs you.** `nextAttention` (Ctrl+Shift+L) focuses the next such
+terminal across all tabs. The order is every `waiting` terminal, oldest `statusChangedAt` first,
+then every `done` or `failed` terminal, oldest mark first. Terminals that rang the bell without a
+status are not included; their pulse stays the cue. When the focused pane is in the list, the
+jump goes to the entry after it, wrapping; otherwise to the first entry. `waiting` does not clear
+on focus, so repeated presses walk the whole list; `done` and `failed` clear on focus, so they
+drop out as they are visited. The jump switches to the pane's tab if needed and focuses it; a
+collapsed terminal expands as clicking its card does (4.3), and a zoomed pane (4.2) in the
+target tab unzooms first. An empty list shows a toast, "Nothing needs you". The ordering is a
+pure function (`attentionQueue.ts`) over pane ids, statuses, change times, tabs, and the focused
+id.
 
 ### 4.8 Terminal status
 
-Every terminal is `idle`, `working`, `waiting`, or `done`, resolved in order:
+Every terminal is `idle`, `working`, `waiting`, `done`, or `failed`, resolved in order:
 
 1. **Bound Claude session.** Its session status (section 7): `busy` shows as `working`, `idle`
    as `idle` (or `done`, below), `waiting` as `waiting`, and `unknown` falls through to the
@@ -935,10 +966,27 @@ raises attention (4.7) without changing status.
 **Done.** When a bound session's `Stop` hook arrives while its terminal is not the one being
 looked at (the focused, expanded pane of the active tab in a focused window, as in 4.7), the
 terminal shows `done` instead of `idle` until it becomes that pane. Any later status (a new
-prompt, `waiting`, the session ending) replaces it. Only `Stop` sets it: a plain shell's command
-finishing does not, and neither does a roster change to `idle`. `done` is display state only;
-the session stays `idle`, and the backdrop never sees it (6.3). It is not saved, so restored terminals
-start without it.
+prompt, `waiting`, the session ending) replaces it. A roster change to `idle` does not set it.
+
+**Long commands.** A shell command that runs at least `terminal.doneAfterSeconds` (section 8;
+default 30, 0 turns it off) and finishes while its terminal is not being looked at (the focused,
+expanded pane of the active tab in a focused window, as in 4.7) marks the terminal `done`, or
+`failed` when it exited nonzero. The duration is measured from OSC 133 `C` to `D`, so only Git
+Bash with the `~/.bashrc` lines (4.2) qualifies; PowerShell and Command Prompt terminals never
+get a command mark, and the activity sweep is not used, since it counts background jobs and
+reports up to 2 seconds late. `D` with a nonzero exit code marks `failed`, except 130
+(interrupted with Ctrl+C), which marks nothing; `D` with no exit code marks `done`. While a
+Claude session is bound, its status resolves first and command marks are not set; when `claude`
+itself exits after a long run, its `D` is an ordinary long command. A mark clears when the
+terminal becomes the pane being looked at, and a command mark also clears on the next `C`; a
+newer mark replaces the old. `failed` is a still cross in the error color, where `done` is a
+still check mark.
+
+`done` and `failed` are display state only; the session stays `idle`, and the backdrop never sees
+them (6.3). They are not saved, so restored terminals start without them. `DoneTracker`
+(`doneStatus.ts`) holds marks of two kinds, `session` (the `Stop` mark) and `command`, each with
+a `failed` flag; `command` marks ignore the session binding rules. `Pane` records the `C` time
+and reports the duration and exit code on `D`.
 
 ### 4.9 Restore
 
@@ -974,7 +1022,8 @@ tab; the one on screen is the active tab.
 **Tab strip.** With two or more tabs, a 28 px strip runs along the top of the window above the
 panes, which reflow to make room; with one tab there is no strip, so a single-tab window looks
 the same as a window without tabs. Each tab shows a status dot for the most urgent of its
-terminals (`waiting`, then `done`, then `working`, then `idle`), its name, and a close button on hover. A
+terminals (`waiting`, then `failed`, then `done`, then `working`, then `idle`), its name, and a
+close button on hover. The tab's tooltip lists each waiting terminal's title and reason (3.3). A
 "+" at the end of the strip opens a new tab.
 
 - Clicking a tab switches to it. Double-clicking its name renames it inline; Enter or blur
@@ -1354,11 +1403,16 @@ interface Session {
 
 Status resolution: a hook event newer than the roster's `statusUpdatedAt` wins; otherwise the
 roster's value. `waiting` exists only from hooks, and clears on the next `UserPromptSubmit`,
-`Stop`, or roster change to `busy`.
+`Stop`, or roster change to `busy`. The roster payload carries `waitingReason: string | null`
+beside each session's status; it is the `Notification` message (3.3) and is present only while
+the merged status is `waiting`.
 
 ```ts
-/** 'done' is 'idle' after a Stop the user has not looked at yet (4.8). */
-type TerminalStatus = 'idle' | 'working' | 'waiting' | 'done';
+/**
+ * 'done' is 'idle' after a Stop, or a long command that finished, the user has not looked at
+ * yet; 'failed' is the same for a nonzero exit (4.8).
+ */
+type TerminalStatus = 'idle' | 'working' | 'waiting' | 'done' | 'failed';
 
 interface Terminal {
   paneId: number;
@@ -1534,6 +1588,9 @@ interface ShellProfile {
     "waitingPulse": false
   },
   "scrollback": 10000,
+  // A shell command that runs this many seconds and finishes unseen marks its terminal done or
+  // failed; 0 turns it off (4.8).
+  "terminal": { "doneAfterSeconds": 30 },
   "dashboard": { "visibleOnStart": true, "peekOnWaiting": true },
   "restore": { "enabled": true, "resumeClaude": true },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, or default (the file's default
@@ -1544,7 +1601,7 @@ interface ShellProfile {
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
   // a field: switchToTab takes "index" from 1 to 8.
   "keybindings": [
-    { "keys": "ctrl+shift+d", "action": "splitAuto" },
+    { "keys": "ctrl+alt+d", "action": "splitAuto" },
     { "keys": "ctrl+w", "action": "unbound" }
   ]
 }
@@ -1648,6 +1705,10 @@ Each milestone ends with a usable app.
 17. **Install and update.** The bundled terminal font, the Git install (3.15) and shell
     integration install (3.14) with their wizard steps (4.17), the updater and release workflow
     (3.16), and the installer's license page, images, and desktop shortcut.
+18. **v0.2.0.** The waiting reason on cards, title strips, tabs, and external sessions (3.3,
+    4.6); `done` and `failed` for long shell commands (4.8) with `terminal.doneAfterSeconds`;
+    `nextAttention`, which jumps to the next terminal that needs you (4.7), with the keybinding
+    changes in 4.5; and suppression of WebView2's context menu (4.4).
 
 ## 12. Risks
 

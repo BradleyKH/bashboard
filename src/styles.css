@@ -589,6 +589,23 @@ body.dashboard-resizing {
   font-size: 11px;
 }
 
+.card-reason,
+.session-reason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #4fb3c8;
+  font-size: 11px;
+}
+
+.card-reason {
+  margin: 2px 0 0 14px;
+}
+
+.session-reason {
+  margin: 0 8px 4px 22px;
+}
+
 #dashboard button {
   padding: 0 6px;
   border: 1px solid transparent;
@@ -678,6 +695,14 @@ body.dashboard-resizing {
   background: #6cc487;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+/* A still cross in the same 8 px footprint, cut from a solid fill like the check mark. */
+.status-dot.failed {
+  border-radius: 0;
+  background: #e87878;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.8'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
 @keyframes dot-working {

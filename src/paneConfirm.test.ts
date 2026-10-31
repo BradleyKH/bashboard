@@ -11,6 +11,7 @@ const terminal: TerminalCard = {
   profile: 'gitBash',
   status: 'working',
   statusChangedAt: 0,
+  reason: null,
   focused: false,
   sessionId: null,
   busy: true,

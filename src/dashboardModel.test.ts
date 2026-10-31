@@ -25,6 +25,7 @@ function session(over: Partial<Session> = {}): Session {
     startedAt: 500,
     version: null,
     paneId: null,
+    waitingReason: null,
     ...over,
   };
 }
@@ -35,7 +36,7 @@ function term(over: Partial<TerminalCardInput> = {}): TerminalCardInput {
     collapsed: false,
     shell: { status: 'idle', changedAt: 42 },
     attention: false,
-    done: false,
+    mark: null,
     ...over,
   };
 }
@@ -87,17 +88,32 @@ describe('paneCards', () => {
     expect(c.path).toBe('/home/work');
   });
 
-  it('shows an idle terminal as done when a Stop is pending', () => {
-    const [c] = tcards([term({ done: true })], [session({ status: 'idle', statusChangedAt: 700, paneId: 1 })]);
+  it('shows a done mark with its time', () => {
+    const [c] = tcards([term({ mark: { status: 'done', at: 700 } })], [session({ status: 'idle', statusChangedAt: 700, paneId: 1 })]);
     expect(c).toMatchObject({ status: 'done', statusChangedAt: 700 });
-    expect(tcards([term({ done: true })], [])[0].status).toBe('done');
+    expect(tcards([term({ mark: { status: 'done', at: 800 } })], [])[0].status).toBe('done');
   });
 
-  it('does not let done override working or waiting', () => {
-    const w = tcards([term({ done: true })], [session({ status: 'busy', paneId: 1 })])[0];
+  it('shows a failed mark, its age counting from the mark', () => {
+    const [c] = tcards([term({ shell: { status: 'idle', changedAt: 42 }, mark: { status: 'failed', at: 900 } })], []);
+    expect(c).toMatchObject({ status: 'failed', statusChangedAt: 900, reason: null });
+  });
+
+  it('shows the resolved status when there is no mark', () => {
+    const w = tcards([term({ mark: null })], [session({ status: 'busy', paneId: 1 })])[0];
     expect(w.status).toBe('working');
-    const a = tcards([term({ done: true })], [session({ status: 'waiting', paneId: 1 })])[0];
+    const a = tcards([term({ mark: null })], [session({ status: 'waiting', paneId: 1 })])[0];
     expect(a.status).toBe('waiting');
+  });
+
+  it('carries the waiting reason, falling back to a default, and only while waiting', () => {
+    const reasoned = tcards([term()], [session({ status: 'waiting', paneId: 1, waitingReason: 'Allow Bash?' })])[0];
+    expect(reasoned.reason).toBe('Allow Bash?');
+    const bare = tcards([term()], [session({ status: 'waiting', paneId: 1 })])[0];
+    expect(bare.reason).toBe('Waiting for you');
+    const busy = tcards([term()], [session({ status: 'busy', paneId: 1, waitingReason: 'stale' })])[0];
+    expect(busy.reason).toBeNull();
+    expect(tcards([term()], [])[0].reason).toBeNull();
   });
 
   it('binds a session by pty id and maps status', () => {

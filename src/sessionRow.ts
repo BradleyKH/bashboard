@@ -3,6 +3,7 @@ import { folderButton } from './folderButton';
 import { openMenuButton, type OpenInHandler } from './openMenu';
 import { hueCss, sessionHue } from './sessionHue';
 import type { Session, SessionStatus } from './sessions';
+import { waitingText } from './terminalStatus';
 import { showToast } from './toast';
 
 export interface SessionRowOptions {
@@ -59,7 +60,8 @@ export function renderSessionRow(session: Session, opts: SessionRowOptions): HTM
 
   const dot = document.createElement('span');
   dot.className = `status-dot ${DOT_CLASS[session.status]}`;
-  dot.title = session.rawStatus ?? session.status;
+  const reason = session.status === 'waiting' ? waitingText(session.waitingReason) : null;
+  dot.title = reason ?? session.rawStatus ?? session.status;
 
   const swatch = document.createElement('span');
   swatch.className = 'hue-swatch';
@@ -80,6 +82,14 @@ export function renderSessionRow(session: Session, opts: SessionRowOptions): HTM
   if (session.cwd && opts.onOpenIn) head.append(openMenuButton(session.cwd, opts.onOpenIn));
   head.append(age);
   el.append(head);
+
+  if (reason !== null) {
+    const line = document.createElement('div');
+    line.className = 'session-reason';
+    line.textContent = reason;
+    line.title = reason;
+    el.append(line);
+  }
 
   if (opts.expanded) {
     const details = document.createElement('div');

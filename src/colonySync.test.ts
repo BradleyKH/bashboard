@@ -14,6 +14,7 @@ function session(sessionId: string, status: SessionStatus): Session {
     startedAt: 0,
     version: null,
     paneId: null,
+    waitingReason: null,
   };
 }
 

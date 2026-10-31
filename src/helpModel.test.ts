@@ -20,7 +20,7 @@ describe('formatChord', () => {
 describe('helpSections', () => {
   it('lists every default action', () => {
     const labels = helpSections(DEFAULT_KEYBINDINGS).flatMap((s) => s.rows.map((r) => r.label));
-    for (const label of ['Split right', 'Close pane', 'Paste', 'New line in Claude Code', 'Pause or resume the background animation', 'Keyboard shortcuts', 'Settings', 'Toggle full screen', 'Open a saved layout', 'Split with a chosen shell', 'New tab', 'New scratch pad', 'Close tab', 'Next tab', 'Previous tab', 'Go to tab 1 to 8', 'Go to the last tab', 'Increase font size', 'Decrease font size', 'Reset font size']) {
+    for (const label of ['Split right', 'Close pane', 'Paste', 'New line in Claude Code', 'Pause or resume the background animation', 'Keyboard shortcuts', 'Settings', 'Toggle full screen', 'Open a saved layout', 'Jump to the next terminal that needs you', 'Split with a chosen shell', 'New tab', 'New scratch pad', 'Close tab', 'Next tab', 'Previous tab', 'Go to tab 1 to 8', 'Go to the last tab', 'Increase font size', 'Decrease font size', 'Reset font size']) {
       expect(labels).toContain(label);
     }
   });
@@ -38,6 +38,10 @@ describe('helpSections', () => {
 
   it('lists the git chord', () => {
     expect(row(DEFAULT_KEYBINDINGS, 'Git pane for this repo')?.keys).toEqual(['Ctrl+Shift+G']);
+  });
+
+  it('lists the layout chord', () => {
+    expect(row(DEFAULT_KEYBINDINGS, 'Open a saved layout')?.keys).toEqual(['Ctrl+Shift+R']);
   });
 
   it('lists the search chord', () => {

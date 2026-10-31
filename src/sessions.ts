@@ -19,6 +19,8 @@ export interface Session {
   version: string | null;
   /** Pty id of the pane running the session, or null for sessions outside this app. */
   paneId: number | null;
+  /** The `Notification` message, present only while `status` is 'waiting'. */
+  waitingReason: string | null;
 }
 
 /** A Claude Code hook event; mirrors `HookEvent` in the Rust core (`paneId` is the pty id). */

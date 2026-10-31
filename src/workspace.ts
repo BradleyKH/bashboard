@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { AttentionCause } from './attention';
+import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
 import type { ConfirmOptions } from './confirmDialog';
 import { shellCommand, type Container } from './containers';
 import { ContainersPane } from './containersPane';
@@ -44,7 +45,7 @@ import {
 } from './layout';
 import { LayoutView } from './layoutView';
 import { LiveSettings } from './liveSettings';
-import { TerminalPane } from './pane';
+import { TerminalPane, type CommandEvent } from './pane';
 import { PaneAttention } from './paneAttention';
 import { repoRoot } from './repoFiles';
 import type { PaneKind } from './paneKinds';
@@ -77,6 +78,7 @@ import {
 import {
   shellStatus,
   terminalStatus,
+  waitingText,
   type ShellStatus,
   type SweepState,
   type TerminalStatus,
@@ -102,7 +104,8 @@ export interface TerminalInfo {
   collapsed: boolean;
   shell: ShellStatus;
   attention: boolean;
-  done: boolean;
+  /** An unseen `Stop` or long command (docs/design.md section 4.8). */
+  mark: { status: 'done' | 'failed'; at: number } | null;
 }
 
 /** One tab as the tab strip and dashboard show it (docs/design.md section 4.10). */
@@ -118,6 +121,8 @@ export interface TabInfo {
   status: TerminalStatus;
   /** True while any of its terminals has attention. */
   attention: boolean;
+  /** Its `waiting` terminals in pane order, for the tab's tooltip. */
+  waiting: { title: string; reason: string }[];
 }
 
 export interface WorkspaceHooks {
@@ -400,6 +405,9 @@ export class Workspace {
       paneCount: tab.panes.length,
       status: combinedStatus(tab.panes.filter((id) => this.terminal(id)).map((id) => this.statusOf(id))),
       attention: tab.panes.some((id) => this.attention.has(id)),
+      waiting: tab.panes
+        .filter((id) => this.terminal(id) && this.statusOf(id) === 'waiting')
+        .map((id) => ({ title: this.titleOf(id), reason: this.waitingReasonOf(id) })),
     }));
   }
 
@@ -422,6 +430,28 @@ export class Workspace {
     this.notify();
     // A tab switched to mid-drag has different pane rects.
     this.overlay.refresh();
+  }
+
+  /**
+   * Goes to the next terminal that needs the user, in any tab. A hidden pane of a zoomed tab
+   * needs no explicit unzoom: focusing it changes the tab's focused pane, which drops the zoom.
+   */
+  nextAttention(): void {
+    const entries: AttentionEntry[] = [];
+    for (const tab of this.store.state.tabs) {
+      for (const paneId of tab.panes) {
+        if (!this.terminal(paneId)) continue;
+        entries.push({ paneId, tabId: tab.id, ...this.resolvedOf(paneId) });
+      }
+    }
+    const tabOrder = this.store.state.tabs.map((t) => t.id);
+    const target = nextAttentionId(entries, tabOrder, this.store.focusedId);
+    if (target === null) {
+      showToast('Nothing needs you');
+      return;
+    }
+    if (this.store.isCollapsed(target)) this.expandPane(target);
+    else this.focusPane(target);
   }
 
   /** Closes every pane in the tab without asking; `requestCloseTab` asks first. */
@@ -1028,6 +1058,10 @@ export class Workspace {
         if (tab) queueMicrotask(() => this.switchTab(tab.id));
         return true;
       }
+      case 'nextAttention':
+        // Switching tabs detaches the focused host, which must not happen inside its key handler.
+        queueMicrotask(() => this.nextAttention());
+        return true;
       case 'closeTab': {
         const id = this.store.activeId;
         queueMicrotask(() => void this.requestCloseTab(id));
@@ -1248,6 +1282,7 @@ export class Workspace {
       },
       onCwdChange: () => this.paneChanged(id),
       onShellChange: () => this.paneChanged(id),
+      onCommand: (ev) => this.onCommand(id, ev),
       onBell: () => {
         if (this.attention.bell(id)) this.notify();
       },
@@ -1499,7 +1534,7 @@ export class Workspace {
         profile: pane.profile ?? this.config.settings.shell.defaultProfile,
         shell: this.shellOf(paneId, pane),
         attention: this.attention.has(paneId),
-        done: this.statusOf(paneId) === 'done',
+        mark: this.markOf(paneId),
         ...(this.containerShells.has(paneId) && { containerName: this.containerShells.get(paneId) }),
       };
     }
@@ -1545,11 +1580,40 @@ export class Workspace {
     return shellStatus(pane.oscState(), sweep, this.openedAt.get(id) ?? 0);
   }
 
-  private statusOf(id: string): TerminalStatus {
+  private resolvedOf(id: string): { status: TerminalStatus; changedAt: number } {
     const pane = this.terminal(id);
-    if (!pane) return 'idle';
+    if (!pane) return { status: 'idle', changedAt: 0 };
     const session = boundSession(pane.ptyId, this.sessions);
-    return this.done.resolve(id, session, terminalStatus(session, this.shellOf(id, pane))).status;
+    return this.done.resolve(id, session, terminalStatus(session, this.shellOf(id, pane)));
+  }
+
+  private statusOf(id: string): TerminalStatus {
+    return this.resolvedOf(id).status;
+  }
+
+  private markOf(id: string): TerminalInfo['mark'] {
+    const { status, changedAt } = this.resolvedOf(id);
+    return status === 'done' || status === 'failed' ? { status, at: changedAt } : null;
+  }
+
+  private waitingReasonOf(id: string): string {
+    const pane = this.terminal(id);
+    return waitingText(pane ? boundSession(pane.ptyId, this.sessions)?.waitingReason : null);
+  }
+
+  /** Design 4.8: a long command that ends unseen marks the terminal `done` or `failed`. */
+  private onCommand(id: string, ev: CommandEvent): void {
+    if (ev.kind === 'start') {
+      this.done.commandStarted(id);
+      return;
+    }
+    this.done.markCommand(id, {
+      durationMs: ev.durationMs,
+      exitCode: ev.exitCode,
+      at: Date.now(),
+      seen: this.isSeen(id),
+      minSeconds: this.config.settings.terminal.doneAfterSeconds,
+    });
   }
 
   /** Design 4.11: a tab's name follows this, so a pad's first line names its tab. */
@@ -1581,7 +1645,12 @@ export class Workspace {
       return false;
     }
     const status = this.statusOf(id);
-    strip.update({ title: this.titleOf(id), path: this.containerShells.get(id) ?? pane.cwd ?? '', status });
+    strip.update({
+      title: this.titleOf(id),
+      path: this.containerShells.get(id) ?? pane.cwd ?? '',
+      status,
+      ...(status === 'waiting' && { reason: this.waitingReasonOf(id) }),
+    });
     return this.attention.observe(id, status);
   }
 

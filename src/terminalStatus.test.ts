@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Session, SessionStatus } from './sessions';
-import { shellStatus, terminalStatus } from './terminalStatus';
+import { shellStatus, terminalStatus, waitingText } from './terminalStatus';
 
 function session(status: SessionStatus): Session {
   return {
@@ -13,6 +13,7 @@ function session(status: SessionStatus): Session {
     startedAt: 0,
     version: null,
     paneId: 1,
+    waitingReason: null,
   };
 }
 
@@ -72,5 +73,20 @@ describe('terminalStatus', () => {
       expect(terminalStatus(session(s), shell).status).not.toBe('done');
     }
     expect(terminalStatus(null, { status: 'idle', changedAt: 1 }).status).not.toBe('done');
+  });
+});
+
+describe('waitingText', () => {
+  it('trims the reason', () => {
+    expect(waitingText('  Claude needs your permission to use Bash\t')).toBe(
+      'Claude needs your permission to use Bash',
+    );
+  });
+
+  it('falls back when the reason is missing or blank', () => {
+    expect(waitingText(null)).toBe('Waiting for you');
+    expect(waitingText(undefined)).toBe('Waiting for you');
+    expect(waitingText('')).toBe('Waiting for you');
+    expect(waitingText('   ')).toBe('Waiting for you');
   });
 });

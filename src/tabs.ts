@@ -145,9 +145,18 @@ export function tabTitle(tab: TabState, focusedTitle: string): string {
   return tab.name ?? focusedTitle;
 }
 
-const URGENCY: Record<TerminalStatus, number> = { idle: 0, working: 1, done: 2, waiting: 3 };
+const URGENCY: Record<TerminalStatus, number> = {
+  idle: 0,
+  working: 1,
+  done: 2,
+  failed: 3,
+  waiting: 4,
+};
 
-/** The most urgent status: waiting, then done, then working, then idle (also for no terminals). */
+/**
+ * The most urgent status: waiting, then failed, then done, then working, then idle (also for no
+ * terminals).
+ */
 export function combinedStatus(statuses: TerminalStatus[]): TerminalStatus {
   let best: TerminalStatus = 'idle';
   for (const s of statuses) if (URGENCY[s] > URGENCY[best]) best = s;

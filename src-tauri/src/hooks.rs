@@ -19,6 +19,8 @@ use crate::{cli, pty::Ptys, roster};
 
 const MAX_BODY: usize = 64 * 1024;
 const MAX_CLI_BODY: usize = 1024 * 1024;
+/// Longest waiting reason kept, in characters.
+const MAX_WAITING_MESSAGE: usize = 200;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HookStatus {
@@ -34,6 +36,8 @@ pub struct HookOverlay {
     pub status: Option<(HookStatus, u64)>,
     pub pane_id: Option<u32>,
     pub last_at: u64,
+    /// The blocking notification's text while the status is `Waiting`.
+    pub waiting_message: Option<String>,
 }
 
 /// One accepted hook post, as emitted on `sessions://hook`.
@@ -290,10 +294,19 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
     };
     if let Some(s) = status {
         entry.status = Some((s, ev.at));
+        entry.waiting_message = if s == HookStatus::Waiting { waiting_message(ev.message.as_deref()) } else { None };
     }
     if let Some(p) = ev.pane_id {
         entry.pane_id = Some(p);
     }
+}
+
+fn waiting_message(message: Option<&str>) -> Option<String> {
+    let text = message?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(text.chars().take(MAX_WAITING_MESSAGE).collect())
 }
 
 /// Claude Code sends `Notification` for many notices (auth success, plugin and quota notices,
@@ -409,16 +422,26 @@ mod tests {
     fn event_mapping() {
         let mut o = HashMap::new();
         apply(&mut o, &event("SessionStart", Some(3), 1));
-        assert_eq!(o["s1"], HookOverlay { status: None, pane_id: Some(3), last_at: 1 });
+        assert_eq!(o["s1"], HookOverlay { status: None, pane_id: Some(3), last_at: 1, waiting_message: None });
         apply(&mut o, &event("UserPromptSubmit", None, 2));
         assert_eq!(
             o["s1"],
-            HookOverlay { status: Some((HookStatus::Busy, 2)), pane_id: Some(3), last_at: 2 }
+            HookOverlay {
+                status: Some((HookStatus::Busy, 2)),
+                pane_id: Some(3),
+                last_at: 2,
+                waiting_message: None,
+            }
         );
         apply(&mut o, &event("Notification", Some(4), 3));
         assert_eq!(
             o["s1"],
-            HookOverlay { status: Some((HookStatus::Waiting, 3)), pane_id: Some(4), last_at: 3 }
+            HookOverlay {
+                status: Some((HookStatus::Waiting, 3)),
+                pane_id: Some(4),
+                last_at: 3,
+                waiting_message: None,
+            }
         );
         apply(&mut o, &event("PreToolUse", None, 4));
         assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 3)));
@@ -443,6 +466,55 @@ mod tests {
         }
         apply(&mut o, &notify("permission_prompt", 9));
         assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 9)));
+    }
+
+    #[test]
+    fn waiting_message_follows_status() {
+        let notify = |message: Option<String>, kind: &str, at: u64| HookEvent {
+            message,
+            notification_type: Some(kind.into()),
+            ..event("Notification", None, at)
+        };
+        let mut o = HashMap::new();
+        apply(
+            &mut o,
+            &notify(Some("  Claude needs your permission to use Bash  ".into()), "permission_prompt", 1),
+        );
+        assert_eq!(o["s1"].waiting_message.as_deref(), Some("Claude needs your permission to use Bash"));
+
+        apply(&mut o, &notify(Some("ignored".into()), "idle_prompt", 2));
+        assert_eq!(o["s1"].waiting_message.as_deref(), Some("Claude needs your permission to use Bash"));
+        assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 1)));
+
+        apply(&mut o, &event("UserPromptSubmit", None, 3));
+        assert_eq!(o["s1"].waiting_message, None);
+
+        apply(&mut o, &notify(Some("again".into()), "permission_prompt", 4));
+        assert_eq!(o["s1"].waiting_message.as_deref(), Some("again"));
+        apply(&mut o, &event("Stop", None, 5));
+        assert_eq!(o["s1"].waiting_message, None);
+
+        apply(&mut o, &notify(None, "permission_prompt", 6));
+        assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 6)));
+        assert_eq!(o["s1"].waiting_message, None);
+
+        apply(&mut o, &notify(Some("   ".into()), "permission_prompt", 7));
+        assert_eq!(o["s1"].waiting_message, None);
+    }
+
+    #[test]
+    fn waiting_message_is_cut_by_characters() {
+        let long = "\u{e9}".repeat(300);
+        let ev = HookEvent {
+            message: Some(long),
+            notification_type: Some("permission_prompt".into()),
+            ..event("Notification", None, 1)
+        };
+        let mut o = HashMap::new();
+        apply(&mut o, &ev);
+        let kept = o["s1"].waiting_message.as_deref().unwrap();
+        assert_eq!(kept.chars().count(), MAX_WAITING_MESSAGE);
+        assert!(kept.chars().all(|c| c == '\u{e9}'));
     }
 
     #[test]

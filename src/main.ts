@@ -81,6 +81,9 @@ import { Workspace } from './workspace';
 import { fontsReady } from './fontsReady';
 import { checkForUpdate } from './updater';
 
+// The built-in menu's Refresh reloads the page, and a reload kills every pane's pty as an orphan.
+window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
+
 trackCtrlHeld();
 
 // Mounted first so the backdrop is already drawing while settings load.

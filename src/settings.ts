@@ -19,6 +19,8 @@ export interface Settings {
     waitingPulse: boolean;
   };
   scrollback: number;
+  /** Seconds a command runs before its finish is marked done; 0 turns command marks off. */
+  terminal: { doneAfterSeconds: number };
   dashboard: { visibleOnStart: boolean; peekOnWaiting: boolean };
   restore: { enabled: boolean; resumeClaude: boolean };
   editor: { preferred: string; command: string };
@@ -46,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scrim: { opacity: 0.5, blurPx: 0 },
   backdrop: { animate: false, maxFps: 20, speed: 10, capacity: 1000, mutationRate: 0.2, lineageThreads: false, orbit: true, zoom: 2, waitingPulse: false },
   scrollback: 10000,
+  terminal: { doneAfterSeconds: 30 },
   dashboard: { visibleOnStart: true, peekOnWaiting: true },
   restore: { enabled: true, resumeClaude: true },
   editor: { preferred: 'default', command: '' },

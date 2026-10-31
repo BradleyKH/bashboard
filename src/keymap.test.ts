@@ -109,12 +109,22 @@ describe('default keybindings', () => {
   });
 
   it('maps openLayout and splitWithProfile to their chords', () => {
-    expect(lookup(keymap, ev({ key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true }))).toEqual({
+    expect(lookup(keymap, ev({ key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'openLayout',
     });
     expect(lookup(keymap, ev({ key: 'T', code: 'KeyT', altKey: true, shiftKey: true }))).toEqual({
       type: 'splitWithProfile',
     });
+  });
+
+  it('maps nextAttention and toggleBackdrop, and leaves Ctrl+Shift+P unbound', () => {
+    expect(lookup(keymap, ev({ key: 'L', code: 'KeyL', ctrlKey: true, shiftKey: true }))).toEqual({
+      type: 'nextAttention',
+    });
+    expect(lookup(keymap, ev({ key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true }))).toEqual({
+      type: 'toggleBackdrop',
+    });
+    expect(lookup(keymap, ev({ key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true }))).toBeNull();
   });
 
   it('maps newScratch to its chord', () => {

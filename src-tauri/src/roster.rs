@@ -64,6 +64,8 @@ pub struct Session {
     pub started_at: u64,
     pub version: Option<String>,
     pub pane_id: Option<u32>,
+    /// The blocking notification's text while `status` is `Waiting`; serialized as null otherwise.
+    pub waiting_reason: Option<String>,
 }
 
 /// One running process as the liveness and ancestry checks need it.
@@ -100,6 +102,7 @@ fn to_session(raw: RawSession) -> Option<Session> {
         started_at,
         version: raw.version,
         pane_id: None,
+        waiting_reason: None,
     })
 }
 
@@ -215,7 +218,8 @@ fn build_list(raws: Vec<RawSession>, procs: &ProcTable, shells: &HashMap<u32, u3
 /// Merges hook overlays into the scanned sessions (design section 7). A header-bound pane wins
 /// over ancestry. Hook busy or idle wins only when newer than the roster's status; waiting holds
 /// against anything but a newer roster busy, since the session file never reports waiting and
-/// would otherwise clear it on its next write.
+/// would otherwise clear it on its next write. A waiting session carries the overlay's message
+/// as its reason.
 fn apply_overlay(sessions: &mut [Session], overlay: &HashMap<String, HookOverlay>) {
     for s in sessions {
         let Some(o) = overlay.get(&s.session_id) else { continue };
@@ -237,6 +241,8 @@ fn apply_overlay(sessions: &mut [Session], overlay: &HashMap<String, HookOverlay
             s.raw_status = None;
             s.status_changed_at = t;
         }
+        s.waiting_reason =
+            if s.status == SessionStatus::Waiting { o.waiting_message.clone() } else { None };
     }
 }
 
@@ -508,7 +514,32 @@ mod tests {
     }
 
     fn hook(status: HookStatus, at: u64) -> HookOverlay {
-        HookOverlay { status: Some((status, at)), pane_id: None, last_at: at }
+        HookOverlay { status: Some((status, at)), pane_id: None, last_at: at, waiting_message: None }
+    }
+
+    #[test]
+    fn waiting_overlay_carries_its_reason() {
+        let overlay = HookOverlay {
+            waiting_message: Some("Claude needs your permission to use Bash".into()),
+            ..hook(HookStatus::Waiting, 150)
+        };
+        let s = merged("idle", 100, overlay.clone());
+        assert_eq!(s.status, SessionStatus::Waiting);
+        assert_eq!(s.waiting_reason.as_deref(), Some("Claude needs your permission to use Bash"));
+
+        let s = merged("busy", 200, overlay);
+        assert_eq!(s.status, SessionStatus::Busy);
+        assert_eq!(s.waiting_reason, None);
+    }
+
+    #[test]
+    fn waiting_reason_serializes_always() {
+        let overlay = HookOverlay { waiting_message: Some("why".into()), ..hook(HookStatus::Waiting, 150) };
+        let json = serde_json::to_value(merged("idle", 100, overlay)).unwrap();
+        assert_eq!(json["waitingReason"], "why");
+        let json = serde_json::to_value(merged("idle", 100, HookOverlay::default())).unwrap();
+        assert!(json.as_object().unwrap().contains_key("waitingReason"));
+        assert!(json["waitingReason"].is_null());
     }
 
     #[test]

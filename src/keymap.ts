@@ -21,6 +21,7 @@ export type Action =
   | { type: 'togglePaneZoom' }
   | { type: 'openFavorite' }
   | { type: 'openLayout' }
+  | { type: 'nextAttention' }
   | { type: 'splitWithProfile' }
   | { type: 'showHelp' }
   | { type: 'openSettings' }
@@ -76,6 +77,7 @@ const SIMPLE_ACTIONS = [
   'togglePaneZoom',
   'openFavorite',
   'openLayout',
+  'nextAttention',
   'splitWithProfile',
   'showHelp',
   'openSettings',
@@ -244,11 +246,12 @@ export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = [
   { keys: 'ctrl+shift+s', action: 'toggleDashboard' },
   { keys: 'f6', action: 'focusDashboard' },
   { keys: 'ctrl+shift+b', action: 'cycleScrim' },
-  { keys: 'ctrl+shift+l', action: 'toggleBackdrop' },
+  { keys: 'ctrl+shift+d', action: 'toggleBackdrop' },
+  { keys: 'ctrl+shift+l', action: 'nextAttention' },
   { keys: 'ctrl+shift+m', action: 'collapsePane' },
   { keys: 'ctrl+shift+z', action: 'togglePaneZoom' },
   { keys: 'ctrl+shift+o', action: 'openFavorite' },
-  { keys: 'ctrl+shift+p', action: 'openLayout' },
+  { keys: 'ctrl+shift+r', action: 'openLayout' },
   { keys: 'alt+shift+t', action: 'splitWithProfile' },
   { keys: 'ctrl+shift+t', action: 'newTab' },
   { keys: 'ctrl+shift+n', action: 'newScratch' },

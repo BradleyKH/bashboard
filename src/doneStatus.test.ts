@@ -13,6 +13,7 @@ function session(sessionId = 's1'): Session {
     startedAt: 0,
     version: null,
     paneId: 1,
+    waitingReason: null,
   };
 }
 
@@ -104,6 +105,85 @@ describe('DoneTracker', () => {
     expect(d.clear('a')).toBe(false);
     d.mark('a', 's1', 1000, false);
     d.forget('a');
+    expect(d.has('a')).toBe(false);
+  });
+});
+
+describe('DoneTracker command marks', () => {
+  const end = { durationMs: 30_000, exitCode: 0, at: 5000, seen: false, minSeconds: 30 };
+
+  it('marks only at or past the threshold', () => {
+    const d = new DoneTracker();
+    expect(d.markCommand('a', { ...end, durationMs: 29_999 })).toBe(false);
+    expect(d.has('a')).toBe(false);
+    expect(d.markCommand('a', end)).toBe(true);
+    expect(d.resolve('a', null, idle)).toEqual({ status: 'done', changedAt: 5000 });
+  });
+
+  it('maps exit codes to done, failed, or nothing', () => {
+    const cases: [number | null, string | null][] = [
+      [0, 'done'],
+      [1, 'failed'],
+      [130, null],
+      [null, 'done'],
+    ];
+    for (const [exitCode, status] of cases) {
+      const d = new DoneTracker();
+      expect(d.markCommand('a', { ...end, exitCode })).toBe(status !== null);
+      expect(d.resolve('a', null, idle)).toEqual(
+        status ? { status, changedAt: 5000 } : idle,
+      );
+    }
+  });
+
+  it('never marks with the threshold off or while seen', () => {
+    const d = new DoneTracker();
+    expect(d.markCommand('a', { ...end, minSeconds: 0, durationMs: 1e9 })).toBe(false);
+    expect(d.markCommand('a', { ...end, seen: true })).toBe(false);
+    expect(d.has('a')).toBe(false);
+  });
+
+  it('clears on focus', () => {
+    const d = new DoneTracker();
+    d.markCommand('a', end);
+    expect(d.clear('a')).toBe(true);
+    expect(d.resolve('a', null, idle)).toEqual(idle);
+  });
+
+  it('clears on the next command start, which leaves a session mark alone', () => {
+    const d = new DoneTracker();
+    d.markCommand('a', end);
+    expect(d.commandStarted('a')).toBe(true);
+    expect(d.has('a')).toBe(false);
+    expect(d.commandStarted('a')).toBe(false);
+    d.mark('a', 's1', 1000, false);
+    expect(d.commandStarted('a')).toBe(false);
+    expect(d.has('a')).toBe(true);
+  });
+
+  it('is hidden while a session is bound and shows once it is gone', () => {
+    const d = new DoneTracker();
+    d.markCommand('a', { ...end, exitCode: 2 });
+    const working = { status: 'working' as const, changedAt: 6000 };
+    expect(d.resolve('a', session(), working)).toEqual(working);
+    expect(d.resolve('a', session(), idle)).toEqual(idle);
+    expect(d.has('a')).toBe(true);
+    expect(d.resolve('a', null, idle)).toEqual({ status: 'failed', changedAt: 5000 });
+  });
+
+  it('is replaced by a newer command mark', () => {
+    const d = new DoneTracker();
+    d.markCommand('a', { ...end, exitCode: 1 });
+    d.markCommand('a', { ...end, exitCode: 0, at: 9000 });
+    expect(d.resolve('a', null, idle)).toEqual({ status: 'done', changedAt: 9000 });
+  });
+
+  it('is replaced by a session mark', () => {
+    const d = new DoneTracker();
+    d.markCommand('a', { ...end, exitCode: 1 });
+    d.mark('a', 's1', 7000, false);
+    expect(d.resolve('a', session(), idle)).toEqual({ status: 'done', changedAt: 1000 });
+    expect(d.resolve('a', null, idle)).toEqual(idle);
     expect(d.has('a')).toBe(false);
   });
 });

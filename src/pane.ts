@@ -6,7 +6,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 import { openLink } from './links';
-import { parseOsc133, parseOsc7, parseOsc9 } from './osc';
+import { type Osc133, parseOsc133, parseOsc7, parseOsc9 } from './osc';
 import { webglBudget } from './rendererBudget';
 import { noteShellFallback } from './shellFallback';
 import type { CellSize } from './layout';
@@ -40,6 +40,9 @@ type PrivateTerminal = {
 
 export type PaneKeyHandler = (e: KeyboardEvent, term: Terminal, send: (data: string) => void) => boolean;
 
+/** A command boundary reported by OSC 133 `C` (start) and `D` (end). */
+export type CommandEvent = { kind: 'start' } | { kind: 'end'; durationMs: number; exitCode: number | null };
+
 export interface TerminalPaneOptions {
   host: HTMLElement;
   paneId: string;
@@ -56,6 +59,8 @@ export interface TerminalPaneOptions {
   onCwdChange?: () => void;
   /** Fires when OSC 133 reports a command starting or finishing (`oscState().running` flipped). */
   onShellChange?: () => void;
+  /** Fires on OSC 133 `C` and `D`, before `onShellChange`. A `D` with no preceding `C` fires nothing. */
+  onCommand?: (ev: CommandEvent) => void;
   /** Fires once: on the first OSC 133 A or the first output chunk, whichever comes first. */
   onReady?: () => void;
   /** Fires on the BEL character (xterm's onBell). */
@@ -92,6 +97,8 @@ export class TerminalPane implements PaneView {
   private resolvedProfile: string | undefined;
   private readonly onCwdChangeCb: (() => void) | undefined;
   private readonly onShellChangeCb: (() => void) | undefined;
+  private readonly onCommandCb: ((ev: CommandEvent) => void) | undefined;
+  private commandStartedAt: number | null = null;
   private onReadyCb: (() => void) | undefined;
   private osc: OscShellState = { seen: false, running: false, changedAt: Date.now() };
   private currentCwd: string | null;
@@ -112,6 +119,7 @@ export class TerminalPane implements PaneView {
     this.resolvedProfile = opts.profile;
     this.onCwdChangeCb = opts.onCwdChange;
     this.onShellChangeCb = opts.onShellChange;
+    this.onCommandCb = opts.onCommand;
     this.onReadyCb = opts.onReady;
     this.currentCwd = opts.cwd ?? null;
     this.expanded = opts.expanded ?? true;
@@ -165,7 +173,7 @@ export class TerminalPane implements PaneView {
     this.term.parser.registerOscHandler(133, (data) => {
       const marker = parseOsc133(data);
       if (marker === null) return false;
-      this.onOsc133(marker.kind);
+      this.onOsc133(marker);
       return true;
     });
 
@@ -386,7 +394,8 @@ export class TerminalPane implements PaneView {
     this.fit.fit();
   }
 
-  private onOsc133(kind: 'A' | 'B' | 'C' | 'D'): void {
+  private onOsc133(marker: Osc133): void {
+    const kind = marker.kind;
     const wasRunning = this.osc.running;
     const running = kind === 'C' ? true : kind === 'D' ? false : wasRunning;
     this.osc = {
@@ -395,6 +404,14 @@ export class TerminalPane implements PaneView {
       changedAt: running !== wasRunning ? Date.now() : this.osc.changedAt,
     };
     if (kind === 'A') this.fireReady();
+    if (kind === 'C') {
+      this.commandStartedAt = Date.now();
+      this.onCommandCb?.({ kind: 'start' });
+    } else if (kind === 'D' && this.commandStartedAt !== null) {
+      const durationMs = Date.now() - this.commandStartedAt;
+      this.commandStartedAt = null;
+      this.onCommandCb?.({ kind: 'end', durationMs, exitCode: marker.exitCode ?? null });
+    }
     if (running !== wasRunning) this.onShellChangeCb?.();
   }
 
