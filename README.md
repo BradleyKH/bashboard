@@ -307,6 +307,10 @@ closes the bar and selects the current match, so the editor's caret lands on it.
 buttons beside Find zoom the preview, and the pair in the breadcrumb zooms the list. A new Files
 pane starts at the zoom you last chose for each.
 
+The Expand preview button after the zoom buttons fills the pane with the preview and shows the
+file's name in the toolbar. The same button, or Esc (a second Esc when the find bar is open),
+brings the list back. The expanded state is kept on relaunch and in layouts.
+
 The text editor saves about a second after you stop typing, when it loses focus, and on Ctrl+S.
 If the file changes on disk while you have no unsaved edits, it reloads in place. If it changes
 while you do (or a save finds it changed), a bar offers Reload, which discards your edits, or Keep

@@ -47,6 +47,11 @@
   display: none;
 }
 
+.files-body.preview-expanded .files-left,
+.files-body.preview-expanded .files-divider {
+  display: none;
+}
+
 .files-notice {
   display: flex;
   flex-direction: column;

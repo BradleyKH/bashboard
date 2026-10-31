@@ -184,7 +184,7 @@ export type PaneSpec =
       container?: { name: string };
     }
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
-  | { kind: 'files'; folder: string; selected?: string | null; root?: string }
+  | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean }
   | { kind: 'git'; root: string }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' };
@@ -1193,7 +1193,7 @@ export class Workspace {
         if (loadScratch && p.scratchId) return { kind: 'scratch', scratchId: p.scratchId, text: scratchLoad(p.scratchId) };
         return { kind: 'scratch' };
       case 'files':
-        return { kind: 'files', folder: p.folder, selected: p.selected, root: p.root };
+        return { kind: 'files', folder: p.folder, selected: p.selected, root: p.root, expanded: p.expanded ?? false };
       case 'git':
         return { kind: 'git', root: p.root };
       case 'search':
@@ -1405,6 +1405,7 @@ export class Workspace {
       folder: spec.folder,
       selected: spec.selected,
       root: spec.root,
+      expanded: spec.expanded,
       keymap: () => this.config.keymap,
       dispatch: (a) => this.dispatch(a),
       onFocus: () => this.setFocused(id),

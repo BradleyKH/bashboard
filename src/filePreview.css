@@ -65,6 +65,7 @@
   flex: none;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 2px 4px;
 }
@@ -340,4 +341,33 @@
 .editor-mirror::highlight(preview-find-current) {
   background-color: #3a8a9c;
   color: transparent;
+}
+
+.preview-toolbar .preview-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  padding: 0 6px;
+}
+
+.preview-expand svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.preview-file-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0 4px;
+  font: 11px system-ui, sans-serif;
+  color: #b8b8b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-file-name[hidden] {
+  display: none;
 }

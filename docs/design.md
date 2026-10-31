@@ -1314,10 +1314,11 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   and closing that terminals have. Status, attention, and the WebGL budget apply to terminals
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
   which for other kinds is the folder's name, a scratch pad's first line, or "Containers".
-- **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder
-  and selected file, a Git pane's repo, a Search pane's repo, query, and options (rerun on
-  restore), and a scratch pad's text. A pane whose folder no longer exists opens on a notice
-  naming the path, with the kind menu still available.
+- **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder,
+  selected file, and whether its preview is expanded (4.12), a Git pane's repo, a Search pane's
+  repo, query, and options (rerun on restore), and a scratch pad's text. A pane whose folder no
+  longer exists opens on a notice naming the path, with the kind menu still available. A Files
+  pane restored expanded over a file that is missing or cannot be previewed as text shows its list.
 - **Layouts** save every kind. Scratch pads are saved empty, so a layout opens fresh pads.
 
 ### 4.12 Files and pins
@@ -1352,6 +1353,22 @@ Open in File Explorer and Open terminal here. Each scales from its base size (th
 size for code and the text editor) and holds while browsing the pane. Every step is saved to
 `textZoom.filePreview` or `textZoom.filesList` in workspace.json (section 7), the level a new
 Files pane starts at; other open panes keep their own.
+
+**Expand.** The Expand preview button after the − and + buttons fills the pane with the
+preview on every text preview (markdown, plain text, and read-only code); a binary or
+too-large file has no button. Its icon is a side panel with a left-pointing arrow, kept
+distinct from the title strip's zoom icon (4.2) since both show at once, and the two combine
+into a full-window reader. Expanded, the list, breadcrumb, and divider hide, and the toolbar
+shows the file's name, since the breadcrumb that located it is hidden. The button then reads
+Show file list and its icon points right. Find, zoom, Edit, editing and saving, and relative
+markdown links work as before, and a followed link keeps the pane expanded.
+
+Either the button or Esc anywhere in the preview brings the list back, at the divider position
+it had, with the previewed file selected and the list focused, so Up and Down browse on from
+there. An open find bar takes the first Esc, so with the bar open it takes two presses.
+Showing a folder in the pane (a pin, `bb open` on a folder, 3.13) also brings the list back;
+selecting a file the same way (a pinned file, `bb open` on a file, a markdown link) keeps the
+preview expanded. A file that cannot be previewed as text shows the list.
 
 **Text editor.** A monospaced text area. It saves one second after typing stops, on blur, and
 on Ctrl+S, through `fs_write_text` with the modified time it last read. When the file changes on
@@ -1699,8 +1716,11 @@ type SavedPane = { key: string; collapsed: boolean } & (
       /** Shell profile id; absent means the default profile. */
       profile?: string;
     }
-  /** `root`: the repo the pane was opened for; absent, it resolves from `folder`. */
-  | { kind: 'files'; folder: string; selected: string | null; root?: string }
+  /**
+   * `root`: the repo the pane was opened for; absent, it resolves from `folder`. `expanded`:
+   * the preview filled the pane; absent means false.
+   */
+  | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean }
   | { kind: 'git'; root: string }
   | { kind: 'search'; root: string; query: string; options: SearchOptions }
   /** null in layouts, which open fresh pads. */
@@ -1982,6 +2002,8 @@ Each milestone ends with a usable app.
     palette on Ctrl+Shift+P (4.5), with the `Picker` category, hint, and matcher it adds. The
     keybinding editor in the F1 guide (per-argument rows, recording, moves with Undo, Reset and
     Reset all, `settings_keybindings_edit`) and the settings dialog's Keyboard section (4.5, 4.6).
+    The expanded file preview (4.12), with its Expand preview button and the rules that bring the
+    list back.
 
 ## 12. Risks
 

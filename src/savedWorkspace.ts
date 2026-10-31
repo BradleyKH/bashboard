@@ -18,9 +18,10 @@ export type SavedPane = { key: string; collapsed: boolean } & (
   | { kind: 'scratch'; scratchId: string | null }
   /**
    * `selected` is the previewed file's absolute path. `root` is the repo the pane was opened
-   * for, which can be an ancestor of `folder`; absent, it resolves from `folder`.
+   * for, which can be an ancestor of `folder`; absent, it resolves from `folder`. `expanded` is
+   * whether the preview filled the pane; absent means false.
    */
-  | { kind: 'files'; folder: string; selected: string | null; root?: string }
+  | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean }
   /** `root` is the repo root the pane shows. */
   | { kind: 'git'; root: string }
   /** `root` is the repo root the pane searches. */
@@ -96,6 +97,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
       folder: raw.folder,
       selected: typeof raw.selected === 'string' ? raw.selected : null,
       ...(typeof raw.root === 'string' && { root: raw.root }),
+      ...(typeof raw.expanded === 'boolean' && { expanded: raw.expanded }),
     };
   },
   git: (raw, base) => {

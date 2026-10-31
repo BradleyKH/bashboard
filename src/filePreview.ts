@@ -1,6 +1,7 @@
 import './filePreview.css';
 import { BinaryNotice } from './binaryNotice';
 import { CodeView } from './codeView';
+import { ExpandPreviewButton } from './expandPreviewButton';
 import { previewKind } from './filesModel';
 import type { Action, Keymap } from './keymap';
 import { MarkdownView } from './markdownView';
@@ -19,6 +20,13 @@ export interface FilePreviewOptions {
   /** A markdown link to another file; `path` is absolute. */
   onOpenFile: (path: string) => void;
   onOpenInEditor: (path: string) => void;
+  /** The expand button was clicked. */
+  onToggleExpand?: () => void;
+  /**
+   * A `show(path)` with a path settled; `expandable` is whether the file is a text preview that
+   * can fill the pane. Not called for `show(null)`.
+   */
+  onShown?: (expandable: boolean) => void;
 }
 
 type Current =
@@ -33,6 +41,9 @@ export class FilePreview {
   private readonly opts: FilePreviewOptions;
   /** Kept across files, so the zoom holds while browsing. */
   private readonly zoom: ZoomButtons;
+  private readonly expand: ExpandPreviewButton;
+  /** The file's name, shown on the toolbar while expanded. */
+  private readonly nameEl: HTMLSpanElement;
   private settings: Settings;
   private current: Current | null = null;
   private generation = 0;
@@ -45,8 +56,24 @@ export class FilePreview {
     this.zoom = new ZoomButtons('', 'filePreview', textZoom('filePreview'), (zoom) =>
       this.el.style.setProperty('--preview-zoom', String(zoom)),
     );
+    this.expand = new ExpandPreviewButton(() => this.opts.onToggleExpand?.());
+    this.nameEl = document.createElement('span');
+    this.nameEl.className = 'preview-file-name';
+    this.nameEl.hidden = true;
     opts.host.appendChild(this.el);
     this.showEmpty();
+  }
+
+  /** True when the current file is a text preview that can fill the pane. */
+  get expandable(): boolean {
+    const k = this.current?.kind;
+    return k === 'markdown' || k === 'plain' || k === 'code';
+  }
+
+  /** Shows the file name and the Show file list button, or the Expand preview button. */
+  setExpanded(expanded: boolean): void {
+    this.expand.set(expanded);
+    this.nameEl.hidden = !expanded;
   }
 
   /** The path being previewed, or null. */
@@ -71,18 +98,21 @@ export class FilePreview {
     const kind = previewKind(name, size);
     if (kind === 'binary') {
       this.setNotice(path, name, size, 'Too large to preview.');
+      this.opts.onShown?.(false);
       return;
     }
     try {
       const file = await fsReadText(path);
       if (gen !== this.generation) return;
       this.mount(path, kind, file.text, file.modified);
+      this.opts.onShown?.(true);
     } catch (err) {
       if (gen !== this.generation) return;
       const failure = classifyReadError(err);
       if (failure === 'binary') this.setNotice(path, name, size, 'Binary file.');
       else if (failure === 'tooLarge') this.setNotice(path, name, size, 'Too large to preview.');
       else this.setError(err);
+      this.opts.onShown?.(false);
     }
   }
 
@@ -107,6 +137,7 @@ export class FilePreview {
   focus(): void {
     const c = this.current;
     if (c?.kind === 'plain' || c?.kind === 'markdown') c.view.focus();
+    else if (c?.kind === 'code') c.view.el.focus();
   }
 
   /** Opens the find bar on a text preview; false when the preview has none. */
@@ -147,20 +178,27 @@ export class FilePreview {
         dispatch,
         onOpenFile: this.opts.onOpenFile,
       });
-      view.toolbar.append(this.zoom.el);
+      view.toolbar.prepend(this.fileName(path));
+      view.toolbar.append(this.zoom.el, this.expand.el);
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
     } else if (kind === 'plain') {
       const view = new TextEditor({ path, text, modified, settings: this.settings, keymap, dispatch });
       const find = new PreviewFind(() => view.findSurface());
       this.current = { kind, path, view, find };
-      this.el.replaceChildren(framed(view.el, find, this.zoom.el));
+      this.el.replaceChildren(framed(view.el, find, this.zoom.el, this.expand.el, this.fileName(path)));
     } else {
       const view = new CodeView(text, this.settings);
       const find = new PreviewFind(() => view.findSurface());
       this.current = { kind, path, view, modified, find };
-      this.el.replaceChildren(framed(view.el, find, this.zoom.el));
+      this.el.replaceChildren(framed(view.el, find, this.zoom.el, this.expand.el, this.fileName(path)));
     }
+  }
+
+  private fileName(path: string): HTMLSpanElement {
+    this.nameEl.textContent = path.split(/[\\/]/).pop() ?? path;
+    this.nameEl.title = path;
+    return this.nameEl;
   }
 
   private setNotice(path: string, name: string, size: number, reason: string): void {
@@ -193,13 +231,19 @@ export class FilePreview {
   }
 }
 
-/** A view under a toolbar holding its find button and bar, then the zoom buttons. */
-function framed(view: HTMLElement, find: PreviewFind, zoom: HTMLElement): HTMLElement {
+/** A view under a toolbar holding the file name, its find button and bar, then the zoom and expand buttons. */
+function framed(
+  view: HTMLElement,
+  find: PreviewFind,
+  zoom: HTMLElement,
+  expand: HTMLElement,
+  name: HTMLElement,
+): HTMLElement {
   const frame = document.createElement('div');
   frame.className = 'preview-frame';
   const toolbar = document.createElement('div');
   toolbar.className = 'preview-toolbar';
-  toolbar.append(find.button, find.bar, zoom);
+  toolbar.append(name, find.button, find.bar, zoom, expand);
   frame.append(toolbar, view);
   return frame;
 }

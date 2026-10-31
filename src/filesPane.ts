@@ -36,6 +36,8 @@ export interface FilesPaneOptions {
   selected?: string | null;
   /** The repo root, when the caller already knows it; otherwise resolved with `repoRoot`. */
   root?: string;
+  /** Start with the preview filling the pane (a restored pane whose `selected` is a file). */
+  expanded?: boolean;
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
@@ -107,6 +109,13 @@ export class FilesPane implements PaneView {
   private history: History = EMPTY_HISTORY;
   private entries: FileEntry[] = [];
   private split = 0.4;
+  /** The preview fills the pane, with the list, breadcrumb, and divider hidden. */
+  private previewExpanded = false;
+  /**
+   * A followed markdown link replaces the focused view, dropping focus to the page; the next
+   * shown preview takes it back so Esc still reaches the pane.
+   */
+  private refocusPreview = false;
   private watchId: number | null = null;
   /** Bumped on every folder change, so late listings and watch ids for an old folder are dropped. */
   private generation = 0;
@@ -164,14 +173,29 @@ export class FilesPane implements PaneView {
       dispatch: opts.dispatch,
       onOpenFile: (path) => {
         const t = pinTarget(this.rootPath, path, false);
+        this.refocusPreview = this.previewExpanded && this.hasFocus();
         void this.showFolder(t.folder, t.select);
       },
       onOpenInEditor: (path) => this.openInEditor(path),
+      onToggleExpand: () => (this.previewExpanded ? this.showList(true) : this.setPreviewExpanded(true)),
+      onShown: (expandable) => {
+        const refocus = this.refocusPreview && document.activeElement === document.body;
+        this.refocusPreview = false;
+        if (!expandable && this.previewExpanded) this.showList(this.hasFocus() || refocus);
+        else if (refocus && this.previewExpanded) this.preview.focus();
+      },
     });
 
     this.body.append(this.left, this.divider, this.right);
     this.host.appendChild(this.body);
     this.applySplit();
+    // Restored expanded before the first listing, so the list does not flash; the navigation
+    // rules show it again if the file is missing or not previewable.
+    if (opts.expanded && this.selectedName !== null) {
+      this.previewExpanded = true;
+      this.body.classList.add('preview-expanded');
+      this.preview.setExpanded(true);
+    }
 
     this.listen(this.host, 'focusin', () => opts.onFocus());
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
@@ -209,9 +233,17 @@ export class FilesPane implements PaneView {
     return baseName(this.currentPath);
   }
 
-  /** The `files` saved-pane fields; `selected` is the selected entry's name within `folder`. */
-  saved(): { folder: string; selected: string | null; root: string } {
-    return { folder: this.currentPath, selected: this.selectedName, root: this.rootPath };
+  /**
+   * The `files` saved-pane fields; `selected` is the selected entry's name within `folder`, and
+   * `expanded` whether the preview fills the pane.
+   */
+  saved(): { folder: string; selected: string | null; root: string; expanded: boolean } {
+    return {
+      folder: this.currentPath,
+      selected: this.selectedName,
+      root: this.rootPath,
+      expanded: this.previewExpanded,
+    };
   }
 
   /**
@@ -219,6 +251,8 @@ export class FilesPane implements PaneView {
    * absolute path whose parent is the folder; anything else selects nothing.
    */
   async showFolder(folder: string, select?: string | null): Promise<void> {
+    // Showing a folder brings the list back; selecting a file keeps the preview expanded.
+    if (this.previewExpanded && selectionName(folder, select) === null) this.showList(this.hasFocus());
     if (samePath(folder, this.currentPath) && this.notice.hidden) {
       const name = selectionName(folder, select);
       if (name === null) return;
@@ -247,8 +281,9 @@ export class FilesPane implements PaneView {
   }
 
   focus(): void {
-    if (this.notice.hidden) this.list.focus();
-    else this.body.focus();
+    if (!this.notice.hidden) this.body.focus();
+    else if (this.previewExpanded) this.preview.focus();
+    else this.list.focus();
   }
 
   setExpanded(_expanded: boolean): void {}
@@ -271,12 +306,14 @@ export class FilesPane implements PaneView {
     const row = this.list.el.querySelector<HTMLElement>('.file-row');
     const height = row?.offsetHeight || probeHeight || this.settings.font.size * 1.2;
     const rows = this.list.el.querySelector<HTMLElement>('.files-list-rows');
+    // The rows have no height while the list is hidden behind an expanded preview.
+    const inner = this.previewExpanded ? this.body.clientHeight : (rows?.clientHeight ?? this.body.clientHeight);
     return {
       width,
       height,
       // Everything outside the list's rows: borders, title strip, breadcrumb, filter.
       padX: Math.max(0, this.host.offsetWidth - this.body.clientWidth) + 1,
-      padY: Math.max(0, this.host.offsetHeight - (rows?.clientHeight ?? this.body.clientHeight)) + 1,
+      padY: Math.max(0, this.host.offsetHeight - inner) + 1,
     };
   }
 
@@ -306,6 +343,7 @@ export class FilesPane implements PaneView {
 
   private async navigate(folder: string, select: string | null, record: boolean): Promise<void> {
     const gen = ++this.generation;
+    const focused = this.hasFocus();
     this.unwatch();
     this.menu.close();
     const changed = !samePath(folder, this.currentPath);
@@ -335,6 +373,10 @@ export class FilesPane implements PaneView {
     this.startWatch(folder, gen);
 
     const entry = this.selectedName === null ? undefined : entries.find((e) => e.name === this.selectedName);
+    if (this.previewExpanded && (!entry || entry.isDir)) {
+      // Clearing the preview dropped its focus to the page; take it back unless it moved on.
+      this.showList(this.hasFocus() || (focused && document.activeElement === document.body));
+    }
     if (entry) {
       this.list.select(entry.name);
       this.selectEntry(entry);
@@ -377,6 +419,7 @@ export class FilesPane implements PaneView {
     if (this.selectedName === null) return;
     const entry = entries.find((e) => e.name === this.selectedName);
     if (!entry) {
+      this.showList(this.hasFocus());
       this.selectedName = null;
       this.selectedModified = null;
       this.list.select(null);
@@ -392,6 +435,7 @@ export class FilesPane implements PaneView {
     const changed = entry.name !== this.selectedName;
     this.selectedName = entry.name;
     if (entry.isDir) {
+      if (this.previewExpanded) this.showList(this.hasFocus());
       this.selectedModified = null;
       void this.preview.show(null);
     } else if (changed || this.preview.path === null) {
@@ -486,6 +530,11 @@ export class FilesPane implements PaneView {
   }
 
   private showNotice(folder: string, err: unknown): void {
+    if (this.previewExpanded) {
+      const focused = this.hasFocus();
+      this.showList(false);
+      if (focused) this.body.focus();
+    }
     this.entries = [];
     const head = document.createElement('div');
     head.className = 'files-notice-head';
@@ -514,6 +563,35 @@ export class FilesPane implements PaneView {
       history: this.history,
       pinned: this.isPinned(this.currentPath),
     });
+  }
+
+  private hasFocus(): boolean {
+    return this.host.contains(document.activeElement);
+  }
+
+  /** Fills the pane with a text preview, hiding the list, breadcrumb, and divider. */
+  private setPreviewExpanded(focus: boolean): void {
+    if (this.previewExpanded || !this.preview.expandable) return;
+    this.previewExpanded = true;
+    this.body.classList.add('preview-expanded');
+    this.preview.setExpanded(true);
+    if (focus && this.hasFocus()) this.preview.focus();
+    this.opts.onChange();
+  }
+
+  /**
+   * Brings the list back beside the preview with the previewed entry selected. The divider
+   * returns where it was, since `split` and the list's flex-basis are untouched while hidden.
+   */
+  private showList(focus: boolean): void {
+    if (!this.previewExpanded) return;
+    this.previewExpanded = false;
+    this.body.classList.remove('preview-expanded');
+    this.preview.setExpanded(false);
+    this.opts.onChange();
+    // Re-selecting scrolls the row into view, which did nothing while the list was hidden.
+    this.list.select(this.selectedName);
+    if (focus) this.list.focus();
   }
 
   private applySplit(): void {
@@ -545,6 +623,23 @@ export class FilesPane implements PaneView {
   private onKeyDown(e: KeyboardEvent): void {
     const action = lookup(this.opts.keymap(), e);
     if (action?.type === 'find' && this.preview.openFind()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // An open find bar takes Esc first and stops it there.
+    if (
+      this.previewExpanded &&
+      e.key === 'Escape' &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      !e.metaKey &&
+      !e.defaultPrevented &&
+      !e.isComposing &&
+      this.preview.el.contains(e.target as Node)
+    ) {
+      this.showList(true);
       e.preventDefault();
       e.stopPropagation();
       return;

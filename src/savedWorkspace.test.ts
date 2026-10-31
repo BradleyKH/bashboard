@@ -65,6 +65,26 @@ describe('parseSavedTab', () => {
     );
   });
 
+  it('round-trips a Files pane expanded flag', () => {
+    const expanded = { ...files('a', false, '/c/a/readme.md'), expanded: true };
+    const collapsed = { ...files('b', false, '/c/b/readme.md'), expanded: false };
+    expect(parseSavedTab({ panes: [expanded, collapsed], layout: row(pane('a'), pane('b')), focused: 'a' })?.panes).toEqual([
+      expanded,
+      collapsed,
+    ]);
+  });
+
+  it('leaves the Files pane expanded flag off unless it is a boolean', () => {
+    const absent = parseSavedTab({ panes: [files('a')], layout: pane('a'), focused: 'a' })?.panes[0];
+    expect(absent).toEqual(files('a'));
+    expect(absent && 'expanded' in absent).toBe(false);
+    for (const bad of ['yes', 1]) {
+      const r = parseSavedTab({ panes: [{ ...files('a'), expanded: bad }], layout: pane('a'), focused: 'a' })?.panes[0];
+      expect(r).toEqual(files('a'));
+      expect(r && 'expanded' in r).toBe(false);
+    }
+  });
+
   it('drops a Files pane with no folder', () => {
     const { folder: _f, ...bad } = files('b');
     const r = parseSavedTab({ panes: [term('a'), bad], layout: row(pane('a'), pane('b')), focused: 'a' });
