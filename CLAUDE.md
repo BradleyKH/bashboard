@@ -91,5 +91,7 @@ is hidden or minimized (`windowVisibility.ts`), honors `backdrop.maxFps` through
 - **A keybinding action** needs its name in `keymap.ts` (the action type, the name list, and
   `DEFAULT_KEYBINDINGS`), the matching default in `default_keybindings()` in `settings.rs`, a
   case in `isHandled` in `keys.ts` (workspace actions go through `ctx.dispatch`), handling in
-  `Workspace.dispatch`, a label and section in `src/helpModel.ts` (the F1 shortcut guide), and
-  a row in the design doc's section 4.5 table.
+  `Workspace.dispatch`, a label and section in `src/helpModel.ts` (the F1 shortcut guide's
+  rows, which `keybindingEdit.ts` turns into the editor's rows), and a row in the design doc's
+  section 4.5 table. An action that takes an argument also needs its per-argument rows (labels
+  and argument values) in `keybindingEdit.ts`.

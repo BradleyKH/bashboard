@@ -1137,7 +1137,7 @@ body.dashboard-resizing {
   flex-direction: column;
   gap: 10px;
   box-sizing: border-box;
-  width: min(560px, 90vw);
+  width: min(640px, 92vw);
   max-height: 84vh;
   padding: 12px;
   border-radius: 6px;
@@ -1195,22 +1195,14 @@ body.dashboard-resizing {
 }
 
 .help-dialog-rows {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 4px 16px;
-  align-items: baseline;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .help-dialog-note {
   color: #7f8c94;
   font-size: 11px;
-}
-
-.help-dialog-keys {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
 }
 
 .help-dialog kbd {
@@ -1224,10 +1216,258 @@ body.dashboard-resizing {
   white-space: nowrap;
 }
 
-.help-dialog-footer {
-  margin: 0;
+.help-dialog-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.help-dialog-filter {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #eef3f5;
+  font: inherit;
+  outline: none;
+}
+
+.help-dialog-filter:focus {
+  border-color: #4fb3c8;
+}
+
+.help-dialog-find,
+.help-dialog-reset-all,
+.kb-add,
+.kb-reset,
+.kb-strip button,
+.kb-notice-button {
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #d6dde2;
+  font: 11px system-ui, sans-serif;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.help-dialog-find:hover,
+.help-dialog-reset-all:hover:not(:disabled),
+.kb-add:hover,
+.kb-reset:hover,
+.kb-strip button:hover,
+.kb-notice-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.help-dialog-find {
+  min-width: 96px;
+  line-height: 22px;
+}
+
+.help-dialog-find.kb-finding {
+  border-color: #4fb3c8;
+  background: rgba(79, 179, 200, 0.12);
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.kb-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 16px;
+  align-items: start;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.kb-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.kb-row.kb-flash {
+  animation: kb-flash 1s ease-out;
+}
+
+@keyframes kb-flash {
+  from {
+    background: rgba(79, 179, 200, 0.35);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.kb-label {
+  line-height: 20px;
+}
+
+.kb-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #4fb3c8;
+  vertical-align: middle;
+}
+
+.kb-shell-note {
   color: #7f8c94;
   font-size: 11px;
+  line-height: 15px;
+  opacity: 0.8;
+}
+
+.kb-label .help-dialog-note {
+  line-height: 15px;
+}
+
+.kb-keys {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.kb-keys-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+}
+
+.help-dialog kbd.kb-key {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+}
+
+.help-dialog kbd.kb-key:hover {
+  border-color: rgba(79, 179, 200, 0.6);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.kb-key-button {
+  padding: 1px 2px 1px 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.kb-remove {
+  padding: 0 5px 0 3px;
+  border: none;
+  background: transparent;
+  color: #7f8c94;
+  font: 10px system-ui, sans-serif;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.kb-remove:hover {
+  color: #eef3f5;
+}
+
+.help-dialog kbd.kb-key.kb-struck {
+  padding: 1px 6px;
+  color: #7f8c94;
+  text-decoration: line-through;
+}
+
+.kb-none {
+  color: #7f8c94;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.kb-add {
+  padding: 0 6px;
+}
+
+.kb-reset {
+  color: #9aa6ad;
+}
+
+.kb-recording {
+  min-width: 80px;
+  padding: 1px 8px;
+  border: 1px solid #4fb3c8;
+  border-radius: 3px;
+  background: rgba(79, 179, 200, 0.12);
+  color: #eef3f5;
+  font: 11px ui-monospace, Consolas, monospace;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.kb-message {
+  color: #e0a35a;
+  font-size: 11px;
+}
+
+.kb-message-dim {
+  color: #7f8c94;
+}
+
+.kb-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px 4px;
+  padding: 6px 8px;
+  border-left: 2px solid #4fb3c8;
+  border-radius: 3px;
+  background: rgba(79, 179, 200, 0.08);
+}
+
+.kb-strip-text {
+  flex: 1;
+}
+
+.kb-strip .kb-strip-move {
+  border-color: #4fb3c8;
+}
+
+.kb-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.kb-notice[hidden] {
+  display: none;
+}
+
+.kb-notice-text {
+  flex: 1;
+}
+
+.kb-notice-error {
+  background: rgba(200, 80, 80, 0.18);
+  color: #f0b4b4;
+}
+
+.help-dialog-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.help-dialog-reset-all:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .settings-dialog-backdrop {

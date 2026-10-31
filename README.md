@@ -679,10 +679,15 @@ path), and `{line}` is 1 when no line applies. The Editor section of the setting
 fields and lists only the editors it found.
 
 Press F1, or click Keyboard shortcuts at the bottom of the dashboard, for a guide to every key
-in effect, including your own bindings.
+in effect, including your own bindings. The guide is also where keys are changed: click a key to
+replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all
+to drop every custom key. Giving a key to an action that already uses it moves it, and the notice
+that follows has Undo.
 
 Most settings can also be changed from the Settings button at the bottom of the dashboard or with
-Ctrl+Comma. Changes save to settings.json and keep its comments; keybindings are edited in the file.
+Ctrl+Comma. Changes save to settings.json and keep its comments. Keybindings are edited in the
+shortcut guide (Settings > Keyboard > Edit keyboard shortcuts opens it) or in the file; the guide
+rewrites the `keybindings` list one entry per line and does not keep comments inside that list.
 
 Entries in the `keybindings` list add to or override the default keys. To remove a default so
 the key reaches the shell, add an `unbound` entry. Ctrl+W closes a pane by default, so this
@@ -698,6 +703,9 @@ Ctrl+Alt+1 through Ctrl+Alt+8 to it:
 ```jsonc
 { "keys": "ctrl+alt+1", "action": "switchToTab", "index": 1 }
 ```
+
+Keys that type text (`sendInput`) are added in the file; the guide lists them but has no field
+for their text.
 
 The background animation (the backdrop) starts frozen on a still frame; set `backdrop.animate`
 to `true` to run it, at up to 20 frames per second. Raise or lower that with `backdrop.maxFps`

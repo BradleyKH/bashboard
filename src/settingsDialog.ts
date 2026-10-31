@@ -15,6 +15,8 @@ export interface SettingsDialogCallbacks {
   onRunSetup(): void;
   /** Check for updates was clicked; the dialog stays open. Omit to hide the button. */
   onCheckForUpdates?(): void;
+  /** Edit keyboard shortcuts was clicked; the dialog has already closed without onClose, as with onRunSetup. Omit to hide the Keyboard section. */
+  onEditKeys?(): void;
 }
 
 const SLIDER_DEBOUNCE_MS = 250;
@@ -95,6 +97,25 @@ export class SettingsDialog {
       const rows = document.createElement('div');
       rows.className = 'settings-dialog-rows';
       for (const field of section.fields) rows.append(...this.row(field));
+      el.append(h, rows);
+      body.append(el);
+    }
+    const onEditKeys = this.callbacks.onEditKeys;
+    if (onEditKeys) {
+      const el = document.createElement('section');
+      const h = document.createElement('h3');
+      h.textContent = 'Keyboard';
+      const rows = document.createElement('div');
+      rows.className = 'settings-dialog-rows';
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'settings-dialog-open';
+      edit.textContent = 'Edit keyboard shortcuts';
+      edit.addEventListener('click', () => {
+        this.close();
+        onEditKeys();
+      });
+      rows.append(edit);
       el.append(h, rows);
       body.append(el);
     }
@@ -403,7 +424,7 @@ export class SettingsDialog {
 
     const note = document.createElement('p');
     note.className = 'settings-dialog-note';
-    note.textContent = 'Keybindings are edited in settings.json, in the "keybindings" list.';
+    note.textContent = 'Keyboard shortcuts are changed in the shortcut guide (F1); keys that type text are added to the "keybindings" list in settings.json.';
 
     const version = document.createElement('p');
     version.className = 'settings-dialog-note';

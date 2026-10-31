@@ -7,6 +7,7 @@ import {
   DEFAULT_SETTINGS,
   loadSettings,
   onSettingsChanged,
+  editKeybindings,
   openSettingsFile,
   saveSetting,
   type Settings,
@@ -31,7 +32,6 @@ import { ConfirmDialog } from './confirmDialog';
 import { Picker, type PickerItem } from './picker';
 import { CommandPalette } from './commandPalette';
 import { HelpDialog } from './helpDialog';
-import { helpSections } from './helpModel';
 import { gitInstall, gitInstallStatus, openGitDownload } from './gitInstall';
 import { hookInstall, hookInstallPreview } from './hookInstall';
 import { shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
@@ -648,8 +648,12 @@ const palette = new CommandPalette({
   runAction: (a) => workspace.runAction(a),
 });
 const confirmDialog = new ConfirmDialog();
-const help = new HelpDialog({ onClose: focusTerminal });
-const showHelp = (): void => help.open(helpSections(currentSettings.keybindings));
+const help = new HelpDialog({
+  onClose: focusTerminal,
+  onEdit: editKeybindings,
+  confirm: (o) => confirmDialog.open(o),
+});
+const showHelp = (): void => help.open(currentSettings.keybindings);
 const settingsDialog = new SettingsDialog({
   onClose: focusTerminal,
   onSave: saveSetting,
@@ -657,6 +661,7 @@ const settingsDialog = new SettingsDialog({
   getProfiles: () => profiles,
   onRunSetup: () => void showSetup(),
   onCheckForUpdates: () => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) }),
+  onEditKeys: () => showHelp(),
 });
 const showSettings = async (): Promise<void> => {
   await refreshProfiles();
@@ -868,6 +873,7 @@ onSettingsChanged((p) => {
   latestPayload = p;
   settingsDialog.update(p);
   if (setupWizard.isOpen()) setupWizard.update(p.settings);
+  if (help.isOpen()) help.update(p.settings.keybindings);
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
   panel.setContainersEnabled(p.settings.containers.enabled);

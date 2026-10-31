@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { DEFAULT_KEYBINDINGS, type KeybindingEntry } from './keymap';
+import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
 
 export interface Settings {
   shell: { path: string; args: string[]; startingDirectory: string; defaultProfile: string };
@@ -66,6 +66,17 @@ export function loadSettings(): Promise<SettingsPayload> {
 /** Changes one value in the settings file, keeping its comments; hot reload follows. */
 export function saveSetting(path: string[], value: unknown): Promise<void> {
   return invoke('settings_set', { path, value });
+}
+
+export type KeybindingOp =
+  | { op: 'bind'; keys: string; action: string; direction?: Direction; index?: number; input?: string }
+  | { op: 'unbind'; keys: string }
+  | { op: 'reset'; keys: string }
+  | { op: 'resetAll' };
+
+/** Applies keybinding edits to the raw keybindings array in the settings file; hot reload, not the return, delivers the result. */
+export function editKeybindings(ops: KeybindingOp[]): Promise<void> {
+  return invoke('settings_keybindings_edit', { ops });
 }
 
 /** Opens the settings file in the default editor, creating it first if missing. */

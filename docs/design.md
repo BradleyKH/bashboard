@@ -854,13 +854,75 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+0 | Reset the terminal font size to the default, 14 px (saved to `font.size`; applies to every terminal) |
-| F1 | Show the keyboard shortcut guide (built from the live keymap, so overrides show) |
+| F1 | Show the keyboard shortcut guide, built from the live keymap so overrides show; keys are changed there (below) |
 | Ctrl+, | Open the settings dialog |
 | F11 | Toggle full screen |
 
 These are built-in defaults. Entries in the settings file (section 8) layer on top, as in
 Windows Terminal: an entry for a chord that has a default replaces it, a new chord adds a
 binding, and `"action": "unbound"` removes a default so the key reaches the shell.
+
+**Keybinding editor.** Keys are changed in the F1 guide (`helpDialog.ts`), which lists every
+action by section with its live chords. Every action in the name list has a row, including one
+with no default. An action that takes an argument has one row per argument: Move focus and Resize
+pane per direction, Go to tab 1 through 8. Each `sendInput` binding has its own row labeled by
+its input (Shift+Enter reads "Claude Code newline"); a new `sendInput` binding is added in the
+file, since it needs text the guide has no field for. "In pickers and bars" is read-only.
+
+A row shows its chords as keycaps. `+` after the last keycap records another chord, a clicked
+keycap records a replacement for that chord, its `x` removes it, and Reset, shown only while the
+row differs from the defaults, restores the default chords. A row that differs has an accent dot
+by its label, and a row with no chord reads "No key", dimmed. The filter field matches labels,
+and Find by key records one chord and scrolls to the row that owns it, or says "Not bound:
+reaches the shell".
+
+Recording (`keybindingRecorder.ts`) listens for `keydown` in the capture phase, ahead of
+`keys.ts`, so a bound chord is recorded instead of run. Modifiers alone keep it waiting; Escape
+or a click elsewhere cancels. The pure rules in `keybindingEdit.ts` check each recorded chord:
+
+| Chord | Result |
+| --- | --- |
+| A printable key with no modifier or with Shift alone; Escape, Enter, Tab, or Backspace with no modifier | Refused inline ("Shift+A would stop typing A"), still listening |
+| Already on this action | "Already bound here", nothing changes |
+| Unbound and not a shell key | Saved at once |
+| Unbound, but the shell or Claude Code uses it | Saved at once, with a dimmed note under the row for as long as the binding stands |
+| Bound to another action | The move strip |
+
+The shell-key list (Ctrl+A, E, K, U, W, R, L, D, Ctrl+Left and Ctrl+Right, and a few more) gives
+each key a few words on what it does, for notes such as "Ctrl+R no longer reaches bash's reverse
+search". A chord the row holds by default has no note, and an unlisted chord gets none.
+
+When the recorded chord belongs to another action, the field holds it and a move strip
+(`keybindingMoveStrip.ts`) opens under the row, naming the action that gives it up and adding "It
+will have no key." when the move would leave that action empty. Enter moves, Escape cancels, and
+a different chord records that one instead. A move is a single write. The other action's row
+flashes once with the chord struck through, and a notice (`keybindingNotice.ts`) at the bottom of
+the dialog says where the chord moved from, with Undo and, when that action has no key left,
+Assign a key, which scrolls to its row and starts recording there. The notice stays until the
+next edit or 10 seconds. Undo is a single write that restores both rows. Reset on a row whose
+default chord another action holds opens the strip for those chords (all of them when there are
+several) as "Move it back?", and Cancel resets nothing. Reset all, in the footer, confirms and
+then empties the `keybindings` array, with the same notice and Undo. Rows are built by
+`keybindingEdit.ts` and drawn by `keybindingRow.ts`.
+
+The dialog never writes the merged keymap. It sends ops to `settings_keybindings_edit` (in
+`settings.rs`), which applies them to the raw `keybindings` array in settings.json under the
+settings write lock:
+
+| Op | Effect on the array |
+| --- | --- |
+| `bind` | Removes the entries for the chord, then adds `{ keys, action, ...args }` unless the default for the chord is exactly that |
+| `unbind` | Removes the entries for the chord, then adds `"action": "unbound"` when the chord has a default |
+| `reset` | Removes the entries for the chord |
+| `resetAll` | Empties the array |
+
+Chords match through `normalize_chord`, aliases included, so `Shift+Ctrl+L` in the file is the
+entry for `ctrl+shift+l`. Entries the loader rejected and the order of the others are kept, so an
+edit to one entry never deletes a typo in another. The array is written whole by
+`set_array_lines` in `settings_edit.rs`, one entry per line; comments outside the array survive
+and comments inside it are not kept. The dialog does not update itself after a save: the watcher's
+`settings://changed` rebuilds the keymap and re-renders the dialog, as a hand edit does. A failed
+save leaves the rows as they were and shows the error in the notice.
 
 In panes other than terminals, copy, paste, Shift+Enter, Ctrl+Shift+F, and typing act on the
 pane's own text fields as a browser would; every other action applies as it does in a
@@ -1061,8 +1123,9 @@ the same as a card. The section is hidden while there are none.
 while Claude Code is detected and the hooks are not installed (3.3). Keyboard shortcuts opens the help dialog, also bound to
 F1. Settings opens the settings dialog, also bound to Ctrl+,.
 
-The settings dialog edits every user-facing setting except keybindings, in the sections
-Appearance, Backdrop, Terminal, Editor, Dashboard, and Restore. Terminal includes a Default shell select listing the available profiles. Editor
+The settings dialog edits every user-facing setting, in the sections
+Appearance, Backdrop, Terminal, Editor, Dashboard, Restore, and Keyboard. Keyboard holds one
+button, Edit keyboard shortcuts, which closes the dialog and opens the F1 guide (4.5). Terminal includes a Default shell select listing the available profiles. Editor
 selects the preferred editor from those found (3.12), plus a custom command field. A Run setup
 button reopens the setup wizard (4.17). Each change is written to settings.json
 through the app, so the file's comments survive. Toggles save immediately; number and text fields
@@ -1073,8 +1136,9 @@ an inline error too. When settings.json changes on disk while the dialog is open
 except the focused one refreshes. Fields that do not apply live say so beside the control:
 dashboard.visibleOnStart and restore.* apply at the next launch, and shell.* applies to panes
 opened afterward. Warnings about the current settings appear at the top of the dialog. The
-Open settings.json button in the footer opens the file in the default editor, with a note that
-keybindings are edited there. Escape or a click outside the dialog closes it.
+Open settings.json button in the footer opens the file in the default editor, with the note
+"Keyboard shortcuts are changed in the shortcut guide (F1); keys that type text are added to the
+"keybindings" list in settings.json." Escape or a click outside the dialog closes it.
 
 A peek overlays the panes without narrowing them. It ends after a few seconds, but stays
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends
@@ -1796,7 +1860,9 @@ interface ShellProfile {
   // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
   "git": { "autoFetchMinutes": 5 },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
-  // a field: switchToTab takes "index" from 1 to 8.
+  // a field: switchToTab takes "index" from 1 to 8. The shortcut guide (F1) edits this list,
+  // rewriting it with one entry per line; comments inside the list are not kept, comments
+  // elsewhere in the file are.
   "keybindings": [
     { "keys": "ctrl+alt+d", "action": "splitAuto" },
     { "keys": "ctrl+w", "action": "unbound" }
@@ -1847,6 +1913,7 @@ toast, until the file is fixed.
 | Tabs | Vitest over the pure tab model: add, close (neighbor activation, last tab), reorder, move a terminal between tabs (closing an emptied tab), name following and fixing, combined status |
 | Key mapping | Vitest: event to action table, including the keypress swallowing |
 | Command palette | Vitest: item building and excluded actions, hints from the live keymap, the fuzzy scorer, ranking with `>` and recents, `pushRecent` |
+| Keybinding editor | Vitest over `keybindingEdit`: per-argument rows, the refusal rules, shell notes, conflict detection, ops and their inverses; Rust: op application to the raw array (rejected entries and order kept, aliases matching) and `set_array_lines` |
 | Roster parsing | Rust unit tests over captured session files, including malformed and unknown status |
 | Hook receiver | Rust tests: token rejection, size limit, field filtering |
 | Pty | Rust integration test: spawn `bash -c 'echo hi'`, read output, observe exit |
@@ -1912,7 +1979,9 @@ Each milestone ends with a usable app.
     Worktrees in the Repo section: list, detail, primary branch, merged state, and delete
     (3.9, 4.6). Dragging paths from File Explorer and the Files, Search, and Git panes onto
     terminals and scratch pads, with `pathInsertText` for Insert path (4.4). The command
-    palette on Ctrl+Shift+P (4.5), with the `Picker` category, hint, and matcher it adds.
+    palette on Ctrl+Shift+P (4.5), with the `Picker` category, hint, and matcher it adds. The
+    keybinding editor in the F1 guide (per-argument rows, recording, moves with Undo, Reset and
+    Reset all, `settings_keybindings_edit`) and the settings dialog's Keyboard section (4.5, 4.6).
 
 ## 12. Risks
 

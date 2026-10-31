@@ -99,6 +99,9 @@ export const SIMPLE_ACTIONS = [
 ] as const;
 export const ARG_ACTIONS = ['moveFocus', 'resizePane', 'switchToTab', 'sendInput'] as const;
 
+/** Every action name toAction accepts. */
+export const ACTION_NAMES: readonly string[] = [...SIMPLE_ACTIONS, ...ARG_ACTIONS];
+
 const NAMED_KEYS = new Set([
   'left', 'right', 'up', 'down', 'enter', 'tab', 'escape', 'space', 'home', 'end',
   'pageup', 'pagedown', 'delete', 'backspace', 'insert',
@@ -155,6 +158,12 @@ export function parseChord(s: string): Chord | null {
   return chord.key ? chord : null;
 }
 
+/** The canonical settings spelling of a chord, in the style of DEFAULT_KEYBINDINGS ("ctrl++" is the plus key). */
+export function chordKeys(c: Chord): string {
+  const mods = [c.ctrl && 'ctrl', c.alt && 'alt', c.shift && 'shift', c.meta && 'win'].filter(Boolean) as string[];
+  return [...mods, c.key].join('+');
+}
+
 export function chordFromEvent(e: KeyboardEvent): Chord {
   let key: string;
   const code = e.code ?? '';
@@ -171,7 +180,7 @@ export function chordFromEvent(e: KeyboardEvent): Chord {
   return { ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, meta: e.metaKey, key };
 }
 
-function chordId(c: Chord): string {
+export function chordId(c: Chord): string {
   return `${c.ctrl ? 'c' : ''}${c.alt ? 'a' : ''}${c.shift ? 's' : ''}${c.meta ? 'm' : ''}:${c.key}`;
 }
 

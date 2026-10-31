@@ -138,6 +138,7 @@ pub fn run() {
             links::open_folder,
             settings::settings_get,
             settings::settings_set,
+            settings::settings_keybindings_edit,
             settings::settings_open_file,
             roster::sessions_get,
             hook_install::hooks_install_preview,

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACTION_NAMES,
   buildKeymap,
+  chordKeys,
   chordFromEvent,
   actionFromEntry,
   DEFAULT_KEYBINDINGS,
@@ -279,5 +281,27 @@ describe('buildKeymap', () => {
     expect(lookup(keymap, ev({ key: 'ArrowRight', code: 'ArrowRight', ctrlKey: true }))).toEqual({
       type: 'splitAuto',
     });
+  });
+});
+
+describe('chordKeys', () => {
+  it('round-trips through parseChord', () => {
+    for (const keys of ['ctrl+a', 'ctrl+alt+5', 'ctrl++', 'ctrl+,', 'f11', 'alt+shift+left', 'win+left', 'ctrl+shift+win+k']) {
+      const c = parseChord(keys)!;
+      expect(parseChord(chordKeys(c))).toEqual(c);
+    }
+  });
+
+  it('writes modifiers in canonical order', () => {
+    expect(chordKeys(parseChord('shift+ctrl+L')!)).toBe('ctrl+shift+l');
+    expect(chordKeys(parseChord('ctrl++')!)).toBe('ctrl++');
+    expect(chordKeys(parseChord('meta+left')!)).toBe('win+left');
+  });
+});
+
+describe('ACTION_NAMES', () => {
+  it('contains every default action and the argument actions', () => {
+    for (const e of DEFAULT_KEYBINDINGS) expect(ACTION_NAMES).toContain(e.action);
+    for (const name of ['moveFocus', 'resizePane', 'switchToTab', 'sendInput']) expect(ACTION_NAMES).toContain(name);
   });
 });

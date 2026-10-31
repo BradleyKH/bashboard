@@ -278,14 +278,26 @@ pub fn expand_env(s: &str) -> String {
     out
 }
 
-/// Modifier order and case do not matter: `shift+Ctrl+V` equals `ctrl+shift+v`.
+/// Same aliases as `parseChord` in `src/keymap.ts`, so the file and the front end agree on
+/// which entry a chord is.
+fn chord_alias(part: String) -> String {
+    match part.as_str() {
+        "win" => "meta".into(),
+        "esc" => "escape".into(),
+        "del" => "delete".into(),
+        "ins" => "insert".into(),
+        _ => part,
+    }
+}
+
+/// Modifier order, case, and aliases do not matter: `shift+Ctrl+V` equals `ctrl+shift+v`.
 fn normalize_chord(keys: &str) -> String {
     // A trailing "+" is the plus key itself ("ctrl++").
     let (mods, plus) = match keys.trim().strip_suffix('+') {
         Some(rest) if rest.is_empty() || rest.ends_with('+') => (rest.trim_end_matches('+'), true),
         _ => (keys, false),
     };
-    let mut parts: Vec<String> = mods.split('+').map(|p| p.trim().to_lowercase()).collect();
+    let mut parts: Vec<String> = mods.split('+').map(|p| chord_alias(p.trim().to_lowercase())).collect();
     let key = if plus { "+".to_string() } else { parts.pop().unwrap_or_default() };
     if plus && parts.last().is_some_and(|p| p.is_empty()) {
         parts.pop();
@@ -362,6 +374,101 @@ fn parse_keybindings(root: &Value, warnings: &mut Vec<String>) -> Vec<Keybinding
     merged
 }
 
+/// One edit to the raw `keybindings` array (docs/v0.2.0-design.md section 8.4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "camelCase")]
+pub enum KeybindingOp {
+    #[serde(rename_all = "camelCase")]
+    Bind {
+        keys: String,
+        action: String,
+        #[serde(default)]
+        direction: Option<String>,
+        #[serde(default)]
+        index: Option<u32>,
+        #[serde(default)]
+        input: Option<String>,
+    },
+    Unbind { keys: String },
+    Reset { keys: String },
+    ResetAll,
+}
+
+/// The settings file's root object with comments stripped.
+fn parse_root(text: &str) -> Result<Value, String> {
+    let mut stripped = String::new();
+    let parsed = json_comments::StripComments::new(text.as_bytes())
+        .read_to_string(&mut stripped)
+        .map_err(|e| e.to_string())
+        .and_then(|_| serde_json::from_str::<Value>(&stripped).map_err(|e| e.to_string()));
+    match parsed {
+        Ok(v @ Value::Object(_)) => Ok(v),
+        Ok(_) => Err("settings file must be a JSON object".into()),
+        Err(e) => Err(format!("settings file is not valid JSON ({e})")),
+    }
+}
+
+/// The file's `keybindings` array as written, rejected entries included. Errs when the array
+/// itself is unusable, so an edit never overwrites a value the loader ignored as a whole.
+fn raw_keybindings(text: &str) -> Result<Vec<Value>, String> {
+    let fix = "; fix it in settings.json before changing keys";
+    let root = parse_root(text).map_err(|e| format!("{e}{fix}"))?;
+    match root.get("keybindings") {
+        None => Ok(Vec::new()),
+        Some(Value::Array(a)) => Ok(a.clone()),
+        Some(_) => Err(format!("\"keybindings\" in settings.json is not a list{fix}")),
+    }
+}
+
+/// Applies `ops` in order to the raw array. Entries that are not for a touched chord, including
+/// entries the loader rejects, keep their place.
+fn apply_keybinding_ops(mut entries: Vec<Value>, ops: &[KeybindingOp]) -> Vec<Value> {
+    let defaults = default_keybindings();
+    let default_for = |chord: &str| defaults.iter().find(|d| normalize_chord(&d.keys) == chord);
+    for op in ops {
+        let keys = match op {
+            KeybindingOp::ResetAll => {
+                entries.clear();
+                continue;
+            }
+            KeybindingOp::Bind { keys, .. }
+            | KeybindingOp::Unbind { keys }
+            | KeybindingOp::Reset { keys } => keys,
+        };
+        let chord = normalize_chord(keys);
+        entries.retain(|e| e.get("keys").and_then(Value::as_str).is_none_or(|k| normalize_chord(k) != chord));
+        match op {
+            KeybindingOp::Bind { action, direction, index, input, .. } => {
+                let is_default = default_for(&chord).is_some_and(|d| {
+                    &d.action == action && &d.direction == direction && &d.index == index && &d.input == input
+                });
+                if !is_default {
+                    let mut e = serde_json::Map::new();
+                    e.insert("keys".into(), keys.clone().into());
+                    e.insert("action".into(), action.clone().into());
+                    if let Some(d) = direction {
+                        e.insert("direction".into(), d.clone().into());
+                    }
+                    if let Some(i) = index {
+                        e.insert("index".into(), (*i).into());
+                    }
+                    if let Some(s) = input {
+                        e.insert("input".into(), s.clone().into());
+                    }
+                    entries.push(Value::Object(e));
+                }
+            }
+            KeybindingOp::Unbind { .. } => {
+                if default_for(&chord).is_some() {
+                    entries.push(serde_json::json!({ "keys": keys, "action": "unbound" }));
+                }
+            }
+            KeybindingOp::Reset { .. } | KeybindingOp::ResetAll => {}
+        }
+    }
+    entries
+}
+
 /// Never fails: bad input degrades to defaults and is reported in the warnings.
 #[cfg(test)]
 fn parse_settings(text: &str) -> (Settings, Vec<String>) {
@@ -370,16 +477,7 @@ fn parse_settings(text: &str) -> (Settings, Vec<String>) {
 
 /// Errs only when the file as a whole is unusable; a bad field degrades to its default.
 fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
-    let mut stripped = String::new();
-    let parsed = json_comments::StripComments::new(text.as_bytes())
-        .read_to_string(&mut stripped)
-        .map_err(|e| e.to_string())
-        .and_then(|_| serde_json::from_str::<Value>(&stripped).map_err(|e| e.to_string()));
-    let root = match parsed {
-        Ok(v @ Value::Object(_)) => v,
-        Ok(_) => return Err("settings file must be a JSON object".into()),
-        Err(e) => return Err(format!("settings file is not valid JSON ({e})")),
-    };
+    let root = parse_root(text)?;
 
     let d = Settings::default();
     let mut w = Vec::new();
@@ -662,19 +760,42 @@ pub fn settings_get(state: State<'_, SettingsState>) -> SettingsPayload {
     state.payload()
 }
 
+/// Serializes every read-modify-write of the settings file so rapid calls (slider drags,
+/// repeated hotkeys, key edits) cannot both read the same text and lose one of the edits.
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
+
+/// Reads the settings file (creating it first if missing), applies `edit` to its text, and
+/// writes the result back, all under `WRITE_LOCK`.
+fn edit_settings_file(
+    app: &AppHandle,
+    edit: impl FnOnce(&str) -> Result<String, String>,
+) -> Result<(), String> {
+    let _guard = WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let file = settings_path(app).ok_or("no config directory")?;
+    ensure_default_file(&file).map_err(|e| e.to_string())?;
+    let text = std::fs::read_to_string(&file).map_err(|e| format!("could not read settings file ({e})"))?;
+    let next = edit(&text)?;
+    crate::hook_install::write_atomic(&file, &next)
+}
+
 /// Changes one value in the file. The watcher picks up the write and emits
 /// `settings://changed`, so the front end hears about it the same way as a hand edit.
 #[tauri::command]
 pub fn settings_set(app: AppHandle, path: Vec<String>, value: Value) -> Result<(), String> {
-    // Serializes the read-modify-write so rapid calls (slider drags, repeated hotkeys)
-    // cannot both read the same text and lose one of the edits.
-    static WRITE_LOCK: Mutex<()> = Mutex::new(());
-    let _guard = WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    let file = settings_path(&app).ok_or("no config directory")?;
-    ensure_default_file(&file).map_err(|e| e.to_string())?;
-    let text = std::fs::read_to_string(&file).map_err(|e| format!("could not read settings file ({e})"))?;
-    let next = crate::settings_edit::set_value(&text, &path, &value)?;
-    crate::hook_install::write_atomic(&file, &next)
+    edit_settings_file(&app, |text| crate::settings_edit::set_value(text, &path, &value))
+}
+
+/// The file text with `ops` applied to its raw `keybindings` array.
+fn edit_keybindings_text(text: &str, ops: &[KeybindingOp]) -> Result<String, String> {
+    let next = apply_keybinding_ops(raw_keybindings(text)?, ops);
+    crate::settings_edit::set_array_lines(text, &["keybindings".into()], &next)
+}
+
+/// Applies keybinding ops to the file's `keybindings` array, leaving the rest of the file as
+/// written. The watcher's `settings://changed` delivers the result to the front end.
+#[tauri::command]
+pub fn settings_keybindings_edit(app: AppHandle, ops: Vec<KeybindingOp>) -> Result<(), String> {
+    edit_settings_file(&app, |text| edit_keybindings_text(text, &ops))
 }
 
 /// Opens the settings file in the user's default editor, creating it first if missing.
@@ -1193,5 +1314,267 @@ mod tests {
         assert_eq!(expand_env(&format!("a/%{var}%/b")), format!("a/{val}/b"));
         assert_eq!(expand_env("%NOPE_NOT_SET_XYZ%"), "%NOPE_NOT_SET_XYZ%");
         assert_eq!(expand_env("50% done"), "50% done");
+    }
+
+    fn bind(keys: &str, action: &str) -> KeybindingOp {
+        let (keys, action) = (keys.into(), action.into());
+        KeybindingOp::Bind { keys, action, direction: None, index: None, input: None }
+    }
+
+    fn merged(entries: &[Value]) -> Vec<Keybinding> {
+        let (s, w) = parse_settings(&serde_json::json!({ "keybindings": entries }).to_string());
+        assert!(w.iter().all(|w| !w.contains("invalid value, using defaults")), "{w:?}");
+        s.keybindings
+    }
+
+    fn action_of(kbs: &[Keybinding], keys: &str) -> Option<String> {
+        let chord = normalize_chord(keys);
+        kbs.iter().find(|k| normalize_chord(&k.keys) == chord).map(|k| k.action.clone())
+    }
+
+    #[test]
+    fn keybinding_op_deserializes_from_front_end_json() {
+        let ops: Vec<KeybindingOp> = serde_json::from_str(
+            r#"[
+                { "op": "bind", "keys": "ctrl+alt+k", "action": "moveFocus", "direction": "left" },
+                { "op": "bind", "keys": "ctrl+alt+j", "action": "switchToTab", "index": 3 },
+                { "op": "unbind", "keys": "ctrl+w" },
+                { "op": "reset", "keys": "f1" },
+                { "op": "resetAll" }
+            ]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            ops,
+            vec![
+                KeybindingOp::Bind {
+                    keys: "ctrl+alt+k".into(),
+                    action: "moveFocus".into(),
+                    direction: Some("left".into()),
+                    index: None,
+                    input: None,
+                },
+                KeybindingOp::Bind {
+                    keys: "ctrl+alt+j".into(),
+                    action: "switchToTab".into(),
+                    direction: None,
+                    index: Some(3),
+                    input: None,
+                },
+                KeybindingOp::Unbind { keys: "ctrl+w".into() },
+                KeybindingOp::Reset { keys: "f1".into() },
+                KeybindingOp::ResetAll,
+            ]
+        );
+    }
+
+    #[test]
+    fn bind_on_chord_with_no_default_adds_one_entry() {
+        let out = apply_keybinding_ops(vec![], &[bind("ctrl+alt+k", "splitAuto")]);
+        assert_eq!(out, vec![serde_json::json!({ "keys": "ctrl+alt+k", "action": "splitAuto" })]);
+        assert_eq!(action_of(&merged(&out), "ctrl+alt+k").as_deref(), Some("splitAuto"));
+    }
+
+    #[test]
+    fn bind_writes_arguments_in_key_order() {
+        let out = apply_keybinding_ops(
+            vec![],
+            &[KeybindingOp::Bind {
+                keys: "ctrl+alt+k".into(),
+                action: "sendInput".into(),
+                direction: None,
+                index: None,
+                input: Some("\u{1b}\r".into()),
+            }],
+        );
+        assert_eq!(out[0].to_string(), r#"{"keys":"ctrl+alt+k","action":"sendInput","input":"\u001b\r"}"#);
+    }
+
+    #[test]
+    fn bind_replaces_user_entry_with_different_spelling() {
+        let entries = vec![serde_json::json!({ "keys": "Shift+Ctrl+L", "action": "splitAuto" })];
+        let out = apply_keybinding_ops(entries, &[bind("ctrl+shift+l", "find")]);
+        assert_eq!(out, vec![serde_json::json!({ "keys": "ctrl+shift+l", "action": "find" })]);
+    }
+
+    #[test]
+    fn bind_equal_to_default_over_unbound_leaves_no_entry() {
+        let entries = vec![serde_json::json!({ "keys": "ctrl+w", "action": "unbound" })];
+        let out = apply_keybinding_ops(entries, &[bind("Ctrl+W", "closePane")]);
+        assert!(out.is_empty());
+        assert_eq!(merged(&out), default_keybindings());
+    }
+
+    #[test]
+    fn bind_equal_to_default_compares_arguments() {
+        let left = KeybindingOp::Bind {
+            keys: "alt+left".into(),
+            action: "moveFocus".into(),
+            direction: Some("left".into()),
+            index: None,
+            input: None,
+        };
+        assert!(apply_keybinding_ops(vec![], &[left]).is_empty());
+        let right = KeybindingOp::Bind {
+            keys: "alt+left".into(),
+            action: "moveFocus".into(),
+            direction: Some("right".into()),
+            index: None,
+            input: None,
+        };
+        assert_eq!(apply_keybinding_ops(vec![], &[right]).len(), 1);
+    }
+
+    #[test]
+    fn unbind_adds_unbound_only_for_a_default_chord() {
+        let out = apply_keybinding_ops(vec![], &[KeybindingOp::Unbind { keys: "ctrl+w".into() }]);
+        assert_eq!(out, vec![serde_json::json!({ "keys": "ctrl+w", "action": "unbound" })]);
+        assert_eq!(action_of(&merged(&out), "ctrl+w"), None);
+
+        let entries = vec![serde_json::json!({ "keys": "ctrl+alt+k", "action": "splitAuto" })];
+        let out = apply_keybinding_ops(entries, &[KeybindingOp::Unbind { keys: "ctrl+alt+k".into() }]);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn reset_removes_user_entry_so_default_returns() {
+        let entries = vec![serde_json::json!({ "keys": "CTRL+w", "action": "find" })];
+        assert_eq!(action_of(&merged(&entries), "ctrl+w").as_deref(), Some("find"));
+        let out = apply_keybinding_ops(entries, &[KeybindingOp::Reset { keys: "ctrl+w".into() }]);
+        assert!(out.is_empty());
+        assert_eq!(action_of(&merged(&out), "ctrl+w").as_deref(), Some("closePane"));
+    }
+
+    #[test]
+    fn rejected_entries_and_unrelated_order_are_kept() {
+        let entries = vec![
+            serde_json::json!({ "keys": 5 }),
+            serde_json::json!({ "keys": "ctrl+alt+a", "action": "find" }),
+            serde_json::json!({ "action": "find" }),
+            serde_json::json!({ "keys": "ctrl+shift+d", "action": "splitAuto" }),
+            serde_json::json!({ "keys": "ctrl+alt+b", "action": "copy" }),
+        ];
+        let out = apply_keybinding_ops(entries.clone(), &[bind("ctrl+shift+d", "find")]);
+        assert_eq!(
+            out,
+            vec![
+                entries[0].clone(),
+                entries[1].clone(),
+                entries[2].clone(),
+                entries[4].clone(),
+                serde_json::json!({ "keys": "ctrl+shift+d", "action": "find" }),
+            ]
+        );
+    }
+
+    #[test]
+    fn move_is_one_bind() {
+        let out = apply_keybinding_ops(vec![], &[bind("ctrl+shift+d", "splitAuto")]);
+        let kbs = merged(&out);
+        assert_eq!(action_of(&kbs, "ctrl+shift+d").as_deref(), Some("splitAuto"));
+        assert!(kbs.iter().all(|k| k.action != "toggleBackdrop"));
+    }
+
+    #[test]
+    fn reset_all_empties() {
+        let entries = vec![serde_json::json!({ "keys": 5 }), serde_json::json!({ "keys": "f1", "action": "unbound" })];
+        let out = apply_keybinding_ops(entries, &[KeybindingOp::ResetAll]);
+        assert!(out.is_empty());
+        assert_eq!(merged(&out), default_keybindings());
+    }
+
+    #[test]
+    fn ops_apply_in_order() {
+        let out = apply_keybinding_ops(
+            vec![],
+            &[
+                bind("ctrl+alt+k", "find"),
+                KeybindingOp::Unbind { keys: "ctrl+w".into() },
+                KeybindingOp::Reset { keys: "ctrl+alt+k".into() },
+            ],
+        );
+        assert_eq!(out, vec![serde_json::json!({ "keys": "ctrl+w", "action": "unbound" })]);
+    }
+
+    #[test]
+    fn raw_keybindings_reads_the_array() {
+        assert_eq!(raw_keybindings("{}").unwrap(), Vec::<Value>::new());
+        let text = r#"{
+            // keys
+            "keybindings": [
+                { "keys": 5 }, // rejected but kept
+                /* block */ { "keys": "ctrl+w", "action": "unbound" }
+            ]
+        }"#;
+        assert_eq!(
+            raw_keybindings(text).unwrap(),
+            vec![serde_json::json!({ "keys": 5 }), serde_json::json!({ "keys": "ctrl+w", "action": "unbound" })]
+        );
+    }
+
+    #[test]
+    fn raw_keybindings_refuses_an_unusable_file() {
+        let e = raw_keybindings(r#"{ "keybindings": { "keys": "ctrl+w" } }"#).unwrap_err();
+        assert!(e.contains("fix it in settings.json"), "{e}");
+        assert!(raw_keybindings("[]").unwrap_err().contains("fix it in settings.json"));
+        assert!(raw_keybindings("{ nope").unwrap_err().contains("fix it in settings.json"));
+    }
+
+    fn parsed_keys(text: &str) -> Vec<Keybinding> {
+        let (s, _) = parse_settings(text);
+        s.keybindings
+    }
+
+    #[test]
+    fn edit_keeps_the_default_files_comment_and_adds_the_chord() {
+        let text = default_file_text();
+        let out = edit_keybindings_text(&text, &[bind("ctrl+alt+k", "find")]).unwrap();
+        assert!(out.contains("An entry with \"action\": \"unbound\""), "{out}");
+        let kbs = parsed_keys(&out);
+        assert_eq!(action_of(&kbs, "ctrl+alt+k").as_deref(), Some("find"));
+        assert_eq!(action_of(&kbs, "ctrl+w").as_deref(), Some("closePane"));
+    }
+
+    #[test]
+    fn edit_keeps_outside_comments_and_rejected_entries() {
+        let text = "{\n  // before\n  \"keybindings\": [\n    { \"keys\": 5 },\n    { \"keys\": \"f1\", \"action\": \"unbound\" }\n  ],\n  // after\n  \"scrollback\": 100\n}\n";
+        let out = edit_keybindings_text(text, &[bind("ctrl+alt+k", "find")]).unwrap();
+        assert!(out.contains("// before") && out.contains("// after"), "{out}");
+        assert!(out.contains("{ \"keys\": 5 }"), "{out}");
+        assert!(out.contains("\"scrollback\": 100"), "{out}");
+        let kbs = parsed_keys(&out);
+        assert_eq!(action_of(&kbs, "ctrl+alt+k").as_deref(), Some("find"));
+        assert_eq!(action_of(&kbs, "f1"), None);
+    }
+
+    #[test]
+    fn edit_move_takes_a_chord_from_its_default_owner() {
+        let defaults = default_keybindings();
+        let before = action_of(&defaults, "ctrl+w").unwrap();
+        assert_eq!(before, "closePane");
+        let out = edit_keybindings_text(&default_file_text(), &[bind("ctrl+w", "find")]).unwrap();
+        let kbs = parsed_keys(&out);
+        assert_eq!(action_of(&kbs, "ctrl+w").as_deref(), Some("find"));
+        assert!(kbs.iter().filter(|k| k.action == "closePane").all(|k| normalize_chord(&k.keys) != "ctrl+w"));
+    }
+
+    #[test]
+    fn edit_refuses_an_invalid_file() {
+        let e = edit_keybindings_text(r#"{ "keybindings": 7 }"#, &[bind("ctrl+alt+k", "find")]).unwrap_err();
+        assert!(e.contains("fix it in settings.json"), "{e}");
+        assert!(edit_keybindings_text("{ nope", &[]).is_err());
+    }
+
+    #[test]
+    fn chord_aliases_match_keymap_ts() {
+        assert_eq!(normalize_chord("win+left"), normalize_chord("meta+left"));
+        assert_eq!(normalize_chord("Ctrl+Esc"), "ctrl+escape");
+        assert_eq!(normalize_chord("shift+del"), normalize_chord("shift+delete"));
+        assert_eq!(normalize_chord("ctrl+ins"), "ctrl+insert");
+        assert_eq!(normalize_chord("ctrl++"), "ctrl++");
+
+        let entries = vec![serde_json::json!({ "keys": "win+left", "action": "find" })];
+        let out = apply_keybinding_ops(entries, &[bind("meta+left", "copy")]);
+        assert_eq!(out, vec![serde_json::json!({ "keys": "meta+left", "action": "copy" })]);
     }
 }

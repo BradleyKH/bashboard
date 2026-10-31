@@ -1,4 +1,4 @@
-import { parseChord, type Chord, type Direction, type KeybindingEntry } from './keymap';
+import { type Chord, type Direction } from './keymap';
 
 export interface HelpRow {
   label: string;
@@ -12,9 +12,8 @@ export interface HelpSection {
 }
 
 const CLAUDE_NEWLINE = '\u001b\r';
-const DIRECTIONS = ['left', 'right', 'up', 'down'] as const;
 
-const SECTIONS: { title: string; actions: string[] }[] = [
+export const HELP_SECTIONS: { title: string; actions: string[] }[] = [
   {
     title: 'Panes',
     actions: ['splitRight', 'splitDown', 'splitAuto', 'closePane', 'newScratch', 'openFiles', 'openGit', 'openSearch', 'collapsePane', 'togglePaneZoom', 'moveFocus', 'resizePane'],
@@ -30,7 +29,7 @@ const SECTIONS: { title: string; actions: string[] }[] = [
   { title: 'Workspace', actions: ['openPalette', 'nextAttention', 'toggleDashboard', 'focusDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
 ];
 
-const LABELS: Record<string, string> = {
+export const ACTION_LABELS: Record<string, string> = {
   splitRight: 'Split right',
   splitDown: 'Split down',
   splitAuto: 'Split along the longer side',
@@ -71,23 +70,23 @@ const LABELS: Record<string, string> = {
 
 /** The F1 label for an action; directional actions append the direction. */
 export function actionLabel(action: string, direction?: Direction): string | undefined {
-  const base = LABELS[action];
+  const base = ACTION_LABELS[action];
   if (base !== undefined && direction && (action === 'moveFocus' || action === 'resizePane')) return `${base} ${direction}`;
   return base;
 }
 
 /** Every action name in F1 guide order. */
 export function actionOrder(): string[] {
-  return SECTIONS.flatMap((s) => s.actions);
+  return HELP_SECTIONS.flatMap((s) => s.actions);
 }
 
-const NOTES: Record<string, string> = {
+export const ACTION_NOTES: Record<string, string> = {
   copy: 'With nothing selected, the key goes to the shell',
   paste: 'With no text on the clipboard, the key goes to the shell so Claude Code can paste an image',
 };
 
 /** Keys handled inside overlays, which are not part of the keymap. */
-const FIXED_SECTION: HelpSection = {
+export const FIXED_SECTION: HelpSection = {
   title: 'In pickers and bars',
   rows: [
     { label: 'Open favorite as a split', keys: ['Enter'] },
@@ -104,75 +103,16 @@ const KEY_NAMES: Record<string, string> = {
   backspace: 'Backspace',
 };
 
-function modifiers(c: Chord): string {
+export function formatModifiers(c: Chord): string {
   return (c.ctrl ? 'Ctrl+' : '') + (c.alt ? 'Alt+' : '') + (c.shift ? 'Shift+' : '') + (c.meta ? 'Win+' : '');
 }
 
 export function formatChord(c: Chord): string {
   const key = KEY_NAMES[c.key] ?? (c.key.length === 1 ? c.key.toUpperCase() : c.key[0].toUpperCase() + c.key.slice(1));
-  return modifiers(c) + key;
+  return formatModifiers(c) + key;
 }
 
-function sendInputLabel(input: string): string {
-  if (input === CLAUDE_NEWLINE) return 'New line in Claude Code';
+export function sendInputLabel(input: string): string {
+  if (input === CLAUDE_NEWLINE) return 'Claude Code newline';
   return `Type ${JSON.stringify(input)}`;
-}
-
-/**
- * Directional bindings collapse to one "Alt+Arrows" entry when all four arrows share the same
- * modifiers; otherwise each binding is listed with its direction.
- */
-function directionalKeys(bindings: { chord: Chord; direction?: string }[]): string[] {
-  const arrows = DIRECTIONS.map((d) => bindings.filter((b) => b.direction === d && b.chord.key === d));
-  if (arrows.every((a) => a.length === 1)) {
-    const mods = arrows.map((a) => modifiers(a[0].chord));
-    if (mods.every((m) => m === mods[0])) {
-      const rest = bindings.filter((b) => b.chord.key !== b.direction);
-      return [`${mods[0]}Arrows`, ...rest.map((b) => `${formatChord(b.chord)} (${b.direction})`)];
-    }
-  }
-  return bindings.map((b) => `${formatChord(b.chord)} (${b.direction})`);
-}
-
-/** Number-key bindings collapse to one "Ctrl+Alt+1-8" entry when they share modifiers. */
-function tabNumberKeys(bindings: { chord: Chord; index?: number }[]): string[] {
-  const mods = modifiers(bindings[0].chord);
-  const digits = bindings.map((b) => b.chord.key);
-  const collapsible =
-    bindings.every((b) => modifiers(b.chord) === mods && b.chord.key === String(b.index)) &&
-    digits.length > 1;
-  if (!collapsible) return bindings.map((b) => `${formatChord(b.chord)} (tab ${b.index})`);
-  const nums = bindings.map((b) => b.index as number).sort((a, b) => a - b);
-  return [`${mods}${nums[0]}-${nums[nums.length - 1]}`];
-}
-
-/** The help guide's contents, built from the live keybindings so overrides show. */
-export function helpSections(entries: KeybindingEntry[]): HelpSection[] {
-  const valid = entries.flatMap((e) => {
-    const chord = parseChord(String(e?.keys ?? ''));
-    return chord ? [{ entry: e, chord }] : [];
-  });
-  const sections = SECTIONS.map(({ title, actions }) => {
-    const rows: HelpRow[] = [];
-    for (const action of actions) {
-      const bound = valid.filter((v) => v.entry.action === action);
-      if (bound.length === 0) continue;
-      if (action === 'sendInput') {
-        for (const { entry, chord } of bound) {
-          if (typeof entry.input !== 'string' || entry.input === '') continue;
-          rows.push({ label: sendInputLabel(entry.input), keys: [formatChord(chord)] });
-        }
-        continue;
-      }
-      const keys =
-        action === 'switchToTab'
-          ? tabNumberKeys(bound.map((v) => ({ chord: v.chord, index: v.entry.index })))
-          : action === 'moveFocus' || action === 'resizePane'
-          ? directionalKeys(bound.map((v) => ({ chord: v.chord, direction: v.entry.direction })))
-          : bound.map((v) => formatChord(v.chord));
-      rows.push({ label: LABELS[action], keys, note: NOTES[action] });
-    }
-    return { title, rows };
-  });
-  return [...sections.filter((s) => s.rows.length > 0), FIXED_SECTION];
 }
