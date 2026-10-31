@@ -26,6 +26,7 @@ const ITEM_SELECTOR = [
   '.terminal-group-header',
   '.terminal-card',
   '.session-head',
+  '.claude-row',
   '.dashboard-footer button',
 ].join(', ');
 
@@ -91,6 +92,7 @@ export class DashboardNav {
   /** A key that survives a rebuild of the row's element. */
   private keyOf(el: HTMLElement): string {
     if (el.dataset.paneId) return `pane:${el.dataset.paneId}`;
+    if (el.dataset.claudePaneId) return `claude:${el.dataset.claudePaneId}`;
     if (el.dataset.tabId) return `tab:${el.dataset.tabId}`;
     if (el.dataset.worktreePath) return `worktree:${el.dataset.worktreePath.toLowerCase()}`;
     const session = el.closest<HTMLElement>('[data-session-id]');

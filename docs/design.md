@@ -252,9 +252,10 @@ exact transitions as they happen.
   codes, checked in this order:
   404 for any other path or method, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a
   body over 64 KiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on
-  success. The receiver keeps only `session_id`, `hook_event_name`, `cwd`, and `message`, and
-  emits `sessions://hook` with those fields plus the pane id from the header and the receive
-  time.
+  success. The receiver keeps only `session_id`, `hook_event_name`, `cwd`, `message`, and
+  `transcript_path`, and emits `sessions://hook` with the first four plus the pane id from the
+  header and the receive time. `transcript_path` is not forwarded; the overlay entry keeps the
+  latest one an event carried, for the Claude section's transcript reads (3.4).
 - The hook overlay keeps the `message` of the `Notification` that set `waiting`, trimmed and cut
   at 200 characters, and clears it whenever the overlay's status leaves `waiting`. Held in the
   core, it survives a page reload and covers external sessions. The roster payload carries it as
@@ -270,6 +271,25 @@ A session is bound to a pane by, in order:
 
 Sessions that bind to no pane are external (Windows Terminal, VS Code) and appear in the
 roster without a pane link.
+
+**Transcripts and process figures.** The Claude section (4.6) shows each pane-bound session's
+model and context, which `transcript.rs` reads from the session's transcript, the JSONL file
+Claude Code appends to under `~/.claude/projects/`. The format is internal and undocumented, so
+every field is optional and an unreadable line is skipped. The file is the hook overlay's
+`transcript_path` when there is one; for a session bound by ancestry, which sends no hooks, it is
+the first `~/.claude/projects/*/<sessionId>.jsonl`, searched again at most every 5 seconds until
+found. The reading is the newest line of `type` `assistant` that is not `isSidechain` and carries
+`message.usage` (a `<synthetic>` model is skipped): context is `input_tokens +
+cache_creation_input_tokens + cache_read_input_tokens`, and the model is `message.model`. The
+core reads only the file's last 64 KiB, widening to the whole file, streamed line by line, when
+the tail holds no such line. A `notify` change marks the session dirty, and a dirty session is
+re-read at most once per second. A changed model or context emits `claude://context` (section 7),
+and `claude_context()` returns every known entry so a page reload shows them at once. Nothing is
+tracked until the Claude section first calls `claude_context()`, and entries are pruned with the
+hook overlay. `claude_processes(pids)` in `system.rs` returns memory and CPU per root pid, summed
+over its descendants (children whose start time precedes their parent's are skipped, since
+Windows reuses pids); it refreshes processes only, with memory and CPU and no command line or
+environment, and reports CPU as a share of the whole machine, as Task Manager does.
 
 ### 3.5 Platform glue
 
@@ -967,8 +987,8 @@ footer. Repo, which follows the focused pane, sits at the top; the elements and 
 at the bottom, so a focus change never shifts them.
 
 **Elements.** The elements between Repo and the footer are Favorites, Layouts, Panes,
-Containers, External sessions, and Clock, in that default order. Each has a
-`dashboard.sections.*` toggle (section 8), on by default except Clock, set from the settings
+Containers, External sessions, Claude, System, and Clock, in that default order. Each has a
+`dashboard.sections.*` toggle (section 8), on by default except Claude, System, and Clock, set from the settings
 dialog's Dashboard section. A disabled element is gone from the panel, not collapsed, and its
 rows leave the keyboard rows below. Toggles and `dashboard.side` apply live, and switching
 sides while a peek is showing ends the peek.
@@ -993,11 +1013,58 @@ minimum. Its accessible name is the full time with AM or PM. It updates on each 
 boundary only while the panel is on screen and the window is shown, catching up at once on
 show, and no timer runs while it is disabled.
 
+**Polling.** System and Claude, shown by `dashboard.sections.system` and
+`dashboard.sections.claude`, poll the core on timers, and each timer runs only while its
+section is enabled, expanded, and on screen (the panel open or peeking) and the window is shown.
+Any of those ending stops the timer, and the next start samples at once, so a section is never
+staler than one interval after it reappears. A collapsed or disabled section costs nothing.
+`PollTimer` (`pollTimer.ts`) holds the rule.
+
+**System.** Machine load in four rows, each a label, a value, and a thin bar or sparkline:
+
+| Row | Shows | Source | Interval |
+| --- | --- | --- | --- |
+| CPU | Total use as a percentage, with a 60 second sparkline | `sysinfo` CPU refresh | 2 s |
+| Memory | Used of total, as "21.4 / 32 GB", with a bar | `sysinfo` memory refresh | 2 s |
+| Network | Receive and send rates across all adapters, as "↓ 1.2 MB/s ↑ 40 KB/s" | `sysinfo` networks, loopback and virtual adapters excluded | 2 s |
+| Disk | Free space on each fixed drive, as "C: 112 GB free", with a bar of used space | `sysinfo` disks, fixed drives only | 60 s |
+
+Bars use the accent color, turning to the warning color at 80% and the error color at 90%; the
+sparkline stays in the accent color. Several fixed drives each take a line under Disk. Values use
+tabular numerals so the rows do not shift as they change. The rows are not keyboard rows; the
+section's header is. The first sample after a start shows memory and disk at once and fills in
+CPU and network on the second, since both are deltas between two refreshes; they read `-` until
+then, and every row reads `-` when the core cannot be reached. GPU utilization and Wi-Fi name and
+signal are not shown: Windows offers GPU load only through costly counters or vendor libraries,
+and the Wi-Fi values need the WLAN API for little benefit. `system.rs` holds a
+`Mutex<SystemSampler>` (the `System`, `Networks`, and `Disks` state plus the last refresh times)
+and `system_sample(includeDisks)`, which returns the rows; the front end passes `includeDisks` on
+its 60 second beat.
+
+**Claude.** One row per Claude session bound to a pane (3.4), in the Panes section's order. Each
+row shows the status dot and the pane's title, the model as "Opus 5.5" (dimmed), the tokens in the
+session's context as "112k" with a bar, and the memory and CPU of the session's process and
+everything it started, as "1.4 GB, 12%" (3.4). Rows are keyboard rows, and Enter or a click
+focuses the pane as clicking its card does. External sessions are not listed. A session whose
+transcript has no assistant message yet shows its dot, title, and process figures with the model
+and context blank. With no bound session the section reads "No Claude sessions in panes". The
+transcript does not name the model's context window, so the context bar measures against 200k
+tokens and switches to 1M for the rest of the session once the count passes 200k; the token text
+is always exact. The bar is the accent color, the warning color from 50%, and the error color
+from 80%. Process figures poll every 2 seconds under the polling rule; context arrives by
+`claude://context`.
+
+**Modules.** `systemModel.ts` is pure: formatting bytes and rates, the bar thresholds, and the
+sparkline's ring buffer. `claudeModel.ts` is pure: the token text, the scale rule, the color
+bands, model display names, and merging context, roster, panes, and process figures into rows.
+`dashboardSystem.ts` and `dashboardClaude.ts` are the sections, `systemApi.ts` and `claudeApi.ts`
+their invoke wrappers, and `pollTimer.ts` the polling rule.
+
 **Keyboard.** F6 moves focus into the panel, onto the row focused there last, else the focused
 pane's card, else the first row; F6 again, or Escape, returns focus to the focused pane. While the
 panel is hidden, F6 shows it as a peek that lasts until focus leaves it, instead of timing out.
 The rows are every section header, the Repo section's buttons, every favorite, recent folder,
-layout, pin, container, tab group header, pane card, and external session, and the footer's
+layout, pin, container, tab group header, pane card, Claude row, and external session, and the footer's
 buttons, top to bottom, skipping collapsed and disabled sections:
 
 - Up and Down move one row, stopping at the ends; Home and End go to the first and last.
@@ -1679,7 +1746,7 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
   resumes from the still.
 - `setVisible(false)` on minimize, and when the window is fully covered (Tauri window events
   plus the page's `visibilitychange`), so it costs nothing while out of sight. The dashboard
-  clock (4.6) pauses on the same signal.
+  clock, System, and Claude sections (4.6) pause on the same signal.
 - The backdrop's renderer is created with `preserveDrawingBuffer: false` and alpha disabled; the
   terminals composite over it through normal CSS stacking, with no readback.
 
@@ -1770,10 +1837,12 @@ interface SavedTab {
   focused: string | null;
 }
 
-type DashboardSection = 'repo' | 'favorites' | 'layouts' | 'panes' | 'containers' | 'external';
+type DashboardSection =
+  | 'repo' | 'favorites' | 'layouts' | 'panes' | 'containers' | 'external' | 'claude' | 'system';
 
 /** The elements between Repo and the footer, in default order (4.6). */
-type DashboardElement = 'favorites' | 'layouts' | 'panes' | 'containers' | 'external' | 'clock';
+type DashboardElement =
+  | 'favorites' | 'layouts' | 'panes' | 'containers' | 'external' | 'claude' | 'system' | 'clock';
 
 /**
  * workspace.json (3.7), tabs in strip order. A version 2 file's tabs hold `terminals`, which
@@ -1871,6 +1940,39 @@ interface ContainerStats {
   memPercent: number | null;
 }
 
+/** The result of `system_sample` (3.4, 4.6); a null field is one the core has no sample for yet. */
+interface SystemSample {
+  cpuPercent: number | null;
+  memoryUsedBytes: number;
+  memoryTotalBytes: number;
+  /** Bytes per second summed over counted adapters. */
+  netRxPerSec: number | null;
+  netTxPerSec: number | null;
+  /** Null unless the call passed `includeDisks`. */
+  disks: DiskRow[] | null;
+}
+
+/** A fixed drive: `mount` is the drive letter with its colon, as "C:". */
+interface DiskRow {
+  mount: string;
+  totalBytes: number;
+  availableBytes: number;
+}
+
+/** One root pid's process tree in `claude_processes`; `cpuPercent` is a share of the whole machine. */
+interface ProcFigures {
+  pid: number;
+  memoryBytes: number;
+  cpuPercent: number | null;
+}
+
+/** The result of `claude_context` and the payload of `claude://context` (3.4). */
+interface ClaudeContext {
+  sessionId: string;
+  model: string | null;
+  contextTokens: number | null;
+}
+
 /** A shell a terminal can run (3.1), from `shell_profiles`. */
 interface ShellProfile {
   id: 'gitBash' | 'pwsh' | 'powershell' | 'cmd';
@@ -1925,6 +2027,8 @@ interface ShellProfile {
       "panes": true,
       "containers": true,
       "external": true,
+      "claude": false,
+      "system": false,
       "clock": false
     }
   },
@@ -1990,7 +2094,8 @@ toast, until the file is fixed.
 | Command palette | Vitest: item building and excluded actions, hints from the live keymap, the fuzzy scorer, ranking with `>` and recents, `pushRecent` |
 | Keybinding editor | Vitest over `keybindingEdit`: per-argument rows, the refusal rules, shell notes, conflict detection, ops and their inverses; Rust: op application to the raw array (rejected entries and order kept, aliases matching) and `set_array_lines` |
 | Roster parsing | Rust unit tests over captured session files, including malformed and unknown status |
-| Hook receiver | Rust tests: token rejection, size limit, field filtering |
+| Hook receiver | Rust tests: token rejection, size limit, field filtering, `transcript_path` kept and cleared with the overlay |
+| System and Claude | Vitest over `systemModel`, `claudeModel`, and `pollTimer`; Rust: transcript parsing (sidechain, synthetic, and usage-less lines skipped, token sums, the 64 KiB tail and its widening) and the `<sessionId>.jsonl` fallback search, adapter filtering, and descendant sums over a synthetic table and a spawned process tree |
 | Pty | Rust integration test: spawn `bash -c 'echo hi'`, read output, observe exit |
 | Backdrop | The copied sim's Vitest suite plus tests for `SessionColony` |
 | Pane kinds | Vitest: workspace version 3 round trip with every kind, version 2 files loading as terminals, layouts saving scratch pads empty, replacing a pane's kind in place |
@@ -2061,6 +2166,8 @@ Each milestone ends with a usable app.
     list back. Dashboard elements (4.6): a `dashboard.sections.*` toggle for each, with
     `dashboard.sections.containers` as the one Containers setting; drag to reorder, saved as
     `dashboardSectionOrder`; `dashboard.side` docking the panel left or right; and the clock.
+    The System and Claude dashboard sections (3.4, 4.6): machine load, and per-session model,
+    context, and process figures, with a polling rule that stops them while hidden.
 
 ## 12. Risks
 

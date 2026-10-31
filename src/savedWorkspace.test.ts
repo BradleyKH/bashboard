@@ -461,7 +461,7 @@ describe('parseSavedWorkspace', () => {
   });
 
   it('keeps a saved element order and cleans it', () => {
-    const order = ['clock', 'external', 'favorites', 'layouts', 'panes', 'containers'];
+    const order = ['clock', 'external', 'claude', 'system', 'favorites', 'layouts', 'panes', 'containers'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);
     const messy = ['repo', 'panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: messy })?.dashboardSectionOrder).toEqual([
@@ -470,6 +470,8 @@ describe('parseSavedWorkspace', () => {
       'layouts',
       'containers',
       'external',
+      'claude',
+      'system',
       'clock',
     ]);
   });
@@ -483,6 +485,8 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'external',
+      'claude',
+      'system',
     ]);
   });
 
@@ -494,6 +498,8 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'external',
+      'claude',
+      'system',
       'clock',
     ]);
   });

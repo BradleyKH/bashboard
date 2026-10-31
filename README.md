@@ -500,6 +500,16 @@ The **clock**, which is off by default, is one line at the bottom of the panel: 
 dots showing the hours (24-hour), minutes, and seconds in binary, and the time as `h:mm` beside
 them. It ticks only while the panel is on screen.
 
+The **System** and **Claude** sections are off by default; turn them on under "Show on the
+dashboard" in Settings. **System** shows CPU use with a 60 second sparkline, memory used of total,
+network receive and send rates, and free space on each fixed drive, with bars that turn amber at
+80% and red at 90%. CPU and network fill in on the second sample after a section starts. **Claude**
+has a row for each Claude session running in a pane: its status dot and title, the model, the
+tokens in its context with a bar (against 200k, switching to 1M once a session passes 200k), and
+the memory and CPU of the session and everything it started. Click a row, or press Enter on it, to
+focus its pane. Both sections sample only while they are expanded, the panel is on screen, and
+the window is shown.
+
 **Favorites** sit above the terminals. Click one to open a terminal there as a split of the
 focused pane, or Ctrl+click to open it collapsed; the "+" button adds the focused terminal's
 folder (and its shell, when that is not the default), and rows can be renamed, removed, and reordered by dragging. Below them, **Recent**
@@ -766,7 +776,8 @@ default to `true`:
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
 each dashboard element: `favorites`, `layouts`, `panes`, `containers`, and `external` default to
-`true` and `clock` to `false`. `containers` also decides whether the kind menu offers a Containers
+`true` and `claude`, `system`, and `clock` to `false` (so `dashboard.sections.system` and
+`dashboard.sections.claude` start off). `containers` also decides whether the kind menu offers a Containers
 pane; a settings file that still has `containers.enabled` and no `sections.containers` uses it
 for that. All of them apply on save and are in the Dashboard section of the settings dialog, the
 elements under "Show on the dashboard".
@@ -780,6 +791,8 @@ elements under "Show on the dashboard".
     "panes": true,
     "containers": true,
     "external": true,
+    "claude": false,
+    "system": false,
     "clock": false
   }
 }

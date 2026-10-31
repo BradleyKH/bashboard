@@ -1,8 +1,9 @@
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
+import { DashboardClaude } from './dashboardClaude';
 import { DashboardClock } from './dashboardClock';
 import { attachElementDrag } from './dashboardElementDrag';
 import { externalSessions, groupCardsByTab, paneCards } from './dashboardModel';
-import type { PaneCardInput } from './dashboardModel';
+import type { PaneCardInput, TerminalCard } from './dashboardModel';
 import {
   applyDashboardWidth,
   clampDashboardWidth,
@@ -11,6 +12,7 @@ import {
 } from './dashboardResize';
 import type { DashboardSide } from './dashboardResize';
 import { DashboardNav } from './dashboardNav';
+import { DashboardSystem } from './dashboardSystem';
 import { DEFAULT_ELEMENT_ORDER, ELEMENT_SHOWN_BY_DEFAULT, moveSection, toggleSection } from './dashboardSections';
 import type { DashboardElement, DashboardSection } from './dashboardSections';
 import { recentFolders, samePath } from './favorites';
@@ -83,6 +85,8 @@ export class DashboardPanel {
   private readonly elements = new Map<DashboardElement, HTMLElement>();
   private readonly elementList: HTMLElement;
   private readonly clock = new DashboardClock();
+  private readonly system = new DashboardSystem();
+  private readonly claude: DashboardClaude;
   private panes: PaneCardInput[] = [];
   private collapsed: DashboardSection[] = [];
   /** The width the user chose; what shows is clamped to the current window. */
@@ -185,6 +189,9 @@ export class DashboardPanel {
     this.containersSection.setVisible(false);
     this.addSection('containers', this.containersSection.el, this.containersSection.head);
     this.sessionList = this.section('external', 'External sessions');
+    this.claude = new DashboardClaude((paneId) => this.callbacks.onFocus(paneId));
+    this.addSection('claude', this.claude.el, this.claude.head);
+    this.addSection('system', this.system.el, this.system.head);
     this.addElement('clock', this.clock.el, this.clock.el);
     this.installButton = document.createElement('button');
     this.installButton.type = 'button';
@@ -289,10 +296,24 @@ export class DashboardPanel {
     document.body.classList.toggle('dashboard-left', side === 'left');
   }
 
-  /** Starts or stops every timer that runs only while its element is on screen. */
+  /**
+   * Starts or stops every timer that runs only while its element is on screen; System and Claude
+   * also stop while collapsed (docs/design.md section 4.6). Called whenever any input changes.
+   */
   private syncTimers(): void {
-    const onScreen = this.isShown() && this.windowShown;
-    this.clock.setRunning(this.shown.clock && onScreen);
+    const onScreen = this.isShown();
+    this.clock.setRunning(this.shown.clock && onScreen && this.windowShown);
+    for (const [id, section] of [
+      ['system', this.system],
+      ['claude', this.claude],
+    ] as const) {
+      section.setGate({
+        enabled: this.shown[id],
+        expanded: !this.collapsed.includes(id),
+        onScreen,
+        windowShown: this.windowShown,
+      });
+    }
   }
 
   /**
@@ -448,6 +469,7 @@ export class DashboardPanel {
   setCollapsedSections(list: DashboardSection[]): void {
     this.collapsed = [...list];
     for (const [id, el] of this.sectionEls) setSectionCollapsed(el, this.collapsed.includes(id));
+    this.syncTimers();
   }
 
   collapsedSections(): DashboardSection[] {
@@ -479,6 +501,7 @@ export class DashboardPanel {
     makeCollapsible(section, header, () => {
       this.collapsed = toggleSection(this.collapsed, id);
       setSectionCollapsed(section, this.collapsed.includes(id));
+      this.syncTimers();
       this.callbacks.onSectionsChange?.(this.collapsedSections());
     });
   }
@@ -582,6 +605,10 @@ export class DashboardPanel {
             ),
           )
         : cards.map((card) => renderPaneCard(card, cardOptions(card)))),
+    );
+    this.claude.update(
+      (showHeaders ? groups.flatMap((g) => g.cards) : cards).filter((c): c is TerminalCard => c.kind === 'terminal'),
+      this.sessions,
     );
 
     this.sessionList.parentElement!.hidden = external.length === 0;

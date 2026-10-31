@@ -82,6 +82,8 @@ pub struct DashboardSections {
     pub panes: bool,
     pub containers: bool,
     pub external: bool,
+    pub claude: bool,
+    pub system: bool,
     pub clock: bool,
 }
 
@@ -261,6 +263,8 @@ impl Default for Settings {
                     panes: true,
                     containers: true,
                     external: true,
+                    claude: false,
+                    system: false,
                     clock: false,
                 },
             },
@@ -651,6 +655,8 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
             containers: section(&mut w, "containers", containers_default),
             external: section(&mut w, "external", d.dashboard.sections.external),
+            claude: section(&mut w, "claude", d.dashboard.sections.claude),
+            system: section(&mut w, "system", d.dashboard.sections.system),
             clock: section(&mut w, "clock", d.dashboard.sections.clock),
         },
     };
@@ -1051,6 +1057,8 @@ mod tests {
                 panes: true,
                 containers: true,
                 external: true,
+                claude: false,
+                system: false,
                 clock: false
             }
         );
@@ -1058,6 +1066,18 @@ mod tests {
         assert!(w.is_empty(), "{w:?}");
         assert!(s.dashboard.sections.clock && !s.dashboard.sections.panes);
         assert!(s.dashboard.sections.favorites && s.dashboard.sections.external);
+    }
+
+    #[test]
+    fn dashboard_sections_system_and_claude_parse() {
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "system": true, "claude": true } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(s.dashboard.sections.system && s.dashboard.sections.claude);
+        assert!(!s.dashboard.sections.clock);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "system": "yes", "claude": 1 } } }"#);
+        assert!(!s.dashboard.sections.system && !s.dashboard.sections.claude);
+        assert!(w.iter().any(|m| m.starts_with("dashboard.sections.system")), "missing warning: {w:?}");
+        assert!(w.iter().any(|m| m.starts_with("dashboard.sections.claude")), "missing warning: {w:?}");
     }
 
     #[test]

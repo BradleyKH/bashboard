@@ -1,0 +1,61 @@
+/* The dashboard's System section. The band colors are shared with the Claude section. */
+:root {
+  --system-accent: #4fb3c8;
+  --system-warn: #e0b050;
+  --system-error: #e58a7a;
+}
+
+.system-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 2px 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.system-label {
+  color: #7f8c94;
+}
+
+.system-value {
+  color: #d6dde1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.system-spark {
+  grid-column: 2;
+  justify-self: end;
+  width: 100%;
+  max-width: 120px;
+  height: 22px;
+}
+
+.system-bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.system-bar-fill {
+  height: 100%;
+  background: var(--system-accent);
+}
+
+.system-bar-fill[data-band='warn'] {
+  background: var(--system-warn);
+}
+
+.system-bar-fill[data-band='error'] {
+  background: var(--system-error);
+}
+
+.system-disks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

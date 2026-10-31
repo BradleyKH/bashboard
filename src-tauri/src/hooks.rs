@@ -1,7 +1,8 @@
 //! Loopback hook receiver (design sections 3.3 and 3.4): Claude Code hooks post their JSON
 //! payload here, and the latest status per session is kept as an overlay on the roster. The
 //! same receiver takes `POST /cli` from the `bb` pane CLI (design section 3.13) and emits the
-//! resolved command as `cli://command`.
+//! resolved command as `cli://command`. The overlay also keeps each session's `transcript_path`,
+//! which the transcript reader uses to find the session's JSONL file.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -38,9 +39,12 @@ pub struct HookOverlay {
     pub last_at: u64,
     /// The blocking notification's text while the status is `Waiting`.
     pub waiting_message: Option<String>,
+    /// The newest `transcript_path` any event carried.
+    pub transcript_path: Option<String>,
 }
 
-/// One accepted hook post, as emitted on `sessions://hook`.
+/// One accepted hook post, as emitted on `sessions://hook`. `transcript_path` is kept on the
+/// overlay but not serialized, since the front end has no use for it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookEvent {
@@ -51,6 +55,8 @@ pub struct HookEvent {
     pub notification_type: Option<String>,
     pub pane_id: Option<u32>,
     pub at: u64,
+    #[serde(skip_serializing)]
+    pub transcript_path: Option<String>,
 }
 
 #[derive(Default)]
@@ -244,6 +250,7 @@ fn handle(
         notification_type: field("notification_type"),
         pane_id: pane_header.and_then(|p| p.trim().parse().ok()),
         at: now,
+        transcript_path: field("transcript_path"),
     };
     (204, Some(ev))
 }
@@ -299,6 +306,9 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
     if let Some(p) = ev.pane_id {
         entry.pane_id = Some(p);
     }
+    if let Some(path) = &ev.transcript_path {
+        entry.transcript_path = Some(path.clone());
+    }
 }
 
 fn waiting_message(message: Option<&str>) -> Option<String> {
@@ -347,6 +357,7 @@ mod tests {
             notification_type: None,
             pane_id,
             at,
+            transcript_path: None,
         }
     }
 
@@ -403,6 +414,7 @@ mod tests {
                 notification_type: Some("permission_prompt".into()),
                 pane_id: Some(7),
                 at: 42,
+                transcript_path: Some("C:\\t.jsonl".into()),
             }
         );
         let json = serde_json::to_value(&ev).unwrap();
@@ -422,7 +434,7 @@ mod tests {
     fn event_mapping() {
         let mut o = HashMap::new();
         apply(&mut o, &event("SessionStart", Some(3), 1));
-        assert_eq!(o["s1"], HookOverlay { status: None, pane_id: Some(3), last_at: 1, waiting_message: None });
+        assert_eq!(o["s1"], HookOverlay { status: None, pane_id: Some(3), last_at: 1, ..Default::default() });
         apply(&mut o, &event("UserPromptSubmit", None, 2));
         assert_eq!(
             o["s1"],
@@ -430,7 +442,7 @@ mod tests {
                 status: Some((HookStatus::Busy, 2)),
                 pane_id: Some(3),
                 last_at: 2,
-                waiting_message: None,
+                ..Default::default()
             }
         );
         apply(&mut o, &event("Notification", Some(4), 3));
@@ -440,7 +452,7 @@ mod tests {
                 status: Some((HookStatus::Waiting, 3)),
                 pane_id: Some(4),
                 last_at: 3,
-                waiting_message: None,
+                ..Default::default()
             }
         );
         apply(&mut o, &event("PreToolUse", None, 4));
@@ -449,6 +461,23 @@ mod tests {
         apply(&mut o, &event("Stop", None, 5));
         assert_eq!(o["s1"].status, Some((HookStatus::Idle, 5)));
         apply(&mut o, &event("SessionEnd", Some(9), 6));
+        assert!(o.is_empty());
+    }
+
+    #[test]
+    fn transcript_path_follows_events() {
+        let with_path = |name: &str, path: &str, at: u64| HookEvent {
+            transcript_path: Some(path.into()),
+            ..event(name, None, at)
+        };
+        let mut o = HashMap::new();
+        apply(&mut o, &with_path("SessionStart", "a.jsonl", 1));
+        assert_eq!(o["s1"].transcript_path.as_deref(), Some("a.jsonl"));
+        apply(&mut o, &event("UserPromptSubmit", None, 2));
+        assert_eq!(o["s1"].transcript_path.as_deref(), Some("a.jsonl"));
+        apply(&mut o, &with_path("Stop", "b.jsonl", 3));
+        assert_eq!(o["s1"].transcript_path.as_deref(), Some("b.jsonl"));
+        apply(&mut o, &with_path("SessionEnd", "b.jsonl", 4));
         assert!(o.is_empty());
     }
 

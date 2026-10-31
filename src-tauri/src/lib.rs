@@ -20,6 +20,8 @@ mod settings;
 mod settings_edit;
 mod setup;
 mod shell_integration;
+mod system;
+mod transcript;
 mod workspace;
 
 use tauri::Manager;
@@ -107,9 +109,12 @@ pub fn run() {
         .manage(git_fetch::GitFetches::default())
         .manage(containers::ContainersState::default())
         .manage(search::SearchState::default())
+        .manage(system::SystemState::default())
+        .manage(transcript::Transcripts::default())
         .setup(|app| {
             settings::init(app.handle());
             git_fetch::init(app.handle());
+            transcript::init(app.handle());
             hooks::init(app.handle());
             roster::init(app.handle());
             workspace::init(app.handle());
@@ -192,6 +197,9 @@ pub fn run() {
             search::search_start,
             search::search_cancel,
             setup::setup_repo_candidates,
+            system::system_sample,
+            system::claude_processes,
+            transcript::claude_context,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -5,7 +5,16 @@
  * The panel's elements between Repo and the footer, in default order (docs/design.md section
  * 4.6). The clock stays last, just above the footer.
  */
-export const DEFAULT_ELEMENT_ORDER = ['favorites', 'layouts', 'panes', 'containers', 'external', 'clock'] as const;
+export const DEFAULT_ELEMENT_ORDER = [
+  'favorites',
+  'layouts',
+  'panes',
+  'containers',
+  'external',
+  'claude',
+  'system',
+  'clock',
+] as const;
 
 export type DashboardElement = (typeof DEFAULT_ELEMENT_ORDER)[number];
 
@@ -24,6 +33,8 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
   panes: true,
   containers: true,
   external: true,
+  claude: false,
+  system: false,
   clock: false,
 };
 
@@ -34,6 +45,8 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
   panes: 'Panes',
   containers: 'Containers',
   external: 'External sessions',
+  claude: 'Claude',
+  system: 'System',
   clock: 'Clock',
 };
 

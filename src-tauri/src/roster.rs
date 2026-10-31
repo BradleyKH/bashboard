@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::hooks::{self, HookOverlay, HookStatus, Hooks};
 use crate::pty::Ptys;
+use crate::transcript::{self, Transcripts};
 
 const SWEEP: Duration = Duration::from_secs(10);
 const MAX_HOPS: usize = 32;
@@ -277,13 +278,17 @@ pub fn refresh(app: &AppHandle) {
     let overlay = app.state::<Hooks>().overlay();
     let state = app.state::<Roster>();
     // Emitting under the lock keeps emissions from the scan and hook threads in order.
-    let mut lists = state.lists.lock().unwrap();
-    let mut merged = lists.scanned.clone();
-    apply_overlay(&mut merged, &overlay);
-    if lists.emitted != merged {
-        lists.emitted = merged.clone();
-        let _ = app.emit("sessions://changed", merged);
-    }
+    let merged = {
+        let mut lists = state.lists.lock().unwrap();
+        let mut merged = lists.scanned.clone();
+        apply_overlay(&mut merged, &overlay);
+        if lists.emitted != merged {
+            lists.emitted = merged.clone();
+            let _ = app.emit("sessions://changed", &merged);
+        }
+        merged
+    };
+    transcript::sync(app, &merged, &overlay);
 }
 
 fn sessions_dir() -> Option<PathBuf> {
@@ -312,6 +317,7 @@ pub fn init(app: &AppHandle) {
             let list = scanner.scan(&dir, &ptys);
             let live: HashSet<&str> = list.iter().map(|s| s.session_id.as_str()).collect();
             app.state::<Hooks>().prune(&live, hooks::now_ms());
+            app.state::<Transcripts>().prune(&live);
             app.state::<Roster>().lists.lock().unwrap().scanned = list;
             refresh(&app);
         }
@@ -514,7 +520,7 @@ mod tests {
     }
 
     fn hook(status: HookStatus, at: u64) -> HookOverlay {
-        HookOverlay { status: Some((status, at)), pane_id: None, last_at: at, waiting_message: None }
+        HookOverlay { status: Some((status, at)), pane_id: None, last_at: at, ..Default::default() }
     }
 
     #[test]
