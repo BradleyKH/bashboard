@@ -1,4 +1,4 @@
-import { parseChord, type Chord, type KeybindingEntry } from './keymap';
+import { parseChord, type Chord, type Direction, type KeybindingEntry } from './keymap';
 
 export interface HelpRow {
   label: string;
@@ -27,7 +27,7 @@ const SECTIONS: { title: string; actions: string[] }[] = [
     title: 'Terminal',
     actions: ['copy', 'paste', 'find', 'sendInput', 'increaseFontSize', 'decreaseFontSize', 'resetFontSize'],
   },
-  { title: 'Workspace', actions: ['nextAttention', 'toggleDashboard', 'focusDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
+  { title: 'Workspace', actions: ['openPalette', 'nextAttention', 'toggleDashboard', 'focusDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
 ];
 
 const LABELS: Record<string, string> = {
@@ -50,6 +50,7 @@ const LABELS: Record<string, string> = {
   focusDashboard: 'Move focus to the dashboard and back',
   openFavorite: 'Open a favorite folder',
   openLayout: 'Open a saved layout',
+  openPalette: 'Command palette',
   nextAttention: 'Jump to the next terminal that needs you',
   splitWithProfile: 'Split with a chosen shell',
   cycleScrim: 'Cycle backdrop dimming',
@@ -68,6 +69,18 @@ const LABELS: Record<string, string> = {
   resetFontSize: 'Reset font size',
 };
 
+/** The F1 label for an action; directional actions append the direction. */
+export function actionLabel(action: string, direction?: Direction): string | undefined {
+  const base = LABELS[action];
+  if (base !== undefined && direction && (action === 'moveFocus' || action === 'resizePane')) return `${base} ${direction}`;
+  return base;
+}
+
+/** Every action name in F1 guide order. */
+export function actionOrder(): string[] {
+  return SECTIONS.flatMap((s) => s.actions);
+}
+
 const NOTES: Record<string, string> = {
   copy: 'With nothing selected, the key goes to the shell',
   paste: 'With no text on the clipboard, the key goes to the shell so Claude Code can paste an image',
@@ -78,7 +91,7 @@ const FIXED_SECTION: HelpSection = {
   title: 'In pickers and bars',
   rows: [
     { label: 'Open favorite as a split', keys: ['Enter'] },
-    { label: 'Open favorite collapsed', keys: ['Ctrl+Enter'], note: 'Ctrl+click works on dashboard rows too' },
+    { label: 'Open favorite or worktree collapsed', keys: ['Ctrl+Enter'], note: 'Ctrl+click works on dashboard rows too' },
     { label: 'Next / previous match', keys: ['Enter', 'Shift+Enter'] },
     { label: 'Close', keys: ['Escape'] },
   ],

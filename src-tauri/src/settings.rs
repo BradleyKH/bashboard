@@ -188,6 +188,7 @@ pub fn default_keybindings() -> Vec<Keybinding> {
         kb("ctrl+shift+z", "togglePaneZoom", None, None),
         kb("ctrl+shift+o", "openFavorite", None, None),
         kb("ctrl+shift+r", "openLayout", None, None),
+        kb("ctrl+shift+p", "openPalette", None, None),
         kb("alt+shift+t", "splitWithProfile", None, None),
         kb("ctrl+shift+t", "newTab", None, None),
         kb("ctrl+shift+n", "newScratch", None, None),
@@ -891,7 +892,7 @@ mod tests {
     fn layout_and_profile_chords_are_bound_by_default() {
         let s = Settings::default();
         assert_eq!(find(&s, "ctrl+shift+r").map(|k| k.action.as_str()), Some("openLayout"));
-        assert!(find(&s, "ctrl+shift+p").is_none());
+        assert_eq!(find(&s, "ctrl+shift+p").map(|k| k.action.as_str()), Some("openPalette"));
         assert_eq!(find(&s, "alt+shift+t").map(|k| k.action.as_str()), Some("splitWithProfile"));
         assert_eq!(find(&s, "ctrl+shift+t").map(|k| k.action.as_str()), Some("newTab"));
         assert_eq!(find(&s, "ctrl+shift+n").map(|k| k.action.as_str()), Some("newScratch"));

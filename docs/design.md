@@ -828,6 +828,7 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+Z | Zoom or unzoom the focused pane (4.2) |
 | Ctrl+Shift+O | Open a favorite (picker; Enter opens it as a split, Ctrl+Enter opens it collapsed) |
 | Ctrl+Shift+R | Open a named layout (picker; opens it as a new tab, 4.6) |
+| Ctrl+Shift+P | Open the command palette (below) |
 | Alt+Shift+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) |
 | Ctrl+Shift+T | New tab (4.10) |
 | Ctrl+Shift+W | Close tab |
@@ -865,6 +866,30 @@ In panes other than terminals, copy, paste, Shift+Enter, Ctrl+Shift+F, and typin
 pane's own text fields as a browser would; every other action applies as it does in a
 terminal. The Files pane is the exception for Ctrl+Shift+F, which opens its preview's find bar
 (4.12).
+
+**Command palette.** Ctrl+Shift+P (`openPalette`) opens one filterable list over every pane, tab,
+favorite, layout, the focused repo's pins and worktrees, and every keymap action that makes sense
+without a key context. Each row shows its category at the right edge. Enter behaves as the item's
+own control does: a pane is focused (expanded first when collapsed), a tab is switched to, a
+favorite opens as a split, a layout opens as a new tab, a pin opens as clicking it in the Repo
+section does, a worktree opens a terminal there as a split, and an action runs as its key would.
+Ctrl+Enter opens a favorite or worktree collapsed. Pins whose path is missing are left out.
+
+Actions left out are `copy`, `paste`, `sendInput` (Claude Code's newline), `switchToTab` (tabs are
+items instead), and `openPalette` itself. Labels come from `helpModel.ts`, so the palette and the
+F1 guide agree, and each action's hint lists its chords from the live keymap, so overrides show.
+`moveFocus` and `resizePane` get one row per direction.
+
+Matching is fuzzy over the label, then the detail (a pane's tab name, a favorite's path), and a
+detail-only match ranks after every label match. Consecutive characters and matches at word starts
+score higher. With an empty query, the session's recent picks come first (most recent first, kept
+in memory and not saved), then every row in category order. A leading `>` limits the list to
+actions.
+
+The rows come from `buildPaletteItems` and `rankPalette` in the pure `paletteModel.ts`. The list is
+the shared `Picker`, which takes a category and hint per item and a matcher supplied by the
+palette. Choosing a row refocuses the pane that had focus before the palette opened, then runs the
+choice, so actions such as split, find, and close apply to that pane.
 
 ### 4.6 Dashboard panel
 
@@ -985,7 +1010,8 @@ One row per layout, showing its name and pane count:
   other tab is left as it was. A layout with no panes opens as a tab with one default
   terminal. Opening a layout does not resume Claude (4.9).
 - Rows can be renamed and removed; removing asks inline first. Ctrl+Shift+R opens a picker over
-  the layouts that opens the selection the same way.
+  the layouts that opens the selection the same way. The command palette (Ctrl+Shift+P, 4.5) also
+  lists favorites, layouts, pane cards, tabs, pins, and worktrees.
 
 **Panes.** One card per pane in this app, of any kind (4.11), expanded or collapsed, grouped by
 tab. Groups follow the tab strip's order, and within a group cards are in the order their panes
@@ -1820,6 +1846,7 @@ toast, until the file is fixed.
 | Saved workspace | Vitest: save and restore round trip, pane id remapping, missing folder fallback, version 1 files and layouts loading as one tab |
 | Tabs | Vitest over the pure tab model: add, close (neighbor activation, last tab), reorder, move a terminal between tabs (closing an emptied tab), name following and fixing, combined status |
 | Key mapping | Vitest: event to action table, including the keypress swallowing |
+| Command palette | Vitest: item building and excluded actions, hints from the live keymap, the fuzzy scorer, ranking with `>` and recents, `pushRecent` |
 | Roster parsing | Rust unit tests over captured session files, including malformed and unknown status |
 | Hook receiver | Rust tests: token rejection, size limit, field filtering |
 | Pty | Rust integration test: spawn `bash -c 'echo hi'`, read output, observe exit |
@@ -1884,7 +1911,8 @@ Each milestone ends with a usable app.
     Pull, and Push / Publish buttons, last fetch label, and background fetch (3.9, 4.13).
     Worktrees in the Repo section: list, detail, primary branch, merged state, and delete
     (3.9, 4.6). Dragging paths from File Explorer and the Files, Search, and Git panes onto
-    terminals and scratch pads, with `pathInsertText` for Insert path (4.4).
+    terminals and scratch pads, with `pathInsertText` for Insert path (4.4). The command
+    palette on Ctrl+Shift+P (4.5), with the `Picker` category, hint, and matcher it adds.
 
 ## 12. Risks
 

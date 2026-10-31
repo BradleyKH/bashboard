@@ -131,6 +131,7 @@ export interface WorkspaceHooks {
   onFocusDashboard?: () => void;
   onOpenFavoritePicker?: () => void;
   onOpenLayoutPicker?: () => void;
+  onOpenPalette?: () => void;
   onOpenProfilePicker?: () => void;
   onShowHelp?: () => void;
   onOpenSettings?: () => void;
@@ -1022,6 +1023,9 @@ export class Workspace {
       case 'openLayout':
         this.hooks.onOpenLayoutPicker?.();
         return true;
+      case 'openPalette':
+        this.hooks.onOpenPalette?.();
+        return true;
       case 'splitWithProfile':
         this.hooks.onOpenProfilePicker?.();
         return true;
@@ -1103,6 +1107,11 @@ export class Workspace {
   runKey(e: KeyboardEvent): boolean {
     const action = lookup(this.config.keymap, e);
     return action !== null && this.dispatch(action);
+  }
+
+  /** Runs an action as its key would, for the command palette. */
+  runAction(action: Action): boolean {
+    return this.dispatch(action);
   }
 
   private onDrop(target: DropTarget | null): void {

@@ -61,6 +61,7 @@ function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
     case 'togglePaneZoom':
     case 'openFavorite':
     case 'openLayout':
+    case 'openPalette':
     case 'nextAttention':
     case 'splitWithProfile':
     case 'showHelp':

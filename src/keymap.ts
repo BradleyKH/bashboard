@@ -21,6 +21,7 @@ export type Action =
   | { type: 'togglePaneZoom' }
   | { type: 'openFavorite' }
   | { type: 'openLayout' }
+  | { type: 'openPalette' }
   | { type: 'nextAttention' }
   | { type: 'splitWithProfile' }
   | { type: 'showHelp' }
@@ -61,7 +62,7 @@ export interface Chord {
 export type Keymap = Map<string, Action>;
 
 const DIRECTIONS: readonly string[] = ['left', 'right', 'up', 'down'];
-const SIMPLE_ACTIONS = [
+export const SIMPLE_ACTIONS = [
   'splitRight',
   'splitDown',
   'splitAuto',
@@ -77,6 +78,7 @@ const SIMPLE_ACTIONS = [
   'togglePaneZoom',
   'openFavorite',
   'openLayout',
+  'openPalette',
   'nextAttention',
   'splitWithProfile',
   'showHelp',
@@ -95,6 +97,7 @@ const SIMPLE_ACTIONS = [
   'decreaseFontSize',
   'resetFontSize',
 ] as const;
+export const ARG_ACTIONS = ['moveFocus', 'resizePane', 'switchToTab', 'sendInput'] as const;
 
 const NAMED_KEYS = new Set([
   'left', 'right', 'up', 'down', 'enter', 'tab', 'escape', 'space', 'home', 'end',
@@ -198,6 +201,12 @@ function toAction(entry: KeybindingEntry): Action | string {
   return `unknown action "${action}"`;
 }
 
+/** The action a keybinding entry would run, or null when the entry is invalid. */
+export function actionFromEntry(entry: KeybindingEntry): Action | null {
+  const action = toAction(entry);
+  return typeof action === 'string' ? null : action;
+}
+
 export function buildKeymap(entries: KeybindingEntry[]): { keymap: Keymap; warnings: string[] } {
   const keymap: Keymap = new Map();
   const warnings: string[] = [];
@@ -252,6 +261,7 @@ export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = [
   { keys: 'ctrl+shift+z', action: 'togglePaneZoom' },
   { keys: 'ctrl+shift+o', action: 'openFavorite' },
   { keys: 'ctrl+shift+r', action: 'openLayout' },
+  { keys: 'ctrl+shift+p', action: 'openPalette' },
   { keys: 'alt+shift+t', action: 'splitWithProfile' },
   { keys: 'ctrl+shift+t', action: 'newTab' },
   { keys: 'ctrl+shift+n', action: 'newScratch' },

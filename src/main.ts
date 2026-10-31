@@ -29,6 +29,7 @@ import { DebouncedSaver } from './debouncedSaver';
 import { listEditors, openInEditor } from './editors';
 import { ConfirmDialog } from './confirmDialog';
 import { Picker, type PickerItem } from './picker';
+import { CommandPalette } from './commandPalette';
 import { HelpDialog } from './helpDialog';
 import { helpSections } from './helpModel';
 import { gitInstall, gitInstallStatus, openGitDownload } from './gitInstall';
@@ -522,12 +523,15 @@ function actOnContainerRow(row: DashboardGroupRow, action: 'start' | 'stop'): vo
   }
 }
 
+/** A Panes card click: expands a collapsed pane, else focuses it. */
+function focusCard(paneId: string): void {
+  const p = workspace.panes().find((x) => x.paneId === paneId);
+  if (p?.collapsed) workspace.expandPane(paneId);
+  else workspace.focusPane(paneId);
+}
+
 const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLElement, {
-  onFocus: (paneId) => {
-    const p = workspace.panes().find((x) => x.paneId === paneId);
-    if (p?.collapsed) workspace.expandPane(paneId);
-    else workspace.focusPane(paneId);
-  },
+  onFocus: focusCard,
   onClose: (paneId) => workspace.closePane(paneId),
   onCardDragStart: (paneId, e) => workspace.startDrag({ kind: 'pane', paneId }, e),
   onSwitchTab: (tabId) => workspace.switchTab(tabId),
@@ -611,6 +615,38 @@ const layoutItems = (): PickerItem[] =>
     const n = l.tab.panes.length;
     return { label: l.name, detail: `${n} ${n === 1 ? 'pane' : 'panes'}`, value: l.name };
   });
+/** The Repo section's worktrees; it lists none for fewer than two. */
+function paletteWorktrees(): { path: string; name: string; branch: string }[] {
+  const data = worktreeStore.current();
+  if (!data || data.list.worktrees.length < 2) return [];
+  return data.list.worktrees.map((w) => ({
+    path: w.path,
+    name: lastFolder(w.path) || w.path,
+    branch: w.branch ?? w.head?.slice(0, 7) ?? '',
+  }));
+}
+const palette = new CommandPalette({
+  input: () => ({
+    panes: paneCards(workspace.panes(), sessions),
+    tabs: workspace.tabs(),
+    favorites,
+    layouts: layouts.map((l) => ({ name: l.name, paneCount: l.tab.panes.length })),
+    pins: repoPins,
+    worktrees: paletteWorktrees(),
+    keybindings: currentSettings.keybindings,
+  }),
+  refocus: focusTerminal,
+  focusPane: focusCard,
+  switchTab: (tabId) => workspace.switchTab(tabId),
+  openFavorite: openFolder,
+  openLayout,
+  openPin,
+  openWorktree: (path, opts) => {
+    workspace.openTerminal(path, { collapsed: opts.collapsed });
+    focusTerminal();
+  },
+  runAction: (a) => workspace.runAction(a),
+});
 const confirmDialog = new ConfirmDialog();
 const help = new HelpDialog({ onClose: focusTerminal });
 const showHelp = (): void => help.open(helpSections(currentSettings.keybindings));
@@ -702,6 +738,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenFavoritePicker: () => picker.open(favoriteItems(), 'Open a favorite folder'),
   onOpenProfilePicker: () => profilePicker.open(profileItems(), 'Split with a shell'),
   onOpenLayoutPicker: () => layoutPicker.open(layoutItems(), 'Open a layout'),
+  onOpenPalette: () => palette.open(),
   onShowHelp: showHelp,
   onOpenSettings: showSettings,
   onToggleBackdrop: toggleBackdrop,

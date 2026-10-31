@@ -1018,6 +1018,22 @@ body.dashboard-resizing {
   font-size: 11px;
 }
 
+.picker-hint {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.picker-category {
+  flex: 0 0 auto;
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
 .hook-dialog-backdrop {
   position: fixed;
   inset: 0;

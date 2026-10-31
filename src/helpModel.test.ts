@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatChord, helpSections } from './helpModel';
+import { actionLabel, actionOrder, formatChord, helpSections } from './helpModel';
 import { DEFAULT_KEYBINDINGS, parseChord, type KeybindingEntry } from './keymap';
 
 function row(entries: KeybindingEntry[], label: string) {
@@ -17,7 +17,27 @@ describe('formatChord', () => {
   });
 });
 
+describe('actionLabel and actionOrder', () => {
+  it('labels actions and directions', () => {
+    expect(actionLabel('openPalette')).toBe('Command palette');
+    expect(actionLabel('moveFocus', 'left')).toBe('Move focus left');
+    expect(actionLabel('resizePane', 'down')).toBe('Resize pane down');
+    expect(actionLabel('nope')).toBeUndefined();
+  });
+
+  it('lists every action in guide order', () => {
+    const order = actionOrder();
+    expect(order).toContain('openPalette');
+    expect(order).toContain('nextAttention');
+  });
+});
+
 describe('helpSections', () => {
+  it('lists the palette chord', () => {
+    expect(row([{ keys: 'ctrl+shift+p', action: 'openPalette' }], 'Command palette')?.keys).toEqual(['Ctrl+Shift+P']);
+  });
+
+
   it('lists every default action', () => {
     const labels = helpSections(DEFAULT_KEYBINDINGS).flatMap((s) => s.rows.map((r) => r.label));
     for (const label of ['Split right', 'Close pane', 'Paste', 'New line in Claude Code', 'Pause or resume the background animation', 'Keyboard shortcuts', 'Settings', 'Toggle full screen', 'Open a saved layout', 'Jump to the next terminal that needs you', 'Split with a chosen shell', 'New tab', 'New scratch pad', 'Close tab', 'Next tab', 'Previous tab', 'Go to tab 1 to 8', 'Go to the last tab', 'Increase font size', 'Decrease font size', 'Reset font size']) {

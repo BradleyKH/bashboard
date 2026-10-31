@@ -2,6 +2,10 @@ export interface PickerItem {
   label: string;
   detail?: string;
   value: string;
+  /** Short note at the right of the row, such as a chord. */
+  hint?: string;
+  /** Group name shown at the right edge of the row. */
+  category?: string;
 }
 
 export interface PickerCallbacks {
@@ -10,6 +14,16 @@ export interface PickerCallbacks {
   /** Dismissed with Escape or an outside click; the caller refocuses the terminal. */
   onClose(): void;
 }
+
+/** Returns the rows to show, in order, for the raw input value. */
+export type PickerMatcher = (items: PickerItem[], query: string) => PickerItem[];
+
+const substringMatcher: PickerMatcher = (items, query) => {
+  const q = query.trim().toLowerCase();
+  return items.filter(
+    (it) => it.label.toLowerCase().includes(q) || (it.detail ?? '').toLowerCase().includes(q),
+  );
+};
 
 /** Filterable overlay for picking one item, such as a favorite (docs/design.md section 4.5). */
 export class Picker {
@@ -20,7 +34,14 @@ export class Picker {
   private shown: PickerItem[] = [];
   private selected = 0;
 
-  constructor(private readonly callbacks: PickerCallbacks) {}
+  private readonly matcher: PickerMatcher;
+
+  constructor(
+    private readonly callbacks: PickerCallbacks,
+    opts: { matcher?: PickerMatcher } = {},
+  ) {
+    this.matcher = opts.matcher ?? substringMatcher;
+  }
 
   isOpen(): boolean {
     return this.backdrop !== null;
@@ -101,10 +122,7 @@ export class Picker {
   }
 
   private renderList(): void {
-    const q = this.input.value.trim().toLowerCase();
-    this.shown = this.items.filter(
-      (it) => it.label.toLowerCase().includes(q) || (it.detail ?? '').toLowerCase().includes(q),
-    );
+    this.shown = this.matcher(this.items, this.input.value);
     if (this.shown.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'dashboard-empty';
@@ -127,6 +145,18 @@ export class Picker {
           detail.className = 'picker-detail';
           detail.textContent = it.detail;
           row.append(detail);
+        }
+        if (it.hint) {
+          const hint = document.createElement('span');
+          hint.className = 'picker-hint';
+          hint.textContent = it.hint;
+          row.append(hint);
+        }
+        if (it.category) {
+          const category = document.createElement('span');
+          category.className = 'picker-category';
+          category.textContent = it.category;
+          row.append(category);
         }
         row.addEventListener('mousedown', (e) => e.preventDefault());
         row.addEventListener('click', (e) => this.choose(i, e.ctrlKey));

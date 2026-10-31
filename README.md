@@ -453,6 +453,14 @@ Ctrl+= (or Ctrl+numpad +) enlarges the terminal font, Ctrl+- shrinks it, and Ctr
 to 14. Each step is 1 px, from 6 to 48, applies to every terminal, and is saved to `font.size` in
 `settings.json`.
 
+## Command palette
+
+Ctrl+Shift+P opens one list over your panes, tabs, favorites, layouts, the focused repo's pins and
+worktrees, and the actions, each with its keys. Typing filters the list fuzzily, and a leading `>`
+shows only actions. Enter focuses a pane, switches to a tab, opens a favorite, layout, pin, or
+worktree, or runs an action; a favorite or worktree opens as a split, or collapsed with Ctrl+Enter.
+With an empty box, your recent picks come first.
+
 ## Dashboard
 
 The panel on the right opens on start (set `dashboard.visibleOnStart` to `false` to start

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildKeymap,
   chordFromEvent,
+  actionFromEntry,
   DEFAULT_KEYBINDINGS,
   lookup,
   parseChord,
@@ -117,14 +118,24 @@ describe('default keybindings', () => {
     });
   });
 
-  it('maps nextAttention and toggleBackdrop, and leaves Ctrl+Shift+P unbound', () => {
+  it('maps nextAttention, toggleBackdrop, and openPalette', () => {
     expect(lookup(keymap, ev({ key: 'L', code: 'KeyL', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'nextAttention',
     });
     expect(lookup(keymap, ev({ key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'toggleBackdrop',
     });
-    expect(lookup(keymap, ev({ key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true }))).toBeNull();
+    expect(lookup(keymap, ev({ key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true }))).toEqual({
+      type: 'openPalette',
+    });
+  });
+
+  it('builds an action from an entry, or null when invalid', () => {
+    expect(actionFromEntry({ keys: 'alt+left', action: 'moveFocus', direction: 'left' })).toEqual({
+      type: 'moveFocus',
+      direction: 'left',
+    });
+    expect(actionFromEntry({ keys: 'alt+left', action: 'nope' })).toBeNull();
   });
 
   it('maps newScratch to its chord', () => {

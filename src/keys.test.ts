@@ -158,6 +158,7 @@ describe('handleKey', () => {
     { key: 'Z', code: 'KeyZ', type: 'togglePaneZoom' },
     { key: 'O', code: 'KeyO', type: 'openFavorite' },
     { key: 'R', code: 'KeyR', type: 'openLayout' },
+    { key: 'P', code: 'KeyP', type: 'openPalette' },
     { key: 'L', code: 'KeyL', type: 'nextAttention' },
     { key: 'D', code: 'KeyD', type: 'toggleBackdrop' },
     { key: 'T', code: 'KeyT', type: 'newTab' },
