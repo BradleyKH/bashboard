@@ -15,10 +15,12 @@ export interface NavSnapshot {
 }
 
 // Section headers and every row a click acts on. Layout, pin, and container rows share
-// `.favorite-row`; the Repo section's buttons and the footer's are rows of their own.
+// `.favorite-row`; the Repo section's buttons, its worktree rows, and the footer's buttons are
+// rows of their own.
 const ITEM_SELECTOR = [
   '.collapsible-head',
   '.repo-button',
+  '.worktree-row',
   '.favorite-row',
   '.recent-row',
   '.terminal-group-header',
@@ -83,6 +85,7 @@ export class DashboardNav {
   private keyOf(el: HTMLElement): string {
     if (el.dataset.paneId) return `pane:${el.dataset.paneId}`;
     if (el.dataset.tabId) return `tab:${el.dataset.tabId}`;
+    if (el.dataset.worktreePath) return `worktree:${el.dataset.worktreePath.toLowerCase()}`;
     const session = el.closest<HTMLElement>('[data-session-id]');
     if (session) return `session:${session.dataset.sessionId}`;
     const section = el.closest<HTMLElement>('[data-section]')?.dataset.section ?? 'footer';

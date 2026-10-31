@@ -84,9 +84,14 @@ export function gitUnwatch(root: string): Promise<void> {
   return invoke<void>('git_unwatch', { root });
 }
 
-/** The callback gets the root exactly as it was passed to `gitWatch`. */
-export function onGitChanged(cb: (root: string) => void): Promise<UnlistenFn> {
-  return listen<{ root: string }>('git://changed', (e) => cb(e.payload.root));
+/**
+ * The callback gets the root exactly as it was passed to `gitWatch`. `metadata` is true when refs
+ * or worktree records changed, false for ordinary file edits only.
+ */
+export function onGitChanged(cb: (root: string, metadata: boolean) => void): Promise<UnlistenFn> {
+  return listen<{ root: string; metadata?: boolean }>('git://changed', (e) =>
+    cb(e.payload.root, e.payload.metadata ?? true),
+  );
 }
 
 /** The app's last fetch attempt for a repo; `message` is git's output on failure, empty on success. */

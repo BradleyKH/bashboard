@@ -39,15 +39,15 @@ pub struct GitFileEntry {
 #[derive(Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitStatus {
-    branch: Option<String>,
+    pub(crate) branch: Option<String>,
     oid: Option<String>,
-    upstream: Option<String>,
-    ahead: u32,
-    behind: u32,
-    staged: Vec<GitFileEntry>,
-    unstaged: Vec<GitFileEntry>,
-    untracked: Vec<GitFileEntry>,
-    conflicted: Vec<GitFileEntry>,
+    pub(crate) upstream: Option<String>,
+    pub(crate) ahead: u32,
+    pub(crate) behind: u32,
+    pub(crate) staged: Vec<GitFileEntry>,
+    pub(crate) unstaged: Vec<GitFileEntry>,
+    pub(crate) untracked: Vec<GitFileEntry>,
+    pub(crate) conflicted: Vec<GitFileEntry>,
     remotes: Vec<String>,
 }
 
@@ -77,7 +77,7 @@ fn entry(path: &str, orig_path: Option<&str>, status: char) -> GitFileEntry {
 }
 
 /// Parses `status --porcelain=v2 --branch -z` output.
-fn parse_status(bytes: &[u8]) -> GitStatus {
+pub(crate) fn parse_status(bytes: &[u8]) -> GitStatus {
     let text = String::from_utf8_lossy(bytes);
     let mut records = text.split('\0');
     let mut s = GitStatus::default();
@@ -223,21 +223,21 @@ fn check_hash(hash: &str) -> Result<(), String> {
     }
 }
 
-struct Output {
-    ok: bool,
-    code: Option<i32>,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
+pub(crate) struct Output {
+    pub(crate) ok: bool,
+    pub(crate) code: Option<i32>,
+    pub(crate) stdout: Vec<u8>,
+    pub(crate) stderr: Vec<u8>,
     truncated: bool,
 }
 
 impl Output {
-    fn stdout(&self) -> String {
+    pub(crate) fn stdout(&self) -> String {
         String::from_utf8_lossy(&self.stdout).trim().to_string()
     }
 
     /// Git's combined stdout and stderr, trimmed, for showing a failure as is.
-    fn message(&self) -> String {
+    pub(crate) fn message(&self) -> String {
         let out = String::from_utf8_lossy(&self.stdout);
         let err = String::from_utf8_lossy(&self.stderr);
         let joined = format!("{}\n{}", out.trim(), err.trim());
@@ -310,6 +310,18 @@ impl Git {
             exe: locate_git(settings)?,
             root,
         })
+    }
+
+    /// The same git executable run in another folder.
+    pub(crate) fn at(&self, root: PathBuf) -> Self {
+        Self {
+            exe: self.exe.clone(),
+            root,
+        }
+    }
+
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
     }
 
     fn command<I, S>(&self, read: bool, args: I) -> Command
@@ -401,7 +413,7 @@ impl Git {
         })
     }
 
-    fn read<I, S>(&self, args: I) -> Result<Output, String>
+    pub(crate) fn read<I, S>(&self, args: I) -> Result<Output, String>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -409,7 +421,7 @@ impl Git {
         self.exec(self.command(true, args), None, None)
     }
 
-    fn write<I, S>(&self, args: I) -> Result<Output, String>
+    pub(crate) fn write<I, S>(&self, args: I) -> Result<Output, String>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -418,7 +430,7 @@ impl Git {
     }
 
     /// Succeeds only when git does, giving its trimmed stdout.
-    fn ok(out: Output) -> Result<String, String> {
+    pub(crate) fn ok(out: Output) -> Result<String, String> {
         if out.ok {
             Ok(out.stdout())
         } else {
@@ -672,7 +684,11 @@ impl Git {
 
 /// Runs the work on a blocking thread: a commit's hooks can take seconds, and status on a
 /// large repo is not instant either.
-async fn run<T, F>(settings: State<'_, SettingsState>, root: String, work: F) -> Result<T, String>
+pub(crate) async fn run<T, F>(
+    settings: State<'_, SettingsState>,
+    root: String,
+    work: F,
+) -> Result<T, String>
 where
     T: Send + 'static,
     F: FnOnce(&Git) -> Result<T, String> + Send + 'static,
@@ -756,7 +772,7 @@ pub async fn git_undo_commit(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_support {
     use super::*;
     use std::{
         cell::RefCell,
@@ -765,12 +781,12 @@ mod tests {
         sync::atomic::{AtomicU32, Ordering},
     };
 
-    fn exe() -> PathBuf {
+    pub(crate) fn exe() -> PathBuf {
         on_path().expect("git on PATH for tests")
     }
 
     /// A fresh folder under the system temp dir; never inside an existing repo's tree.
-    fn temp_dir(tag: &str) -> PathBuf {
+    pub(crate) fn temp_dir(tag: &str) -> PathBuf {
         static N: AtomicU32 = AtomicU32::new(0);
         let n = N.fetch_add(1, Ordering::Relaxed);
         let dir =
@@ -781,7 +797,7 @@ mod tests {
     }
 
     /// Runs git for test setup, panicking on failure.
-    fn sh(dir: &Path, args: &[&str]) -> String {
+    pub(crate) fn sh(dir: &Path, args: &[&str]) -> String {
         let out = Command::new(exe())
             .arg("-C")
             .arg(dir)
@@ -798,9 +814,9 @@ mod tests {
     }
 
     /// A temp repo, removed with any bare remotes it was given when the test ends.
-    struct Repo {
-        git: Git,
-        remotes: RefCell<Vec<PathBuf>>,
+    pub(crate) struct Repo {
+        pub(crate) git: Git,
+        pub(crate) remotes: RefCell<Vec<PathBuf>>,
     }
 
     impl Deref for Repo {
@@ -819,7 +835,7 @@ mod tests {
         }
     }
 
-    fn configure(dir: &Path) {
+    pub(crate) fn configure(dir: &Path) {
         for (k, v) in [
             ("user.name", "Test"),
             ("user.email", "test@example.com"),
@@ -831,7 +847,7 @@ mod tests {
         }
     }
 
-    fn repo(tag: &str) -> Repo {
+    pub(crate) fn repo(tag: &str) -> Repo {
         let root = temp_dir(tag);
         sh(&root, &["init", "-q", "-b", "main"]);
         configure(&root);
@@ -841,22 +857,18 @@ mod tests {
         }
     }
 
-    fn write(g: &Git, name: &str, text: &str) {
+    pub(crate) fn write(g: &Git, name: &str, text: &str) {
         fs::write(g.root.join(name), text).unwrap();
     }
 
-    fn commit_file(g: &Git, name: &str, text: &str, msg: &str) -> String {
+    pub(crate) fn commit_file(g: &Git, name: &str, text: &str, msg: &str) -> String {
         write(g, name, text);
         sh(&g.root, &["add", "--", name]);
         sh(&g.root, &["commit", "-q", "-m", msg]);
         sh(&g.root, &["rev-parse", "HEAD"])
     }
 
-    fn paths(entries: &[GitFileEntry]) -> Vec<&str> {
-        entries.iter().map(|e| e.path.as_str()).collect()
-    }
-
-    fn with_bare_remote(g: &Repo) {
+    pub(crate) fn with_bare_remote(g: &Repo) {
         let bare = temp_dir("bare");
         sh(&bare, &["init", "-q", "--bare"]);
         sh(
@@ -867,7 +879,7 @@ mod tests {
     }
 
     /// A second clone of the repo's first bare remote, removed with the repo.
-    fn clone_of(g: &Repo) -> PathBuf {
+    pub(crate) fn clone_of(g: &Repo) -> PathBuf {
         let bare = g.remotes.borrow()[0].clone();
         let dir = temp_dir("clone");
         sh(
@@ -879,11 +891,22 @@ mod tests {
         dir
     }
 
-    fn commit_in(dir: &Path, name: &str, text: &str, msg: &str) -> String {
+    pub(crate) fn commit_in(dir: &Path, name: &str, text: &str, msg: &str) -> String {
         fs::write(dir.join(name), text).unwrap();
         sh(dir, &["add", "--", name]);
         sh(dir, &["commit", "-q", "-m", msg]);
         sh(dir, &["rev-parse", "HEAD"])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_support::*;
+    use super::*;
+    use std::fs;
+
+    fn paths(entries: &[GitFileEntry]) -> Vec<&str> {
+        entries.iter().map(|e| e.path.as_str()).collect()
     }
 
     #[test]

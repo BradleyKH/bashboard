@@ -311,9 +311,10 @@ a file:
 | `workspace.json` | `workspace_load`, `workspace_save` | Open tabs, their panes, and layouts (section 7), for restore (4.9); dashboard state and pane text zoom |
 | `favorites.json` | `favorites_load`, `favorites_save` | Favorite folders (4.6) |
 | `layouts.json` | `layouts_load`, `layouts_save` | Named layouts (4.6) |
-| `repos.json` | `repos_load`, `repos_save` | Pinned files and folders per repo (4.12) |
+| `repos.json` | `repos_load`, `repos_save` | Pinned files and folders per repo (4.12), and the branch worktrees are compared with (4.6) |
 
-The core treats all four as opaque JSON; the front end owns their shape and validation.
+The core treats all four as opaque JSON, except that the worktree commands (3.9) read each repo's
+`primaryBranch` from `repos.json`; the front end owns their shape and validation.
 `favorites.json`, `layouts.json`, and `repos.json` are hand-editable, so they are watched and
 hot-reloaded like `settings.json`, emitting `favorites://changed`, `layouts://changed`, and
 `repos://changed`. They are kept out of `settings.json` because the app rewrites them from the
@@ -325,7 +326,9 @@ and removed by `scratch_delete(id)`; `scratch_load(id)` reads one back on restor
 ### 3.8 Repo files (`src-tauri/src/files.rs`)
 
 A path's repo is the nearest folder at or above it holding `.git` (a directory, or the file a
-worktree has); a folder in no repo is its own repo, without git.
+worktree has); a folder in no repo is its own repo, without git. A linked worktree is its
+own repo root here, so each worktree of one repository has its own `repo_root`; the Repo
+section lists them together through the worktree commands in 3.9.
 
 | Command | Purpose |
 | --- | --- |
@@ -340,7 +343,7 @@ Paths must be absolute and are normalized before use, so `..` segments cannot st
 folder they name. `fs_write_text` and `fs_move` work on any existing file, and nothing creates or
 deletes files except the scratch commands above.
 
-### 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`)
+### 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`)
 
 Runs `git` (from `PATH`, else beside Git Bash's `bash.exe`) as `git -C <root> ...` with an
 argument list, never through a shell, and with paths after `--`. Reads set
@@ -365,6 +368,10 @@ own git commands.
 | `git_fetch_visible(visible)` | Tells the background fetch whether the window is on screen |
 | `git_watch(root)` | Starts (or shares) the metadata watcher below |
 | `git_unwatch(root)` | Releases one reference to that watcher |
+| `git_worktrees(root)` | `worktree list --porcelain -z`, `for-each-ref` for each branch's upstream and track, and `rev-list --left-right --count` against the comparison ref per worktree; returns the worktrees, the primary branch, and the local branches |
+| `git_worktree_detail(path)` | `status --porcelain=v2 --branch -z` and `log -1` in that worktree, plus its merged state |
+| `git_primary_branch(root)` | The branch worktrees are compared against, its comparison ref, and the configured value |
+| `git_worktree_remove(root, path, deleteBranch)` | `worktree remove <path>`, or `worktree prune` when the folder is missing, then `branch -d <branch>` when asked |
 
 `git_undo_commit` is refused when HEAD is not `expectedHead`, has no parent, or when a merge,
 rebase, cherry-pick, or revert is in progress. A pushed commit can be undone; republishing the
@@ -386,6 +393,35 @@ Every fetch attempt, and every successful pull (which fetches), records its outc
 `git://fetched` with the roots that share the repo, plus the root a manual command ran on, since a
 failed fetch moves no refs and so raises no `git://changed`. A failed pull records nothing.
 
+The worktree commands live in `git_worktrees.rs` and reuse the runner in `git.rs`; the reads set
+`GIT_OPTIONAL_LOCKS=0`. Every worktree of the repo's common git dir is listed, the main worktree
+first, then the rest by folder name. The porcelain parser, the primary branch resolution, and
+the merged-state derivation are pure functions with unit tests.
+
+The primary branch resolves, in order, from the repo's `primaryBranch` in `repos.json` (section
+7, keyed by the main worktree's path) when that branch exists; from the branch
+`refs/remotes/origin/HEAD` points at; then from the first of `dev`, `develop`, `main`, and
+`master` that exists as a local branch or on `origin`. The comparison ref is `origin/<primary>`
+when it exists, so merged means merged on the remote, and the local `<primary>` otherwise. With
+no primary branch, ahead and behind are zero and the merged state is unknown.
+
+A worktree's merged state comes from local git only. It is **Merged** when
+`merge-base --is-ancestor <branch> <comparison>` succeeds, which includes a branch with no
+commits of its own. It is **Probably merged** when that fails and the branch's upstream is gone
+(`for-each-ref` reports `[gone]` for `%(upstream:track)`), which is how a squash-merged pull
+request looks after a fetch with prune; it is as current as the repo's last fetch. Otherwise it
+is **Not merged**.
+
+`git_worktree_remove` never runs `--force` or `branch -D`. It refuses the main worktree, a locked
+worktree (giving the lock reason), a worktree whose folder exists and is not clean (any staged,
+changed, or untracked file), and a branch delete for a branch that is not Merged. A worktree
+whose folder is missing is cleared with `worktree prune`, which clears the records of every
+worktree whose folder is missing, and the clean check does not apply; it errors if git kept the
+record. A failure from git itself returns git's output. A `branch -d` that fails after the
+worktree is removed does not fail the command: the result carries `branchError` and the branch
+stays. The check that no pane or external Claude session sits inside the folder is made by the
+front end before it asks (4.6).
+
 A background scheduler fetches each repo that has an open Git pane (`git_fetch_roots`), once per
 common dir, every `git.autoFetchMinutes` (section 8; 0 turns it off). A pane opening on a repo
 with no fetch yet, or a stale one, fetches at once. The scheduler pauses while the window is
@@ -403,7 +439,11 @@ its path is inside a `.git` or ignored by the repo's `.gitignore` files, `info/e
 global excludes file, so a build writing to an ignored folder does not refresh the pane. Watchers
 are reference-counted per normalized root, so Git panes on one repo share one. A change emits
 `git://changed` with the root, debounced 300 ms for metadata and 1 second for the worktree, and
-at most 3 seconds after the first change while changes keep arriving.
+at most 3 seconds after the first change while changes keep arriving. The payload's `metadata`
+flag is true when refs, `HEAD`, the index, or a worktree record changed (or the watcher reported
+an error), and false when only worktree files changed. The Repo section holds its own reference
+to this watcher, on the repo's main worktree, while it shows a worktree list (4.6), so
+`git://changed` reaches the list whether or not a Git pane is open.
 
 ### 3.10 Containers (`src-tauri/src/containers.rs`)
 
@@ -828,6 +868,8 @@ buttons, top to bottom, skipping collapsed sections:
   Right on a collapsed header expands it, and on an expanded one goes to its first row.
 - Tab reaches the buttons inside rows (folder, Open menu, close, remove), which show while their
   row has focus as they do on hover.
+- On a worktree row, Enter or Space expands or collapses it, and Tab reaches the buttons of its
+  expanded detail.
 - Any other key runs its workspace action (4.5), as it would in a pane.
 
 Only the keyboard focuses rows: the panel keeps mouse presses from taking focus off the pane, so
@@ -851,6 +893,51 @@ Under it, a row of buttons opens a Terminal, Files, Git, or Search pane for the 
 in the editor (3.12). Then come the repo's pins (4.12), each showing a file or
 folder icon and its label or path; clicking one opens it, and pins reorder by drag and can be
 renamed and removed. The section is hidden until some pane has a folder.
+
+**Worktrees.** Under the pins, when the focused repo is a git repo with two or more worktrees,
+the section lists every worktree of the repo (3.9), the main worktree first, then the rest by
+folder name, and the worktree of the focused pane is highlighted. Each row shows the folder name
+(the path on hover), the branch or the short hash when detached, ahead and behind counts
+against the primary branch such as "3 ahead, 12 behind" (omitted when both are zero), a badge,
+and the folder button and Open menu every dashboard row has. The badge is **Merged**,
+**Probably merged**, **Locked**, or **Prunable** (folder missing), in that priority; the main
+worktree never shows Merged. A prunable row has no folder button or Open menu.
+
+The list loads when the section shows a repo and reloads on `git://changed` events whose
+`metadata` flag is true for any of the repo's worktree roots, and after an app-run fetch. While
+the panel is open and shows the list, the section holds its own `git_watch` on the main
+worktree (3.9), released when the section switches repo or the panel closes, so a fetch, a
+branch move, or a worktree added or removed in a terminal reaches the list. Ordinary file edits
+never reload it, and it does not follow the 3 second re-read, since its counts cost a `rev-list`
+per worktree. A checkout in the focused worktree also reloads it, ahead of the watcher.
+
+Clicking a row expands it in place (clicking it again, or another row, collapses it) and loads
+`git_worktree_detail`:
+
+- **Head.** The newest commit's subject, short hash, and relative time.
+- **Against primary.** The ahead and behind counts with the comparison ref, and the merged
+  state in words: "Merged: every commit is in `origin/main`", "Probably merged:
+  `origin/feature-x` was deleted on the remote", or "Not merged".
+- **Upstream.** Its name with ahead and behind, "No upstream", or "Upstream deleted on the
+  remote".
+- **Working tree.** "Clean", or the counts of staged, changed, and untracked files.
+- **Actions.** Terminal, Files, Git, and Editor, Open in File Explorer, and Delete (not on the
+  main worktree, and disabled on a locked one).
+
+A "Compare worktrees with..." button in the section header, shown while the list is, opens a
+menu of "Automatic" (with the branch it resolves to) and the repo's local branches, checking the
+current choice. Picking one writes `primaryBranch` for the repo in `repos.json` (section 7);
+Automatic clears it.
+
+Delete first checks that no pane in the app (a terminal's working directory, or another kind's
+folder) and no external Claude session is inside the worktree, since a shell's working
+directory holds the folder open on Windows; if one is, it shows the panes' names inline instead
+of a dialog. Otherwise it asks in a confirm dialog naming the folder and branch, with a checkbox
+"Also delete branch `<name>`". The checkbox is checked and enabled only when the state is
+Merged; for Probably merged it is disabled with the note "Squash-merged branches need
+`git branch -D` in a terminal", since the app never runs `-D`. For a prunable worktree the
+dialog adds that the folder is missing and that Delete runs `git worktree prune`. Refusals from
+`git_worktree_remove` and git's own output show inline in the detail.
 
 **Favorites.** One row per favorite folder (3.7), showing its label and path:
 
@@ -1557,6 +1644,11 @@ interface NamedLayout {
 interface RepoPins {
   root: string;
   pins: { path: string; label?: string }[];
+  /**
+   * The branch the Repo section compares worktrees with (4.6), keyed by the main worktree's
+   * path. An entry may hold it with no pins; Automatic omits it.
+   */
+  primaryBranch?: string;
 }
 type ReposFile = RepoPins[];
 
@@ -1703,6 +1795,7 @@ toast, until the file is fixed.
 | Pane kinds | Vitest: workspace version 3 round trip with every kind, version 2 files loading as terminals, layouts saving scratch pads empty, replacing a pane's kind in place |
 | Repo files | Rust over temp folders: repo root detection (a `.git` folder and a worktree's `.git` file), binary refusal, write refused after a change on disk, move refused over an existing name |
 | Git | Rust against temp repos: porcelain v2 parsing, staging in a repo with no commits, undo allowed when pushed (to a local bare remote), refused mid-merge or after HEAD moved |
+| Worktrees | Rust against temp repos: worktree porcelain parsing, listing, primary branch resolution, merged states (merged, squash-merged with the remote branch pruned, unmerged), removal refusals (main, locked, dirty, unmerged branch) and a prunable removal; Vitest: the worktree model (badges, texts, containment, delete choices) and `repos.ts` `primaryBranch` |
 | Code search | Rust over a temp tree: `.gitignore` honored, options, the match cap, cancellation |
 | Containers | Rust: parsing captured `docker ps` and `podman ps` JSON, Compose labels from both; Vitest: grouping, group state, merging same-named groups for the dashboard |
 | Editors | Rust: the argument form for each editor, filling `editor.command` |
@@ -1757,6 +1850,8 @@ Each milestone ends with a usable app.
     `nextAttention`, which jumps to the next terminal that needs you (4.7), with the keybinding
     changes in 4.5; and suppression of WebView2's context menu (4.4). The Git pane's Fetch,
     Pull, and Push / Publish buttons, last fetch label, and background fetch (3.9, 4.13).
+    Worktrees in the Repo section: list, detail, primary branch, merged state, and delete
+    (3.9, 4.6).
 
 ## 12. Risks
 

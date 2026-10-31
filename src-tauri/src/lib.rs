@@ -8,6 +8,7 @@ mod git;
 mod git_fetch;
 mod git_install;
 mod git_watch;
+mod git_worktrees;
 mod hook_install;
 mod hooks;
 mod links;
@@ -178,6 +179,10 @@ pub fn run() {
             git_fetch::git_fetch_visible,
             git_watch::git_watch,
             git_watch::git_unwatch,
+            git_worktrees::git_worktrees,
+            git_worktrees::git_worktree_detail,
+            git_worktrees::git_primary_branch,
+            git_worktrees::git_worktree_remove,
             containers::containers_list,
             containers::containers_action,
             containers::containers_logs,

@@ -1470,6 +1470,19 @@ body.dashboard-resizing {
   color: #d6dde2;
 }
 
+.confirm-dialog-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d6dde2;
+  cursor: pointer;
+}
+
+.confirm-dialog-note {
+  color: #8a959c;
+  font-size: 12px;
+}
+
 .collapsible-head {
   cursor: pointer;
   user-select: none;

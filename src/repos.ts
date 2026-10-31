@@ -6,10 +6,15 @@ export interface Pin {
   label?: string;
 }
 
-/** repos.json (docs/design.md sections 3.7 and 7): pins per repo, roots compared without regard to case. */
+/**
+ * repos.json (docs/design.md sections 3.7 and 7): pins per repo, roots compared without regard to
+ * case. `primaryBranch` is the branch the Repo section compares worktrees with; an entry may
+ * carry it with no pins.
+ */
 export interface RepoPins {
   root: string;
   pins: Pin[];
+  primaryBranch?: string;
 }
 
 export type ReposFile = RepoPins[];
@@ -19,20 +24,26 @@ export function parseRepos(raw: unknown): ReposFile {
   const out: ReposFile = [];
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) continue;
-    const { root, pins } = item as Record<string, unknown>;
-    if (typeof root !== 'string' || root.trim() === '' || !Array.isArray(pins)) continue;
+    const { root, pins, primaryBranch } = item as Record<string, unknown>;
+    if (typeof root !== 'string' || root.trim() === '') continue;
+    const branch = typeof primaryBranch === 'string' ? primaryBranch.trim() : '';
+    if (!Array.isArray(pins) && !branch) continue;
     const good: Pin[] = [];
-    for (const p of pins) {
+    for (const p of Array.isArray(pins) ? pins : []) {
       if (typeof p !== 'object' || p === null) continue;
       const { path, label } = p as Record<string, unknown>;
       if (typeof path !== 'string' || path.trim() === '') continue;
       const text = typeof label === 'string' ? label.trim() : '';
       good.push({ path, ...(text ? { label: text } : {}) });
     }
-    if (good.length === 0) continue;
+    if (good.length === 0 && !branch) continue;
     const existing = out.find((r) => samePath(r.root, root));
-    if (existing) existing.pins.push(...good);
-    else out.push({ root, pins: good });
+    if (existing) {
+      existing.pins.push(...good);
+      if (branch && !existing.primaryBranch) existing.primaryBranch = branch;
+    } else {
+      out.push({ root, pins: good, ...(branch ? { primaryBranch: branch } : {}) });
+    }
   }
   return out;
 }
@@ -78,7 +89,9 @@ function samePin(a: string, b: string): boolean {
 
 function withPins(file: ReposFile, root: string, pins: Pin[]): ReposFile {
   const i = file.findIndex((r) => samePath(r.root, root));
-  if (pins.length === 0) return i < 0 ? file : file.filter((_, j) => j !== i);
+  if (pins.length === 0 && !(i >= 0 && file[i].primaryBranch)) {
+    return i < 0 ? file : file.filter((_, j) => j !== i);
+  }
   if (i < 0) return [...file, { root, pins }];
   return file.map((r, j) => (j === i ? { ...r, pins } : r));
 }
@@ -111,4 +124,20 @@ export function renamePin(file: ReposFile, root: string, index: number, label: s
 
 export function movePin(file: ReposFile, root: string, from: number, to: number): ReposFile {
   return withPins(file, root, moveItem(pinsFor(file, root), from, to));
+}
+
+export function primaryBranchFor(file: ReposFile, root: string): string | undefined {
+  return file.find((r) => samePath(r.root, root))?.primaryBranch;
+}
+
+/** Null (or blank) clears it; an entry left with no pins and no branch is dropped. Returns `file` itself when nothing changes. */
+export function setPrimaryBranch(file: ReposFile, root: string, branch: string | null): ReposFile {
+  const next = branch?.trim() || undefined;
+  if (next === primaryBranchFor(file, root)) return file;
+  const i = file.findIndex((r) => samePath(r.root, root));
+  if (i < 0) return [...file, { root, pins: [], primaryBranch: next as string }];
+  const { primaryBranch: _old, ...rest } = file[i];
+  const entry: RepoPins = next ? { ...rest, primaryBranch: next } : rest;
+  if (!next && entry.pins.length === 0) return file.filter((_, j) => j !== i);
+  return file.map((r, j) => (j === i ? entry : r));
 }

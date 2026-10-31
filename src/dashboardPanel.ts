@@ -29,6 +29,7 @@ import { renderSessionRow } from './sessionRow';
 import { renderPaneCard } from './paneCard';
 import { renderPaneGroup } from './paneGroup';
 import type { TabInfo } from './workspace';
+import type { WorktreeCallbacks } from './worktreeList';
 
 export interface DashboardCallbacks
   extends Partial<FavoritesCallbacks>,
@@ -45,6 +46,10 @@ export interface DashboardCallbacks
   onWidthChange?: (width: number) => void;
   /** Open menu on a folder row or the Repo section's buttons. */
   onOpenIn?: OpenInHandler;
+  onDeleteWorktree?: WorktreeCallbacks['onDeleteWorktree'];
+  onSetPrimaryBranch?: WorktreeCallbacks['onSetPrimaryBranch'];
+  /** The panel came on screen (open or peeking) or left it. */
+  onShownChange?: (shown: boolean) => void;
   onInstallHooks: () => void;
   onShowHelp: () => void;
   onShowSettings: () => void;
@@ -74,7 +79,8 @@ export class DashboardPanel {
   private favoritesKey = '';
   private layouts: NamedLayout[] = [];
   private layoutsKey = '';
-  private repo: RepoSectionState = { repo: null, pins: [] };
+  private repo: RepoSectionState = { repo: null, pins: [], worktrees: null };
+  private wasShown = false;
   private repoKey = '';
   private timer: number | undefined;
   private peeking = false;
@@ -105,6 +111,8 @@ export class DashboardPanel {
       onRenamePin: (index, label) => this.callbacks.onRenamePin?.(index, label),
       onRemovePin: (index) => this.callbacks.onRemovePin?.(index),
       onReorderPin: (from, to) => this.callbacks.onReorderPin?.(from, to),
+      onDeleteWorktree: (root, w) => this.callbacks.onDeleteWorktree?.(root, w) ?? Promise.resolve(null),
+      onSetPrimaryBranch: (root, branch) => this.callbacks.onSetPrimaryBranch?.(root, branch),
     });
     this.favoritesSection = new FavoritesSection({
       onOpen: (path, opts) => this.callbacks.onOpen?.(path, opts),
@@ -233,6 +241,18 @@ export class DashboardPanel {
     return this.open;
   }
 
+  /** Whether the panel is on screen, open or peeking. */
+  isShown(): boolean {
+    return this.open || this.peeking;
+  }
+
+  private notifyShown(): void {
+    const shown = this.isShown();
+    if (shown === this.wasShown) return;
+    this.wasShown = shown;
+    this.callbacks.onShownChange?.(shown);
+  }
+
   /** Whether keyboard focus is in the panel. */
   hasFocus(): boolean {
     return this.nav.hasFocus();
@@ -250,6 +270,7 @@ export class DashboardPanel {
       window.clearTimeout(this.peekTimer);
       document.body.classList.add('dashboard-peek');
       this.render();
+      this.notifyShown();
     }
     this.nav.enter();
   }
@@ -280,7 +301,8 @@ export class DashboardPanel {
   }
 
   setOpen(open: boolean): void {
-    if (open) this.endPeek();
+    // Going from a peek to open keeps the panel on screen, so no change is reported in between.
+    if (open) this.endPeek(false);
     if (open === this.open) return;
     this.open = open;
     document.body.classList.toggle('dashboard-open', open);
@@ -290,6 +312,7 @@ export class DashboardPanel {
       this.render();
       this.timer = window.setInterval(() => this.render(), AGE_REFRESH_MS);
     }
+    this.notifyShown();
   }
 
   /** Closes the panel, or ends a peek. */
@@ -314,15 +337,17 @@ export class DashboardPanel {
       if (!this.hovered) this.endPeek();
     }, ms);
     this.render();
+    this.notifyShown();
   }
 
-  private endPeek(): void {
+  private endPeek(notify = true): void {
     if (!this.peeking) return;
     this.peeking = false;
     this.held = false;
     window.clearTimeout(this.peekTimer);
     this.peekTimer = undefined;
     document.body.classList.remove('dashboard-peek');
+    if (notify) this.notifyShown();
   }
 
   update(panes: PaneCardInput[], tabs: TabInfo[], sessions: Session[]): void {

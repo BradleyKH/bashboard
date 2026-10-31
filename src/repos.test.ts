@@ -4,9 +4,11 @@ import {
   movePin,
   parseRepos,
   pinsFor,
+  primaryBranchFor,
   removePin,
   renamePin,
   resolvePin,
+  setPrimaryBranch,
   toPinPath,
   type ReposFile,
 } from './repos';
@@ -108,5 +110,50 @@ describe('parseRepos', () => {
     const f = parseRepos(raw);
     expect(f).toHaveLength(1);
     expect(f[0].pins.map((p) => p.path)).toEqual(['a', 'b']);
+  });
+});
+
+describe('primaryBranch', () => {
+  it('is kept by parseRepos, including on a pinless entry, and dropped when blank', () => {
+    const raw = [
+      { root: ROOT, pins: [{ path: 'a' }], primaryBranch: ' dev ' },
+      { root: 'D:\\x', primaryBranch: 'main' },
+      { root: 'D:\\y', pins: [], primaryBranch: '  ' },
+      { root: 'D:\\z', pins: [{ path: 'a' }], primaryBranch: 5 },
+    ];
+    expect(parseRepos(raw)).toEqual([
+      { root: ROOT, pins: [{ path: 'a' }], primaryBranch: 'dev' },
+      { root: 'D:\\x', pins: [], primaryBranch: 'main' },
+      { root: 'D:\\z', pins: [{ path: 'a' }] },
+    ]);
+  });
+  it('merges duplicate roots with the first branch winning', () => {
+    const f = parseRepos([
+      { root: ROOT, pins: [{ path: 'a' }] },
+      { root: 'c:/SRC/app', pins: [], primaryBranch: 'a' },
+      { root: ROOT, pins: [], primaryBranch: 'b' },
+    ]);
+    expect(f).toHaveLength(1);
+    expect(primaryBranchFor(f, ROOT)).toBe('a');
+  });
+  it('is set, changed, and cleared; a pinless entry is dropped on clear', () => {
+    const set = setPrimaryBranch([], ROOT, 'dev');
+    expect(set).toEqual([{ root: ROOT, pins: [], primaryBranch: 'dev' }]);
+    const changed = setPrimaryBranch(set, 'c:/src/APP', 'main');
+    expect(primaryBranchFor(changed, ROOT)).toBe('main');
+    expect(setPrimaryBranch(changed, ROOT, null)).toEqual([]);
+  });
+  it('keeps pins when cleared', () => {
+    const f: ReposFile = [{ root: ROOT, pins: [{ path: 'a' }], primaryBranch: 'dev' }];
+    expect(setPrimaryBranch(f, ROOT, null)).toEqual([{ root: ROOT, pins: [{ path: 'a' }] }]);
+  });
+  it('returns the same object when nothing changes', () => {
+    const f: ReposFile = [{ root: ROOT, pins: [{ path: 'a' }], primaryBranch: 'dev' }];
+    expect(setPrimaryBranch(f, ROOT, 'dev')).toBe(f);
+    expect(setPrimaryBranch(f, 'D:\\other', null)).toBe(f);
+  });
+  it('survives removing the last pin', () => {
+    const f: ReposFile = [{ root: ROOT, pins: [{ path: 'a' }], primaryBranch: 'dev' }];
+    expect(removePin(f, ROOT, 0)).toEqual([{ root: ROOT, pins: [], primaryBranch: 'dev' }]);
   });
 });

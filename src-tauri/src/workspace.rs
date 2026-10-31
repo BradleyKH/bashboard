@@ -110,6 +110,35 @@ pub fn repos_save(app: AppHandle, data: Value) -> Result<(), String> {
     save_file(&config_file(&app, REPOS_FILE)?, &data)
 }
 
+/// The `primaryBranch` repos.json sets for the repo whose main worktree is `main_root`
+/// (design section 4.3).
+pub(crate) fn configured_primary_branch(app: &AppHandle, main_root: &Path) -> Option<String> {
+    let data = load_file(&config_file(app, REPOS_FILE).ok()?)?;
+    primary_branch_in(&data, &main_root.to_string_lossy())
+}
+
+/// Roots match as the front end's `samePath` does: case, slash style, and a trailing separator
+/// do not count.
+pub(crate) fn same_root(a: &str, b: &str) -> bool {
+    let key = |p: &str| p.replace('\\', "/").trim_end_matches('/').to_lowercase();
+    key(a) == key(b)
+}
+
+fn primary_branch_in(data: &Value, root: &str) -> Option<String> {
+    data.as_array()?
+        .iter()
+        .filter(|entry| {
+            entry
+                .get("root")
+                .and_then(Value::as_str)
+                .is_some_and(|r| same_root(r, root))
+        })
+        .find_map(|entry| {
+            let branch = entry.get("primaryBranch")?.as_str()?.trim();
+            (!branch.is_empty()).then(|| branch.to_string())
+        })
+}
+
 /// Path of a scratch pad's file. The id alphabet excludes separators and dots, so the result
 /// can never leave `<dir>/scratch`.
 fn scratch_path(dir: &Path, id: &str) -> Result<PathBuf, String> {
@@ -299,5 +328,49 @@ world");
         }
         assert!(scratch_path(&dir, &"a".repeat(64)).is_ok());
         assert!(!dir.exists());
+    }
+
+    #[test]
+    fn primary_branch_matches_the_root_loosely() {
+        let data = json!([
+            { "root": "C:/Other", "pins": [], "primaryBranch": "dev" },
+            { "root": r"c:\Repos\App\", "pins": [], "primaryBranch": " main " },
+        ]);
+        assert_eq!(
+            primary_branch_in(&data, r"C:\repos\app"),
+            Some("main".into())
+        );
+        assert_eq!(
+            primary_branch_in(&data, "C:/Repos/App"),
+            Some("main".into())
+        );
+        assert_eq!(primary_branch_in(&data, r"C:\Repos\Apple"), None);
+    }
+
+    #[test]
+    fn primary_branch_absent_or_unusable() {
+        let root = r"C:\Repos\App";
+        assert_eq!(primary_branch_in(&json!([]), root), None);
+        assert_eq!(
+            primary_branch_in(&json!([{ "root": "C:/Repos/App", "pins": [] }]), root),
+            None
+        );
+        for bad in [
+            json!(""),
+            json!("   "),
+            json!(3),
+            json!(null),
+            json!(["main"]),
+        ] {
+            let data = json!([{ "root": "C:/Repos/App", "primaryBranch": bad }]);
+            assert_eq!(primary_branch_in(&data, root), None, "{bad}");
+        }
+        assert_eq!(
+            primary_branch_in(
+                &json!({ "root": "C:/Repos/App", "primaryBranch": "main" }),
+                root
+            ),
+            None
+        );
     }
 }

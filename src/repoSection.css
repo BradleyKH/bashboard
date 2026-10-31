@@ -58,3 +58,190 @@
 #dashboard .pin-row:hover .layout-rename {
   opacity: 1;
 }
+
+/* The header's "Compare worktrees with..." menu button. */
+#dashboard .repo-menu-button {
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+.repo-menu-button[hidden],
+.worktree-list[hidden] {
+  display: none;
+}
+
+.worktree-list {
+  margin-top: 6px;
+}
+
+.worktree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 4px 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.worktree-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.worktree-row.focused {
+  border-color: #4fb3c8;
+}
+
+.worktree-row.expanded {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.worktree-row.missing .worktree-name,
+.worktree-row.missing .worktree-branch {
+  opacity: 0.55;
+}
+
+/* The name identifies the row, so the counts give way to it before it truncates. */
+.worktree-name {
+  flex: 0 0 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #eef3f5;
+}
+
+.worktree-branch,
+.worktree-counts {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.worktree-branch {
+  flex: 1 1 0;
+}
+
+.worktree-branch.detached {
+  font-family: Consolas, monospace;
+}
+
+.worktree-badge {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9aa6ad;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.worktree-badge[data-badge='merged'] {
+  background: rgba(90, 190, 120, 0.18);
+  color: #8fd6a4;
+}
+
+.worktree-badge[data-badge='probably-merged'] {
+  background: rgba(150, 190, 110, 0.14);
+  color: #b5cf95;
+}
+
+.worktree-badge[data-badge='locked'] {
+  background: rgba(224, 176, 80, 0.16);
+  color: #e0c080;
+}
+
+.worktree-badge[data-badge='prunable'] {
+  background: rgba(224, 138, 138, 0.16);
+  color: #e08a8a;
+}
+
+#dashboard .worktree-row:is(:hover, :focus-within) .folder-open,
+#dashboard .worktree-row:is(:hover, :focus-within) .open-menu-button {
+  opacity: 1;
+}
+
+.worktree-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 11px;
+  cursor: default;
+}
+
+.worktree-detail-line {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.worktree-detail-label {
+  flex: 0 0 auto;
+  color: #6c777e;
+}
+
+.worktree-detail-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #b8c3c9;
+}
+
+.worktree-detail-note {
+  color: #9aa6ad;
+}
+
+.worktree-detail-note.error {
+  color: #e08a8a;
+}
+
+.worktree-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+/* Matches the Repo section's open buttons. */
+#dashboard .worktree-action {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+#dashboard .worktree-action.danger:not(:disabled):hover {
+  background: rgba(224, 138, 138, 0.18);
+  color: #f0b0b0;
+}
+
+#dashboard .worktree-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+}
+
+.worktree-message {
+  margin: 4px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #e0c080;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+}

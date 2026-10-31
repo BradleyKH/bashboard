@@ -1,11 +1,13 @@
 import './repoSection.css';
+import { openBranchMenu } from './branchMenu';
 import { renderPinRow, type PinRowCallbacks } from './pinRow';
 import type { RepoInfo } from './repoFiles';
 import type { Pin } from './repos';
+import { WorktreeList, type WorktreeCallbacks, type WorktreesState } from './worktreeList';
 
 export type RepoOpenKind = 'terminal' | 'files' | 'git' | 'search' | 'editor';
 
-export interface RepoSectionCallbacks extends PinRowCallbacks {
+export interface RepoSectionCallbacks extends PinRowCallbacks, WorktreeCallbacks {
   onOpenIn(kind: RepoOpenKind, root: string): void;
 }
 
@@ -20,6 +22,8 @@ export interface RepoPinState {
 export interface RepoSectionState {
   repo: RepoInfo | null;
   pins: RepoPinState[];
+  /** Null hides the worktree list. */
+  worktrees: WorktreesState | null;
 }
 
 function folderName(path: string): string {
@@ -45,6 +49,9 @@ export class RepoSection {
   private readonly branch: HTMLElement;
   private readonly buttons: HTMLElement;
   private readonly list: HTMLElement;
+  private readonly worktrees: WorktreeList;
+  private readonly menuButton: HTMLButtonElement;
+  private worktreesState: WorktreesState | null = null;
 
   constructor(private readonly callbacks: RepoSectionCallbacks) {
     this.el = document.createElement('section');
@@ -59,18 +66,29 @@ export class RepoSection {
     this.branch = document.createElement('span');
     this.branch.className = 'repo-branch';
     h.append(this.name, this.branch);
-    this.head.append(h);
+    this.menuButton = document.createElement('button');
+    this.menuButton.type = 'button';
+    this.menuButton.className = 'repo-menu-button';
+    this.menuButton.textContent = '⋯';
+    this.menuButton.title = 'Compare worktrees with...';
+    this.menuButton.hidden = true;
+    this.menuButton.addEventListener('click', () => this.openPrimaryMenu());
+    this.head.append(h, this.menuButton);
 
     this.buttons = document.createElement('div');
     this.buttons.className = 'repo-buttons';
     this.list = document.createElement('div');
     this.list.className = 'dashboard-list';
-    this.el.append(this.head, this.buttons, this.list);
+    this.worktrees = new WorktreeList(callbacks);
+    this.el.append(this.head, this.buttons, this.list, this.worktrees.el);
   }
 
   update(state: RepoSectionState): void {
     const { repo } = state;
     this.el.hidden = repo === null;
+    this.worktreesState = repo ? state.worktrees : null;
+    this.worktrees.update(this.worktreesState);
+    this.menuButton.hidden = !this.worktrees.shown;
     if (!repo) {
       this.buttons.replaceChildren();
       this.list.replaceChildren();
@@ -97,5 +115,22 @@ export class RepoSection {
         return renderPinRow(p.pin, name, i, p.isDir ?? false, p.exists, this.callbacks);
       }),
     );
+  }
+
+  /** The header's "Compare worktrees with..." menu (docs/v0.2.0-design.md section 4.3). */
+  private openPrimaryMenu(): void {
+    const state = this.worktreesState;
+    if (!state) return;
+    const { primary, localBranches } = state.list;
+    const configured = primary.configured;
+    const pick = (branch: string | null) => () => this.callbacks.onSetPrimaryBranch(state.root, branch);
+    openBranchMenu(this.menuButton, [
+      {
+        label: !configured && primary.branch ? `Automatic (${primary.branch})` : 'Automatic',
+        checked: !configured,
+        onPick: pick(null),
+      },
+      ...localBranches.map((b) => ({ label: b, checked: b === configured, onPick: pick(b) })),
+    ]);
   }
 }

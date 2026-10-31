@@ -32,6 +32,9 @@ const MAX_WAIT: Duration = Duration::from_secs(3);
 #[serde(rename_all = "camelCase")]
 struct GitChanged {
     root: String,
+    /// Refs, `HEAD`, the index, or worktree records changed (or the watcher reported an error),
+    /// not only worktree files. The Repo section's worktree list reloads only on these.
+    metadata: bool,
 }
 
 type Registry<W> = HashMap<String, (usize, W)>;
@@ -200,6 +203,43 @@ fn release<W>(map: &mut Registry<W>, key: &str) {
     }
 }
 
+/// Calls `emit` once per quiet window after relevant events, with whether any of them was a
+/// metadata change. Returns when the watcher is dropped or `emit` returns false.
+fn debounce(
+    rx: mpsc::Receiver<notify::Result<notify::Event>>,
+    mut classifier: Classifier,
+    mut emit: impl FnMut(bool) -> bool,
+) {
+    // (first relevant event, emit deadline). Irrelevant events (objects, ignored paths) never
+    // extend the deadline, so a build cannot starve a metadata refresh.
+    let mut pending: Option<(Instant, Instant)> = None;
+    let mut metadata = false;
+    loop {
+        let ev = match pending {
+            None => rx.recv().map_err(|_| mpsc::RecvTimeoutError::Disconnected),
+            Some((_, due)) => rx.recv_timeout(due.saturating_duration_since(Instant::now())),
+        };
+        match ev {
+            Ok(ev) => {
+                let Some(delay) = classifier.delay(&ev) else {
+                    continue;
+                };
+                metadata |= ev.is_err() || delay == WATCH_DEBOUNCE;
+                let now = Instant::now();
+                let first = pending.map_or(now, |(first, _)| first);
+                pending = Some((first, (now + delay).min(first + MAX_WAIT)));
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                pending = None;
+                if !emit(std::mem::take(&mut metadata)) {
+                    return;
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => return,
+        }
+    }
+}
+
 fn start_watcher(
     app: AppHandle,
     root: String,
@@ -225,37 +265,18 @@ fn start_watcher(
     if dirs.common_dir != dirs.git_dir && !dirs.common_dir.starts_with(&normalized) {
         watch(&dirs.common_dir, RecursiveMode::NonRecursive)?;
     }
-    let mut classifier = Classifier::new(normalized, dirs);
+    let classifier = Classifier::new(normalized, dirs);
     thread::spawn(move || {
-        // (first relevant event, emit deadline). Irrelevant events (objects, ignored paths)
-        // never extend the deadline, so a build cannot starve a metadata refresh.
-        let mut pending: Option<(Instant, Instant)> = None;
-        loop {
-            let ev = match pending {
-                None => rx.recv().map_err(|_| mpsc::RecvTimeoutError::Disconnected),
-                Some((_, due)) => rx.recv_timeout(due.saturating_duration_since(Instant::now())),
-            };
-            match ev {
-                Ok(ev) => {
-                    let Some(delay) = classifier.delay(&ev) else {
-                        continue;
-                    };
-                    let now = Instant::now();
-                    let first = pending.map_or(now, |(first, _)| first);
-                    pending = Some((first, (now + delay).min(first + MAX_WAIT)));
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {
-                    pending = None;
-                    if app
-                        .emit("git://changed", GitChanged { root: root.clone() })
-                        .is_err()
-                    {
-                        return;
-                    }
-                }
-                Err(mpsc::RecvTimeoutError::Disconnected) => return,
-            }
-        }
+        debounce(rx, classifier, |metadata| {
+            app.emit(
+                "git://changed",
+                GitChanged {
+                    root: root.clone(),
+                    metadata,
+                },
+            )
+            .is_ok()
+        })
     });
     Ok(watcher)
 }
@@ -453,5 +474,96 @@ mod tests {
             key_for(Path::new("C:\\Repo\\App")),
             key_for(Path::new("c:\\repo\\app"))
         );
+    }
+
+    #[test]
+    fn worktree_record_paths_are_metadata() {
+        let root = temp_dir("records");
+        let mut c = classifier(&root);
+        let record = root.join(".git").join("worktrees").join("wt");
+        assert_eq!(c.path_delay(&record.join("HEAD")), Some(WATCH_DEBOUNCE));
+        assert_eq!(c.path_delay(&record.join("index")), Some(WATCH_DEBOUNCE));
+        // Ignored on their own, but each add and prune also writes or deletes the record's HEAD.
+        assert_eq!(c.path_delay(&record.join("gitdir")), None);
+        assert_eq!(c.path_delay(&record.join("commondir")), None);
+        assert_eq!(c.path_delay(&record), None);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn worktree_edits_alone_are_not_metadata() {
+        let root = temp_dir("debounce");
+        let c = classifier(&root);
+        let (tx, rx) = mpsc::channel();
+        let (out_tx, out_rx) = mpsc::channel();
+        let worker = thread::spawn(move || debounce(rx, c, |m| out_tx.send(m).is_ok()));
+        tx.send(modify(root.join("a.txt"))).unwrap();
+        assert_eq!(out_rx.recv_timeout(Duration::from_secs(5)), Ok(false));
+        tx.send(modify(root.join("a.txt"))).unwrap();
+        tx.send(modify(root.join(".git").join("HEAD"))).unwrap();
+        assert_eq!(out_rx.recv_timeout(Duration::from_secs(5)), Ok(true));
+        tx.send(Err(notify::Error::generic("overflow"))).unwrap();
+        assert_eq!(out_rx.recv_timeout(Duration::from_secs(5)), Ok(true));
+        drop(tx);
+        worker.join().unwrap();
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Collects every emit until the watcher has been quiet for a while.
+    fn settle(rx: &mpsc::Receiver<bool>) -> Vec<bool> {
+        let mut out = Vec::new();
+        while let Ok(m) = rx.recv_timeout(Duration::from_millis(2500)) {
+            out.push(m);
+        }
+        out
+    }
+
+    #[test]
+    fn adding_removing_and_pruning_worktrees_is_metadata() {
+        use crate::git::test_support::{repo, sh};
+        let g = repo("watch");
+        let main = g.root().to_path_buf();
+        sh(&main, &["commit", "-q", "--allow-empty", "-m", "first"]);
+        let (tx, rx) = mpsc::channel();
+        let mut watcher = notify::recommended_watcher(tx).unwrap();
+        watcher.watch(&main, RecursiveMode::Recursive).unwrap();
+        let c = Classifier::new(main.clone(), resolve_dirs(&main).unwrap());
+        let (out_tx, out_rx) = mpsc::channel();
+        thread::spawn(move || debounce(rx, c, |m| out_tx.send(m).is_ok()));
+
+        // Outside the watched root, and detached so no branch ref is written.
+        let wt = main.with_file_name(format!(
+            "{}-wt",
+            main.file_name().unwrap().to_string_lossy()
+        ));
+        let _ = fs::remove_dir_all(&wt);
+        let wt_arg = display(&wt);
+        let wt2 = wt.with_file_name(format!("{}2", wt.file_name().unwrap().to_string_lossy()));
+        let wt2_arg = display(&wt2);
+        let _ = fs::remove_dir_all(&wt2);
+
+        sh(&main, &["worktree", "add", "-q", "--detach", &wt_arg]);
+        assert!(settle(&out_rx).contains(&true), "worktree add");
+        sh(&main, &["worktree", "remove", &wt_arg]);
+        assert!(settle(&out_rx).contains(&true), "worktree remove");
+        sh(&main, &["worktree", "add", "-q", "--detach", &wt2_arg]);
+        settle(&out_rx);
+        fs::remove_dir_all(&wt2).unwrap();
+        assert!(
+            settle(&out_rx).is_empty(),
+            "a folder outside the root is not watched"
+        );
+        sh(&main, &["worktree", "prune"]);
+        assert!(settle(&out_rx).contains(&true), "worktree prune");
+        assert!(
+            !main
+                .join(".git")
+                .join("worktrees")
+                .join(wt2.file_name().unwrap())
+                .exists()
+        );
+
+        drop(watcher);
+        let _ = fs::remove_dir_all(&wt);
     }
 }

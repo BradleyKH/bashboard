@@ -13,7 +13,7 @@ import {
   type SettingsPayload,
 } from './settings';
 import { bindWindowVisibility } from './windowVisibility';
-import { gitFetchVisible } from './gitApi';
+import { gitFetchVisible, onGitChanged, onGitFetched } from './gitApi';
 import { syncGitFetchRoots } from './gitFetchRoots';
 import { onCliCommand } from './cli';
 import { runCliCommand, type CliTarget } from './cliDispatch';
@@ -65,12 +65,16 @@ import {
   pinsFor,
   removePin,
   renamePin,
+  setPrimaryBranch,
   resolvePin,
   toPinPath,
   type Pin,
   type ReposFile,
 } from './repos';
 import type { RepoPinState } from './repoSection';
+import { deleteWorktree } from './worktreeDelete';
+import { isRepoRoot, worktreeOf } from './worktreeModel';
+import { WorktreeStore } from './worktreeStore';
 import { parseSavedWorkspace } from './savedWorkspace';
 import { loadSessions, onHookEvent, onSessionsChanged, type Session } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
@@ -325,9 +329,38 @@ function repoPinStates(root: string): RepoPinState[] {
   });
 }
 
+const worktreeStore = new WorktreeStore(() => renderRepo());
+/** The focused worktree's path as last rendered, so a focus change redraws only when it moves the highlight. */
+let worktreeFocus: string | null = null;
+let worktreeRoot: string | null = null;
+
+/** The root the store shows; moving focus between worktrees of the listed repo keeps it, so the list and its expanded row stay. */
+function worktreeRootFor(repo: RepoInfo | null): string | null {
+  if (!panel.isShown() || !repo?.isGit) return null;
+  const data = worktreeStore.current();
+  if (worktreeRoot && data && isRepoRoot(repo.root, data.list.worktrees)) return worktreeRoot;
+  return repo.root;
+}
+
+function focusedWorktreePath(): string | null {
+  // Checked before focusedFolder(): the panel's first render runs before `workspace` exists.
+  const data = worktreeStore.current();
+  if (!data) return null;
+  const folder = focusedFolder();
+  return folder ? (worktreeOf(folder, data.list.worktrees)?.path ?? null) : null;
+}
+
 function renderRepo(): void {
   repoPins = currentRepo ? repoPinStates(currentRepo.root) : [];
-  panel.setRepo({ repo: currentRepo, pins: repoPins });
+  // Released while the panel is off screen, so its git_watch does not outlive the view.
+  worktreeRoot = worktreeRootFor(currentRepo);
+  worktreeStore.show(worktreeRoot);
+  const data = worktreeStore.current();
+  worktreeFocus = focusedWorktreePath();
+  const worktrees = data
+    ? { root: data.root, list: data.list, focusedPath: worktreeFocus, error: worktreeStore.error() ?? undefined }
+    : null;
+  panel.setRepo({ repo: currentRepo, pins: repoPins, worktrees });
 }
 
 /** Re-checks the current repo's pins, then redraws the section and the Files panes' pin buttons. */
@@ -339,9 +372,14 @@ async function refreshPins(): Promise<void> {
   workspace.pinsChanged();
 }
 
-function trackRepo(): void {
+function focusedFolder(): string | null {
   const focused = workspace.panes().find((p) => p.focused);
-  const folder = focused ? (focused.kind === 'terminal' ? focused.cwd : (focused.root ?? focused.folder)) : null;
+  return focused ? ((focused.kind === 'terminal' ? focused.cwd : (focused.root ?? focused.folder)) ?? null) : null;
+}
+
+function trackRepo(): void {
+  const folder = focusedFolder();
+  if (worktreeStore.current() && focusedWorktreePath() !== worktreeFocus) renderRepo();
   if (!folder || (repoFolder !== null && pathKey(folder) === pathKey(repoFolder))) return;
   repoFolder = folder;
   lookUpRepo(folder);
@@ -355,7 +393,11 @@ function lookUpRepo(folder: string): void {
     (info) => {
       if (repoFolder !== folder) return;
       const same = currentRepo !== null && pathKey(currentRepo.root) === pathKey(info.root) && currentRepo.branch === info.branch;
+      const branchMoved =
+        currentRepo !== null && pathKey(currentRepo.root) === pathKey(info.root) && currentRepo.branch !== info.branch;
       currentRepo = info;
+      // A checkout moves this worktree's row before the debounced watcher event arrives.
+      if (branchMoved) worktreeStore.reload();
       if (!same) void refreshPins();
     },
     (e: unknown) => {
@@ -388,7 +430,7 @@ function updateRepos(next: ReposFile): void {
   repos = next;
   renderRepo();
   workspace.pinsChanged();
-  reposSave(repos).catch((err: unknown) => showToast(`Could not save pins: ${String(err)}`));
+  reposSave(repos).catch((err: unknown) => showToast(`Could not save repos.json: ${String(err)}`));
 }
 
 function pinPath(root: string, absolute: string, isDir: boolean): void {
@@ -528,6 +570,20 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onRenamePin: (index, label) => currentRepo && updateRepos(renamePin(repos, currentRepo.root, index, label)),
   onRemovePin: (index) => currentRepo && updateRepos(removePin(repos, currentRepo.root, index)),
   onReorderPin: (from, to) => currentRepo && updateRepos(movePin(repos, currentRepo.root, from, to)),
+  onDeleteWorktree: async (root, w): Promise<string | null> => {
+    const msg = await deleteWorktree(root, w, {
+      panes: (): PaneCardInput[] => workspace.panes(),
+      sessions: () => sessions,
+      confirm: confirmDialog,
+    });
+    worktreeStore.reload();
+    return msg;
+  },
+  onSetPrimaryBranch: (root, branch) => {
+    updateRepos(setPrimaryBranch(repos, root, branch));
+    worktreeStore.reload();
+  },
+  onShownChange: () => renderRepo(),
 });
 panel.setFavorites(favorites);
 panel.setLayouts(layouts);
@@ -723,7 +779,15 @@ onReposChanged((raw) => {
   repos = parseRepos(raw);
   pinRootsChecked.clear();
   void refreshPins();
+  // A hand edit of primaryBranch changes every row's comparison.
+  worktreeStore.reload();
 }).catch((e) => console.warn('repos updates unavailable:', e));
+onGitChanged((root, metadata) => worktreeStore.handleGitChanged(root, metadata)).catch((e) =>
+  console.warn('git change events unavailable:', e),
+);
+onGitFetched((roots) => {
+  for (const root of roots) worktreeStore.handleGitChanged(root, true);
+}).catch((e) => console.warn('git fetch events unavailable:', e));
 onLayoutsChanged((raw) => {
   layouts = parseLayouts(raw);
   panel.setLayouts(layouts);
