@@ -1,3 +1,4 @@
+import { DEFAULT_ELEMENT_ORDER, ELEMENT_LABELS } from './dashboardSections';
 import type { Settings } from './settings';
 
 export type FieldKind = 'toggle' | 'number' | 'slider' | 'text' | 'list' | 'select';
@@ -23,6 +24,8 @@ export interface SettingsField {
   installedFrom?: 'profiles' | 'editors';
   hint?: string;
   applies: AppliesWhen;
+  /** A subheading shown above the first field of a run of fields sharing it. */
+  group?: string;
   /** Shown only while the field at `path` holds `value`; for settings that do nothing otherwise. */
   shownWhen?: { path: string[]; value: unknown };
 }
@@ -125,7 +128,24 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     fields: [
       { path: ['dashboard', 'visibleOnStart'], label: 'Show the dashboard at launch', kind: 'toggle', applies: 'nextLaunch' },
       { path: ['dashboard', 'peekOnWaiting'], label: 'Peek when a terminal is waiting', kind: 'toggle', applies: 'live' },
-      { path: ['containers', 'enabled'], label: 'Show the Containers section', kind: 'toggle', applies: 'live' },
+      {
+        path: ['dashboard', 'side'],
+        label: 'Dashboard side',
+        kind: 'select',
+        options: [
+          { value: 'right', label: 'Right' },
+          { value: 'left', label: 'Left' },
+        ],
+        applies: 'live',
+      },
+      ...DEFAULT_ELEMENT_ORDER.map((id): SettingsField => ({
+        path: ['dashboard', 'sections', id],
+        label: ELEMENT_LABELS[id],
+        kind: 'toggle',
+        applies: 'live',
+        group: 'Show on the dashboard',
+        ...(id === 'containers' ? { hint: 'Also offers Containers in the pane kind menu' } : {}),
+      })),
     ],
   },
   {

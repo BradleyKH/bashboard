@@ -103,7 +103,12 @@ try {
 } catch (err) {
   showToast(`Could not start the background animation: ${String(err)}`);
 }
+// The dashboard panel is built later; it is told the current value once it exists.
+let windowShown = true;
+let windowShownSink: ((shown: boolean) => void) | undefined;
 bindWindowVisibility((visible) => {
+  windowShown = visible;
+  windowShownSink?.(visible);
   backdrop?.setVisible(visible);
   void gitFetchVisible(visible).catch(() => {});
 });
@@ -502,7 +507,7 @@ function confirmReplace(paneId: string, kind: PaneKind): Promise<boolean> {
 
 const containers = new ContainersStore();
 setKindMenuFilter(
-  (kind) => kind !== 'containers' || (containers.available && currentSettings.containers.enabled),
+  (kind) => kind !== 'containers' || (containers.available && currentSettings.dashboard.sections.containers),
 );
 
 /** Start or stop every container of the row's member groups that is not already in that state, per engine. */
@@ -537,6 +542,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onSwitchTab: (tabId) => workspace.switchTab(tabId),
   onSectionsChange: () => saver.schedule(),
   onWidthChange: () => saver.schedule(),
+  onOrderChange: () => saver.schedule(),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onStart: (row) => actOnContainerRow(row, 'start'),
   onStop: (row) => actOnContainerRow(row, 'stop'),
@@ -730,8 +736,10 @@ const showSetup = async (): Promise<void> => {
 };
 // Opened before the first pane mounts so the pane fits the narrowed area and keeps focus.
 panel.setContainersStore(containers);
-panel.setContainersEnabled(payload.settings.containers.enabled);
 void containers.start();
+panel.applyDashboardSettings(payload.settings.dashboard);
+panel.setWindowShown(windowShown);
+windowShownSink = (shown) => panel.setWindowShown(shown);
 panel.setOpen(payload.settings.dashboard.visibleOnStart);
 
 const workspace = new Workspace(document.getElementById('panes') as HTMLElement, payload, {
@@ -787,6 +795,7 @@ const saver = new DebouncedSaver(
     ...workspace.snapshot(),
     collapsedSections: panel.collapsedSections(),
     dashboardWidth: panel.width(),
+    dashboardSectionOrder: panel.sectionOrder(),
     textZoom: textZoomSnapshot(),
   }),
   workspaceSave,
@@ -855,6 +864,7 @@ try {
   // Collapsed sections, the panel width, and text zoom apply even when restoring panes is switched off.
   if (saved) panel.setCollapsedSections(saved.collapsedSections);
   if (saved?.dashboardWidth !== undefined) panel.setWidth(saved.dashboardWidth);
+  if (saved?.dashboardSectionOrder) panel.setSectionOrder(saved.dashboardSectionOrder);
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, { resumeClaude: payload.settings.restore.resumeClaude });
@@ -876,6 +886,6 @@ onSettingsChanged((p) => {
   if (help.isOpen()) help.update(p.settings.keybindings);
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
-  panel.setContainersEnabled(p.settings.containers.enabled);
+  panel.applyDashboardSettings(p.settings.dashboard);
   void refreshProfiles().then(() => settingsDialog.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

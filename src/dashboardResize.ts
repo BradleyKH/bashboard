@@ -1,4 +1,6 @@
-// The dashboard's drag-to-resize left edge (docs/design.md section 4.6).
+// The dashboard's drag-to-resize inner edge, the one facing the panes (docs/design.md section 4.6).
+
+export type DashboardSide = 'left' | 'right';
 
 export const DEFAULT_DASHBOARD_WIDTH = 300;
 /** Wide enough that the Repo section's Terminal, Files, Git, Search, and Editor buttons stay on one row. */
@@ -12,6 +14,21 @@ export function clampDashboardWidth(width: number, windowWidth: number): number 
   return Math.min(max, Math.max(MIN_DASHBOARD_WIDTH, Math.round(width)));
 }
 
+/**
+ * The width after the pointer moves from `startX` to `x`: moving away from the docked edge
+ * (rightward when docked left, leftward when docked right) widens the panel.
+ */
+export function draggedWidth(
+  startWidth: number,
+  startX: number,
+  x: number,
+  side: DashboardSide,
+  windowWidth: number,
+): number {
+  const delta = side === 'left' ? x - startX : startX - x;
+  return clampDashboardWidth(startWidth + delta, windowWidth);
+}
+
 export function applyDashboardWidth(width: number): void {
   document.documentElement.style.setProperty('--dashboard-width', `${width}px`);
 }
@@ -20,7 +37,11 @@ export function applyDashboardWidth(width: number): void {
  * Builds the handle. Dragging it sets the width live; `onCommit` fires once the drag ends with
  * the final width, so a save happens once per drag rather than per move.
  */
-export function dashboardResizeHandle(getWidth: () => number, onCommit: (width: number) => void): HTMLElement {
+export function dashboardResizeHandle(
+  getWidth: () => number,
+  onCommit: (width: number) => void,
+  getSide: () => DashboardSide = () => 'right',
+): HTMLElement {
   const handle = document.createElement('div');
   handle.className = 'dashboard-resize';
   handle.title = 'Drag to resize the dashboard';
@@ -29,12 +50,13 @@ export function dashboardResizeHandle(getWidth: () => number, onCommit: (width: 
     down.preventDefault();
     const startX = down.clientX;
     const startWidth = getWidth();
+    const side = getSide();
     let width = startWidth;
     handle.setPointerCapture(down.pointerId);
     document.body.classList.add('dashboard-resizing');
     const onMove = (move: PointerEvent) => {
-      // The panel is anchored right, so dragging left widens it.
-      width = clampDashboardWidth(startWidth + startX - move.clientX, window.innerWidth);
+      // The panel is anchored to its docked side, so the width follows the inner edge.
+      width = draggedWidth(startWidth, startX, move.clientX, side, window.innerWidth);
       applyDashboardWidth(width);
     };
     const onEnd = () => {

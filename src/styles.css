@@ -309,13 +309,19 @@ body.resizing.column {
 }
 
 /* Dashboard (docs/design.md section 4.6): above the panes, below toasts. `--dashboard-width`
-   is set from JS as the user drags the panel's left edge. */
+   is set from JS as the user drags the panel's inner edge. The base rules dock it right;
+   `body.dashboard-left` mirrors them. */
 :root {
   --dashboard-width: 300px;
 }
 
 body.dashboard-open #panes {
   right: calc(var(--dashboard-width) + 16px);
+}
+
+body.dashboard-left.dashboard-open #panes {
+  left: calc(var(--dashboard-width) + 16px);
+  right: 8px;
 }
 
 #dashboard {
@@ -339,6 +345,11 @@ body.dashboard-open #panes {
   scrollbar-width: thin;
 }
 
+body.dashboard-left #dashboard {
+  left: 8px;
+  right: auto;
+}
+
 body.dashboard-open #dashboard,
 body.dashboard-peek #dashboard {
   display: flex;
@@ -350,9 +361,20 @@ body.dashboard-peek:not(.dashboard-open) #dashboard {
   box-shadow: 0 0 0 1px rgba(79, 179, 200, 0.5), 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
+body.dashboard-left.dashboard-peek:not(.dashboard-open) #dashboard {
+  animation-name: dashboard-peek-in-left;
+}
+
 @keyframes dashboard-peek-in {
   from {
     transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@keyframes dashboard-peek-in-left {
+  from {
+    transform: translateX(-24px);
     opacity: 0;
   }
 }
@@ -365,7 +387,7 @@ body.dashboard-peek:not(.dashboard-open) #dashboard {
   margin: -6px -4px -12px 0;
 }
 
-/* Straddles the panel's left edge; fixed so the panel's scroll never carries it away. */
+/* Straddles the panel's inner edge; fixed so the panel's scroll never carries it away. */
 .dashboard-resize {
   position: fixed;
   top: 8px;
@@ -374,6 +396,11 @@ body.dashboard-peek:not(.dashboard-open) #dashboard {
   width: 8px;
   z-index: 3;
   cursor: ew-resize;
+}
+
+body.dashboard-left .dashboard-resize {
+  left: calc(var(--dashboard-width) + 8px - 4px);
+  right: auto;
 }
 
 .dashboard-resize:hover,
@@ -397,8 +424,12 @@ body.dashboard-resizing {
   gap: 6px;
 }
 
-#dashboard .dashboard-bottom-start {
+#dashboard .dashboard-elements {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-top: auto;
+  position: relative;
 }
 
 #dashboard .hooks-install,
@@ -411,13 +442,13 @@ body.dashboard-resizing {
   display: none;
 }
 
-/* Repo, the top section, has no rule; neither does whichever section is first while it is hidden. */
-#dashboard .dashboard-section:not(.repo-section) {
+/* Repo, the top section, has no rule; neither does whichever element is first while it is hidden. */
+#dashboard .dashboard-elements > [data-element] {
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-#dashboard .repo-section[hidden] + .dashboard-section {
+#dashboard .repo-section[hidden] + .dashboard-elements > [data-element]:not([hidden]):not([data-element]:not([hidden]) ~ *) {
   padding-top: 0;
   border-top: none;
 }
@@ -1588,6 +1619,14 @@ body.dashboard-resizing {
   grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
   gap: 8px 16px;
   align-items: start;
+}
+
+.settings-dialog-group {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  color: #7f8c94;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .settings-dialog-label {

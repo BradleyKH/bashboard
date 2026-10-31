@@ -28,7 +28,13 @@ body.dashboard-peek #tab-strip {
   right: calc(var(--dashboard-width) + 16px);
 }
 
-/* Overrides only `top`; the dashboard's `right` rule keeps working. */
+body.dashboard-left.dashboard-open #tab-strip,
+body.dashboard-left.dashboard-peek #tab-strip {
+  left: calc(var(--dashboard-width) + 16px);
+  right: 8px;
+}
+
+/* Overrides only `top`; the dashboard's `left` and `right` rules keep working. */
 body.has-tabs #panes {
   top: 36px;
 }

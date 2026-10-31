@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { DashboardSide } from './dashboardResize';
+import { ELEMENT_SHOWN_BY_DEFAULT, type DashboardElement } from './dashboardSections';
 import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
 
 export interface Settings {
@@ -21,10 +23,14 @@ export interface Settings {
   scrollback: number;
   /** Seconds a command runs before its finish is marked done; 0 turns command marks off. */
   terminal: { doneAfterSeconds: number };
-  dashboard: { visibleOnStart: boolean; peekOnWaiting: boolean };
+  dashboard: {
+    visibleOnStart: boolean;
+    peekOnWaiting: boolean;
+    side: DashboardSide;
+    sections: Record<DashboardElement, boolean>;
+  };
   restore: { enabled: boolean; resumeClaude: boolean };
   editor: { preferred: string; command: string };
-  containers: { enabled: boolean };
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
   git: { autoFetchMinutes: number };
   /** The zoom a new pane of each kind starts at, from 0.5 to 3; its zoom buttons save it. */
@@ -51,10 +57,9 @@ export const DEFAULT_SETTINGS: Settings = {
   backdrop: { animate: false, maxFps: 20, speed: 10, capacity: 1000, mutationRate: 0.2, lineageThreads: false, orbit: true, zoom: 2, waitingPulse: false },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30 },
-  dashboard: { visibleOnStart: true, peekOnWaiting: true },
+  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT } },
   restore: { enabled: true, resumeClaude: true },
   editor: { preferred: 'default', command: '' },
-  containers: { enabled: true },
   git: { autoFetchMinutes: 5 },
   keybindings: DEFAULT_KEYBINDINGS,
 };

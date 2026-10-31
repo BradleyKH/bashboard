@@ -96,7 +96,19 @@ export class SettingsDialog {
       h.textContent = section.title;
       const rows = document.createElement('div');
       rows.className = 'settings-dialog-rows';
-      for (const field of section.fields) rows.append(...this.row(field));
+      let group: string | undefined;
+      for (const field of section.fields) {
+        if (field.group !== group) {
+          group = field.group;
+          if (group) {
+            const sub = document.createElement('div');
+            sub.className = 'settings-dialog-group';
+            sub.textContent = group;
+            rows.append(sub);
+          }
+        }
+        rows.append(...this.row(field));
+      }
       el.append(h, rows);
       body.append(el);
     }

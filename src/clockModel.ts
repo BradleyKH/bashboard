@@ -1,0 +1,31 @@
+/** Six bits of `n`, most significant first (index 0 is the top dot). */
+export function sixBits(n: number): boolean[] {
+  return Array.from({ length: 6 }, (_, i) => ((n >> (5 - i)) & 1) === 1)
+}
+
+function hour12(d: Date): number {
+  return d.getHours() % 12 || 12
+}
+
+function minutesText(d: Date): string {
+  return String(d.getMinutes()).padStart(2, '0')
+}
+
+/** `h:mm` in 12-hour time with no am/pm and no leading zero on the hour. */
+export function clockText(d: Date): string {
+  return `${hour12(d)}:${minutesText(d)}`
+}
+
+/** The clock's accessible name: the time with AM or PM. */
+export function clockLabel(d: Date): string {
+  return `${clockText(d)} ${d.getHours() < 12 ? 'AM' : 'PM'}`
+}
+
+/** Hours (24-hour), minutes, and seconds as six-bit columns. */
+export function clockBits(d: Date): { hours: boolean[]; minutes: boolean[]; seconds: boolean[] } {
+  return {
+    hours: sixBits(d.getHours()),
+    minutes: sixBits(d.getMinutes()),
+    seconds: sixBits(d.getSeconds()),
+  }
+}

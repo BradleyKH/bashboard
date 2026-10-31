@@ -1,4 +1,6 @@
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
+import { DashboardClock } from './dashboardClock';
+import { attachElementDrag } from './dashboardElementDrag';
 import { externalSessions, groupCardsByTab, paneCards } from './dashboardModel';
 import type { PaneCardInput } from './dashboardModel';
 import {
@@ -7,9 +9,10 @@ import {
   dashboardResizeHandle,
   DEFAULT_DASHBOARD_WIDTH,
 } from './dashboardResize';
+import type { DashboardSide } from './dashboardResize';
 import { DashboardNav } from './dashboardNav';
-import { toggleSection } from './dashboardSections';
-import type { DashboardSection } from './dashboardSections';
+import { DEFAULT_ELEMENT_ORDER, ELEMENT_SHOWN_BY_DEFAULT, moveSection, toggleSection } from './dashboardSections';
+import type { DashboardElement, DashboardSection } from './dashboardSections';
 import { recentFolders, samePath } from './favorites';
 import type { Favorite } from './favorites';
 import { ContainersSection } from './containersSection';
@@ -25,6 +28,7 @@ import type { PinRowCallbacks } from './pinRow';
 import { RepoSection } from './repoSection';
 import type { RepoSectionState } from './repoSection';
 import type { Session } from './sessions';
+import type { Settings } from './settings';
 import { renderSessionRow } from './sessionRow';
 import { renderPaneCard } from './paneCard';
 import { renderPaneGroup } from './paneGroup';
@@ -42,8 +46,10 @@ export interface DashboardCallbacks
   onSwitchTab?: (tabId: string) => void;
   /** The user collapsed or expanded a section; the argument is every collapsed section. */
   onSectionsChange?: (collapsed: DashboardSection[]) => void;
-  /** The user finished dragging the panel's left edge. */
+  /** The user finished dragging the panel's inner edge. */
   onWidthChange?: (width: number) => void;
+  /** The user dragged an element to a new place; the argument is the whole element order. */
+  onOrderChange?: (order: DashboardElement[]) => void;
   /** Open menu on a folder row or the Repo section's buttons. */
   onOpenIn?: OpenInHandler;
   onDeleteWorktree?: WorktreeCallbacks['onDeleteWorktree'];
@@ -63,9 +69,20 @@ export interface DashboardCallbacks
 
 const AGE_REFRESH_MS = 15_000;
 
-/** The right-edge dashboard's sections (docs/design.md section 4.6). */
+/**
+ * The dashboard, docked on the left or right side of the window: Repo at the top, the footer at
+ * the bottom, and between them the elements in the user's order, each shown or hidden by its
+ * setting (docs/design.md section 4.6).
+ */
 export class DashboardPanel {
   private open = false;
+  private order: DashboardElement[] = [...DEFAULT_ELEMENT_ORDER];
+  private shown: Record<DashboardElement, boolean> = { ...ELEMENT_SHOWN_BY_DEFAULT };
+  private side: DashboardSide = 'right';
+  private windowShown = true;
+  private readonly elements = new Map<DashboardElement, HTMLElement>();
+  private readonly elementList: HTMLElement;
+  private readonly clock = new DashboardClock();
   private panes: PaneCardInput[] = [];
   private collapsed: DashboardSection[] = [];
   /** The width the user chose; what shows is clamped to the current window. */
@@ -96,13 +113,12 @@ export class DashboardPanel {
   private readonly layoutsSection: LayoutsSection;
   private readonly containersSection: ContainersSection;
   private containersStore: ContainersStore | null = null;
-  private containersEnabled = true;
   private unsubscribeContainers: (() => void) | null = null;
   private readonly terminalList: HTMLElement;
   private readonly sessionList: HTMLElement;
 
   constructor(
-    private readonly root: HTMLElement,
+    root: HTMLElement,
     private readonly callbacks: DashboardCallbacks,
   ) {
     this.repoSection = new RepoSection({
@@ -145,19 +161,21 @@ export class DashboardPanel {
         this.preferredWidth = width;
         this.callbacks.onWidthChange?.(width);
       },
+      () => this.side,
     );
     window.addEventListener('resize', () => this.applyWidth());
     this.applyWidth();
     const top = document.createElement('div');
     top.className = 'dashboard-top';
     top.append(hideButton);
-    // Repo follows the focused pane and stays at the top; everything from here down sits at the
-    // bottom, so a focus change that resizes Repo never shifts the rest.
-    this.favoritesSection.el.classList.add('dashboard-bottom-start');
-    root.append(resizeHandle, top, this.repoSection.el, this.favoritesSection.el, this.layoutsSection.el);
+    // Repo follows the focused pane and stays at the top; the elements sit at the bottom, so a
+    // focus change that resizes Repo never shifts them.
+    this.elementList = document.createElement('div');
+    this.elementList.className = 'dashboard-elements';
+    root.append(resizeHandle, top, this.repoSection.el, this.elementList);
     this.register('repo', this.repoSection.el, this.repoSection.head);
-    this.register('favorites', this.favoritesSection.el, this.favoritesSection.head);
-    this.register('layouts', this.layoutsSection.el, this.layoutsSection.head);
+    this.addSection('favorites', this.favoritesSection.el, this.favoritesSection.head);
+    this.addSection('layouts', this.layoutsSection.el, this.layoutsSection.head);
     this.terminalList = this.section('panes', 'Panes');
     this.containersSection = new ContainersSection({
       onOpenContainers: (keys) => this.callbacks.onOpenContainers?.(keys),
@@ -165,9 +183,9 @@ export class DashboardPanel {
       onStop: (row) => this.callbacks.onStop?.(row),
     });
     this.containersSection.setVisible(false);
-    root.append(this.containersSection.el);
-    this.register('containers', this.containersSection.el, this.containersSection.head);
+    this.addSection('containers', this.containersSection.el, this.containersSection.head);
     this.sessionList = this.section('external', 'External sessions');
+    this.addElement('clock', this.clock.el, this.clock.el);
     this.installButton = document.createElement('button');
     this.installButton.type = 'button';
     this.installButton.className = 'hooks-install';
@@ -192,6 +210,7 @@ export class DashboardPanel {
       onLeave: () => this.leave(),
       onKey: (e) => this.callbacks.onKey?.(e) ?? false,
     });
+    this.layoutElements();
     root.addEventListener('focusout', () => {
       if (!this.held) return;
       // A rebuild that replaced the focused row has already refocused its successor by the time
@@ -215,16 +234,14 @@ export class DashboardPanel {
     });
   }
 
-  /** Follows the store: the section lists its snapshot and shows while an engine is available and the setting allows it. */
+  /**
+   * Follows the store: the section lists its snapshot and shows while an engine is available. Its
+   * setting, like every element's, decides whether it is in the panel at all.
+   */
   setContainersStore(store: ContainersStore): void {
     this.unsubscribeContainers?.();
     this.containersStore = store;
     this.unsubscribeContainers = store.subscribe(() => this.renderContainers());
-    this.renderContainers();
-  }
-
-  setContainersEnabled(enabled: boolean): void {
-    this.containersEnabled = enabled;
     this.renderContainers();
   }
 
@@ -233,7 +250,61 @@ export class DashboardPanel {
     if (!store) return;
     const focus = this.nav.capture();
     this.containersSection.update(store.current());
-    this.containersSection.setVisible(store.available && this.containersEnabled);
+    this.containersSection.setVisible(store.available);
+    this.nav.restore(focus);
+  }
+
+  /** Applies `dashboard.side` and `dashboard.sections` (docs/design.md section 4.6). */
+  applyDashboardSettings(d: Settings['dashboard']): void {
+    this.shown = { ...d.sections };
+    this.setSide(d.side);
+    this.layoutElements();
+    this.syncTimers();
+  }
+
+  /** Applies a saved element order without firing `onOrderChange`. */
+  setSectionOrder(order: DashboardElement[]): void {
+    this.order = [...order];
+    this.layoutElements();
+  }
+
+  sectionOrder(): DashboardElement[] {
+    return [...this.order];
+  }
+
+  /** Whether the window is shown (not hidden or minimized); the clock ticks only while it is. */
+  setWindowShown(shown: boolean): void {
+    this.windowShown = shown;
+    this.syncTimers();
+  }
+
+  private setSide(side: DashboardSide): void {
+    if (side === this.side) return;
+    // A peek animates in from its side, so it ends rather than jumping across the window.
+    if (this.peeking) {
+      if (this.nav.hasFocus()) this.leave();
+      else this.endPeek();
+    }
+    this.side = side;
+    document.body.classList.toggle('dashboard-left', side === 'left');
+  }
+
+  /** Starts or stops every timer that runs only while its element is on screen. */
+  private syncTimers(): void {
+    const onScreen = this.isShown() && this.windowShown;
+    this.clock.setRunning(this.shown.clock && onScreen);
+  }
+
+  /**
+   * Puts the shown elements in the panel in order and detaches the rest; a disabled element keeps
+   * its place in `order`, so turning it back on returns it there.
+   */
+  private layoutElements(): void {
+    const next = this.order.filter((id) => this.shown[id]).map((id) => this.elements.get(id)!);
+    const current = [...this.elementList.children];
+    if (next.length === current.length && next.every((el, i) => el === current[i])) return;
+    const focus = this.nav.capture();
+    this.elementList.replaceChildren(...next);
     this.nav.restore(focus);
   }
 
@@ -247,6 +318,7 @@ export class DashboardPanel {
   }
 
   private notifyShown(): void {
+    this.syncTimers();
     const shown = this.isShown();
     if (shown === this.wasShown) return;
     this.wasShown = shown;
@@ -411,7 +483,7 @@ export class DashboardPanel {
     });
   }
 
-  private section(id: DashboardSection, heading: string): HTMLElement {
+  private section(id: DashboardSection & DashboardElement, heading: string): HTMLElement {
     const section = document.createElement('section');
     section.className = 'dashboard-section';
     const h = document.createElement('h2');
@@ -419,9 +491,26 @@ export class DashboardPanel {
     const list = document.createElement('div');
     list.className = 'dashboard-list';
     section.append(h, list);
-    this.root.append(section);
-    this.register(id, section, h);
+    this.addSection(id, section, h);
     return list;
+  }
+
+  private addSection(id: DashboardSection & DashboardElement, section: HTMLElement, header: HTMLElement): void {
+    this.register(id, section, header);
+    this.addElement(id, section, header);
+  }
+
+  /** `handle` drags the element: a section's header, or the whole clock. */
+  private addElement(id: DashboardElement, el: HTMLElement, handle: HTMLElement): void {
+    el.dataset.element = id;
+    this.elements.set(id, el);
+    attachElementDrag(handle, this.elementList, id, (before) => {
+      const next = moveSection(this.order, id, before);
+      if (next.every((e, i) => e === this.order[i])) return;
+      this.order = next;
+      this.layoutElements();
+      this.callbacks.onOrderChange?.(this.sectionOrder());
+    });
   }
 
   private render(): void {

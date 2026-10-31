@@ -66,15 +66,22 @@ export class DashboardNav {
     return { el: active, key: this.keyOf(el), index: this.items().indexOf(el) };
   }
 
-  /** Refocuses the same row after a rebuild replaced the element that had focus. */
+  /**
+   * Refocuses the same row after a rebuild replaced the element that had focus, or after a
+   * relayout moved it, which drops focus to the body.
+   */
   restore(snapshot: NavSnapshot | null): void {
-    if (!snapshot || snapshot.el.isConnected) return;
+    if (!snapshot) return;
+    if (snapshot.el.isConnected) {
+      if (document.activeElement === document.body) snapshot.el.focus();
+      return;
+    }
     const items = this.items();
     const at = restoreIndex(items.map((el) => this.keyOf(el)), snapshot.key, snapshot.index);
     if (at >= 0) this.focus(items[at]);
   }
 
-  /** The rows on screen, top to bottom; rows in collapsed or hidden sections are left out. */
+  /** The rows on screen, top to bottom; rows of collapsed, hidden, and disabled sections are left out. */
   private items(): HTMLElement[] {
     return [...this.root.querySelectorAll<HTMLElement>(ITEM_SELECTOR)].filter(
       (el) => el.getClientRects().length > 0,

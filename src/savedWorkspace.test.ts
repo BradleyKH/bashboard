@@ -460,6 +460,44 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace({ version: 3, tabs: [], activeTab: 0 })?.collapsedSections).toEqual([]);
   });
 
+  it('keeps a saved element order and cleans it', () => {
+    const order = ['clock', 'external', 'favorites', 'layouts', 'panes', 'containers'];
+    expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);
+    const messy = ['repo', 'panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock'];
+    expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: messy })?.dashboardSectionOrder).toEqual([
+      'panes',
+      'favorites',
+      'layouts',
+      'containers',
+      'external',
+      'clock',
+    ]);
+  });
+
+  it('inserts a missing element at its default position', () => {
+    const raw = { ...v3([]), dashboardSectionOrder: ['clock', 'favorites', 'layouts', 'containers', 'external'] };
+    expect(parseSavedWorkspace(raw)?.dashboardSectionOrder).toEqual([
+      'clock',
+      'favorites',
+      'layouts',
+      'panes',
+      'containers',
+      'external',
+    ]);
+  });
+
+  it('leaves the element order absent when the file has no field, and defaults a non-array', () => {
+    expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardSectionOrder');
+    expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: 'panes' })?.dashboardSectionOrder).toEqual([
+      'favorites',
+      'layouts',
+      'panes',
+      'containers',
+      'external',
+      'clock',
+    ]);
+  });
+
   it('loads a version 1 file as one unnamed tab', () => {
     const v1 = { version: 1, terminals: [legacy('a'), legacy('b', true)], layout: pane('a'), focused: 'a' };
     expect(parseSavedWorkspace(v1)).toEqual({

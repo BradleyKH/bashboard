@@ -1,4 +1,9 @@
-import { type DashboardSection, parseCollapsedSections } from './dashboardSections';
+import {
+  type DashboardElement,
+  type DashboardSection,
+  parseCollapsedSections,
+  parseSectionOrder,
+} from './dashboardSections';
 import { type Layout, close, leaves } from './layout';
 import type { PaneKind } from './paneKinds';
 import { parseProfileId } from './profiles';
@@ -55,6 +60,11 @@ export interface SavedWorkspace {
   collapsedSections: DashboardSection[];
   /** The dashboard's width in px as the user last dragged it; absent means the default. */
   dashboardWidth?: number;
+  /**
+   * The dashboard's element order between Repo and the footer as last dragged; absent means the
+   * default order.
+   */
+  dashboardSectionOrder?: DashboardElement[];
   /** The zoom new Files and Git panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
 }
@@ -222,6 +232,9 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   const saved: SavedWorkspace = { version: 3, tabs, activeTab, collapsedSections };
   if (typeof raw.dashboardWidth === 'number' && Number.isFinite(raw.dashboardWidth) && raw.dashboardWidth > 0) {
     saved.dashboardWidth = raw.dashboardWidth;
+  }
+  if (raw.dashboardSectionOrder !== undefined) {
+    saved.dashboardSectionOrder = parseSectionOrder(raw.dashboardSectionOrder);
   }
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;

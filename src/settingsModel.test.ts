@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
 import { DEFAULT_SETTINGS } from './settings';
 import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
 
@@ -26,6 +27,21 @@ describe('SETTINGS_SECTIONS', () => {
       const raw = f.kind === 'toggle' ? (d as boolean) : f.kind === 'list' ? (d as string[]).join('\n') : String(d);
       expect(parseInput(f, raw), f.path.join('.')).toEqual({ ok: true, value: d });
     }
+  });
+});
+
+describe('Dashboard section', () => {
+  it('accepts left and right for the side and rejects anything else', () => {
+    const side = byPath('dashboard.side');
+    expect(parseInput(side, 'left')).toEqual({ ok: true, value: 'left' });
+    expect(parseInput(side, 'right')).toEqual({ ok: true, value: 'right' });
+    expect(parseInput(side, 'top').ok).toBe(false);
+  });
+
+  it('has one grouped toggle per element, in element order', () => {
+    const grouped = fields.filter((f) => f.group === 'Show on the dashboard');
+    expect(grouped.map((f) => f.path.join('.'))).toEqual(DEFAULT_ELEMENT_ORDER.map((id) => `dashboard.sections.${id}`));
+    for (const f of grouped) expect(f.kind).toBe('toggle');
   });
 });
 

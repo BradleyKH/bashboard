@@ -955,22 +955,50 @@ choice, so actions such as split, find, and close apply to that pane.
 
 ### 4.6 Dashboard panel
 
-A collapsible panel on the right edge, open on start by default, toggled with Ctrl+Shift+S, hidden
-by a × button at its top right (which also ends a peek), and peeking open briefly while hidden when a terminal starts waiting.
-Dragging its left edge resizes it, from 280 px (enough for the Repo section's row of buttons on
-one line) up to 60% of the window, and the width is saved with the workspace (section 7). Its sections, top to bottom,
-are Repo, Favorites, Layouts, Panes, Containers, and External sessions. Repo, which follows the
-focused pane, sits at the top; the rest of the sections and the footer sit at the bottom, so a
-focus change never shifts them. Clicking a section's header
-collapses or expands it, and which sections are collapsed is saved with the workspace
-(section 7). A thin rule separates each section from the one above it.
+A collapsible panel docked on the side `dashboard.side` names (`right` by default, or `left`;
+an unknown value falls back to `right` with a warning), open on start by default, toggled with
+Ctrl+Shift+S, hidden by a × button at its top right on either side (which also ends a peek),
+and peeking open briefly while hidden when a terminal starts waiting. Open, it narrows the panes
+from its side. Dragging its inner edge (its left edge when docked right, its right edge when
+docked left) resizes it, from 280 px (enough for the Repo section's row of buttons on
+one line) up to 60% of the window, and the width is saved with the workspace (section 7); it is
+the same width on either side. Its contents, top to bottom, are Repo, the elements, and the
+footer. Repo, which follows the focused pane, sits at the top; the elements and the footer sit
+at the bottom, so a focus change never shifts them.
+
+**Elements.** The elements between Repo and the footer are Favorites, Layouts, Panes,
+Containers, External sessions, and Clock, in that default order. Each has a
+`dashboard.sections.*` toggle (section 8), on by default except Clock, set from the settings
+dialog's Dashboard section. A disabled element is gone from the panel, not collapsed, and its
+rows leave the keyboard rows below. Toggles and `dashboard.side` apply live, and switching
+sides while a peek is showing ends the peek.
+
+Clicking a section's header collapses or expands it, and which sections are collapsed is saved
+with the workspace (section 7). A thin rule separates each element from the one above it.
+
+**Order.** The elements reorder by drag: a section by its header, the clock by grabbing
+anywhere on it, with the same movement threshold as favorite rows, so a click on a header still
+collapses or expands it. While dragging, a line in the accent color shows where the element
+will land; Repo and the footer offer no drop position. Dragging is mouse only. The order is
+saved with the workspace as `dashboardSectionOrder` (section 7), and a disabled element keeps
+its place in it, so enabling it returns it where it was.
+
+**Clock.** One line with no header, no collapse, and no keyboard row. On the left is a binary
+grid of three columns of six dots: hours (24-hour), minutes, and seconds, most significant bit
+at the top, lit dots in the accent color and unlit dots muted. On the right is the time as
+`h:mm` in 12-hour time with no am/pm and no leading zero on the hour, in white with tabular
+numerals. The line is at most 60 px tall and shrinks with the panel's width through a container
+query unit on the clock element, so the grid and time stay on one line down to the 280 px
+minimum. Its accessible name is the full time with AM or PM. It updates on each second
+boundary only while the panel is on screen and the window is shown, catching up at once on
+show, and no timer runs while it is disabled.
 
 **Keyboard.** F6 moves focus into the panel, onto the row focused there last, else the focused
 pane's card, else the first row; F6 again, or Escape, returns focus to the focused pane. While the
 panel is hidden, F6 shows it as a peek that lasts until focus leaves it, instead of timing out.
 The rows are every section header, the Repo section's buttons, every favorite, recent folder,
 layout, pin, container, tab group header, pane card, and external session, and the footer's
-buttons, top to bottom, skipping collapsed sections:
+buttons, top to bottom, skipping collapsed and disabled sections:
 
 - Up and Down move one row, stopping at the ends; Home and End go to the first and last.
 - Enter or Space acts as a click on the row, and Ctrl+Enter as a Ctrl+click.
@@ -1112,7 +1140,8 @@ Each card shows:
 
 **Containers.** One row per container group (4.16) with its state dot, and an Open Containers
 button in the header. Shown while a container engine is available (3.10) and
-`containers.enabled` is on.
+`dashboard.sections.containers` is on. The same setting decides whether the kind menu (4.11)
+offers a Containers pane.
 
 **External sessions.** Claude Code sessions running outside this app (Windows Terminal, VS
 Code), sorted waiting, then busy, then idle, then by most recent change. Clicking a row shows
@@ -1124,7 +1153,8 @@ while Claude Code is detected and the hooks are not installed (3.3). Keyboard sh
 F1. Settings opens the settings dialog, also bound to Ctrl+,.
 
 The settings dialog edits every user-facing setting, in the sections
-Appearance, Backdrop, Terminal, Editor, Dashboard, Restore, and Keyboard. Keyboard holds one
+Appearance, Backdrop, Terminal, Editor, Dashboard, Restore, and Keyboard. Dashboard holds the
+side choice, Left or Right, and a checkbox per element under "Show on the dashboard". Keyboard holds one
 button, Edit keyboard shortcuts, which closes the dialog and opens the F1 guide (4.5). Terminal includes a Default shell select listing the available profiles. Editor
 selects the preferred editor from those found (3.12), plus a custom command field. A Run setup
 button reopens the setup wizard (4.17). Each change is written to settings.json
@@ -1140,7 +1170,7 @@ Open settings.json button in the footer opens the file in the default editor, wi
 "Keyboard shortcuts are changed in the shortcut guide (F1); keys that type text are added to the
 "keybindings" list in settings.json." Escape or a click outside the dialog closes it.
 
-A peek overlays the panes without narrowing them. It ends after a few seconds, but stays
+A peek overlays the panes from the panel's side without narrowing them. It ends after a few seconds, but stays
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends
 it too.
 
@@ -1305,7 +1335,8 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   tree, same folder. A pane with no folder passes on the Repo section's repo (4.6). Replacing a
   terminal with a running command or a live Claude session asks first, as closing it does, and
   so does replacing a scratch pad that is not empty. A terminal chosen from the menu runs the
-  default profile.
+  default profile. The menu lists Containers only while a container engine is available (3.10)
+  and `dashboard.sections.containers` is on.
 - **Opening.** Ctrl+Shift+N, E, G, and H (4.5), the Repo section, and the Open menu on dashboard
   rows (4.6) open a pane as a split of the focused pane, the way a favorite does: when there is
   no room, a toast says so and the pane opens collapsed. A Git pane for a repo that already has
@@ -1647,7 +1678,8 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
   still shows a grown colony, not the lone founding spore. It hot-reloads; turning it back on
   resumes from the still.
 - `setVisible(false)` on minimize, and when the window is fully covered (Tauri window events
-  plus the page's `visibilitychange`), so it costs nothing while out of sight.
+  plus the page's `visibilitychange`), so it costs nothing while out of sight. The dashboard
+  clock (4.6) pauses on the same signal.
 - The backdrop's renderer is created with `preserveDrawingBuffer: false` and alpha disabled; the
   terminals composite over it through normal CSS stacking, with no readback.
 
@@ -1740,6 +1772,9 @@ interface SavedTab {
 
 type DashboardSection = 'repo' | 'favorites' | 'layouts' | 'panes' | 'containers' | 'external';
 
+/** The elements between Repo and the footer, in default order (4.6). */
+type DashboardElement = 'favorites' | 'layouts' | 'panes' | 'containers' | 'external' | 'clock';
+
 /**
  * workspace.json (3.7), tabs in strip order. A version 2 file's tabs hold `terminals`, which
  * load as terminal panes. A version 1 file, which holds one tab's `terminals`, `layout`, and
@@ -1754,6 +1789,12 @@ interface SavedWorkspace {
   collapsedSections: DashboardSection[];
   /** Dashboard width in px as last dragged (4.6); absent means the 300 px default. */
   dashboardWidth?: number;
+  /**
+   * Dashboard element order as last dragged (4.6). Reading keeps known names once each, drops
+   * unknown names and `repo`, and inserts a missing element at its default position relative
+   * to its neighbors; absent means the default order.
+   */
+  dashboardSectionOrder?: DashboardElement[];
   /**
    * The zoom, from 0.5 to 3, that new Files and Git panes start at, as their zoom buttons last
    * left it (4.12, 4.13); absent, or a field out of range, means 1.
@@ -1870,13 +1911,27 @@ interface ShellProfile {
   // A shell command that runs this many seconds and finishes unseen marks its terminal done or
   // failed; 0 turns it off (4.8).
   "terminal": { "doneAfterSeconds": 30 },
-  "dashboard": { "visibleOnStart": true, "peekOnWaiting": true },
+  // side is right or left; an unknown value falls back to right. sections shows or hides each
+  // dashboard element (4.6); sections.containers also decides whether the kind menu offers a
+  // Containers pane. An older file's containers.enabled is still read when sections.containers
+  // is absent.
+  "dashboard": {
+    "visibleOnStart": true,
+    "peekOnWaiting": true,
+    "side": "right",
+    "sections": {
+      "favorites": true,
+      "layouts": true,
+      "panes": true,
+      "containers": true,
+      "external": true,
+      "clock": false
+    }
+  },
   "restore": { "enabled": true, "resumeClaude": true },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, or default (the file's default
   // app). A non-empty command replaces it, with {path} and {line} filled in (3.12).
   "editor": { "preferred": "default", "command": "" },
-  // false hides the Containers section; the Containers pane still opens on request (4.16).
-  "containers": { "enabled": true },
   // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
   "git": { "autoFetchMinutes": 5 },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
@@ -2003,7 +2058,9 @@ Each milestone ends with a usable app.
     keybinding editor in the F1 guide (per-argument rows, recording, moves with Undo, Reset and
     Reset all, `settings_keybindings_edit`) and the settings dialog's Keyboard section (4.5, 4.6).
     The expanded file preview (4.12), with its Expand preview button and the rules that bring the
-    list back.
+    list back. Dashboard elements (4.6): a `dashboard.sections.*` toggle for each, with
+    `dashboard.sections.containers` as the one Containers setting; drag to reorder, saved as
+    `dashboardSectionOrder`; `dashboard.side` docking the panel left or right; and the clock.
 
 ## 12. Risks
 

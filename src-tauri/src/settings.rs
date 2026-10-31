@@ -65,6 +65,24 @@ pub struct Backdrop {
 pub struct Dashboard {
     pub visible_on_start: bool,
     pub peek_on_waiting: bool,
+    /// One of `DASHBOARD_SIDES`.
+    pub side: String,
+    pub sections: DashboardSections,
+}
+
+/// Ids `dashboard.side` accepts (docs/design.md section 4.6).
+pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
+
+/// Which dashboard elements show; fields follow the panel's default element order.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardSections {
+    pub favorites: bool,
+    pub layouts: bool,
+    pub panes: bool,
+    pub containers: bool,
+    pub external: bool,
+    pub clock: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -72,12 +90,6 @@ pub struct Dashboard {
 pub struct Restore {
     pub enabled: bool,
     pub resume_claude: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Containers {
-    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -131,7 +143,6 @@ pub struct Settings {
     pub dashboard: Dashboard,
     pub restore: Restore,
     pub editor: Editor,
-    pub containers: Containers,
     pub git: GitSettings,
     pub keybindings: Vec<Keybinding>,
 }
@@ -240,10 +251,21 @@ impl Default for Settings {
             },
             scrollback: 10000,
             terminal: Terminal { done_after_seconds: 30 },
-            dashboard: Dashboard { visible_on_start: true, peek_on_waiting: true },
+            dashboard: Dashboard {
+                visible_on_start: true,
+                peek_on_waiting: true,
+                side: "right".into(),
+                sections: DashboardSections {
+                    favorites: true,
+                    layouts: true,
+                    panes: true,
+                    containers: true,
+                    external: true,
+                    clock: false,
+                },
+            },
             restore: Restore { enabled: true, resume_claude: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
-            containers: Containers { enabled: true },
             git: GitSettings { auto_fetch_minutes: 5 },
             keybindings: default_keybindings(),
         }
@@ -594,6 +616,13 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.terminal.done_after_seconds,
         ),
     };
+    // containers.enabled predates dashboard.sections.containers and still seeds it.
+    let containers_default = get(&root, &["containers", "enabled"])
+        .and_then(Value::as_bool)
+        .unwrap_or(d.dashboard.sections.containers);
+    let section = |w: &mut Vec<String>, name: &str, default: bool| {
+        pick(&root, &["dashboard", "sections", name], w, boolean, default)
+    };
     let dashboard = Dashboard {
         visible_on_start: pick(
             &root,
@@ -609,6 +638,21 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             boolean,
             d.dashboard.peek_on_waiting,
         ),
+        side: pick(
+            &root,
+            &["dashboard", "side"],
+            &mut w,
+            |v| v.as_str().filter(|s| DASHBOARD_SIDES.contains(s)).map(String::from),
+            d.dashboard.side,
+        ),
+        sections: DashboardSections {
+            favorites: section(&mut w, "favorites", d.dashboard.sections.favorites),
+            layouts: section(&mut w, "layouts", d.dashboard.sections.layouts),
+            panes: section(&mut w, "panes", d.dashboard.sections.panes),
+            containers: section(&mut w, "containers", containers_default),
+            external: section(&mut w, "external", d.dashboard.sections.external),
+            clock: section(&mut w, "clock", d.dashboard.sections.clock),
+        },
     };
     let restore = Restore {
         enabled: pick(&root, &["restore", "enabled"], &mut w, boolean, d.restore.enabled),
@@ -623,9 +667,6 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.editor.preferred,
         ),
         command: pick(&root, &["editor", "command"], &mut w, string, d.editor.command),
-    };
-    let containers = Containers {
-        enabled: pick(&root, &["containers", "enabled"], &mut w, boolean, d.containers.enabled),
     };
     let git = GitSettings {
         auto_fetch_minutes: pick(
@@ -649,7 +690,6 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             dashboard,
             restore,
             editor,
-            containers,
             git,
             keybindings,
         },
@@ -676,9 +716,10 @@ fn default_file_text() -> String {
   \"terminal\": {",
     )
     .replace(
-        "  \"containers\": {",
-        "  // false hides the Containers section; the Containers pane still opens on request (4.16).
-  \"containers\": {",
+        "  \"dashboard\": {",
+        "  // side is left or right. sections shows or hides each dashboard element; sections.containers
+  // also decides whether the kind menu offers a Containers pane (docs/design.md section 4.6).
+  \"dashboard\": {",
     )
     .replace(
         "  \"git\": {",
@@ -956,19 +997,80 @@ mod tests {
     }
 
     #[test]
-    fn containers_enabled_parses_and_invalid_value_falls_back() {
+    fn legacy_containers_enabled_seeds_the_containers_section() {
         let (s, w) = parse_settings(r#"{ "containers": { "enabled": false } }"#);
-        assert_eq!(s.containers, Containers { enabled: false });
+        assert!(!s.dashboard.sections.containers);
         assert!(w.is_empty(), "{w:?}");
-        let (s, w) = parse_settings(r#"{ "containers": { "enabled": "no" } }"#);
-        assert_eq!(s.containers, Settings::default().containers);
-        assert!(w.iter().any(|m| m.starts_with("containers.enabled")), "missing warning: {w:?}");
     }
 
     #[test]
-    fn containers_defaults_to_enabled_and_is_in_default_file() {
-        assert_eq!(Settings::default().containers, Containers { enabled: true });
-        assert!(default_file_text().contains("\"containers\""));
+    fn dashboard_sections_containers_wins_over_legacy_key() {
+        let (s, w) = parse_settings(
+            r#"{ "containers": { "enabled": false }, "dashboard": { "sections": { "containers": true } } }"#,
+        );
+        assert!(s.dashboard.sections.containers);
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn invalid_legacy_containers_enabled_is_ignored_silently() {
+        let (s, w) = parse_settings(r#"{ "containers": { "enabled": "no" } }"#);
+        assert!(s.dashboard.sections.containers);
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn default_file_has_no_top_level_containers_key() {
+        let v = parse_root(&default_file_text()).expect("default file parses");
+        assert!(v.get("containers").is_none());
+    }
+
+    #[test]
+    fn dashboard_side_parses_and_invalid_values_fall_back() {
+        for side in ["left", "right"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "dashboard": {{ "side": "{side}" }} }}"#));
+            assert_eq!(s.dashboard.side, side);
+            assert!(w.is_empty(), "{w:?}");
+        }
+        for bad in [r#""top""#, "3"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "dashboard": {{ "side": {bad} }} }}"#));
+            assert_eq!(s.dashboard.side, "right");
+            assert!(w.iter().any(|m| m.starts_with("dashboard.side")), "missing warning: {w:?}");
+        }
+    }
+
+    #[test]
+    fn dashboard_sections_defaults_and_partial_parse() {
+        let d = Settings::default().dashboard;
+        assert_eq!(d.side, "right");
+        assert_eq!(
+            d.sections,
+            DashboardSections {
+                favorites: true,
+                layouts: true,
+                panes: true,
+                containers: true,
+                external: true,
+                clock: false
+            }
+        );
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "clock": true, "panes": false } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(s.dashboard.sections.clock && !s.dashboard.sections.panes);
+        assert!(s.dashboard.sections.favorites && s.dashboard.sections.external);
+    }
+
+    #[test]
+    fn invalid_dashboard_section_value_falls_back_with_warning() {
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "layouts": "yes" } } }"#);
+        assert!(s.dashboard.sections.layouts);
+        assert!(w.iter().any(|m| m.starts_with("dashboard.sections.layouts")), "missing warning: {w:?}");
+    }
+
+    #[test]
+    fn default_file_lists_dashboard_side_and_sections() {
+        let text = default_file_text();
+        assert!(text.contains("\"sections\"") && text.contains("\"side\""));
     }
 
     #[test]

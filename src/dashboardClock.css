@@ -1,0 +1,40 @@
+/* The dashboard's Clock element: a binary grid and h:mm on one line, sized by container query. */
+#dashboard .dashboard-clock {
+  container-type: inline-size;
+  cursor: grab;
+  padding: 6px 10px;
+}
+
+#dashboard .clock-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  white-space: nowrap;
+  font-size: min(17cqi, 60px);
+  line-height: 1;
+}
+
+#dashboard .clock-time {
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+#dashboard .clock-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 0.09em);
+  grid-template-rows: repeat(6, 0.09em);
+  grid-auto-flow: column;
+  gap: 0.03em;
+  height: 0.72em;
+  align-content: center;
+}
+
+#dashboard .clock-dot {
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+#dashboard .clock-dot.lit {
+  background: #4fb3c8;
+}

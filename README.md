@@ -467,11 +467,12 @@ With an empty box, your recent picks come first.
 
 ## Dashboard
 
-The panel on the right opens on start (set `dashboard.visibleOnStart` to `false` to start
-without it) and Ctrl+Shift+S toggles it, as does the × button at its top right. F6 moves focus
+The panel opens on the right (or the left, with `dashboard.side`) on start (set
+`dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+S toggles it, as does
+the × button at its top right. F6 moves focus
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
 clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,
-and F6 or Escape returns to the pane. Drag its left
+and F6 or Escape returns to the pane. Drag its inner
 edge to make it wider or narrower; the width is saved with the workspace. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab). A terminal's card shows its status (a green check mark when it is done),
@@ -479,7 +480,9 @@ folder, and time since its status last changed; a card for any other kind of pan
 kind's icon and the pane's title. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
-header to collapse or expand it; the choice is remembered across launches. **External sessions** lists Claude Code sessions running outside Bashboard, such as in
+header to collapse or expand it; the choice is remembered across launches. Drag a section's
+header, or the clock, to put the sections in a different order; that is remembered too. Settings
+shows or hides each one (see [Settings](#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
 Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
 section appears only while there are some. Hover any favorite, recent folder, card, or session
 for a folder button that opens its folder in File Explorer, and an Open menu beside it that opens
@@ -492,6 +495,10 @@ last repo shown). Its header shows the repo folder's name and, in a git repo, th
 checkouts made in any shell while the dashboard is open. Its buttons open a Terminal, Files, Git
 (for a git repo only), Search (see [Code search](#code-search)), or your Editor at the repo root.
 Below them are the repo's pinned files and folders (see [Pins](#pins)).
+
+The **clock**, which is off by default, is one line at the bottom of the panel: three columns of
+dots showing the hours (24-hour), minutes, and seconds in binary, and the time as `h:mm` beside
+them. It ticks only while the panel is on screen.
 
 **Favorites** sit above the terminals. Click one to open a terminal there as a split of the
 focused pane, or Ctrl+click to open it collapsed; the "+" button adds the focused terminal's
@@ -551,10 +558,10 @@ Scrollback is not restored.
 
 When a terminal starts waiting while the panel is hidden, the panel peeks open over the panes for
 a few seconds and stays while the pointer is over it. Set `dashboard.peekOnWaiting` to `false`
-to turn the peek off:
+to turn the peek off. It comes in from the dashboard's side:
 
 ```jsonc
-"dashboard": { "visibleOnStart": true, "peekOnWaiting": true }
+"dashboard": { "peekOnWaiting": true }
 ```
 
 Sessions come from the files Claude Code keeps in `~/.claude/sessions`. A session belongs to a
@@ -573,7 +580,7 @@ project; a container with no project is its own row. Bashboard finds `docker.exe
 on `PATH` at startup, so Docker Desktop or Podman has to be installed. An engine whose CLI is
 missing is left out. One that is installed but not running shows as "Docker is not running" or
 "Podman is not running", and Bashboard checks it again every 10 seconds. The section appears while
-an engine is found and `containers.enabled` is on (see [Settings](#settings)).
+an engine is found and `dashboard.sections.containers` is on (see [Settings](#settings)).
 
 Each row shows the project's name, how many of its containers run ("1 of 2"), and, on hover, Start
 when any is stopped or Stop when any is running. A project that exists on both engines is one row.
@@ -756,11 +763,26 @@ default to `true`:
 "restore": { "enabled": true, "resumeClaude": true }
 ```
 
-`containers.enabled` (default `true`) shows or hides the Containers section of the dashboard. The
-Containers pane and tab still open on request.
+`dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
+window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
+each dashboard element: `favorites`, `layouts`, `panes`, `containers`, and `external` default to
+`true` and `clock` to `false`. `containers` also decides whether the kind menu offers a Containers
+pane; a settings file that still has `containers.enabled` and no `sections.containers` uses it
+for that. All of them apply on save and are in the Dashboard section of the settings dialog, the
+elements under "Show on the dashboard".
 
 ```jsonc
-"containers": { "enabled": true }
+"dashboard": {
+  "side": "right",
+  "sections": {
+    "favorites": true,
+    "layouts": true,
+    "panes": true,
+    "containers": true,
+    "external": true,
+    "clock": false
+  }
+}
 ```
 
 `terminal.doneAfterSeconds` (default 30) is the shortest shell command that marks its terminal
