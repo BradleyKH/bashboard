@@ -1,24 +1,56 @@
 import './pathDrag.css';
 
+export interface PathDrag {
+  paths: string[];
+  /**
+   * Set when the paths are files dragged out of a Files pane: a folder target then moves them,
+   * through that pane, out of `folder`.
+   */
+  move?: { paneId: string; folder: string };
+}
+
+/** A terminal or scratch pad takes the paths as text; a folder takes a movable drag's files. */
+export type PathDropTarget =
+  | { kind: 'insert'; paneId: string }
+  | { kind: 'move'; folder: string; el: HTMLElement };
+
+export function sameDropTarget(a: PathDropTarget | null, b: PathDropTarget | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.kind === 'insert') return b.kind === 'insert' && a.paneId === b.paneId;
+  return b.kind === 'move' && a.el === b.el && a.folder === b.folder;
+}
+
 export interface PathDragHooks {
-  /** The pane id a drop at the point would land on, or null when nothing there accepts paths. */
-  targetAt(x: number, y: number): string | null;
-  highlight(paneId: string | null): void;
+  /** Where a drop at the point would land, or null when nothing there accepts this drag. */
+  targetAt(x: number, y: number, drag: PathDrag): PathDropTarget | null;
+  highlight(target: PathDropTarget | null): void;
   /** Pointer position on every tracked move; `null` when the drag ends. */
   onHover(pos: { x: number; y: number } | null): void;
-  onDrop(paneId: string, paths: string[]): void;
+  onDrop(target: PathDropTarget, drag: PathDrag): void;
   onCancel(): void;
+}
+
+function lastSegment(p: string): string {
+  const segments = p.split(/[\\/]/).filter((s) => s.length > 0);
+  return segments.length > 0 ? segments[segments.length - 1] : p;
 }
 
 /** The ghost text: the first path's last segment, plus ` +N` for the rest. */
 export function pathDragLabel(paths: readonly string[]): string {
   if (paths.length === 0) return '';
-  const segments = paths[0].split(/[\\/]/).filter((s) => s.length > 0);
-  const name = segments.length > 0 ? segments[segments.length - 1] : paths[0];
+  const name = lastSegment(paths[0]);
   return paths.length > 1 ? `${name} +${paths.length - 1}` : name;
 }
 
-/** Pointer-driven drag layer for dragging file paths onto terminals; never HTML5 drag and drop. */
+/** The ghost over a folder target says where the files will go. */
+export function moveDragLabel(paths: readonly string[], folder: string): string {
+  return `Move to ${lastSegment(folder)}: ${pathDragLabel(paths)}`;
+}
+
+/**
+ * Pointer-driven drag layer for dragging file paths onto terminals, or files onto folders;
+ * never HTML5 drag and drop.
+ */
 export class PathDragLayer {
   private active: (() => void) | null = null;
 
@@ -28,7 +60,8 @@ export class PathDragLayer {
     return this.active !== null;
   }
 
-  begin(e: PointerEvent, paths: string[]): void {
+  begin(e: PointerEvent, drag: PathDrag): void {
+    const { paths } = drag;
     this.active?.();
 
     const layer = document.createElement('div');
@@ -52,7 +85,9 @@ export class PathDragLayer {
       ghost.style.left = `${x + 12}px`;
       ghost.style.top = `${y + 12}px`;
       this.hooks.onHover({ x, y });
-      this.hooks.highlight(this.hooks.targetAt(x, y));
+      const target = this.hooks.targetAt(x, y, drag);
+      ghost.textContent = target?.kind === 'move' ? moveDragLabel(paths, target.folder) : pathDragLabel(paths);
+      this.hooks.highlight(target);
     };
 
     const swallowClick = (ev: MouseEvent) => {
@@ -85,10 +120,10 @@ export class PathDragLayer {
     const onMove = (ev: PointerEvent) => track(ev.clientX, ev.clientY);
     const onUp = (ev: PointerEvent) => {
       // The layer is still mounted here; targetAt skips it.
-      const target = this.hooks.targetAt(ev.clientX, ev.clientY);
+      const target = this.hooks.targetAt(ev.clientX, ev.clientY, drag);
       cleanup();
       suppressNextClick();
-      if (target) this.hooks.onDrop(target, paths);
+      if (target) this.hooks.onDrop(target, drag);
       else this.hooks.onCancel();
     };
     const onCancel = () => {

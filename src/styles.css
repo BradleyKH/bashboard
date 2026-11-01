@@ -324,20 +324,18 @@ body.dashboard-left.dashboard-open #panes {
   right: 8px;
 }
 
-/* Band colors shared by the System and Claude bars; each section's CSS sets only its base fill. */
+/* System bar band colors; the section's CSS sets only its base fill. */
 :root {
   --system-accent: #4fb3c8;
   --system-warn: #e0b050;
   --system-error: #e58a7a;
 }
 
-.system-bar-fill[data-band='warn'],
-.claude-bar.warn > span {
+.system-bar-fill[data-band='warn'] {
   background: var(--system-warn);
 }
 
-.system-bar-fill[data-band='error'],
-.claude-bar.error > span {
+.system-bar-fill[data-band='error'] {
   background: var(--system-error);
 }
 
@@ -642,6 +640,16 @@ body.dashboard-resizing {
   white-space: nowrap;
   color: #7f8c94;
   font-size: 11px;
+}
+
+.card-claude {
+  margin: 1px 0 0 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #6c777e;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .card-reason,
@@ -1612,6 +1620,9 @@ body.dashboard-resizing {
   scrollbar-width: thin;
   /* Keeps the scrollbar off the unit labels at the right edge. */
   padding-right: 8px;
+  /* Room for the row hover band's bleed, which the scroll container would otherwise clip. */
+  margin-left: -6px;
+  padding-left: 6px;
 }
 
 .settings-dialog-body > section {
@@ -1641,13 +1652,34 @@ body.dashboard-resizing {
 .settings-dialog-rows {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
-  gap: 8px 16px;
+  column-gap: 16px;
   align-items: start;
+}
+
+/* Spans both columns so a hover band ties each label to its control; the negative margin keeps
+   the cells aligned with the headings while the band bleeds past them. */
+.settings-dialog-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: start;
+  margin: 0 -6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.settings-dialog-row:hover,
+.settings-dialog-row:focus-within {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-dialog-row[hidden] {
+  display: none;
 }
 
 .settings-dialog-group {
   grid-column: 1 / -1;
-  margin-top: 6px;
+  margin: 10px 0 4px;
   color: #7f8c94;
   font-size: 11px;
   font-weight: 600;
@@ -1655,11 +1687,6 @@ body.dashboard-resizing {
 
 .settings-dialog-label {
   padding-top: 3px;
-}
-
-.settings-dialog-label[hidden],
-.settings-dialog-control[hidden] {
-  display: none;
 }
 
 .settings-dialog-note {

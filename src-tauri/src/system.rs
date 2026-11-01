@@ -1,19 +1,17 @@
-//! Machine load and per-session process figures for the dashboard's System and Claude sections
-//! (docs/design.md section 4.6).
+//! Machine load for the dashboard's System section (docs/design.md section 4.6).
 //!
-//! The sampler persists between calls because CPU, network, and per-process CPU are deltas
+//! The sampler persists between calls because CPU and network are deltas
 //! between two refreshes; a reading whose previous refresh is missing or too old is reported as
 //! `None` rather than averaged over the gap.
 
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
     path::Path,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use serde::Serialize;
-use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
+use sysinfo::{Disks, Networks, System};
 use tauri::State;
 
 /// A delta over a longer gap than this is stale (the section was hidden or collapsed).
@@ -57,30 +55,11 @@ pub struct SystemSample {
     pub disks: Option<Vec<DiskRow>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProcFigures {
-    pub pid: u32,
-    pub memory_bytes: u64,
-    /// Percent of the whole machine, as Task Manager shows it.
-    pub cpu_percent: Option<f32>,
-}
-
-/// One process as `descendant_sums` sees it; `cpu` is sysinfo's per-core percentage.
-#[derive(Debug, Clone, Copy)]
-struct ProcEntry {
-    parent: Option<u32>,
-    start: u64,
-    memory: u64,
-    cpu: f32,
-}
-
 pub struct SystemSampler {
     sys: System,
     networks: Networks,
     disks: Option<Disks>,
     last_cpu_net: Option<Instant>,
-    last_procs: Option<Instant>,
 }
 
 impl Default for SystemSampler {
@@ -90,7 +69,6 @@ impl Default for SystemSampler {
             networks: Networks::new(),
             disks: None,
             last_cpu_net: None,
-            last_procs: None,
         }
     }
 }
@@ -120,47 +98,6 @@ fn drive_root(mount: &Path) -> Option<String> {
     let b = s.as_bytes();
     (b.len() == 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/'))
         .then(|| s[..2].to_ascii_uppercase())
-}
-
-/// Memory and CPU per root, summed over the root and its descendants. A child started before
-/// its parent is skipped: Windows reuses a dead parent's pid. Roots no longer in the table are
-/// omitted.
-fn descendant_sums(
-    table: &HashMap<u32, ProcEntry>,
-    roots: &[u32],
-    cpu_count: usize,
-) -> Vec<ProcFigures> {
-    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
-    for (&pid, entry) in table {
-        if let Some(parent) = entry.parent {
-            children.entry(parent).or_default().push(pid);
-        }
-    }
-    let cpus = cpu_count.max(1) as f32;
-    roots
-        .iter()
-        .filter(|root| table.contains_key(root))
-        .map(|&root| {
-            let mut visited = HashSet::from([root]);
-            let mut queue = VecDeque::from([root]);
-            let (mut memory, mut cpu) = (0u64, 0f32);
-            while let Some(pid) = queue.pop_front() {
-                let entry = &table[&pid];
-                memory += entry.memory;
-                cpu += entry.cpu;
-                for &child in children.get(&pid).into_iter().flatten() {
-                    if table[&child].start >= entry.start && visited.insert(child) {
-                        queue.push_back(child);
-                    }
-                }
-            }
-            ProcFigures {
-                pid: root,
-                memory_bytes: memory,
-                cpu_percent: Some(cpu / cpus),
-            }
-        })
-        .collect()
 }
 
 impl SystemSampler {
@@ -212,41 +149,6 @@ impl SystemSampler {
             disks,
         }
     }
-
-    pub fn processes(&mut self, roots: &[u32], now: Instant) -> Vec<ProcFigures> {
-        self.sys.refresh_processes_specifics(
-            ProcessesToUpdate::All,
-            true,
-            ProcessRefreshKind::nothing().with_memory().with_cpu(),
-        );
-        let cpu_fresh = fresh(self.last_procs, now).is_some();
-        self.last_procs = Some(now);
-
-        let table: HashMap<u32, ProcEntry> = self
-            .sys
-            .processes()
-            .iter()
-            .map(|(pid, p)| {
-                (
-                    pid.as_u32(),
-                    ProcEntry {
-                        parent: p.parent().map(|pp| pp.as_u32()),
-                        start: p.start_time(),
-                        memory: p.memory(),
-                        cpu: p.cpu_usage(),
-                    },
-                )
-            })
-            .collect();
-        let cpu_count = std::thread::available_parallelism().map_or(1, |n| n.get());
-        let mut figures = descendant_sums(&table, roots, cpu_count);
-        if !cpu_fresh {
-            for f in &mut figures {
-                f.cpu_percent = None;
-            }
-        }
-        figures
-    }
 }
 
 #[tauri::command]
@@ -258,20 +160,6 @@ pub async fn system_sample(
     tauri::async_runtime::spawn_blocking(move || {
         let mut s = sampler.lock().map_err(|e| e.to_string())?;
         Ok(s.sample(include_disks, Instant::now()))
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
-pub async fn claude_processes(
-    state: State<'_, SystemState>,
-    pids: Vec<u32>,
-) -> Result<Vec<ProcFigures>, String> {
-    let sampler = state.0.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut s = sampler.lock().map_err(|e| e.to_string())?;
-        Ok(s.processes(&pids, Instant::now()))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -303,60 +191,6 @@ mod tests {
         assert_eq!(drive_root(Path::new("C:\\mnt\\data")), None);
         assert_eq!(drive_root(Path::new("\\\\server\\share\\")), None);
     }
-
-    fn table(entries: &[(u32, Option<u32>, u64, u64, f32)]) -> HashMap<u32, ProcEntry> {
-        entries
-            .iter()
-            .map(|&(pid, parent, start, memory, cpu)| {
-                (
-                    pid,
-                    ProcEntry {
-                        parent,
-                        start,
-                        memory,
-                        cpu,
-                    },
-                )
-            })
-            .collect()
-    }
-
-    #[test]
-    fn sums_descendants() {
-        let t = table(&[
-            (1, None, 100, 1000, 10.0),
-            (2, Some(1), 110, 200, 4.0),
-            (3, Some(2), 120, 30, 2.0),
-            (4, Some(1), 105, 4, 0.0),
-            (9, None, 100, 50_000, 50.0),
-            // A reused pid: its parent 1 was started after it.
-            (5, Some(1), 50, 7_000, 8.0),
-        ]);
-        let figs = descendant_sums(&t, &[1], 4);
-        assert_eq!(
-            figs,
-            vec![ProcFigures {
-                pid: 1,
-                memory_bytes: 1234,
-                cpu_percent: Some(4.0)
-            }]
-        );
-    }
-
-    #[test]
-    fn cycle_terminates_and_missing_root_omitted() {
-        let t = table(&[(1, Some(2), 100, 1, 0.0), (2, Some(1), 100, 2, 0.0)]);
-        let figs = descendant_sums(&t, &[1, 77], 1);
-        assert_eq!(
-            figs,
-            vec![ProcFigures {
-                pid: 1,
-                memory_bytes: 3,
-                cpu_percent: Some(0.0)
-            }]
-        );
-    }
-
     #[test]
     fn second_sample_fills_cpu_and_network() {
         let mut s = SystemSampler::default();
@@ -389,68 +223,5 @@ mod tests {
         let mut sorted = mounts.clone();
         sorted.sort();
         assert_eq!(mounts, sorted);
-    }
-
-    /// Kills the spawned tree however the test ends.
-    #[cfg(windows)]
-    struct TreeGuard(std::process::Child);
-
-    #[cfg(windows)]
-    impl Drop for TreeGuard {
-        fn drop(&mut self) {
-            let _ = std::process::Command::new("taskkill")
-                .args(["/F", "/T", "/PID", &self.0.id().to_string()])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-            let _ = self.0.kill();
-            let _ = self.0.wait();
-        }
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn sums_a_spawned_tree() {
-        use std::os::windows::process::CommandExt;
-
-        let child = std::process::Command::new("cmd.exe")
-            .raw_arg("/c ping -n 20 127.0.0.1 >nul")
-            .stdout(std::process::Stdio::null())
-            .spawn()
-            .expect("spawn cmd");
-        let guard = TreeGuard(child);
-        let cmd_pid = guard.0.id();
-
-        let mut s = SystemSampler::default();
-        let deadline = Instant::now() + Duration::from_secs(10);
-        let ping_pid = loop {
-            s.sys.refresh_processes_specifics(
-                ProcessesToUpdate::All,
-                true,
-                ProcessRefreshKind::nothing(),
-            );
-            let found = s.sys.processes().iter().find(|(_, p)| {
-                p.parent().map(|pp| pp.as_u32()) == Some(cmd_pid)
-                    && p.name().to_string_lossy().eq_ignore_ascii_case("ping.exe")
-            });
-            if let Some((pid, _)) = found {
-                break pid.as_u32();
-            }
-            assert!(Instant::now() < deadline, "ping never appeared under cmd");
-            std::thread::sleep(Duration::from_millis(100));
-        };
-
-        let figs = s.processes(&[cmd_pid], Instant::now());
-        let mem = |pid: u32| {
-            s.sys
-                .process(sysinfo::Pid::from_u32(pid))
-                .map_or(0, |p| p.memory())
-        };
-        let (cmd_mem, ping_mem) = (mem(cmd_pid), mem(ping_pid));
-        assert_eq!(figs.len(), 1);
-        assert_eq!(figs[0].pid, cmd_pid);
-        assert!(cmd_mem > 0 && ping_mem > 0);
-        assert!(figs[0].memory_bytes >= cmd_mem + ping_mem);
-        drop(guard);
     }
 }

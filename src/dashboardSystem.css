@@ -20,11 +20,22 @@
 }
 
 .system-spark {
-  grid-column: 2;
-  justify-self: end;
+  grid-column: 1 / -1;
+  display: block;
   width: 100%;
-  max-width: 120px;
   height: 22px;
+}
+
+/* Network: download on the left, upload on the right, each on its own scale. */
+.system-spark-pair {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 8px;
+}
+
+.system-spark-pair .system-spark {
+  grid-column: auto;
 }
 
 .system-bar {

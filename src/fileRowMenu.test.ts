@@ -38,7 +38,7 @@ function rowHandlers(): FileRowMenuHandlers {
 
 describe('fileRowMenuItems', () => {
   it('offers Open terminal here for folders and no Move to', () => {
-    expect(labels(fileRowMenuItems(dir, targets, rowHandlers()))).toEqual([
+    expect(labels(fileRowMenuItems(dir, [dir], targets, rowHandlers()))).toEqual([
       'Open terminal here',
       'Open in editor',
       '-',
@@ -50,7 +50,7 @@ describe('fileRowMenuItems', () => {
   });
 
   it('offers Move to for files with targets, and no Open terminal here', () => {
-    expect(labels(fileRowMenuItems(file, targets, rowHandlers()))).toEqual([
+    expect(labels(fileRowMenuItems(file, [file], targets, rowHandlers()))).toEqual([
       'Open in editor',
       '-',
       'Copy path',
@@ -62,20 +62,20 @@ describe('fileRowMenuItems', () => {
   });
 
   it('leaves Move to out with no targets', () => {
-    expect(labels(fileRowMenuItems(file, [], rowHandlers()))).not.toContain('Move to');
+    expect(labels(fileRowMenuItems(file, [file], [], rowHandlers()))).not.toContain('Move to');
   });
 
   it('moves the entry to the chosen target from the submenu', () => {
     const h = rowHandlers();
-    const sub = fileRowMenuItems(file, targets, h).find((e) => e.kind === 'submenu') as MenuSubmenu;
+    const sub = fileRowMenuItems(file, [file], targets, h).find((e) => e.kind === 'submenu') as MenuSubmenu;
     expect(sub.items.map((i) => (i.kind === 'item' ? i.label : '-'))).toEqual(['docs/', 'lib/']);
     (sub.items[1] as MenuItem).run();
-    expect(h.moveTo).toHaveBeenCalledWith(file, 'C:/r/lib');
+    expect(h.moveTo).toHaveBeenCalledWith([file], 'C:/r/lib');
   });
 
   it('passes the entry to each handler', () => {
     const h = rowHandlers();
-    const items = fileRowMenuItems(dir, [], h);
+    const items = fileRowMenuItems(dir, [dir], [], h);
     find(items, 'Open terminal here').run();
     find(items, 'Open in editor').run();
     find(items, 'Copy path').run();
@@ -83,9 +83,37 @@ describe('fileRowMenuItems', () => {
     find(items, 'Pin').run();
     expect(h.openTerminalHere).toHaveBeenCalledWith(dir);
     expect(h.openInEditor).toHaveBeenCalledWith(dir);
-    expect(h.copyPath).toHaveBeenCalledWith(dir);
-    expect(h.insertPath).toHaveBeenCalledWith(dir);
+    expect(h.copyPath).toHaveBeenCalledWith([dir]);
+    expect(h.insertPath).toHaveBeenCalledWith([dir]);
     expect(h.pin).toHaveBeenCalledWith(dir);
+  });
+});
+
+describe('fileRowMenuItems with several selected', () => {
+  const other: FileEntry = { name: 'b.md', isDir: false, size: 5, modified: 0 };
+
+  it('keeps only the items that take many paths', () => {
+    expect(labels(fileRowMenuItems(file, [dir, file, other], targets, rowHandlers()))).toEqual([
+      'Copy paths',
+      'Insert paths',
+      '-',
+      'Move 2 files to',
+    ]);
+  });
+
+  it('moves only the files and passes every entry to Copy paths', () => {
+    const h = rowHandlers();
+    const items = fileRowMenuItems(file, [dir, file, other], targets, h);
+    find(items, 'Copy paths').run();
+    expect(h.copyPath).toHaveBeenCalledWith([dir, file, other]);
+    const sub = items.find((e) => e.kind === 'submenu') as MenuSubmenu;
+    (sub.items[0] as MenuItem).run();
+    expect(h.moveTo).toHaveBeenCalledWith([file, other], 'C:/r/docs');
+  });
+
+  it('leaves Move to out when only folders are selected', () => {
+    const lib: FileEntry = { ...dir, name: 'lib' };
+    expect(labels(fileRowMenuItems(dir, [dir, lib], targets, rowHandlers()))).toEqual(['Copy paths', 'Insert paths']);
   });
 });
 

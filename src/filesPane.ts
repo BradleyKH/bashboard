@@ -2,6 +2,7 @@ import './filesPane.css';
 import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
+import { windowsPathText } from './displayPath';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import { FilePreview } from './filePreview';
@@ -53,10 +54,13 @@ export interface FilesPaneOptions {
   /** The folder, selection, or root changed (title and saved state follow). */
   onChange: () => void;
   onOpenTerminalHere: (folder: string) => void;
-  /** Insert path on a row: the entry's absolute path and this pane's root, to make it relative to. */
-  onInsertPath: (absolute: string, baseRoot: string) => void;
-  /** A row drag began; the workspace runs the path drag. */
-  onPathDragStart?: (paths: string[], e: PointerEvent) => void;
+  /** Insert path on rows: their absolute paths and this pane's root, to make them relative to. */
+  onInsertPaths: (paths: string[], baseRoot: string) => void;
+  /**
+   * A row drag began; the workspace runs the path drag. `move` is set when every dragged entry is
+   * a file, so a folder drop can move them out of `folder` through `movePaths`.
+   */
+  onPathDragStart?: (paths: string[], e: PointerEvent, move?: { paneId: string; folder: string }) => void;
   onPin: (absolute: string, isDir: boolean) => void;
   /** The breadcrumb's pin button on an already pinned folder; without it the button only pins. */
   onUnpin?: (absolute: string) => void;
@@ -162,17 +166,16 @@ export class FilesPane implements PaneView {
       onSelect: (entry) => this.selectEntry(entry),
       onActivate: (entry) => this.activate(entry),
       onUp: () => this.goUp(),
-      onMenu: (entry, anchor) => {
+      onMenu: (entry, selection, anchor) => {
         if (isContextMenuOpenFor(anchor)) closeContextMenu();
         else {
           const target = anchor.closest<HTMLElement>('.file-row');
-          openContextMenu(this.rowMenu(entry), { anchorEl: anchor, align: 'right' }, { target });
+          openContextMenu(this.rowMenu(entry, selection), { anchorEl: anchor, align: 'right' }, { target });
         }
       },
-      rowMenu: (entry) => this.rowMenu(entry),
+      rowMenu: (entry, selection) => this.rowMenu(entry, selection),
       folderMenu: () => this.folderMenu(),
-      onDragStart: (entry, e) =>
-        this.opts.onPathDragStart?.([childPath(this.currentPath, entry.name)], e),
+      onDragStart: (entries, e) => this.startRowDrag(entries, e),
     });
     this.notice = document.createElement('div');
     this.notice.className = 'files-notice';
@@ -282,6 +285,40 @@ export class FilesPane implements PaneView {
       }
     }
     await this.navigate(folder, select ?? null, true);
+  }
+
+  /**
+   * The folder a dragged file would move into at `el`: a folder row, a breadcrumb segment, or
+   * elsewhere in the list for the folder shown. Null outside those, or while the preview fills
+   * the pane.
+   */
+  moveTargetAt(el: Element): { folder: string; el: HTMLElement } | null {
+    if (this.previewExpanded || !this.notice.hidden) return null;
+    const seg = el.closest<HTMLElement>('.files-crumb-seg');
+    if (seg?.dataset.path && this.crumb.el.contains(seg)) return { folder: seg.dataset.path, el: seg };
+    const rows = this.list.el.querySelector<HTMLElement>('.files-list-rows');
+    if (!rows?.contains(el)) return null;
+    const dir = el.closest<HTMLElement>('.file-row.dir');
+    if (dir?.dataset.name) return { folder: childPath(this.currentPath, dir.dataset.name), el: dir };
+    return { folder: this.currentPath, el: rows };
+  }
+
+  /** Moves files into `toDir`, one at a time, toasting any that fail, then re-lists. */
+  async movePaths(paths: string[], toDir: string): Promise<void> {
+    // The preview's unsaved text goes to the file before it moves.
+    if (this.preview.path !== null && paths.some((p) => samePath(p, this.preview.path!))) await this.flush();
+    const failed: string[] = [];
+    for (const p of paths) {
+      try {
+        await fsMove(p, toDir);
+      } catch (e) {
+        failed.push(`${baseName(p)}: ${errorText(e)}`);
+      }
+    }
+    if (failed.length === 1) showToast(`Could not move ${failed[0]}`);
+    else if (failed.length > 1) showToast(`Could not move ${failed.length} files; ${failed[0]}`);
+    // The folder watch re-lists too; this makes the rows disappear without waiting for it.
+    if (!this.disposed) await this.relist(this.generation);
   }
 
   /** The repo's pins changed; refreshes the breadcrumb's pin button. */
@@ -501,7 +538,7 @@ export class FilesPane implements PaneView {
     else void openInEditor(path);
   }
 
-  private moveTargets(entry: FileEntry): MoveTarget[] {
+  private moveTargets(selection: readonly FileEntry[]): MoveTarget[] {
     const out: MoveTarget[] = [];
     const add = (path: string, label: string) => {
       if (samePath(path, this.currentPath)) return;
@@ -512,24 +549,33 @@ export class FilesPane implements PaneView {
       add(p, samePath(p, this.rootPath) ? baseName(p) : insertPathText(this.rootPath, p));
     }
     for (const e of this.entries) {
-      if (e.isDir && e.name !== entry.name) add(childPath(this.currentPath, e.name), `${e.name}/`);
+      if (e.isDir && !selection.some((x) => x.name === e.name)) add(childPath(this.currentPath, e.name), `${e.name}/`);
     }
     return out;
   }
 
   // Paths are fixed when a menu is built, so a choice acts on the folder the menu was opened in.
-  private rowMenu(entry: FileEntry): MenuEntry[] {
+  private rowMenu(entry: FileEntry, selection: FileEntry[]): MenuEntry[] {
     const folder = this.currentPath;
     const pathOf = (e: FileEntry) => childPath(folder, e.name);
     const handlers: FileRowMenuHandlers = {
       openTerminalHere: (e) => this.opts.onOpenTerminalHere(pathOf(e)),
       openInEditor: (e) => this.openInEditor(pathOf(e)),
-      copyPath: (e) => void copyPath(pathOf(e)),
-      insertPath: (e) => this.opts.onInsertPath(pathOf(e), this.rootPath),
-      moveTo: (e, toDir) => void this.move(e, toDir, folder),
+      copyPath: (es) => {
+        if (es.length === 1) void copyPath(pathOf(es[0]));
+        else void copyText(es.map((e) => windowsPathText(pathOf(e))).join('\n'), 'paths');
+      },
+      insertPath: (es) => this.opts.onInsertPaths(es.map(pathOf), this.rootPath),
+      moveTo: (files, toDir) => void this.movePaths(files.map(pathOf), toDir),
       pin: (e) => this.opts.onPin(pathOf(e), e.isDir),
     };
-    return fileRowMenuItems(entry, this.moveTargets(entry), handlers);
+    return fileRowMenuItems(entry, selection, this.moveTargets(selection), handlers);
+  }
+
+  private startRowDrag(entries: FileEntry[], e: PointerEvent): void {
+    const paths = entries.map((x) => childPath(this.currentPath, x.name));
+    const move = entries.every((x) => !x.isDir) ? { paneId: this.paneId, folder: this.currentPath } : undefined;
+    this.opts.onPathDragStart?.(paths, e, move);
   }
 
   private folderMenu(): MenuEntry[] {
@@ -556,19 +602,6 @@ export class FilesPane implements PaneView {
         copyPath: (path) => void copyPath(path),
       },
     );
-  }
-
-  private async move(entry: FileEntry, toDir: string, folder = this.currentPath): Promise<void> {
-    const wasSelected = samePath(folder, this.currentPath) && entry.name === this.selectedName;
-    if (wasSelected) await this.flush();
-    try {
-      await fsMove(childPath(folder, entry.name), toDir);
-    } catch (e) {
-      showToast(`Could not move ${entry.name}: ${errorText(e)}`);
-      return;
-    }
-    // The folder watch re-lists too; this makes the row disappear without waiting for it.
-    await this.relist(this.generation);
   }
 
   private showNotice(folder: string, err: unknown): void {

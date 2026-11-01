@@ -6,44 +6,54 @@ export interface MoveTarget {
   path: string;
 }
 
-/** Each item reports the row's entry; the menu holds no app state. */
+/** Each item reports the entries it acts on; the menu holds no app state. */
 export interface FileRowMenuHandlers {
   openTerminalHere: (entry: FileEntry) => void;
   openInEditor: (entry: FileEntry) => void;
-  copyPath: (entry: FileEntry) => void;
-  insertPath: (entry: FileEntry) => void;
-  /** `toDir` is the chosen target's absolute folder. */
-  moveTo: (entry: FileEntry, toDir: string) => void;
+  copyPath: (entries: FileEntry[]) => void;
+  insertPath: (entries: FileEntry[]) => void;
+  /** `toDir` is the chosen target's absolute folder; `files` are never folders. */
+  moveTo: (files: FileEntry[], toDir: string) => void;
   pin: (entry: FileEntry) => void;
 }
 
 /**
- * A Files row's menu (docs/design.md section 4.12), from its ⋯ button or a right-click. Move to
- * appears for files only (`fs_move` moves files) and only when there are targets.
+ * A Files row's menu (docs/design.md section 4.12), from its ⋯ button or a right-click.
+ * `selection` is what the menu acts on: the row, or every selected row when it is one of several,
+ * which leaves only the items that take many paths. Move to moves the selection's files
+ * (`fs_move` moves files) and appears only when there are files and targets.
  */
 export function fileRowMenuItems(
   entry: FileEntry,
+  selection: readonly FileEntry[],
   moveTargets: readonly MoveTarget[],
   handlers: FileRowMenuHandlers,
 ): MenuEntry[] {
+  const entries = selection.length > 0 ? [...selection] : [entry];
+  const many = entries.length > 1;
+  const files = entries.filter((e) => !e.isDir);
   const out: MenuEntry[] = [];
-  if (entry.isDir) out.push(item('Open terminal here', () => handlers.openTerminalHere(entry)));
+  if (!many) {
+    if (entry.isDir) out.push(item('Open terminal here', () => handlers.openTerminalHere(entry)));
+    out.push(item('Open in editor', () => handlers.openInEditor(entry)), separator());
+  }
   out.push(
-    item('Open in editor', () => handlers.openInEditor(entry)),
-    separator(),
-    item('Copy path', () => handlers.copyPath(entry)),
-    item('Insert path', () => handlers.insertPath(entry)),
-    separator(),
+    item(many ? 'Copy paths' : 'Copy path', () => handlers.copyPath(entries)),
+    item(many ? 'Insert paths' : 'Insert path', () => handlers.insertPath(entries)),
   );
-  if (!entry.isDir && moveTargets.length > 0) {
+  if (files.length > 0 && moveTargets.length > 0) {
     out.push(
+      separator(),
       submenu(
-        'Move to',
-        moveTargets.map((t) => item(t.label, () => handlers.moveTo(entry, t.path))),
+        many ? `Move ${files.length === 1 ? '1 file' : `${files.length} files`} to` : 'Move to',
+        moveTargets.map((t) => item(t.label, () => handlers.moveTo(files, t.path))),
       ),
     );
   }
-  out.push(item('Pin', () => handlers.pin(entry)));
+  if (!many) {
+    if (files.length === 0 || moveTargets.length === 0) out.push(separator());
+    out.push(item('Pin', () => handlers.pin(entry)));
+  }
   return out;
 }
 

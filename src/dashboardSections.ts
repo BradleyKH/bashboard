@@ -11,7 +11,6 @@ export const DEFAULT_ELEMENT_ORDER = [
   'panes',
   'containers',
   'external',
-  'claude',
   'system',
   'clock',
 ] as const;
@@ -33,7 +32,6 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
   panes: true,
   containers: true,
   external: true,
-  claude: false,
   system: false,
   clock: false,
 };
@@ -45,7 +43,6 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
   panes: 'Panes',
   containers: 'Containers',
   external: 'External sessions',
-  claude: 'Claude',
   system: 'System',
   clock: 'Clock',
 };

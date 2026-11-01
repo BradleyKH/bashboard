@@ -286,8 +286,9 @@ The left side is a breadcrumb over the list of the current folder, with folders 
 files, newest first. The breadcrumb has back and forward buttons (the mouse back and forward
 buttons work over the pane too), the path from the repo root (click a segment to go there), Open
 terminal here, and a pin button for the folder. Click a row to select and preview it, and press
-Enter or double-click to open it: a folder is entered, a file opens in your editor. Up and Down
-move the selection, Backspace goes up a folder, typing filters the list by name (Backspace edits
+Enter or double-click to open it: a folder is entered, a file opens in your editor. Ctrl+click
+adds or removes a row, Shift+click (or Shift+Up and Down) selects a range, and Ctrl+A selects
+every row, as in File Explorer. Up and Down move the selection, Backspace goes up a folder, typing filters the list by name (Backspace edits
 the filter, Esc clears it), and the list refreshes when files change on disk. The divider between
 the list and the preview can be dragged.
 
@@ -320,7 +321,13 @@ Hover a row for its menu: **Open terminal here** (folders), **Open in editor**, 
 **Insert path** (pastes the path relative to the Files pane's root, or the absolute path outside
 it, quoted for the shell of the tab's most recently focused terminal, without pressing Enter),
 **Move to** (files; the repo's pinned
-folders and the current folder's subfolders), and **Pin**.
+folders and the current folder's subfolders), and **Pin**. With several rows selected, the menu
+offers Copy paths, Insert paths, and Move to for all of them.
+
+Drag files onto a folder row to move them there, for example a finished plan into `done/`. A
+breadcrumb segment takes them too (to move them back up), and so does another Files pane's list,
+for the folder it shows. The folder highlights and the drag reads "Move to <folder>"; a drag that
+includes a folder only inserts paths.
 
 ### Dragging paths onto terminals
 
@@ -476,7 +483,8 @@ and F6 or Escape returns to the pane. Drag its inner
 edge to make it wider or narrower; the width is saved with the workspace. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab). A terminal's card shows its status (a green check mark when it is done),
-folder, and time since its status last changed; a card for any other kind of pane shows the
+folder, and time since its status last changed, plus, while a Claude session runs in it, the model
+and the tokens in its context (as "Opus 5.5 · 112k tokens") on a line below the folder; a card for any other kind of pane shows the
 kind's icon and the pane's title. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
@@ -500,15 +508,11 @@ The **clock**, which is off by default, is one line at the bottom of the panel: 
 dots showing the hours (24-hour), minutes, and seconds in binary, and the time as `h:mm` beside
 them. It ticks only while the panel is on screen.
 
-The **System** and **Claude** sections are off by default; turn them on under "Show on the
-dashboard" in Settings. **System** shows CPU use with a 60 second sparkline, memory used of total,
-network receive and send rates, and free space on each fixed drive, with bars that turn amber at
-80% and red at 90%. CPU and network fill in on the second sample after a section starts. **Claude**
-has a row for each Claude session running in a pane: its status dot and title, the model, the
-tokens in its context with a bar (against 200k, switching to 1M once a session passes 200k), and
-the memory and CPU of the session and everything it started. Click a row, or press Enter on it, to
-focus its pane. Both sections sample only while they are expanded, the panel is on screen, and
-the window is shown.
+The **System** section is off by default; turn it on under "Show on the
+dashboard" in Settings. It shows CPU use with a 60 second sparkline, memory used of total,
+network receive and send rates with a sparkline for each, and free space on each fixed drive, with bars that turn amber at
+80% and red at 90%. CPU and network fill in on the second sample after the section starts. It
+samples only while it is expanded, the panel is on screen, and the window is shown.
 
 **Favorites** sit above the terminals. Click one to open a terminal there as a split of the
 focused pane, or Ctrl+click to open it collapsed; the "+" button adds the focused terminal's
@@ -782,8 +786,7 @@ default to `true`:
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
 each dashboard element: `favorites`, `layouts`, `panes`, `containers`, and `external` default to
-`true` and `claude`, `system`, and `clock` to `false` (so `dashboard.sections.system` and
-`dashboard.sections.claude` start off). `containers` also decides whether the kind menu offers a Containers
+`true` and `system` and `clock` to `false` (so `dashboard.sections.system` starts off). `containers` also decides whether the kind menu offers a Containers
 pane; a settings file that still has `containers.enabled` and no `sections.containers` uses it
 for that. All of them apply on save and are in the Dashboard section of the settings dialog, the
 elements under "Show on the dashboard".

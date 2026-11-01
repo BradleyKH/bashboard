@@ -8,6 +8,7 @@ import { ContainersStore } from './containersStore';
 import { boundSession, isBusy, lastFolder, type PaneCardInput } from './dashboardModel';
 import { DockOverlay } from './dockOverlay';
 import { DoneTracker } from './doneStatus';
+import { samePath } from './favorites';
 import { FilesPane } from './filesPane';
 import { pathInsertText, pathProfileFor, routeFilesRequest, type FilesRequest } from './filesRouting';
 import {
@@ -47,7 +48,7 @@ import { LayoutView } from './layoutView';
 import { LiveSettings } from './liveSettings';
 import { TerminalPane, type CommandEvent } from './pane';
 import { PaneAttention } from './paneAttention';
-import { PathDragLayer } from './pathDragLayer';
+import { PathDragLayer, sameDropTarget, type PathDrag, type PathDropTarget } from './pathDragLayer';
 import { repoRoot } from './repoFiles';
 import type { PaneKind } from './paneKinds';
 import type { PaneView } from './paneView';
@@ -209,6 +210,7 @@ export class Workspace {
   private readonly pathLayer: PathDragLayer;
   /** The pane host showing the path drop highlight. */
   private pathHighlightId: string | null = null;
+  private dropHighlight: PathDropTarget | null = null;
   private drag: DragSource | null = null;
   private scrim: ScrimState;
   /** Tracked locally so quick repeats don't act on a size the file watcher hasn't reported back yet. */
@@ -274,10 +276,13 @@ export class Workspace {
       },
     });
     this.pathLayer = new PathDragLayer({
-      targetAt: (x, y) => this.pathTargetAt(x, y),
-      highlight: (id) => this.setPathHighlight(id),
+      targetAt: (x, y, drag) => this.dropTargetAt(x, y, drag),
+      highlight: (target) => this.setDropHighlight(target),
       onHover: (pos) => this.hooks.onDragHover?.(pos),
-      onDrop: (id, paths) => void this.insertPaths(id, paths),
+      onDrop: (target, drag) => {
+        if (target.kind === 'insert') void this.insertPaths(target.paneId, drag.paths);
+        else void this.moveDropped(drag, target.folder);
+      },
       onCancel: () => this.paneViews.get(this.store.focusedId)?.focus(),
     });
     this.attention = new PaneAttention({
@@ -1349,7 +1354,7 @@ export class Workspace {
       onFocus: () => this.setFocused(id),
       onChange: () => this.paneChanged(id),
       onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
-      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, absolute, baseRoot),
+      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, [absolute], baseRoot),
     });
   }
 
@@ -1371,7 +1376,7 @@ export class Workspace {
       onChange: () => this.paneChanged(id),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
       onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
-      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, absolute, baseRoot),
+      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, [absolute], baseRoot),
     });
   }
 
@@ -1397,11 +1402,11 @@ export class Workspace {
   }
 
   /** Insert path from a Files, Git, or Search pane: into the tab's most recently focused terminal. */
-  private insertPathIntoTab(paneId: string, absolute: string, baseRoot: string): void {
+  private insertPathIntoTab(paneId: string, paths: string[], baseRoot: string): void {
     const tab = this.store.tabOf(paneId);
     const targetId = tab ? recentTerminal(this.focusOrder, tab.panes, (p) => this.terminal(p) !== undefined) : null;
     if (!targetId) showToast('No terminal in this tab to insert the path into');
-    else void this.insertPaths(targetId, [absolute], baseRoot);
+    else void this.insertPaths(targetId, paths, baseRoot);
   }
 
   private createFiles(id: string, host: HTMLElement, spec: Extract<PaneSpec, { kind: 'files' }>): FilesPane {
@@ -1424,8 +1429,8 @@ export class Workspace {
         this.focusPane(id);
         this.openTerminal(folder);
       },
-      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, absolute, baseRoot),
-      onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
+      onInsertPaths: (paths, baseRoot) => this.insertPathIntoTab(id, paths, baseRoot),
+      onPathDragStart: (paths, e, move) => this.startPathDrag(paths, e, move),
       onPin: (absolute, isDir) => this.hooks.onPin?.(root(), absolute, isDir),
       onUnpin: (absolute) => this.hooks.onUnpin?.(root(), absolute),
       getPinnedFolders: () => this.hooks.getPinnedFolders?.(root()) ?? [],
@@ -1492,19 +1497,20 @@ export class Workspace {
   }
 
   /** Starts an in-app path drag (v0.2.0 design section 6) from a row's pointerdown. */
-  startPathDrag(paths: string[], e: PointerEvent): void {
+  startPathDrag(paths: string[], e: PointerEvent, move?: PathDrag['move']): void {
     if (paths.length === 0) return;
-    this.pathLayer.begin(e, paths);
+    this.pathLayer.begin(e, { paths, move });
   }
 
   /**
-   * The expanded terminal or scratch pad in the active tab under the point, or null. Only the
-   * topmost element counts, so the dashboard, a dialog, or the tab strip over a pane blocks it.
+   * The topmost element under the point and the expanded pane in the active tab holding it.
+   * Only the topmost element counts, so the dashboard, a dialog, or the tab strip over a pane
+   * blocks it.
    */
-  pathTargetAt(x: number, y: number): string | null {
+  private paneAtPoint(x: number, y: number): { id: string; top: Element } | null {
     const top = document.elementsFromPoint(x, y).find((el) => !el.closest('.path-drag-layer'));
     const host = top?.closest('.pane');
-    if (!host) return null;
+    if (!top || !host) return null;
     let id: string | null = null;
     for (const [hid, h] of this.hosts) {
       if (h === host) {
@@ -1513,10 +1519,51 @@ export class Workspace {
       }
     }
     if (!id) return null;
-    const view = this.paneViews.get(id);
-    if (!(view instanceof TerminalPane || view instanceof ScratchPane)) return null;
     const tab = this.store.active;
-    return tab.panes.includes(id) && !tab.collapsed.includes(id) ? id : null;
+    return tab.panes.includes(id) && !tab.collapsed.includes(id) ? { id, top } : null;
+  }
+
+  /** The expanded terminal or scratch pad in the active tab under the point, or null. */
+  pathTargetAt(x: number, y: number): string | null {
+    const at = this.paneAtPoint(x, y);
+    if (!at) return null;
+    const view = this.paneViews.get(at.id);
+    return view instanceof TerminalPane || view instanceof ScratchPane ? at.id : null;
+  }
+
+  /**
+   * Where an in-app path drag would drop: a folder in a Files pane for files dragged out of one
+   * (other than the folder they are in), else a terminal or scratch pad.
+   */
+  private dropTargetAt(x: number, y: number, drag: PathDrag): PathDropTarget | null {
+    if (drag.move) {
+      const at = this.paneAtPoint(x, y);
+      const view = at ? this.paneViews.get(at.id) : undefined;
+      if (at && view instanceof FilesPane) {
+        const t = view.moveTargetAt(at.top);
+        if (!t || samePath(t.folder, drag.move.folder)) return null;
+        return { kind: 'move', folder: t.folder, el: t.el };
+      }
+    }
+    const id = this.pathTargetAt(x, y);
+    return id ? { kind: 'insert', paneId: id } : null;
+  }
+
+  private setDropHighlight(target: PathDropTarget | null): void {
+    if (sameDropTarget(this.dropHighlight, target)) return;
+    if (this.dropHighlight?.kind === 'move') this.dropHighlight.el.classList.remove('path-move-target');
+    this.dropHighlight = target;
+    this.setPathHighlight(target?.kind === 'insert' ? target.paneId : null);
+    if (target?.kind === 'move') target.el.classList.add('path-move-target');
+  }
+
+  /** Files dropped on a folder move through the Files pane they came from. */
+  private async moveDropped(drag: PathDrag, folder: string): Promise<void> {
+    if (!drag.move) return;
+    const source = this.paneViews.get(drag.move.paneId);
+    if (!(source instanceof FilesPane)) return;
+    await source.movePaths(drag.paths, folder);
+    if (this.store.focusedId === drag.move.paneId) source.focus();
   }
 
   setPathHighlight(id: string | null): void {

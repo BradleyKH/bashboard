@@ -5,7 +5,10 @@ import type { FileEntry } from './filesModel';
 
 export interface FileRowOptions {
   selected: boolean;
-  onSelect: () => void;
+  /** The keyboard cursor's row, which the preview shows. */
+  cursor: boolean;
+  /** A click, with its Ctrl and Shift state. */
+  onSelect: (e: MouseEvent) => void;
   onActivate: () => void;
   /** Called with the row's menu button so the menu can anchor to it. */
   onMenu: (anchor: HTMLElement) => void;
@@ -31,6 +34,7 @@ export function renderFileRow(entry: FileEntry, opts: FileRowOptions): HTMLEleme
   row.setAttribute('aria-selected', String(opts.selected));
   row.dataset.name = entry.name;
   if (opts.selected) row.classList.add('selected');
+  if (opts.cursor) row.classList.add('cursor');
   if (entry.isDir) row.classList.add('dir');
 
   const icon = document.createElement('span');
@@ -53,7 +57,7 @@ export function renderFileRow(entry: FileEntry, opts: FileRowOptions): HTMLEleme
   const menu = iconButton('⋯', 'file-row-menu', 'Row menu', () => opts.onMenu(menu));
 
   row.append(icon, name, size, date, menu);
-  row.addEventListener('click', () => opts.onSelect());
+  row.addEventListener('click', (e) => opts.onSelect(e));
   row.addEventListener('dblclick', () => opts.onActivate());
   if (opts.onDragStart) attachBodyDrag(row, opts.onDragStart);
   return row;

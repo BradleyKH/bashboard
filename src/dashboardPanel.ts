@@ -1,9 +1,10 @@
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
-import { DashboardClaude } from './dashboardClaude';
+import { claudeLine } from './claudeModel';
+import { ClaudeContexts } from './claudeContexts';
 import { DashboardClock } from './dashboardClock';
 import { attachElementDrag } from './dashboardElementDrag';
 import { externalSessions, groupCardsByTab, paneCards } from './dashboardModel';
-import type { PaneCardInput, TerminalCard } from './dashboardModel';
+import type { PaneCardInput } from './dashboardModel';
 import {
   applyDashboardWidth,
   clampDashboardWidth,
@@ -88,7 +89,7 @@ export class DashboardPanel {
   private readonly elementList: HTMLElement;
   private readonly clock = new DashboardClock();
   private readonly system = new DashboardSystem();
-  private readonly claude: DashboardClaude;
+  private readonly claude = new ClaudeContexts(() => this.render());
   private panes: PaneCardInput[] = [];
   private collapsed: DashboardSection[] = [];
   /** The width the user chose; what shows is clamped to the current window. */
@@ -191,8 +192,6 @@ export class DashboardPanel {
     this.containersSection.setVisible(false);
     this.addSection('containers', this.containersSection.el, this.containersSection.head);
     this.sessionList = this.section('external', 'External sessions');
-    this.claude = new DashboardClaude((paneId) => this.callbacks.onFocus(paneId));
-    this.addSection('claude', this.claude.el, this.claude.head);
     this.addSection('system', this.system.el, this.system.head);
     this.addElement('clock', this.clock.el, this.clock.el);
     this.installButton = document.createElement('button');
@@ -299,23 +298,19 @@ export class DashboardPanel {
   }
 
   /**
-   * Starts or stops every timer that runs only while its element is on screen; System and Claude
-   * also stop while collapsed (docs/design.md section 4.6). Called whenever any input changes.
+   * Starts or stops every timer that runs only while its element is on screen; System also stops
+   * while collapsed (docs/design.md section 4.6). Called whenever any input changes.
    */
   private syncTimers(): void {
     const onScreen = this.isShown();
     this.clock.setRunning(this.shown.clock && onScreen && this.windowShown);
-    for (const [id, section] of [
-      ['system', this.system],
-      ['claude', this.claude],
-    ] as const) {
-      section.setGate({
-        enabled: this.shown[id],
-        expanded: !this.collapsed.includes(id),
-        onScreen,
-        windowShown: this.windowShown,
-      });
-    }
+    this.system.setGate({
+      enabled: this.shown.system,
+      expanded: !this.collapsed.includes('system'),
+      onScreen,
+      windowShown: this.windowShown,
+    });
+    this.claude.setEnabled(this.shown.panes);
   }
 
   /**
@@ -581,6 +576,7 @@ export class DashboardPanel {
     // Group headers appear only with two or more tabs (docs/design.md section 4.6).
     const cardOptions = (card: (typeof cards)[number]) => ({
       now,
+      claudeLine: card.kind === 'terminal' && card.sessionId !== null ? claudeLine(this.claude.get(card.sessionId)) : null,
       confirming: this.confirming.has(card.paneId),
       onFocus: this.callbacks.onFocus,
       onToggleCollapse: this.callbacks.onToggleCollapse,
@@ -608,10 +604,6 @@ export class DashboardPanel {
             ),
           )
         : cards.map((card) => renderPaneCard(card, cardOptions(card)))),
-    );
-    this.claude.update(
-      (showHeaders ? groups.flatMap((g) => g.cards) : cards).filter((c): c is TerminalCard => c.kind === 'terminal'),
-      this.sessions,
     );
 
     this.sessionList.parentElement!.hidden = external.length === 0;

@@ -25,7 +25,8 @@ const DEFAULT_EDITOR: Editor = { id: 'default', name: "The file's default app" }
 
 interface Control {
   field: SettingsField;
-  labelCell: HTMLElement;
+  /** The label and control cells' wrapper, laid out on the parent grid via subgrid. */
+  row: HTMLElement;
   cell: HTMLElement;
   error: HTMLElement;
   /** The last value read from the file or sent to onSave; saves equal to it are skipped. */
@@ -109,7 +110,7 @@ export class SettingsDialog {
             rows.append(sub);
           }
         }
-        rows.append(...this.row(field));
+        rows.append(this.row(field));
       }
       el.append(h, rows);
       body.append(el);
@@ -204,8 +205,7 @@ export class SettingsDialog {
     const read = (path: string[]): unknown => this.controls.find((c) => c.field.path.join('.') === path.join('.'))?.last;
     for (const c of this.controls) {
       const hide = !isShown(c.field, read);
-      c.labelCell.hidden = hide;
-      c.cell.hidden = hide;
+      c.row.hidden = hide;
     }
   }
 
@@ -223,7 +223,7 @@ export class SettingsDialog {
     this.warnings = null;
   }
 
-  private row(field: SettingsField): HTMLElement[] {
+  private row(field: SettingsField): HTMLElement {
     const id = `settings-${field.path.join('-')}`;
 
     const labelCell = document.createElement('div');
@@ -252,14 +252,18 @@ export class SettingsDialog {
     error.hidden = true;
     describedBy.push(error.id);
 
-    const control: Control = { field, labelCell, cell, error, last: undefined, show: () => {} };
+    const row = document.createElement('div');
+    row.className = 'settings-dialog-row';
+    row.append(labelCell, cell);
+
+    const control: Control = { field, row, cell, error, last: undefined, show: () => {} };
     const input = this.input(control);
     input.id = id;
     input.setAttribute('aria-describedby', describedBy.join(' '));
     cell.prepend(input);
     cell.append(error);
     this.controls.push(control);
-    return [labelCell, cell];
+    return row;
   }
 
   /** Builds the field's input, wires its save trigger, and sets control.show. */

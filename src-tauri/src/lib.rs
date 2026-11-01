@@ -200,7 +200,6 @@ pub fn run() {
             search::search_cancel,
             setup::setup_repo_candidates,
             system::system_sample,
-            system::claude_processes,
             transcript::claude_context,
             transcript::claude_context_stop,
         ])

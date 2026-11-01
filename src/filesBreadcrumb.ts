@@ -72,6 +72,7 @@ export class FilesBreadcrumb {
       seg.className = 'files-crumb-seg';
       seg.textContent = c.name;
       seg.title = c.path;
+      seg.dataset.path = c.path;
       if (i === crumbs.length - 1) seg.disabled = true;
       else seg.addEventListener('click', () => this.opts.onNavigate(c.path));
       this.trail.append(seg);

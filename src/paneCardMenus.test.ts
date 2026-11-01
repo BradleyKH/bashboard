@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { item, type MenuEntry } from './contextMenuModel';
-import { claudeRowMenuItems, paneCardMenuItems, sessionRowMenuItems } from './paneCardMenus';
+import { paneCardMenuItems, sessionRowMenuItems } from './paneCardMenus';
 
 function labels(entries: MenuEntry[]): (string | null)[] {
   return entries.map((e) => (e.kind === 'separator' ? null : e.label));
@@ -110,22 +110,5 @@ describe('sessionRowMenuItems', () => {
     expect(h.onCopyPath).toHaveBeenCalledWith('C:\\repo');
     expect(h.onCopyCwd).toHaveBeenCalledWith('C:\\repo');
     expect(h.onCopySessionId).toHaveBeenCalledWith('s1');
-  });
-});
-
-describe('claudeRowMenuItems', () => {
-  it('lists Focus and Copy path, each calling its handler', () => {
-    const h = { onFocus: vi.fn(), onCopyPath: vi.fn() };
-    const items = claudeRowMenuItems({ path: 'C:\\repo' }, h);
-    expect(labels(items)).toEqual(['Focus', 'Copy path']);
-    run(items, 'Focus');
-    run(items, 'Copy path');
-    expect(h.onFocus).toHaveBeenCalledOnce();
-    expect(h.onCopyPath).toHaveBeenCalledWith('C:\\repo');
-  });
-
-  it('omits Copy path without a path', () => {
-    const items = claudeRowMenuItems({ path: '' }, { onFocus: vi.fn(), onCopyPath: vi.fn() });
-    expect(labels(items)).toEqual(['Focus']);
   });
 });

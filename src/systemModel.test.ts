@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   Sparkline,
+  rateScale,
   formatBytes,
   formatDiskFree,
   formatMemory,
@@ -88,5 +89,16 @@ describe('Sparkline', () => {
     s.push(1);
     s.push(null);
     expect(s.values()).toEqual([1]);
+  });
+});
+
+describe('rateScale', () => {
+  it('holds a 256 KB/s floor for idle traffic', () => {
+    expect(rateScale([])).toBe(256 * 1024);
+    expect(rateScale([0, 1000, 50_000])).toBe(256 * 1024);
+  });
+
+  it('follows the busiest reading above the floor', () => {
+    expect(rateScale([1_000, 5_000_000, 20_000])).toBe(5_000_000);
   });
 });

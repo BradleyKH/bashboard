@@ -17,7 +17,7 @@ describe('parseCollapsedSections', () => {
   });
 
   it('keeps every known name in order', () => {
-    const all = ['repo', 'favorites', 'layouts', 'panes', 'containers', 'external', 'claude', 'system'];
+    const all = ['repo', 'favorites', 'layouts', 'panes', 'containers', 'external', 'system'];
     expect(parseCollapsedSections(all)).toEqual(all);
     expect(parseCollapsedSections(['panes', 'repo'])).toEqual(['panes', 'repo']);
   });
@@ -48,14 +48,13 @@ describe('toggleSection', () => {
 });
 
 describe('DEFAULT_ELEMENT_ORDER', () => {
-  it('puts Claude and System after External sessions and the clock last', () => {
+  it('puts System after External sessions and the clock last', () => {
     expect([...DEFAULT_ELEMENT_ORDER]).toEqual([
       'favorites',
       'layouts',
       'panes',
       'containers',
       'external',
-      'claude',
       'system',
       'clock',
     ]);
@@ -79,7 +78,6 @@ describe('parseSectionOrder', () => {
     const raw = ['external', 'repo', 'tabs', 3, null, 'external', 'clock', 'favorites', 'layouts', 'panes', 'containers'];
     expect(parseSectionOrder(raw)).toEqual([
       'external',
-      'claude',
       'system',
       'clock',
       'favorites',
@@ -95,7 +93,6 @@ describe('parseSectionOrder', () => {
       'system',
       'external',
       'containers',
-      'claude',
       'panes',
       'layouts',
       'favorites',
@@ -104,14 +101,13 @@ describe('parseSectionOrder', () => {
   });
 
   it('inserts one missing element after its nearest default predecessor', () => {
-    expect(parseSectionOrder(['clock', 'favorites', 'layouts', 'containers', 'external', 'claude', 'system'])).toEqual([
+    expect(parseSectionOrder(['clock', 'favorites', 'layouts', 'containers', 'external', 'system'])).toEqual([
       'clock',
       'favorites',
       'layouts',
       'panes',
       'containers',
       'external',
-      'claude',
       'system',
     ]);
   });
@@ -125,7 +121,6 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'external',
-      'claude',
       'system',
     ]);
   });
@@ -134,7 +129,6 @@ describe('parseSectionOrder', () => {
     expect(parseSectionOrder(['external', 'layouts'])).toEqual([
       'favorites',
       'external',
-      'claude',
       'system',
       'clock',
       'layouts',
@@ -144,7 +138,7 @@ describe('parseSectionOrder', () => {
     expect(parseSectionOrder(['clock'])).toEqual(def);
   });
 
-  it('places Claude and System after External sessions in an order saved before they existed', () => {
+  it('places System after External sessions in an order saved before it existed', () => {
     expect(parseSectionOrder(['favorites', 'layouts', 'panes', 'containers', 'external', 'clock'])).toEqual(def);
     expect(parseSectionOrder(['clock', 'favorites', 'layouts', 'panes', 'containers', 'external'])).toEqual([
       'clock',
@@ -153,7 +147,6 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'external',
-      'claude',
       'system',
     ]);
   });

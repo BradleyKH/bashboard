@@ -57,15 +57,3 @@ export function sessionRowMenuItems(
   );
   return out;
 }
-
-export interface ClaudeRowMenuHandlers {
-  onFocus(): void;
-  onCopyPath(path: string): void;
-}
-
-/** The menu for a Claude section row. */
-export function claudeRowMenuItems(row: { path: string }, handlers: ClaudeRowMenuHandlers): MenuEntry[] {
-  const out: MenuEntry[] = [item('Focus', handlers.onFocus)];
-  if (row.path) out.push(item('Copy path', () => handlers.onCopyPath(row.path)));
-  return out;
-}

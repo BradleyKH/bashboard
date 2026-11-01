@@ -11,6 +11,8 @@ import { hueCss } from './sessionHue';
 
 export interface PaneCardOptions {
   now: number;
+  /** The bound Claude session's model and context size, shown under the path; null for none. */
+  claudeLine: string | null;
   /** True while the card shows its inline close confirmation. */
   confirming: boolean;
   onFocus: (paneId: string) => void;
@@ -181,6 +183,13 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     path.className = 'card-path';
     setPathText(path, card.path);
     el.append(path);
+  }
+  if (opts.claudeLine !== null) {
+    const claude = document.createElement('div');
+    claude.className = 'card-claude';
+    claude.textContent = opts.claudeLine;
+    claude.title = opts.claudeLine;
+    el.append(claude);
   }
   return el;
 }

@@ -1,5 +1,6 @@
 import './dashboardSystem.css';
 import { PollTimer, type PollGate } from './pollTimer';
+import { SparkCanvas } from './sparkCanvas';
 import { systemSample } from './systemApi';
 import {
   Sparkline,
@@ -8,14 +9,13 @@ import {
   formatNetwork,
   formatPercent,
   loadBand,
+  rateScale,
   type DiskRow,
   type SystemSample,
 } from './systemModel';
 
 const POLL_MS = 2000;
 const DISK_MS = 60_000;
-const SPARK_W = 120;
-const SPARK_H = 22;
 
 /** The dashboard's System section: CPU, memory, network, and disk rows (docs/design.md section 4.6). */
 export class DashboardSystem {
@@ -23,12 +23,16 @@ export class DashboardSystem {
   readonly head: HTMLElement;
   private readonly list: HTMLElement;
   private readonly cpuValue: HTMLElement;
-  private readonly canvas: HTMLCanvasElement;
+  private readonly cpuSpark = new SparkCanvas('system-spark');
   private readonly memValue: HTMLElement;
   private readonly memBar: HTMLElement;
   private readonly netValue: HTMLElement;
+  private readonly rxSpark = new SparkCanvas('system-spark');
+  private readonly txSpark = new SparkCanvas('system-spark');
   private readonly diskBox: HTMLElement;
-  private readonly spark = new Sparkline();
+  private readonly cpuHistory = new Sparkline();
+  private readonly rxHistory = new Sparkline();
+  private readonly txHistory = new Sparkline();
   private readonly timer = new PollTimer(POLL_MS, () => void this.poll());
   private disks: DiskRow[] = [];
   private lastDisks: number | undefined;
@@ -48,11 +52,7 @@ export class DashboardSystem {
 
     const cpu = this.row('CPU');
     this.cpuValue = cpu.value;
-    this.canvas = document.createElement('canvas');
-    this.canvas.className = 'system-spark';
-    this.canvas.width = SPARK_W;
-    this.canvas.height = SPARK_H;
-    cpu.row.append(this.canvas);
+    cpu.row.append(this.cpuSpark.el);
 
     const mem = this.row('Memory');
     this.memValue = mem.value;
@@ -60,6 +60,10 @@ export class DashboardSystem {
 
     const net = this.row('Network');
     this.netValue = net.value;
+    const netSparks = document.createElement('div');
+    netSparks.className = 'system-spark-pair';
+    netSparks.append(this.rxSpark.el, this.txSpark.el);
+    net.row.append(netSparks);
 
     this.diskBox = document.createElement('div');
     this.diskBox.className = 'system-disks';
@@ -104,7 +108,9 @@ export class DashboardSystem {
         this.disks = sample.disks;
         this.lastDisks = now;
       }
-      this.spark.push(sample.cpuPercent);
+      this.cpuHistory.push(sample.cpuPercent);
+      this.rxHistory.push(sample.netRxPerSec);
+      this.txHistory.push(sample.netTxPerSec);
       this.render(sample);
     } catch {
       // Without the core (a browser-only run) the rows keep showing "-".
@@ -113,7 +119,11 @@ export class DashboardSystem {
 
   private render(sample: SystemSample | null): void {
     this.cpuValue.textContent = formatPercent(sample?.cpuPercent ?? null);
-    this.drawSpark();
+    this.cpuSpark.draw(this.cpuHistory.values(), 100);
+    const rx = this.rxHistory.values();
+    this.rxSpark.draw(rx, rateScale(rx));
+    const tx = this.txHistory.values();
+    this.txSpark.draw(tx, rateScale(tx));
 
     if (sample && sample.memoryTotalBytes > 0) {
       this.memValue.textContent = formatMemory(sample.memoryUsedBytes, sample.memoryTotalBytes);
@@ -153,25 +163,5 @@ export class DashboardSystem {
     const f = Math.min(1, Math.max(0, fraction));
     fill.style.width = `${(f * 100).toFixed(1)}%`;
     fill.dataset.band = loadBand(f);
-  }
-
-  private drawSpark(): void {
-    const ctx = this.canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, SPARK_W, SPARK_H);
-    const values = this.spark.values();
-    if (values.length < 2) return;
-    ctx.strokeStyle = getComputedStyle(this.el).getPropertyValue('--system-accent').trim() || '#4fb3c8';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    const step = SPARK_W / 29;
-    const x0 = SPARK_W - (values.length - 1) * step;
-    values.forEach((v, i) => {
-      const x = x0 + i * step;
-      const y = SPARK_H - 1 - (Math.min(100, Math.max(0, v)) / 100) * (SPARK_H - 2);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
   }
 }

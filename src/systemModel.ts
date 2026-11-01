@@ -1,5 +1,5 @@
 // Pure model for the dashboard System section (docs/design.md section 4.6): wire types,
-// value formatting, load bands, and the CPU sparkline buffer. No DOM, no Tauri.
+// value formatting, load bands, and the sparkline buffer and scale. No DOM, no Tauri.
 
 /** One fixed drive, as `system.rs` reports it. */
 export interface DiskRow {
@@ -79,9 +79,9 @@ export function loadBand(fraction: number): LoadBand {
   return 'ok';
 }
 
-const SPARKLINE_CAPACITY = 30;
+export const SPARKLINE_CAPACITY = 30;
 
-/** Ring buffer of the last 60 seconds of CPU readings at one per 2 seconds. */
+/** Ring buffer of the last 60 seconds of readings at one per 2 seconds. */
 export class Sparkline {
   private readonly buf: number[] = [];
 
@@ -96,4 +96,12 @@ export class Sparkline {
   values(): number[] {
     return [...this.buf];
   }
+}
+
+/** Floor for the rate sparkline's scale, so background chatter stays near the baseline. */
+const RATE_SCALE_FLOOR = 256 * 1024;
+
+/** Top of the rate sparkline's scale: the busiest reading on screen, never below 256 KB/s. */
+export function rateScale(values: readonly number[]): number {
+  return Math.max(RATE_SCALE_FLOOR, ...values);
 }

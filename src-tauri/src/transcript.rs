@@ -183,7 +183,7 @@ impl Transcripts {
     }
 }
 
-/// Starts tracking on the first call, so a user with the Claude section off pays nothing, and
+/// Starts tracking on the first call, so a user with the Panes section off pays nothing, and
 /// returns every known context so a page reload shows them at once.
 #[tauri::command]
 pub fn claude_context(state: State<'_, Transcripts>) -> Vec<ClaudeContext> {
@@ -200,7 +200,7 @@ pub fn claude_context(state: State<'_, Transcripts>) -> Vec<ClaudeContext> {
     out
 }
 
-/// Stops tracking and forgets every session, so a disabled Claude section costs nothing; the next
+/// Stops tracking and forgets every session, so a disabled Panes section costs nothing; the next
 /// `claude_context` starts it again.
 #[tauri::command]
 pub fn claude_context_stop(state: State<'_, Transcripts>) {
