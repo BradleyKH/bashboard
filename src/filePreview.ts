@@ -1,12 +1,11 @@
 import './filePreview.css';
 import { BinaryNotice } from './binaryNotice';
-import { CodeView } from './codeView';
 import { ExpandPreviewButton } from './expandPreviewButton';
 import { previewKind } from './filesModel';
 import type { Action, Keymap } from './keymap';
 import { MarkdownView } from './markdownView';
 import { PreviewFind } from './previewFind';
-import { classifyReadError, fsReadText } from './repoFiles';
+import { classifyReadError, fsReadText, type FileText } from './repoFiles';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
 import { textZoom } from './textZoomStore';
@@ -31,8 +30,7 @@ export interface FilePreviewOptions {
 
 type Current =
   | { kind: 'markdown'; path: string; view: MarkdownView }
-  | { kind: 'plain'; path: string; view: TextEditor; find: PreviewFind }
-  | { kind: 'code'; path: string; view: CodeView; modified: number; find: PreviewFind }
+  | { kind: 'plain' | 'code'; path: string; view: TextEditor; find: PreviewFind }
   | { kind: 'notice'; path: string; view: BinaryNotice };
 
 /** The right half of a Files pane: shows the selected file (docs/design.md section 4.12). */
@@ -104,7 +102,7 @@ export class FilePreview {
     try {
       const file = await fsReadText(path);
       if (gen !== this.generation) return;
-      this.mount(path, kind, file.text, file.modified);
+      this.mount(path, kind, file);
       this.opts.onShown?.(true);
     } catch (err) {
       if (gen !== this.generation) return;
@@ -121,23 +119,12 @@ export class FilePreview {
     const c = this.current;
     if (!c) return;
     if (c.kind === 'markdown') void c.view.diskChanged(modified);
-    else if (c.kind === 'plain') c.view.diskChanged(modified);
-    else if (c.kind === 'code' && modified !== c.modified) {
-      fsReadText(c.path).then(
-        (file) => {
-          if (this.current !== c) return;
-          c.modified = file.modified;
-          c.view.setText(file.text);
-        },
-        () => {},
-      );
-    }
+    else if (c.kind !== 'notice') c.view.diskChanged(modified);
   }
 
   focus(): void {
     const c = this.current;
-    if (c?.kind === 'plain' || c?.kind === 'markdown') c.view.focus();
-    else if (c?.kind === 'code') c.view.el.focus();
+    if (c && c.kind !== 'notice') c.view.focus();
   }
 
   /** Whether the preview has a find bar (a text preview). */
@@ -171,7 +158,7 @@ export class FilePreview {
   /** Saves pending edits; resolves once nothing is in flight. */
   async flush(): Promise<void> {
     const c = this.current;
-    if (c?.kind === 'markdown' || c?.kind === 'plain') await c.view.flush();
+    if (c && c.kind !== 'notice') await c.view.flush();
   }
 
   dispose(): void {
@@ -180,13 +167,15 @@ export class FilePreview {
     this.el.remove();
   }
 
-  private mount(path: string, kind: 'markdown' | 'plain' | 'code', text: string, modified: number): void {
+  private mount(path: string, kind: 'markdown' | 'plain' | 'code', file: FileText): void {
     const { keymap, dispatch } = this.opts;
+    const { text, modified, lossy } = file;
     if (kind === 'markdown') {
       const view = new MarkdownView({
         path,
         text,
         modified,
+        lossy,
         settings: this.settings,
         keymap,
         dispatch,
@@ -196,15 +185,20 @@ export class FilePreview {
       view.toolbar.append(this.zoom.el, this.expand.el);
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
-    } else if (kind === 'plain') {
-      const view = new TextEditor({ path, text, modified, settings: this.settings, keymap, dispatch });
+    } else {
+      const lineNumbers = kind === 'code';
+      const view = new TextEditor({
+        path,
+        text,
+        modified,
+        lossy,
+        settings: this.settings,
+        keymap,
+        dispatch,
+        lineNumbers,
+      });
       const find = new PreviewFind(() => view.findSurface());
       this.current = { kind, path, view, find };
-      this.el.replaceChildren(framed(view.el, find, this.zoom.el, this.expand.el, this.fileName(path)));
-    } else {
-      const view = new CodeView(text, this.settings);
-      const find = new PreviewFind(() => view.findSurface());
-      this.current = { kind, path, view, modified, find };
       this.el.replaceChildren(framed(view.el, find, this.zoom.el, this.expand.el, this.fileName(path)));
     }
   }

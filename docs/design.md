@@ -352,8 +352,8 @@ section lists them together through the worktree commands in 3.9.
 | --- | --- |
 | `repo_root(path) -> { root, isGit, branch? }` | The repo a folder belongs to |
 | `fs_list(dir) -> Entry[]` | Folders, then files, each with name, size, and modified time |
-| `fs_read_text(path) -> { text, modified }` | Up to 2 MiB; a file with a NUL byte in its first 8 KiB is refused as binary |
-| `fs_write_text(path, text, expectedModified)` | Writes through a temp file and a rename; refused when the file's modified time differs from `expectedModified`, so a save never overwrites a change made on disk since the read |
+| `fs_read_text(path) -> { text, modified, lossy }` | Up to 2 MiB; a file with a NUL byte in its first 8 KiB is refused as binary. Invalid UTF-8 decodes with U+FFFD in place of the bad bytes and sets `lossy` |
+| `fs_write_text(path, text, expectedModified)` | Writes through a temp file and a rename; refused when the file's modified time differs from `expectedModified`, so a save never overwrites a change made on disk since the read, and refused when the file on disk is not valid UTF-8 |
 | `fs_move(path, toDir)` | Moves a file into another folder; refused when the target name exists |
 | `fs_watch(dir, onChange) -> id`, `fs_unwatch(id)` | One folder, not recursive, debounced 200 ms |
 
@@ -1559,8 +1559,9 @@ The preview depends on the file:
 - **Markdown** (`.md`) renders through `markdown-it` with raw HTML off, then `DOMPurify`. Links
   to `http` and `https` open in the browser; a relative link to another file opens it in the
   same pane. Images are not loaded. An Edit toggle switches to the text editor below.
-- **Plain text** (`.txt`, or no extension) opens in the text editor.
-- **Other text files** show read-only, monospaced, with line numbers.
+- **Plain text** (`.txt`, or no extension) opens in the text editor, with long lines wrapped.
+- **Other text files** (code, JSON, YAML, HTML, and so on) open in the text editor with a
+  line-number gutter; lines do not wrap and scroll sideways instead.
 - **Binary files, and files over 2 MiB,** show their name, size, and an Open in editor button.
 
 **Find** (`previewFind.ts`): every text preview has a Find button on its toolbar, beside Edit
@@ -1581,7 +1582,7 @@ size for code and the text editor) and holds while browsing the pane. Every step
 Files pane starts at; other open panes keep their own.
 
 **Expand.** The Expand preview button after the − and + buttons fills the pane with the
-preview on every text preview (markdown, plain text, and read-only code); a binary or
+preview on every text preview (markdown, plain text, and code); a binary or
 too-large file has no button. Its icon is a side panel with a left-pointing arrow, kept
 distinct from the title strip's zoom icon (4.2) since both show at once, and the two combine
 into a full-window reader. Expanded, the list, breadcrumb, and divider hide, and the toolbar
@@ -1600,7 +1601,9 @@ preview expanded. A file that cannot be previewed as text shows the list.
 on Ctrl+S, through `fs_write_text` with the modified time it last read. When the file changes on
 disk and there are no unsaved edits, it reloads in place, so a to-do list Claude edits updates
 in front of you. With unsaved edits, a bar offers Reload (discarding them) or Keep mine
-(overwriting the file).
+(overwriting the file). A file that is not valid UTF-8 (a `lossy` read) opens read-only under a
+note saying why, since saving the decoded text would replace its invalid bytes; a reload
+re-checks, so the editor unlocks once the file on disk is valid UTF-8.
 
 **Rows.** Clicking a row selects it; double-clicking a folder opens it, and double-clicking a
 file opens it in the editor (3.12). Selection follows File Explorer (`fileSelection.ts`):

@@ -249,14 +249,30 @@
   color: #e08a8a;
 }
 
+.editor-note {
+  flex: none;
+  padding: 3px 8px;
+  font: 11px system-ui, sans-serif;
+  background: rgba(255, 255, 255, 0.08);
+  color: #b8b8b8;
+}
+
+.editor-note[hidden],
 .editor-error[hidden] {
   display: none;
 }
 
 .editor-field {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.editor-body {
   position: relative;
   display: flex;
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -306,35 +322,33 @@
   background: #4fb3c880;
 }
 
-.code-view {
-  display: flex;
-  overflow: auto;
-  align-items: flex-start;
+/* Code: the gutter's rows line up with the textarea's only because neither side wraps. */
+.with-lines .editor-text,
+.with-lines .editor-mirror {
+  white-space: pre;
+  overflow-wrap: normal;
 }
 
-.code-gutter,
-.code-text {
+.editor-gutter {
+  flex: none;
+  box-sizing: border-box;
   margin: 0;
   padding: 4px 8px;
+  font: inherit;
+  line-height: normal;
   white-space: pre;
-  line-height: 1.4;
-  font-family: inherit;
-  font-size: inherit;
-}
-
-.code-gutter {
-  position: sticky;
-  left: 0;
-  flex: none;
+  overflow: hidden;
   text-align: right;
   color: #7a7a7a;
   user-select: none;
   background: rgba(0, 0, 0, 0.25);
 }
 
-.code-text {
-  flex: 1 0 auto;
-  user-select: text;
+/* Room to scroll as far as the textarea can, whose horizontal scrollbar takes some height. */
+.editor-gutter::after {
+  content: '';
+  display: block;
+  height: 100%;
 }
 
 /* The textarea draws the text over its mirror, so the mirror's match keeps no text of its own. */

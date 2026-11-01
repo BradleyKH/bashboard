@@ -18,6 +18,8 @@ export interface Entry {
 export interface FileText {
   text: string;
   modified: number;
+  /** Not valid UTF-8: `text` replaced the invalid bytes, so saving it back would change the file. */
+  lossy: boolean;
 }
 
 export type FileErrorKind = 'binary' | 'tooLarge' | 'conflict' | 'other';

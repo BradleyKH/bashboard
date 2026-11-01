@@ -11,6 +11,7 @@ export interface MarkdownViewOptions {
   path: string;
   text: string;
   modified: number;
+  lossy: boolean;
   settings: Settings;
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
@@ -29,6 +30,7 @@ export class MarkdownView {
   private readonly opts: MarkdownViewOptions;
   private text: string;
   private modified: number;
+  private lossy: boolean;
   private editor: TextEditor | null = null;
   private settings: Settings;
   private disposed = false;
@@ -37,6 +39,7 @@ export class MarkdownView {
     this.opts = opts;
     this.text = opts.text;
     this.modified = opts.modified;
+    this.lossy = opts.lossy;
     this.settings = opts.settings;
 
     this.el = document.createElement('div');
@@ -84,6 +87,7 @@ export class MarkdownView {
       if (this.disposed || this.editor) return;
       this.text = file.text;
       this.modified = file.modified;
+      this.lossy = file.lossy;
       this.renderBody();
     } catch {
       // The file vanished or became unreadable; the pane's next listing clears the preview.
@@ -106,6 +110,7 @@ export class MarkdownView {
       await this.editor.flush();
       this.text = this.editor.text;
       this.modified = this.editor.modified;
+      this.lossy = this.editor.lossy;
       this.editor.dispose();
       this.editor = null;
       this.showRendered();
@@ -116,6 +121,7 @@ export class MarkdownView {
       path: this.opts.path,
       text: this.text,
       modified: this.modified,
+      lossy: this.lossy,
       settings: this.settings,
       keymap: this.opts.keymap,
       dispatch: this.opts.dispatch,

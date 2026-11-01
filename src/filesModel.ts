@@ -157,8 +157,8 @@ export function forward(h: History): History {
 export type PreviewKind = 'markdown' | 'plain' | 'code' | 'binary';
 
 /**
- * How a file previews: `.md` renders, `.txt` or no extension edits as plain text, other names show
- * as code, and anything over 2 MiB is binary. A NUL byte also makes a file binary, but only the
+ * How a file previews: `.md` renders, `.txt` or no extension edits as wrapped plain text, other
+ * names edit as code with line numbers, and anything over 2 MiB is binary. A NUL byte also makes a file binary, but only the
  * read can tell.
  */
 export function previewKind(name: string, size: number): PreviewKind {

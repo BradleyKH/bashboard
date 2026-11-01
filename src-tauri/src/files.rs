@@ -50,6 +50,8 @@ pub struct Entry {
 pub struct TextFile {
     text: String,
     modified: u64,
+    /// The file is not valid UTF-8; `text` replaced the invalid bytes, so it must not be saved back.
+    lossy: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -175,9 +177,14 @@ fn read_text(path: &str) -> Result<TextFile, String> {
     if bytes[..bytes.len().min(BINARY_PROBE_BYTES)].contains(&0) {
         return Err(format!("binary: {name} is not a text file"));
     }
+    let (text, lossy) = match String::from_utf8(bytes) {
+        Ok(text) => (text, false),
+        Err(e) => (String::from_utf8_lossy(e.as_bytes()).into_owned(), true),
+    };
     Ok(TextFile {
-        text: String::from_utf8_lossy(&bytes).into_owned(),
+        text,
         modified: modified_ms(&meta),
+        lossy,
     })
 }
 
@@ -190,6 +197,11 @@ fn write_text(path: &str, text: &str, expected_modified: u64) -> Result<Written,
     }
     if modified_ms(&meta) != expected_modified {
         return Err(format!("conflict: {name} changed on disk"));
+    }
+    // The read replaced its invalid bytes with U+FFFD, so writing the text back would destroy them.
+    let current = fs::read(&path).map_err(|e| format!("{name}: {e}"))?;
+    if std::str::from_utf8(&current).is_err() {
+        return Err(format!("lossy: {name} is not valid UTF-8"));
     }
     crate::workspace::write_atomic(&path, text.as_bytes())?;
     let meta = fs::metadata(&path).map_err(|e| format!("{name}: {e}"))?;
@@ -459,7 +471,17 @@ mod tests {
         let dir = temp_dir("lossy");
         let f = dir.join("a.txt");
         fs::write(&f, b"hi \xff there").unwrap();
-        assert_eq!(read_text(&s(&f)).unwrap().text, "hi \u{fffd} there");
+        let read = read_text(&s(&f)).unwrap();
+        assert_eq!(read.text, "hi \u{fffd} there");
+        assert!(read.lossy);
+
+        let err = write_text(&s(&f), "hi there", read.modified).unwrap_err();
+        assert!(err.starts_with("lossy:"), "{err}");
+        assert_eq!(fs::read(&f).unwrap(), b"hi \xff there");
+
+        let ok = dir.join("b.txt");
+        fs::write(&ok, "café").unwrap();
+        assert!(!read_text(&s(&ok)).unwrap().lossy);
         let _ = fs::remove_dir_all(&dir);
     }
 

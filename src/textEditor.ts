@@ -14,6 +14,10 @@ export interface TextEditorOptions {
   settings: Settings;
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
+  /** Code: a line-number gutter, and long lines scroll sideways instead of wrapping. */
+  lineNumbers?: boolean;
+  /** The read was lossy (`FileText.lossy`); the editor opens read-only. */
+  lossy?: boolean;
 }
 
 /** The monospaced editor for a file on disk (docs/design.md section 4.12, Text editor). */
@@ -26,9 +30,12 @@ export class TextEditor {
    * highlight matches, which a textarea cannot show itself. Filled only while find is open.
    */
   private readonly mirror: HTMLElement;
+  private readonly gutter: HTMLElement | null;
+  private gutterLines = 0;
   private mirrorOn = false;
   private readonly bar: HTMLElement;
   private readonly error: HTMLElement;
+  private readonly lossyNote: HTMLElement;
   private readonly opts: TextEditorOptions;
   private state: EditorState;
   private timer: number | null = null;
@@ -60,6 +67,10 @@ export class TextEditor {
     this.error.className = 'editor-error';
     this.error.hidden = true;
 
+    this.lossyNote = document.createElement('div');
+    this.lossyNote.className = 'editor-note';
+    this.lossyNote.textContent = 'Read-only: this file is not valid UTF-8, and saving it here would change its bytes.';
+
     this.area = document.createElement('textarea');
     this.area.className = 'editor-text';
     this.area.spellcheck = false;
@@ -67,18 +78,38 @@ export class TextEditor {
     this.mirror = document.createElement('div');
     this.mirror.className = 'editor-mirror';
     this.mirror.setAttribute('aria-hidden', 'true');
+    const body = document.createElement('div');
+    body.className = 'editor-body';
+    body.append(this.mirror, this.area);
     this.field = document.createElement('div');
     this.field.className = 'editor-field';
-    this.field.append(this.mirror, this.area);
+    if (opts.lineNumbers) {
+      this.el.classList.add('with-lines');
+      this.area.wrap = 'off';
+      this.gutter = document.createElement('pre');
+      this.gutter.className = 'editor-gutter';
+      this.gutter.setAttribute('aria-hidden', 'true');
+      this.field.append(this.gutter);
+      this.syncGutter();
+    } else {
+      this.gutter = null;
+    }
+    this.field.append(body);
     this.applySettings(opts.settings);
 
-    this.el.append(this.bar, this.error, this.field);
+    this.el.append(this.bar, this.lossyNote, this.error, this.field);
+    this.setLossy(opts.lossy ?? false);
 
     this.area.addEventListener('input', () => {
       this.syncMirror();
+      this.syncGutter();
       this.send({ type: 'edit', text: this.area.value });
     });
-    this.area.addEventListener('scroll', () => (this.mirror.scrollTop = this.area.scrollTop));
+    this.area.addEventListener('scroll', () => {
+      this.mirror.scrollTop = this.area.scrollTop;
+      this.mirror.scrollLeft = this.area.scrollLeft;
+      if (this.gutter) this.gutter.scrollTop = this.area.scrollTop;
+    });
     this.area.addEventListener('blur', () => this.send({ type: 'saveRequested' }));
     this.area.addEventListener('keydown', (e) => this.onKeyDown(e));
   }
@@ -90,6 +121,11 @@ export class TextEditor {
   /** The file's modified time as of the last read or save. */
   get modified(): number {
     return this.state.modified;
+  }
+
+  /** Whether the last read was lossy, which leaves the editor read-only. */
+  get lossy(): boolean {
+    return this.area.readOnly;
   }
 
   focus(): void {
@@ -171,6 +207,7 @@ export class TextEditor {
         if (this.area.value !== effect.text) {
           this.area.value = effect.text;
           this.syncMirror();
+          this.syncGutter();
         }
         this.showError(null);
         break;
@@ -202,6 +239,7 @@ export class TextEditor {
       const file = await fsReadText(this.opts.path);
       if (this.disposed) return;
       this.crlf = file.text.includes('\r\n');
+      this.setLossy(file.lossy);
       this.send({ type: 'reloaded', text: toLf(file.text), modified: file.modified });
     } catch (err) {
       this.showError(`Could not reload: ${errorMessage(err)}`);
@@ -219,10 +257,28 @@ export class TextEditor {
     }
   }
 
+  private setLossy(lossy: boolean): void {
+    this.area.readOnly = lossy;
+    this.lossyNote.hidden = !lossy;
+  }
+
   private syncMirror(): void {
     if (!this.mirrorOn) return;
     this.mirror.textContent = this.area.value;
     this.mirror.scrollTop = this.area.scrollTop;
+    this.mirror.scrollLeft = this.area.scrollLeft;
+  }
+
+  /** One gutter row per line; lines never wrap while the gutter shows, so the rows stay aligned. */
+  private syncGutter(): void {
+    if (!this.gutter) return;
+    const text = this.area.value;
+    let lines = 1;
+    for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) lines++;
+    if (lines === this.gutterLines) return;
+    this.gutterLines = lines;
+    this.gutter.textContent = Array.from({ length: lines }, (_, i) => String(i + 1)).join('\n');
+    this.gutter.scrollTop = this.area.scrollTop;
   }
 
   /** Leaves the current match selected in the textarea, as the caret's new place. */
