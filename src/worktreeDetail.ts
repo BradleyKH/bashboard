@@ -50,17 +50,22 @@ function action(label: string, run: () => void): HTMLButtonElement {
   return b;
 }
 
-function statusLines(detail: WorktreeDetail): HTMLElement[] {
+function statusLines(w: Worktree, detail: WorktreeDetail): HTMLElement[] {
   const head = detail.head
     ? `${detail.head.subject} (${detail.head.hash}, ${relativeTime(detail.head.time, Date.now())})`
     : 'No commits';
   const counts = countsText(detail.ahead, detail.behind);
+  // The main worktree is the primary branch's own checkout (or at least never reported merged), so only its counts show.
   const against = detail.comparison
-    ? `${counts ? `${counts} ${detail.comparison} · ` : ''}${mergedText(detail.merged, detail.comparison, detail.upstream)}`
-    : mergedText('unknown', null, null);
+    ? `${counts ? `${counts} ${detail.comparison}` : ''}${
+        w.main ? '' : `${counts ? ' · ' : ''}${mergedText(detail.merged, detail.comparison, detail.upstream)}`
+      }`
+    : w.main
+      ? ''
+      : mergedText('unknown', null, null);
   return [
     line('Head', head),
-    line('Against primary', against),
+    ...(against ? [line('Against primary', against)] : []),
     line('Upstream', upstreamText(detail)),
     line('Working tree', workingTreeText(detail)),
   ];
@@ -79,7 +84,7 @@ export function renderWorktreeDetail(
 
   if (w.prunable) el.append(note('worktree-detail-note', 'Folder missing'));
   else if (opts.error) el.append(note('worktree-detail-note error', opts.error));
-  else if (detail) el.append(...statusLines(detail));
+  else if (detail) el.append(...statusLines(w, detail));
   else if (opts.loading) el.append(note('worktree-detail-note', 'Loading...'));
 
   const actions = document.createElement('div');

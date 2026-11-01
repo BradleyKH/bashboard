@@ -148,7 +148,11 @@ export function installTextFieldMenu(): void {
     e.preventDefault();
     if (isKeyboardContextMenu(e as MouseEvent & { pointerType?: string })) {
       const rect = field.getBoundingClientRect();
-      openContextMenu(textFieldMenuItems(state, actionsFor(field, range), extras), { x: rect.left, y: rect.bottom });
+      openContextMenu(
+        textFieldMenuItems(state, actionsFor(field, range), extras),
+        { x: rect.left, y: rect.bottom },
+        { focusFirst: true },
+      );
     } else {
       openContextMenu(textFieldMenuItems(state, actionsFor(field, range), extras), { x: e.clientX, y: e.clientY });
     }

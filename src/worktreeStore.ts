@@ -11,6 +11,7 @@ export class WorktreeStore {
   private loading = false;
   private queued = false;
   private watched: string | null = null;
+  private adhoc: { root: string; list: WorktreeList } | null = null;
 
   constructor(private readonly onChange: () => void) {}
 
@@ -21,6 +22,7 @@ export class WorktreeStore {
     this.list = null;
     this.err = null;
     this.queued = false;
+    this.adhoc = null;
     this.onChange();
     if (root) void this.load();
   }
@@ -33,6 +35,23 @@ export class WorktreeStore {
   current(): { root: string; list: WorktreeList } | null {
     if (!this.shown || !this.list) return null;
     return { root: this.list.worktrees[0]?.path ?? this.shown, list: this.list };
+  }
+
+  /** The list from the last `loadOnce`; unwatched, so it can go stale while the store is not shown. */
+  peeked(): { root: string; list: WorktreeList } | null {
+    return this.adhoc;
+  }
+
+  /** One-shot load for a caller that is not showing the list (the palette). It takes no watch and never calls `onChange`. */
+  async loadOnce(root: string): Promise<void> {
+    if (this.shown) return;
+    try {
+      const list = await gitWorktrees(root);
+      // A show() during the await owns the list from then on.
+      if (!this.shown) this.adhoc = { root: list.worktrees[0]?.path ?? root, list };
+    } catch {
+      // The palette just lists no worktrees.
+    }
   }
 
   error(): string | null {
@@ -64,7 +83,7 @@ export class WorktreeStore {
       }
     } catch (e) {
       if (this.shown === root) {
-        this.list = null;
+        // The last good list stays on screen under the error.
         this.err = String(e);
       }
     } finally {

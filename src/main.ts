@@ -630,7 +630,7 @@ const layoutItems = (): PickerItem[] =>
   });
 /** The Repo section's worktrees; it lists none for fewer than two. */
 function paletteWorktrees(): { path: string; name: string; branch: string }[] {
-  const data = worktreeStore.current();
+  const data = worktreeStore.current() ?? worktreeStore.peeked();
   if (!data || data.list.worktrees.length < 2) return [];
   return data.list.worktrees.map((w) => ({
     path: w.path,
@@ -660,6 +660,15 @@ const palette = new CommandPalette({
   },
   runAction: (a) => workspace.runAction(a),
 });
+/** The palette snapshots its items on open, so with the dashboard hidden the first open waits briefly for the worktree load. */
+async function openPalette(): Promise<void> {
+  const root = currentRepo?.isGit ? currentRepo.root : null;
+  if (root && !panel.isShown()) {
+    const load = worktreeStore.loadOnce(root);
+    if (!worktreeStore.peeked()) await Promise.race([load, new Promise((r) => setTimeout(r, 400))]);
+  }
+  palette.open();
+}
 const confirmDialog = new ConfirmDialog();
 const help = new HelpDialog({
   onClose: focusTerminal,
@@ -758,7 +767,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenFavoritePicker: () => picker.open(favoriteItems(), 'Open a favorite folder'),
   onOpenProfilePicker: () => profilePicker.open(profileItems(), 'Split with a shell'),
   onOpenLayoutPicker: () => layoutPicker.open(layoutItems(), 'Open a layout'),
-  onOpenPalette: () => palette.open(),
+  onOpenPalette: () => void openPalette(),
   onShowHelp: showHelp,
   onOpenSettings: showSettings,
   onToggleBackdrop: toggleBackdrop,

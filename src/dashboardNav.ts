@@ -1,3 +1,4 @@
+import { retargetContextMenu } from './contextMenu';
 import { restoreIndex, stepIndex, type NavMove } from './dashboardNavModel';
 
 export interface DashboardNavOptions {
@@ -37,6 +38,8 @@ const ITEM_SELECTOR = [
  */
 export class DashboardNav {
   private lastKey: string | null = null;
+  // The row an open context menu outlines, noted before a rebuild so its successor can take over.
+  private menuRow: { el: HTMLElement; key: string; index: number } | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -60,6 +63,8 @@ export class DashboardNav {
 
   /** Records the focused row before a rebuild; null when focus is elsewhere. */
   capture(): NavSnapshot | null {
+    const row = this.root.querySelector<HTMLElement>('.menu-target');
+    this.menuRow = row ? { el: row, key: this.keyOf(row), index: this.items().indexOf(row) } : null;
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !this.root.contains(active)) return null;
     const el = active.closest<HTMLElement>(ITEM_SELECTOR);
@@ -72,14 +77,31 @@ export class DashboardNav {
    * relayout moved it, which drops focus to the body.
    */
   restore(snapshot: NavSnapshot | null): void {
+    this.restoreMenuRow();
     if (!snapshot) return;
     if (snapshot.el.isConnected) {
       if (document.activeElement === document.body) snapshot.el.focus();
       return;
     }
+    // A section that rebuilt itself already put focus back on the control inside its row; the
+    // row-level fallback would pull it up to the row.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body && this.root.contains(active)) return;
     const items = this.items();
     const at = restoreIndex(items.map((el) => this.keyOf(el)), snapshot.key, snapshot.index);
     if (at >= 0) this.focus(items[at]);
+  }
+
+  /** Hands an open row menu's outline and close-time focus to the rebuilt row with the same key. */
+  private restoreMenuRow(): void {
+    const row = this.menuRow;
+    this.menuRow = null;
+    if (!row || row.el.isConnected) return;
+    const items = this.items();
+    const at = restoreIndex(items.map((el) => this.keyOf(el)), row.key, row.index);
+    const next = at >= 0 ? items[at] : null;
+    if (next && !(next instanceof HTMLButtonElement)) next.tabIndex = -1;
+    retargetContextMenu((old) => (old === row.el ? next : null));
   }
 
   /** The rows on screen, top to bottom; rows of collapsed, hidden, and disabled sections are left out. */

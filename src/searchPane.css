@@ -149,6 +149,7 @@
   border-top: 1px solid var(--search-border);
   background: rgba(255, 255, 255, 0.04);
   font-weight: 600;
+  user-select: none;
 }
 
 .search-group:first-child .search-group-head {

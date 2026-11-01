@@ -202,6 +202,7 @@ pub fn run() {
             system::system_sample,
             system::claude_processes,
             transcript::claude_context,
+            transcript::claude_context_stop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

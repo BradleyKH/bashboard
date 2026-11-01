@@ -107,6 +107,8 @@ describe('pathInsertText', () => {
     expect(pathInsertText([path], null, cmd)).toBe('"D:\\my notes\\a b.md" ');
     expect(pathInsertText([path], null, cmdClaude)).toBe('"D:/my notes/a b.md" ');
     expect(pathInsertText(['C:\\r\\app\\my file.ts'], 'C:\\r\\app', cmd)).toBe('"my file.ts" ');
+    expect(pathInsertText(['C:\\r\\app\\src\\a b.ts'], 'C:\\r\\app', cmd)).toBe('"src\\a b.ts" ');
+    expect(pathInsertText(['C:\\r\\app\\src\\a b.ts'], 'C:\\r\\app', cmdClaude)).toBe('"src/a b.ts" ');
   });
 
   it('escapes a single quote for Git Bash and PowerShell', () => {

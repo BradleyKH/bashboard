@@ -41,6 +41,9 @@ export const EXCLUDED_ACTIONS: readonly string[] = ['copy', 'paste', 'sendInput'
 
 const DIRECTIONS: readonly Direction[] = ['left', 'right', 'up', 'down'];
 
+/** Actions the palette lists once per direction; any other argument-taking action stays out. */
+export const DIRECTIONAL_ACTIONS: readonly string[] = ['moveFocus', 'resizePane'];
+
 function lastSegment(path: string): string {
   const parts = path.split(/[\\/]/).filter((p) => p !== '');
   return parts[parts.length - 1] ?? path;
@@ -59,7 +62,7 @@ function actionItems(entries: KeybindingEntry[]): PaletteItem[] {
   const items: PaletteItem[] = [];
   for (const name of actionOrder()) {
     if (EXCLUDED_ACTIONS.includes(name)) continue;
-    const directions: (Direction | undefined)[] = name === 'moveFocus' || name === 'resizePane' ? [...DIRECTIONS] : [undefined];
+    const directions: (Direction | undefined)[] = DIRECTIONAL_ACTIONS.includes(name) ? [...DIRECTIONS] : [undefined];
     for (const direction of directions) {
       const label = actionLabel(name, direction);
       if (label === undefined) continue;
@@ -108,13 +111,19 @@ export function buildPaletteItems(input: PaletteInput): PaletteItem[] {
       choice: { kind: 'layout', name: l.name },
     })),
     // Opening a missing pin does nothing, so it is not offered.
-    ...input.pins.filter((p) => p.exists).map((p): PaletteItem => ({
-      id: `pin:${p.absolute}`,
-      category: 'Pin',
-      label: p.pin.label || lastSegment(p.pin.path === '.' ? p.absolute : p.pin.path),
-      detail: p.pin.path,
-      choice: { kind: 'pin', pin: p.pin },
-    })),
+    // A root pin's path is ".", so its name comes from the absolute path. The folder name is
+    // dropped as a detail when it is already the title.
+    ...input.pins.filter((p) => p.exists).map((p): PaletteItem => {
+      const atRoot = p.pin.path === '.';
+      const folder = lastSegment(p.absolute);
+      return {
+        id: `pin:${p.absolute}`,
+        category: 'Pin',
+        label: p.pin.label || (atRoot ? folder : lastSegment(p.pin.path)),
+        detail: atRoot ? (p.pin.label ? folder : undefined) : p.pin.path,
+        choice: { kind: 'pin', pin: p.pin },
+      };
+    }),
     ...input.worktrees.map((w): PaletteItem => ({
       id: `worktree:${w.path}`,
       category: 'Worktree',

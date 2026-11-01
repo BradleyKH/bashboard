@@ -33,6 +33,7 @@ describe('paneCardMenuItems', () => {
       null,
       'Terminal',
       'Files',
+      null,
       'Open in File Explorer',
       'Copy path',
       null,
@@ -44,6 +45,12 @@ describe('paneCardMenuItems', () => {
     const items = paneCardMenuItems({ path: '', collapsed: true }, open, cardHandlers());
     expect(labels(items)).toContain('Expand');
     expect(labels(items)).not.toContain('Collapse');
+  });
+
+  it('leaves out Collapse when the card cannot collapse', () => {
+    const { onToggleCollapse: _drop, ...h } = cardHandlers();
+    const items = paneCardMenuItems({ path: '', collapsed: false }, open, h);
+    expect(labels(items)).toEqual(['Focus', null, 'Close']);
   });
 
   it('drops the Open, Explorer, and Copy path entries without a path', () => {
@@ -81,6 +88,7 @@ describe('sessionRowMenuItems', () => {
     expect(labels(items)).toEqual([
       'Terminal',
       'Files',
+      null,
       'Open in File Explorer',
       'Copy path',
       null,

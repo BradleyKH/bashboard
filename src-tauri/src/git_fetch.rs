@@ -361,12 +361,8 @@ pub fn git_fetch_visible(state: State<'_, GitFetches>, visible: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        fs,
-        path::Path,
-        process::Command,
-        sync::atomic::{AtomicU32, Ordering},
-    };
+    use crate::git::test_support::{configure, sh, temp_dir};
+    use std::{fs, path::Path};
 
     const MIN: u64 = 60_000;
 
@@ -462,42 +458,11 @@ mod tests {
         assert!(s.due(MIN, 5).is_empty());
     }
 
-    fn temp_dir(tag: &str) -> PathBuf {
-        static N: AtomicU32 = AtomicU32::new(0);
-        let n = N.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!(
-            "bashboard-git-fetch-{tag}-{}-{n}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn sh(dir: &Path, args: &[&str]) {
-        let out = Command::new("git")
-            .arg("-C")
-            .arg(dir)
-            .args(args)
-            .output()
-            .unwrap();
-        assert!(
-            out.status.success(),
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
-
+    // The initial commit gives branches and worktrees a HEAD to start from.
     fn repo(tag: &str) -> PathBuf {
         let root = temp_dir(tag);
         sh(&root, &["init", "-q", "-b", "main"]);
-        for (k, v) in [
-            ("user.name", "Test"),
-            ("user.email", "test@example.com"),
-            ("commit.gpgsign", "false"),
-        ] {
-            sh(&root, &["config", k, v]);
-        }
+        configure(&root);
         sh(&root, &["commit", "-q", "--allow-empty", "-m", "first"]);
         root
     }

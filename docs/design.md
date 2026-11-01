@@ -921,13 +921,15 @@ without Enter, then focuses that terminal (a collapsed target is expanded). Sour
   follows the pointer.
 
 An expanded terminal highlights while a path is over it and takes the paste. A scratch pad (4.15)
-takes the text at its caret, formatted for the terminal its Send would use. Nothing else is a
-target; a drop elsewhere does nothing.
+takes the text at its caret, formatted for the terminal its Send would use (the tab's most
+recently focused terminal). A tab with no terminal has none, so the text uses the default shell
+profile, without the Claude Code rules; with no base root, as when a drop lands on the pad, the
+paths come out absolute. Nothing else is a target; a drop elsewhere does nothing.
 
 `pathInsertText(paths, baseRoot, profile)` in `filesRouting.ts` formats every path insertion,
 including the Files pane's Insert path. A path inside `baseRoot` is relative with forward slashes,
-`.` for the root itself, and otherwise absolute: forward slashes in Git Bash, PowerShell, and
-Claude Code, backslashes in Command Prompt. A path with any character outside `A-Z a-z 0-9 . _ - /
+`.` for the root itself, and otherwise absolute. Git Bash, PowerShell, and Claude Code get forward
+slashes; Command Prompt without Claude Code gets backslashes, on relative paths too. A path with any character outside `A-Z a-z 0-9 . _ - /
 : @ +` is quoted for the profile (single quotes in Git Bash and PowerShell, double quotes in
 Command Prompt). Paths are joined by spaces and the text ends with a space. A drop's `baseRoot` is
 the target terminal's repo; Insert path uses the Files pane's root.
@@ -1342,30 +1344,30 @@ its cwd and session id with copy buttons. A `waiting` row shows the reason under
 the same as a card. The section is hidden while there are none.
 
 **Footer.** Three buttons sit at the bottom of the panel. Install Claude Code hooks is shown only
-while Claude Code is detected and the hooks are not installed (3.3). Keyboard shortcuts opens the help dialog, also bound to
-F1. Settings opens the settings dialog, also bound to Ctrl+,.
+while Claude Code is detected and the hooks are not installed (3.3). Keyboard shortcuts opens the
+help dialog, also bound to F1. Settings opens the settings dialog, also bound to Ctrl+,.
 
-The settings dialog edits every user-facing setting, in the sections
-Appearance, Backdrop, Terminal, Editor, Dashboard, Restore, and Keyboard. Dashboard holds the
-side choice, Left or Right, and a checkbox per element under "Show on the dashboard". Keyboard holds one
-button, Edit keyboard shortcuts, which closes the dialog and opens the F1 guide (4.5). Terminal includes a Default shell select listing the available profiles. Editor
-selects the preferred editor from those found (3.12), plus a custom command field. Appearance's
-Font family field suggests installed fonts as you type (3.17), monospace first, with the bundled
-JetBrainsMono Nerd Font Mono (3.16) leading. It stays a text field, so a name that is not installed
-or a comma-separated fallback list saves as typed; picking an entry replaces the whole value and
-saves it at once. The list loads after the dialog opens. A Run setup
-button reopens the setup wizard (4.17). Each change is written to settings.json
+The settings dialog edits every user-facing setting, in the sections Appearance, Backdrop, Terminal,
+Editor, Dashboard, Restore, and Keyboard. Dashboard holds the side choice, Left or Right, and a
+checkbox per element under "Show on the dashboard". Keyboard holds one button, Edit keyboard
+shortcuts, which closes the dialog and opens the F1 guide (4.5). Terminal includes a Default shell
+select listing the available profiles. Editor selects the preferred editor from those found (3.12),
+plus a custom command field. Appearance's Font family field suggests installed fonts as you type
+(3.17), monospace first, with the bundled JetBrainsMono Nerd Font Mono (3.16) leading. It stays a
+text field, so a name that is not installed or a comma-separated fallback list saves as typed;
+picking an entry replaces the whole value and saves it at once. The list loads after the dialog
+opens. A Run setup button reopens the setup wizard (4.17). Each change is written to settings.json
 through the app, so the file's comments survive. Toggles save immediately; number and text fields
-save on blur or Enter; the shell arguments list (one argument per line) saves on blur or
-Ctrl+Enter; sliders save shortly after the drag stops and show the live value. Invalid input (out
-of range, empty, or not a number) shows an inline error and is not saved, and a failed save shows
-an inline error too. When settings.json changes on disk while the dialog is open, every control
-except the focused one refreshes. Fields that do not apply live say so beside the control:
-dashboard.visibleOnStart and restore.* apply at the next launch, and shell.* applies to panes
-opened afterward. Warnings about the current settings appear at the top of the dialog. The
-Open settings.json button in the footer opens the file in the default editor, with the note
-"Keyboard shortcuts are changed in the shortcut guide (F1); keys that type text are added to the
-"keybindings" list in settings.json." Escape or a click outside the dialog closes it.
+save on blur or Enter; the shell arguments list (one argument per line) saves on blur or Ctrl+Enter;
+sliders save shortly after the drag stops and show the live value. Invalid input (out of range,
+empty, or not a number) shows an inline error and is not saved, and a failed save shows an inline
+error too. When settings.json changes on disk while the dialog is open, every control except the
+focused one refreshes. Fields that do not apply live say so beside the control:
+dashboard.visibleOnStart and restore.* apply at the next launch, and shell.* applies to panes opened
+afterward. Warnings about the current settings appear at the top of the dialog. The Open
+settings.json button in the footer opens the file in the default editor, with the note "Keyboard
+shortcuts are changed in the shortcut guide (F1); keys that type text are added to the "keybindings"
+list in settings.json." Escape or a click outside the dialog closes it.
 
 A peek overlays the panes from the panel's side without narrowing them. It ends after a few seconds, but stays
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends

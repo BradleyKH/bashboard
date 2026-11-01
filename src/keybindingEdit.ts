@@ -269,12 +269,19 @@ export function resetAllOps(): KeybindingOp[] {
   return [{ op: 'resetAll' }];
 }
 
-/** The ops that put every chord `ops` touch back to its state in `live`; Undo sends these. */
-export function inverseOps(ops: KeybindingOp[], live: KeybindingEntry[]): KeybindingOp[] {
+/**
+ * The ops that put every chord `ops` touch back to its state in `live`; Undo sends these. Given
+ * `previous`, the raw array the write replaced, a Reset all undoes with `replaceAll`, which also
+ * restores the entries the loader rejected and `live` never shows.
+ */
+export function inverseOps(ops: KeybindingOp[], live: KeybindingEntry[], previous?: unknown[]): KeybindingOp[] {
+  if (previous && ops.some((op) => op.op === 'resetAll' || op.op === 'replaceAll')) {
+    return [{ op: 'replaceAll', entries: previous }];
+  }
   const bound = boundByChord(live);
   const touched = new Map<string, string>();
   for (const op of ops) {
-    if (op.op === 'resetAll') {
+    if (op.op === 'resetAll' || op.op === 'replaceAll') {
       for (const [id, b] of [...DEFAULTS, ...bound]) {
         if (bound.get(id)?.row !== DEFAULTS.get(id)?.row) touched.set(id, b.entry.keys);
       }
@@ -293,12 +300,24 @@ export function inverseOps(ops: KeybindingOp[], live: KeybindingEntry[]): Keybin
   });
 }
 
+/** One raw file entry as the op that has its effect, or none for an entry the loader rejects. */
+function rawEntryOp(raw: unknown): KeybindingOp[] {
+  const e = raw as Partial<KeybindingEntry> | null;
+  if (typeof e?.keys !== 'string' || typeof e.action !== 'string' || !parseChord(e.keys)) return [];
+  if (e.action === 'unbound') return [{ op: 'unbind', keys: e.keys }];
+  return [bindOp(e.keys, e.action, argsOf(e as KeybindingEntry))];
+}
+
 /** The merged keybindings after `ops`, modeling settings_keybindings_edit plus the loader's merge. */
 export function applyOps(live: KeybindingEntry[], ops: KeybindingOp[]): KeybindingEntry[] {
   let entries = [...live];
   for (const op of ops) {
     if (op.op === 'resetAll') {
       entries = [...DEFAULT_KEYBINDINGS];
+      continue;
+    }
+    if (op.op === 'replaceAll') {
+      entries = applyOps(DEFAULT_KEYBINDINGS, op.entries.flatMap(rawEntryOp));
       continue;
     }
     const chord = parseChord(op.keys);

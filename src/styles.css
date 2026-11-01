@@ -324,6 +324,23 @@ body.dashboard-left.dashboard-open #panes {
   right: 8px;
 }
 
+/* Band colors shared by the System and Claude bars; each section's CSS sets only its base fill. */
+:root {
+  --system-accent: #4fb3c8;
+  --system-warn: #e0b050;
+  --system-error: #e58a7a;
+}
+
+.system-bar-fill[data-band='warn'],
+.claude-bar.warn > span {
+  background: var(--system-warn);
+}
+
+.system-bar-fill[data-band='error'],
+.claude-bar.error > span {
+  background: var(--system-error);
+}
+
 #dashboard {
   display: none;
   position: fixed;
@@ -365,16 +382,17 @@ body.dashboard-left.dashboard-peek:not(.dashboard-open) #dashboard {
   animation-name: dashboard-peek-in-left;
 }
 
+/* clip-path wipes the panel in; a transform would move the panel while the fixed resize handle stays put. */
 @keyframes dashboard-peek-in {
   from {
-    transform: translateX(24px);
+    clip-path: inset(0 0 0 24px);
     opacity: 0;
   }
 }
 
 @keyframes dashboard-peek-in-left {
   from {
-    transform: translateX(-24px);
+    clip-path: inset(0 24px 0 0);
     opacity: 0;
   }
 }
@@ -385,6 +403,11 @@ body.dashboard-left.dashboard-peek:not(.dashboard-open) #dashboard {
   flex: 0 0 auto;
   justify-content: flex-end;
   margin: -6px -4px -12px 0;
+  /* Stays at the panel's top edge so the close button survives scrolling; opaque so rows do not show through. The offset cancels the panel's 10px padding, which sticky positioning respects, so rows cannot scroll through a strip above the bar. */
+  position: sticky;
+  top: -10px;
+  z-index: 1;
+  background: #0a1016;
 }
 
 /* Straddles the panel's inner edge; fixed so the panel's scroll never carries it away. */
@@ -448,6 +471,7 @@ body.dashboard-resizing {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Selects the first shown element when the Repo section is hidden: the outer :not([hidden]) keeps it visible, and the inner :not() excludes any element that follows an earlier shown sibling. */
 #dashboard .repo-section[hidden] + .dashboard-elements > [data-element]:not([hidden]):not([data-element]:not([hidden]) ~ *) {
   padding-top: 0;
   border-top: none;

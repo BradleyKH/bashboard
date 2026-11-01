@@ -97,7 +97,7 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
       target: el,
       entries: paneCardMenuItems(card, openItems, {
         onFocus: () => opts.onFocus(card.paneId),
-        onToggleCollapse: () => onToggleCollapse?.(card.paneId),
+        onToggleCollapse: onToggleCollapse && (() => onToggleCollapse(card.paneId)),
         onOpenInExplorer: openFolder,
         onCopyPath: (path) => void copyPath(path),
         onClose: requestClose,

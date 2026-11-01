@@ -2,7 +2,8 @@ import { item, separator, type MenuEntry, type MenuItem } from './contextMenuMod
 
 export interface PaneCardMenuHandlers {
   onFocus(): void;
-  onToggleCollapse(): void;
+  /** Omitted when the owner cannot collapse a card. */
+  onToggleCollapse?(): void;
   onOpenInExplorer(path: string): void;
   onCopyPath(path: string): void;
   onClose(): void;
@@ -15,7 +16,7 @@ function folderEntries(
   handlers: Pick<PaneCardMenuHandlers, 'onOpenInExplorer' | 'onCopyPath'>,
 ): MenuEntry[] {
   return [
-    ...openItems,
+    ...(openItems.length > 0 ? [...openItems, separator()] : []),
     item('Open in File Explorer', () => handlers.onOpenInExplorer(path)),
     item('Copy path', () => handlers.onCopyPath(path)),
   ];
@@ -27,10 +28,9 @@ export function paneCardMenuItems(
   openItems: MenuItem[],
   handlers: PaneCardMenuHandlers,
 ): MenuEntry[] {
-  const out: MenuEntry[] = [
-    item('Focus', handlers.onFocus),
-    item(card.collapsed ? 'Expand' : 'Collapse', handlers.onToggleCollapse),
-  ];
+  const out: MenuEntry[] = [item('Focus', handlers.onFocus)];
+  const toggle = handlers.onToggleCollapse;
+  if (toggle) out.push(item(card.collapsed ? 'Expand' : 'Collapse', toggle));
   if (card.path) out.push(separator(), ...folderEntries(card.path, openItems, handlers));
   out.push(separator(), item('Close', handlers.onClose));
   return out;

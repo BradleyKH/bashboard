@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import './dashboardClaude.css';
 import { attachContextMenu } from './contextMenu';
 import { copyPath } from './copyText';
@@ -29,6 +31,9 @@ export class DashboardClaude {
   private procs = new Map<number, ProcFigures>();
   private large: ReadonlySet<string> = new Set();
   private subscribed = false;
+  private unlisten: UnlistenFn | undefined;
+  // Bumped on every unsubscribe so a late listen or snapshot from the old subscription is dropped.
+  private epoch = 0;
   private dirty = true;
 
   constructor(private readonly onFocus: (paneId: string) => void) {
@@ -53,28 +58,43 @@ export class DashboardClaude {
     this.renderIfVisible();
   }
 
-  setVisible(visible: boolean): void {
-    this.el.hidden = !visible;
-  }
-
   setGate(partial: Partial<PollGate>): void {
     this.gate = { ...this.gate, ...partial };
-    if (shouldPoll(this.gate) && !this.subscribed) this.subscribe();
+    if (!this.gate.enabled && this.subscribed) this.unsubscribe();
+    else if (shouldPoll(this.gate) && !this.subscribed) this.subscribe();
     this.timer.setGate(partial);
     this.renderIfVisible();
   }
 
   private subscribe(): void {
     this.subscribed = true;
-    void onClaudeContext((ctx) => this.merge(ctx)).catch(() => {});
+    const epoch = this.epoch;
+    void onClaudeContext((ctx) => this.merge(ctx))
+      .then((un) => {
+        if (epoch === this.epoch) this.unlisten = un;
+        else un();
+      })
+      .catch(() => {});
     // An event can land before the snapshot resolves; the snapshot must not overwrite it.
     void claudeContext()
       .then((all) => {
+        if (epoch !== this.epoch) return;
         for (const ctx of all) if (!this.contexts.has(ctx.sessionId)) this.contexts.set(ctx.sessionId, ctx);
         this.dirty = true;
         this.renderIfVisible();
       })
       .catch(() => {});
+  }
+
+  // The core forgets its sessions on stop, so stale contexts are dropped here too.
+  private unsubscribe(): void {
+    this.subscribed = false;
+    this.epoch++;
+    this.unlisten?.();
+    this.unlisten = undefined;
+    this.contexts.clear();
+    this.dirty = true;
+    void invoke('claude_context_stop').catch(() => {});
   }
 
   private merge(ctx: ClaudeContext): void {

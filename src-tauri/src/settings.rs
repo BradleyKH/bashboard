@@ -422,6 +422,9 @@ pub enum KeybindingOp {
     Unbind { keys: String },
     Reset { keys: String },
     ResetAll,
+    /// Writes the raw array back as given, rejected entries included, so Undo after Reset all
+    /// restores what the loader ignored as well as the keymap.
+    ReplaceAll { entries: Vec<Value> },
 }
 
 /// The settings file's root object with comments stripped.
@@ -461,6 +464,10 @@ fn apply_keybinding_ops(mut entries: Vec<Value>, ops: &[KeybindingOp]) -> Vec<Va
                 entries.clear();
                 continue;
             }
+            KeybindingOp::ReplaceAll { entries: all } => {
+                entries = all.clone();
+                continue;
+            }
             KeybindingOp::Bind { keys, .. }
             | KeybindingOp::Unbind { keys }
             | KeybindingOp::Reset { keys } => keys,
@@ -493,7 +500,7 @@ fn apply_keybinding_ops(mut entries: Vec<Value>, ops: &[KeybindingOp]) -> Vec<Va
                     entries.push(serde_json::json!({ "keys": keys, "action": "unbound" }));
                 }
             }
-            KeybindingOp::Reset { .. } | KeybindingOp::ResetAll => {}
+            KeybindingOp::Reset { .. } | KeybindingOp::ResetAll | KeybindingOp::ReplaceAll { .. } => {}
         }
     }
     entries
@@ -837,17 +844,25 @@ pub fn settings_set(app: AppHandle, path: Vec<String>, value: Value) -> Result<(
     edit_settings_file(&app, |text| crate::settings_edit::set_value(text, &path, &value))
 }
 
-/// The file text with `ops` applied to its raw `keybindings` array.
-fn edit_keybindings_text(text: &str, ops: &[KeybindingOp]) -> Result<String, String> {
-    let next = apply_keybinding_ops(raw_keybindings(text)?, ops);
-    crate::settings_edit::set_array_lines(text, &["keybindings".into()], &next)
+/// The file text with `ops` applied to its raw `keybindings` array, and that array as it was.
+fn edit_keybindings_text(text: &str, ops: &[KeybindingOp]) -> Result<(String, Vec<Value>), String> {
+    let previous = raw_keybindings(text)?;
+    let next = apply_keybinding_ops(previous.clone(), ops);
+    Ok((crate::settings_edit::set_array_lines(text, &["keybindings".into()], &next)?, previous))
 }
 
 /// Applies keybinding ops to the file's `keybindings` array, leaving the rest of the file as
-/// written. The watcher's `settings://changed` delivers the result to the front end.
+/// written, and returns the raw array as it was so Undo can send it back with `replaceAll`. The
+/// watcher's `settings://changed` delivers the result to the front end.
 #[tauri::command]
-pub fn settings_keybindings_edit(app: AppHandle, ops: Vec<KeybindingOp>) -> Result<(), String> {
-    edit_settings_file(&app, |text| edit_keybindings_text(text, &ops))
+pub fn settings_keybindings_edit(app: AppHandle, ops: Vec<KeybindingOp>) -> Result<Vec<Value>, String> {
+    let mut previous = Vec::new();
+    edit_settings_file(&app, |text| {
+        let (next, prev) = edit_keybindings_text(text, &ops)?;
+        previous = prev;
+        Ok(next)
+    })?;
+    Ok(previous)
 }
 
 /// Opens the settings file in the user's default editor, creating it first if missing.
@@ -885,35 +900,74 @@ pub fn init(app: &AppHandle) {
     let Some(dir) = path.parent().map(Path::to_path_buf) else {
         return;
     };
-    let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
-    // Watch the directory: editors save by replacing the file, which drops a file-level watch.
-    let mut watcher = match notify::recommended_watcher(tx) {
-        Ok(w) => w,
-        Err(e) => return eprintln!("settings: watcher unavailable: {e}"),
-    };
-    if let Err(e) = watcher.watch(&dir, RecursiveMode::NonRecursive) {
-        return eprintln!("settings: could not watch {}: {e}", dir.display());
-    }
-    *state.watcher.lock().unwrap() = Some(watcher);
-
     let app = app.clone();
+    let reload_path = path.clone();
+    let on_change = move || {
+        let state = app.state::<SettingsState>();
+        let next = reload(&reload_path, &state.current());
+        *state.current.lock().unwrap() = next;
+        let _ = app.emit("settings://changed", state.payload());
+    };
+    match watch_file(&path, on_change) {
+        Ok(watcher) => *state.watcher.lock().unwrap() = Some(watcher),
+        Err(e) => eprintln!("settings: could not watch {}: {e}", dir.display()),
+    }
+}
+
+/// Watches `file` and calls `on_change` once per burst of events that could have changed it.
+/// The folder is watched rather than the file because a replace (an editor's save, `sed -i`)
+/// swaps the file out from under a file-level watch.
+fn watch_file(file: &Path, on_change: impl Fn() + Send + 'static) -> notify::Result<RecommendedWatcher> {
+    let dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
+    let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
+    let mut watcher = notify::recommended_watcher(tx)?;
+    watcher.watch(&dir, RecursiveMode::NonRecursive)?;
+    let file = file.to_path_buf();
     thread::spawn(move || {
-        let relevant = |ev: &notify::Result<notify::Event>| {
-            ev.as_ref()
-                .is_ok_and(|e| e.paths.iter().any(|p| p.file_name().is_some_and(|n| n == FILE_NAME)))
-        };
         while let Ok(ev) = rx.recv() {
-            if !relevant(&ev) {
+            if !event_may_touch(&ev, &file) {
                 continue;
             }
             // Coalesce the burst of events a single save produces.
             while rx.recv_timeout(Duration::from_millis(100)).is_ok() {}
-            let state = app.state::<SettingsState>();
-            let next = reload(&path, &state.current());
-            *state.current.lock().unwrap() = next;
-            let _ = app.emit("settings://changed", state.payload());
+            on_change();
         }
     });
+    Ok(watcher)
+}
+
+/// Whether a folder event could mean `file` changed. Errs toward yes, since a spurious reload
+/// only re-reads the file while a missed one leaves stale settings until the next save.
+/// ReadDirectoryChangesW may name a file by its 8.3 alias (`SETTIN~1.JSO`) or in another case,
+/// and a buffer overflow arrives as an event with no paths or with the folder itself as path.
+fn event_may_touch(ev: &notify::Result<notify::Event>, file: &Path) -> bool {
+    let Ok(ev) = ev else {
+        return true;
+    };
+    if ev.need_rescan() || ev.paths.is_empty() {
+        return true;
+    }
+    let Some(name) = file.file_name().and_then(|n| n.to_str()) else {
+        return true;
+    };
+    let alias_prefix = name
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .take(6)
+        .collect::<String>()
+        .to_ascii_uppercase();
+    let dir = file.parent();
+    ev.paths.iter().any(|p| match p.file_name().and_then(|n| n.to_str()) {
+        None => true,
+        Some(_) if Some(p.as_path()) == dir => true,
+        Some(n) => {
+            n.eq_ignore_ascii_case(name)
+                || (n.contains('~') && n.to_ascii_uppercase().starts_with(&alias_prefix))
+        }
+    })
 }
 
 #[cfg(test)]
@@ -1655,7 +1709,7 @@ mod tests {
     #[test]
     fn edit_keeps_the_default_files_comment_and_adds_the_chord() {
         let text = default_file_text();
-        let out = edit_keybindings_text(&text, &[bind("ctrl+alt+k", "find")]).unwrap();
+        let out = edit_keybindings_text(&text, &[bind("ctrl+alt+k", "find")]).unwrap().0;
         assert!(out.contains("An entry with \"action\": \"unbound\""), "{out}");
         let kbs = parsed_keys(&out);
         assert_eq!(action_of(&kbs, "ctrl+alt+k").as_deref(), Some("find"));
@@ -1665,7 +1719,7 @@ mod tests {
     #[test]
     fn edit_keeps_outside_comments_and_rejected_entries() {
         let text = "{\n  // before\n  \"keybindings\": [\n    { \"keys\": 5 },\n    { \"keys\": \"f1\", \"action\": \"unbound\" }\n  ],\n  // after\n  \"scrollback\": 100\n}\n";
-        let out = edit_keybindings_text(text, &[bind("ctrl+alt+k", "find")]).unwrap();
+        let out = edit_keybindings_text(text, &[bind("ctrl+alt+k", "find")]).unwrap().0;
         assert!(out.contains("// before") && out.contains("// after"), "{out}");
         assert!(out.contains("{ \"keys\": 5 }"), "{out}");
         assert!(out.contains("\"scrollback\": 100"), "{out}");
@@ -1679,10 +1733,25 @@ mod tests {
         let defaults = default_keybindings();
         let before = action_of(&defaults, "ctrl+w").unwrap();
         assert_eq!(before, "closePane");
-        let out = edit_keybindings_text(&default_file_text(), &[bind("ctrl+w", "find")]).unwrap();
+        let out = edit_keybindings_text(&default_file_text(), &[bind("ctrl+w", "find")]).unwrap().0;
         let kbs = parsed_keys(&out);
         assert_eq!(action_of(&kbs, "ctrl+w").as_deref(), Some("find"));
         assert!(kbs.iter().filter(|k| k.action == "closePane").all(|k| normalize_chord(&k.keys) != "ctrl+w"));
+    }
+
+    #[test]
+    fn replace_all_restores_rejected_entries_and_keeps_the_rest_of_the_file() {
+        let text = "{\n  // before\n  \"keybindings\": [\n    { \"keys\": 5 },\n    { \"keys\": \"ctrl+w\", \"action\": \"find\" },\n    { \"action\": \"nope\" }\n  ],\n  // after\n  \"scrollback\": 100\n}\n";
+        let (reset, previous) = edit_keybindings_text(text, &[KeybindingOp::ResetAll]).unwrap();
+        assert_eq!(previous, raw_keybindings(text).unwrap());
+        assert!(raw_keybindings(&reset).unwrap().is_empty());
+        let (restored, cleared) =
+            edit_keybindings_text(&reset, &[KeybindingOp::ReplaceAll { entries: previous }]).unwrap();
+        assert!(cleared.is_empty());
+        assert_eq!(restored, text);
+
+        let op: KeybindingOp = serde_json::from_str(r#"{ "op": "replaceAll", "entries": [{ "keys": 5 }] }"#).unwrap();
+        assert_eq!(op, KeybindingOp::ReplaceAll { entries: vec![serde_json::json!({ "keys": 5 })] });
     }
 
     #[test]
@@ -1703,5 +1772,96 @@ mod tests {
         let entries = vec![serde_json::json!({ "keys": "win+left", "action": "find" })];
         let out = apply_keybinding_ops(entries, &[bind("meta+left", "copy")]);
         assert_eq!(out, vec![serde_json::json!({ "keys": "meta+left", "action": "copy" })]);
+    }
+
+    fn event(kind: notify::EventKind, paths: &[&str]) -> notify::Result<notify::Event> {
+        let mut ev = notify::Event::new(kind);
+        for p in paths {
+            ev = ev.add_path(PathBuf::from(p));
+        }
+        Ok(ev)
+    }
+
+    #[test]
+    fn event_may_touch_matches_the_file_and_its_aliases() {
+        use notify::event::{EventKind, Flag, ModifyKind, RenameMode};
+        let file = Path::new("C:/cfg/settings.json");
+        let any = EventKind::Any;
+        assert!(event_may_touch(&event(any, &["C:/cfg/settings.json"]), file));
+        assert!(event_may_touch(&event(any, &["C:/cfg/Settings.JSON"]), file));
+        assert!(event_may_touch(&event(any, &["C:/cfg/SETTIN~1.JSO"]), file));
+        let rename_to = EventKind::Modify(ModifyKind::Name(RenameMode::To));
+        assert!(event_may_touch(&event(rename_to, &["C:/cfg/settings.json"]), file));
+        let rename_both = EventKind::Modify(ModifyKind::Name(RenameMode::Both));
+        assert!(event_may_touch(&event(rename_both, &["C:/cfg/sedAb12", "C:/cfg/settings.json"]), file));
+        // Overflow and backend errors carry no usable path.
+        assert!(event_may_touch(&event(any, &[]), file));
+        assert!(event_may_touch(&event(any, &["C:/cfg"]), file));
+        let rescan = notify::Event::new(any).add_path("C:/cfg/x".into()).set_flag(Flag::Rescan);
+        assert!(event_may_touch(&Ok(rescan), file));
+        assert!(event_may_touch(&Err(notify::Error::generic("boom")), file));
+
+        assert!(!event_may_touch(&event(any, &["C:/cfg/workspace.json"]), file));
+        assert!(!event_may_touch(&event(any, &["C:/cfg/settings.json.tmp"]), file));
+        assert!(!event_may_touch(&event(any, &["C:/cfg/WORKSP~1.JSO"]), file));
+        assert!(!event_may_touch(&event(any, &["C:/cfg/sedAb12"]), file));
+    }
+
+    /// Drives the real watcher through outside edits that replace or rewrite the file: a temp
+    /// file renamed over it (`sed -i`, editors) and an in-place truncate and write (`cat >`),
+    /// including a pause mid-write that splits the events into two bursts.
+    #[test]
+    fn watcher_fires_for_rename_over_and_truncate_overwrite() {
+        use std::io::Write;
+        use std::sync::mpsc::RecvTimeoutError;
+        let dir = std::env::temp_dir().join(format!("bashboard-settings-watch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(FILE_NAME);
+        std::fs::write(&path, r#"{ "scrollback": 1 }"#).unwrap();
+
+        let (tx, rx) = mpsc::channel::<u32>();
+        let read_path = path.clone();
+        let _watcher = watch_file(&path, move || {
+            let _ = tx.send(reload(&read_path, &Settings::default()).0.scrollback);
+        })
+        .unwrap();
+        // Waits for the reload that sees `want`, skipping any made on a half-written file.
+        let expect = |want: u32| loop {
+            match rx.recv_timeout(Duration::from_secs(5)) {
+                Ok(got) if got == want => break,
+                Ok(_) => continue,
+                Err(RecvTimeoutError::Timeout) => panic!("no reload saw scrollback {want}"),
+                Err(e) => panic!("{e}"),
+            }
+        };
+
+        let tmp = dir.join("sedXy12ab");
+        std::fs::write(&tmp, r#"{ "scrollback": 2 }"#).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        std::fs::rename(&tmp, &path).unwrap();
+        expect(2);
+
+        let tmp = dir.join("settings.json.tmp");
+        std::fs::write(&tmp, r#"{ "scrollback": 3 }"#).unwrap();
+        std::fs::rename(&tmp, &path).unwrap();
+        expect(3);
+
+        std::fs::write(&path, r#"{ "scrollback": 4 }"#).unwrap();
+        expect(4);
+
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(br#"{ "scrollback":"#).unwrap();
+        f.flush().unwrap();
+        thread::sleep(Duration::from_millis(400));
+        f.write_all(b" 5 }").unwrap();
+        drop(f);
+        expect(5);
+
+        thread::sleep(Duration::from_millis(300));
+        while rx.try_recv().is_ok() {}
+        std::fs::write(dir.join("workspace.json"), "{}").unwrap();
+        assert!(rx.recv_timeout(Duration::from_millis(500)).is_err(), "an unrelated file triggered a reload");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

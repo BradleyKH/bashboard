@@ -1,4 +1,4 @@
-/* The dashboard's Claude section. The bar colors come from dashboardSystem.css. */
+/* The dashboard's Claude section. */
 
 .claude-row {
   display: grid;
@@ -55,14 +55,6 @@
   display: block;
   height: 100%;
   background: var(--system-accent);
-}
-
-.claude-bar.warn > span {
-  background: var(--system-warn);
-}
-
-.claude-bar.error > span {
-  background: var(--system-error);
 }
 
 .claude-process {

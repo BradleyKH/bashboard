@@ -3,6 +3,7 @@ import { actionLabel, actionOrder } from './helpModel';
 import { ARG_ACTIONS, DEFAULT_KEYBINDINGS, SIMPLE_ACTIONS, type KeybindingEntry } from './keymap';
 import {
   CATEGORY_ORDER,
+  DIRECTIONAL_ACTIONS,
   EXCLUDED_ACTIONS,
   buildPaletteItems,
   fuzzyScore,
@@ -66,7 +67,12 @@ describe('buildPaletteItems', () => {
 
   it('labels a pin on the repo root by the root folder name', () => {
     const root = buildPaletteItems(input({ pins: [{ pin: { path: '.' }, absolute: 'C:\\repos\\bashboard', exists: true }] }));
-    expect(root.find((i) => i.category === 'Pin')?.label).toBe('bashboard');
+    expect(root.find((i) => i.category === 'Pin')).toMatchObject({ label: 'bashboard', detail: undefined });
+  });
+
+  it('shows the root folder name as detail when a root pin has its own label', () => {
+    const root = buildPaletteItems(input({ pins: [{ pin: { path: '.', label: 'Home' }, absolute: 'C:\\repos\\bashboard', exists: true }] }));
+    expect(root.find((i) => i.category === 'Pin')).toMatchObject({ label: 'Home', detail: 'bashboard' });
   });
 
   it('leaves out a missing pin', () => {
@@ -111,6 +117,11 @@ describe('palette actions', () => {
     expect(byLabel(buildPaletteItems(input({ keybindings: unbound })), git)?.hint).toBeUndefined();
     const rebound: KeybindingEntry[] = [...unbound, { keys: 'alt+g', action: 'openGit' }];
     expect(byLabel(buildPaletteItems(input({ keybindings: rebound })), git)?.hint).toBe('Alt+G');
+  });
+
+  it('lists only simple, excluded, or directional actions from the F1 order', () => {
+    const allowed = new Set<string>([...SIMPLE_ACTIONS, ...EXCLUDED_ACTIONS, ...DIRECTIONAL_ACTIONS]);
+    for (const name of actionOrder()) expect(allowed.has(name), name).toBe(true);
   });
 
   it('covers every keymap action in the F1 order with a label', () => {

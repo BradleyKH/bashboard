@@ -20,6 +20,8 @@ export interface ContextMenuOptions {
   target?: HTMLElement | null;
   /** Runs after the menu closes, whatever closed it. */
   onClose?: () => void;
+  /** Focus the first enabled item of a pointer-placed menu, for one opened from the keyboard. */
+  focusFirst?: boolean;
 }
 
 /** What an owner's build returns to open a menu; `target` is outlined and anchors a keyboard open. */
@@ -35,6 +37,7 @@ export type ContextMenuBuild = (
 
 interface OpenMenu {
   close: () => void;
+  retarget: (resolve: (old: HTMLElement) => HTMLElement | null) => void;
   anchorEl: HTMLElement | null;
 }
 
@@ -51,6 +54,15 @@ export function contextMenuGeneration(): number {
 /** Closes the open menu, if any. */
 export function closeContextMenu(): void {
   current?.close();
+}
+
+/**
+ * For an owner that rebuilds its rows while a menu is open: if the open menu's target or the
+ * element to refocus on close was detached, `resolve` maps it to its replacement, which takes the
+ * outline and the refocus.
+ */
+export function retargetContextMenu(resolve: (old: HTMLElement) => HTMLElement | null): void {
+  current?.retarget(resolve);
 }
 
 /** Whether the open menu was opened anchored at `el`, so a button can toggle it. */
@@ -80,7 +92,7 @@ export function openContextMenu(entries: MenuEntry[], at: ContextMenuAt, opts: C
       focusFirst: true,
     });
   } else {
-    show(entries, (size, view) => placeMenu(size, at, view), { ...opts, anchorEl: null, focusFirst: false });
+    show(entries, (size, view) => placeMenu(size, at, view), { ...opts, anchorEl: null, focusFirst: opts.focusFirst ?? false });
   }
 }
 
@@ -223,7 +235,8 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
   if (entries.length === 0) return;
   generation++;
 
-  const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  let previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  let target = opts.target ?? null;
   const root = renderList(entries, 'context-menu');
   let sub: (MenuList & { parentIndex: number }) | null = null;
 
@@ -334,7 +347,18 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
     close();
   };
 
-  const self: OpenMenu = { close: () => close(), anchorEl: opts.anchorEl };
+  const retarget = (resolve: (old: HTMLElement) => HTMLElement | null): void => {
+    const old = target;
+    if (old && !old.isConnected) {
+      old.classList.remove('menu-target');
+      target = resolve(old);
+      target?.classList.add('menu-target');
+      // Focus was on the replaced row (or lost with it), so the successor takes it back on close.
+      if (previousFocus && !previousFocus.isConnected) previousFocus = target;
+    }
+  };
+
+  const self: OpenMenu = { close: () => close(), retarget, anchorEl: opts.anchorEl };
   function close(): void {
     if (current !== self) return;
     current = null;
@@ -343,7 +367,7 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
     window.removeEventListener('blur', close);
     closeSubmenu(false);
     root.el.remove();
-    opts.target?.classList.remove('menu-target');
+    target?.classList.remove('menu-target');
     opts.anchorEl?.classList.remove('open');
     if (previousFocus?.isConnected) previousFocus.focus();
     opts.onClose?.();
@@ -356,7 +380,7 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
 
   document.body.append(root.el);
   position(root.el, place(measure(root.el), viewport()));
-  opts.target?.classList.add('menu-target');
+  target?.classList.add('menu-target');
   opts.anchorEl?.classList.add('open');
 
   const checked = entries.findIndex((entry) => entry.kind === 'item' && entry.checked && isEnabled(entry));

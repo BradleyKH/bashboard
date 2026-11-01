@@ -74,18 +74,20 @@ fn is_lock(path: &Path) -> bool {
 }
 
 /// Git replaces `HEAD`, `index`, and ref files by renaming a `*.lock` over them, so the lock
-/// files themselves are noise and the final name is what signals a change.
-fn is_relevant_path(path: &Path, refs_dir: &Path) -> bool {
+/// files themselves are noise and the final name is what signals a change. The shared `config`
+/// holds the remotes, so editing it (`git remote add`, `set-url`) changes what the pane shows.
+fn is_relevant_path(path: &Path, common_dir: &Path, refs_dir: &Path) -> bool {
     if is_lock(path) {
         return false;
     }
     if path.starts_with(refs_dir) {
         return true;
     }
-    matches!(
-        path.file_name().and_then(OsStr::to_str),
-        Some("HEAD" | "index" | "packed-refs")
-    )
+    match path.file_name().and_then(OsStr::to_str) {
+        Some("HEAD" | "index" | "packed-refs") => true,
+        Some("config") => path.parent() == Some(common_dir),
+        _ => false,
+    }
 }
 
 /// Decides which changes refresh the pane and how long each waits, caching one parsed
@@ -126,7 +128,8 @@ impl Classifier {
 
     fn path_delay(&mut self, path: &Path) -> Option<Duration> {
         if path.starts_with(&self.dirs.git_dir) || path.starts_with(&self.dirs.common_dir) {
-            return is_relevant_path(path, &self.refs_dir).then_some(WATCH_DEBOUNCE);
+            return is_relevant_path(path, &self.dirs.common_dir, &self.refs_dir)
+                .then_some(WATCH_DEBOUNCE);
         }
         let rel = path.strip_prefix(&self.root).ok()?;
         if rel.as_os_str().is_empty() || rel.components().any(|c| c.as_os_str() == ".git") {
@@ -361,20 +364,54 @@ mod tests {
 
     #[test]
     fn event_filter_keeps_head_index_packed_refs_and_refs() {
+        let common = Path::new("/r/.git");
         let refs = Path::new("/r/.git/refs");
-        assert!(is_relevant_path(Path::new("/r/.git/HEAD"), refs));
-        assert!(is_relevant_path(Path::new("/r/.git/index"), refs));
-        assert!(is_relevant_path(Path::new("/r/.git/packed-refs"), refs));
-        assert!(is_relevant_path(Path::new("/r/.git/refs/heads/main"), refs));
-        assert!(!is_relevant_path(Path::new("/r/.git/index.lock"), refs));
-        assert!(!is_relevant_path(Path::new("/r/.git/HEAD.lock"), refs));
-        assert!(!is_relevant_path(
-            Path::new("/r/.git/refs/heads/main.lock"),
+        assert!(is_relevant_path(Path::new("/r/.git/HEAD"), common, refs));
+        assert!(is_relevant_path(Path::new("/r/.git/index"), common, refs));
+        assert!(is_relevant_path(
+            Path::new("/r/.git/packed-refs"),
+            common,
             refs
         ));
-        assert!(!is_relevant_path(Path::new("/r/.git/COMMIT_EDITMSG"), refs));
+        assert!(is_relevant_path(
+            Path::new("/r/.git/refs/heads/main"),
+            common,
+            refs
+        ));
+        assert!(is_relevant_path(Path::new("/r/.git/config"), common, refs));
+        assert!(!is_relevant_path(
+            Path::new("/r/.git/worktrees/w/config"),
+            common,
+            refs
+        ));
+        assert!(!is_relevant_path(
+            Path::new("/r/.git/config.lock"),
+            common,
+            refs
+        ));
+        assert!(!is_relevant_path(
+            Path::new("/r/.git/index.lock"),
+            common,
+            refs
+        ));
+        assert!(!is_relevant_path(
+            Path::new("/r/.git/HEAD.lock"),
+            common,
+            refs
+        ));
+        assert!(!is_relevant_path(
+            Path::new("/r/.git/refs/heads/main.lock"),
+            common,
+            refs
+        ));
+        assert!(!is_relevant_path(
+            Path::new("/r/.git/COMMIT_EDITMSG"),
+            common,
+            refs
+        ));
         assert!(!is_relevant_path(
             Path::new("/r/.git/objects/ab/cdef"),
+            common,
             refs
         ));
     }

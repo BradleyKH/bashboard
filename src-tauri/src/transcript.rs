@@ -200,6 +200,16 @@ pub fn claude_context(state: State<'_, Transcripts>) -> Vec<ClaudeContext> {
     out
 }
 
+/// Stops tracking and forgets every session, so a disabled Claude section costs nothing; the next
+/// `claude_context` starts it again.
+#[tauri::command]
+pub fn claude_context_stop(state: State<'_, Transcripts>) {
+    let mut inner = state.inner.lock().unwrap();
+    inner.active = false;
+    inner.tracked.clear();
+    inner.contexts.clear();
+}
+
 fn sync_list(sessions: &[Session], overlay: &HashMap<String, HookOverlay>) -> SyncList {
     sessions
         .iter()
@@ -276,6 +286,11 @@ impl Worker {
         let to_search: Vec<String> = {
             let mut inner = state.inner.lock().unwrap();
             if !inner.active {
+                drop(inner);
+                // Release the file watches a stopped tracker left behind.
+                if !self.watched.is_empty() {
+                    self.update_watches(HashMap::new());
+                }
                 return;
             }
             if let Some(list) = self.pending.take() {

@@ -5,7 +5,6 @@ import {
   checkChord,
   editSections,
   filterSections,
-  inverseOps,
   movedNoticeText,
   moveStripText,
   ownerOf,
@@ -21,14 +20,18 @@ import { renderMoveStrip } from './keybindingMoveStrip';
 import { KeybindingNotice } from './keybindingNotice';
 import { KeybindingRecorder } from './keybindingRecorder';
 import { renderKeybindingRow, type RowCallbacks, type RowView } from './keybindingRow';
+import { KeybindingWrites } from './keybindingWrites';
 import { chordId, chordKeys, parseChord, type Chord, type KeybindingEntry } from './keymap';
 import type { KeybindingOp } from './settings';
 
 export interface HelpDialogCallbacks {
   /** Dismissed; the caller refocuses the terminal. */
   onClose(): void;
-  /** Saves keybinding edits. The rows change only through the `update` that hot reload brings. */
-  onEdit(ops: KeybindingOp[]): Promise<void>;
+  /**
+   * Saves keybinding edits and resolves to the raw keybindings array they replaced, for Undo. The
+   * rows change only through the `update` that hot reload brings.
+   */
+  onEdit(ops: KeybindingOp[]): Promise<unknown[]>;
   confirm(options: ConfirmOptions): Promise<boolean>;
 }
 
@@ -45,22 +48,6 @@ interface Recording {
 type Strip =
   | { kind: 'move'; rowId: string; chord: Chord; owner: EditRow; leavesEmpty: boolean }
   | { kind: 'reset'; rowId: string; ops: KeybindingOp[]; takes: { keys: string; owner: EditRow }[] };
-
-/** A chord a write takes from `ownerId`, flashed once the update shows it gone. */
-interface Taken {
-  ownerId: string;
-  chord: Chord;
-  keys: string;
-}
-
-interface AfterWrite {
-  taken?: Taken[];
-  notice?: string;
-  assignRowId?: string;
-}
-
-const FLASH_MS = 1000;
-const PENDING_FLASH_MS = 4000;
 
 function noModifiers(c: Chord): boolean {
   return !c.ctrl && !c.alt && !c.shift && !c.meta;
@@ -84,10 +71,7 @@ export class HelpDialog {
   private recording: Recording | null = null;
   private finding = false;
   private strip: Strip | null = null;
-  private busy = false;
-  private pending: { taken: Taken[]; timer: number } | null = null;
-  private readonly flashing = new Map<string, string[]>();
-  private readonly timers = new Set<number>();
+  private readonly writes: KeybindingWrites;
   private mouseDown = false;
   private renderOnMouseUp = false;
 
@@ -97,12 +81,21 @@ export class HelpDialog {
     onRemove: (_row, keys) => {
       this.stopRecording();
       this.render();
-      void this.send(removeOps(keys));
+      void this.writes.send(removeOps(keys));
     },
     onReset: (row) => this.resetRow(row),
   };
 
-  constructor(private readonly callbacks: HelpDialogCallbacks) {}
+  constructor(private readonly callbacks: HelpDialogCallbacks) {
+    this.writes = new KeybindingWrites({
+      onEdit: (ops) => this.callbacks.onEdit(ops),
+      entries: () => this.entries,
+      notice: () => this.notice,
+      isOpen: () => this.isOpen(),
+      assign: (rowId) => this.assign(rowId),
+      render: () => this.render(),
+    });
+  }
 
   isOpen(): boolean {
     return this.backdrop !== null;
@@ -201,7 +194,7 @@ export class HelpDialog {
   update(entries: KeybindingEntry[]): void {
     if (!this.backdrop) return;
     this.setEntries(entries);
-    this.consumePending();
+    this.writes.consumePending();
     this.reconcile();
     this.render();
   }
@@ -209,11 +202,7 @@ export class HelpDialog {
   close(): void {
     this.recorder.stop();
     this.notice?.dispose();
-    for (const t of this.timers) window.clearTimeout(t);
-    this.timers.clear();
-    if (this.pending) window.clearTimeout(this.pending.timer);
-    this.pending = null;
-    this.flashing.clear();
+    this.writes.dispose();
     window.removeEventListener('mousedown', this.onWindowMouseDown, true);
     window.removeEventListener('mouseup', this.onWindowMouseUp, true);
     this.backdrop?.remove();
@@ -295,7 +284,7 @@ export class HelpDialog {
       const view: RowView = {};
       const rec = this.recording;
       if (rec && rec.rowId === row.id) view.recording = { target: rec.target, text: rec.text, message: rec.message };
-      const struck = this.flashing.get(row.id);
+      const struck = this.writes.flashOf(row.id);
       if (struck) {
         view.flash = true;
         if (struck.length > 0) view.struck = struck;
@@ -403,7 +392,10 @@ export class HelpDialog {
     const rec = this.recording;
     if (!rec) return;
     rec.text = text || rec.held || 'Press keys';
-    this.render();
+    // Patched in place: a full render would rebuild every row and restart any flash animation.
+    const field = this.body?.querySelector<HTMLElement>('.kb-recording');
+    if (field) field.textContent = rec.text;
+    else this.render();
   }
 
   private onRecordCancel(): void {
@@ -424,7 +416,7 @@ export class HelpDialog {
     this.mouseDown = false;
     if (!this.renderOnMouseUp) return;
     this.renderOnMouseUp = false;
-    this.later(() => this.render(), 0);
+    this.writes.later(() => this.render(), 0);
   };
 
   private onRowChord(chord: Chord): void {
@@ -457,7 +449,7 @@ export class HelpDialog {
         const ops = rec.target === 'add' ? addOps(row, chord) : replaceOps(row, rec.target, chord);
         this.stopRecording();
         this.render();
-        void this.send(ops);
+        void this.writes.send(ops);
         return;
       }
       case 'conflict':
@@ -474,13 +466,13 @@ export class HelpDialog {
     const strip = this.strip;
     const rec = this.recording;
     const row = rec && this.findRow(rec.rowId);
-    if (!strip || strip.kind !== 'move' || !rec || !row || this.busy) return;
+    if (!strip || strip.kind !== 'move' || !rec || !row || this.writes.busy) return;
     const ops = rec.target === 'add' ? addOps(row, strip.chord) : replaceOps(row, rec.target, strip.chord);
     const id = chordId(strip.chord);
     const keys = strip.owner.chords.find((k) => chordId(parseChord(k)!) === id) ?? chordKeys(strip.chord);
     this.stopRecording();
     this.render();
-    void this.send(ops, {
+    void this.writes.send(ops, {
       taken: [{ ownerId: strip.owner.id, chord: strip.chord, keys }],
       notice: movedNoticeText(keys, strip.owner),
       assignRowId: strip.leavesEmpty ? strip.owner.id : undefined,
@@ -513,7 +505,7 @@ export class HelpDialog {
       return;
     }
     this.reveal(owner.id);
-    this.flash(owner.id, []);
+    this.writes.flash(owner.id, []);
     this.render();
     this.rowElement(owner.id)?.scrollIntoView({ block: 'center' });
   }
@@ -537,13 +529,13 @@ export class HelpDialog {
   // Reset
 
   private resetRow(row: EditRow): void {
-    if (this.busy) return;
+    if (this.writes.busy) return;
     this.stopRecording();
     const plan = resetPlan(row, this.entries);
     if (plan.takes.length === 0) {
       this.strip = null;
       this.render();
-      void this.send(plan.ops);
+      void this.writes.send(plan.ops);
       return;
     }
     this.strip = { kind: 'reset', rowId: row.id, ops: plan.ops, takes: plan.takes };
@@ -552,17 +544,17 @@ export class HelpDialog {
 
   private confirmReset(): void {
     const strip = this.strip;
-    if (!strip || strip.kind !== 'reset' || this.busy) return;
+    if (!strip || strip.kind !== 'reset' || this.writes.busy) return;
     this.strip = null;
     this.render();
-    void this.send(strip.ops, {
+    void this.writes.send(strip.ops, {
       taken: strip.takes.map((t) => ({ ownerId: t.owner.id, chord: parseChord(t.keys)!, keys: t.keys })),
       notice: strip.takes.map((t) => movedNoticeText(t.keys, t.owner)).join('; '),
     });
   }
 
   private async resetAll(): Promise<void> {
-    if (this.busy) return;
+    if (this.writes.busy) return;
     this.stopRecording();
     this.strip = null;
     this.render();
@@ -573,75 +565,7 @@ export class HelpDialog {
     });
     if (!this.backdrop) return;
     this.box?.focus();
-    if (ok) await this.send(resetAllOps(), { notice: 'Every key uses its default' });
-  }
-
-  // Writing
-
-  private async send(ops: KeybindingOp[], after: AfterWrite = {}): Promise<void> {
-    if (this.busy || ops.length === 0) return;
-    this.busy = true;
-    this.notice?.clear();
-    const before = this.entries;
-    // The update can arrive before the write resolves, so the flash waits from the start.
-    if (after.taken) this.setPending(after.taken);
-    try {
-      await this.callbacks.onEdit(ops);
-    } catch (e) {
-      this.dropPending();
-      this.notice?.showError(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
-      return;
-    } finally {
-      this.busy = false;
-    }
-    if (!this.backdrop || !after.notice) return;
-    const assignRowId = after.assignRowId;
-    this.notice?.show(after.notice, {
-      onUndo: () => void this.send(inverseOps(ops, before)),
-      onAssign: assignRowId ? () => this.assign(assignRowId) : undefined,
-    });
-  }
-
-  private setPending(taken: Taken[]): void {
-    this.dropPending();
-    const timer = window.setTimeout(() => {
-      this.pending = null;
-    }, PENDING_FLASH_MS);
-    this.pending = { taken, timer };
-  }
-
-  private dropPending(): void {
-    if (this.pending) window.clearTimeout(this.pending.timer);
-    this.pending = null;
-  }
-
-  private consumePending(): void {
-    const pending = this.pending;
-    if (!pending) return;
-    const left = pending.taken.filter((t) => {
-      if (ownerOf(t.chord, this.entries)?.id === t.ownerId) return true;
-      this.flash(t.ownerId, [t.keys]);
-      return false;
-    });
-    if (left.length === 0) this.dropPending();
-    else pending.taken = left;
-  }
-
-  private flash(rowId: string, struck: string[]): void {
-    this.flashing.set(rowId, struck);
-    this.later(() => {
-      if (this.flashing.get(rowId) !== struck) return;
-      this.flashing.delete(rowId);
-      this.render();
-    }, FLASH_MS);
-  }
-
-  private later(fn: () => void, ms: number): void {
-    const t = window.setTimeout(() => {
-      this.timers.delete(t);
-      fn();
-    }, ms);
-    this.timers.add(t);
+    if (ok) await this.writes.send(resetAllOps(), { notice: 'Every key uses its default' });
   }
 
   /** Keeps an active recording and an open strip in step with new entries. */

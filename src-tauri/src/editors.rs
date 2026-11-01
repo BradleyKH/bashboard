@@ -238,15 +238,20 @@ fn pick_install(found: Vec<(PathBuf, Option<String>)>) -> Option<PathBuf> {
     best.map(|(p, _)| p)
 }
 
-/// A JetBrains IDE: its exe on `PATH`, then the exe a Toolbox App script on `PATH` names, then
-/// the highest-versioned install folder. The script is read, never run, since running it would go
-/// through `cmd.exe` (section 9). Install folders are matched by `bin\<exe>` only, because their
+/// A JetBrains IDE: its exe on `PATH`, then the exe a Toolbox App script names (looked for on
+/// `PATH`, then in the Toolbox scripts folder), then the highest-versioned install folder. The
+/// script is read, never run, since running it would go through `cmd.exe` (section 9). Install folders are matched by `bin\<exe>` only, because their
 /// names carry the version and the Toolbox App lets them move.
 fn find_jetbrains(exe: &str, script: &str, env: &SearchEnv) -> Option<PathBuf> {
     if let Some(p) = env.path.iter().map(|d| d.join(exe)).find(|p| p.is_file()) {
         return Some(p);
     }
-    for dir in &env.path {
+    // The Toolbox App writes its scripts here whether or not the folder is on PATH.
+    let toolbox_scripts = env
+        .local_app_data
+        .as_ref()
+        .map(|b| b.join(r"JetBrains\Toolbox\scripts"));
+    for dir in env.path.iter().chain(toolbox_scripts.iter()) {
         let Ok(bytes) = std::fs::read(dir.join(script)) else {
             continue;
         };
@@ -667,6 +672,24 @@ mod tests {
         assert_eq!(detect("rider", &env), None, "the named exe is missing");
         touch(&exe);
         assert_eq!(detect("rider", &env), Some(exe));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn jetbrains_toolbox_script_in_the_scripts_folder_off_path() {
+        let root = temp_dir("jbscripts");
+        let env = env_at(&root, vec![]);
+        let scripts = root.join(r"local\JetBrains\Toolbox\scripts");
+        let exe = root.join(r"apps\Rider 2025.2\bin\rider64.exe");
+        std::fs::create_dir_all(&scripts).unwrap();
+        std::fs::write(
+            scripts.join("rider.cmd"),
+            format!("@echo off\r\nstart \"\" \"{}\" %*\r\n", exe.display()),
+        )
+        .unwrap();
+        touch(&exe);
+        assert_eq!(detect("rider", &env), Some(exe));
+        assert_eq!(detect("webstorm", &env), None);
         std::fs::remove_dir_all(&root).unwrap();
     }
 

@@ -35,6 +35,12 @@ interface Expanded {
   deleting: boolean;
 }
 
+interface FocusSpot {
+  path: string;
+  region: 'row' | 'detail';
+  button: number;
+}
+
 /** The Repo section's worktree rows, one of them expanded into its detail (docs/v0.2.0-design.md sections 4.1 and 4.2). */
 export class WorktreeList {
   readonly el: HTMLElement;
@@ -178,23 +184,24 @@ export class WorktreeList {
     this.restoreFocus(focus);
   }
 
-  /** The focused row or detail button, by worktree path and button index, so a rebuild keeps keyboard focus. */
-  private captureFocus(): { path: string; button: number } | null {
+  /** The focused control inside a row or its detail, by worktree path, region, and button index, so a rebuild keeps keyboard focus. */
+  private captureFocus(): FocusSpot | null {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !this.el.contains(active)) return null;
     const item = active.closest<HTMLElement>('.worktree-item');
     const path = item?.querySelector<HTMLElement>('.worktree-row')?.dataset.worktreePath;
     if (!item || !path) return null;
-    return { path, button: [...item.querySelectorAll('.worktree-detail button')].indexOf(active) };
+    const region = item.querySelector('.worktree-detail')?.contains(active) ? 'detail' : 'row';
+    return { path, region, button: [...item.querySelectorAll(`.worktree-${region} button`)].indexOf(active) };
   }
 
-  private restoreFocus(focus: { path: string; button: number } | null): void {
+  private restoreFocus(focus: FocusSpot | null): void {
     if (!focus) return;
     const row = [...this.el.querySelectorAll<HTMLElement>('.worktree-row')].find(
       (r) => r.dataset.worktreePath !== undefined && samePath(r.dataset.worktreePath, focus.path),
     );
     if (!row) return;
-    const buttons = row.parentElement?.querySelectorAll<HTMLButtonElement>('.worktree-detail button');
+    const buttons = row.parentElement?.querySelectorAll<HTMLButtonElement>(`.worktree-${focus.region} button`);
     const target = (focus.button >= 0 && buttons?.[focus.button]) || row;
     if (target === row) row.tabIndex = -1;
     target.focus();

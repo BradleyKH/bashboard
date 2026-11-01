@@ -33,7 +33,6 @@ export interface Settings {
   editor: { preferred: string; command: string };
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
   git: { autoFetchMinutes: number };
-  /** The zoom a new pane of each kind starts at, from 0.5 to 3; its zoom buttons save it. */
   keybindings: KeybindingEntry[];
 }
 
@@ -77,11 +76,16 @@ export type KeybindingOp =
   | { op: 'bind'; keys: string; action: string; direction?: Direction; index?: number; input?: string }
   | { op: 'unbind'; keys: string }
   | { op: 'reset'; keys: string }
-  | { op: 'resetAll' };
+  | { op: 'resetAll' }
+  /** Writes the raw array back as given, including entries the loader rejects. */
+  | { op: 'replaceAll'; entries: unknown[] };
 
-/** Applies keybinding edits to the raw keybindings array in the settings file; hot reload, not the return, delivers the result. */
-export function editKeybindings(ops: KeybindingOp[]): Promise<void> {
-  return invoke('settings_keybindings_edit', { ops });
+/**
+ * Applies keybinding edits to the raw keybindings array in the settings file and resolves to that
+ * array as it was, for Undo; hot reload, not the return, delivers the new keymap.
+ */
+export function editKeybindings(ops: KeybindingOp[]): Promise<unknown[]> {
+  return invoke<unknown[]>('settings_keybindings_edit', { ops });
 }
 
 /** Opens the settings file in the default editor, creating it first if missing. */

@@ -74,7 +74,13 @@ function absoluteText(path: string, profile: PathProfile): string {
   let p = path.replace(/\\/g, '/');
   const root = /^[A-Za-z]:\/*$/.test(p) || /^\/+$/.test(p);
   p = root ? p.replace(/\/+$/, '/') : p.replace(/\/+$/, '');
-  return profile.shell === 'cmd' && !profile.claudeCode ? p.replace(/\//g, '\\') : p;
+  return backslashesFor(p, profile);
+}
+
+// Command Prompt built-ins reject forward slashes in paths; Claude Code running under cmd
+// takes them fine.
+function backslashesFor(text: string, profile: PathProfile): string {
+  return profile.shell === 'cmd' && !profile.claudeCode ? text.replace(/\//g, '\\') : text;
 }
 
 function quoteFor(text: string, shell: string): string {
@@ -92,9 +98,10 @@ function quoteFor(text: string, shell: string): string {
 
 /**
  * Text for inserting paths into a terminal (docs/v0.2.0-design.md section 6). Paths inside
- * `baseRoot` are relative with forward slashes; the caller picks the base: a drop passes the
- * target terminal's repo, Insert path the source pane's root. Slashes and quoting follow
- * `profile`, which is always the target terminal's.
+ * `baseRoot` are relative; the caller picks the base: a drop passes the
+ * target terminal's repo, Insert path the source pane's root. Slashes (backslashes for Command
+ * Prompt without Claude Code, forward slashes otherwise) and quoting follow `profile`, which is
+ * always the target terminal's.
  */
 export function pathInsertText(
   paths: readonly string[],
@@ -104,7 +111,7 @@ export function pathInsertText(
   if (paths.length === 0) return '';
   const parts = paths.map((path) => {
     const rel = baseRoot === null ? null : relativeWithin(baseRoot, path);
-    const text = rel === null ? absoluteText(path, profile) : rel === '' ? '.' : rel;
+    const text = rel === null ? absoluteText(path, profile) : rel === '' ? '.' : backslashesFor(rel, profile);
     return quoteFor(text, profile.shell);
   });
   return `${parts.join(' ')} `;

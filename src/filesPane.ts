@@ -190,7 +190,7 @@ export class FilesPane implements PaneView {
       dispatch: opts.dispatch,
       onOpenFile: (path) => {
         const t = pinTarget(this.rootPath, path, false);
-        this.refocusPreview = this.previewExpanded && this.hasFocus();
+        this.refocusPreview = this.hasFocus();
         void this.showFolder(t.folder, t.select);
       },
       onOpenInEditor: (path) => this.openInEditor(path),
@@ -199,7 +199,7 @@ export class FilesPane implements PaneView {
         const refocus = this.refocusPreview && document.activeElement === document.body;
         this.refocusPreview = false;
         if (!expandable && this.previewExpanded) this.showList(this.hasFocus() || refocus);
-        else if (refocus && this.previewExpanded) this.preview.focus();
+        else if (refocus) this.preview.focus();
       },
     });
 

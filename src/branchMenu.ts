@@ -10,8 +10,10 @@ let closeOpen: (() => void) | null = null;
 
 /** A popup list of choices under `anchor`, one marked with a check (docs/v0.2.0-design.md section 4.1). */
 export function openBranchMenu(anchor: HTMLElement, items: BranchMenuItem[]): void {
+  // A second press on the anchor closes its menu; the press itself is left to this click.
+  const toggledOff = anchor.classList.contains('open') && closeOpen !== null;
   closeOpen?.();
-  if (items.length === 0) return;
+  if (toggledOff || items.length === 0) return;
   const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
   const menu = document.createElement('div');

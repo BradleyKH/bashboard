@@ -261,6 +261,24 @@ describe('inverseOps', () => {
     }
   }
 
+  it('undoes reset all by writing back the previous raw array', () => {
+    const previous = [{ keys: 5 }, { keys: 'ctrl+alt+k', action: 'openPalette' }];
+    expect(inverseOps(resetAllOps(), CUSTOM, previous)).toEqual([{ op: 'replaceAll', entries: previous }]);
+    expect(inverseOps([{ op: 'unbind', keys: 'ctrl+w' }], DEFAULTS, previous)).toEqual([{ op: 'reset', keys: 'ctrl+w' }]);
+  });
+
+  it('models replaceAll as the loader merging the raw array over the defaults', () => {
+    const live = applyOps(DEFAULTS, [
+      {
+        op: 'replaceAll',
+        entries: [{ keys: 5 }, { action: 'find' }, { keys: 'ctrl+alt+k', action: 'openPalette' }, { keys: 'ctrl+c', action: 'unbound' }],
+      },
+    ]);
+    expect(ownerOf(chord('ctrl+alt+k'), live)?.id).toBe('openPalette');
+    expect(ownerOf(chord('ctrl+c'), live)).toBeNull();
+    expect(ownerOf(chord('ctrl+w'), live)?.id).toBe('closePane');
+  });
+
   it('writes the restoring op per chord state', () => {
     const ops: KeybindingOp[] = [
       { op: 'reset', keys: 'ctrl+w' },

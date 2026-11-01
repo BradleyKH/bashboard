@@ -1,10 +1,4 @@
-/* The dashboard's System section. The band colors are shared with the Claude section. */
-:root {
-  --system-accent: #4fb3c8;
-  --system-warn: #e0b050;
-  --system-error: #e58a7a;
-}
-
+/* The dashboard's System section. */
 .system-row {
   display: grid;
   grid-template-columns: 64px 1fr;
@@ -44,14 +38,6 @@
 .system-bar-fill {
   height: 100%;
   background: var(--system-accent);
-}
-
-.system-bar-fill[data-band='warn'] {
-  background: var(--system-warn);
-}
-
-.system-bar-fill[data-band='error'] {
-  background: var(--system-error);
 }
 
 .system-disks {
