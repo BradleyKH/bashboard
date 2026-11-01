@@ -660,14 +660,11 @@ const palette = new CommandPalette({
   },
   runAction: (a) => workspace.runAction(a),
 });
-/** The palette snapshots its items on open, so with the dashboard hidden the first open waits briefly for the worktree load. */
-async function openPalette(): Promise<void> {
-  const root = currentRepo?.isGit ? currentRepo.root : null;
-  if (root && !panel.isShown()) {
-    const load = worktreeStore.loadOnce(root);
-    if (!worktreeStore.peeked()) await Promise.race([load, new Promise((r) => setTimeout(r, 400))]);
-  }
+/** The palette opens at once; with the dashboard hidden, its worktree items arrive when the one-shot load finishes. */
+function openPalette(): void {
   palette.open();
+  const root = currentRepo?.isGit ? currentRepo.root : null;
+  if (root && !panel.isShown()) void worktreeStore.loadOnce(root).then(() => palette.refresh());
 }
 const confirmDialog = new ConfirmDialog();
 const help = new HelpDialog({
@@ -767,7 +764,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenFavoritePicker: () => picker.open(favoriteItems(), 'Open a favorite folder'),
   onOpenProfilePicker: () => profilePicker.open(profileItems(), 'Split with a shell'),
   onOpenLayoutPicker: () => layoutPicker.open(layoutItems(), 'Open a layout'),
-  onOpenPalette: () => void openPalette(),
+  onOpenPalette: () => openPalette(),
   onShowHelp: showHelp,
   onOpenSettings: showSettings,
   onToggleBackdrop: toggleBackdrop,

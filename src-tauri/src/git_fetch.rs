@@ -361,7 +361,7 @@ pub fn git_fetch_visible(state: State<'_, GitFetches>, visible: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::git::test_support::{configure, sh, temp_dir};
+    use crate::git::test_support::{commit_file, repo, sh, temp_dir};
     use std::{fs, path::Path};
 
     const MIN: u64 = 60_000;
@@ -458,35 +458,26 @@ mod tests {
         assert!(s.due(MIN, 5).is_empty());
     }
 
-    // The initial commit gives branches and worktrees a HEAD to start from.
-    fn repo(tag: &str) -> PathBuf {
-        let root = temp_dir(tag);
-        sh(&root, &["init", "-q", "-b", "main"]);
-        configure(&root);
-        sh(&root, &["commit", "-q", "--allow-empty", "-m", "first"]);
-        root
-    }
-
     #[test]
     fn git_fetch_worktrees_share_a_key() {
         let main = repo("main");
         let other = repo("other");
+        // The initial commit gives the worktree a HEAD to start from.
+        commit_file(&main, "a.txt", "a", "first");
         let wt = temp_dir("wt");
         fs::remove_dir_all(&wt).unwrap();
         sh(
-            &main,
+            main.root(),
             &["worktree", "add", "-q", &wt.to_string_lossy(), "-b", "side"],
         );
 
         let settings = SettingsState::default();
         let key = |p: &Path| resolve_key(&Git::open(&settings, &display(p)).unwrap()).unwrap();
-        let main_key = key(&main);
+        let main_key = key(main.root());
         assert_eq!(main_key, key(&wt));
-        assert_ne!(main_key, key(&other));
+        assert_ne!(main_key, key(other.root()));
         assert_eq!(main_key, main_key.to_lowercase());
 
-        for dir in [&main, &other, &wt] {
-            let _ = fs::remove_dir_all(dir);
-        }
+        let _ = fs::remove_dir_all(&wt);
     }
 }

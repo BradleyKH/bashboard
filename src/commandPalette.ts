@@ -30,12 +30,22 @@ export class CommandPalette {
   }
 
   open(): void {
+    this.picker.open(this.build(), 'Type to search, > for actions');
+  }
+
+  isOpen(): boolean {
+    return this.picker.isOpen();
+  }
+
+  /** Rebuilds the items from current state while open, keeping query, selection, and scroll. */
+  refresh(): void {
+    if (this.picker.isOpen()) this.picker.setItems(this.build());
+  }
+
+  private build(): PickerItem[] {
     const built = buildPaletteItems(this.deps.input());
     this.items = new Map(built.map((it) => [it.id, it]));
-    this.picker.open(
-      built.map((it) => ({ value: it.id, label: it.label, detail: it.detail, hint: it.hint, category: it.category })),
-      'Type to search, > for actions',
-    );
+    return built.map((it) => ({ value: it.id, label: it.label, detail: it.detail, hint: it.hint, category: it.category }));
   }
 
   private match(shown: PickerItem[], query: string): PickerItem[] {

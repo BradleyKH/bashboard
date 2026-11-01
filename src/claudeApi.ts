@@ -7,6 +7,11 @@ export function claudeContext(): Promise<ClaudeContext[]> {
   return invoke<ClaudeContext[]>('claude_context');
 }
 
+/** Stops transcript tracking and forgets every session; the next `claudeContext` starts it again. */
+export function claudeContextStop(): Promise<void> {
+  return invoke<void>('claude_context_stop');
+}
+
 /** Memory and CPU summed over each root pid's process tree. */
 export function claudeProcesses(pids: number[]): Promise<ProcFigures[]> {
   return invoke<ProcFigures[]>('claude_processes', { pids });

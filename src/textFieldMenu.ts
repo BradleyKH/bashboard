@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { openContextMenu } from './contextMenu';
-import { isKeyboardContextMenu, item, type MenuEntry, separator } from './contextMenuModel';
+import { isKeyboardContextMenuEvent, openContextMenu } from './contextMenu';
+import { item, type MenuEntry, separator } from './contextMenuModel';
 import { showToast } from './toast';
 
 export interface TextFieldMenuState {
@@ -146,7 +146,7 @@ export function installTextFieldMenu(): void {
     };
     const extras = extrasByField.get(field)?.() ?? [];
     e.preventDefault();
-    if (isKeyboardContextMenu(e as MouseEvent & { pointerType?: string })) {
+    if (isKeyboardContextMenuEvent(e)) {
       const rect = field.getBoundingClientRect();
       openContextMenu(
         textFieldMenuItems(state, actionsFor(field, range), extras),

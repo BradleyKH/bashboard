@@ -2,6 +2,7 @@ import './contextMenu.css';
 import {
   isEnabled,
   isKeyboardContextMenu,
+  isMenuKey,
   type MenuEntry,
   type MenuPosition,
   type MenuSubmenu,
@@ -39,6 +40,23 @@ interface OpenMenu {
   close: () => void;
   retarget: (resolve: (old: HTMLElement) => HTMLElement | null) => void;
   anchorEl: HTMLElement | null;
+}
+
+let lastMenuKeyAt: number | null = null;
+if (typeof window !== 'undefined') {
+  // Capture phase, passive: records the key without consuming it, so keys.ts still sees it.
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (isMenuKey(e)) lastMenuKeyAt = e.timeStamp;
+    },
+    { capture: true, passive: true },
+  );
+}
+
+/** Whether a `contextmenu` event was opened from the keyboard; every menu owner decides through this. */
+export function isKeyboardContextMenuEvent(e: MouseEvent): boolean {
+  return isKeyboardContextMenu(e as MouseEvent & { pointerType?: string }, lastMenuKeyAt);
 }
 
 let current: OpenMenu | null = null;
@@ -108,7 +126,7 @@ export function attachContextMenu(el: HTMLElement, build: ContextMenuBuild): () 
     if (origin?.closest('.xterm')) return;
     if (origin instanceof HTMLInputElement || origin instanceof HTMLTextAreaElement) return;
 
-    const keyboard = isKeyboardContextMenu(e as MouseEvent & { pointerType?: string });
+    const keyboard = isKeyboardContextMenuEvent(e);
     const open = (spec: ContextMenuSpec): void => {
       const target = spec.target ?? null;
       if (keyboard) {

@@ -1,9 +1,8 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import './dashboardClaude.css';
 import { attachContextMenu } from './contextMenu';
 import { copyPath } from './copyText';
-import { claudeContext, claudeProcesses, onClaudeContext } from './claudeApi';
+import { claudeContext, claudeContextStop, claudeProcesses, onClaudeContext } from './claudeApi';
 import {
   claudeRows,
   nextLargeSessions,
@@ -94,7 +93,7 @@ export class DashboardClaude {
     this.unlisten = undefined;
     this.contexts.clear();
     this.dirty = true;
-    void invoke('claude_context_stop').catch(() => {});
+    void claudeContextStop().catch(() => {});
   }
 
   private merge(ctx: ClaudeContext): void {

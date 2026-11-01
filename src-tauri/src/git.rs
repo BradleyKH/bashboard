@@ -793,7 +793,11 @@ pub(crate) mod test_support {
             std::env::temp_dir().join(format!("bashboard-git-{tag}-{}-{n}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        dir
+        // CI runners' temp dir is an 8.3 short path (RUNNER~1), while git reports long paths, so
+        // tests comparing the two would fail. Expand it, dropping canonicalize's \\?\ prefix.
+        let long = fs::canonicalize(&dir).unwrap();
+        let long = long.to_string_lossy();
+        PathBuf::from(long.strip_prefix(r"\\?\").unwrap_or(&long))
     }
 
     /// Runs git for test setup, panicking on failure.

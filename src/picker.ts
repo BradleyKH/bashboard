@@ -1,3 +1,5 @@
+import { selectionAfterRefresh } from './pickerSelection';
+
 export interface PickerItem {
   label: string;
   detail?: string;
@@ -85,6 +87,23 @@ export class Picker {
     this.input.focus();
   }
 
+  /** Swaps the items under an open picker, keeping the query, the selected item (by value), and the scroll position. */
+  setItems(items: PickerItem[]): void {
+    if (!this.backdrop) return;
+    const prevValue = this.shown[this.selected]?.value;
+    const scrollTop = this.list.scrollTop;
+    this.items = items;
+    this.shown = this.matcher(this.items, this.input.value);
+    this.selected = selectionAfterRefresh(
+      prevValue,
+      this.selected,
+      this.shown.map((it) => it.value),
+    );
+    this.renderList(false);
+    this.list.scrollTop = scrollTop;
+    this.list.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
+  }
+
   close(): void {
     this.backdrop?.remove();
     this.backdrop = null;
@@ -121,8 +140,8 @@ export class Picker {
     }
   }
 
-  private renderList(): void {
-    this.shown = this.matcher(this.items, this.input.value);
+  private renderList(rematch = true): void {
+    if (rematch) this.shown = this.matcher(this.items, this.input.value);
     if (this.shown.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'dashboard-empty';

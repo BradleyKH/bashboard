@@ -165,10 +165,30 @@ export function placeSubmenu(size: Size, parentItemRect: Rect, viewport: Size, m
   };
 }
 
+/** How long after a menu key's keydown a `contextmenu` event still counts as that key's. */
+export const MENU_KEY_WINDOW_MS = 500;
+
+/** Whether a keydown is the Menu (Apps) key or Shift+F10, the keyboard ways to ask for a context menu. */
+export function isMenuKey(e: { key: string; shiftKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
+  if (e.key === 'ContextMenu') return true;
+  return e.key === 'F10' && e.shiftKey && !e.ctrlKey && !e.altKey;
+}
+
 /**
  * Whether a `contextmenu` event came from the Menu key or Shift+F10 rather than a right-click.
- * WebView2 fires those with `button` 0 and an empty `pointerType`; a right-click has `button` 2.
+ * A menu keydown just before it (`lastMenuKeyAt`, same clock as `timeStamp`) is decisive, since
+ * WebView2 has delivered Shift+F10 as `button` -1 with `pointerType` "mouse". Without one, the
+ * fields decide: the keys normally arrive with `button` 0 and an empty `pointerType`, while a
+ * right-click has `button` 2.
  */
-export function isKeyboardContextMenu(e: { button: number; pointerType?: string }): boolean {
+export function isKeyboardContextMenu(
+  e: { button: number; pointerType?: string; timeStamp?: number },
+  lastMenuKeyAt: number | null = null,
+): boolean {
+  if (e.button === 2) return false;
+  if (lastMenuKeyAt !== null && e.timeStamp !== undefined) {
+    const elapsed = e.timeStamp - lastMenuKeyAt;
+    if (elapsed >= 0 && elapsed <= MENU_KEY_WINDOW_MS) return true;
+  }
   return e.button !== 2 && !e.pointerType;
 }

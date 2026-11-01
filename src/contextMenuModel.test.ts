@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isKeyboardContextMenu,
+  isMenuKey,
   item,
   type MenuEntry,
   nextEnabled,
@@ -140,5 +141,38 @@ describe('isKeyboardContextMenu', () => {
     expect(isKeyboardContextMenu({ button: 2, pointerType: 'mouse' })).toBe(false);
     expect(isKeyboardContextMenu({ button: 2, pointerType: '' })).toBe(false);
     expect(isKeyboardContextMenu({ button: 0, pointerType: 'pen' })).toBe(false);
+  });
+});
+
+describe('isKeyboardContextMenu with a menu keydown', () => {
+  const mouseLike = { button: -1, pointerType: 'mouse' };
+  it('treats a contextmenu right after a menu key as keyboard even with mouse-like fields', () => {
+    expect(isKeyboardContextMenu({ ...mouseLike, timeStamp: 1100 }, 1000)).toBe(true);
+    expect(isKeyboardContextMenu({ ...mouseLike, timeStamp: 1000 }, 1000)).toBe(true);
+  });
+  it('ignores a menu key that is too old, in the future, or absent', () => {
+    expect(isKeyboardContextMenu({ ...mouseLike, timeStamp: 1501 }, 1000)).toBe(false);
+    expect(isKeyboardContextMenu({ ...mouseLike, timeStamp: 900 }, 1000)).toBe(false);
+    expect(isKeyboardContextMenu({ ...mouseLike, timeStamp: 1100 }, null)).toBe(false);
+  });
+  it('never calls a right-click keyboard', () => {
+    expect(isKeyboardContextMenu({ button: 2, pointerType: 'mouse', timeStamp: 1100 }, 1000)).toBe(false);
+  });
+  it('falls back to the field heuristic', () => {
+    expect(isKeyboardContextMenu({ button: 0, pointerType: '', timeStamp: 5000 }, 1000)).toBe(true);
+  });
+});
+
+describe('isMenuKey', () => {
+  const k = (key: string, mods: Partial<{ shiftKey: boolean; ctrlKey: boolean; altKey: boolean }> = {}) =>
+    isMenuKey({ key, shiftKey: false, ctrlKey: false, altKey: false, ...mods });
+  it('accepts ContextMenu and Shift+F10', () => {
+    expect(k('ContextMenu')).toBe(true);
+    expect(k('F10', { shiftKey: true })).toBe(true);
+  });
+  it('rejects plain F10, extra modifiers, and other keys', () => {
+    expect(k('F10')).toBe(false);
+    expect(k('F10', { shiftKey: true, ctrlKey: true })).toBe(false);
+    expect(k('a', { shiftKey: true })).toBe(false);
   });
 });
