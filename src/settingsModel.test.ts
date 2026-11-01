@@ -163,10 +163,30 @@ describe('installedChoices for editors', () => {
     expect(r.note).toBe('Zed was not found; files open in the default app');
   });
 
+  it('offers the 18 editor ids in the documented order', () => {
+    expect(field.options!.map((o) => o.value)).toEqual(['zed', 'vscode', 'cursor', 'visualStudio', 'notepadpp', 'sublime', 'rider', 'intellij', 'webstorm', 'pycharm', 'rustrover', 'goland', 'clion', 'phpstorm', 'windsurf', 'vscodeInsiders', 'vscodium', 'default']);
+  });
+
+  it('offers a detected JetBrains IDE and marks an undetected saved VSCodium as not found', () => {
+    const detected = [{ id: 'rider', name: 'Rider' }, { id: 'default', name: "The file's default app" }];
+    const r = installedChoices(field.options!, detected, 'vscodium', 'editors');
+    expect(r.options.map((o) => o.value)).toEqual(['vscodium', 'rider', 'default']);
+    expect(r.options[0]).toEqual({ value: 'vscodium', label: 'VSCodium (not found)' });
+    expect(r.options[1]).toEqual({ value: 'rider', label: 'Rider' });
+  });
+
   it('validates the editor fields', () => {
     expect(parseInput(field, 'notepadpp')).toEqual({ ok: true, value: 'notepadpp' });
     expect(parseInput(field, 'emacs').ok).toBe(false);
     expect(parseInput(byPath('editor.command'), '')).toEqual({ ok: true, value: '' });
     expect(parseInput(byPath('editor.command'), ' code -g {path}:{line} ')).toEqual({ ok: true, value: 'code -g {path}:{line}' });
+  });
+});
+
+describe('font suggestions', () => {
+  it('marks only the font family field as suggesting from the core', () => {
+    const suggesting = SETTINGS_SECTIONS.flatMap((s) => s.fields).filter((f) => f.suggestFrom);
+    expect(suggesting.map((f) => f.path.join('.'))).toEqual(['font.family']);
+    expect(suggesting[0].suggestFrom).toBe('fonts');
   });
 });

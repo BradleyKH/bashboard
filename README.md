@@ -690,7 +690,10 @@ Most settings take effect on save. `dashboard.visibleOnStart` and `restore.*` ap
 launch, and `shell.*` applies to panes opened after the change.
 
 `editor.preferred` picks the editor that Open in editor uses: `zed`, `vscode`, `cursor`,
-`visualStudio`, `notepadpp`, `sublime`, or `default` (the file's default app). If the chosen editor
+`visualStudio`, `notepadpp`, `sublime`, `rider`, `intellij`, `webstorm`, `pycharm`, `rustrover`,
+`goland`, `clion`, `phpstorm`, `windsurf`, `vscodeInsiders`, `vscodium`, or `default` (the file's
+default app). JetBrains IDEs installed through the Toolbox App or the standalone installer are both
+found. If the chosen editor
 is not installed or will not start, the file opens in the default app and a toast says so.
 `editor.command` replaces the editor with your own command line, for example
 `code.cmd -g "{path}:{line}"`. Double quotes group an argument, and no shell runs it, so the
@@ -698,6 +701,9 @@ program name must include its extension when it is a shim such as `code.cmd`. `{
 `{line}` are filled in wherever they appear (and only there; a command without `{path}` gets no
 path), and `{line}` is 1 when no line applies. The Editor section of the settings dialog sets both
 fields and lists only the editors it found.
+
+The Font family field in the Appearance section of the settings dialog suggests installed fonts as
+you type, and still accepts any name or a comma-separated fallback list.
 
 Press F1, or click Keyboard shortcuts at the bottom of the dashboard, for a guide to every key
 in effect, including your own bindings. The guide is also where keys are changed: click a key to

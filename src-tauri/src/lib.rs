@@ -4,6 +4,7 @@ mod config_dir;
 mod containers;
 mod editors;
 mod files;
+mod fonts;
 mod git;
 mod git_fetch;
 mod git_install;
@@ -169,6 +170,7 @@ pub fn run() {
             files::fs_unwatch,
             editors::editors,
             editors::open_in_editor,
+            fonts::fonts,
             git::git_status,
             git::git_stage,
             git::git_unstage,

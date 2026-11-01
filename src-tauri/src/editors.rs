@@ -1,8 +1,10 @@
 //! Editor detection and `open_in_editor` (docs/design.md section 3.12).
 //!
 //! Every editor runs from its `.exe` with an argument list, never through a shell (section 9).
-//! VS Code and Cursor put only `.cmd` shims on `PATH`, so a shim found there is traded for the
-//! `Code.exe` or `Cursor.exe` one folder up.
+//! VS Code, Cursor, Windsurf, VS Code Insiders, and VSCodium put only `.cmd` shims on `PATH`, so a
+//! shim found there is traded for the exe one folder up. JetBrains IDEs are found by exe name on
+//! `PATH`, through a Toolbox App script on `PATH`, or in install folders by `product-info.json`
+//! version (`find_jetbrains`).
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -24,13 +26,24 @@ pub struct Opened {
     fallback: bool,
 }
 
-const NAMES: [(&str, &str); 7] = [
+const NAMES: [(&str, &str); 18] = [
     ("zed", "Zed"),
     ("vscode", "VS Code"),
     ("cursor", "Cursor"),
     ("visualStudio", "Visual Studio"),
     ("notepadpp", "Notepad++"),
     ("sublime", "Sublime Text"),
+    ("rider", "Rider"),
+    ("intellij", "IntelliJ IDEA"),
+    ("webstorm", "WebStorm"),
+    ("pycharm", "PyCharm"),
+    ("rustrover", "RustRover"),
+    ("goland", "GoLand"),
+    ("clion", "CLion"),
+    ("phpstorm", "PhpStorm"),
+    ("windsurf", "Windsurf"),
+    ("vscodeInsiders", "VS Code Insiders"),
+    ("vscodium", "VSCodium"),
     ("default", "The file's default app"),
 ];
 
@@ -75,6 +88,12 @@ fn path_names(
         "cursor" => (&["Cursor.exe"], &[("cursor.cmd", "Cursor.exe")]),
         "notepadpp" => (&["notepad++.exe"], &[]),
         "sublime" => (&["subl.exe"], &[]),
+        "windsurf" => (&["Windsurf.exe"], &[("windsurf.cmd", "Windsurf.exe")]),
+        "vscodeInsiders" => (
+            &["Code - Insiders.exe"],
+            &[("code-insiders.cmd", "Code - Insiders.exe")],
+        ),
+        "vscodium" => (&["VSCodium.exe"], &[("codium.cmd", "VSCodium.exe")]),
         _ => (&[], &[]),
     }
 }
@@ -97,6 +116,24 @@ fn install_candidates(id: &str, env: &SearchEnv) -> Vec<PathBuf> {
         "sublime" => vec![
             under(&env.program_files, r"Sublime Text\subl.exe"),
             under(&env.program_files, r"Sublime Text 3\subl.exe"),
+        ],
+        "windsurf" => vec![under(
+            &env.local_app_data,
+            r"Programs\Windsurf\Windsurf.exe",
+        )],
+        "vscodeInsiders" => vec![
+            under(
+                &env.local_app_data,
+                r"Programs\Microsoft VS Code Insiders\Code - Insiders.exe",
+            ),
+            under(
+                &env.program_files,
+                r"Microsoft VS Code Insiders\Code - Insiders.exe",
+            ),
+        ],
+        "vscodium" => vec![
+            under(&env.local_app_data, r"Programs\VSCodium\VSCodium.exe"),
+            under(&env.program_files, r"VSCodium\VSCodium.exe"),
         ],
         _ => vec![],
     };
@@ -143,10 +180,110 @@ fn find_devenv(env: &SearchEnv) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
+/// A JetBrains IDE's `(exe, Toolbox App script)` names.
+fn jetbrains(id: &str) -> Option<(&'static str, &'static str)> {
+    Some(match id {
+        "rider" => ("rider64.exe", "rider.cmd"),
+        "intellij" => ("idea64.exe", "idea.cmd"),
+        "webstorm" => ("webstorm64.exe", "webstorm.cmd"),
+        "pycharm" => ("pycharm64.exe", "pycharm.cmd"),
+        "rustrover" => ("rustrover64.exe", "rustrover.cmd"),
+        "goland" => ("goland64.exe", "goland.cmd"),
+        "clion" => ("clion64.exe", "clion.cmd"),
+        "phpstorm" => ("phpstorm64.exe", "phpstorm.cmd"),
+        _ => return None,
+    })
+}
+
+fn names_exe(candidate: &str, exe: &str) -> bool {
+    Path::new(candidate)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.eq_ignore_ascii_case(exe))
+}
+
+/// The exe path a Toolbox App script names, such as `start "" "C:\...\bin\rider64.exe" %*`: the
+/// first double-quoted string ending in `exe`, else the first bare token that does.
+fn toolbox_exe(script_text: &str, exe: &str) -> Option<PathBuf> {
+    let quoted = script_text
+        .split('"')
+        .skip(1)
+        .step_by(2)
+        .find(|s| names_exe(s, exe));
+    quoted
+        .or_else(|| script_text.split_whitespace().find(|s| names_exe(s, exe)))
+        .map(PathBuf::from)
+}
+
+/// The top-level `"version"` of a JetBrains `product-info.json`.
+fn product_version(json: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(json).ok()?;
+    v.get("version")?.as_str().map(String::from)
+}
+
+fn version_key(v: &str) -> Vec<u64> {
+    v.split('.').map(|s| s.parse().unwrap_or(0)).collect()
+}
+
+/// The install with the highest version; one without a version ranks below any with one, and
+/// ties keep the first found.
+fn pick_install(found: Vec<(PathBuf, Option<String>)>) -> Option<PathBuf> {
+    let mut best: Option<(PathBuf, Option<Vec<u64>>)> = None;
+    for (path, version) in found {
+        let key = version.as_deref().map(version_key);
+        if best.as_ref().is_none_or(|(_, b)| key > *b) {
+            best = Some((path, key));
+        }
+    }
+    best.map(|(p, _)| p)
+}
+
+/// A JetBrains IDE: its exe on `PATH`, then the exe a Toolbox App script on `PATH` names, then
+/// the highest-versioned install folder. The script is read, never run, since running it would go
+/// through `cmd.exe` (section 9). Install folders are matched by `bin\<exe>` only, because their
+/// names carry the version and the Toolbox App lets them move.
+fn find_jetbrains(exe: &str, script: &str, env: &SearchEnv) -> Option<PathBuf> {
+    if let Some(p) = env.path.iter().map(|d| d.join(exe)).find(|p| p.is_file()) {
+        return Some(p);
+    }
+    for dir in &env.path {
+        let Ok(bytes) = std::fs::read(dir.join(script)) else {
+            continue;
+        };
+        if let Some(p) = toolbox_exe(&String::from_utf8_lossy(&bytes), exe).filter(|p| p.is_file())
+        {
+            return Some(p);
+        }
+    }
+    let roots = [
+        env.local_app_data.as_ref().map(|b| b.join("Programs")),
+        env.program_files.as_ref().map(|b| b.join("JetBrains")),
+    ];
+    let mut found = Vec::new();
+    for root in roots.into_iter().flatten() {
+        let Ok(entries) = std::fs::read_dir(&root) else {
+            continue;
+        };
+        for d in entries.flatten().map(|e| e.path()) {
+            let bin = d.join("bin").join(exe);
+            if bin.is_file() {
+                let version = std::fs::read_to_string(d.join("product-info.json"))
+                    .ok()
+                    .and_then(|j| product_version(&j));
+                found.push((bin, version));
+            }
+        }
+    }
+    pick_install(found)
+}
+
 /// The editor's executable, or None when it is not installed. `default` has none.
 fn detect(id: &str, env: &SearchEnv) -> Option<PathBuf> {
     if id == "visualStudio" {
         return find_devenv(env);
+    }
+    if let Some((exe, script)) = jetbrains(id) {
+        return find_jetbrains(exe, script, env);
     }
     find_on_path(id, env).or_else(|| {
         install_candidates(id, env)
@@ -164,11 +301,16 @@ fn table_args(id: &str, path: &Path, line: Option<u32>) -> Vec<String> {
     };
     match id {
         "zed" | "sublime" => vec![at(line)],
-        "vscode" | "cursor" => match line {
+        "vscode" | "cursor" | "windsurf" | "vscodeInsiders" | "vscodium" => match line {
             Some(_) => vec!["-g".into(), at(line)],
             None => vec![p],
         },
         "visualStudio" => vec!["/edit".into(), p],
+        "rider" | "intellij" | "webstorm" | "pycharm" | "rustrover" | "goland" | "clion"
+        | "phpstorm" => match line {
+            Some(l) => vec!["--line".into(), l.to_string(), p],
+            None => vec![p],
+        },
         "notepadpp" => match line {
             Some(l) => vec![format!("-n{l}"), p],
             None => vec![p],
@@ -340,12 +482,37 @@ mod tests {
         assert_eq!(table_args("visualStudio", p, l), ["/edit", FILE]);
         assert_eq!(table_args("notepadpp", p, l), ["-n12", FILE]);
         assert_eq!(table_args("sublime", p, l), [format!("{FILE}:12")]);
+        for id in JETBRAINS {
+            assert_eq!(table_args(id, p, l), ["--line", "12", FILE], "{id}");
+        }
+        for id in ["windsurf", "vscodeInsiders", "vscodium"] {
+            assert_eq!(
+                table_args(id, p, l),
+                ["-g".to_string(), format!("{FILE}:12")],
+                "{id}"
+            );
+        }
     }
+
+    const JETBRAINS: [&str; 8] = [
+        "rider",
+        "intellij",
+        "webstorm",
+        "pycharm",
+        "rustrover",
+        "goland",
+        "clion",
+        "phpstorm",
+    ];
 
     #[test]
     fn table_args_without_a_line() {
         let p = Path::new(FILE);
-        for id in ["zed", "vscode", "cursor", "notepadpp", "sublime"] {
+        for id in ["zed", "vscode", "cursor", "notepadpp", "sublime"]
+            .into_iter()
+            .chain(JETBRAINS)
+            .chain(["windsurf", "vscodeInsiders", "vscodium"])
+        {
             assert_eq!(table_args(id, p, None), [FILE], "{id}");
         }
         assert_eq!(table_args("visualStudio", p, None), ["/edit", FILE]);
@@ -397,15 +564,7 @@ mod tests {
             program_files: Some(root.join("pf")),
             program_files_x86: None,
         };
-        for id in [
-            "zed",
-            "vscode",
-            "cursor",
-            "notepadpp",
-            "sublime",
-            "visualStudio",
-            "default",
-        ] {
+        for (id, _) in NAMES {
             assert_eq!(detect(id, &env), None, "{id}");
         }
 
@@ -432,6 +591,174 @@ mod tests {
         assert_eq!(detect("vscode", &env), Some(root.join(r"vsc\Code.exe")));
 
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn env_at(root: &Path, path: Vec<PathBuf>) -> SearchEnv {
+        SearchEnv {
+            path,
+            local_app_data: Some(root.join("local")),
+            program_files: Some(root.join("pf")),
+            program_files_x86: None,
+        }
+    }
+
+    #[test]
+    fn vscode_family_shims_trade_for_the_exe_one_folder_up() {
+        let root = temp_dir("vscfamily");
+        for (id, shim, exe) in [
+            ("windsurf", "windsurf.cmd", "Windsurf.exe"),
+            ("vscodeInsiders", "code-insiders.cmd", "Code - Insiders.exe"),
+            ("vscodium", "codium.cmd", "VSCodium.exe"),
+        ] {
+            let env = env_at(&root, vec![root.join(id).join("bin")]);
+            touch(&root.join(id).join("bin").join(shim));
+            assert_eq!(detect(id, &env), None, "{id}");
+            touch(&root.join(id).join(exe));
+            assert_eq!(detect(id, &env), Some(root.join(id).join(exe)), "{id}");
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn vscode_family_install_folders() {
+        let root = temp_dir("vscinstall");
+        let env = env_at(&root, vec![]);
+        touch(&root.join(r"local\Programs\Windsurf\Windsurf.exe"));
+        touch(&root.join(r"pf\Microsoft VS Code Insiders\Code - Insiders.exe"));
+        touch(&root.join(r"local\Programs\VSCodium\VSCodium.exe"));
+        assert_eq!(
+            detect("windsurf", &env),
+            Some(root.join(r"local\Programs\Windsurf\Windsurf.exe"))
+        );
+        assert_eq!(
+            detect("vscodeInsiders", &env),
+            Some(root.join(r"pf\Microsoft VS Code Insiders\Code - Insiders.exe"))
+        );
+        assert_eq!(
+            detect("vscodium", &env),
+            Some(root.join(r"local\Programs\VSCodium\VSCodium.exe"))
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn jetbrains_exe_on_path() {
+        let root = temp_dir("jbpath");
+        let env = env_at(&root, vec![root.join("bin")]);
+        assert_eq!(detect("rider", &env), None);
+        touch(&root.join(r"bin\rider64.exe"));
+        assert_eq!(detect("rider", &env), Some(root.join(r"bin\rider64.exe")));
+        assert_eq!(detect("webstorm", &env), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn jetbrains_toolbox_script_on_path() {
+        let root = temp_dir("jbtoolbox");
+        let scripts = root.join("scripts");
+        let env = env_at(&root, vec![scripts.clone()]);
+        let exe = root.join(r"apps\Rider 2025.2\bin\rider64.exe");
+        std::fs::create_dir_all(&scripts).unwrap();
+        std::fs::write(
+            scripts.join("rider.cmd"),
+            format!("@echo off\r\nstart \"\" \"{}\" %*\r\n", exe.display()),
+        )
+        .unwrap();
+        assert_eq!(detect("rider", &env), None, "the named exe is missing");
+        touch(&exe);
+        assert_eq!(detect("rider", &env), Some(exe));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn jetbrains_install_folders_pick_the_highest_version() {
+        let root = temp_dir("jbinstall");
+        let env = env_at(&root, vec![]);
+        let older = root.join(r"local\Programs\Rider 2025.9");
+        let newer = root.join(r"pf\JetBrains\JetBrains Rider 2025.1");
+        let unversioned = root.join(r"local\Programs\Rider");
+        for d in [&older, &newer, &unversioned] {
+            touch(&d.join(r"bin\rider64.exe"));
+        }
+        std::fs::write(older.join("product-info.json"), r#"{"version": "2025.9"}"#).unwrap();
+        std::fs::write(newer.join("product-info.json"), r#"{"version": "2025.10"}"#).unwrap();
+        assert_eq!(detect("rider", &env), Some(newer.join(r"bin\rider64.exe")));
+        assert_eq!(detect("intellij", &env), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn jetbrains_install_without_version_loses() {
+        let root = temp_dir("jbnoversion");
+        let env = env_at(&root, vec![]);
+        let bare = root.join(r"local\Programs\IDEA");
+        let versioned = root.join(r"pf\JetBrains\IntelliJ IDEA Community Edition");
+        touch(&bare.join(r"bin\idea64.exe"));
+        touch(&versioned.join(r"bin\idea64.exe"));
+        std::fs::write(
+            versioned.join("product-info.json"),
+            r#"{"version": "2024.3"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            detect("intellij", &env),
+            Some(versioned.join(r"bin\idea64.exe"))
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn toolbox_exe_reads_the_script_text() {
+        let quoted = "@echo off\r\nstart \"\" \"C:\\Tool Box\\Rider\\bin\\rider64.exe\" %*\r\n";
+        assert_eq!(
+            toolbox_exe(quoted, "rider64.exe"),
+            Some(PathBuf::from(r"C:\Tool Box\Rider\bin\rider64.exe"))
+        );
+        let bare = "@echo off\r\nstart C:\\tb\\bin\\rider64.exe %*\r\n";
+        assert_eq!(
+            toolbox_exe(bare, "rider64.exe"),
+            Some(PathBuf::from(r"C:\tb\bin\rider64.exe"))
+        );
+        assert_eq!(toolbox_exe("start \"\" %*", "rider64.exe"), None);
+        assert_eq!(toolbox_exe(quoted, "idea64.exe"), None);
+        assert_eq!(
+            toolbox_exe(r#"start "" "C:\tb\bin\Rider64.EXE" %*"#, "rider64.exe"),
+            Some(PathBuf::from(r"C:\tb\bin\Rider64.EXE"))
+        );
+    }
+
+    #[test]
+    fn product_version_reads_the_top_level_field() {
+        assert_eq!(
+            product_version(r#"{"name": "Rider", "version": "2025.2.3", "launch": []}"#),
+            Some("2025.2.3".into())
+        );
+        assert_eq!(product_version(r#"{"name": "Rider"}"#), None);
+        assert_eq!(product_version("not json"), None);
+    }
+
+    #[test]
+    fn pick_install_compares_versions_by_number() {
+        let p = |s: &str| PathBuf::from(s);
+        let v = |s: &str| Some(s.to_string());
+        assert_eq!(
+            pick_install(vec![(p("a"), v("2025.9")), (p("b"), v("2025.10"))]),
+            Some(p("b"))
+        );
+        assert_eq!(
+            pick_install(vec![(p("a"), None), (p("b"), v("2023.1"))]),
+            Some(p("b"))
+        );
+        assert_eq!(
+            pick_install(vec![(p("a"), v("2025.1")), (p("b"), v("2025.1"))]),
+            Some(p("a"))
+        );
+        assert_eq!(
+            pick_install(vec![(p("a"), v("2025.x")), (p("b"), v("2025.0.1"))]),
+            Some(p("b"))
+        );
+        assert_eq!(pick_install(vec![(p("a"), None)]), Some(p("a")));
+        assert_eq!(pick_install(vec![]), None);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import './fonts.css';
 
-const FAMILY = 'JetBrainsMono Nerd Font Mono';
+export const BUNDLED_FONT_FAMILY = 'JetBrainsMono Nerd Font Mono';
 const TIMEOUT_MS = 2000;
 
 /**
@@ -10,8 +10,8 @@ const TIMEOUT_MS = 2000;
  */
 export function fontsReady(): Promise<void> {
   const load = Promise.all([
-    document.fonts.load(`400 14px "${FAMILY}"`),
-    document.fonts.load(`700 14px "${FAMILY}"`),
+    document.fonts.load(`400 14px "${BUNDLED_FONT_FAMILY}"`),
+    document.fonts.load(`700 14px "${BUNDLED_FONT_FAMILY}"`),
   ])
     .then(() => undefined)
     .catch((err) => {

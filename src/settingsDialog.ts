@@ -2,6 +2,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import type { SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
+import { fontSuggestions, isSuggestionPick, listFonts } from './fonts';
 import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
 
 export interface SettingsDialogCallbacks {
@@ -41,6 +42,7 @@ export class SettingsDialog {
   private backdrop: HTMLElement | null = null;
   private warnings: HTMLElement | null = null;
   private controls: Control[] = [];
+  private fontList: HTMLDataListElement | null = null;
   /** The editors the core found; just `default` until the list arrives or when it cannot be read. */
   private editors: Editor[] = [DEFAULT_EDITOR];
 
@@ -139,6 +141,24 @@ export class SettingsDialog {
     this.update(payload);
     box.focus();
     void this.loadEditors(backdrop);
+    void this.loadFonts(backdrop);
+  }
+
+  private async loadFonts(owner: HTMLElement): Promise<void> {
+    let found;
+    try {
+      found = await listFonts();
+    } catch {
+      return;
+    }
+    if (this.backdrop !== owner || !this.fontList) return;
+    this.fontList.replaceChildren(
+      ...fontSuggestions(found).map((family) => {
+        const option = document.createElement('option');
+        option.value = family;
+        return option;
+      }),
+    );
   }
 
   private async loadEditors(owner: HTMLElement): Promise<void> {
@@ -197,6 +217,7 @@ export class SettingsDialog {
       if (c.read && active && c.cell.contains(active)) this.commit(c, c.read());
     }
     this.controls = [];
+    this.fontList = null;
     this.backdrop?.remove();
     this.backdrop = null;
     this.warnings = null;
@@ -353,6 +374,17 @@ export class SettingsDialog {
       }
     } else {
       input.type = 'text';
+      if (f.suggestFrom === 'fonts') {
+        const list = document.createElement('datalist');
+        list.id = 'settings-dialog-font-suggestions';
+        input.setAttribute('list', list.id);
+        c.cell.append(list);
+        this.fontList = list;
+        input.addEventListener('input', (e) => {
+          const options = Array.from(list.options, (o) => o.value);
+          if (isSuggestionPick((e as InputEvent).inputType, input.value, options)) this.commit(c, input.value);
+        });
+      }
     }
     input.addEventListener('blur', () => this.commit(c, input.value));
     input.addEventListener('keydown', (e) => {

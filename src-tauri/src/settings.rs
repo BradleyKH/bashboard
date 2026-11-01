@@ -118,7 +118,11 @@ pub struct Editor {
 }
 
 /// Ids `editor.preferred` accepts (docs/design.md section 3.12).
-pub const EDITOR_IDS: [&str; 7] = ["zed", "vscode", "cursor", "visualStudio", "notepadpp", "sublime", "default"];
+pub const EDITOR_IDS: [&str; 18] = [
+    "zed", "vscode", "cursor", "visualStudio", "notepadpp", "sublime", "rider", "intellij",
+    "webstorm", "pycharm", "rustrover", "goland", "clion", "phpstorm", "windsurf",
+    "vscodeInsiders", "vscodium", "default",
+];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -711,8 +715,9 @@ fn default_file_text() -> String {
     let json = serde_json::to_string_pretty(&s).expect("default settings serialize");
     json.replace(
         "  \"editor\": {",
-        "  // zed, vscode, cursor, visualStudio, notepadpp, sublime, or default (the file's default
-  // app). A non-empty command replaces it, with {path} and {line} filled in.
+        "  // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
+  // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
+  // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in.
   \"editor\": {",
     )
     .replace(

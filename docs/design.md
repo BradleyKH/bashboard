@@ -78,6 +78,7 @@ mapping. They talk through Tauri commands (request/response) and Tauri channels 
 | Git, containers | The `git`, `docker`, and `podman` command-line tools, run as child processes |
 | Pane CLI | `bb.exe`, a second binary in the Tauri crate, installed beside the app (3.13) |
 | Updates | `tauri-plugin-updater` against GitHub releases (3.16) |
+| Font list | DirectWrite through the `windows` crate (3.17) |
 
 The chrome is a pane tree, the dashboard panel, and a few overlays, so plain TypeScript with
 one class per file is enough to start. If the dashboard panel grows into real UI (richer drag
@@ -530,7 +531,39 @@ pane cancels the previous one.
 | `visualStudio` | Visual Studio | `devenv /edit <path>` (no line) |
 | `notepadpp` | Notepad++ | `notepad++ -n<line> <path>` |
 | `sublime` | Sublime Text | `subl <path>:<line>` |
+| `rider` | Rider | `rider64 --line <line> <path>` |
+| `intellij` | IntelliJ IDEA | `idea64 --line <line> <path>` |
+| `webstorm` | WebStorm | `webstorm64 --line <line> <path>` |
+| `pycharm` | PyCharm | `pycharm64 --line <line> <path>` |
+| `rustrover` | RustRover | `rustrover64 --line <line> <path>` |
+| `goland` | GoLand | `goland64 --line <line> <path>` |
+| `clion` | CLion | `clion64 --line <line> <path>` |
+| `phpstorm` | PhpStorm | `phpstorm64 --line <line> <path>` |
+| `windsurf` | Windsurf | `windsurf -g <path>:<line>` |
+| `vscodeInsiders` | VS Code Insiders | `code-insiders -g <path>:<line>` |
+| `vscodium` | VSCodium | `codium -g <path>:<line>` |
 | `default` | The file's default app | Opened through the shell (no line) |
+
+With no line, each editor above except Visual Studio and the default app takes the path alone.
+
+Windsurf, VS Code Insiders, and VSCodium, like VS Code, put only a `.cmd` shim on `PATH`
+(`windsurf.cmd`, `code-insiders.cmd`, `codium.cmd`), which is traded for the exe one folder up.
+Their install folders are `%LOCALAPPDATA%\Programs\Windsurf`; `%LOCALAPPDATA%\Programs\Microsoft
+VS Code Insiders` then `%ProgramFiles%\Microsoft VS Code Insiders`; and
+`%LOCALAPPDATA%\Programs\VSCodium` then `%ProgramFiles%\VSCodium`.
+
+The JetBrains launchers hand the file to a running instance of the same IDE and exit, and a
+folder opens as a project. Each IDE is found in three steps, first match wins: its launcher exe
+(`rider64.exe`, `idea64.exe`, and so on) on `PATH`; a Toolbox App script on `PATH` (`rider.cmd`,
+`idea.cmd`, and so on), read for the exe path it names and never run, since running it would go
+through `cmd.exe` (section 9); then `*\bin\<exe>` under `%LOCALAPPDATA%\Programs` and
+`%ProgramFiles%\JetBrains`, taking the highest `version` in the install's `product-info.json`
+(compared segment by segment as numbers, an install without a version ranking last). Installs
+are matched by exe name, never by folder name, and the free and paid editions of IntelliJ IDEA
+and PyCharm share exe names, so either counts.
+
+Terminal editors are not in the table. Emacs is reachable through `editor.command`
+(`emacsclientw -n +{line} {path}`).
 
 A non-empty `editor.command` replaces the table: it is split into arguments, with `{path}` and
 `{line}` filled in (an absent line fills `1`). When the preferred editor is not found, the file
@@ -673,6 +706,20 @@ as WOFF2 files (`src/assets/fonts/`, declared in `src/fonts.css`, licensed under
 Font License, whose text sits beside them). `fontsReady()` in `src/fontsReady.ts` resolves once
 both weights have loaded, or after 2 seconds, and `main.ts` awaits it before building the
 workspace, since xterm.js measures its character cell when a terminal opens.
+
+### 3.17 Fonts (`src-tauri/src/fonts.rs`)
+
+`fonts() -> { family, monospace }[]` lists the installed font families for the settings dialog's
+Font family suggestions (4.6). It is an `async` command, so the enumeration runs off the main
+thread. It reads DirectWrite's system font collection through the `windows` crate, which
+includes fonts installed for the current user only. A family's name is its `en-us` localized
+name, or its first name when it has no `en-us` one; a family whose name cannot be read is
+skipped. `monospace` is `IDWriteFont1::IsMonospacedFont` on the family's first font, false when
+that call fails. The list is sorted with monospace families first, then by name ignoring case,
+and a name repeated ignoring case is dropped, so a family read both as monospace and not keeps
+its monospace entry. The collection is read on every call, with DirectWrite asked to check for
+updates, so a font installed while the app runs shows up on the next call. If DirectWrite fails
+the list is empty. On other platforms the list is always empty.
 
 ## 4. Front end
 
@@ -1302,7 +1349,11 @@ The settings dialog edits every user-facing setting, in the sections
 Appearance, Backdrop, Terminal, Editor, Dashboard, Restore, and Keyboard. Dashboard holds the
 side choice, Left or Right, and a checkbox per element under "Show on the dashboard". Keyboard holds one
 button, Edit keyboard shortcuts, which closes the dialog and opens the F1 guide (4.5). Terminal includes a Default shell select listing the available profiles. Editor
-selects the preferred editor from those found (3.12), plus a custom command field. A Run setup
+selects the preferred editor from those found (3.12), plus a custom command field. Appearance's
+Font family field suggests installed fonts as you type (3.17), monospace first, with the bundled
+JetBrainsMono Nerd Font Mono (3.16) leading. It stays a text field, so a name that is not installed
+or a comma-separated fallback list saves as typed; picking an entry replaces the whole value and
+saves it at once. The list loads after the dialog opens. A Run setup
 button reopens the setup wizard (4.17). Each change is written to settings.json
 through the app, so the file's comments survive. Toggles save immediately; number and text fields
 save on blur or Enter; the shell arguments list (one argument per line) saves on blur or
@@ -2146,8 +2197,10 @@ interface ShellProfile {
     }
   },
   "restore": { "enabled": true, "resumeClaude": true },
-  // zed, vscode, cursor, visualStudio, notepadpp, sublime, or default (the file's default
-  // app). A non-empty command replaces it, with {path} and {line} filled in (3.12).
+  // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
+  // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
+  // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in
+  // (3.12).
   "editor": { "preferred": "default", "command": "" },
   // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
   "git": { "autoFetchMinutes": 5 },
@@ -2217,7 +2270,8 @@ toast, until the file is fixed.
 | Worktrees | Rust against temp repos: worktree porcelain parsing, listing, primary branch resolution, merged states (merged, squash-merged with the remote branch pruned, unmerged), removal refusals (main, locked, dirty, unmerged branch) and a prunable removal; Vitest: the worktree model (badges, texts, containment, delete choices) and `repos.ts` `primaryBranch` |
 | Code search | Rust over a temp tree: `.gitignore` honored, options, the match cap, cancellation |
 | Containers | Rust: parsing captured `docker ps` and `podman ps` JSON, Compose labels from both; Vitest: grouping, group state, merging same-named groups for the dashboard |
-| Editors | Rust: the argument form for each editor, filling `editor.command` |
+| Editors | Rust: the argument form for each editor, filling `editor.command`; JetBrains detection over temp folders (exe on `PATH`, a Toolbox script naming an exe, the highest `product-info.json` version) and the VS Code family shims traded for their exes |
+| Fonts | Rust: the sort and dedupe, Consolas listed as monospace; Vitest: the suggestion merge and telling a datalist pick from typing |
 | Setup wizard | Vitest: step visibility, favorites added without duplicates, scrim preset matching, editor choices; Rust: repo candidates over a temp folder, firstRun only when the file was created |
 | End to end | Manual keyboard checklist (Ctrl+F/R/P, Alt+B/F, Shift+Enter, Esc, copy and paste, resize) run before each release |
 
@@ -2284,7 +2338,9 @@ Each milestone ends with a usable app.
     Context menus (4.4): one shared menu module (`contextMenu.ts`) behind the Open menu and kind
     menu and the right-click menus of title strips, tabs, dashboard rows, Files rows, preview,
     and breadcrumb, Git files and commits, Search results, container groups and rows, and every
-    text field, with the scratch pad's extras (4.6, 4.10 to 4.16).
+    text field, with the scratch pad's extras (4.6, 4.10 to 4.16). JetBrains IDEs, Windsurf,
+    VS Code Insiders, and VSCodium as editors (3.12), and installed font suggestions in the
+    settings dialog (3.17, 4.6).
 
 ## 12. Risks
 

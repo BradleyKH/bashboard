@@ -22,6 +22,8 @@ export interface SettingsField {
   options?: { value: string; label: string }[];
   /** Select fields only: offer just the options the core detected, as shell profiles or editors. */
   installedFrom?: 'profiles' | 'editors';
+  /** Text fields only: suggest values while typing, filled from the core after the dialog opens. */
+  suggestFrom?: 'fonts';
   hint?: string;
   applies: AppliesWhen;
   /** A subheading shown above the first field of a run of fields sharing it. */
@@ -43,7 +45,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Appearance',
     fields: [
-      { path: ['font', 'family'], label: 'Font family', kind: 'text', applies: 'live' },
+      { path: ['font', 'family'], label: 'Font family', kind: 'text', suggestFrom: 'fonts', applies: 'live' },
       { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live' },
     ],
   },
@@ -91,6 +93,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'visualStudio', label: 'Visual Studio' },
           { value: 'notepadpp', label: 'Notepad++' },
           { value: 'sublime', label: 'Sublime Text' },
+          { value: 'rider', label: 'Rider' },
+          { value: 'intellij', label: 'IntelliJ IDEA' },
+          { value: 'webstorm', label: 'WebStorm' },
+          { value: 'pycharm', label: 'PyCharm' },
+          { value: 'rustrover', label: 'RustRover' },
+          { value: 'goland', label: 'GoLand' },
+          { value: 'clion', label: 'CLion' },
+          { value: 'phpstorm', label: 'PhpStorm' },
+          { value: 'windsurf', label: 'Windsurf' },
+          { value: 'vscodeInsiders', label: 'VS Code Insiders' },
+          { value: 'vscodium', label: 'VSCodium' },
           { value: 'default', label: "The file's default app" },
         ],
         installedFrom: 'editors',
