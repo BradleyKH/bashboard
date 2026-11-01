@@ -88,9 +88,12 @@ import { Workspace } from './workspace';
 import { fontsReady } from './fontsReady';
 import { listenFileDrops } from './fileDrop';
 import { checkForUpdate } from './updater';
+import { closeContextMenu } from './contextMenu';
+import { installTextFieldMenu } from './textFieldMenu';
 
 // The built-in menu's Refresh reloads the page, and a reload kills every pane's pty as an orphan.
 window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
+installTextFieldMenu();
 
 trackCtrlHeld();
 
@@ -538,6 +541,10 @@ function focusCard(paneId: string): void {
 const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLElement, {
   onFocus: focusCard,
   onClose: (paneId) => workspace.closePane(paneId),
+  onToggleCollapse: (paneId) => {
+    if (workspace.panes().find((x) => x.paneId === paneId)?.collapsed) workspace.expandPane(paneId);
+    else workspace.collapsePane(paneId);
+  },
   onCardDragStart: (paneId, e) => workspace.startDrag({ kind: 'pane', paneId }, e),
   onSwitchTab: (tabId) => workspace.switchTab(tabId),
   onSectionsChange: () => saver.schedule(),
@@ -807,6 +814,14 @@ workspace.onChange(() => {
   trackRepo();
   syncGitFetchRoots(workspace.panes());
   saver.schedule();
+});
+// A menu belongs to the tab it was opened in; onChange fires for much else, so compare tab ids.
+let activeTabId = workspace.tabs().find((t) => t.active)?.id;
+workspace.onChange(() => {
+  const next = workspace.tabs().find((t) => t.active)?.id;
+  if (next === activeTabId) return;
+  activeTabId = next;
+  closeContextMenu();
 });
 onTextZoomChange(() => saver.schedule());
 // listen() rejects outside Tauri (plain `pnpm dev`); live updates are simply unavailable there.

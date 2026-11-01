@@ -1,7 +1,10 @@
+import { attachContextMenu } from './contextMenu';
+import { copyPath } from './copyText';
 import { formatAge, type PaneCard } from './dashboardModel';
 import { setPathText } from './displayPath';
-import { folderButton } from './folderButton';
-import { openMenuButton, type OpenInHandler } from './openMenu';
+import { folderButton, openFolder } from './folderButton';
+import { openInMenuItems, openMenuButton, type OpenInHandler } from './openMenu';
+import { paneCardMenuItems } from './paneCardMenus';
 import { paneKindInfo } from './paneKinds';
 import { profileBadge } from './profiles';
 import { hueCss } from './sessionHue';
@@ -12,6 +15,8 @@ export interface PaneCardOptions {
   confirming: boolean;
   onFocus: (paneId: string) => void;
   onClose: (paneId: string) => void;
+  /** Collapses or expands the pane; omitted, the card's menu has no such item. */
+  onToggleCollapse?: (paneId: string) => void;
   onConfirmChange: (paneId: string, confirming: boolean) => void;
   /** Called once the pointer moves past the drag threshold; the card then swallows the click. */
   onDragStart?: (paneId: string, e: PointerEvent) => void;
@@ -80,6 +85,26 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     });
   }
 
+  // What the × does: a busy card asks inline first.
+  const requestClose = (): void => {
+    if (card.busy) opts.onConfirmChange(card.paneId, true);
+    else opts.onClose(card.paneId);
+  };
+  const onToggleCollapse = opts.onToggleCollapse;
+  attachContextMenu(el, async () => {
+    const openItems = card.path && opts.onOpenIn ? await openInMenuItems(card.path, opts.onOpenIn) : [];
+    return {
+      target: el,
+      entries: paneCardMenuItems(card, openItems, {
+        onFocus: () => opts.onFocus(card.paneId),
+        onToggleCollapse: () => onToggleCollapse?.(card.paneId),
+        onOpenInExplorer: openFolder,
+        onCopyPath: (path) => void copyPath(path),
+        onClose: requestClose,
+      }),
+    };
+  });
+
   const head = document.createElement('div');
   head.className = 'card-head';
 
@@ -139,10 +164,7 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     );
     head.append(confirm);
   } else {
-    const close = button('×', 'card-close', () => {
-      if (card.busy) opts.onConfirmChange(card.paneId, true);
-      else opts.onClose(card.paneId);
-    });
+    const close = button('×', 'card-close', requestClose);
     close.title = card.kind === 'terminal' ? 'Close terminal' : 'Close pane';
     head.append(close);
   }

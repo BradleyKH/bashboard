@@ -1,5 +1,7 @@
 import './gitPane.css';
 import type { ConfirmOptions } from './confirmDialog';
+import type { MenuEntry } from './contextMenuModel';
+import { copyPath, copyText } from './copyText';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import {
@@ -29,6 +31,7 @@ import { GitCommitBox } from './gitCommitBox';
 import { GitDiffView } from './gitDiffView';
 import { GitFileList } from './gitFileList';
 import { GitLogList } from './gitLogList';
+import { gitCommitMenuItems, gitFileMenuItems } from './gitMenus';
 import {
   branchLine,
   canCommit,
@@ -70,6 +73,8 @@ export interface GitPaneOptions {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   /** A file row drag began; the workspace runs the path drag. */
   onPathDragStart?: (paths: string[], e: PointerEvent) => void;
+  /** Insert path on a row: the entry's absolute path and this pane's root, to make it relative to. */
+  onInsertPath: (absolute: string, baseRoot: string) => void;
 }
 
 const LOG_COUNT = 20;
@@ -181,6 +186,7 @@ export class GitPane implements PaneView {
       onSelect: (row) => this.selectFile(row, true),
       onToggle: (row) => void this.toggle([row], true),
       onToggleAll: (rows) => void this.toggle(rows, true),
+      menuItems: (row) => this.fileMenu(row, true),
       onOpen: (row) => void openInEditor(repoPath(this.rootPath, row.entry.path)),
       onDragStart: (row, e) => this.opts.onPathDragStart?.([repoPath(this.rootPath, row.entry.path)], e),
     });
@@ -190,11 +196,22 @@ export class GitPane implements PaneView {
       onSelect: (row) => this.selectFile(row, false),
       onToggle: (row) => void this.toggle([row], false),
       onToggleAll: (rows) => void this.toggle(rows, false),
+      menuItems: (row) => this.fileMenu(row, false),
       onOpen: (row) => void openInEditor(repoPath(this.rootPath, row.entry.path)),
       onDragStart: (row, e) => this.opts.onPathDragStart?.([repoPath(this.rootPath, row.entry.path)], e),
     });
     this.logList = new GitLogList({
       onSelect: (hash) => this.selectCommit(hash),
+      menuItems: (commit) =>
+        gitCommitMenuItems(commit, this.undoHash, {
+          showDiff: (c) => {
+            this.logList.select(c.hash);
+            this.selectCommit(c.hash);
+          },
+          copyHash: (hash) => copyText(hash, 'hash'),
+          copySubject: (subject) => copyText(subject, 'subject'),
+          undo: (hash) => void this.undo(hash),
+        }),
     });
     this.left.append(this.branch.el, this.commitBox.el, this.stagedList.el, this.changesList.el, this.logList.el);
 
@@ -483,6 +500,20 @@ export class GitPane implements PaneView {
     const sel = this.selection;
     const shown = sel?.type === 'commit' && sel.hash === this.undoHash;
     this.diffView.setUndo(shown, shown ? this.undoError : null);
+  }
+
+  private fileMenu(row: GitRow, staged: boolean): MenuEntry[] {
+    const absolute = (r: GitRow): string => repoPath(this.rootPath, r.entry.path);
+    return gitFileMenuItems(row, staged, {
+      showDiff: (r) => {
+        (staged ? this.stagedList : this.changesList).select(r.key);
+        this.selectFile(r, staged);
+      },
+      toggle: (r) => void this.toggle([r], staged),
+      openInEditor: (r) => void openInEditor(absolute(r)),
+      copyPath: (r) => copyPath(absolute(r)),
+      insertPath: (r) => this.opts.onInsertPath(absolute(r), this.rootPath),
+    });
   }
 
   private selectFile(row: GitRow, staged: boolean): void {

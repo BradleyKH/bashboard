@@ -1,6 +1,9 @@
+import { attachContextMenu } from './contextMenu';
+import { copyPath, copyText } from './copyText';
 import { formatAge, lastFolder } from './dashboardModel';
-import { folderButton } from './folderButton';
-import { openMenuButton, type OpenInHandler } from './openMenu';
+import { folderButton, openFolder } from './folderButton';
+import { openInMenuItems, openMenuButton, type OpenInHandler } from './openMenu';
+import { sessionRowMenuItems } from './paneCardMenus';
 import { hueCss, sessionHue } from './sessionHue';
 import type { Session, SessionStatus } from './sessions';
 import { waitingText } from './terminalStatus';
@@ -57,6 +60,18 @@ export function renderSessionRow(session: Session, opts: SessionRowOptions): HTM
   const head = document.createElement('div');
   head.className = 'session-head';
   head.addEventListener('click', () => opts.onToggle(session.sessionId));
+  attachContextMenu(head, async () => {
+    const openItems = session.cwd && opts.onOpenIn ? await openInMenuItems(session.cwd, opts.onOpenIn) : [];
+    return {
+      target: head,
+      entries: sessionRowMenuItems(session, openItems, {
+        onOpenInExplorer: openFolder,
+        onCopyPath: (path) => void copyPath(path),
+        onCopyCwd: (cwd) => void copyText(cwd, 'cwd'),
+        onCopySessionId: (id) => void copyText(id, 'session id'),
+      }),
+    };
+  });
 
   const dot = document.createElement('span');
   dot.className = `status-dot ${DOT_CLASS[session.status]}`;

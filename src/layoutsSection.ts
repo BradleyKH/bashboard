@@ -1,3 +1,4 @@
+import { isBlurIntoContextMenu } from './contextMenu';
 import type { NamedLayout } from './layouts';
 import { renderLayoutRow } from './layoutRow';
 
@@ -74,7 +75,8 @@ export class LayoutsSection {
       if (e.key === 'Escape') this.hidePrompt();
       else if (e.key === 'Enter') this.submit(input.value.trim());
     });
-    input.addEventListener('blur', () => {
+    input.addEventListener('blur', (e) => {
+      if (isBlurIntoContextMenu(e)) return;
       if (input.isConnected && input.value.trim() === '') this.hidePrompt();
     });
     // The panel cancels mousedown to keep focus on the terminal, which would also block the caret.

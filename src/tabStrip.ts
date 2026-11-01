@@ -1,5 +1,7 @@
 import './tabStrip.css';
+import { attachContextMenu } from './contextMenu';
 import { TabItem } from './tabItem';
+import { tabStripMenuItems } from './tabMenus';
 import type { Workspace } from './workspace';
 
 const DRAG_THRESHOLD_PX = 4;
@@ -28,6 +30,11 @@ export class TabStrip {
     this.el.addEventListener('mousedown', (e) => {
       if (!(e.target as HTMLElement).closest('.tab-rename')) e.preventDefault();
     });
+    attachContextMenu(this.el, (e) => {
+      // A tab's own menu covers its area, including the rename input inside it.
+      if (e.target instanceof Element && e.target.closest('.tab-item')) return null;
+      return { entries: tabStripMenuItems({ onNewTab: () => this.workspace.newTab() }) };
+    });
     workspace.onChange(() => this.refresh());
     this.refresh();
   }
@@ -48,6 +55,7 @@ export class TabStrip {
             if (!this.dragging) this.workspace.switchTab(id);
           },
           onClose: (id) => void this.workspace.requestCloseTab(id),
+          onNewTab: () => this.workspace.newTab(),
           onRename: (id, name) => this.workspace.renameTab(id, name),
           onRenameDone: this.focusTerminal,
           onPointerDown: (id, e) => this.beginReorder(id, e),

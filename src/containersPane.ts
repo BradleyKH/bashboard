@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import './containersPane.css';
 import {
   containerAction,
@@ -11,10 +12,12 @@ import {
 } from './containers';
 import { engineLabel, groupContainers, type ContainerGroup } from './containerGroups';
 import { renderContainerGroup } from './containerGroupView';
+import { containerGroupMenuItems, containerRowMenuItems } from './containerMenus';
 import { ContainerLogs } from './containerLogs';
 import { containerUsage, renderContainerRow, updateContainerRow } from './containerRow';
 import { containerKey, renderKey } from './containersRenderKey';
 import type { ContainersStore } from './containersStore';
+import { copyText } from './copyText';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
@@ -248,6 +251,10 @@ export class ContainersPane implements PaneView {
       busy: this.busy.has(g.key),
       onToggle: () => this.toggleGroup(g.key),
       onAction: (action) => void this.act(g.key, g.engine, g.containers, action, g.name),
+      menuItems: () =>
+        containerGroupMenuItems(g, this.busy.has(g.key), {
+          onAction: (action) => void this.act(g.key, g.engine, g.containers, action, g.name),
+        }),
       renderRow: (i) => {
         const c = g.containers[i];
         const key = containerKey(c);
@@ -258,6 +265,15 @@ export class ContainersPane implements PaneView {
           onAction: (action) => void this.act(key, c.engine, [c], action, c.name),
           onLogs: () => this.openLogs(c),
           onShell: () => this.opts.onShell(c),
+          menuItems: () =>
+            containerRowMenuItems(c, this.busy.has(key) || this.busy.has(g.key), {
+              onAction: (action) => void this.act(key, c.engine, [c], action, c.name),
+              onLogs: () => this.openLogs(c),
+              onShell: () => this.opts.onShell(c),
+              onOpenUrl: (url) =>
+                void invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err)),
+              onCopyName: (name) => copyText(name, 'name'),
+            }),
         });
         this.rows.set(key, el);
         return el;

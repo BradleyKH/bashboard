@@ -27,6 +27,8 @@ export interface ClaudeRow {
   paneId: string;
   sessionId: string;
   title: string;
+  /** The pane's folder; empty when it has none. */
+  path: string;
   status: TerminalStatus;
   /** Display name, or the raw id for a model the app does not know. */
   model: string | null;
@@ -120,6 +122,7 @@ export function claudeRows(
       paneId: card.paneId,
       sessionId,
       title: card.title,
+      path: card.path,
       status: card.status,
       model: ctx?.model == null ? null : modelDisplayName(ctx.model),
       tokens,

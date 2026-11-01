@@ -1,0 +1,46 @@
+import { item, separator, type MenuEntry, type MenuItem } from './contextMenuModel';
+
+export interface PinRowMenuHandlers {
+  open: () => void;
+  openInExplorer: () => void;
+  copyPath: () => void;
+  rename: () => void;
+  remove: () => void;
+}
+
+/** The menu for a pin row; a pin whose target is missing keeps only Remove pin. */
+export function pinRowMenuItems(state: { exists: boolean }, h: PinRowMenuHandlers): MenuEntry[] {
+  const enabled = state.exists;
+  return [
+    item('Open', h.open, { enabled }),
+    item('Open in File Explorer', h.openInExplorer, { enabled }),
+    item('Copy path', h.copyPath, { enabled }),
+    separator(),
+    item('Rename', h.rename, { enabled }),
+    item('Remove pin', h.remove),
+  ];
+}
+
+export interface WorktreeRowMenuHandlers {
+  openInExplorer: () => void;
+  copyPath: () => void;
+  /** Absent for the main worktree, which cannot be deleted. */
+  delete?: () => void;
+}
+
+/** The menu for a worktree row; a worktree whose folder is missing keeps only Delete. */
+export function worktreeRowMenuItems(
+  state: { missing: boolean; locked?: boolean },
+  openItems: MenuItem[],
+  h: WorktreeRowMenuHandlers,
+): MenuEntry[] {
+  const enabled = !state.missing;
+  const entries: MenuEntry[] = [
+    ...openItems.map((i) => ({ ...i, enabled: enabled && i.enabled !== false })),
+    separator(),
+    item('Open in File Explorer', h.openInExplorer, { enabled }),
+    item('Copy path', h.copyPath, { enabled }),
+  ];
+  if (h.delete) entries.push(separator(), item('Delete', h.delete, { enabled: !state.locked }));
+  return entries;
+}

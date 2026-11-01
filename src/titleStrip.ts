@@ -1,4 +1,6 @@
-import { kindMenu } from './kindMenu';
+import { attachContextMenu } from './contextMenu';
+import { item, separator, submenu, type MenuEntry, type MenuLeaf } from './contextMenuModel';
+import { kindMenu, kindMenuItems } from './kindMenu';
 import { paneKindInfo, type PaneKind } from './paneKinds';
 import type { TerminalStatus } from './terminalStatus';
 
@@ -33,6 +35,20 @@ export interface TitleStripZoomState {
 
 const DRAG_THRESHOLD_PX = 4;
 
+/** The title strip's right-click menu (docs/v0.2.0-design.md section 11.3). */
+export function titleStripMenuItems(
+  state: { kindItems: MenuLeaf[]; zoom: TitleStripZoomState },
+  hooks: Pick<TitleStripHooks, 'onCollapse' | 'onClose' | 'onZoom'>,
+): MenuEntry[] {
+  const entries: MenuEntry[] = [
+    submenu('Change kind', state.kindItems),
+    item('Collapse', () => hooks.onCollapse()),
+  ];
+  if (state.zoom.available) entries.push(item(state.zoom.zoomed ? 'Restore' : 'Zoom', () => hooks.onZoom?.()));
+  entries.push(separator(), item('Close pane', () => hooks.onClose()));
+  return entries;
+}
+
 /** The per-pane title bar: kind button, status dot, title, collapse, zoom, and close buttons (docs/design.md section 4.4). */
 export class TitleStrip {
   readonly el: HTMLElement;
@@ -41,6 +57,7 @@ export class TitleStrip {
   private readonly title: HTMLElement;
   private readonly zoomButton: HTMLButtonElement;
   private kind: PaneKind;
+  private zoom: TitleStripZoomState = { available: false, zoomed: false, attention: false };
 
   constructor(
     private readonly hooks: TitleStripHooks,
@@ -100,6 +117,13 @@ export class TitleStrip {
     // Keeps focus in xterm; pointer events and click handlers are unaffected.
     this.el.addEventListener('mousedown', (e) => e.preventDefault());
     this.el.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+    attachContextMenu(this.el, () => ({
+      entries: titleStripMenuItems(
+        { kindItems: kindMenuItems(this.kind, (k) => this.hooks.onChooseKind?.(k)), zoom: this.zoom },
+        this.hooks,
+      ),
+      target: this.el,
+    }));
   }
 
   setKind(kind: PaneKind): void {
@@ -110,6 +134,7 @@ export class TitleStrip {
   }
 
   setZoom(state: TitleStripZoomState): void {
+    this.zoom = state;
     this.zoomButton.hidden = !state.available;
     this.zoomButton.classList.toggle('zoomed', state.zoomed);
     this.zoomButton.classList.toggle('attention', state.attention);

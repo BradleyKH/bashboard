@@ -1,8 +1,11 @@
+import { attachContextMenu } from './contextMenu';
+import { copyPath } from './copyText';
+import { favoriteRowMenuItems } from './favoriteMenus';
 import type { FavoritesCallbacks } from './favoritesSection';
 import { favoritePathText, type Favorite } from './favorites';
 import { setPathText } from './displayPath';
-import { folderButton } from './folderButton';
-import { openMenuButton } from './openMenu';
+import { folderButton, openFolder } from './folderButton';
+import { openMenuButton, openInMenuItems } from './openMenu';
 import { profileBadge } from './profiles';
 import { attachReorder } from './rowReorder';
 import { iconButton, startRename } from './rowControls';
@@ -61,6 +64,17 @@ export function renderFavoriteRow(
 
   const badge = favorite.profile ? profileBadge(favorite.profile) : null;
   const openIn = callbacks.onOpenIn;
+  attachContextMenu(el, async () => {
+    const openItems = openIn ? await openInMenuItems(favorite.path, openIn) : [];
+    return {
+      entries: favoriteRowMenuItems(favorite.path, openItems, {
+        openInExplorer: openFolder,
+        copyPath,
+        remove: () => callbacks.onRemove(index),
+      }),
+      target: el,
+    };
+  });
   el.append(
     handle,
     text,

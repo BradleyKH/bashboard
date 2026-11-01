@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Container, ContainerAction, ContainerPort, ContainerStats } from './containers';
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
 
 export interface ContainerRowOptions {
   /** The latest stats sample; null while none has arrived or the container is not running. */
@@ -11,6 +13,8 @@ export interface ContainerRowOptions {
   onAction: (action: ContainerAction) => void;
   onLogs: () => void;
   onShell: () => void;
+  /** Entries for the row's context menu, read when it opens. */
+  menuItems: () => MenuEntry[];
 }
 
 function button(label: string, title: string, disabled: boolean, onClick: () => void): HTMLButtonElement {
@@ -114,6 +118,7 @@ export function renderContainerRow(c: Container, opts: ContainerRowOptions): HTM
   );
 
   el.append(dot, main, actions);
+  attachContextMenu(el, () => ({ entries: opts.menuItems(), target: el }));
   return el;
 }
 

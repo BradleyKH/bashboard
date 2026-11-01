@@ -1,3 +1,5 @@
+import { attachContextMenu } from './contextMenu';
+import { containerSectionMenuItems } from './containerMenus';
 import { engineLabel, type DashboardContainerRow } from './containerGroups';
 import type { ContainersSectionCallbacks } from './containersSection';
 import { iconButton } from './rowControls';
@@ -34,6 +36,14 @@ export function renderContainerDashboardRow(
   el.title = 'Open in Containers';
   el.addEventListener('click', () => callbacks.onOpenContainers(row.groupKeys));
   el.append(dot, name, count);
+  attachContextMenu(el, () => ({
+    entries: containerSectionMenuItems(row, {
+      onStart: () => callbacks.onStart(row),
+      onStop: () => callbacks.onStop(row),
+      onOpenContainers: () => callbacks.onOpenContainers(row.groupKeys),
+    }),
+    target: el,
+  }));
   if (row.anyStopped) {
     el.append(iconButton('\u25B6', 'container-action', 'Start', () => callbacks.onStart(row)));
   }

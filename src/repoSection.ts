@@ -112,7 +112,7 @@ export class RepoSection {
       ...state.pins.map((p, i) => {
         // The repo root itself is pinned as ".", which says nothing on its own.
         const name = p.pin.label ?? (p.pin.path === '.' ? folderName(p.absolute) : p.pin.path);
-        return renderPinRow(p.pin, name, i, p.isDir ?? false, p.exists, this.callbacks);
+        return renderPinRow(p.pin, name, i, p.isDir ?? false, p.exists, p.absolute, this.callbacks);
       }),
     );
   }

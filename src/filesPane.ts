@@ -1,8 +1,17 @@
 import './filesPane.css';
+import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
+import { copyPath, copyText } from './copyText';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import { FilePreview } from './filePreview';
-import { FileRowMenu, type FileRowMenuHandlers, type MoveTarget } from './fileRowMenu';
+import {
+  filePreviewMenuItems,
+  fileRowMenuItems,
+  folderMenuItems,
+  type FileRowMenuHandlers,
+  type MoveTarget,
+} from './fileRowMenu';
 import { FilesBreadcrumb } from './filesBreadcrumb';
 import { FilesList } from './filesList';
 import { openFolder } from './folderButton';
@@ -100,7 +109,6 @@ export class FilesPane implements PaneView {
   private readonly crumb: FilesBreadcrumb;
   private readonly list: FilesList;
   private readonly preview: FilePreview;
-  private readonly menu = new FileRowMenu();
   private settings: Settings;
   private rootPath: string;
   private currentPath: string;
@@ -148,12 +156,21 @@ export class FilesPane implements PaneView {
       zoom: textZoom('filesList'),
       onZoom: (zoom) => this.left.style.setProperty('--files-zoom', String(zoom)),
       onTogglePin: () => this.togglePin(),
+      folderMenu: () => this.folderMenu(),
     });
     this.list = new FilesList({
       onSelect: (entry) => this.selectEntry(entry),
       onActivate: (entry) => this.activate(entry),
       onUp: () => this.goUp(),
-      onMenu: (entry, anchor) => this.openMenu(entry, anchor),
+      onMenu: (entry, anchor) => {
+        if (isContextMenuOpenFor(anchor)) closeContextMenu();
+        else {
+          const target = anchor.closest<HTMLElement>('.file-row');
+          openContextMenu(this.rowMenu(entry), { anchorEl: anchor, align: 'right' }, { target });
+        }
+      },
+      rowMenu: (entry) => this.rowMenu(entry),
+      folderMenu: () => this.folderMenu(),
       onDragStart: (entry, e) =>
         this.opts.onPathDragStart?.([childPath(this.currentPath, entry.name)], e),
     });
@@ -197,6 +214,7 @@ export class FilesPane implements PaneView {
       this.preview.setExpanded(true);
     }
 
+    this.listeners.push(attachContextMenu(this.preview.el, () => ({ entries: this.previewMenu() })));
     this.listen(this.host, 'focusin', () => opts.onFocus());
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
     this.listen(this.divider, 'pointerdown', (e) => this.startDrag(e as PointerEvent));
@@ -322,7 +340,6 @@ export class FilesPane implements PaneView {
     this.disposed = true;
     this.generation++;
     this.unwatch();
-    this.menu.close();
     this.preview.dispose();
     for (const off of this.listeners) off();
     this.listeners.length = 0;
@@ -345,7 +362,6 @@ export class FilesPane implements PaneView {
     const gen = ++this.generation;
     const focused = this.hasFocus();
     this.unwatch();
-    this.menu.close();
     const changed = !samePath(folder, this.currentPath);
     this.currentPath = folder;
     if (record) this.history = visit(this.history, folder);
@@ -475,9 +491,9 @@ export class FilesPane implements PaneView {
     return this.opts.getPinnedFolders().some((p) => samePath(p, folder));
   }
 
-  private togglePin(): void {
-    if (this.isPinned(this.currentPath) && this.opts.onUnpin) this.opts.onUnpin(this.currentPath);
-    else this.opts.onPin(this.currentPath, true);
+  private togglePin(folder = this.currentPath): void {
+    if (this.isPinned(folder) && this.opts.onUnpin) this.opts.onUnpin(folder);
+    else this.opts.onPin(folder, true);
   }
 
   private openInEditor(path: string): void {
@@ -501,26 +517,52 @@ export class FilesPane implements PaneView {
     return out;
   }
 
-  private openMenu(entry: FileEntry, anchor: HTMLElement): void {
-    const pathOf = (e: FileEntry) => childPath(this.currentPath, e.name);
+  // Paths are fixed when a menu is built, so a choice acts on the folder the menu was opened in.
+  private rowMenu(entry: FileEntry): MenuEntry[] {
+    const folder = this.currentPath;
+    const pathOf = (e: FileEntry) => childPath(folder, e.name);
     const handlers: FileRowMenuHandlers = {
       openTerminalHere: (e) => this.opts.onOpenTerminalHere(pathOf(e)),
       openInEditor: (e) => this.openInEditor(pathOf(e)),
-      copyPath: (e) => {
-        navigator.clipboard.writeText(pathOf(e)).catch((err) => showToast(`Could not copy: ${errorText(err)}`));
-      },
+      copyPath: (e) => void copyPath(pathOf(e)),
       insertPath: (e) => this.opts.onInsertPath(pathOf(e), this.rootPath),
-      moveTo: (e, toDir) => void this.move(e, toDir),
+      moveTo: (e, toDir) => void this.move(e, toDir, folder),
       pin: (e) => this.opts.onPin(pathOf(e), e.isDir),
     };
-    this.menu.open(anchor, entry, handlers, this.moveTargets(entry));
+    return fileRowMenuItems(entry, this.moveTargets(entry), handlers);
   }
 
-  private async move(entry: FileEntry, toDir: string): Promise<void> {
-    const wasSelected = entry.name === this.selectedName;
+  private folderMenu(): MenuEntry[] {
+    const folder = this.currentPath;
+    return folderMenuItems(
+      { pinned: this.isPinned(folder) },
+      {
+        openTerminalHere: () => this.opts.onOpenTerminalHere(folder),
+        openInExplorer: () => openFolder(folder),
+        copyPath: () => void copyPath(folder),
+        togglePin: () => this.togglePin(folder),
+      },
+    );
+  }
+
+  private previewMenu(): MenuEntry[] {
+    const text = this.preview.selectedText();
+    return filePreviewMenuItems(
+      { hasSelection: text !== '', path: this.preview.path, canFind: this.preview.findable },
+      {
+        copy: () => void copyText(text, 'text'),
+        find: () => void this.preview.openFind(),
+        openInEditor: (path) => this.openInEditor(path),
+        copyPath: (path) => void copyPath(path),
+      },
+    );
+  }
+
+  private async move(entry: FileEntry, toDir: string, folder = this.currentPath): Promise<void> {
+    const wasSelected = samePath(folder, this.currentPath) && entry.name === this.selectedName;
     if (wasSelected) await this.flush();
     try {
-      await fsMove(childPath(this.currentPath, entry.name), toDir);
+      await fsMove(childPath(folder, entry.name), toDir);
     } catch (e) {
       showToast(`Could not move ${entry.name}: ${errorText(e)}`);
       return;

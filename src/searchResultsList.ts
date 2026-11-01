@@ -1,6 +1,13 @@
 import type { LineMatch } from './searchApi';
 import { attachBodyDrag } from './bodyDrag';
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
 import { highlightSegments, type FileGroup, type SearchItem, type SearchResults } from './searchModel';
+
+/** What a menu was opened on: a result row, or a file group header with its collapsed state. */
+export type SearchMenuTarget =
+  | { kind: 'item'; item: SearchItem }
+  | { kind: 'group'; path: string; collapsed: boolean };
 
 export interface SearchResultsListOptions {
   onSelect: (item: SearchItem) => void;
@@ -8,6 +15,8 @@ export interface SearchResultsListOptions {
   onToggle: (path: string) => void;
   /** A row or group header was dragged; `path` is the file's repo-relative path. */
   onDragStart?: (path: string, e: PointerEvent) => void;
+  /** Items for the context menu on a row or group head; null or empty offers no menu. */
+  menuItems?: (target: SearchMenuTarget) => MenuEntry[] | null;
 }
 
 /** A stable identity for a result row; a line appears at most once per file. */
@@ -53,6 +62,7 @@ export class SearchResultsList {
     this.el.tabIndex = 0;
     this.el.addEventListener('click', (e) => this.onClick(e));
     this.el.addEventListener('dblclick', (e) => this.onDoubleClick(e));
+    attachContextMenu(this.el, (e, keyboard) => this.menuFor(e, keyboard));
   }
 
   /** Renders `state`; returns true when the list was rebuilt rather than appended to. */
@@ -209,6 +219,29 @@ export class SearchResultsList {
     const row = (e.target as HTMLElement).closest<HTMLElement>('.search-row');
     const key = row?.dataset.key;
     return key === undefined ? null : (this.items.get(key) ?? null);
+  }
+
+  /** The list, not a row, holds keyboard focus, so a keyboard open uses the selected row. */
+  private menuFor(e: MouseEvent, keyboard: boolean) {
+    const { menuItems } = this.opts;
+    if (!menuItems) return null;
+    let el: HTMLElement | null;
+    if (keyboard) {
+      el = this.selectedKey === null ? null : (this.rows.get(this.selectedKey) ?? null);
+    } else {
+      el = (e.target as HTMLElement).closest<HTMLElement>('.search-toggle, .search-row');
+    }
+    if (!el) return null;
+    let target: SearchMenuTarget | null = null;
+    if (el.dataset.key !== undefined) {
+      const item = this.items.get(el.dataset.key);
+      if (item) target = { kind: 'item', item };
+    } else if (el.dataset.path !== undefined) {
+      const group = this.byPath.get(el.dataset.path);
+      if (group) target = { kind: 'group', path: el.dataset.path, collapsed: group.el.classList.contains('collapsed') };
+    }
+    const entries = target && menuItems(target);
+    return entries && entries.length > 0 ? { entries, target: el } : null;
   }
 
   private onClick(e: MouseEvent): void {

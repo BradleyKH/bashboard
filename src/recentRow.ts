@@ -1,9 +1,12 @@
+import { attachContextMenu } from './contextMenu';
+import { copyPath } from './copyText';
 import { lastFolder } from './dashboardModel';
 import { setPathText } from './displayPath';
+import { recentRowMenuItems } from './favoriteMenus';
 import { attachBodyDrag } from './bodyDrag';
 import type { FavoritesCallbacks } from './favoritesSection';
-import { folderButton } from './folderButton';
-import { openMenuButton } from './openMenu';
+import { folderButton, openFolder } from './folderButton';
+import { openInMenuItems, openMenuButton } from './openMenu';
 
 /** One recent folder under the Favorites section (docs/design.md section 4.6). */
 export function renderRecentRow(path: string, callbacks: FavoritesCallbacks): HTMLElement {
@@ -32,6 +35,17 @@ export function renderRecentRow(path: string, callbacks: FavoritesCallbacks): HT
   });
 
   const openIn = callbacks.onOpenIn;
+  attachContextMenu(el, async () => {
+    const openItems = openIn ? await openInMenuItems(path, openIn) : [];
+    return {
+      entries: recentRowMenuItems(path, openItems, {
+        openInExplorer: openFolder,
+        copyPath,
+        promote: callbacks.onPromote,
+      }),
+      target: el,
+    };
+  });
   el.append(name, full, folderButton(path), ...(openIn ? [openMenuButton(path, openIn)] : []), star);
   return el;
 }

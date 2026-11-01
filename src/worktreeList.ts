@@ -116,6 +116,12 @@ export class WorktreeList {
     );
   }
 
+  /** The row menu's Delete expands the row first so the detail shows the progress and any refusal. */
+  private deleteFromRow(w: Worktree): void {
+    if (!this.expanded || !samePath(this.expanded.path, w.path)) this.load(w, false);
+    this.delete(w);
+  }
+
   private deleteDone(path: string, message: string | null): void {
     const e = this.expanded;
     if (!e || !samePath(e.path, path)) return;
@@ -152,6 +158,7 @@ export class WorktreeList {
           expanded: e !== null,
           onToggle: () => this.toggle(w),
           onOpenIn: this.callbacks.onOpenIn,
+          onDelete: () => this.deleteFromRow(w),
         }),
       );
       if (e) {

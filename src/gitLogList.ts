@@ -1,9 +1,13 @@
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
 import type { GitCommit } from './gitApi';
 import { relativeTime, shortHash } from './gitModel';
 
 export interface GitLogListOptions {
   /** A commit row was clicked; the caller shows its diff. */
   onSelect: (hash: string) => void;
+  /** Right-click (or the Menu key) on a commit row; the menu never changes the selection. */
+  menuItems?: (commit: GitCommit) => MenuEntry[];
 }
 
 /** "Recent commits" (docs/design.md section 4.13). */
@@ -27,6 +31,16 @@ export class GitLogList {
     this.list.setAttribute('role', 'listbox');
     this.el.append(head, this.list);
     this.render();
+
+    attachContextMenu(this.list, (e, keyboard) => {
+      const { menuItems } = this.opts;
+      if (!menuItems) return null;
+      const origin = e.target instanceof Element ? e.target.closest<HTMLElement>('.git-commit-row') : null;
+      const el = origin ?? (keyboard ? this.selectedEl() : null);
+      const commit = this.commits.find((c) => c.hash === el?.dataset.hash);
+      if (!el || !commit) return null;
+      return { entries: menuItems(commit), target: el };
+    });
   }
 
   /** Replaces the commits (newest first); relative times are computed at this call. */
@@ -39,6 +53,13 @@ export class GitLogList {
   select(hash: string | null): void {
     this.selectedHash = hash;
     this.render();
+  }
+
+  private selectedEl(): HTMLElement | null {
+    for (const child of this.list.children) {
+      if (child instanceof HTMLElement && child.dataset.hash === this.selectedHash) return child;
+    }
+    return null;
   }
 
   private render(): void {
@@ -58,6 +79,7 @@ export class GitLogList {
     el.className = 'git-row git-commit-row';
     if (c.hash === this.selectedHash) el.classList.add('selected');
     el.setAttribute('role', 'option');
+    el.dataset.hash = c.hash;
     el.addEventListener('click', () => {
       this.selectedHash = c.hash;
       this.render();

@@ -1,4 +1,6 @@
 import './filesList.css';
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
 import { filterEntries, listKey, sortEntries, type FileEntry } from './filesModel';
 import { renderFileRow } from './fileRow';
 
@@ -9,8 +11,12 @@ export interface FilesListOptions {
   onActivate: (entry: FileEntry) => void;
   /** Backspace with no filter. */
   onUp: () => void;
-  /** The row's menu button was pressed; the caller opens a `FileRowMenu` at the anchor. */
+  /** The row's menu button was pressed; the caller opens the row's menu at the anchor. */
   onMenu: (entry: FileEntry, anchor: HTMLElement) => void;
+  /** A row's right-click menu. */
+  rowMenu: (entry: FileEntry) => MenuEntry[];
+  /** The right-click menu of the empty area below the rows, for the current folder. */
+  folderMenu: () => MenuEntry[];
   /** A row's body was dragged past the threshold. */
   onDragStart?: (entry: FileEntry, e: PointerEvent) => void;
 }
@@ -51,6 +57,17 @@ export class FilesList {
     this.list.tabIndex = 0;
     this.list.setAttribute('role', 'listbox');
     this.list.addEventListener('keydown', (e) => this.onKeyDown(e));
+    // The list, not a row, holds focus, so the Menu key and Shift+F10 act on the selected row.
+    attachContextMenu(this.list, (e, keyboard) => {
+      const row = keyboard
+        ? this.list.querySelector<HTMLElement>('.file-row.selected')
+        : e.target instanceof Element
+          ? e.target.closest<HTMLElement>('.file-row')
+          : null;
+      const entry = row ? this.entries.find((x) => x.name === row.dataset.name) : undefined;
+      if (row && entry) return { entries: this.opts.rowMenu(entry), target: row };
+      return { entries: this.opts.folderMenu() };
+    });
 
     this.el.append(this.filterBar, this.list);
   }

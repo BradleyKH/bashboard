@@ -1,3 +1,4 @@
+import { item, separator, submenu, type MenuEntry } from './contextMenuModel';
 import type { FileEntry } from './filesModel';
 
 export interface MoveTarget {
@@ -16,94 +17,88 @@ export interface FileRowMenuHandlers {
   pin: (entry: FileEntry) => void;
 }
 
-/** Hover menu for a Files row (docs/design.md section 4.12). Only one is open at a time. */
-export class FileRowMenu {
-  private menu: HTMLElement | null = null;
-  private cleanup: (() => void) | null = null;
-
-  isOpen(): boolean {
-    return this.menu !== null;
+/**
+ * A Files row's menu (docs/design.md section 4.12), from its ⋯ button or a right-click. Move to
+ * appears for files only (`fs_move` moves files) and only when there are targets.
+ */
+export function fileRowMenuItems(
+  entry: FileEntry,
+  moveTargets: readonly MoveTarget[],
+  handlers: FileRowMenuHandlers,
+): MenuEntry[] {
+  const out: MenuEntry[] = [];
+  if (entry.isDir) out.push(item('Open terminal here', () => handlers.openTerminalHere(entry)));
+  out.push(
+    item('Open in editor', () => handlers.openInEditor(entry)),
+    separator(),
+    item('Copy path', () => handlers.copyPath(entry)),
+    item('Insert path', () => handlers.insertPath(entry)),
+    separator(),
+  );
+  if (!entry.isDir && moveTargets.length > 0) {
+    out.push(
+      submenu(
+        'Move to',
+        moveTargets.map((t) => item(t.label, () => handlers.moveTo(entry, t.path))),
+      ),
+    );
   }
+  out.push(item('Pin', () => handlers.pin(entry)));
+  return out;
+}
 
-  /** Move to appears for files only (`fs_move` moves files) and only when there are targets. */
-  open(anchor: HTMLElement, entry: FileEntry, handlers: FileRowMenuHandlers, moveTargets: readonly MoveTarget[]): void {
-    this.close();
-    const menu = document.createElement('div');
-    menu.className = 'file-menu';
-    menu.setAttribute('role', 'menu');
-    menu.tabIndex = -1;
+export interface FolderMenuState {
+  /** The current folder is pinned, so the pin item unpins. */
+  pinned: boolean;
+}
 
-    const choose = (fn: () => void) => () => {
-      this.close();
-      fn();
-    };
-    const item = (label: string, onClick: () => void): HTMLButtonElement => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'file-menu-item';
-      b.setAttribute('role', 'menuitem');
-      b.textContent = label;
-      b.addEventListener('click', onClick);
-      return b;
-    };
+export interface FolderMenuHandlers {
+  openTerminalHere: () => void;
+  openInExplorer: () => void;
+  copyPath: () => void;
+  /** Pins the current folder, or unpins it when pinned, as the breadcrumb's pin button does. */
+  togglePin: () => void;
+}
 
-    const items: HTMLElement[] = [];
-    if (entry.isDir) items.push(item('Open terminal here', choose(() => handlers.openTerminalHere(entry))));
-    items.push(item('Open in editor', choose(() => handlers.openInEditor(entry))));
-    items.push(item('Copy path', choose(() => handlers.copyPath(entry))));
-    items.push(item('Insert path', choose(() => handlers.insertPath(entry))));
+/** The breadcrumb's and the empty list area's menu, acting on the current folder. */
+export function folderMenuItems(state: FolderMenuState, handlers: FolderMenuHandlers): MenuEntry[] {
+  return [
+    item('Open terminal here', handlers.openTerminalHere),
+    item('Open in File Explorer', handlers.openInExplorer),
+    separator(),
+    item('Copy path', handlers.copyPath),
+    separator(),
+    item(state.pinned ? 'Unpin' : 'Pin', handlers.togglePin),
+  ];
+}
 
-    if (!entry.isDir && moveTargets.length > 0) {
-      const sub = document.createElement('div');
-      sub.className = 'file-menu-sub';
-      sub.hidden = true;
-      for (const t of moveTargets) {
-        sub.append(item(t.label, choose(() => handlers.moveTo(entry, t.path))));
-      }
-      const toggle = item('Move to ▸', () => {
-        sub.hidden = !sub.hidden;
-      });
-      items.push(toggle, sub);
-    }
-    items.push(item('Pin', choose(() => handlers.pin(entry))));
-    menu.append(...items);
+export interface FilePreviewMenuState {
+  /** Text is selected inside the preview. */
+  hasSelection: boolean;
+  /** The previewed file, or null when nothing is previewed. */
+  path: string | null;
+  /** The preview has a find bar (a text preview); defaults to true. */
+  canFind?: boolean;
+}
 
-    menu.addEventListener('keydown', (e) => {
-      // Keep keys away from the workspace keymap.
-      e.stopPropagation();
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        this.close();
-      }
-    });
-    menu.addEventListener('keypress', (e) => e.stopPropagation());
-    menu.addEventListener('keyup', (e) => e.stopPropagation());
-    menu.addEventListener('mousedown', (e) => e.preventDefault());
+export interface FilePreviewMenuHandlers {
+  copy: () => void;
+  find: () => void;
+  openInEditor: (path: string) => void;
+  copyPath: (path: string) => void;
+}
 
-    const onOutside = (e: MouseEvent) => {
-      if (!menu.contains(e.target as Node) && e.target !== anchor) this.close();
-    };
-    const onBlur = () => this.close();
-    document.addEventListener('mousedown', onOutside, true);
-    window.addEventListener('blur', onBlur);
-    this.cleanup = () => {
-      document.removeEventListener('mousedown', onOutside, true);
-      window.removeEventListener('blur', onBlur);
-    };
-
-    document.body.append(menu);
-    const r = anchor.getBoundingClientRect();
-    const m = menu.getBoundingClientRect();
-    menu.style.left = `${Math.max(4, Math.min(r.right - m.width, window.innerWidth - m.width - 4))}px`;
-    menu.style.top = `${Math.max(4, Math.min(r.bottom + 2, window.innerHeight - m.height - 4))}px`;
-    this.menu = menu;
-    menu.focus();
-  }
-
-  close(): void {
-    this.cleanup?.();
-    this.cleanup = null;
-    this.menu?.remove();
-    this.menu = null;
-  }
+/** The preview's menu outside the text editor; nothing when no file is previewed. */
+export function filePreviewMenuItems(state: FilePreviewMenuState, handlers: FilePreviewMenuHandlers): MenuEntry[] {
+  const path = state.path;
+  if (path === null) return [];
+  const out: MenuEntry[] = [];
+  if (state.hasSelection) out.push(item('Copy', handlers.copy), separator());
+  out.push(
+    item('Find', handlers.find, { enabled: state.canFind !== false }),
+    item('Open in editor', () => handlers.openInEditor(path)),
+    separator(),
+    item('Copy path', () => handlers.copyPath(path)),
+  );
+  return out;
 }

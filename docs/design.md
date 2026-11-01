@@ -793,13 +793,67 @@ sits in the layout above each terminal. A lone pane's strip is an overlay, so it
 the terminal; it is invisible until the pointer enters its own top band, so the pointer resting
 elsewhere in the terminal never covers the first row.
 
+**Title strip menu.** A right-click on a title strip of any pane kind opens Change kind (a
+submenu of the kind menu's entries, 4.11), Collapse, Zoom or Restore (only while the zoom button
+shows, 4.2), and, after a separator, Close pane. Each item does what its button does.
+
 **Right-click.** A right-click in a terminal does whatever xterm.js and the running program do
 with it, in every profile, and no menu opens. `main.ts` registers one `contextmenu` listener on
 `window` in the capture phase, before anything else mounts, that cancels the default and never
 stops propagation, so xterm.js still sees the event (it moves its hidden textarea under the
 pointer, and passes the button to a program that turned on mouse reporting). The cancelled
 default is WebView2's built-in menu, whose Refresh reloads the page and kills every pty as an
-orphan.
+orphan. The app adds no terminal menu and no right-click handling of its own.
+
+**Context menus** (`contextMenu.ts`, `contextMenuModel.ts`). Right-clicking an element the app
+knows opens a menu of that element's actions; right-clicking anything else does nothing. One
+module draws every menu, including the Open menu (4.6) and the kind menu (4.11), so they all look
+and behave alike.
+
+- **Content.** A menu holds items, separators, and submenus, one level deep. An item can be
+  disabled, or drawn as a radio choice with a check mark. Builders append groups
+  conditionally; leading, trailing, and doubled separators are dropped (in submenus too), a
+  submenu with no enabled item is disabled, and a menu with nothing left opens nothing.
+- **Placement.** A menu opens at the pointer, or below its button with the left or right edge
+  aligned. It flips above when there is room there and none below, shifts left from the right
+  edge, stays 4 px inside the window, and scrolls when taller than the window. A submenu opens to
+  the right of its item, or to the left when there is no room.
+- **Keys.** Up, Down, Home, and End move over enabled items, wrapping; Enter or Space chooses;
+  Right opens a submenu and Left closes it; Esc closes. Opened from a button or key, the menu
+  focuses its checked item or its first enabled one; opened by pointer, it focuses nothing until
+  a key or hover. `keydown`, `keypress`, and `keyup` stop inside the menu, so `keys.ts` and
+  xterm.js never see them.
+- **Closing.** A menu closes on a choice, Esc, a press outside it, the window losing focus, or a
+  switch to another tab, and returns focus to the element that had it. Only one menu is open at a
+  time; opening one closes the other. A press on the button a menu opened from is left to that
+  button's click, so the button toggles its menu.
+- **Owners.** Each element attaches its own menu (`attachContextMenu`): the owner builds the
+  items on `contextmenu`, and the innermost owner wins because it stops the event. An owner with
+  nothing to offer at that spot returns no menu and lets the event bubble to an outer owner. A
+  builder may be asynchronous (the Open menu's git probe); its menu opens only if no menu opened
+  or closed while it waited. Item lists come from pure functions beside each owner, such as
+  `fileRowMenuItems`, so tests cover them without the DOM.
+- **Row outline.** A right-clicked row is outlined while its menu is open but not selected: the
+  Files preview, the Git diff, and the Search preview do not change, so a menu can act on a row
+  without losing the one being read.
+- **Keyboard.** The Menu key and Shift+F10 fire `contextmenu` in WebView2 and open the focused
+  row's menu, anchored at its bottom left. Lists that hold focus themselves (Files, Git, Search)
+  use the selected row.
+- **Second way in.** Every item is an action the app has elsewhere (a button, a hover menu, or
+  a key), or a copy of text the element shows.
+
+**Text fields.** Every `input` and `textarea` outside a terminal (the scratch pad, the Files
+text editor, the commit message, find bars, filters, the palette, and inline renames) gets Undo,
+Cut, Copy, Paste, and Select all from one listener on `document` (`textFieldMenu.ts`). Cut and
+Copy are disabled with no selection (always, in a password field); Undo, Cut, and Paste are
+disabled in a read-only or disabled field. Paste reads the clipboard through the core, as
+Ctrl+V does. A field can add items after a separator; the scratch pad's are in 4.15. A text
+field menu opened by key sits at the field's bottom left.
+
+**Copy path** copies an absolute path with backslashes and no quotes, as File Explorer's Copy as
+path does. **Insert path** goes through `pathInsertText` (Dropping paths, below) with the pane's own
+root as the base, so the path is relative to the Files, Git, or Search pane it comes from, and
+quoted and slashed for the target terminal as a drop is.
 
 **Find bar** (`findBar.ts`): Ctrl+Shift+F opens one bar over the top-right corner of the
 focused pane, or refocuses its input if it is already open. Matching is case-insensitive and
@@ -1090,6 +1144,31 @@ hover that opens its folder in File Explorer (`open_folder`, which accepts only 
 absolute directory). Beside it, an Open menu lists Terminal, Files, Git, Search, and Editor,
 each opening for that row's repo (4.11); Git is listed only for a git repo.
 
+**Row menus.** Right-clicking a row opens a menu of the actions its buttons offer (4.4 describes
+the shared module). "The Open entries" below are the Open menu's, listed first, with Git only for
+a git repo; "Explorer" is Open in File Explorer.
+
+| Row | Items |
+| --- | --- |
+| Pane card | Focus, Collapse or Expand; for a pane with a folder, the Open entries, Explorer, and Copy path; Close (asking as its button does) |
+| External session | The Open entries, Explorer, and Copy path (when the session has a cwd); Copy cwd and Copy session id, offered whether or not the row is expanded |
+| Favorite | The Open entries, Explorer, Copy path, Remove favorite |
+| Recent | The Open entries, Explorer, Copy path, Add to favorites |
+| Layout | Open, Rename, Remove (asking inline, as its button does) |
+| Repo pin | Open, Explorer (a file pin's folder), Copy path, Rename, Remove pin |
+| Worktree | The Open entries, Explorer, Copy path, Delete (absent for the main worktree, disabled while locked) |
+| Containers | Start when any container in the group is stopped, Stop when any runs, Open Containers |
+| Claude | Focus, Copy path |
+
+A row whose path is missing (a dimmed pin, a prunable worktree) disables everything but its
+Remove pin or Delete item. A Containers row that only reports an engine not running has no menu.
+Section headers, tab group headers, the clock, the System section, the footer, gaps between
+panes, and the backdrop have no menu.
+
+The Open menu button on those rows, and the Files row's menu button (4.12), open the same shared
+menu below the button, toggling on a second press. The Git entry waits for the git probe, and the
+menu is dropped if another menu opened or closed meanwhile.
+
 **Repo.** The repo (3.8) of the focused pane's folder, or of the last focused pane that had
 one. A Files pane counts as the repo it was opened for, not the folder it is showing, so opening
 a pinned subfolder keeps the section on its repo. The header shows the repo folder's name and, for a git repo, its branch; while the panel is open
@@ -1359,6 +1438,9 @@ close button on hover. The tab's tooltip lists each waiting terminal's title and
   so the drag can continue into a dock target there (4.2) and move the terminal across tabs, or
   into a terminal there to drop the path.
 - The strip is chrome on z3 and draws over the backdrop with the same scrim as the title strips.
+- **Menus.** A right-click on a tab offers Rename, New tab, and Close tab, each as the tab's own
+  gesture does; a tab being renamed offers its input's text field menu instead. A right-click on
+  the strip outside any tab offers New tab.
 
 **New tab** (Ctrl+Shift+T or the "+"): appends a tab with one terminal of the default profile in
 the focused pane's working directory (4.2), and makes it active.
@@ -1403,7 +1485,9 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   terminal with a running command or a live Claude session asks first, as closing it does, and
   so does replacing a scratch pad that is not empty. A terminal chosen from the menu runs the
   default profile. The menu lists Containers only while a container engine is available (3.10)
-  and `dashboard.sections.containers` is on.
+  and `dashboard.sections.containers` is on. It is drawn by the shared context menu module (4.4)
+  below the button, with the current kind checked; choosing the current kind does nothing. The
+  title strip's right-click menu offers the same entries as its Change kind submenu.
 - **Opening.** Ctrl+Shift+N, E, G, and H (4.5), the Repo section, and the Open menu on dashboard
   rows (4.6) open a pane as a split of the focused pane, the way a favorite does: when there is
   no room, a toast says so and the pane opens collapsed. A Git pane for a repo that already has
@@ -1475,7 +1559,8 @@ in front of you. With unsaved edits, a bar offers Reload (discarding them) or Ke
 (overwriting the file).
 
 **Rows.** Clicking a row selects it; double-clicking a folder opens it, and double-clicking a
-file opens it in the editor (3.12). Each row's hover menu has:
+file opens it in the editor (3.12). Each row's menu, from its menu button or a right-click
+(through the keyboard, the selected row's), has:
 
 - Open terminal here (folders only): a new terminal of the default profile in that folder, as a
   split of the Files pane.
@@ -1484,11 +1569,22 @@ file opens it in the editor (3.12). Each row's hover menu has:
 - Insert path: pastes the path, relative to the Files pane's root and quoted for the shell of
   the tab's most recently focused terminal (`pathInsertText`, 4.4), as a bracketed paste without
   Enter, then focuses that terminal.
-- Move to: the repo's pinned folders and the current folder's subfolders (`fs_move`).
+- Move to (files only, and only when there are targets): the repo's pinned folders and the
+  current folder's subfolders (`fs_move`), as a submenu.
 - Pin.
 
+Copy path copies the absolute path with backslashes and no quotes, and Insert path is relative
+to this pane's own root (4.4).
+
 The breadcrumb also has an Open terminal here button for the current folder, and the list's zoom
-buttons.
+buttons. A right-click on the breadcrumb, or on the list outside any row (or the Menu key with no
+row selected), opens a menu for the current folder: Open terminal here, Open in File Explorer,
+Copy path, and Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
+does.
+
+A right-click in the preview outside the text editor offers Copy (with text selected), Find
+(disabled when the preview has no find bar), Open in editor, and Copy path, for the previewed
+file; with no file previewed there is no menu. The text editor has the text field menu (4.4).
 
 Rows, files and folders alike, drag their path onto a terminal or scratch pad (4.4).
 
@@ -1522,10 +1618,14 @@ For one git repo, top to bottom:
   example) shows git's output under the box and keeps the message.
 - **Staged** and **Changes** lists. Changes holds unstaged and untracked files. Each row shows
   its status letter and path, with stage or unstage and Open in editor on hover; each list's
-  header has Stage all or Unstage all. Clicking a row shows its diff. Staged and Changes rows drag
+  header has Stage all or Unstage all. Clicking a row shows its diff. A right-click on a row
+  offers Show diff, Stage or Unstage, then Open in editor (disabled for a deleted file), Copy
+  path, and Insert path. Staged and Changes rows drag
   their path onto a terminal or scratch pad (4.4), a deleted file's included.
 - **Recent commits:** the last 20, each with subject, short hash, relative time, and a mark when
-  no remote-tracking branch contains it. Clicking one shows its diff.
+  no remote-tracking branch contains it. Clicking one shows its diff. A right-click on a commit
+  offers Show diff, Copy hash, Copy subject, and, on the commit the diff bar's Undo commit button
+  targets, Undo commit (which asks first, as the button does).
 
 Diffs show in a panel beside the lists, unified, with added and removed lines colored and hunk
 headers kept. A diff over the cap says so. The bar above the diff ends in − and + zoom buttons
@@ -1570,6 +1670,11 @@ file's group header has the same Open button on hover, opening the file with no 
 file group headers, and file name rows drag the file's path, with no line number, onto a terminal
 or scratch pad (4.4).
 
+A right-click on a match row offers Open at line, Copy path, and Insert path. On a file group
+header it offers Open, Copy path, Insert path, and, after a separator, Collapse or Expand; a file
+name row has the same menu without the collapse item. Copy path and Insert path use the file's
+path with no line number.
+
 ### 4.15 Scratch pads
 
 A scratch pad is an untitled text area, like a new tab in Notepad++, in the terminal font. Its
@@ -1581,6 +1686,9 @@ half a second after typing stops and comes back on restore.
   then focuses that terminal. It is disabled while the tab has no terminal.
 - **Copy** copies the whole text. **Clear** empties it.
 - **Save as** writes it to a file chosen in the native save dialog, opened from the core.
+
+The text area's right-click menu is the text field menu (4.4) with Send (disabled while the tab
+has no terminal), Copy all, Clear, and Save as after a separator, each as its button does.
 
 A scratch pad is a drop target for dragged paths (4.4): they are inserted at its caret.
 
@@ -1616,6 +1724,11 @@ have:
 - **Shell**, which opens a terminal running a shell in the container (3.10) as a split beside
   the pane, titled with the container's name. Container shells are not saved by restore or in
   layouts.
+
+A right-click on a group heading offers Start, Stop, and Restart, enabled as the heading's
+buttons are. A right-click on a container row offers Start, Stop, Restart, Logs, and Shell
+(enabled only while running); then one Open `localhost:<port>` per distinct published TCP port;
+then Copy name. A dashboard Containers row has its own menu (4.6).
 
 ### 4.17 Setup wizard
 
@@ -2168,6 +2281,10 @@ Each milestone ends with a usable app.
     `dashboardSectionOrder`; `dashboard.side` docking the panel left or right; and the clock.
     The System and Claude dashboard sections (3.4, 4.6): machine load, and per-session model,
     context, and process figures, with a polling rule that stops them while hidden.
+    Context menus (4.4): one shared menu module (`contextMenu.ts`) behind the Open menu and kind
+    menu and the right-click menus of title strips, tabs, dashboard rows, Files rows, preview,
+    and breadcrumb, Git files and commits, Search results, container groups and rows, and every
+    text field, with the scratch pad's extras (4.6, 4.10 to 4.16).
 
 ## 12. Risks
 

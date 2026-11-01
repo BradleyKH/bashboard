@@ -1,3 +1,5 @@
+import { attachContextMenu } from './contextMenu';
+import { layoutRowMenuItems } from './favoriteMenus';
 import type { NamedLayout } from './layouts';
 import type { LayoutsCallbacks } from './layoutsSection';
 import { iconButton, startRename } from './rowControls';
@@ -24,9 +26,8 @@ export function renderLayoutRow(layout: NamedLayout, index: number, callbacks: L
 
   text.append(label, meta);
 
-  const rename = iconButton('✎', 'layout-rename', 'Rename layout', () => {
-    startRename(label, layout.name, (value) => callbacks.onRenameLayout(index, value));
-  });
+  const beginRename = (): void => startRename(label, layout.name, (value) => callbacks.onRenameLayout(index, value));
+  const rename = iconButton('✎', 'layout-rename', 'Rename layout', beginRename);
   // A layout is costly to rebuild by hand, so removing it asks inline first.
   const remove = iconButton('×', 'favorite-remove', 'Remove layout', () => {
     const confirm = document.createElement('span');
@@ -41,6 +42,18 @@ export function renderLayoutRow(layout: NamedLayout, index: number, callbacks: L
     rename.remove();
     remove.replaceWith(confirm);
   });
+
+  attachContextMenu(el, () => ({
+    entries: layoutRowMenuItems({
+      open: () => callbacks.onOpenLayout(layout.name),
+      rename: beginRename,
+      // While the inline confirm shows, the button is detached and the confirm stays as is.
+      remove: () => {
+        if (remove.isConnected) remove.click();
+      },
+    }),
+    target: el,
+  }));
 
   el.append(text, rename, remove);
   return el;

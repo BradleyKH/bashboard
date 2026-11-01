@@ -44,6 +44,8 @@ export interface DashboardCallbacks
     Partial<ContainersSectionCallbacks> {
   onFocus: (paneId: string) => void;
   onClose: (paneId: string) => void;
+  /** A Panes card's menu collapses or expands its pane. */
+  onToggleCollapse?: (paneId: string) => void;
   onCardDragStart?: (paneId: string, e: PointerEvent) => void;
   onSwitchTab?: (tabId: string) => void;
   /** The user collapsed or expanded a section; the argument is every collapsed section. */
@@ -224,7 +226,7 @@ export class DashboardPanel {
       // this runs, and the Open menu takes focus only until it closes.
       queueMicrotask(() => {
         const active = document.activeElement;
-        if (this.held && !this.nav.hasFocus() && !active?.closest('.open-menu')) this.endPeek();
+        if (this.held && !this.nav.hasFocus() && !active?.closest('.context-menu')) this.endPeek();
       });
     });
     root.addEventListener('pointerenter', () => {
@@ -581,6 +583,7 @@ export class DashboardPanel {
       now,
       confirming: this.confirming.has(card.paneId),
       onFocus: this.callbacks.onFocus,
+      onToggleCollapse: this.callbacks.onToggleCollapse,
       onOpenIn: this.callbacks.onOpenIn,
       onDragStart: this.callbacks.onCardDragStart,
       onClose: (paneId: string) => {

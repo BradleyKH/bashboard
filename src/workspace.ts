@@ -1349,6 +1349,7 @@ export class Workspace {
       onFocus: () => this.setFocused(id),
       onChange: () => this.paneChanged(id),
       onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
+      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, absolute, baseRoot),
     });
   }
 
@@ -1370,6 +1371,7 @@ export class Workspace {
       onChange: () => this.paneChanged(id),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
       onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
+      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, absolute, baseRoot),
     });
   }
 
@@ -1394,6 +1396,14 @@ export class Workspace {
     this.openPane({ kind: 'terminal', command: shellCommand(container), container: { name: container.name } });
   }
 
+  /** Insert path from a Files, Git, or Search pane: into the tab's most recently focused terminal. */
+  private insertPathIntoTab(paneId: string, absolute: string, baseRoot: string): void {
+    const tab = this.store.tabOf(paneId);
+    const targetId = tab ? recentTerminal(this.focusOrder, tab.panes, (p) => this.terminal(p) !== undefined) : null;
+    if (!targetId) showToast('No terminal in this tab to insert the path into');
+    else void this.insertPaths(targetId, [absolute], baseRoot);
+  }
+
   private createFiles(id: string, host: HTMLElement, spec: Extract<PaneSpec, { kind: 'files' }>): FilesPane {
     // The pane asks for its pins while it is still being constructed.
     let pane: FilesPane | undefined;
@@ -1414,12 +1424,7 @@ export class Workspace {
         this.focusPane(id);
         this.openTerminal(folder);
       },
-      onInsertPath: (absolute, baseRoot) => {
-        const tab = this.store.tabOf(id);
-        const targetId = tab ? recentTerminal(this.focusOrder, tab.panes, (p) => this.terminal(p) !== undefined) : null;
-        if (!targetId) showToast('No terminal in this tab to insert the path into');
-        else void this.insertPaths(targetId, [absolute], baseRoot);
-      },
+      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, absolute, baseRoot),
       onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
       onPin: (absolute, isDir) => this.hooks.onPin?.(root(), absolute, isDir),
       onUnpin: (absolute) => this.hooks.onUnpin?.(root(), absolute),

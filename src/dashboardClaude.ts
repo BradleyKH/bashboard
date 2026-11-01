@@ -1,4 +1,6 @@
 import './dashboardClaude.css';
+import { attachContextMenu } from './contextMenu';
+import { copyPath } from './copyText';
 import { claudeContext, claudeProcesses, onClaudeContext } from './claudeApi';
 import {
   claudeRows,
@@ -8,6 +10,7 @@ import {
   type ProcFigures,
 } from './claudeModel';
 import type { TerminalCard } from './dashboardModel';
+import { claudeRowMenuItems } from './paneCardMenus';
 import { PollTimer, shouldPoll, type PollGate } from './pollTimer';
 import type { Session } from './sessions';
 
@@ -125,6 +128,13 @@ export class DashboardClaude {
     el.dataset.claudePaneId = row.paneId;
     el.title = 'Focus this pane';
     el.addEventListener('click', () => this.onFocus(row.paneId));
+    attachContextMenu(el, () => ({
+      target: el,
+      entries: claudeRowMenuItems(row, {
+        onFocus: () => this.onFocus(row.paneId),
+        onCopyPath: (path) => void copyPath(path),
+      }),
+    }));
 
     const dot = document.createElement('span');
     dot.className = `status-dot ${row.status}`;

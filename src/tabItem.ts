@@ -1,8 +1,11 @@
+import { attachContextMenu, isBlurIntoContextMenu } from './contextMenu';
+import { tabMenuItems } from './tabMenus';
 import type { TabInfo } from './workspace';
 
 export interface TabItemHooks {
   onSwitch(id: string): void;
   onClose(id: string): void;
+  onNewTab(): void;
   onRename(id: string, name: string): void;
   /** Called when inline rename ends, so focus can return to the terminal. */
   onRenameDone(): void;
@@ -51,6 +54,18 @@ export class TabItem {
       if (!this.editing) this.hooks.onSwitch(this.id);
     });
     this.title.addEventListener('dblclick', () => this.beginRename());
+    attachContextMenu(this.el, () => {
+      // While renaming, the input's own text field menu applies; the tab offers none.
+      if (this.editing) return null;
+      return {
+        entries: tabMenuItems({
+          onRename: () => this.beginRename(),
+          onNewTab: () => this.hooks.onNewTab(),
+          onClose: () => this.hooks.onClose(this.id),
+        }),
+        target: this.el,
+      };
+    });
   }
 
   update(info: TabInfo): void {
@@ -87,7 +102,9 @@ export class TabItem {
       if (e.key === 'Enter') finish(true);
       else if (e.key === 'Escape') finish(false);
     });
-    input.addEventListener('blur', () => finish(true));
+    input.addEventListener('blur', (e) => {
+      if (!isBlurIntoContextMenu(e)) finish(true);
+    });
     input.addEventListener('pointerdown', (e) => e.stopPropagation());
     input.addEventListener('click', (e) => e.stopPropagation());
     input.focus();

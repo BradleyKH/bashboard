@@ -1,5 +1,7 @@
 /** Scratch pad text rules (docs/design.md section 4.15). */
 
+import { item, type MenuItem } from './contextMenuModel';
+
 /** Half a second after typing stops, the pad's text is saved. */
 export const SCRATCH_SAVE_DELAY_MS = 500;
 
@@ -27,4 +29,21 @@ export function isScratchEmpty(text: string): boolean {
 
 export function newScratchId(): string {
   return crypto.randomUUID();
+}
+
+export interface ScratchMenuHandlers {
+  send: () => void;
+  copyAll: () => void;
+  clear: () => void;
+  saveAs: () => void;
+}
+
+/** The pad's own items, added after the text field menu's (docs/v0.2.0-design.md section 11.3). */
+export function scratchMenuExtras(state: { canSend: boolean }, handlers: ScratchMenuHandlers): MenuItem[] {
+  return [
+    item('Send', handlers.send, { enabled: state.canSend }),
+    item('Copy all', handlers.copyAll),
+    item('Clear', handlers.clear),
+    item('Save as', handlers.saveAs),
+  ];
 }

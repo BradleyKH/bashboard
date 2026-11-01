@@ -1,6 +1,9 @@
+import { attachContextMenu } from './contextMenu';
+import { copyPath } from './copyText';
 import { displayPath } from './displayPath';
-import { folderButton } from './folderButton';
-import { openMenuButton, type OpenInHandler } from './openMenu';
+import { folderButton, openFolder } from './folderButton';
+import { openInItems, openInMenuItems, openMenuButton, type OpenInHandler } from './openMenu';
+import { worktreeRowMenuItems } from './repoMenus';
 import type { Worktree } from './worktreeApi';
 import { countsText, worktreeBadge } from './worktreeModel';
 
@@ -9,6 +12,8 @@ export interface WorktreeRowOptions {
   expanded: boolean;
   onToggle(): void;
   onOpenIn: OpenInHandler;
+  /** Starts the same delete the detail's Delete button runs. */
+  onDelete(): void;
 }
 
 function folderName(path: string): string {
@@ -52,5 +57,20 @@ export function renderWorktreeRow(w: Worktree, opts: WorktreeRowOptions): HTMLEl
   // A missing folder has nothing to open.
   if (!w.prunable) parts.push(folderButton(w.path), openMenuButton(w.path, opts.onOpenIn));
   el.append(...parts);
+
+  attachContextMenu(el, async () => {
+    // A missing folder has nothing to probe, and every Open entry is disabled for it.
+    const openItems = w.prunable
+      ? openInItems(w.path, false, opts.onOpenIn)
+      : await openInMenuItems(w.path, opts.onOpenIn);
+    return {
+      entries: worktreeRowMenuItems({ missing: w.prunable, locked: w.locked }, openItems, {
+        openInExplorer: () => openFolder(w.path),
+        copyPath: () => void copyPath(w.path),
+        delete: w.main ? undefined : opts.onDelete,
+      }),
+      target: el,
+    };
+  });
   return el;
 }

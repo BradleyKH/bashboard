@@ -1,3 +1,5 @@
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
 import { FOLDER_ICON } from './folderButton';
 import { breadcrumb, canBack, canForward, type History } from './filesModel';
 import { ZoomButtons } from './zoomButtons';
@@ -14,6 +16,8 @@ export interface FilesBreadcrumbOptions {
   onZoom: (zoom: number) => void;
   /** Pins the folder, or unpins it when it is already pinned. */
   onTogglePin: () => void;
+  /** The right-click menu for the current folder, shared by the trail and its buttons. */
+  folderMenu: () => MenuEntry[];
 }
 
 export interface FilesBreadcrumbState {
@@ -44,6 +48,7 @@ export class FilesBreadcrumb {
     const term = this.button('>_', 'Open terminal here', opts.onOpenTerminalHere);
     this.pinBtn = this.button('☆', 'Pin this folder', opts.onTogglePin);
     this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, zoom.el, term, this.pinBtn);
+    attachContextMenu(this.el, () => ({ entries: opts.folderMenu() }));
   }
 
   update(state: FilesBreadcrumbState): void {

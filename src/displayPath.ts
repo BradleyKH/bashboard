@@ -18,6 +18,11 @@ export function displayPath(path: string, homeDir: string | null = home): string
   return rest.replace(/[\\/]+$/, '') === '' ? '~' : `~${rest}`;
 }
 
+/** `path` with forward slashes turned to backslashes and nothing else changed, as Copy path copies it. */
+export function windowsPathText(path: string): string {
+  return path.replace(/\//g, '\\');
+}
+
 /**
  * Fills `el` with `path` for display: home abbreviated, the full path as the tooltip, and the
  * `path-text` class, which cuts an overlong path from the left so its distinctive end stays.

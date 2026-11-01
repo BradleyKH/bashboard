@@ -4,8 +4,9 @@ import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
-import { isScratchEmpty, SCRATCH_SAVE_DELAY_MS, scratchTitle } from './scratchModel';
+import { isScratchEmpty, SCRATCH_SAVE_DELAY_MS, scratchMenuExtras, scratchTitle } from './scratchModel';
 import type { Settings } from './settings';
+import { setTextFieldExtras } from './textFieldMenu';
 import { textFieldOwns } from './textPaneKeys';
 import { showToast } from './toast';
 
@@ -66,6 +67,12 @@ export class ScratchPane implements PaneView {
     this.area.spellcheck = false;
     this.applySettings(opts.settings);
     this.body.append(toolbar, this.area);
+    setTextFieldExtras(this.area, () =>
+      scratchMenuExtras(
+        { canSend: this.canSend },
+        { send: () => this.send(), copyAll: () => this.copy(), clear: () => this.clear(), saveAs: () => void this.saveToFile() },
+      ),
+    );
     this.host.appendChild(this.body);
 
     this.saver = new DebouncedSaver(

@@ -1,4 +1,8 @@
+import { attachContextMenu } from './contextMenu';
+import { copyPath } from './copyText';
+import { openFolder } from './folderButton';
 import type { Pin } from './repos';
+import { pinRowMenuItems } from './repoMenus';
 import { iconButton, startRename } from './rowControls';
 import { attachReorder } from './rowReorder';
 
@@ -9,6 +13,11 @@ export interface PinRowCallbacks {
   onReorderPin(from: number, to: number): void;
 }
 
+function parentFolder(path: string): string {
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  return cut > 0 ? path.slice(0, cut) : path;
+}
+
 /** One pin in the dashboard's Repo section (docs/design.md section 4.6). A missing target is dimmed and inert. */
 export function renderPinRow(
   pin: Pin,
@@ -17,6 +26,8 @@ export function renderPinRow(
   index: number,
   isDir: boolean,
   exists: boolean,
+  /** The pin's absolute path, for Copy path and Open in File Explorer. */
+  absolute: string,
   callbacks: PinRowCallbacks,
 ): HTMLElement {
   const el = document.createElement('div');
@@ -50,5 +61,19 @@ export function renderPinRow(
   const remove = iconButton('×', 'favorite-remove', 'Remove pin', () => callbacks.onRemovePin(index));
 
   el.append(handle, icon, label, rename, remove);
+
+  attachContextMenu(el, () => ({
+    entries: pinRowMenuItems(
+      { exists },
+      {
+        open: () => callbacks.onOpenPin(pin),
+        openInExplorer: () => openFolder(isDir ? absolute : parentFolder(absolute)),
+        copyPath: () => void copyPath(absolute),
+        rename: () => rename.click(),
+        remove: () => callbacks.onRemovePin(index),
+      },
+    ),
+    target: el,
+  }));
   return el;
 }

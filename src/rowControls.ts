@@ -1,3 +1,5 @@
+import { isBlurIntoContextMenu } from './contextMenu';
+
 /** Small button for a dashboard row; the click never reaches the row's own handler. */
 export function iconButton(label: string, className: string, title: string, onClick: () => void): HTMLButtonElement {
   const el = document.createElement('button');
@@ -35,7 +37,9 @@ export function startRename(
     if (e.key === 'Enter') finish(true);
     else if (e.key === 'Escape') finish(false);
   });
-  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('blur', (e) => {
+    if (!isBlurIntoContextMenu(e)) finish(true);
+  });
   // The panel cancels mousedown to keep focus on the terminal, which would also block the caret.
   input.addEventListener('mousedown', (e) => e.stopPropagation());
   input.addEventListener('click', (e) => e.stopPropagation());

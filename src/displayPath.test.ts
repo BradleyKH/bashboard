@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayPath } from './displayPath';
+import { displayPath, windowsPathText } from './displayPath';
 
 const HOME = 'C:\\Users\\my-username';
 
@@ -27,5 +27,24 @@ describe('displayPath', () => {
     expect(displayPath('D:\\work', HOME)).toBe('D:\\work');
     expect(displayPath('C:\\Users', HOME)).toBe('C:\\Users');
     expect(displayPath('C:\\Users\\my-username\\x', null)).toBe('C:\\Users\\my-username\\x');
+  });
+});
+
+describe('windowsPathText', () => {
+  it('turns forward slashes into backslashes', () => {
+    expect(windowsPathText('C:/Users/me/src/a.ts')).toBe(String.raw`C:\Users\me\src\a.ts`);
+  });
+
+  it('handles mixed slashes', () => {
+    expect(windowsPathText(String.raw`C:\Users/me\src/a.ts`)).toBe(String.raw`C:\Users\me\src\a.ts`);
+  });
+
+  it('leaves a backslashed path unchanged, spaces and all, with no quotes', () => {
+    expect(windowsPathText(String.raw`C:\My Files\a b.txt`)).toBe(String.raw`C:\My Files\a b.txt`);
+  });
+
+  it('handles a drive root', () => {
+    expect(windowsPathText('C:/')).toBe('C:\\');
+    expect(windowsPathText('D:\\')).toBe('D:\\');
   });
 });

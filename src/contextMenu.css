@@ -1,0 +1,83 @@
+/* The shared context menu (docs/v0.2.0-design.md section 11.2). */
+.context-menu {
+  position: fixed;
+  /* Above dialogs and drag overlays (1000), below toasts (10000). */
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 140px;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.96);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  outline: none;
+}
+
+.context-menu-item {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.context-menu-item:not([aria-disabled='true']):hover,
+.context-menu-item:not([aria-disabled='true']):focus {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.context-menu-item[aria-disabled='true'] {
+  color: rgba(214, 221, 226, 0.4);
+  cursor: default;
+}
+
+.context-menu-icon {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  color: #4fb3c8;
+}
+
+.context-menu-item[aria-disabled='true'] .context-menu-icon {
+  opacity: 0.4;
+}
+
+.context-menu-label {
+  flex: 1;
+}
+
+.context-menu-mark {
+  flex: none;
+  width: 12px;
+  color: #4fb3c8;
+}
+
+.context-menu-item[aria-haspopup] .context-menu-mark {
+  color: inherit;
+}
+
+.context-menu-separator {
+  flex: none;
+  height: 1px;
+  margin: 4px 2px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* A right-clicked row while its menu is open: outlined, not selected. */
+.menu-target {
+  outline: 1px solid #4fb3c8;
+  outline-offset: -1px;
+}

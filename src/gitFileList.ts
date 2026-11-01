@@ -1,4 +1,6 @@
 import { attachBodyDrag } from './bodyDrag';
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
 import type { GitRow } from './gitModel';
 
 export interface GitFileListOptions {
@@ -15,6 +17,8 @@ export interface GitFileListOptions {
   onOpen: (row: GitRow) => void;
   /** The row body was dragged; the caller starts a path drag. */
   onDragStart?: (row: GitRow, e: PointerEvent) => void;
+  /** Right-click (or the Menu key) on a row; the menu never changes the selection. */
+  menuItems?: (row: GitRow) => MenuEntry[];
 }
 
 /** A titled list of changed files (docs/design.md section 4.13). */
@@ -50,6 +54,16 @@ export class GitFileList {
 
     this.el.append(head, this.list);
     this.render();
+
+    attachContextMenu(this.list, (e, keyboard) => {
+      const { menuItems } = this.opts;
+      if (!menuItems) return null;
+      const origin = e.target instanceof Element ? e.target.closest<HTMLElement>('.git-row') : null;
+      const el = origin ?? (keyboard ? this.selectedEl() : null);
+      const row = this.rows.find((r) => r.key === el?.dataset.key);
+      if (!el || !row) return null;
+      return { entries: menuItems(row), target: el };
+    });
   }
 
   /** Replaces the rows; a selected key no longer present highlights nothing. */
@@ -66,6 +80,13 @@ export class GitFileList {
 
   selectedRow(): GitRow | null {
     return this.rows.find((r) => r.key === this.selectedKey) ?? null;
+  }
+
+  private selectedEl(): HTMLElement | null {
+    for (const child of this.list.children) {
+      if (child instanceof HTMLElement && child.dataset.key === this.selectedKey) return child;
+    }
+    return null;
   }
 
   private render(): void {
@@ -87,6 +108,7 @@ export class GitFileList {
     el.className = 'git-row';
     if (row.key === this.selectedKey) el.classList.add('selected');
     el.setAttribute('role', 'option');
+    el.dataset.key = row.key;
     el.addEventListener('click', () => {
       this.selectedKey = row.key;
       this.render();

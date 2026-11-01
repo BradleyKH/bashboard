@@ -1,5 +1,7 @@
 import type { ContainerAction } from './containers';
 import type { ContainerGroup } from './containerGroups';
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
 
 export interface ContainerGroupViewOptions {
   expanded: boolean;
@@ -10,6 +12,8 @@ export interface ContainerGroupViewOptions {
   onAction: (action: ContainerAction) => void;
   /** Renders one member row; called only while expanded. */
   renderRow: (index: number) => HTMLElement;
+  /** Entries for the header's context menu, read when it opens. */
+  menuItems: () => MenuEntry[];
 }
 
 function button(label: string, title: string, disabled: boolean, onClick: () => void): HTMLButtonElement {
@@ -37,6 +41,7 @@ export function renderContainerGroup(g: ContainerGroup, opts: ContainerGroupView
   head.setAttribute('role', 'button');
   head.setAttribute('aria-expanded', String(opts.expanded));
   head.addEventListener('click', () => opts.onToggle());
+  attachContextMenu(head, () => ({ entries: opts.menuItems(), target: head }));
 
   const toggle = document.createElement('span');
   toggle.className = 'ctr-toggle';

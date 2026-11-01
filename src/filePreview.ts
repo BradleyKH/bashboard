@@ -140,6 +140,20 @@ export class FilePreview {
     else if (c?.kind === 'code') c.view.el.focus();
   }
 
+  /** Whether the preview has a find bar (a text preview). */
+  get findable(): boolean {
+    const c = this.current;
+    return c !== null && c.kind !== 'notice';
+  }
+
+  /** The page's selected text when the selection lies inside the preview, else ''. */
+  selectedText(): string {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return '';
+    if (!this.el.contains(sel.anchorNode) || !this.el.contains(sel.focusNode)) return '';
+    return sel.toString();
+  }
+
   /** Opens the find bar on a text preview; false when the preview has none. */
   openFind(): boolean {
     const c = this.current;

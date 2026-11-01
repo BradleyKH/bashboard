@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   SCRATCH_SAVE_DELAY_MS,
   isScratchEmpty,
   newScratchId,
+  scratchMenuExtras,
   scratchTitle,
 } from './scratchModel';
 
@@ -55,5 +56,33 @@ describe('newScratchId', () => {
 describe('SCRATCH_SAVE_DELAY_MS', () => {
   it('is half a second', () => {
     expect(SCRATCH_SAVE_DELAY_MS).toBe(500);
+  });
+});
+
+describe('scratchMenuExtras', () => {
+  const handlers = () => ({ send: vi.fn(), copyAll: vi.fn(), clear: vi.fn(), saveAs: vi.fn() });
+
+  it('lists Send, Copy all, Clear, Save as in order', () => {
+    expect(scratchMenuExtras({ canSend: true }, handlers()).map((i) => i.label)).toEqual([
+      'Send',
+      'Copy all',
+      'Clear',
+      'Save as',
+    ]);
+  });
+
+  it('disables only Send when the tab has no terminal', () => {
+    const items = scratchMenuExtras({ canSend: false }, handlers());
+    expect(items.map((i) => i.enabled ?? true)).toEqual([false, true, true, true]);
+    expect(scratchMenuExtras({ canSend: true }, handlers())[0].enabled ?? true).toBe(true);
+  });
+
+  it('calls each handler', () => {
+    const h = handlers();
+    for (const i of scratchMenuExtras({ canSend: true }, h)) i.run();
+    expect(h.send).toHaveBeenCalledOnce();
+    expect(h.copyAll).toHaveBeenCalledOnce();
+    expect(h.clear).toHaveBeenCalledOnce();
+    expect(h.saveAs).toHaveBeenCalledOnce();
   });
 });

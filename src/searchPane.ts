@@ -1,4 +1,5 @@
 import './searchPane.css';
+import { copyPath } from './copyText';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import { lookup, type Action, type Keymap } from './keymap';
@@ -18,7 +19,8 @@ import {
 } from './searchModel';
 import type { SearchOptions } from './searchOptions';
 import { SearchPreview } from './searchPreview';
-import { itemKey, SearchResultsList } from './searchResultsList';
+import { searchGroupMenuItems, searchMatchMenuItems } from './searchMenus';
+import { itemKey, SearchResultsList, type SearchMenuTarget } from './searchResultsList';
 import { SearchRunner } from './searchRunner';
 import type { Settings } from './settings';
 import { textFieldOwns } from './textPaneKeys';
@@ -40,6 +42,8 @@ export interface SearchPaneOptions {
   onChange: () => void;
   /** A result row drag began; the workspace runs the path drag. */
   onPathDragStart?: (paths: string[], e: PointerEvent) => void;
+  /** Insert path on a row: the entry's absolute path and this pane's root, to make it relative to. */
+  onInsertPath: (absolute: string, baseRoot: string) => void;
 }
 
 const MIN_SPLIT = 0.15;
@@ -152,6 +156,7 @@ export class SearchPane implements PaneView {
       onToggle: (path) => this.toggle(path),
       onDragStart: (path, e) =>
         this.opts.onPathDragStart?.([absolutePath(this.rootPath, path)], e),
+      menuItems: (target) => this.menuItems(target),
     });
     this.left.appendChild(this.results.el);
     this.divider = document.createElement('div');
@@ -334,6 +339,20 @@ export class SearchPane implements PaneView {
       this.selectedKey = null;
       this.results.select(null);
     }
+  }
+
+  private menuItems(target: SearchMenuTarget) {
+    const handlers = {
+      open: (item: SearchItem) => this.open(item),
+      copyPath: (path: string) => copyPath(absolutePath(this.rootPath, path)),
+      insertPath: (path: string) => this.opts.onInsertPath(absolutePath(this.rootPath, path), this.rootPath),
+      toggle: (path: string) => this.toggle(path),
+    };
+    if (target.kind === 'group') return searchGroupMenuItems(target.path, target.collapsed, handlers);
+    const { item } = target;
+    return item.kind === 'match'
+      ? searchMatchMenuItems(item, handlers)
+      : searchGroupMenuItems(item.path, null, handlers);
   }
 
   private select(item: SearchItem): void {
