@@ -1,7 +1,7 @@
 import './dashboardClock.css';
-import { clockBits, clockLabel, clockText } from './clockModel';
+import { clockBits, clockLabel, clockText, type ClockStyle } from './clockModel';
 
-const COLUMNS = ['hours', 'minutes', 'seconds'] as const;
+const ROWS = ['hours', 'minutes', 'seconds'] as const;
 
 export class DashboardClock {
   readonly el: HTMLElement;
@@ -24,15 +24,15 @@ export class DashboardClock {
     const grid = document.createElement('div');
     grid.className = 'clock-grid';
     grid.setAttribute('aria-hidden', 'true');
-    for (const _ of COLUMNS) {
-      const column: HTMLSpanElement[] = [];
-      for (let row = 0; row < 6; row++) {
+    for (const _ of ROWS) {
+      const row: HTMLSpanElement[] = [];
+      for (let bit = 0; bit < 6; bit++) {
         const dot = document.createElement('span');
         dot.className = 'clock-dot';
         grid.append(dot);
-        column.push(dot);
+        row.push(dot);
       }
-      this.dots.push(column);
+      this.dots.push(row);
     }
 
     this.time = document.createElement('span');
@@ -42,6 +42,11 @@ export class DashboardClock {
     line.append(grid, this.time);
     this.el.append(line);
     this.render();
+  }
+
+  /** Hides the grid or the time; the hidden part still renders, so switching back is current. */
+  setStyle(style: ClockStyle): void {
+    this.el.dataset.style = style;
   }
 
   /**
@@ -70,8 +75,8 @@ export class DashboardClock {
   private render(): void {
     const now = new Date();
     const bits = clockBits(now);
-    COLUMNS.forEach((name, c) => {
-      bits[name].forEach((lit, r) => this.dots[c][r].classList.toggle('lit', lit));
+    ROWS.forEach((name, r) => {
+      bits[name].forEach((lit, b) => this.dots[r][b].classList.toggle('lit', lit));
     });
     const text = clockText(now);
     if (text !== this.lastText) {

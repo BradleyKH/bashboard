@@ -110,6 +110,11 @@ each dashboard element: `favorites`, `layouts`, `panes`, `containers`, and `exte
 kind menu offers a Containers pane whenever a container engine is found. All of them apply on save and are in the Dashboard section of the settings dialog, the
 elements under "Show on the dashboard".
 
+`dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
+the time, `"time"` for the time only, or `"binary"` for the dots only. An unknown value falls back
+to `both` with a notice. It applies on save and is the Clock style select under "Show on the
+dashboard", shown while the clock is on.
+
 ```jsonc
 "dashboard": {
   "side": "right",
@@ -121,7 +126,8 @@ elements under "Show on the dashboard".
     "external": true,
     "system": false,
     "clock": false
-  }
+  },
+  "clockStyle": "both"
 }
 ```
 

@@ -277,9 +277,10 @@ export class DashboardPanel {
     this.nav.restore(focus);
   }
 
-  /** Applies `dashboard.side` and `dashboard.sections` (docs/design.md section 4.6). */
+  /** Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md section 4.6). */
   applyDashboardSettings(d: Settings['dashboard']): void {
     this.shown = { ...d.sections };
+    this.clock.setStyle(d.clockStyle);
     this.setSide(d.side);
     this.layoutElements();
     this.syncTimers();

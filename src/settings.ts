@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { DEFAULT_ACCENT } from './accent';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { ClockStyle } from './clockModel';
 import type { DashboardSide } from './dashboardResize';
 import { ELEMENT_SHOWN_BY_DEFAULT, type DashboardElement } from './dashboardSections';
 import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
@@ -28,6 +29,7 @@ export interface Settings {
     peekOnWaiting: boolean;
     side: DashboardSide;
     sections: Record<DashboardElement, boolean>;
+    clockStyle: ClockStyle;
   };
   restore: { enabled: boolean; resumeClaude: boolean };
   editor: { preferred: string; command: string };
@@ -57,7 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backdrop: { animate: false, maxFps: 20, capacity: 1000, mutationRate: 0.2, zoom: 2, waitingPulse: false },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30 },
-  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT } },
+  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both' },
   restore: { enabled: true, resumeClaude: true },
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5 },

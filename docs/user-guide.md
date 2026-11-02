@@ -253,8 +253,9 @@ checkouts made in any shell while the dashboard is open. Its buttons open a Term
 Below them are the repo's pinned files and folders (see [Pins](#pins)).
 
 The **clock**, which is off by default, is one line at the top of the panel, above Repo: three
-columns of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
-`h:mm` beside them. Drag it down among the other sections to move it there, or back to the top.
+rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
+`h:mm` beside them. Clock style in the settings dialog shows just the time or just the dots
+instead. Drag it down among the other sections to move it there, or back to the top.
 It ticks only while the panel is on screen.
 
 The **System** section is off by default; turn it on under "Show on the

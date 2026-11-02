@@ -164,6 +164,19 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         group: 'Show on the dashboard',
       })),
+      {
+        path: ['dashboard', 'clockStyle'],
+        label: 'Clock style',
+        kind: 'select',
+        options: [
+          { value: 'both', label: 'Binary and time' },
+          { value: 'time', label: 'Time only' },
+          { value: 'binary', label: 'Binary only' },
+        ],
+        applies: 'live',
+        group: 'Show on the dashboard',
+        shownWhen: { path: ['dashboard', 'sections', 'clock'], value: true },
+      },
     ],
   },
   {

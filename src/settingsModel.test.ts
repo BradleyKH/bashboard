@@ -38,26 +38,42 @@ describe('Dashboard section', () => {
     expect(parseInput(side, 'top').ok).toBe(false);
   });
 
-  it('has one grouped toggle per element, in element order', () => {
+  it('has one grouped toggle per element, in element order, then the clock style', () => {
     const grouped = fields.filter((f) => f.group === 'Show on the dashboard');
-    expect(grouped.map((f) => f.path.join('.'))).toEqual(DEFAULT_ELEMENT_ORDER.map((id) => `dashboard.sections.${id}`));
-    for (const f of grouped) expect(f.kind).toBe('toggle');
+    expect(grouped.map((f) => f.path.join('.'))).toEqual([
+      ...DEFAULT_ELEMENT_ORDER.map((id) => `dashboard.sections.${id}`),
+      'dashboard.clockStyle',
+    ]);
+    for (const f of grouped.slice(0, -1)) expect(f.kind).toBe('toggle');
+  });
+
+  it('accepts the three clock styles and rejects anything else', () => {
+    const style = byPath('dashboard.clockStyle');
+    for (const v of ['both', 'time', 'binary']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
+    expect(parseInput(style, 'analog').ok).toBe(false);
   });
 });
 
 describe('isShown', () => {
-  const withAnimate = (animate: boolean) => (path: string[]) =>
-    readField({ ...DEFAULT_SETTINGS, backdrop: { ...DEFAULT_SETTINGS.backdrop, animate } }, path);
+  const withAnimate = (animate: boolean, clock = false) => (path: string[]) =>
+    readField(
+      {
+        ...DEFAULT_SETTINGS,
+        backdrop: { ...DEFAULT_SETTINGS.backdrop, animate },
+        dashboard: { ...DEFAULT_SETTINGS.dashboard, sections: { ...DEFAULT_SETTINGS.dashboard.sections, clock } },
+      },
+      path,
+    );
 
-  it('hides the loop-only backdrop fields while the backdrop is frozen', () => {
+  it('hides the loop-only backdrop fields while the backdrop is frozen, and the clock style while the clock is off', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(false))).map((f) => f.path.join('.'));
     expect(hidden.sort()).toEqual(
-      ['maxFps', 'capacity', 'mutationRate', 'waitingPulse'].map((k) => `backdrop.${k}`).sort(),
+      [...['maxFps', 'capacity', 'mutationRate', 'waitingPulse'].map((k) => `backdrop.${k}`), 'dashboard.clockStyle'].sort(),
     );
   });
 
-  it('shows every field while the backdrop animates', () => {
-    for (const f of fields) expect(isShown(f, withAnimate(true)), f.path.join('.')).toBe(true);
+  it('shows every field while the backdrop animates and the clock is on', () => {
+    for (const f of fields) expect(isShown(f, withAnimate(true, true)), f.path.join('.')).toBe(true);
   });
 
   it('points every condition at a field the dialog has', () => {

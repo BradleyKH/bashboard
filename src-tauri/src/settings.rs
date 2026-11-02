@@ -64,6 +64,8 @@ pub struct Dashboard {
     /// One of `DASHBOARD_SIDES`.
     pub side: String,
     pub sections: DashboardSections,
+    /// One of `CLOCK_STYLES`.
+    pub clock_style: String,
 }
 
 pub const DEFAULT_ACCENT: &str = "#4fb3c8";
@@ -85,6 +87,9 @@ fn parse_accent(s: &str) -> Option<String> {
 
 /// Ids `dashboard.side` accepts (docs/design.md section 4.6).
 pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
+
+/// Ids `dashboard.clockStyle` accepts (docs/design.md section 4.6).
+pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
 
 /// Which dashboard elements show; fields follow the panel's default element order.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -282,6 +287,7 @@ impl Default for Settings {
                     system: false,
                     clock: false,
                 },
+                clock_style: "both".into(),
             },
             restore: Restore { enabled: true, resume_claude: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
@@ -672,6 +678,13 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             system: section(&mut w, "system", d.dashboard.sections.system),
             clock: section(&mut w, "clock", d.dashboard.sections.clock),
         },
+        clock_style: pick(
+            &root,
+            &["dashboard", "clockStyle"],
+            &mut w,
+            |v| v.as_str().filter(|s| CLOCK_STYLES.contains(s)).map(String::from),
+            d.dashboard.clock_style,
+        ),
     };
     let restore = Restore {
         enabled: pick(&root, &["restore", "enabled"], &mut w, boolean, d.restore.enabled),
@@ -1144,6 +1157,17 @@ mod tests {
         assert!(w.is_empty(), "{w:?}");
         assert!(s.dashboard.sections.clock && !s.dashboard.sections.panes);
         assert!(s.dashboard.sections.favorites && s.dashboard.sections.external);
+    }
+
+    #[test]
+    fn dashboard_clock_style_parse() {
+        assert_eq!(Settings::default().dashboard.clock_style, "both");
+        let (s, w) = parse_settings(r#"{ "dashboard": { "clockStyle": "binary" } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.dashboard.clock_style, "binary");
+        let (s, w) = parse_settings(r#"{ "dashboard": { "clockStyle": "analog" } }"#);
+        assert_eq!(s.dashboard.clock_style, "both");
+        assert!(w.iter().any(|m| m.starts_with("dashboard.clockStyle")), "missing warning: {w:?}");
     }
 
     #[test]

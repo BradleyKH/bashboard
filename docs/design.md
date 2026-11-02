@@ -1097,10 +1097,12 @@ whether the clock is in its top slot as `dashboardClockTop` (section 7). A disab
 keeps its place in the order, and the clock its slot, so enabling it returns it where it was.
 
 **Clock.** One line with no header, no collapse, and no keyboard row. On the left is a binary
-grid of three columns of six dots: hours (24-hour), minutes, and seconds, most significant bit
-at the top, lit dots in the accent color and unlit dots muted. On the right is the time as
+grid of three rows of six rounded-square dots: hours (24-hour) on top, then minutes, then
+seconds, most significant bit on the left, lit dots in the accent color and unlit dots muted.
+The grid is as tall as the time's digits, so the digit height sets each dot's size. On the right is the time as
 `h:mm` in 12-hour time with no am/pm and no leading zero on the hour, in white with tabular
-numerals. The line is at most 60 px tall and shrinks with the panel's width through a container
+numerals. `dashboard.clockStyle` (section 8) shows both, the time only (`time`), or the grid
+only (`binary`), applying live. The line is at most 60 px tall and shrinks with the panel's width through a container
 query unit on the clock element, so the grid and time stay on one line down to the 280 px
 minimum. Its accessible name is the full time with AM or PM. It updates on each second
 boundary only while the panel is on screen and the window is shown, catching up at once on
@@ -1325,7 +1327,8 @@ help dialog, also bound to F1. Settings opens the settings dialog, also bound to
 
 The settings dialog edits every user-facing setting, in the sections Appearance, Backdrop, Terminal,
 Editor, Dashboard, Restore, and Keyboard. Dashboard holds the side choice, Left or Right, and a
-checkbox per element under "Show on the dashboard". Keyboard holds one button, Edit keyboard
+checkbox per element under "Show on the dashboard", followed by the Clock style select while the
+clock is on. Keyboard holds one button, Edit keyboard
 shortcuts, which closes the dialog and opens the F1 guide (4.5). Terminal includes a Default shell
 select listing the available profiles. Editor selects the preferred editor from those found (3.12),
 plus a custom command field. Appearance's Font family field suggests installed fonts as you type
@@ -1990,7 +1993,8 @@ it with no pins, and Automatic omits it.
   "terminal": { "doneAfterSeconds": 30 },
   // side is right or left; an unknown value falls back to right. sections shows or hides each
   // dashboard element (4.6). An older file's containers.enabled is still read when
-  // sections.containers is absent.
+  // sections.containers is absent. clockStyle is both, time, or binary; an unknown value falls
+  // back to both.
   "dashboard": {
     "visibleOnStart": true,
     "peekOnWaiting": true,
@@ -2003,7 +2007,8 @@ it with no pins, and Automatic omits it.
       "external": true,
       "system": false,
       "clock": false
-    }
+    },
+    "clockStyle": "both"
   },
   "restore": { "enabled": true, "resumeClaude": true },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
