@@ -67,26 +67,54 @@ Ctrl+Alt+1 through Ctrl+Alt+8 to it:
 Keys that type text (`sendInput`) are added in the file; the guide lists them but has no field
 for their text.
 
-The background animation (the backdrop) starts frozen on a still frame; set `backdrop.animate`
-to `true` to run it, at up to 20 frames per second. Raise or lower that with `backdrop.maxFps`
-(0 for the display's refresh rate). Ctrl+Shift+D pauses or resumes the animation and saves the
-choice to that setting. The simulation runs at 12 generations per second under a slow camera
-orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
+The background (the backdrop) has three styles, chosen with `backdrop.style` or the Background
+select in the Background Animation section of the settings dialog: `lights` (Swirling Lights, the
+default, a living colony simulation), `matrix` (Matrix, falling glyph rain), and `none` (nothing is
+drawn behind the panes). A missing or invalid value falls back to `lights` with a notice. The
+choice applies live. `backdrop.animate` applies to both drawn styles and starts `false`, a frozen
+still frame; set it to `true` to run the background. Ctrl+Shift+D pauses or resumes whichever style
+is showing and saves the choice to `backdrop.animate`; it does nothing under None. The dialog shows
+only the fields that apply to the chosen style, and Brightness (the inverse of `scrim.opacity`,
+the dimming scrim behind terminals) applies to both drawn styles.
+
+**Swirling Lights** runs at up to 20 frames per second; raise or lower that with `backdrop.maxFps`
+(0 for the display's refresh rate). The simulation runs at 12 generations per second under a slow
+camera orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
 population it sustains, 300 to 5000; Density in the settings dialog), `mutationRate` (how far
 offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
 above 1 brings the colony closer so it fills more of the window), and `waitingPulse` (a steady
-brightness pulse on a waiting Claude session's organisms, off by default). All of these are also
-in the Background Animation section of the settings dialog, along with Brightness and Blur, which
-set the scrim behind terminals (Brightness is the inverse of `scrim.opacity`):
+brightness pulse on a waiting Claude session's organisms, off by default). These and the scrim's
+Blur apply to Swirling Lights only. While `backdrop.animate` is off, the dialog hides the frame
+rate cap, Density, Color drift, and the pulse toggle, which a still frame cannot show.
+
+**Matrix** draws digital rain, one falling column of half-width katakana, digits, and symbols per
+cell column, in the `MS Gothic` or `Yu Gothic` font that ships with Windows. Its fields live under
+`backdrop.matrix`, which are Color, Zoom, Speed, and Density in the dialog:
+
+- `color` is the rain's color as six-digit hex (`#rrggbb`, default `#00ff41`). The dialog offers
+  Green, Amber, Cyan, Violet, Red, and White presets; a hand-edited value shows as Custom. The
+  leading glyph of each column is drawn near white, and the trail fades to black.
+- `zoom` (0.5 to 3, default 1) scales the glyph size; at 1 a cell is 20 px.
+- `speed` (5 to 30, default 10) is how many rain steps run per second. It is independent of
+  `maxFps`, which Matrix ignores. The dialog hides Speed while `backdrop.animate` is off.
+- `density` (0.25 to 4, default 3) scales how often a new drop starts in a column once the last
+  one has fallen off the bottom. Lower values leave more empty columns; higher ones keep the
+  screen busy.
+
+An invalid `color`, `zoom`, `speed`, or `density` falls back to its default with a notice. With `animate` off
+(or while Windows animation effects are off) Matrix shows a still frame of rain that is already
+falling, not an empty screen.
 
 ```jsonc
 "backdrop": {
+  "style": "lights",
   "animate": false,
   "maxFps": 20,
   "capacity": 1000,
   "mutationRate": 0.2,
   "zoom": 2,
-  "waitingPulse": false
+  "waitingPulse": false,
+  "matrix": { "color": "#00ff41", "zoom": 1, "speed": 10, "density": 3 }
 }
 ```
 

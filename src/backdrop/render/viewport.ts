@@ -80,6 +80,8 @@ export class Viewport {
     for (const pass of this.composer.passes) pass.dispose();
     this.composer.dispose();
     this.renderer.dispose();
+    // dispose() leaves the context alive until garbage collection, and Chromium caps live contexts.
+    this.renderer.forceContextLoss();
   }
 
   private heightPx(): number {

@@ -47,6 +47,8 @@ pub struct Scrim {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Backdrop {
+    /// One of `BACKDROP_STYLES`.
+    pub style: String,
     pub animate: bool,
     pub max_fps: u32,
     pub capacity: u32,
@@ -54,7 +56,23 @@ pub struct Backdrop {
     /// Divides the camera's home distance.
     pub zoom: f64,
     pub waiting_pulse: bool,
+    pub matrix: MatrixBackdrop,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatrixBackdrop {
+    /// `#rrggbb`, any lightness (the rain is drawn dimmer than the text over it).
+    pub color: String,
+    pub zoom: f64,
+    /// Rain steps per second.
+    pub speed: u32,
+    /// Scales how often an idle column starts a new drop.
+    pub density: f64,
+}
+
+/// Ids `backdrop.style` accepts (docs/design.md section 8).
+pub const BACKDROP_STYLES: [&str; 3] = ["none", "lights", "matrix"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +106,11 @@ fn parse_accent(s: &str) -> Option<String> {
 
 fn parse_content_text(s: &str) -> Option<String> {
     parse_bright_hex(s, CONTENT_TEXT_MIN_LUMINANCE)
+}
+
+/// Accepts `#rrggbb` (any case) of any lightness, returned lowercase.
+fn parse_hex(s: &str) -> Option<String> {
+    parse_bright_hex(s, 0.0)
 }
 
 /// Accepts `#rrggbb` (any case) at or above `min` WCAG relative luminance, returned lowercase.
@@ -284,12 +307,14 @@ impl Default for Settings {
             content_text_color: DEFAULT_CONTENT_TEXT.into(),
             scrim: Scrim { opacity: 0.5, blur_px: 0.0 },
             backdrop: Backdrop {
+                style: "lights".into(),
                 animate: false,
                 max_fps: 20,
                 capacity: 1000,
                 mutation_rate: 0.2,
                 zoom: 2.0,
                 waiting_pulse: false,
+                matrix: MatrixBackdrop { color: "#00ff41".into(), zoom: 1.0, speed: 10, density: 3.0 },
             },
             scrollback: 10000,
             terminal: Terminal { done_after_seconds: 30 },
@@ -617,6 +642,13 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         ),
     };
     let backdrop = Backdrop {
+        style: pick(
+            &root,
+            &["backdrop", "style"],
+            &mut w,
+            |v| v.as_str().filter(|s| BACKDROP_STYLES.contains(s)).map(String::from),
+            d.backdrop.style,
+        ),
         animate: pick(&root, &["backdrop", "animate"], &mut w, boolean, d.backdrop.animate),
         // The frame loop clamps each delta to 1/20 s, so a cap below 20 would slow the simulation.
         max_fps: pick(
@@ -649,6 +681,36 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.backdrop.zoom,
         ),
         waiting_pulse: pick(&root, &["backdrop", "waitingPulse"], &mut w, boolean, d.backdrop.waiting_pulse),
+        matrix: MatrixBackdrop {
+            color: pick(
+                &root,
+                &["backdrop", "matrix", "color"],
+                &mut w,
+                |v| v.as_str().and_then(parse_hex),
+                d.backdrop.matrix.color,
+            ),
+            zoom: pick(
+                &root,
+                &["backdrop", "matrix", "zoom"],
+                &mut w,
+                |v| number(v).filter(|n| (0.5..=3.0).contains(n)),
+                d.backdrop.matrix.zoom,
+            ),
+            speed: pick(
+                &root,
+                &["backdrop", "matrix", "speed"],
+                &mut w,
+                |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| (5..=30).contains(n)),
+                d.backdrop.matrix.speed,
+            ),
+            density: pick(
+                &root,
+                &["backdrop", "matrix", "density"],
+                &mut w,
+                |v| number(v).filter(|n| (0.25..=4.0).contains(n)),
+                d.backdrop.matrix.density,
+            ),
+        },
     };
     let scrollback = pick(
         &root,
@@ -1098,6 +1160,49 @@ mod tests {
             let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "maxFps": {bad} }} }}"#));
             assert_eq!(s.backdrop.max_fps, Settings::default().backdrop.max_fps, "{bad}");
             assert!(w.iter().any(|m| m.starts_with("backdrop.maxFps")), "{bad}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn backdrop_style_and_matrix_values_parse_and_invalid_ones_fall_back() {
+        let d = Settings::default().backdrop;
+        let (s, w) = parse_settings(r#"{ "backdrop": { "animate": true } }"#);
+        assert_eq!(s.backdrop.style, "lights");
+        assert!(w.is_empty(), "{w:?}");
+
+        let (s, w) = parse_settings(
+            r##"{ "backdrop": { "style": "matrix", "matrix": { "color": "#102030", "zoom": 2.5, "speed": 25, "density": 2.5 } } }"##,
+        );
+        assert_eq!(s.backdrop.style, "matrix");
+        assert_eq!(s.backdrop.matrix, MatrixBackdrop { color: "#102030".into(), zoom: 2.5, speed: 25, density: 2.5 });
+        assert!(w.is_empty(), "{w:?}");
+        let (s, w) = parse_settings(r#"{ "backdrop": { "style": "none" } }"#);
+        assert_eq!(s.backdrop.style, "none");
+        assert!(w.is_empty(), "{w:?}");
+
+        for (path, key, bad) in [
+            ("backdrop.style", "style", r#""rain""#),
+            ("backdrop.style", "style", "1"),
+            ("backdrop.matrix.color", "color", r##""#0f0""##),
+            ("backdrop.matrix.color", "color", r##""green""##),
+            ("backdrop.matrix.zoom", "zoom", "0.4"),
+            ("backdrop.matrix.zoom", "zoom", "3.1"),
+            ("backdrop.matrix.speed", "speed", "4"),
+            ("backdrop.matrix.speed", "speed", "31"),
+            ("backdrop.matrix.speed", "speed", "12.5"),
+            ("backdrop.matrix.speed", "speed", "\"20\""),
+            ("backdrop.matrix.density", "density", "0.2"),
+            ("backdrop.matrix.density", "density", "4.5"),
+            ("backdrop.matrix.density", "density", "\"1\""),
+        ] {
+            let json = if key == "style" {
+                format!(r#"{{ "backdrop": {{ "style": {bad} }} }}"#)
+            } else {
+                format!(r#"{{ "backdrop": {{ "matrix": {{ "{key}": {bad} }} }} }}"#)
+            };
+            let (s, w) = parse_settings(&json);
+            assert_eq!(s.backdrop, d, "{json}");
+            assert_eq!(w, vec![format!("{path}: invalid value, using default")], "{json}");
         }
     }
 

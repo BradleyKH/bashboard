@@ -339,10 +339,13 @@ Sessions come from the files Claude Code keeps in `~/.claude/sessions`. A sessio
 pane when its process descends from that pane's shell, so running `claude` in a pane names the
 card after the session and shows when it is working, usually within about 10 seconds.
 
-Each live Claude session also appears in the backdrop as its own colored lineage. It blooms
-while the session is busy and thins while it is idle; set `backdrop.waitingPulse` to `true` to
-also make it pulse while it waits for you. The color
-matches the swatch beside the session in the dashboard.
+With the Swirling Lights background, each live Claude session also appears in the backdrop as its
+own colored lineage. It blooms while the session is busy and thins while it is idle; set
+`backdrop.waitingPulse` to `true` to also make it pulse while it waits for you. The color
+matches the swatch beside the session in the dashboard. The Matrix and None backgrounds show no
+lineages; switching back to Swirling Lights brings each live session's lineage back as a fresh
+founder. The Background choice in the settings dialog picks the style (see
+[Settings](settings.md#settings)), and Ctrl+Shift+D pauses or resumes it.
 
 ### Containers
 

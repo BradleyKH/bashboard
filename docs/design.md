@@ -11,7 +11,8 @@ title is "Bashboard".
   the shell; copy, paste, resizing, colors, and box drawing behave as they do in Windows Terminal.
 - **A live simulation as the backdrop.** The real simulation, not a video or shader approximation, renders
   behind transparent terminals at full frame rate. One instance fills the window behind every
-  terminal.
+  terminal. Swirling Lights is the default backdrop style; Matrix and None are
+  alternatives (section 6).
 - **A terminal dashboard.** Open, collapse, and arrange terminals in tabs. Within a tab,
   expanded terminals tile the window as Windows Terminal style panes, with the same keybindings
   as the current Windows Terminal setup; collapsed terminals keep running as cards in a side
@@ -42,7 +43,7 @@ title is "Bashboard".
 
 ```
 ┌────────────────────────────── WebView2 (one window) ──────────────────────────────┐
-│  z0  Backdrop canvas (three.js, full window)                                      │
+│  z0  Backdrop canvas (per style, full window)                                     │
 │  z1  Pane scrims (per pane, translucent, optional blur)                           │
 │  z2  Pane grid: xterm.js terminals, transparent background                        │
 │  z3  Chrome: tab strip, dashboard panel, pane borders/titles, toasts              │
@@ -72,7 +73,7 @@ mapping. They talk through Tauri commands (request/response) and Tauri channels 
 | Process inspection | `sysinfo` |
 | Hook endpoint | `tiny_http` on a background thread |
 | Terminal | `@xterm/xterm` 6 with fit, WebGL, Unicode 11, and search addons |
-| Backdrop | Colony simulation and renderer (three.js) in `src/backdrop/` (section 6) |
+| Backdrop | Colony simulation and renderer (three.js), a Canvas 2D digital-rain style, or nothing, chosen by `backdrop.style`, in `src/backdrop/` (section 6) |
 | Front end | TypeScript, Vite, no framework |
 | Markdown | `markdown-it`, sanitized with `DOMPurify` |
 | Code search | `ignore`, `grep-searcher`, and `grep-regex` (ripgrep's libraries) |
@@ -833,7 +834,7 @@ addons, bound to one pty. Font defaults to the bundled `JetBrainsMono Nerd Font 
 with `Cascadia Mono` as the fallback, 14 px.
 
 **WebGL context budget.** Chromium allows roughly 16 live WebGL contexts per page, and the backdrop uses
-one. Only expanded terminals in the active tab count: each uses the WebGL renderer until 8 are
+one while the Swirling Lights style is mounted (none under Matrix or None). Only expanded terminals in the active tab count: each uses the WebGL renderer until 8 are
 on screen, and past that, newly shown ones use the DOM renderer. Collapsing a terminal, or
 switching away from its tab, disposes the WebGL addon, freeing its context; expanding it or
 switching back attaches one again if the budget allows. If the browser drops a WebGL context
@@ -980,7 +981,7 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+S | Toggle dashboard panel |
 | F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) |
 | Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) |
-| Ctrl+Shift+D | Pause or resume the background animation (saved to `backdrop.animate`) |
+| Ctrl+Shift+D | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None |
 | Ctrl+Shift+L | Focus the next terminal that needs you, across all tabs (4.7) |
 | Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
@@ -1849,39 +1850,79 @@ has Back, Next, and Skip setup.
 Bloom behind text is the main readability risk. Each pane draws a scrim layer between the backdrop and
 its terminal: a dark fill at configurable opacity (default 0.5) with an optional
 `backdrop-filter: blur()` (default 0, since blur over a constantly moving WebGL canvas is the
-most expensive effect here). Ctrl+Shift+B cycles none, light, and medium presets and saves the
+most expensive effect here, so the dialog offers it under Swirling Lights only). Ctrl+Shift+B cycles none, light, and medium presets and saves the
 choice. An opacity of 0 means no scrim, so blur is off there too. The backdrop itself is never dimmed;
 the scrim does the work.
 
 ## 6. Backdrop
 
+The backdrop has three styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
+default), `matrix` (Matrix), and `none`. Swirling Lights is the colony simulation drawn by
+Three.js, and the one that shows sessions as organisms (6.3). Matrix is falling glyph rain drawn
+with Canvas 2D. None mounts nothing, so z0 is empty. Exactly one style is mounted at a time, and
+changing the setting swaps it live.
+
 ### 6.1 Modules
 
-The colony simulation and renderer live in `src/backdrop/`.
+The backdrop code lives in `src/backdrop/`.
 
-- `src/backdrop/sim/` is the simulation, with its Vitest suite, and `src/backdrop/render/` is the
-  Three.js renderer. Neither touches the DOM.
+- `src/backdrop/sim/` is the colony simulation, with its Vitest suite, and `src/backdrop/render/` is
+  the Three.js renderer. Neither touches the DOM. `backdrop.ts` mounts the two as the Swirling
+  Lights style.
+- `src/backdrop/matrix/` is the Matrix style: `matrixModel.ts` is the pure, DOM-free rain model
+  (unit tested), and `matrixBackdrop.ts` draws it on a canvas and runs its step clock.
+- `backdropHandle.ts` holds `StyleBackdrop`, the interface every style exposes. `backdropHost.ts`
+  is the `BackdropHost`, which owns the canvas and the mounted style, and `colonyRelay.ts` is the
+  `ColonyRelay` that carries sessions across style switches (6.2).
 - The backdrop has no HUD, controls, or pointer handling; it never shows an interface or takes
   input.
 
 ### 6.2 Backdrop API
 
-`src/backdrop/backdrop.ts` is the one entry point the rest of the app uses. It holds the frame loop
-(simulation ticks, motion, auto-orbit, following the colony, the opening
-dolly) with no HUD updates or pointer handling:
+The rest of the app talks only to `BackdropHost` (`src/backdrop/backdropHost.ts`). It owns the
+`#backdrop` canvas and the mounted style, and exposes `apply(settings.backdrop)`,
+`setVisible(visible)`, `setAnimated(animated)`, the requested `style`, and a `colony` for
+`ColonySync`. `apply` mounts the style when it differs from the one requested before, and otherwise
+only pushes the new options to the mounted style; it rejects only when the latest requested style
+fails to mount, which shows a "Could not start the background animation" toast.
+
+- **A fresh canvas per style.** Switching styles disposes the mounted one and replaces the canvas
+  element with a clone of the original, taken before any style touched it. A canvas that has held
+  a WebGL context cannot give a 2D one, and Matrix sets a mirror transform (6.4) on its canvas,
+  which Swirling Lights must not inherit.
+- **Lazy loading.** Each style is loaded with a dynamic import when it is first mounted, so
+  Three.js and the simulation are parsed only when Swirling Lights is shown; Matrix and None never
+  load them. A mount that finishes after a later switch discards its result.
+- **When it mounts.** Loading settings starts before the rest of startup, and the backdrop mounts
+  as soon as they arrive, overlapping the font and stale-terminal work that follows. The saved
+  style is therefore the first one shown, never a different one that is swapped out. If settings
+  fail to load, the defaults apply, which is Swirling Lights.
+- **The colony relay.** `ColonySync` reports session changes only as they happen, so a colony
+  mounted after sessions exist would never hear of them. The `ColonyRelay` is the colony the
+  app holds: it records each live session's hue and latest mood, forwards to the Swirling Lights
+  colony while one is mounted, and replays every recorded session into a newly mounted colony.
+  Switching away and back therefore returns each session's lineage, as a fresh founder (the
+  organisms themselves are not preserved). While Matrix or None is mounted, the relay keeps
+  recording and forwards nothing.
+
+Every style implements this interface, and each adds its own options:
 
 ```ts
-export interface BackdropHandle {
-  colony: SessionColony;
+export interface StyleBackdrop {
   /** Pause rendering entirely, e.g. while the window is minimized. */
   setVisible(visible: boolean): void;
   /** False freezes the backdrop on a still frame (`backdrop.animate`). */
   setAnimated(animated: boolean): void;
+  dispose(): void;
+}
+
+// Swirling Lights, src/backdrop/backdrop.ts
+export interface BackdropHandle extends StyleBackdrop {
+  colony: SessionColony;
   /** `backdrop.maxFps`; 0 is uncapped. */
   setMaxFps(maxFps: number): void;
   /** `backdrop.capacity`, `mutationRate`, `zoom`, and `waitingPulse`. */
   setOptions(options: BackdropOptions): void;
-  dispose(): void;
 }
 
 export interface SessionColony {
@@ -1893,22 +1934,44 @@ export interface SessionColony {
 }
 
 export function mountBackdrop(canvas: HTMLCanvasElement): BackdropHandle;
+
+// Matrix, src/backdrop/matrix/matrixBackdrop.ts
+export interface MatrixBackdrop extends StyleBackdrop {
+  /** `backdrop.matrix.color`, `zoom`, `speed`, and `density`. */
+  setOptions(options: MatrixOptions): void;
+}
+
+export function mountMatrix(canvas: HTMLCanvasElement, options: MatrixOptions): MatrixBackdrop;
 ```
 
-The simulation runs at a fixed 12 generations per second, and the camera orbits slowly,
-holding still while the OS asks for reduced motion. The simulation and camera controls are
+Swirling Lights' simulation runs at a fixed 12 generations per second, and the camera orbits
+slowly, holding still while the OS asks for reduced motion. Its simulation and camera controls are
 settings (section 8), all hot-reloaded: population capacity (300 to 5000, default 1000; "Density"
 in the dialog) and mutation rate (0 to 4, default 0.2; "Color drift"). Two more: zoom
 (0.5 to 3, default 2) divides the camera's home distance, so the colony fills more of the window,
 and the camera glides to a changed value; `waitingPulse` (default off) turns on the waiting
-pulse below. The settings dialog groups them with
-`backdrop.animate`, `backdrop.maxFps`, and the scrim under "Background Animation"; the UI calls
-the backdrop the background animation, and labels the scrim's controls "Brightness" (shown as
-1 minus `scrim.opacity`, so the far left is fully dimmed) and "Blur". While `backdrop.animate` is off, the dialog hides the
-fields a still frame can't show (the frame rate cap, the simulation controls, and
-`waitingPulse`), leaving zoom and the scrim, which still change the frozen view.
+pulse below.
+
+The settings dialog groups the backdrop's settings, and the scrim, under "Background
+Animation"; the UI calls the backdrop the background animation. It opens with a Background select
+(None, Swirling Lights, Matrix) and shows only the fields that apply to the chosen style. The
+scrim's controls are labeled "Brightness" (shown as 1 minus `scrim.opacity`, so the far left is
+fully dimmed) and "Blur".
+
+| Style | Always shown | Also shown while `backdrop.animate` is on |
+| --- | --- | --- |
+| None | Background | (nothing) |
+| Swirling Lights | Background, Animate, Brightness, Zoom, Blur | Frame rate cap, Density, Color drift, Pulse waiting sessions |
+| Matrix | Background, Animate, Brightness, Color, Zoom, Density | Speed |
+
+While `backdrop.animate` is off, the fields a still frame can't show are hidden. Zoom, Brightness,
+and Blur still change the frozen view, and so do Matrix's Color and Density, which redraw the still
+frame. Blur applies to Swirling Lights only. Matrix has its own Zoom
+(`backdrop.matrix.zoom`), separate from Swirling Lights' (`backdrop.zoom`).
 
 ### 6.3 Sessions as organisms
+
+These apply to the Swirling Lights style; Matrix and None show no lineages.
 
 The background colony keeps living as it does today. Each live session additionally owns a
 lineage:
@@ -1935,7 +1998,9 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
 
 ### 6.4 Performance
 
-- The backdrop renders at up to `backdrop.maxFps` (section 8), 20 by default, or at the display's full
+**Swirling Lights**
+
+- It renders at up to `backdrop.maxFps` (section 8), 20 by default, or at the display's full
   frame rate when it is 0.
   The frame loop still runs on `requestAnimationFrame` and skips any frame that arrives sooner
   than `1 / maxFps` after the last rendered one. The simulation advances by elapsed time, so a
@@ -1946,11 +2011,51 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
   when the window resizes. If it is off from launch, the opening dolly plays out first so the
   still shows a grown colony, not the lone founding spore. It hot-reloads; turning it back on
   resumes from the still.
+- The renderer is created with `preserveDrawingBuffer: false` and alpha disabled; the
+  terminals composite over it through normal CSS stacking, with no readback. Disposing it forces
+  its WebGL context to be lost, since Chromium caps live contexts and would otherwise keep the
+  context until garbage collection.
+
+**Matrix**
+
+- It is a Canvas 2D renderer, `src/backdrop/matrix/matrixBackdrop.ts`, over the pure model in
+  `matrixModel.ts`. The model is a grid of cells sized from the canvas and the cell size, with
+  one falling drop per column. Each step moves every drop down one row and returns the glyphs to
+  draw: the drop's new head cell, and the previous head cell again as ordinary trail so the bright
+  head does not leave a white streak. A column whose drop has fallen off the bottom sits idle,
+  and each step an idle column starts a new drop at the top with a fixed chance (3 percent times
+  `backdrop.matrix.density`, 0.25 to 4, default 3). Columns start independently, which keeps them
+  out of lockstep, and the window opens with every column idle, so the rain arrives rather than
+  appearing all at once.
+- Glyphs are half-width katakana, the digits, and a few symbols, drawn in the `MS Gothic` or
+  `Yu Gothic` font that ships with Windows 10 and 11, with `monospace` as the fallback. No font is
+  bundled. Drawing waits for the font to load, so the first frames do not cache fallback glyphs.
+- The film's glyphs are mirrored. The renderer sets `transform: scaleX(-1)` on its canvas, which
+  the compositor applies for free; drops are column-symmetric, so only the glyph shapes change.
+- A cell is 20 px times `backdrop.matrix.zoom`, and the canvas is drawn at the device pixel ratio
+  and rebuilt when the window resizes.
+- The step rate is `backdrop.matrix.speed` (5 to 30, default 10 steps per second); `maxFps` does
+  not apply. Steps are scheduled by elapsed time on `requestAnimationFrame`, at most four per
+  frame, so a stall never bursts. The setting hot-reloads.
+- Each step paints black over the whole canvas at 8 percent alpha, which fades trails. Alpha
+  blending alone stalls once 8-bit rounding stops lowering a channel, leaving a faint permanent
+  residue, so every fourth step also applies a color-burn fill with a near-white source that
+  subtracts a few levels and clamps at zero. Trails therefore fade to true black. Heads are drawn
+  in the chosen color mixed 90 percent toward white.
+- `backdrop.animate: false`, or the OS asking for reduced motion, stops the loop on a still frame.
+  The frame is built by stepping the rain on a cleared canvas for a screen's worth of rows plus
+  two mean idle gaps (at most 400 steps), so the frozen view looks like a running one rather than
+  an empty screen. A change to the zoom or the window size rebuilds it, and so does a change of
+  color or density.
+
+**All styles**
+
 - `setVisible(false)` on minimize, and when the window is fully covered (Tauri window events
   plus the page's `visibilitychange`), so it costs nothing while out of sight. The dashboard
-  clock and System section (4.6) pause on the same signal.
-- The backdrop's renderer is created with `preserveDrawingBuffer: false` and alpha disabled; the
-  terminals composite over it through normal CSS stacking, with no readback.
+  clock and System section (4.6) pause on the same signal, and Matrix stops its loop on it too.
+- Ctrl+Shift+D pauses or resumes the mounted style and saves `backdrop.animate`; under None it
+  does nothing and saves nothing.
+- None mounts nothing: no renderer, no frame loop, and no Three.js load.
 
 ## 7. Data model
 
@@ -2033,15 +2138,22 @@ it with no pins, and Automatic omits it.
   // the accent stays the most saturated color for links and highlights.
   "contentTextColor": "#e6e6e6",
   "scrim": { "opacity": 0.5, "blurPx": 0 },
-  // maxFps 0 renders the backdrop at the display's refresh rate; animate false freezes it (6.4).
-  // The rest are the simulation and camera controls (6.2).
+  // style is none, lights (Swirling Lights), or matrix; a missing or invalid value falls back to
+  // lights. animate false freezes lights and matrix on a still frame (6.4); none ignores it.
+  // maxFps, capacity, mutationRate, zoom, and waitingPulse apply to lights only: maxFps 0 renders
+  // at the display's refresh rate, and the rest are the simulation and camera controls (6.2).
+  // matrix.color is #rrggbb (any lightness); matrix.zoom is 0.5 to 3 (the base cell is 20 px);
+  // matrix.speed is a whole number of rain steps per second, 5 to 30; matrix.density (0.25 to 4)
+  // scales how often a new drop starts. Out-of-range or invalid values fall back to their defaults.
   "backdrop": {
+    "style": "lights",
     "animate": false,
     "maxFps": 20,
     "capacity": 1000,
     "mutationRate": 0.2,
     "zoom": 2,
-    "waitingPulse": false
+    "waitingPulse": false,
+    "matrix": { "color": "#00ff41", "zoom": 1, "speed": 10, "density": 3 }
   },
   "scrollback": 10000,
   // A shell command that runs this many seconds and finishes unseen marks its terminal done or
@@ -2133,11 +2245,12 @@ check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS insta
 - **Undocumented session files.** If Claude Code changes `~/.claude/sessions`, the roster
   degrades to showing only hook-reported sessions in this app's panes. Parsing is lenient and
   failures are logged, never fatal.
-- **WebGL contexts.** Many panes plus the backdrop approach Chromium's limit; the budget and DOM
-  fallback in 4.4 cover it, at some cost in rendering speed for the extra panes.
-- **GPU cost.** The backdrop plus bloom behind several WebGL terminals is the heaviest part of the
-  app. The visibility pausing in 6.4 means it costs nothing while hidden, and `backdrop.maxFps`
-  trims it on weaker GPUs.
+- **WebGL contexts.** Many panes plus the Swirling Lights backdrop approach Chromium's limit; the
+  budget and DOM fallback in 4.4 cover it, at some cost in rendering speed for the extra panes.
+  Disposing the backdrop releases its context at once (6.4), so switching styles does not leak one.
+- **GPU cost.** The Swirling Lights backdrop plus bloom behind several WebGL terminals is the
+  heaviest part of the app. The visibility pausing in 6.4 means it costs nothing while hidden, and
+  `backdrop.maxFps` trims it on weaker GPUs. Matrix is far lighter, and None costs nothing.
 - **Resume.** Restore types `claude --resume <sessionId>`; if that session's transcript is
   gone, the command fails visibly in its terminal rather than silently.
 - **Off-screen output.** Collapsed terminals and those in background tabs keep parsing output

@@ -7,6 +7,8 @@ import type { DashboardSide } from './dashboardResize';
 import { ELEMENT_SHOWN_BY_DEFAULT, type DashboardElement } from './dashboardSections';
 import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
 
+export type BackdropStyle = 'none' | 'lights' | 'matrix';
+
 export interface Settings {
   shell: { path: string; args: string[]; startingDirectory: string; defaultProfile: string };
   font: { family: string; size: number };
@@ -17,12 +19,14 @@ export interface Settings {
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design.md section 6.4). */
   backdrop: {
+    style: BackdropStyle;
     animate: boolean;
     maxFps: number;
     capacity: number;
     mutationRate: number;
     zoom: number;
     waitingPulse: boolean;
+    matrix: { color: string; zoom: number; speed: number; density: number };
   };
   scrollback: number;
   /** Seconds a command runs before its finish is marked done; 0 turns command marks off. */
@@ -60,7 +64,16 @@ export const DEFAULT_SETTINGS: Settings = {
   accentColor: DEFAULT_ACCENT,
   contentTextColor: DEFAULT_CONTENT_TEXT,
   scrim: { opacity: 0.5, blurPx: 0 },
-  backdrop: { animate: false, maxFps: 20, capacity: 1000, mutationRate: 0.2, zoom: 2, waitingPulse: false },
+  backdrop: {
+    style: 'lights',
+    animate: false,
+    maxFps: 20,
+    capacity: 1000,
+    mutationRate: 0.2,
+    zoom: 2,
+    waitingPulse: false,
+    matrix: { color: '#00ff41', zoom: 1, speed: 10, density: 3 },
+  },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30 },
   dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both' },
