@@ -1,4 +1,4 @@
-/* The shared context menu (docs/v0.2.0-design.md section 11.2). */
+/* The shared context menu (docs/design.md section 4.4). */
 .context-menu {
   position: fixed;
   /* Above dialogs and drag overlays (1000), below toasts (10000). */

@@ -13,7 +13,7 @@ export interface SearchGroupMenuHandlers extends SearchMenuHandlers {
   toggle: (path: string) => void;
 }
 
-/** Menu for a match row (docs/v0.2.0-design.md section 11.3). */
+/** Menu for a match row (docs/design.md section 4.4). */
 export function searchMatchMenuItems(target: Extract<SearchItem, { kind: 'match' }>, h: SearchMenuHandlers): MenuEntry[] {
   return [
     item('Open at line', () => h.open(target)),

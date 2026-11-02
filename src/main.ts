@@ -339,6 +339,10 @@ function repoPinStates(root: string): RepoPinState[] {
   });
 }
 
+// The Repo section's worktree list is hidden for now. False keeps the store unshown, so the
+// section gets no list (and no "Compare worktrees with..." button) and no git watch runs; the
+// palette's worktree items load on their own (openPalette) and are unaffected.
+const SHOW_WORKTREE_LIST = false;
 const worktreeStore = new WorktreeStore(() => renderRepo());
 /** The focused worktree's path as last rendered, so a focus change redraws only when it moves the highlight. */
 let worktreeFocus: string | null = null;
@@ -346,7 +350,7 @@ let worktreeRoot: string | null = null;
 
 /** The root the store shows; moving focus between worktrees of the listed repo keeps it, so the list and its expanded row stay. */
 function worktreeRootFor(repo: RepoInfo | null): string | null {
-  if (!panel.isShown() || !repo?.isGit) return null;
+  if (!SHOW_WORKTREE_LIST || !panel.isShown() || !repo?.isGit) return null;
   const data = worktreeStore.current();
   if (worktreeRoot && data && isRepoRoot(repo.root, data.list.worktrees)) return worktreeRoot;
   return repo.root;
@@ -660,11 +664,13 @@ const palette = new CommandPalette({
   },
   runAction: (a) => workspace.runAction(a),
 });
-/** The palette opens at once; with the dashboard hidden, its worktree items arrive when the one-shot load finishes. */
+/** The palette opens at once; while the store is not shown, its worktree items arrive when the one-shot load finishes. */
 function openPalette(): void {
   palette.open();
   const root = currentRepo?.isGit ? currentRepo.root : null;
-  if (root && !panel.isShown()) void worktreeStore.loadOnce(root).then(() => palette.refresh());
+  // loadOnce is a no-op while the store is shown, so this covers both a hidden dashboard and the
+  // hidden worktree list (worktreeRootFor).
+  if (root) void worktreeStore.loadOnce(root).then(() => palette.refresh());
 }
 const confirmDialog = new ConfirmDialog();
 const help = new HelpDialog({

@@ -1087,8 +1087,8 @@ elements, and the footer. Repo, which follows the focused pane, sits at the top,
 when the clock is in its top slot; the elements and the footer sit at the bottom, so a focus
 change never shifts them.
 
-**Elements.** The elements between Repo and the footer are Favorites, Layouts, Panes,
-Containers, External sessions, System, and Clock, in that default order. Each has a
+**Elements.** The elements between Repo and the footer are Clock, Favorites, Layouts, Panes,
+Containers, External sessions, and System, in that default order. Each has a
 `dashboard.sections.*` toggle (section 8), on by default except System and Clock, set from the settings
 dialog's Dashboard section. A disabled element is gone from the panel, not collapsed, and its
 rows leave the keyboard rows below. Toggles and `dashboard.side` apply live, and switching

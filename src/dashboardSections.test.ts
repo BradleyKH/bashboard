@@ -48,15 +48,15 @@ describe('toggleSection', () => {
 });
 
 describe('DEFAULT_ELEMENT_ORDER', () => {
-  it('puts System after External sessions and the clock last', () => {
+  it('puts the clock first and System after External sessions', () => {
     expect([...DEFAULT_ELEMENT_ORDER]).toEqual([
+      'clock',
       'favorites',
       'layouts',
       'panes',
       'containers',
       'external',
       'system',
-      'clock',
     ]);
   });
 });
@@ -113,11 +113,11 @@ describe('parseSectionOrder', () => {
   });
 
   it('puts a missing first element at index 0', () => {
-    expect(parseSectionOrder(['layouts', 'panes', 'containers', 'external', 'clock'])).toEqual(def);
-    expect(parseSectionOrder(['clock', 'layouts', 'panes', 'containers', 'external'])).toEqual([
-      'favorites',
+    expect(parseSectionOrder(['favorites', 'layouts', 'panes', 'containers', 'external', 'system'])).toEqual(def);
+    expect(parseSectionOrder(['layouts', 'favorites', 'panes', 'containers', 'external', 'system'])).toEqual([
       'clock',
       'layouts',
+      'favorites',
       'panes',
       'containers',
       'external',
@@ -127,10 +127,10 @@ describe('parseSectionOrder', () => {
 
   it('inserts several missing elements, later ones anchoring on earlier inserted ones', () => {
     expect(parseSectionOrder(['external', 'layouts'])).toEqual([
+      'clock',
       'favorites',
       'external',
       'system',
-      'clock',
       'layouts',
       'panes',
       'containers',
@@ -139,15 +139,15 @@ describe('parseSectionOrder', () => {
   });
 
   it('places System after External sessions in an order saved before it existed', () => {
-    expect(parseSectionOrder(['favorites', 'layouts', 'panes', 'containers', 'external', 'clock'])).toEqual(def);
-    expect(parseSectionOrder(['clock', 'favorites', 'layouts', 'panes', 'containers', 'external'])).toEqual([
-      'clock',
+    expect(parseSectionOrder(['clock', 'favorites', 'layouts', 'panes', 'containers', 'external'])).toEqual(def);
+    expect(parseSectionOrder(['favorites', 'layouts', 'panes', 'containers', 'external', 'clock'])).toEqual([
       'favorites',
       'layouts',
       'panes',
       'containers',
       'external',
       'system',
+      'clock',
     ]);
   });
 });

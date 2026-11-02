@@ -38,7 +38,7 @@ export interface ScratchMenuHandlers {
   saveAs: () => void;
 }
 
-/** The pad's own items, added after the text field menu's (docs/v0.2.0-design.md section 11.3). */
+/** The pad's own items, added after the text field menu's (docs/design.md section 4.4). */
 export function scratchMenuExtras(state: { canSend: boolean }, handlers: ScratchMenuHandlers): MenuItem[] {
   return [
     item('Send', handlers.send, { enabled: state.canSend }),

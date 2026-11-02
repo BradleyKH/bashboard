@@ -205,7 +205,7 @@ function refusal(chord: Chord): string | undefined {
   return undefined;
 }
 
-/** What recording `chord` on `row` would do, before anything is saved (docs/v0.2.0-design.md section 8.2). */
+/** What recording `chord` on `row` would do, before anything is saved (docs/design.md section 4.5). */
 export function checkChord(chord: Chord, row: EditRow, live: KeybindingEntry[]): ChordCheck {
   const message = refusal(chord);
   if (message) return { kind: 'refused', message };

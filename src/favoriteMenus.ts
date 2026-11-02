@@ -30,7 +30,7 @@ function pathEntries(path: string, openItems: MenuItem[], h: PathMenuHandlers): 
   ];
 }
 
-/** Menu for a Favorites row (docs/v0.2.0-design.md section 11.3). */
+/** Menu for a Favorites row (docs/design.md section 4.4). */
 export function favoriteRowMenuItems(path: string, openItems: MenuItem[], h: FavoriteMenuHandlers): MenuEntry[] {
   return [...pathEntries(path, openItems, h), separator(), item('Remove favorite', h.remove)];
 }

@@ -53,7 +53,7 @@ function noModifiers(c: Chord): boolean {
   return !c.ctrl && !c.alt && !c.shift && !c.meta;
 }
 
-/** The F1 keyboard shortcut guide and keybinding editor (docs/v0.2.0-design.md section 8). */
+/** The F1 keyboard shortcut guide and keybinding editor (docs/design.md section 4.5). */
 export class HelpDialog {
   private backdrop: HTMLElement | null = null;
   private box: HTMLElement | null = null;

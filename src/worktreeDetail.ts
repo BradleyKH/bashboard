@@ -71,7 +71,7 @@ function statusLines(w: Worktree, detail: WorktreeDetail): HTMLElement[] {
   ];
 }
 
-/** The expanded part of a worktree row (docs/v0.2.0-design.md section 4.2). */
+/** The expanded part of a worktree row (docs/design.md section 4.6). */
 export function renderWorktreeDetail(
   w: Worktree,
   detail: WorktreeDetail | null,

@@ -97,7 +97,7 @@ export function isBlurIntoContextMenu(e: FocusEvent): boolean {
 }
 
 /**
- * Opens `entries` as the one open menu (docs/v0.2.0-design.md section 11.2), closing any other.
+ * Opens `entries` as the one open menu (docs/design.md section 4.4), closing any other.
  * An empty list (after tidying separators) opens nothing.
  */
 export function openContextMenu(entries: MenuEntry[], at: ContextMenuAt, opts: ContextMenuOptions = {}): void {

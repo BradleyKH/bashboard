@@ -41,7 +41,7 @@ interface FocusSpot {
   button: number;
 }
 
-/** The Repo section's worktree rows, one of them expanded into its detail (docs/v0.2.0-design.md sections 4.1 and 4.2). */
+/** The Repo section's worktree rows, one of them expanded into its detail (docs/design.md section 4.6). */
 export class WorktreeList {
   readonly el: HTMLElement;
   private state: WorktreesState | null = null;

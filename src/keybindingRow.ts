@@ -45,7 +45,7 @@ function recordingField(text: string): HTMLElement {
   return s;
 }
 
-/** One editable row of the shortcut guide (docs/v0.2.0-design.md section 8.1). */
+/** One editable row of the shortcut guide (docs/design.md section 4.5). */
 export function renderKeybindingRow(row: EditRow, view: RowView, callbacks: RowCallbacks): HTMLElement {
   const el = div(view.flash ? 'kb-row kb-flash' : 'kb-row');
   el.dataset.rowId = row.id;

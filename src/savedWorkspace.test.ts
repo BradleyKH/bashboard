@@ -491,13 +491,13 @@ describe('parseSavedWorkspace', () => {
   it('leaves the element order absent when the file has no field, and defaults a non-array', () => {
     expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardSectionOrder');
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: 'panes' })?.dashboardSectionOrder).toEqual([
+      'clock',
       'favorites',
       'layouts',
       'panes',
       'containers',
       'external',
       'system',
-      'clock',
     ]);
   });
 

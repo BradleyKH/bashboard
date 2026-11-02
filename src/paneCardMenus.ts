@@ -22,7 +22,7 @@ function folderEntries(
   ];
 }
 
-/** The menu for a Panes card (docs/v0.2.0-design.md section 11.3); `path` is empty for a pane with no folder. */
+/** The menu for a Panes card (docs/design.md section 4.4); `path` is empty for a pane with no folder. */
 export function paneCardMenuItems(
   card: { path: string; collapsed: boolean },
   openItems: MenuItem[],

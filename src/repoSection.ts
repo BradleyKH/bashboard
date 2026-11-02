@@ -117,7 +117,7 @@ export class RepoSection {
     );
   }
 
-  /** The header's "Compare worktrees with..." menu (docs/v0.2.0-design.md section 4.3). */
+  /** The header's "Compare worktrees with..." menu (docs/design.md section 4.6). */
   private openPrimaryMenu(): void {
     const state = this.worktreesState;
     if (!state) return;

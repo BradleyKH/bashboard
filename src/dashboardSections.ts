@@ -3,7 +3,7 @@
 
 /**
  * The panel's elements between Repo and the footer, in default order (docs/design.md section
- * 4.6). The clock is last here, which places it just above the footer whenever it is not in its
+ * 4.6). The clock is first here, so it sits at the top of the elements whenever it is not in its
  * slot above Repo.
  */
 export const DEFAULT_ELEMENT_ORDER = [

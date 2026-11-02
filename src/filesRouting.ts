@@ -97,7 +97,7 @@ function quoteFor(text: string, shell: string): string {
 }
 
 /**
- * Text for inserting paths into a terminal (docs/v0.2.0-design.md section 6). Paths inside
+ * Text for inserting paths into a terminal (docs/design.md section 4.4). Paths inside
  * `baseRoot` are relative; the caller picks the base: a drop passes the
  * target terminal's repo, Insert path the source pane's root. Slashes (backslashes for Command
  * Prompt without Claude Code, forward slashes otherwise) and quoting follow `profile`, which is

@@ -395,7 +395,7 @@ fn parse_keybindings(root: &Value, warnings: &mut Vec<String>) -> Vec<Keybinding
     merged
 }
 
-/// One edit to the raw `keybindings` array (docs/v0.2.0-design.md section 8.4).
+/// One edit to the raw `keybindings` array (docs/design.md section 4.5).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum KeybindingOp {

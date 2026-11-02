@@ -35,7 +35,7 @@ export interface TitleStripZoomState {
 
 const DRAG_THRESHOLD_PX = 4;
 
-/** The title strip's right-click menu (docs/v0.2.0-design.md section 11.3). */
+/** The title strip's right-click menu (docs/design.md section 4.4). */
 export function titleStripMenuItems(
   state: { kindItems: MenuLeaf[]; zoom: TitleStripZoomState },
   hooks: Pick<TitleStripHooks, 'onCollapse' | 'onClose' | 'onZoom'>,

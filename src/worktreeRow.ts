@@ -28,7 +28,7 @@ function span(className: string, text: string): HTMLSpanElement {
   return el;
 }
 
-/** One worktree in the Repo section's list (docs/v0.2.0-design.md section 4.1); a click expands it. */
+/** One worktree in the Repo section's list (docs/design.md section 4.6); a click expands it. */
 export function renderWorktreeRow(w: Worktree, opts: WorktreeRowOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = 'worktree-row';

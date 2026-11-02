@@ -11,7 +11,7 @@ export interface GitFileMenuHandlers {
   insertPath: (row: GitRow) => void;
 }
 
-/** The menu for a changed-file row (docs/v0.2.0-design.md section 11.3). */
+/** The menu for a changed-file row (docs/design.md section 4.4). */
 export function gitFileMenuItems(row: GitRow, staged: boolean, h: GitFileMenuHandlers): MenuEntry[] {
   return [
     item('Show diff', () => h.showDiff(row)),
