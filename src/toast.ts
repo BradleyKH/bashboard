@@ -25,6 +25,7 @@ export function showToast(message: string, ms = 6000): void {
   Object.assign(el.style, {
     maxWidth: '420px',
     padding: '8px 12px',
+    border: '1px solid color-mix(in srgb, var(--accent) 50%, transparent)',
     borderRadius: '6px',
     background: 'rgba(20, 20, 24, 0.9)',
     color: '#e6e6e6',

@@ -1169,6 +1169,7 @@ body.dashboard-resizing {
   width: min(560px, 90vw);
   max-height: 70vh;
   padding: 12px;
+  border: 1px solid var(--accent);
   border-radius: 6px;
   background: rgba(6, 12, 18, 0.94);
   color: #d6dde2;
@@ -1255,6 +1256,7 @@ body.dashboard-resizing {
   width: min(640px, 92vw);
   max-height: 84vh;
   padding: 12px;
+  border: 1px solid var(--accent);
   border-radius: 6px;
   background: rgba(6, 12, 18, 0.94);
   color: #d6dde2;
@@ -1603,6 +1605,7 @@ body.dashboard-resizing {
   width: min(640px, 90vw);
   max-height: 84vh;
   padding: 12px;
+  border: 1px solid var(--accent);
   border-radius: 6px;
   background: rgba(6, 12, 18, 0.94);
   color: #d6dde2;
