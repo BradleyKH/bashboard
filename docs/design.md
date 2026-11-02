@@ -1875,7 +1875,7 @@ export function mountBackdrop(canvas: HTMLCanvasElement): BackdropHandle;
 
 The simulation runs at a fixed 12 generations per second, and the camera orbits slowly,
 holding still while the OS asks for reduced motion. The simulation and camera controls are
-settings (section 8), all hot-reloaded: population capacity (300 to 5000, default 1000; "Scale"
+settings (section 8), all hot-reloaded: population capacity (300 to 5000, default 1000; "Density"
 in the dialog) and mutation rate (0 to 4, default 0.2; "Color drift"). Two more: zoom
 (0.5 to 3, default 2) divides the camera's home distance, so the colony fills more of the window,
 and the camera glides to a changed value; `waitingPulse` (default off) turns on the waiting

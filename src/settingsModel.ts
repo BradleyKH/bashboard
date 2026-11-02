@@ -188,7 +188,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
-      { path: ['backdrop', 'capacity'], label: 'Scale', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: WHILE_ANIMATED },
+      { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: WHILE_ANIMATED },
       {
         path: ['backdrop', 'mutationRate'],
         label: 'Color drift',
@@ -196,7 +196,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         min: 0,
         max: 4,
         step: 0.1,
-        hint: 'How far offspring drift from their parents in color and strategy',
+        hint: 'How much the colors wander over time',
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },

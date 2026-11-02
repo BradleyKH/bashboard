@@ -746,7 +746,7 @@ to `true` to run it, at up to 20 frames per second. Raise or lower that with `ba
 (0 for the display's refresh rate). Ctrl+Shift+D pauses or resumes the animation and saves the
 choice to that setting. The simulation runs at 12 generations per second under a slow camera
 orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
-population it sustains, 300 to 5000; Scale in the settings dialog), `mutationRate` (how far
+population it sustains, 300 to 5000; Density in the settings dialog), `mutationRate` (how far
 offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
 above 1 brings the colony closer so it fills more of the window), and `waitingPulse` (a steady
 brightness pulse on a waiting Claude session's organisms, off by default). All of these are also
