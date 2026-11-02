@@ -44,6 +44,16 @@ function byLabel(items: PaletteItem[], label: string): PaletteItem | undefined {
 }
 
 describe('buildPaletteItems', () => {
+  it('lists Check for updates as an action with no keys and no F1 row', () => {
+    const items = buildPaletteItems(input());
+    expect(items.find((i) => i.label === 'Check for updates')).toMatchObject({
+      category: 'Action',
+      choice: { kind: 'command', command: 'checkForUpdates' },
+    });
+    expect(rankPalette(items, '>updates', []).some((i) => i.label === 'Check for updates')).toBe(true);
+    expect(actionOrder()).not.toContain('checkForUpdates');
+  });
+
   const items = buildPaletteItems(input());
 
   it('lists one item per pane with its tab title as detail', () => {

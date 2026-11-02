@@ -1,5 +1,5 @@
 import type { Action } from './keymap';
-import { buildPaletteItems, pushRecent, rankPalette, type PaletteInput, type PaletteItem } from './paletteModel';
+import { buildPaletteItems, pushRecent, rankPalette, type PaletteCommand, type PaletteInput, type PaletteItem } from './paletteModel';
 import { Picker, type PickerItem } from './picker';
 import type { Pin } from './repos';
 
@@ -13,6 +13,7 @@ export interface CommandPaletteDeps {
   openPin(pin: Pin): void;
   openWorktree(path: string, opts: { collapsed: boolean }): void;
   runAction(action: Action): void;
+  runCommand(command: PaletteCommand): void;
 }
 
 /** One list over panes, tabs, favorites, layouts, pins, worktrees, and actions (docs/design.md section 4.5). */
@@ -82,6 +83,9 @@ export class CommandPalette {
         break;
       case 'action':
         this.deps.runAction(c.action);
+        break;
+      case 'command':
+        this.deps.runCommand(c.command);
         break;
     }
   }

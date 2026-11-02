@@ -428,9 +428,11 @@ export class Workspace {
     }));
   }
 
-  /** Design 4.10: a tab with one default-profile terminal in the focused pane's folder. */
-  newTab(): void {
-    const cwd = this.folderForNew();
+  /**
+   * Design 4.10: a tab with one default-profile terminal in `cwd`, or by default the focused
+   * pane's folder.
+   */
+  newTab(cwd: string | undefined = this.folderForNew()): void {
     const prev = this.store.active;
     this.store.state = addTab(this.store.state, this.store.emptyTab());
     this.hideTab(prev);

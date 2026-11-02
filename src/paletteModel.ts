@@ -13,7 +13,8 @@ export type PaletteChoice =
   | { kind: 'layout'; name: string }
   | { kind: 'pin'; pin: Pin }
   | { kind: 'worktree'; path: string }
-  | { kind: 'action'; action: Action };
+  | { kind: 'action'; action: Action }
+  | { kind: 'command'; command: PaletteCommand };
 
 export interface PaletteItem {
   /** Stable across opens, so session recents survive a rebuild. */
@@ -35,6 +36,13 @@ export interface PaletteInput {
   worktrees: { path: string; name: string; branch: string }[];
   keybindings: KeybindingEntry[];
 }
+
+/** Palette entries with no keybinding action, so they stay out of the F1 guide and its editor. */
+export type PaletteCommand = 'checkForUpdates';
+
+export const PALETTE_COMMANDS: readonly { command: PaletteCommand; label: string }[] = [
+  { command: 'checkForUpdates', label: 'Check for updates' },
+];
 
 /** Actions that act on terminal text or need a number; tabs are items of their own. */
 export const EXCLUDED_ACTIONS: readonly string[] = ['copy', 'paste', 'sendInput', 'switchToTab', 'openPalette'];
@@ -132,6 +140,12 @@ export function buildPaletteItems(input: PaletteInput): PaletteItem[] {
       choice: { kind: 'worktree', path: w.path },
     })),
     ...actionItems(input.keybindings),
+    ...PALETTE_COMMANDS.map((c): PaletteItem => ({
+      id: `command:${c.command}`,
+      category: 'Action',
+      label: c.label,
+      choice: { kind: 'command', command: c.command },
+    })),
   ];
 }
 

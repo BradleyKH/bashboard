@@ -13,6 +13,11 @@ Ctrl+Shift+T opens a new tab and Ctrl+Shift+W closes the current one (it asks fi
 terminal there is busy or a scratch pad there has text). Ctrl+Tab and Ctrl+Shift+Tab move to the next and previous tab,
 Ctrl+Alt+1 through Ctrl+Alt+8 switch to that tab, and Ctrl+Alt+9 switches to the last one.
 
+Bashboard runs as one window. Launching it again while it is running brings that window to the
+front instead of starting a second copy; launched from a shell or a folder (for example
+`start bashboard` in Git Bash, or the exe run from Explorer's address bar), it also opens a new
+tab in that folder. The Start menu and taskbar shortcuts just bring the window forward.
+
 ## Scratch pads
 
 A scratch pad is a plain text pane for drafting a prompt or keeping notes beside your terminals.

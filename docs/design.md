@@ -663,10 +663,11 @@ the newest non-prerelease release. The Windows install mode is `passive`: the NS
 shows its progress without prompts.
 
 `src/updater.ts` exports `checkForUpdate({ manual, confirm })`. It runs once at launch after the
-workspace is up, quietly, and again from the settings dialog's Check for updates button, which
-also reports "up to date" and failures. It does nothing in a dev build, which has no installed
-bundle to replace. An available update shows as a banner (`updateNotice.ts`) with Install and
-restart and Later. Installing first asks for confirmation through the shared confirm dialog,
+workspace is up, quietly, and again from the settings dialog's Check for updates button or the
+command palette's Check for updates entry (4.5), both of which also report "up to date" and
+failures. It does not check in a dev build, which has no installed bundle to replace; a manual
+check there says so in a toast. An available update shows as a banner (`updateNotice.ts`) with
+Install and restart and Later. Installing first asks for confirmation through the shared confirm dialog,
 because restarting ends every running shell and any command or Claude session in it; the
 confirmation notes that the layout reopens on the next launch when `restore.enabled` is on. The
 update then downloads with progress shown in the banner, installs, and relaunches the app.
@@ -717,6 +718,17 @@ and a name repeated ignoring case is dropped, so a family read both as monospace
 its monospace entry. The collection is read on every call, with DirectWrite asked to check for
 updates, so a font installed while the app runs shows up on the next call. If DirectWrite fails
 the list is empty. On other platforms the list is always empty.
+
+### 3.18 Single instance (`src-tauri/src/second_instance.rs`)
+
+Release builds register `tauri-plugin-single-instance` before every other plugin. A second
+launch finds the running app through a named mutex keyed on the app identifier, hands it its
+working directory, and exits. The running app unminimizes, shows, and focuses the main window,
+then emits `instance://launched` with the folder for a new tab, or `null` when the working
+directory is empty, missing, the exe's own folder (where Start menu and taskbar shortcuts start),
+or the Windows folder or below. On a folder, the front end opens a new tab there (4.10). Debug
+builds skip the plugin, since they share the identifier and a dev run starts beside the
+installed app; their saved state is already separate (3.6).
 
 ## 4. Front end
 
@@ -1050,7 +1062,9 @@ Ctrl+Enter opens a favorite or worktree collapsed. Pins whose path is missing ar
 Actions left out are `copy`, `paste`, `sendInput` (Claude Code's newline), `switchToTab` (tabs are
 items instead), and `openPalette` itself. Labels come from `helpModel.ts`, so the palette and the
 F1 guide agree, and each action's hint lists its chords from the live keymap, so overrides show.
-`moveFocus` and `resizePane` get one row per direction.
+`moveFocus` and `resizePane` get one row per direction. Check for updates (3.16) is an action
+row with no keymap action behind it (`PALETTE_COMMANDS` in `paletteModel.ts`), so it never
+appears in the F1 guide or takes a key.
 
 Matching is fuzzy over the label, then the detail (a pane's tab name, a favorite's path), and a
 detail-only match ranks after every label match. Consecutive characters and matches at word starts

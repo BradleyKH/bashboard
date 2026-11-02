@@ -54,4 +54,5 @@ windows = { version = "0.62", features = ["Win32_Graphics_DirectWrite"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-process = "2.4.0"
+tauri-plugin-single-instance = "2.5.5"
 tauri-plugin-updater = "2.14.0"

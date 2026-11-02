@@ -88,6 +88,11 @@ Debug builds keep their settings, workspace, favorites, and layouts in
 `%APPDATA%\dev.bashboard\dev`, so a `pnpm tauri dev` run never restores or overwrites the
 installed app's workspace. The first debug run copies the installed app's `settings.json` there.
 
+Release builds allow one running instance; debug builds don't enforce it, so a dev run starts
+beside the installed app and several dev runs can start at once. Testing the second-launch
+handoff therefore needs a release build, and a release build run from `src-tauri\target\release`
+shares the installed app's lock and saved workspace.
+
 ## Releasing
 
 `pnpm tauri build` produces the release app and an NSIS installer at

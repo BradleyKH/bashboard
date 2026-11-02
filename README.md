@@ -16,8 +16,8 @@ The installer is not code-signed, so Windows SmartScreen shows "Windows protecte
 first time. Click **More info**, then **Run anyway**.
 
 Once installed, Bashboard checks for a newer release at launch and offers it in a banner; the
-update installs from inside the app. **Check for updates** in the settings dialog checks on
-demand.
+update installs from inside the app. **Check for updates** in the settings dialog or the command
+palette (Ctrl+Shift+P) checks on demand.
 
 Bashboard runs the tools you already use:
 

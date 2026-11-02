@@ -17,6 +17,7 @@ mod profiles;
 mod pty;
 mod roster;
 mod search;
+mod second_instance;
 mod settings;
 mod settings_edit;
 mod setup;
@@ -95,7 +96,15 @@ fn close_window(window: tauri::WebviewWindow) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Release builds only: the lock is keyed on the app identifier, which debug builds share,
+    // and a dev run has to start beside the installed app. Registered first so a second
+    // launch exits before any other plugin starts.
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, cwd| {
+        second_instance::on_second_launch(app, cwd)
+    }));
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

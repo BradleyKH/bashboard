@@ -17,6 +17,7 @@ import { bindWindowVisibility } from './windowVisibility';
 import { gitFetchVisible, onGitChanged, onGitFetched } from './gitApi';
 import { syncGitFetchRoots } from './gitFetchRoots';
 import { onCliCommand } from './cli';
+import { onSecondLaunch } from './secondLaunch';
 import { runCliCommand, type CliTarget } from './cliDispatch';
 import { ColonySync } from './colonySync';
 import { setHomeDir } from './displayPath';
@@ -667,6 +668,9 @@ const palette = new CommandPalette({
     focusTerminal();
   },
   runAction: (a) => workspace.runAction(a),
+  runCommand: (command) => {
+    if (command === 'checkForUpdates') checkForUpdatesNow();
+  },
 });
 /** The palette opens at once; while the store is not shown, its worktree items arrive when the one-shot load finishes. */
 function openPalette(): void {
@@ -683,13 +687,14 @@ const help = new HelpDialog({
   confirm: (o) => confirmDialog.open(o),
 });
 const showHelp = (): void => help.open(currentSettings.keybindings);
+const checkForUpdatesNow = (): void => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) });
 const settingsDialog = new SettingsDialog({
   onClose: focusTerminal,
   onSave: saveSetting,
   onOpenFile: openSettingsFile,
   getProfiles: () => profiles,
   onRunSetup: () => void showSetup(),
-  onCheckForUpdates: () => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) }),
+  onCheckForUpdates: checkForUpdatesNow,
   onEditKeys: () => showHelp(),
 });
 const showSettings = async (): Promise<void> => {
@@ -860,6 +865,9 @@ const cliTarget: CliTarget = {
   openInEditor: (path, line) => void openInEditor(path, line),
 };
 onCliCommand((cmd) => runCliCommand(cmd, cliTarget)).catch((e) => console.warn('pane CLI unavailable:', e));
+onSecondLaunch((folder) => {
+  if (folder) workspace.newTab(folder);
+}).catch((e) => console.warn('second-launch handoff unavailable:', e));
 onPtyActivity((list) => workspace.setActivity(list)).catch((e) => console.warn('activity sweep unavailable:', e));
 onFavoritesChanged((raw) => {
   favorites = parseFavorites(raw);
