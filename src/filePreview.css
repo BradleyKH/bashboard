@@ -119,7 +119,7 @@
 }
 
 ::highlight(preview-find) {
-  background-color: #2a5a66;
+  background-color: color-mix(in srgb, var(--accent) 52%, black);
 }
 
 ::highlight(preview-find-current) {
@@ -352,7 +352,7 @@
 
 /* The textarea draws the text over its mirror, so the mirror's match keeps no text of its own. */
 .editor-mirror::highlight(preview-find-current) {
-  background-color: #3a8a9c;
+  background-color: color-mix(in srgb, var(--accent) 75%, black);
   color: transparent;
 }
 

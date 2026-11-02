@@ -1968,6 +1968,11 @@ it with no pins, and Automatic omits it.
     "defaultProfile": "gitBash"
   },
   "font": { "family": "JetBrainsMono Nerd Font Mono, Cascadia Mono", "size": 14 },
+  // #rrggbb for focus borders, selections, highlights, and the --accent custom property. A value
+  // below WCAG relative luminance 0.2 falls back to the default, so it stays readable on the dark
+  // panes and behind find highlights' dark text. The dialog offers presets, and shows a hand-edited
+  // value as Custom.
+  "accentColor": "#4fb3c8",
   "scrim": { "opacity": 0.5, "blurPx": 0 },
   // maxFps 0 renders the backdrop at the display's refresh rate; animate false freezes it (6.4).
   // The rest are the simulation and camera controls (6.2).

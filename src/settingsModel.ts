@@ -1,3 +1,4 @@
+import { ACCENT_PRESETS } from './accent';
 import { DEFAULT_ELEMENT_ORDER, ELEMENT_LABELS } from './dashboardSections';
 import type { Settings } from './settings';
 
@@ -22,6 +23,8 @@ export interface SettingsField {
   allowEmpty?: boolean;
   /** Select fields only: the accepted values. */
   options?: { value: string; label: string }[];
+  /** Select fields only: each option's value is a #rrggbb color, drawn as a square beside its label. */
+  swatches?: boolean;
   /** Select fields only: offer just the options the core detected, as shell profiles or editors. */
   installedFrom?: 'profiles' | 'editors';
   /** Text fields only: suggest values while typing, filled from the core after the dialog opens. */
@@ -49,6 +52,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     fields: [
       { path: ['font', 'family'], label: 'Font family', kind: 'text', suggestFrom: 'fonts', applies: 'live' },
       { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live' },
+      { path: ['accentColor'], label: 'Accent color', kind: 'select', options: ACCENT_PRESETS, swatches: true, applies: 'live' },
     ],
   },
   {
@@ -298,6 +302,15 @@ export function installedChoices(
     options: [{ value: missing.value, label: `${missing.label} (not installed)` }, ...shown],
     note: fallback ? `${missing.label} is not installed; new panes use ${fallback.name}` : undefined,
   };
+}
+
+/**
+ * A select's options, plus the saved value when it is none of them (a hand-edited accentColor),
+ * so the dialog shows what is in effect instead of a blank select.
+ */
+export function selectChoices(options: { value: string; label: string }[], saved: unknown): { value: string; label: string }[] {
+  if (typeof saved !== 'string' || options.some((o) => o.value === saved)) return options;
+  return [...options, { value: saved, label: `Custom (${saved})` }];
 }
 
 export function appliesNote(field: SettingsField): string {

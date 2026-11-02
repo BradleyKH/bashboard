@@ -1,3 +1,4 @@
+import { DEFAULT_ACCENT } from './accent';
 import { SPARKLINE_CAPACITY } from './systemModel';
 
 /**
@@ -37,7 +38,7 @@ export class SparkCanvas {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     if (values.length < 2 || max <= 0) return;
-    ctx.strokeStyle = getComputedStyle(this.el).getPropertyValue('--system-accent').trim() || '#4fb3c8';
+    ctx.strokeStyle = getComputedStyle(this.el).getPropertyValue('--system-accent').trim() || DEFAULT_ACCENT;
     ctx.lineWidth = 1.5;
     ctx.lineJoin = 'round';
     ctx.beginPath();

@@ -3,7 +3,7 @@ import type { SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
 import { fontSuggestions, isSuggestionPick, listFonts } from './fonts';
-import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 export interface SettingsDialogCallbacks {
   /** Dismissed; the caller refocuses the terminal. */
@@ -289,12 +289,26 @@ export class SettingsDialog {
     if (f.kind === 'select') {
       const sel = document.createElement('select');
       sel.className = 'settings-dialog-input';
+      // A customizable select (appearance: base-select) keeps markup inside options, and
+      // <selectedcontent> copies the chosen option's swatch into the closed select.
+      const head = f.swatches ? document.createElement('button') : null;
+      if (head) {
+        sel.classList.add('settings-dialog-swatch-select');
+        head.append(document.createElement('selectedcontent'));
+      }
       const fill = (options: { value: string; label: string }[]): void => {
         sel.replaceChildren(
+          ...(head ? [head] : []),
           ...options.map((o) => {
             const opt = document.createElement('option');
             opt.value = o.value;
             opt.textContent = o.label;
+            if (head) {
+              const swatch = document.createElement('span');
+              swatch.className = 'settings-dialog-swatch';
+              swatch.style.background = o.value;
+              opt.prepend(swatch);
+            }
             return opt;
           }),
         );
@@ -314,8 +328,8 @@ export class SettingsDialog {
           if (typeof v === 'string') sel.value = v;
         };
       } else {
-        fill(f.options ?? []);
         c.show = (v) => {
+          fill(selectChoices(f.options ?? [], v));
           if (typeof v === 'string') sel.value = v;
         };
       }

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { applyAccent } from './accent';
 import type { AttentionCause } from './attention';
 import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
 import type { ConfirmOptions } from './confirmDialog';
@@ -246,6 +247,7 @@ export class Workspace {
     this.fontSize = payload.settings.font.size;
     this.scrim = scrimFromSettings(payload.settings.scrim);
     applyScrim(document.documentElement, this.scrim);
+    applyAccent(document.documentElement, payload.settings.accentColor);
     this.view = new LayoutView(root, {
       clampRatio: (path, ratio) => {
         const cell = this.layoutCell();
@@ -355,6 +357,7 @@ export class Workspace {
     this.fontSize = this.config.settings.font.size;
     this.scrim = scrimFromSettings(this.config.settings.scrim);
     applyScrim(document.documentElement, this.scrim);
+    applyAccent(document.documentElement, this.config.settings.accentColor);
     for (const pane of this.paneViews.values()) pane.applySettings(this.config.settings);
   }
 

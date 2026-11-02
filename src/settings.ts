@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { DEFAULT_ACCENT } from './accent';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { DashboardSide } from './dashboardResize';
 import { ELEMENT_SHOWN_BY_DEFAULT, type DashboardElement } from './dashboardSections';
@@ -7,6 +8,8 @@ import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './key
 export interface Settings {
   shell: { path: string; args: string[]; startingDirectory: string; defaultProfile: string };
   font: { family: string; size: number };
+  /** #rrggbb, bright enough to read on the dark panes (docs/design.md section 8). */
+  accentColor: string;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design.md section 6.4). */
   backdrop: {
@@ -49,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultProfile: 'gitBash',
   },
   font: { family: 'JetBrainsMono Nerd Font Mono, Cascadia Mono', size: 14 },
+  accentColor: DEFAULT_ACCENT,
   scrim: { opacity: 0.5, blurPx: 0 },
   backdrop: { animate: false, maxFps: 20, capacity: 1000, mutationRate: 0.2, zoom: 2, waitingPulse: false },
   scrollback: 10000,

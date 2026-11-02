@@ -24,6 +24,12 @@ fields and lists only the editors it found.
 The Font family field in the Appearance section of the settings dialog suggests installed fonts as
 you type, and still accepts any name or a comma-separated fallback list.
 
+`accentColor` sets the color of focus borders, selections, find highlights, and other accents
+(default `#4fb3c8`, teal). The Accent color field in the Appearance section offers Silver, Orange,
+Gold, Green, Teal, Blue, Violet, and Pink. In the file it takes any `#rrggbb` value bright enough to
+read on the dark panes; a darker color falls back to the default and shows a notice. A value set
+in the file that is not a preset appears in the dialog as Custom.
+
 Press F1, or click Keyboard shortcuts at the bottom of the dashboard, for a guide to every key
 in effect, including your own bindings. The guide is also where keys are changed: click a key to
 replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all

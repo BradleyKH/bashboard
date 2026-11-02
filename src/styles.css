@@ -1749,6 +1749,45 @@ body.dashboard-resizing {
   border-color: var(--accent);
 }
 
+.settings-dialog-swatch-select,
+.settings-dialog-swatch-select::picker(select) {
+  appearance: base-select;
+}
+
+.settings-dialog-swatch-select::picker(select) {
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  background: #0d1a20;
+  color: #eef3f5;
+}
+
+.settings-dialog-swatch-select selectedcontent,
+.settings-dialog-swatch-select option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-dialog-swatch-select option {
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.settings-dialog-swatch-select option:hover,
+.settings-dialog-swatch-select option:focus-visible {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  outline: none;
+}
+
+.settings-dialog-swatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
 .settings-dialog-control.invalid .settings-dialog-input {
   border-color: #e87878;
 }

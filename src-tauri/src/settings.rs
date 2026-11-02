@@ -66,6 +66,23 @@ pub struct Dashboard {
     pub sections: DashboardSections,
 }
 
+pub const DEFAULT_ACCENT: &str = "#4fb3c8";
+
+/// The accent is drawn as text on near-black panes and behind dark text in find highlights; at
+/// this WCAG relative luminance both keep at least 4.5:1 contrast. Mirrors src/accent.ts.
+const ACCENT_MIN_LUMINANCE: f64 = 0.2;
+
+/// Accepts `#rrggbb` (any case) bright enough to read, returned lowercase.
+fn parse_accent(s: &str) -> Option<String> {
+    let hex = s.strip_prefix('#').filter(|h| h.len() == 6 && h.chars().all(|c| c.is_ascii_hexdigit()))?;
+    let channel = |i: usize| {
+        let c = f64::from(u8::from_str_radix(&hex[i..i + 2], 16).ok()?) / 255.0;
+        Some(if c <= 0.03928 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) })
+    };
+    let luminance = 0.2126 * channel(0)? + 0.7152 * channel(2)? + 0.0722 * channel(4)?;
+    (luminance >= ACCENT_MIN_LUMINANCE).then(|| format!("#{}", hex.to_ascii_lowercase()))
+}
+
 /// Ids `dashboard.side` accepts (docs/design.md section 4.6).
 pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
 
@@ -137,6 +154,8 @@ pub struct Keybinding {
 pub struct Settings {
     pub shell: Shell,
     pub font: Font,
+    /// `#rrggbb`; see `parse_accent`.
+    pub accent_color: String,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
@@ -238,6 +257,7 @@ impl Default for Settings {
                 family: "JetBrainsMono Nerd Font Mono, Cascadia Mono".into(),
                 size: 14.0,
             },
+            accent_color: DEFAULT_ACCENT.into(),
             scrim: Scrim { opacity: 0.5, blur_px: 0.0 },
             backdrop: Backdrop {
                 animate: false,
@@ -541,6 +561,13 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         family: pick(&root, &["font", "family"], &mut w, string, d.font.family),
         size: pick(&root, &["font", "size"], &mut w, |v| number(v).filter(|n| *n > 0.0), d.font.size),
     };
+    let accent_color = pick(
+        &root,
+        &["accentColor"],
+        &mut w,
+        |v| v.as_str().and_then(parse_accent),
+        d.accent_color,
+    );
     let scrim = Scrim {
         opacity: pick(
             &root,
@@ -675,6 +702,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         Settings {
             shell,
             font,
+            accent_color,
             scrim,
             backdrop,
             scrollback,
@@ -696,6 +724,11 @@ fn default_file_text() -> String {
     s.keybindings.clear();
     let json = serde_json::to_string_pretty(&s).expect("default settings serialize");
     json.replace(
+        "  \"accentColor\":",
+        "  // Any #rrggbb bright enough to read on the dark panes; darker colors fall back to the default.
+  \"accentColor\":",
+    )
+    .replace(
         "  \"editor\": {",
         "  // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
@@ -958,6 +991,18 @@ mod tests {
         let (s, w) = parse_settings("{}");
         assert_eq!(s, Settings::default());
         assert!(w.is_empty());
+    }
+
+    #[test]
+    fn accent_color_needs_bright_six_digit_hex() {
+        let (s, w) = parse_settings(r##"{ "accentColor": "#A68BFF" }"##);
+        assert_eq!(s.accent_color, "#a68bff");
+        assert!(w.is_empty());
+        for bad in [r##""#1a2b4c""##, r##""#fff""##, r##""teal""##, "12"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "accentColor": {bad} }}"#));
+            assert_eq!(s.accent_color, DEFAULT_ACCENT, "{bad}");
+            assert_eq!(w, vec!["accentColor: invalid value, using default"], "{bad}");
+        }
     }
 
     #[test]

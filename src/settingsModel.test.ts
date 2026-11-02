@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
 import { DEFAULT_SETTINGS } from './settings';
-import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 const fields = SETTINGS_SECTIONS.flatMap((s) => s.fields);
 const byPath = (p: string) => fields.find((f) => f.path.join('.') === p) as SettingsField;
@@ -202,5 +202,17 @@ describe('font suggestions', () => {
     const suggesting = SETTINGS_SECTIONS.flatMap((s) => s.fields).filter((f) => f.suggestFrom);
     expect(suggesting.map((f) => f.path.join('.'))).toEqual(['font.family']);
     expect(suggesting[0].suggestFrom).toBe('fonts');
+  });
+});
+
+describe('selectChoices', () => {
+  const options = [{ value: '#4fb3c8', label: 'Teal' }];
+
+  it('returns the options when the saved value is one of them', () => {
+    expect(selectChoices(options, '#4fb3c8')).toBe(options);
+  });
+
+  it('appends a hand-edited value as Custom', () => {
+    expect(selectChoices(options, '#123456')).toEqual([...options, { value: '#123456', label: 'Custom (#123456)' }]);
   });
 });

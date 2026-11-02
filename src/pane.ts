@@ -5,6 +5,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
+import { terminalAccent } from './accent';
 import { openLink } from './links';
 import { type Osc133, parseOsc133, parseOsc7, parseOsc9 } from './osc';
 import { webglBudget } from './rendererBudget';
@@ -17,19 +18,20 @@ import type { OscShellState } from './terminalStatus';
 // FitAddon reserves this width for the scrollbar (ViewportConstants.DEFAULT_SCROLL_BAR_WIDTH).
 const FIT_SCROLLBAR_PX = 14;
 
-// The addon only reports result counts when decorations are set; backgrounds must be opaque.
-// xterm.js parses literal colors, not CSS variables, so '#4fb3c8' here and in the terminal theme
-// below mirrors --accent in styles.css.
-const FIND_OPTIONS: ISearchOptions = {
-  caseSensitive: false,
-  regex: false,
-  decorations: {
-    matchBackground: '#2a5a66',
-    activeMatchBackground: '#4fb3c8',
-    matchOverviewRuler: '#2a5a66',
-    activeMatchColorOverviewRuler: '#4fb3c8',
-  },
-};
+// The addon only reports result counts when decorations are set.
+function findOptions(accent: string): ISearchOptions {
+  const t = terminalAccent(accent);
+  return {
+    caseSensitive: false,
+    regex: false,
+    decorations: {
+      matchBackground: t.matchBackground,
+      activeMatchBackground: t.activeMatchBackground,
+      matchOverviewRuler: t.matchBackground,
+      activeMatchColorOverviewRuler: t.activeMatchBackground,
+    },
+  };
+}
 
 export interface FindResults {
   resultIndex: number;
@@ -93,6 +95,7 @@ export class TerminalPane implements PaneView {
   private readonly fit = new FitAddon();
   private readonly search = new SearchAddon();
   private lastQuery = '';
+  private accent: string;
   private readonly onExitCb: (code: number) => void;
   private readonly spawnCwd: string | undefined;
   private readonly spawnCommand: string[] | undefined;
@@ -125,6 +128,7 @@ export class TerminalPane implements PaneView {
     this.onReadyCb = opts.onReady;
     this.currentCwd = opts.cwd ?? null;
     this.expanded = opts.expanded ?? true;
+    this.accent = opts.settings.accentColor;
 
     // The body is a flex child so a strip inserted before it takes its height from the host.
     this.host.style.display = 'flex';
@@ -145,7 +149,7 @@ export class TerminalPane implements PaneView {
       scrollback: opts.settings.scrollback,
       // Focus sits in the find bar while it steps through matches, so the active match is drawn
       // with the inactive selection color.
-      theme: { background: '#00000000', selectionInactiveBackground: '#4fb3c880' },
+      theme: this.theme(),
       linkHandler: { activate: (e, text) => openLink(e, text), allowNonHttpProtocols: false },
     });
     this.term.loadAddon(this.fit);
@@ -277,8 +281,8 @@ export class TerminalPane implements PaneView {
     const incremental = direction === 'next' && query !== this.lastQuery;
     this.lastQuery = query;
     return direction === 'next'
-      ? this.search.findNext(query, { ...FIND_OPTIONS, incremental })
-      : this.search.findPrevious(query, FIND_OPTIONS);
+      ? this.search.findNext(query, { ...findOptions(this.accent), incremental })
+      : this.search.findPrevious(query, findOptions(this.accent));
   }
 
   /** Clears match highlights and the selection the search made. */
@@ -298,7 +302,18 @@ export class TerminalPane implements PaneView {
     this.term.options.fontFamily = toFontFamily(settings.font.family);
     this.term.options.fontSize = settings.font.size;
     this.term.options.scrollback = settings.scrollback;
+    if (settings.accentColor !== this.accent) {
+      this.accent = settings.accentColor;
+      this.term.options.theme = this.theme();
+    }
     this.fitIfReady();
+  }
+
+  private theme(): { background: string; selectionInactiveBackground: string } {
+    return {
+      background: '#00000000',
+      selectionInactiveBackground: terminalAccent(this.accent).selectionInactiveBackground,
+    };
   }
 
   /** Collapsing drops WebGL and stops fitting; expanding reloads WebGL if the budget allows and refits. */
