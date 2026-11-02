@@ -1090,7 +1090,9 @@ change never shifts them.
 **Elements.** The elements between Repo and the footer are Clock, Favorites, Layouts, Panes,
 Containers, External sessions, and System, in that default order. Each has a
 `dashboard.sections.*` toggle (section 8), on by default except System and Clock, set from the settings
-dialog's Dashboard section. A disabled element is gone from the panel, not collapsed, and its
+dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
+panel no row's menu claims and lists every element with a check on the shown ones; choosing one
+flips its toggle. A disabled element is gone from the panel, not collapsed, and its
 rows leave the keyboard rows below. Toggles and `dashboard.side` apply live, and switching
 sides while a peek is showing ends the peek.
 

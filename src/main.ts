@@ -554,6 +554,10 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onSectionsChange: () => saver.schedule(),
   onWidthChange: () => saver.schedule(),
   onOrderChange: () => saver.schedule(),
+  onSetElementShown: (el, shown) =>
+    saveSetting(['dashboard', 'sections', el], shown).catch((err: unknown) =>
+      showToast(`Could not save the setting: ${String(err)}`),
+    ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onStart: (row) => actOnContainerRow(row, 'start'),
   onStop: (row) => actOnContainerRow(row, 'stop'),

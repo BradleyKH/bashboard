@@ -1,8 +1,10 @@
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
 import { claudeLine } from './claudeModel';
 import { ClaudeContexts } from './claudeContexts';
+import { attachContextMenu } from './contextMenu';
 import { DashboardClock } from './dashboardClock';
 import { attachElementDrag } from './dashboardElementDrag';
+import { dashboardMenuItems } from './dashboardMenu';
 import { externalSessions, groupCardsByTab, paneCards } from './dashboardModel';
 import type { PaneCardInput } from './dashboardModel';
 import {
@@ -55,6 +57,8 @@ export interface DashboardCallbacks
   onWidthChange?: (width: number) => void;
   /** The user dragged an element to a new place; the argument is the whole element order. */
   onOrderChange?: (order: DashboardElement[]) => void;
+  /** The panel's own menu asked to show or hide an element; the setting's reload applies it. */
+  onSetElementShown?: (element: DashboardElement, shown: boolean) => void;
   /** Open menu on a folder row or the Repo section's buttons. */
   onOpenIn?: OpenInHandler;
   onDeleteWorktree?: WorktreeCallbacks['onDeleteWorktree'];
@@ -234,6 +238,11 @@ export class DashboardPanel {
         if (this.held && !this.nav.hasFocus() && !active?.closest('.context-menu')) this.endPeek();
       });
     });
+    // Rows with their own menus stop the event, so this opens only on the panel's background,
+    // headers, and other spots no row claims.
+    attachContextMenu(root, () => ({
+      entries: dashboardMenuItems(this.shown, (el, show) => this.callbacks.onSetElementShown?.(el, show)),
+    }));
     root.addEventListener('pointerenter', () => {
       this.hovered = true;
     });

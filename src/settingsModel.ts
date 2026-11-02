@@ -199,7 +199,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         min: 0,
         max: 4,
         step: 0.1,
-        hint: 'How much the colors wander over time',
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
