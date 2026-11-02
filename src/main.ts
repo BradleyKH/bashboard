@@ -21,8 +21,8 @@ import { onSecondLaunch } from './secondLaunch';
 import { runCliCommand, type CliTarget } from './cliDispatch';
 import { ColonySync } from './colonySync';
 import { setHomeDir } from './displayPath';
-import { containerAction, type Engine } from './containers';
-import { groupContainers, type DashboardGroupRow } from './containerGroups';
+import { containerAction, startEngine, type Engine } from './containers';
+import { engineLabel, groupContainers, type DashboardGroupRow } from './containerGroups';
 import { ContainersStore } from './containersStore';
 import { setKindMenuFilter } from './kindMenu';
 import { DashboardPanel } from './dashboardPanel';
@@ -42,7 +42,7 @@ import { HookInstallDialog } from './hookInstallDialog';
 import { moveItem, parseFavorites, samePath, type Favorite } from './favorites';
 import { pinTarget } from './filesRouting';
 import { layoutFromSnapshot, parseLayouts, upsertLayout, type NamedLayout } from './layouts';
-import { mountBackdrop, type BackdropHandle } from './backdrop/backdrop';
+import { BackdropHost } from './backdrop/backdropHost';
 import { setOpenMenuGitProbe } from './openMenu';
 import {
   favoritesLoad,
@@ -98,22 +98,33 @@ installTextFieldMenu();
 
 trackCtrlHeld();
 
-// Mounted first so the backdrop is already drawing while settings load.
-let backdrop: BackdropHandle | undefined;
-let colonySync: ColonySync | undefined;
-try {
-  backdrop = mountBackdrop(document.getElementById('backdrop') as HTMLCanvasElement);
-  colonySync = new ColonySync(backdrop.colony);
-} catch (err) {
-  showToast(`Could not start the background animation: ${String(err)}`);
+const backdrop = new BackdropHost(document.getElementById('backdrop') as HTMLCanvasElement);
+const colonySync = new ColonySync(backdrop.colony);
+// Tracked here rather than read from the settings so quick repeated toggles don't act on a
+// value the file watcher hasn't reported back yet.
+let backdropAnimated = true;
+
+function applyBackdropSettings(settings: Settings): void {
+  backdropAnimated = settings.backdrop.animate;
+  backdrop.apply(settings.backdrop).catch((err: unknown) =>
+    showToast(`Could not start the background animation: ${String(err)}`),
+  );
 }
+
+// The style comes from the settings, so they load first; the mount then runs alongside the font
+// and stale-pty awaits below rather than after them.
+const settingsLoaded: Promise<SettingsPayload> = loadSettings().catch((err: unknown) => {
+  showToast(`Could not load settings, using defaults: ${String(err)}`);
+  return { settings: DEFAULT_SETTINGS, warnings: [], firstRun: false };
+});
+void settingsLoaded.then((p) => applyBackdropSettings(p.settings));
 // The dashboard panel is built later; it is told the current value once it exists.
 let windowShown = true;
 let windowShownSink: ((shown: boolean) => void) | undefined;
 bindWindowVisibility((visible) => {
   windowShown = visible;
   windowShownSink?.(visible);
-  backdrop?.setVisible(visible);
+  backdrop.setVisible(visible);
   void gitFetchVisible(visible).catch(() => {});
 });
 
@@ -130,20 +141,10 @@ try {
   appWindow = undefined;
 }
 
-// Tracked here rather than read from the settings so quick repeated toggles don't act on a
-// value the file watcher hasn't reported back yet.
-let backdropAnimated = true;
-
-function applyBackdropSettings(settings: Settings): void {
-  backdrop?.setMaxFps(settings.backdrop.maxFps);
-  backdrop?.setOptions(settings.backdrop);
-  backdropAnimated = settings.backdrop.animate;
-  backdrop?.setAnimated(backdropAnimated);
-}
-
 function toggleBackdrop(): void {
+  if (backdrop.style === 'none') return;
   backdropAnimated = !backdropAnimated;
-  backdrop?.setAnimated(backdropAnimated);
+  backdrop.setAnimated(backdropAnimated);
   saveSetting(['backdrop', 'animate'], backdropAnimated).catch((err: unknown) =>
     showToast(`Could not save the background animation setting: ${String(err)}`),
   );
@@ -165,15 +166,7 @@ await Promise.allSettled(stale.map(({ id }) => invoke('pty_kill', { id })));
 
 setHomeDir(await homeDir().catch(() => null));
 
-let payload: SettingsPayload;
-try {
-  payload = await loadSettings();
-} catch (err) {
-  payload = { settings: DEFAULT_SETTINGS, warnings: [], firstRun: false };
-  showToast(`Could not load settings, using defaults: ${String(err)}`);
-}
-
-applyBackdropSettings(payload.settings);
+const payload = await settingsLoaded;
 // Read by onAttention, so peekOnWaiting hot-reloads.
 let currentSettings = payload.settings;
 // Kept current on hot reload so the settings dialog opens with fresh warnings.
@@ -514,9 +507,7 @@ function confirmReplace(paneId: string, kind: PaneKind): Promise<boolean> {
 }
 
 const containers = new ContainersStore();
-setKindMenuFilter(
-  (kind) => kind !== 'containers' || (containers.available && currentSettings.dashboard.sections.containers),
-);
+setKindMenuFilter((kind) => kind !== 'containers' || containers.available);
 
 /** Start or stop every container of the row's member groups that is not already in that state, per engine. */
 function actOnContainerRow(row: DashboardGroupRow, action: 'start' | 'stop'): void {
@@ -562,6 +553,10 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onStart: (row) => actOnContainerRow(row, 'start'),
   onStop: (row) => actOnContainerRow(row, 'stop'),
+  onStartEngine: (engine) =>
+    startEngine(engine).catch((e: unknown) =>
+      showToast(`Could not start ${engineLabel(engine)}: ${e instanceof Error ? e.message : String(e)}`),
+    ),
   onOpen: openFolder,
   onInstallHooks: () => {
     hookInstallPreview()
@@ -816,7 +811,7 @@ listenFileDrops({
   drop: (id, paths) => void workspace.insertPaths(id, paths),
 });
 workspace.setSessions(sessions);
-colonySync?.update(sessions);
+colonySync.update(sessions);
 
 const saver = new DebouncedSaver(
   () => ({
@@ -824,7 +819,7 @@ const saver = new DebouncedSaver(
     collapsedSections: panel.collapsedSections(),
     dashboardWidth: panel.width(),
     dashboardSectionOrder: panel.sectionOrder(),
-    dashboardClockTop: panel.clockAtTop(),
+    dashboardTopElements: panel.topElements(),
     textZoom: textZoomSnapshot(),
   }),
   workspaceSave,
@@ -849,7 +844,7 @@ onTextZoomChange(() => saver.schedule());
 // listen() rejects outside Tauri (plain `pnpm dev`); live updates are simply unavailable there.
 onSessionsChanged((next) => {
   sessions = next;
-  colonySync?.update(next);
+  colonySync.update(next);
   workspace.setSessions(next);
   refreshPanel();
   saver.schedule();
@@ -905,7 +900,7 @@ try {
   if (saved) panel.setCollapsedSections(saved.collapsedSections);
   if (saved?.dashboardWidth !== undefined) panel.setWidth(saved.dashboardWidth);
   if (saved?.dashboardSectionOrder) panel.setSectionOrder(saved.dashboardSectionOrder);
-  if (saved?.dashboardClockTop !== undefined) panel.setClockTop(saved.dashboardClockTop);
+  if (saved?.dashboardTopElements) panel.setTopElements(saved.dashboardTopElements);
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, { resumeClaude: payload.settings.restore.resumeClaude });

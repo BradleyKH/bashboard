@@ -3,10 +3,10 @@
   --search-muted: #8a959b;
   --search-border: rgba(255, 255, 255, 0.1);
   --search-hover: rgba(255, 255, 255, 0.08);
-  --search-selected: rgba(79, 179, 200, 0.22);
-  --search-accent: #4fb3c8;
+  --search-selected: color-mix(in srgb, var(--accent) 22%, transparent);
+  --search-accent: var(--accent);
   --search-hit-bg: rgba(230, 193, 90, 0.35);
-  --search-band: rgba(79, 179, 200, 0.18);
+  --search-band: color-mix(in srgb, var(--accent) 18%, transparent);
   --search-error: #f0948f;
 
   position: relative;
@@ -19,8 +19,6 @@
   outline: none;
   font: 12px system-ui, sans-serif;
   color: var(--search-fg);
-  color-scheme: dark;
-  scrollbar-width: thin;
 }
 
 .search-bar {
@@ -81,7 +79,7 @@
 
 .search-toggle-btn[aria-pressed='true'] {
   border-color: var(--search-accent);
-  background: rgba(79, 179, 200, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--search-fg);
 }
 
@@ -123,7 +121,7 @@
 
 .search-divider:hover,
 .search-divider.dragging {
-  background: rgba(79, 179, 200, 0.5);
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .search-right {
@@ -139,6 +137,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   outline: none;
+  /* Results take the content text color; the bar, footer, and Open buttons stay UI gray. */
+  --search-muted: var(--content-faint);
+  color: var(--content-fg);
 }
 
 .search-group-head {
@@ -275,7 +276,22 @@
   min-height: 0;
 }
 
-.search-preview > * {
+/* A .preview-toolbar (filePreview.css) holding only the zoom pair, at the right. */
+.search-preview-bar {
+  justify-content: flex-end;
+}
+
+.search-preview-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  color: var(--content-fg);
+}
+
+.search-preview-content > * {
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -304,7 +320,7 @@
   z-index: 1;
   flex: none;
   text-align: right;
-  color: #7a7a7a;
+  color: var(--content-faint);
   user-select: none;
   background: rgba(0, 0, 0, 0.25);
 }

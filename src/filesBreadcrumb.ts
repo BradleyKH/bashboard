@@ -14,6 +14,8 @@ export interface FilesBreadcrumbOptions {
   zoom: number;
   /** Applies the list's zoom level. */
   onZoom: (zoom: number) => void;
+  /** Where Ctrl+wheel steps the list's zoom. */
+  zoomWheelTarget: HTMLElement;
   /** Pins the folder, or unpins it when it is already pinned. */
   onTogglePin: () => void;
   /** The right-click menu for the current folder, shared by the trail and its buttons. */
@@ -44,7 +46,7 @@ export class FilesBreadcrumb {
     this.trail.className = 'files-crumb-trail';
     const explorer = this.button(FOLDER_ICON, 'Open in File Explorer', opts.onOpenInExplorer);
     explorer.classList.add('files-crumb-folder');
-    const zoom = new ZoomButtons('files-crumb-btn', 'filesList', opts.zoom, opts.onZoom);
+    const zoom = new ZoomButtons('files-crumb-btn', 'filesList', opts.zoom, opts.onZoom, opts.zoomWheelTarget);
     const term = this.button('>_', 'Open terminal here', opts.onOpenTerminalHere);
     this.pinBtn = this.button('☆', 'Pin this folder', opts.onTogglePin);
     this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, zoom.el, term, this.pinBtn);

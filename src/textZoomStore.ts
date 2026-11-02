@@ -1,14 +1,24 @@
 import { ZOOM_LEVELS } from './textZoom';
 
-/** The zoom a new pane of each kind starts at (docs/design.md sections 4.12 and 4.13). */
+/** The zoom a new pane of each kind starts at (docs/design.md sections 4.12 to 4.16). */
 export interface TextZoom {
   filesList: number;
   filePreview: number;
   gitDiff: number;
+  searchPreview: number;
+  scratch: number;
+  containerLogs: number;
 }
 export type TextZoomKey = keyof TextZoom;
 
-export const DEFAULT_TEXT_ZOOM: TextZoom = { filesList: 1, filePreview: 1, gitDiff: 1 };
+export const DEFAULT_TEXT_ZOOM: TextZoom = {
+  filesList: 1,
+  filePreview: 1,
+  gitDiff: 1,
+  searchPreview: 1,
+  scratch: 1,
+  containerLogs: 1,
+};
 
 function parseLevel(v: unknown): number {
   const ok = typeof v === 'number' && v >= ZOOM_LEVELS[0] && v <= ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
@@ -18,7 +28,9 @@ function parseLevel(v: unknown): number {
 /** workspace.json's `textZoom`; each missing or out-of-range field falls back to 1. */
 export function parseTextZoom(raw: unknown): TextZoom {
   const r = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  return { filesList: parseLevel(r.filesList), filePreview: parseLevel(r.filePreview), gitDiff: parseLevel(r.gitDiff) };
+  const out = { ...DEFAULT_TEXT_ZOOM };
+  for (const key of Object.keys(out) as TextZoomKey[]) out[key] = parseLevel(r[key]);
+  return out;
 }
 
 let current: TextZoom = { ...DEFAULT_TEXT_ZOOM };

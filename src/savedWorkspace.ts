@@ -3,6 +3,7 @@ import {
   type DashboardSection,
   parseCollapsedSections,
   parseSectionOrder,
+  parseTopElements,
 } from './dashboardSections';
 import { type Layout, close, leaves } from './layout';
 import type { PaneKind } from './paneKinds';
@@ -16,6 +17,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
       kind: 'terminal';
       cwd: string;
       sessionId: string | null;
+      /** The session's last reported permission mode, passed back to `--resume`; absent means default. */
+      permissionMode?: string;
       /** Shell profile id; absent means the default profile. */
       profile?: string;
     }
@@ -65,9 +68,9 @@ export interface SavedWorkspace {
    * default order.
    */
   dashboardSectionOrder?: DashboardElement[];
-  /** Whether the clock sits above Repo rather than among the elements; absent means true. */
-  dashboardClockTop?: boolean;
-  /** The zoom new Files and Git panes start at; absent means 1 for each. */
+  /** The elements in the dashboard's slot above Repo; absent means just the clock. */
+  dashboardTopElements?: DashboardElement[];
+  /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
 }
 
@@ -85,6 +88,21 @@ function safeId(v: unknown): string | null {
   return typeof v === 'string' && SESSION_ID.test(v) ? v : null;
 }
 
+// Typed into a shell like the session id, so it is held to letters.
+const PERMISSION_MODE = /^[A-Za-z]{1,32}$/;
+
+function safeMode(v: unknown): string | undefined {
+  return typeof v === 'string' && PERMISSION_MODE.test(v) ? v : undefined;
+}
+
+/** The command restore types to resume a session, in its saved permission mode unless that is the default. */
+export function resumeCommand(sessionId: string, permissionMode: string | undefined): string {
+  const mode = safeMode(permissionMode);
+  return mode && mode !== 'default'
+    ? `claude --resume ${sessionId} --permission-mode ${mode}`
+    : `claude --resume ${sessionId}`;
+}
+
 type PaneBase = { key: string; collapsed: boolean };
 
 /** One parser per kind; a kind missing here is dropped on load. */
@@ -92,11 +110,14 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
   terminal: (raw, base) => {
     if (typeof raw.cwd !== 'string') return null;
     const profileId = parseProfileId(raw.profile);
+    const sessionId = safeId(raw.sessionId);
+    const permissionMode = sessionId ? safeMode(raw.permissionMode) : undefined;
     return {
       ...base,
       kind: 'terminal',
       cwd: raw.cwd,
-      sessionId: safeId(raw.sessionId),
+      sessionId,
+      ...(permissionMode ? { permissionMode } : {}),
       ...(profileId ? { profile: profileId } : {}),
     };
   },
@@ -238,7 +259,10 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (raw.dashboardSectionOrder !== undefined) {
     saved.dashboardSectionOrder = parseSectionOrder(raw.dashboardSectionOrder);
   }
-  if (typeof raw.dashboardClockTop === 'boolean') saved.dashboardClockTop = raw.dashboardClockTop;
+  const top = parseTopElements(raw.dashboardTopElements);
+  if (top) saved.dashboardTopElements = top;
+  // Files saved before any element but the clock could sit above Repo hold only this flag.
+  else if (typeof raw.dashboardClockTop === 'boolean') saved.dashboardTopElements = raw.dashboardClockTop ? ['clock'] : [];
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;
 }

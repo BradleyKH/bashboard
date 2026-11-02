@@ -13,7 +13,7 @@
   font-size: 10px;
   letter-spacing: 0;
   text-transform: none;
-  color: #4fb3c8;
+  color: var(--accent);
 }
 
 .repo-branch[hidden] {
@@ -92,7 +92,7 @@
 }
 
 .worktree-row.focused {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .worktree-row.expanded {

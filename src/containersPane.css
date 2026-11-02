@@ -3,8 +3,8 @@
   --ctr-muted: #8a959b;
   --ctr-border: rgba(255, 255, 255, 0.1);
   --ctr-hover: rgba(255, 255, 255, 0.08);
-  --ctr-selected: rgba(79, 179, 200, 0.22);
-  --ctr-accent: #4fb3c8;
+  --ctr-selected: color-mix(in srgb, var(--accent) 22%, transparent);
+  --ctr-accent: var(--accent);
   --ctr-running: #6fcf7f;
   --ctr-partial: #e6c15a;
   --ctr-stopped: #56626a;
@@ -49,6 +49,29 @@
 
 .ctr-engine-state.running {
   color: var(--ctr-running);
+}
+
+.ctr-engine-action {
+  margin-left: auto;
+  align-self: center;
+  padding: 1px 8px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--ctr-fg);
+  background: transparent;
+  border: 1px solid var(--ctr-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.ctr-engine-action:hover:not(:disabled) {
+  background: var(--ctr-hover);
+  border-color: var(--ctr-accent);
+}
+
+.ctr-engine-action:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .ctr-note {
@@ -266,4 +289,10 @@
   white-space: pre;
   line-height: 1.35;
   user-select: text;
+}
+
+.ctr-logs-head .zoom-buttons {
+  flex: none;
+  display: flex;
+  gap: 2px;
 }

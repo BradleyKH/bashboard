@@ -7,6 +7,7 @@ import { SparkLayer } from './render/sparkLayer';
 import { ThreadLayer } from './render/threadLayer';
 import { playTickEffects } from './render/tickEffects';
 import { HOME_DISTANCE, Viewport } from './render/viewport';
+import type { StyleBackdrop } from './backdropHandle';
 import { FramePacer } from './framePacer';
 import { Motion } from './sim/motion';
 import { SimSessionColony, type SessionColony } from './sim/sessionColony';
@@ -27,18 +28,13 @@ export interface BackdropOptions {
   waitingPulse: boolean;
 }
 
-export interface BackdropHandle {
-  /** Pause rendering entirely, e.g. while the window is minimized. */
-  setVisible(visible: boolean): void;
-  /** False freezes the backdrop on a still frame, after the opening finishes; true resumes it. */
-  setAnimated(animated: boolean): void;
+export interface BackdropHandle extends StyleBackdrop {
   /** 0 is uncapped (docs/design.md section 6.4). */
   setMaxFps(maxFps: number): void;
   /** The simulation and camera settings (`backdrop.*`). */
   setOptions(options: BackdropOptions): void;
   /** Session organisms planted in the sim (docs/design.md section 6.2). */
   colony: SessionColony;
-  dispose(): void;
 }
 
 export function mountBackdrop(canvas: HTMLCanvasElement): BackdropHandle {

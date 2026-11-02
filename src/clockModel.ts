@@ -1,4 +1,7 @@
-/** Six bits of `n`, most significant first (index 0 is the top dot). */
+/** What the dashboard clock draws: the binary grid, `h:mm`, or both (`dashboard.clockStyle`). */
+export type ClockStyle = 'both' | 'time' | 'binary';
+
+/** Six bits of `n`, most significant first (index 0 is the leftmost dot). */
 export function sixBits(n: number): boolean[] {
   return Array.from({ length: 6 }, (_, i) => ((n >> (5 - i)) & 1) === 1)
 }
@@ -21,7 +24,7 @@ export function clockLabel(d: Date): string {
   return `${clockText(d)} ${d.getHours() < 12 ? 'AM' : 'PM'}`
 }
 
-/** Hours (24-hour), minutes, and seconds as six-bit columns. */
+/** Hours (24-hour), minutes, and seconds as six-bit rows. */
 export function clockBits(d: Date): { hours: boolean[]; minutes: boolean[]; seconds: boolean[] } {
   return {
     hours: sixBits(d.getHours()),

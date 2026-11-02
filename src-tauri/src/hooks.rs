@@ -41,10 +41,13 @@ pub struct HookOverlay {
     pub waiting_message: Option<String>,
     /// The newest `transcript_path` any event carried.
     pub transcript_path: Option<String>,
+    /// The newest `permission_mode` any event carried, which restore passes back to `--resume`.
+    pub permission_mode: Option<String>,
 }
 
-/// One accepted hook post, as emitted on `sessions://hook`. `transcript_path` is kept on the
-/// overlay but not serialized, since the front end has no use for it.
+/// One accepted hook post, as emitted on `sessions://hook`. `transcript_path` and
+/// `permission_mode` are kept on the overlay but not serialized; the front end reads the mode from
+/// the roster instead.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookEvent {
@@ -57,6 +60,8 @@ pub struct HookEvent {
     pub at: u64,
     #[serde(skip_serializing)]
     pub transcript_path: Option<String>,
+    #[serde(skip_serializing)]
+    pub permission_mode: Option<String>,
 }
 
 #[derive(Default)]
@@ -251,6 +256,7 @@ fn handle(
         pane_id: pane_header.and_then(|p| p.trim().parse().ok()),
         at: now,
         transcript_path: field("transcript_path"),
+        permission_mode: field("permission_mode"),
     };
     (204, Some(ev))
 }
@@ -309,6 +315,9 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
     if let Some(path) = &ev.transcript_path {
         entry.transcript_path = Some(path.clone());
     }
+    if let Some(mode) = &ev.permission_mode {
+        entry.permission_mode = Some(mode.clone());
+    }
 }
 
 fn waiting_message(message: Option<&str>) -> Option<String> {
@@ -358,6 +367,7 @@ mod tests {
             pane_id,
             at,
             transcript_path: None,
+            permission_mode: None,
         }
     }
 
@@ -400,7 +410,8 @@ mod tests {
     #[test]
     fn keeps_only_known_fields() {
         let body = r#"{"session_id":"s1","hook_event_name":"Notification","cwd":"C:\\x",
-            "message":"needs you","notification_type":"permission_prompt","transcript_path":"C:\\t.jsonl","extra":1}"#;
+            "message":"needs you","notification_type":"permission_prompt","transcript_path":"C:\\t.jsonl",
+            "permission_mode":"bypassPermissions","extra":1}"#;
         let (code, ev) = post(Some(TOKEN), Some("7"), body);
         assert_eq!(code, 204);
         let ev = ev.unwrap();
@@ -415,6 +426,7 @@ mod tests {
                 pane_id: Some(7),
                 at: 42,
                 transcript_path: Some("C:\\t.jsonl".into()),
+                permission_mode: Some("bypassPermissions".into()),
             }
         );
         let json = serde_json::to_value(&ev).unwrap();
@@ -479,6 +491,21 @@ mod tests {
         assert_eq!(o["s1"].transcript_path.as_deref(), Some("b.jsonl"));
         apply(&mut o, &with_path("SessionEnd", "b.jsonl", 4));
         assert!(o.is_empty());
+    }
+
+    #[test]
+    fn permission_mode_follows_events() {
+        let with_mode = |name: &str, mode: &str, at: u64| HookEvent {
+            permission_mode: Some(mode.into()),
+            ..event(name, None, at)
+        };
+        let mut o = HashMap::new();
+        apply(&mut o, &with_mode("UserPromptSubmit", "default", 1));
+        assert_eq!(o["s1"].permission_mode.as_deref(), Some("default"));
+        apply(&mut o, &with_mode("Stop", "bypassPermissions", 2));
+        assert_eq!(o["s1"].permission_mode.as_deref(), Some("bypassPermissions"));
+        apply(&mut o, &event("Notification", None, 3));
+        assert_eq!(o["s1"].permission_mode.as_deref(), Some("bypassPermissions"));
     }
 
     #[test]

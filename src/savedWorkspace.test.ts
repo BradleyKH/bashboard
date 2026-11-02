@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Layout } from './layout';
-import { EMPTY_WORKSPACE, parseSavedTab, parseSavedWorkspace, pruneLayout, remapLayout } from './savedWorkspace';
+import {
+  EMPTY_WORKSPACE,
+  parseSavedTab,
+  parseSavedWorkspace,
+  pruneLayout,
+  remapLayout,
+  resumeCommand,
+} from './savedWorkspace';
 
 const pane = (paneId: string): Layout => ({ kind: 'pane', paneId });
 const row = (a: Layout, b: Layout, ratio = 0.5): Layout => ({ kind: 'split', dir: 'row', ratio, a, b });
@@ -294,11 +301,32 @@ describe('parseSavedTab', () => {
     }
   });
 
+  it('keeps a letters-only permissionMode, and only beside a session id', () => {
+    const mode = (raw: Record<string, unknown>) =>
+      parseSavedTab({ panes: [{ ...term('a'), ...raw }], layout: null, focused: null })?.panes[0];
+    expect(mode({ sessionId: 's1', permissionMode: 'bypassPermissions' })).toMatchObject({
+      permissionMode: 'bypassPermissions',
+    });
+    expect(mode({ sessionId: 's1', permissionMode: 'plan; rm -rf ~' })).not.toHaveProperty('permissionMode');
+    expect(mode({ sessionId: 's1', permissionMode: 7 })).not.toHaveProperty('permissionMode');
+    expect(mode({ sessionId: null, permissionMode: 'bypassPermissions' })).not.toHaveProperty('permissionMode');
+  });
+
   it('filters scratchId to the same alphabet, keeping the pad', () => {
     for (const [input, expected] of ids) {
       const r = parseSavedTab({ panes: [{ ...scratch('a'), scratchId: input }], layout: null, focused: null });
       expect(r?.panes[0]).toEqual({ ...scratch('a', true), scratchId: expected });
     }
+  });
+});
+
+describe('resumeCommand', () => {
+  it('adds the permission mode unless it is absent, default, or unsafe', () => {
+    expect(resumeCommand('s1', 'bypassPermissions')).toBe('claude --resume s1 --permission-mode bypassPermissions');
+    expect(resumeCommand('s1', 'acceptEdits')).toBe('claude --resume s1 --permission-mode acceptEdits');
+    expect(resumeCommand('s1', 'default')).toBe('claude --resume s1');
+    expect(resumeCommand('s1', undefined)).toBe('claude --resume s1');
+    expect(resumeCommand('s1', 'x && y')).toBe('claude --resume s1');
   });
 });
 
@@ -433,7 +461,14 @@ describe('parseSavedWorkspace', () => {
 
   it('keeps text zoom, falling back per field to 1', () => {
     const raw = { ...v3([]), textZoom: { filesList: 1.25, filePreview: 4, gitDiff: 'big' } };
-    expect(parseSavedWorkspace(raw)?.textZoom).toEqual({ filesList: 1.25, filePreview: 1, gitDiff: 1 });
+    expect(parseSavedWorkspace(raw)?.textZoom).toEqual({
+      filesList: 1.25,
+      filePreview: 1,
+      gitDiff: 1,
+      searchPreview: 1,
+      scratch: 1,
+      containerLogs: 1,
+    });
     expect(parseSavedWorkspace({ ...v3([]), textZoom: 2 })).not.toHaveProperty('textZoom');
   });
 
@@ -501,11 +536,15 @@ describe('parseSavedWorkspace', () => {
     ]);
   });
 
-  it('keeps a boolean clock position and drops anything else', () => {
-    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: false })?.dashboardClockTop).toBe(false);
-    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: true })?.dashboardClockTop).toBe(true);
-    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: 'yes' })).not.toHaveProperty('dashboardClockTop');
-    expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardClockTop');
+  it('keeps the top slot elements, reading an older clock flag', () => {
+    const top = (raw: Record<string, unknown>) => parseSavedWorkspace({ ...v3([]), ...raw })?.dashboardTopElements;
+    expect(top({ dashboardTopElements: ['panes', 'nope', 'clock'] })).toEqual(['panes', 'clock']);
+    expect(top({ dashboardTopElements: [] })).toEqual([]);
+    expect(top({ dashboardTopElements: [], dashboardClockTop: true })).toEqual([]);
+    expect(top({ dashboardClockTop: false })).toEqual([]);
+    expect(top({ dashboardClockTop: true })).toEqual(['clock']);
+    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: 'yes' })).not.toHaveProperty('dashboardTopElements');
+    expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardTopElements');
   });
 
   it('loads a version 1 file as one unnamed tab', () => {

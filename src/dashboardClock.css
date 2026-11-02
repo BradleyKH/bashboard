@@ -15,26 +15,33 @@
   line-height: 1;
 }
 
+#dashboard .dashboard-clock[data-style='time'] .clock-grid,
+#dashboard .dashboard-clock[data-style='binary'] .clock-time {
+  display: none;
+}
+
 #dashboard .clock-time {
   color: #fff;
   font-variant-numeric: tabular-nums;
 }
 
+/* Three rows (hours, minutes, seconds) of six square dots, as tall as the time's digits: `cap`
+   tracks the font's own digit height, so the grid stays matched if the font changes. Three cells
+   plus two gaps of 0.3 cell make 3.6 cells. */
 #dashboard .clock-grid {
+  --cell: calc(1cap / 3.6);
+  --gap: calc(var(--cell) * 0.3);
   display: grid;
-  grid-template-columns: repeat(3, 0.09em);
-  grid-template-rows: repeat(6, 0.09em);
-  grid-auto-flow: column;
-  gap: 0.03em;
-  height: 0.72em;
-  align-content: center;
+  grid-template-columns: repeat(6, var(--cell));
+  grid-template-rows: repeat(3, var(--cell));
+  gap: var(--gap);
 }
 
 #dashboard .clock-dot {
-  border-radius: 50%;
+  border-radius: calc(var(--cell) * 0.25);
   background: rgba(255, 255, 255, 0.14);
 }
 
 #dashboard .clock-dot.lit {
-  background: #4fb3c8;
+  background: var(--accent);
 }

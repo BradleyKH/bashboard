@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
-import { DEFAULT_SETTINGS } from './settings';
-import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { DEFAULT_SETTINGS, type BackdropStyle, type Settings } from './settings';
+import { appliesNote, installedChoices, isShown, MATRIX_COLOR_PRESETS, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 const fields = SETTINGS_SECTIONS.flatMap((s) => s.fields);
 const byPath = (p: string) => fields.find((f) => f.path.join('.') === p) as SettingsField;
@@ -38,30 +38,137 @@ describe('Dashboard section', () => {
     expect(parseInput(side, 'top').ok).toBe(false);
   });
 
-  it('has one grouped toggle per element, in element order', () => {
+  it('has one grouped toggle per element, in element order, then the clock style', () => {
     const grouped = fields.filter((f) => f.group === 'Show on the dashboard');
-    expect(grouped.map((f) => f.path.join('.'))).toEqual(DEFAULT_ELEMENT_ORDER.map((id) => `dashboard.sections.${id}`));
-    for (const f of grouped) expect(f.kind).toBe('toggle');
+    expect(grouped.map((f) => f.path.join('.'))).toEqual([
+      ...DEFAULT_ELEMENT_ORDER.map((id) => `dashboard.sections.${id}`),
+      'dashboard.clockStyle',
+    ]);
+    for (const f of grouped.slice(0, -1)) expect(f.kind).toBe('toggle');
+  });
+
+  it('accepts the three clock styles and rejects anything else', () => {
+    const style = byPath('dashboard.clockStyle');
+    for (const v of ['both', 'time', 'binary']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
+    expect(parseInput(style, 'analog').ok).toBe(false);
   });
 });
 
 describe('isShown', () => {
-  const withAnimate = (animate: boolean) => (path: string[]) =>
-    readField({ ...DEFAULT_SETTINGS, backdrop: { ...DEFAULT_SETTINGS.backdrop, animate } }, path);
+  const settingsWith = (animate: boolean, clock = false, style: BackdropStyle = 'lights') =>
+    ({
+      ...DEFAULT_SETTINGS,
+      backdrop: { ...DEFAULT_SETTINGS.backdrop, animate, style },
+      dashboard: { ...DEFAULT_SETTINGS.dashboard, sections: { ...DEFAULT_SETTINGS.dashboard.sections, clock } },
+    }) as Settings;
+  const reader = (s: Settings) => (path: string[]) => readField(s, path);
+  const withAnimate = (animate: boolean, clock = false) => reader(settingsWith(animate, clock));
+  const shownBackdrop = (style: BackdropStyle, animate: boolean) =>
+    SETTINGS_SECTIONS.find((s) => s.title === 'Background Animation')!
+      .fields.filter((f) => isShown(f, reader(settingsWith(animate, true, style))))
+      .map((f) => f.path.join('.'));
 
-  it('hides the loop-only backdrop fields while the backdrop is frozen', () => {
+  it('hides the loop-only backdrop fields while the backdrop is frozen, and the clock style while the clock is off', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(false))).map((f) => f.path.join('.'));
     expect(hidden.sort()).toEqual(
-      ['maxFps', 'capacity', 'mutationRate', 'waitingPulse'].map((k) => `backdrop.${k}`).sort(),
+      [
+        ...['maxFps', 'capacity', 'mutationRate', 'waitingPulse'].map((k) => `backdrop.${k}`),
+        'backdrop.matrix.color',
+        'backdrop.matrix.zoom',
+        'backdrop.matrix.speed',
+        'backdrop.matrix.density',
+        'dashboard.clockStyle',
+      ].sort(),
     );
   });
 
-  it('shows every field while the backdrop animates', () => {
-    for (const f of fields) expect(isShown(f, withAnimate(true)), f.path.join('.')).toBe(true);
+  it('shows every Swirling Lights field while the backdrop animates and the clock is on, and none of the Matrix fields', () => {
+    const hidden = fields.filter((f) => !isShown(f, withAnimate(true, true))).map((f) => f.path.join('.'));
+    expect(hidden.sort()).toEqual(['backdrop.matrix.color', 'backdrop.matrix.density', 'backdrop.matrix.speed', 'backdrop.matrix.zoom']);
   });
 
   it('points every condition at a field the dialog has', () => {
-    for (const f of fields) if (f.shownWhen) expect(byPath(f.shownWhen.path.join('.')), f.path.join('.')).toBeDefined();
+    for (const f of fields) {
+      for (const c of f.shownWhen === undefined ? [] : [f.shownWhen].flat()) expect(byPath(c.path.join('.')), f.path.join('.')).toBeDefined();
+    }
+  });
+
+  it('requires every condition of a list', () => {
+    const field = { shownWhen: [{ path: ['a'], value: 1 }, { path: ['b'], value: 2 }] } as SettingsField;
+    const read = (a: unknown, b: unknown) => (path: string[]) => ({ a, b })[path[0] as 'a' | 'b'];
+    expect(isShown(field, read(1, 2))).toBe(true);
+    expect(isShown(field, read(1, 3))).toBe(false);
+    expect(isShown(field, read(0, 2))).toBe(false);
+  });
+
+  it('matches any of the values in oneOf, and no value in an empty list', () => {
+    const field = { shownWhen: { path: ['a'], oneOf: ['x', 'y'] } } as SettingsField;
+    expect(isShown(field, () => 'x')).toBe(true);
+    expect(isShown(field, () => 'y')).toBe(true);
+    expect(isShown(field, () => 'z')).toBe(false);
+    expect(isShown({ shownWhen: { path: ['a'], oneOf: [] } } as unknown as SettingsField, () => 'x')).toBe(false);
+  });
+
+  it('shows no backdrop controls but the style choice for None', () => {
+    expect(shownBackdrop('none', true)).toEqual(['backdrop.style']);
+    expect(shownBackdrop('none', false)).toEqual(['backdrop.style']);
+  });
+
+  it('shows the Swirling Lights controls for lights, and trims the loop-only ones when frozen', () => {
+    expect(shownBackdrop('lights', true)).toEqual([
+      'backdrop.style', 'backdrop.animate', 'backdrop.maxFps', 'scrim.opacity', 'backdrop.capacity', 'backdrop.zoom',
+      'backdrop.mutationRate', 'scrim.blurPx', 'backdrop.waitingPulse',
+    ]);
+    expect(shownBackdrop('lights', false)).toEqual(['backdrop.style', 'backdrop.animate', 'scrim.opacity', 'backdrop.zoom', 'scrim.blurPx']);
+  });
+
+  it('shows the Matrix controls for matrix, hiding speed when frozen and never the lights density, drift, pulse, or blur', () => {
+    expect(shownBackdrop('matrix', true)).toEqual([
+      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'backdrop.matrix.color', 'backdrop.matrix.zoom', 'backdrop.matrix.speed',
+      'backdrop.matrix.density',
+    ]);
+    expect(shownBackdrop('matrix', false)).toEqual([
+      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'backdrop.matrix.color', 'backdrop.matrix.zoom', 'backdrop.matrix.density',
+    ]);
+  });
+});
+
+describe('Matrix settings', () => {
+  it('offers the six rain colors as swatches, led by the default', () => {
+    const color = byPath('backdrop.matrix.color');
+    expect(color.swatches).toBe(true);
+    expect(color.options).toBe(MATRIX_COLOR_PRESETS);
+    expect(MATRIX_COLOR_PRESETS.map((o) => o.value)).toEqual(['#00ff41', '#ffb000', '#00e5ff', '#a68bff', '#ff3b3b', '#e8e8e8']);
+    expect(MATRIX_COLOR_PRESETS[0].value).toBe(DEFAULT_SETTINGS.backdrop.matrix.color);
+  });
+
+  it('bounds zoom to 0.5 to 3 and speed to whole numbers from 5 to 30', () => {
+    const zoom = byPath('backdrop.matrix.zoom');
+    expect(parseInput(zoom, '0.4').ok).toBe(false);
+    expect(parseInput(zoom, '0.5').ok).toBe(true);
+    expect(parseInput(zoom, '3').ok).toBe(true);
+    expect(parseInput(zoom, '3.1').ok).toBe(false);
+    const speed = byPath('backdrop.matrix.speed');
+    expect(parseInput(speed, '4').ok).toBe(false);
+    expect(parseInput(speed, '5').ok).toBe(true);
+    expect(parseInput(speed, '30').ok).toBe(true);
+    expect(parseInput(speed, '31').ok).toBe(false);
+    expect(parseInput(speed, '20.5').ok).toBe(false);
+  });
+
+  it('bounds matrix density to 0.25 to 4', () => {
+    const density = byPath('backdrop.matrix.density');
+    expect(parseInput(density, '0.2').ok).toBe(false);
+    expect(parseInput(density, '0.25').ok).toBe(true);
+    expect(parseInput(density, '1.5').ok).toBe(true);
+    expect(parseInput(density, '4').ok).toBe(true);
+    expect(parseInput(density, '4.5').ok).toBe(false);
+  });
+
+  it('accepts the three background styles and rejects anything else', () => {
+    const style = byPath('backdrop.style');
+    for (const v of ['none', 'lights', 'matrix']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
+    expect(parseInput(style, 'rain').ok).toBe(false);
   });
 });
 
@@ -202,5 +309,17 @@ describe('font suggestions', () => {
     const suggesting = SETTINGS_SECTIONS.flatMap((s) => s.fields).filter((f) => f.suggestFrom);
     expect(suggesting.map((f) => f.path.join('.'))).toEqual(['font.family']);
     expect(suggesting[0].suggestFrom).toBe('fonts');
+  });
+});
+
+describe('selectChoices', () => {
+  const options = [{ value: '#4fb3c8', label: 'Teal' }];
+
+  it('returns the options when the saved value is one of them', () => {
+    expect(selectChoices(options, '#4fb3c8')).toBe(options);
+  });
+
+  it('appends a hand-edited value as Custom', () => {
+    expect(selectChoices(options, '#123456')).toEqual([...options, { value: '#123456', label: 'Custom (#123456)' }]);
   });
 });

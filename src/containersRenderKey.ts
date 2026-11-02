@@ -1,4 +1,4 @@
-import type { Container, EngineState } from './containers';
+import type { Container, Engine, EngineState } from './containers';
 import type { ContainerGroup } from './containerGroups';
 
 export interface RenderKeyInput {
@@ -11,6 +11,11 @@ export interface RenderKeyInput {
   logsKey: string | null;
   /** The usage text a row shows for a container key, or '' when it shows none. */
   usageText: (key: string) => string;
+}
+
+/** The busy key for an engine's own start or stop, distinct from every group and container key. */
+export function engineBusyKey(engine: Engine): string {
+  return `engine:${engine}`;
 }
 
 export function containerKey(c: Pick<Container, 'engine' | 'id'>): string {
@@ -26,7 +31,7 @@ export function containerKey(c: Pick<Container, 'engine' | 'id'>): string {
 export function renderKey(input: RenderKeyInput): string {
   const { expandedGroups, busy } = input;
   return JSON.stringify([
-    input.engines.map((e) => [e.engine, e.running]),
+    input.engines.map((e) => [e.engine, e.running, e.pending, e.canStart, e.canStop, busy.has(engineBusyKey(e.engine))]),
     input.logsKey,
     input.groups.map((g) => {
       const expanded = expandedGroups.has(g.key);

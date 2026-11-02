@@ -202,6 +202,8 @@ pub fn run() {
             git_worktrees::git_worktree_remove,
             containers::containers_list,
             containers::containers_action,
+            containers::containers_engine_start,
+            containers::containers_engine_stop,
             containers::containers_logs,
             containers::containers_logs_stop,
             containers::containers_stats,

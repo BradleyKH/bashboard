@@ -27,7 +27,7 @@ when the pad has text or the terminal is running a command. A pad's title is its
 line.
 
 A pad saves itself about half a second after you stop typing and comes back with the workspace
-on relaunch. Its toolbar has four buttons:
+on relaunch. Its toolbar has four buttons, then a − and + pair at the right that zooms the text:
 
 - **Send** (Ctrl+Enter) pastes the pad's text into the tab's most recently focused terminal
   without pressing Enter, so you can review it there first. It is disabled in a tab with no
@@ -35,6 +35,8 @@ on relaunch. Its toolbar has four buttons:
 - **Copy** puts all of the text on the clipboard.
 - **Clear** empties the pad.
 - **Save as** writes the text to a file.
+
+Ctrl+wheel over the pad zooms it too, and a new pad starts at the zoom you last chose.
 
 Ctrl+W on a pad with text asks first, and closing a tab lists the pads in it that have text.
 
@@ -73,8 +75,8 @@ The preview depends on the file:
 Text previews have a Find button (or Ctrl+Shift+F in the Files pane) that searches the file,
 ignoring case, and highlights every match. Enter and Shift+Enter step through them, and Esc
 closes the bar and selects the current match, so the editor's caret lands on it. The − and +
-buttons beside Find zoom the preview, and the pair in the breadcrumb zooms the list. A new Files
-pane starts at the zoom you last chose for each.
+buttons beside Find zoom the preview, and the pair in the breadcrumb zooms the list; Ctrl+wheel
+over either one zooms it as well. A new Files pane starts at the zoom you last chose for each.
 
 The Expand preview button after the zoom buttons fills the pane with the preview and shows the
 file's name in the toolbar. The same button, or Esc (a second Esc when the find bar is open),
@@ -155,7 +157,7 @@ The left side stacks four regions, and the diff for the selected file or commit 
 Click a file row to see its diff: the unstaged change for a row in Changes, or the staged change for
 a row in Staged. An untracked file shows its whole content as added. Click a commit to see its
 changes. A diff over 1 MiB is cut off with a note that it was truncated. The − and + buttons above
-the diff zoom it, and a new Git pane starts at the zoom you last chose.
+the diff, or Ctrl+wheel over it, zoom it, and a new Git pane starts at the zoom you last chose.
 
 Push never forces. A rejected push shows git's message, and after undoing a pushed commit the
 force push stays in a terminal.
@@ -220,7 +222,8 @@ selected file with its line highlighted. The divider between the list and the pr
 dragged. Enter, a double click on a matching line, or the Open button that shows on a hovered or
 selected row opens that file in your preferred editor at the line; a file name, or the Open button
 on a file's group header, opens it with no line. A file the preview cannot show, because it is binary or
-over 2 MiB, shows a notice with an Open in editor button.
+over 2 MiB, shows a notice with an Open in editor button. The − and + buttons above the preview, or
+Ctrl+wheel over it, zoom its text, and a new Search pane starts at the zoom you last chose.
 
 The pane's query and options are saved with the layout. A Search pane comes back on relaunch with
 its query and options, and a non-empty query runs again as soon as the pane loads.
@@ -242,7 +245,8 @@ kind's icon and the pane's title. Click a card to focus its pane (for a pane hid
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
-header, or the clock, to put the sections in a different order; that is remembered too. Settings
+header, or the clock, to put the sections in a different order, including into the slot above
+Repo, where the clock sits by default; that is remembered too. Settings
 shows or hides each one (see [Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
 Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
 section appears only while there are some. Hover any favorite, recent folder, card, or session
@@ -258,8 +262,9 @@ checkouts made in any shell while the dashboard is open. Its buttons open a Term
 Below them are the repo's pinned files and folders (see [Pins](#pins)).
 
 The **clock**, which is off by default, is one line at the top of the panel, above Repo: three
-columns of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
-`h:mm` beside them. Drag it down among the other sections to move it there, or back to the top.
+rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
+`h:mm` beside them. Clock style in the settings dialog shows just the time or just the dots
+instead. Drag it down among the other sections to move it there, or back to the top.
 It ticks only while the panel is on screen.
 
 The **System** section is off by default; turn it on under "Show on the
@@ -322,6 +327,9 @@ dropped on a band opens a terminal docked on that edge.
 
 On relaunch, Bashboard reopens your tabs and the active tab, with the terminals you had in the same
 folders, layout, and collapsed state, and types `claude --resume <session id>` into each one that was running a Claude session.
+A session that was in a permission mode other than the default, such as bypass permissions,
+resumes in that mode. The mode saved is the one Claude Code last reported through its hooks, so a
+Shift+Tab change made just before closing, with no prompt after it, may not be saved.
 Scrollback is not restored.
 
 When a terminal starts waiting while the panel is hidden, the panel peeks open over the panes for
@@ -336,10 +344,13 @@ Sessions come from the files Claude Code keeps in `~/.claude/sessions`. A sessio
 pane when its process descends from that pane's shell, so running `claude` in a pane names the
 card after the session and shows when it is working, usually within about 10 seconds.
 
-Each live Claude session also appears in the backdrop as its own colored lineage. It blooms
-while the session is busy and thins while it is idle; set `backdrop.waitingPulse` to `true` to
-also make it pulse while it waits for you. The color
-matches the swatch beside the session in the dashboard.
+With the Swirling Lights background, each live Claude session also appears in the backdrop as its
+own colored lineage. It blooms while the session is busy and thins while it is idle; set
+`backdrop.waitingPulse` to `true` to also make it pulse while it waits for you. The color
+matches the swatch beside the session in the dashboard. The Matrix and None backgrounds show no
+lineages; switching back to Swirling Lights brings each live session's lineage back as a fresh
+founder. The Background choice in the settings dialog picks the style (see
+[Settings](settings.md#settings)), and Ctrl+Shift+D pauses or resumes it.
 
 ### Containers
 
@@ -347,21 +358,30 @@ The **Containers** section of the dashboard lists Docker and Podman containers, 
 project; a container with no project is its own row. Bashboard finds `docker.exe` and `podman.exe`
 on `PATH` at startup, so Docker Desktop or Podman has to be installed. An engine whose CLI is
 missing is left out. One that is installed but not running shows as "Docker is not running" or
-"Podman is not running", and Bashboard checks it again every 10 seconds. The section appears while
+"Podman is not running", with a Start button at the right when Bashboard can start it, and
+Bashboard checks it again every 10 seconds. The section appears while
 an engine is found and `dashboard.sections.containers` is on (see [Settings](settings.md#settings)).
 
-Each row shows the project's name, how many of its containers run ("1 of 2"), and, on hover, Start
-when any is stopped or Stop when any is running. A project that exists on both engines is one row.
-Click a row to open the Containers tab with that project expanded. Open Containers in the section's
+Each row shows the project's name, how many of its containers run ("1 of 2"), and one button on
+hover. A project with a single container gets Start or Stop; a project with more gets a details
+button (›) that opens it in the Containers tab, where each container can be started or stopped.
+Right-click a row to start or stop a whole project. A project that exists on both engines is one row.
+Click a row to open the Containers tab with that project expanded. Manage in the section's
 header switches to a Containers tab that is already open, or adds one.
 
 The **Containers pane** has a heading for each engine that is available, Docker and then Podman,
-and its projects expand to their containers. A container row shows its service or container name,
+and its projects expand to their containers. An engine's heading has a Start or Stop button for
+the engine itself. Stop asks first, since it stops every container on that engine and shuts the
+engine down for other apps too; the dashboard offers only Start. Bashboard starts Docker Desktop
+with `docker desktop start` (or by launching Docker Desktop, which it can then only start, on
+versions before 4.37) and Podman with `podman machine start`. Other setups, such as Docker Engine
+inside WSL, get no buttons. A container row shows its service or container name,
 image, status text, and published ports, which open `http://localhost:<port>` when clicked, and its
 CPU and memory, refreshed every 5 seconds while the pane is on screen. Start, Stop, and Restart act
 on a container or on a whole project. Logs opens a panel beside the list that follows the output,
 starting with the last 500 lines and keeping the most recent 5000; scrolling up pauses following
-until you scroll back to the end. Shell opens a terminal split beside the pane, running `bash` in
+until you scroll back to the end. The − and + buttons in its header, or Ctrl+wheel over it, zoom
+the log text, and the next logs panel starts at the zoom you last chose. Shell opens a terminal split beside the pane, running `bash` in
 the container when it has one and `sh` otherwise, titled with the container's name. It needs a
 running container.
 

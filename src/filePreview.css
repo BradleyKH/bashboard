@@ -6,8 +6,7 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  color: #e6e6e6;
-  color-scheme: dark;
+  color: var(--content-fg);
 }
 
 .file-preview > * {
@@ -120,11 +119,11 @@
 }
 
 ::highlight(preview-find) {
-  background-color: #2a5a66;
+  background-color: color-mix(in srgb, var(--accent) 52%, black);
 }
 
 ::highlight(preview-find-current) {
-  background-color: #4fb3c8;
+  background-color: var(--accent);
   color: #06121a;
 }
 
@@ -169,7 +168,7 @@
 }
 
 .markdown-body a {
-  color: #4fb3c8;
+  color: var(--accent);
   text-decoration: none;
   cursor: pointer;
 }
@@ -203,7 +202,7 @@
 .markdown-body blockquote {
   padding-left: 12px;
   border-left: 3px solid rgba(255, 255, 255, 0.2);
-  color: #b8b8b8;
+  color: var(--content-muted);
 }
 
 .markdown-body table {
@@ -298,8 +297,8 @@
   outline: 0;
   resize: none;
   background: transparent;
-  color: #e6e6e6;
-  caret-color: #4fb3c8;
+  color: var(--content-fg);
+  caret-color: var(--accent);
 }
 
 .editor-mirror {
@@ -319,7 +318,7 @@
 }
 
 .editor-text::selection {
-  background: #4fb3c880;
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 /* Code: the gutter's rows line up with the textarea's only because neither side wraps. */
@@ -339,7 +338,7 @@
   white-space: pre;
   overflow: hidden;
   text-align: right;
-  color: #7a7a7a;
+  color: var(--content-faint);
   user-select: none;
   background: rgba(0, 0, 0, 0.25);
 }
@@ -353,7 +352,7 @@
 
 /* The textarea draws the text over its mirror, so the mirror's match keeps no text of its own. */
 .editor-mirror::highlight(preview-find-current) {
-  background-color: #3a8a9c;
+  background-color: color-mix(in srgb, var(--accent) 75%, black);
   color: transparent;
 }
 

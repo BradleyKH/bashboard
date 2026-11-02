@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
+import { applyAccent } from './accent';
+import { applyContentText } from './contentText';
 import type { AttentionCause } from './attention';
 import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
 import type { ConfirmOptions } from './confirmDialog';
@@ -55,7 +57,7 @@ import type { PaneView } from './paneView';
 import { scratchDelete, scratchLoad, scratchSave, scratchSaveAs, type PtyActivity } from './persistence';
 import { restoredTab, snapshotTabs } from './savedTabs';
 import { TabStore } from './tabStore';
-import type { SavedPane, SavedTab, SavedWorkspace } from './savedWorkspace';
+import { type SavedPane, type SavedTab, type SavedWorkspace, resumeCommand } from './savedWorkspace';
 import { initialQuery } from './searchModel';
 import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from './searchOptions';
 import { SearchPane } from './searchPane';
@@ -221,8 +223,8 @@ export class Workspace {
   /** Keyed by pty id. */
   private sweeps = new Map<number, SweepState>();
   private sizer: HTMLElement | null = null;
-  /** Session ids from the restored workspace, kept until a session binds to the pane. */
-  private readonly restoredSessions = new Map<string, string>();
+  /** Sessions from the restored workspace, kept until a session binds to the pane. */
+  private readonly restoredSessions = new Map<string, { sessionId: string; permissionMode?: string }>();
   /** Container shell pane ids to their container's name. */
   private readonly containerShells = new Map<string, string>();
   private emptyContainers: ContainersStore | undefined;
@@ -246,6 +248,8 @@ export class Workspace {
     this.fontSize = payload.settings.font.size;
     this.scrim = scrimFromSettings(payload.settings.scrim);
     applyScrim(document.documentElement, this.scrim);
+    applyAccent(document.documentElement, payload.settings.accentColor);
+    applyContentText(document.documentElement, payload.settings.contentTextColor);
     this.view = new LayoutView(root, {
       clampRatio: (path, ratio) => {
         const cell = this.layoutCell();
@@ -355,6 +359,8 @@ export class Workspace {
     this.fontSize = this.config.settings.font.size;
     this.scrim = scrimFromSettings(this.config.settings.scrim);
     applyScrim(document.documentElement, this.scrim);
+    applyAccent(document.documentElement, this.config.settings.accentColor);
+    applyContentText(document.documentElement, this.config.settings.contentTextColor);
     for (const pane of this.paneViews.values()) pane.applySettings(this.config.settings);
   }
 
@@ -808,6 +814,14 @@ export class Workspace {
     this.notify();
   }
 
+  /** The bound session, or the restored one while nothing has bound yet. */
+  private savedSession(id: string, ptyId: number | null): { sessionId: string | null; permissionMode?: string } {
+    const bound = boundSession(ptyId, this.sessions);
+    const s = bound ?? this.restoredSessions.get(id);
+    if (!s) return { sessionId: null };
+    return { sessionId: s.sessionId, ...(s.permissionMode !== undefined && { permissionMode: s.permissionMode }) };
+  }
+
   /** Design 4.9: layout leaves already hold pane ids, which double as saved keys. */
   snapshot(): SavedWorkspace {
     return snapshotTabs(this.store.state, (id, collapsed): SavedPane | null => {
@@ -819,7 +833,7 @@ export class Workspace {
           kind: 'terminal',
           cwd: pane.cwd ?? '',
           collapsed,
-          sessionId: boundSession(pane.ptyId, this.sessions)?.sessionId ?? this.restoredSessions.get(id) ?? null,
+          ...this.savedSession(id, pane.ptyId),
           ...(pane.profile !== undefined && { profile: pane.profile }),
         };
       }
@@ -1177,9 +1191,12 @@ export class Workspace {
       const id = ids.get(p.key)!;
       let onReady: (() => void) | undefined;
       if (p.kind === 'terminal' && p.sessionId) {
-        const sessionId = p.sessionId;
-        this.restoredSessions.set(id, sessionId);
-        if (opts.resumeClaude) onReady = () => this.terminal(id)?.typeText(`claude --resume ${sessionId}\r`);
+        const { sessionId, permissionMode } = p;
+        this.restoredSessions.set(id, { sessionId, ...(permissionMode !== undefined && { permissionMode }) });
+        if (opts.resumeClaude) {
+          const command = resumeCommand(sessionId, permissionMode);
+          onReady = () => this.terminal(id)?.typeText(`${command}\r`);
+        }
       }
       const spec = this.restoredSpec(p, opts.loadScratch);
       if (visible && !p.collapsed) {
@@ -1394,6 +1411,7 @@ export class Workspace {
       // Without a store from the app (a browser-only run) the pane shows no engines.
       store: this.hooks.containers ?? (this.emptyContainers ??= new ContainersStore()),
       onShell: (c) => this.openContainerShell(id, c),
+      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
     });
   }
 

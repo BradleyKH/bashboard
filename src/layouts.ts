@@ -9,8 +9,10 @@ export interface NamedLayout {
 
 function forLayoutPane(p: SavedPane): SavedPane {
   switch (p.kind) {
-    case 'terminal':
-      return { ...p, sessionId: null };
+    case 'terminal': {
+      const { permissionMode: _, ...rest } = p;
+      return { ...rest, sessionId: null };
+    }
     case 'scratch':
       return { ...p, scratchId: null };
     case 'files':

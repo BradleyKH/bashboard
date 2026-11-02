@@ -60,7 +60,7 @@ body.has-tabs #panes {
 .tab-item.active {
   color: #eef3f5;
   background: rgba(255, 255, 255, 0.09);
-  border-bottom-color: #4fb3c8;
+  border-bottom-color: var(--accent);
 }
 
 .tab-item.dragging {
@@ -73,14 +73,14 @@ body.has-tabs #panes {
 
 @keyframes tab-attention-pulse {
   50% {
-    background: rgba(79, 179, 200, 0.22);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tab-item.attention {
     animation: none;
-    background: rgba(79, 179, 200, 0.22);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
 }
 
@@ -97,7 +97,7 @@ body.has-tabs #panes {
   min-width: 0;
   box-sizing: border-box;
   padding: 1px 4px;
-  border: 1px solid #4fb3c8;
+  border: 1px solid var(--accent);
   border-radius: 3px;
   outline: none;
   background: rgba(6, 12, 18, 0.9);

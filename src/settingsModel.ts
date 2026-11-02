@@ -1,3 +1,5 @@
+import { ACCENT_PRESETS } from './accent';
+import { CONTENT_TEXT_PRESETS } from './contentText';
 import { DEFAULT_ELEMENT_ORDER, ELEMENT_LABELS } from './dashboardSections';
 import type { Settings } from './settings';
 
@@ -22,6 +24,8 @@ export interface SettingsField {
   allowEmpty?: boolean;
   /** Select fields only: the accepted values. */
   options?: { value: string; label: string }[];
+  /** Select fields only: each option's value is a #rrggbb color, drawn as a square beside its label. */
+  swatches?: boolean;
   /** Select fields only: offer just the options the core detected, as shell profiles or editors. */
   installedFrom?: 'profiles' | 'editors';
   /** Text fields only: suggest values while typing, filled from the core after the dialog opens. */
@@ -30,8 +34,15 @@ export interface SettingsField {
   applies: AppliesWhen;
   /** A subheading shown above the first field of a run of fields sharing it. */
   group?: string;
-  /** Shown only while the field at `path` holds `value`; for settings that do nothing otherwise. */
-  shownWhen?: { path: string[]; value: unknown };
+  /** Shown only while every condition holds; for settings that do nothing otherwise. */
+  shownWhen?: ShownWhen | ShownWhen[];
+}
+
+/** The field at `path` holds `value`, or, when `oneOf` is set, any of those values. */
+export interface ShownWhen {
+  path: string[];
+  value?: unknown;
+  oneOf?: unknown[];
 }
 
 export interface SettingsSection {
@@ -39,8 +50,22 @@ export interface SettingsSection {
   fields: SettingsField[];
 }
 
-// The frozen backdrop redraws only for zoom, so these would do nothing while it is still.
-const WHILE_ANIMATED = { path: ['backdrop', 'animate'], value: true };
+// A frozen backdrop redraws only for zoom (both styles) and the Matrix color and density, so the rest would do
+// nothing while it is still.
+const WHILE_ANIMATED: ShownWhen = { path: ['backdrop', 'animate'], value: true };
+const IS_LIGHTS: ShownWhen = { path: ['backdrop', 'style'], value: 'lights' };
+const IS_MATRIX: ShownWhen = { path: ['backdrop', 'style'], value: 'matrix' };
+const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'matrix'] };
+
+/** The rain colors offered in the dialog; the loader accepts any six-digit hex. */
+export const MATRIX_COLOR_PRESETS: { value: string; label: string }[] = [
+  { value: '#00ff41', label: 'Green' },
+  { value: '#ffb000', label: 'Amber' },
+  { value: '#00e5ff', label: 'Cyan' },
+  { value: '#a68bff', label: 'Violet' },
+  { value: '#ff3b3b', label: 'Red' },
+  { value: '#e8e8e8', label: 'White' },
+];
 
 /** Ranges mirror try_parse_settings in src-tauri/src/settings.rs so a saved value always loads. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -49,6 +74,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     fields: [
       { path: ['font', 'family'], label: 'Font family', kind: 'text', suggestFrom: 'fonts', applies: 'live' },
       { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live' },
+      { path: ['accentColor'], label: 'Accent color', kind: 'select', options: ACCENT_PRESETS, swatches: true, applies: 'live' },
+      { path: ['contentTextColor'], label: 'Text color', kind: 'select', options: CONTENT_TEXT_PRESETS, swatches: true, hint: 'Scratch, file preview, and search panes', applies: 'live' },
     ],
   },
   {
@@ -159,8 +186,20 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         kind: 'toggle',
         applies: 'live',
         group: 'Show on the dashboard',
-        ...(id === 'containers' ? { hint: 'Also offers Containers in the pane kind menu' } : {}),
       })),
+      {
+        path: ['dashboard', 'clockStyle'],
+        label: 'Clock style',
+        kind: 'select',
+        options: [
+          { value: 'both', label: 'Binary and time' },
+          { value: 'time', label: 'Time only' },
+          { value: 'binary', label: 'Binary only' },
+        ],
+        applies: 'live',
+        group: 'Show on the dashboard',
+        shownWhen: { path: ['dashboard', 'sections', 'clock'], value: true },
+      },
     ],
   },
   {
@@ -173,7 +212,18 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Background Animation',
     fields: [
-      { path: ['backdrop', 'animate'], label: 'Animate', kind: 'toggle', hint: 'Off freezes it on a still frame', applies: 'live' },
+      {
+        path: ['backdrop', 'style'],
+        label: 'Background',
+        kind: 'select',
+        options: [
+          { value: 'none', label: 'None' },
+          { value: 'lights', label: 'Swirling Lights' },
+          { value: 'matrix', label: 'Matrix' },
+        ],
+        applies: 'live',
+      },
+      { path: ['backdrop', 'animate'], label: 'Animate', kind: 'toggle', hint: 'Off freezes it on a still frame', applies: 'live', shownWhen: IS_DRAWN },
       {
         path: ['backdrop', 'maxFps'],
         label: 'Frame rate cap',
@@ -186,12 +236,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         minNonZero: 20,
         hint: '0 uses the display refresh rate; otherwise 20 to 240',
         applies: 'live',
-        shownWhen: WHILE_ANIMATED,
+        shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
       },
       // Stored as the scrim's opacity, so 1 here is fully dimmed and the slider reads as brightness.
-      { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live' },
-      { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: WHILE_ANIMATED },
-      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live' },
+      { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live', shownWhen: IS_DRAWN },
+      { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: [IS_LIGHTS, WHILE_ANIMATED] },
+      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live', shownWhen: IS_LIGHTS },
       {
         path: ['backdrop', 'mutationRate'],
         label: 'Color drift',
@@ -200,15 +250,41 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         max: 4,
         step: 0.1,
         applies: 'live',
-        shownWhen: WHILE_ANIMATED,
+        shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
       },
-      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live' },
+      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live', shownWhen: IS_LIGHTS },
       {
         path: ['backdrop', 'waitingPulse'],
         label: 'Pulse waiting sessions',
         kind: 'toggle',
         applies: 'live',
-        shownWhen: WHILE_ANIMATED,
+        shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
+      },
+      { path: ['backdrop', 'matrix', 'color'], label: 'Color', kind: 'select', options: MATRIX_COLOR_PRESETS, swatches: true, hint: 'The rain', applies: 'live', shownWhen: IS_MATRIX },
+      { path: ['backdrop', 'matrix', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', hint: 'Glyph size', applies: 'live', shownWhen: IS_MATRIX },
+      {
+        path: ['backdrop', 'matrix', 'speed'],
+        label: 'Speed',
+        kind: 'slider',
+        min: 5,
+        max: 30,
+        step: 1,
+        integer: true,
+        hint: 'How fast the rain falls',
+        applies: 'live',
+        shownWhen: [IS_MATRIX, WHILE_ANIMATED],
+      },
+      {
+        path: ['backdrop', 'matrix', 'density'],
+        label: 'Density',
+        kind: 'slider',
+        min: 0.25,
+        max: 4,
+        step: 0.25,
+        unit: 'x',
+        hint: 'How often new drops start',
+        applies: 'live',
+        shownWhen: IS_MATRIX,
       },
     ],
   },
@@ -234,8 +310,11 @@ export type ParseResult = { ok: true; value: unknown } | { ok: false; error: str
 
 /** Whether a field is shown, given a reader for the current value at a path. */
 export function isShown(field: SettingsField, read: (path: string[]) => unknown): boolean {
-  const when = field.shownWhen;
-  return !when || read(when.path) === when.value;
+  const conditions = field.shownWhen === undefined ? [] : [field.shownWhen].flat();
+  return conditions.every((c) => {
+    const current = read(c.path);
+    return c.oneOf ? c.oneOf.includes(current) : current === c.value;
+  });
 }
 
 export function parseInput(field: SettingsField, raw: string | boolean): ParseResult {
@@ -299,6 +378,15 @@ export function installedChoices(
     options: [{ value: missing.value, label: `${missing.label} (not installed)` }, ...shown],
     note: fallback ? `${missing.label} is not installed; new panes use ${fallback.name}` : undefined,
   };
+}
+
+/**
+ * A select's options, plus the saved value when it is none of them (a hand-edited accentColor),
+ * so the dialog shows what is in effect instead of a blank select.
+ */
+export function selectChoices(options: { value: string; label: string }[], saved: unknown): { value: string; label: string }[] {
+  if (typeof saved !== 'string' || options.some((o) => o.value === saved)) return options;
+  return [...options, { value: saved, label: `Custom (${saved})` }];
 }
 
 export function appliesNote(field: SettingsField): string {

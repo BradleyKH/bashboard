@@ -21,6 +21,8 @@ export interface Session {
   paneId: number | null;
   /** The `Notification` message, present only while `status` is 'waiting'. */
   waitingReason: string | null;
+  /** The newest permission mode a hook reported; absent for a session that sent none. */
+  permissionMode?: string;
 }
 
 /** A Claude Code hook event; mirrors `HookEvent` in the Rust core (`paneId` is the pty id). */

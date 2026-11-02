@@ -60,8 +60,8 @@ describe('dashboardRows', () => {
   it('merges same-named groups across engines with a combined count', () => {
     const snapshot: ContainersSnapshot = {
       engines: [
-        { engine: 'docker', running: true },
-        { engine: 'podman', running: true },
+        { engine: 'docker', running: true, pending: null, canStart: false, canStop: false },
+        { engine: 'podman', running: true, pending: null, canStart: false, canStop: false },
       ],
       containers: [
         c({ id: '1', project: 'p', state: 'running' }),
@@ -84,7 +84,7 @@ describe('dashboardRows', () => {
 
   it('shows Start only for a stopped group and Stop only for a running one', () => {
     const rows = dashboardRows({
-      engines: [{ engine: 'docker', running: true }],
+      engines: [{ engine: 'docker', running: true, pending: null, canStart: false, canStop: false }],
       containers: [c({ id: '1', name: 'a', state: 'exited' }), c({ id: '2', name: 'b' })],
     });
     expect(rows[0]).toMatchObject({ name: 'a', anyStopped: true, anyRunning: false });
@@ -94,12 +94,20 @@ describe('dashboardRows', () => {
   it('adds an unavailable row for an engine that is not running', () => {
     const rows = dashboardRows({
       engines: [
-        { engine: 'docker', running: true },
-        { engine: 'podman', running: false },
+        { engine: 'docker', running: true, pending: null, canStart: false, canStop: false },
+        { engine: 'podman', running: false, pending: null, canStart: false, canStop: false },
       ],
       containers: [],
     });
-    expect(rows).toEqual([{ kind: 'unavailable', engine: 'podman' }]);
+    expect(rows).toEqual([{ kind: 'unavailable', engine: 'podman', canStart: false, pending: null }]);
+  });
+
+  it('carries whether an engine that is not running can be started, and a start in flight', () => {
+    const rows = dashboardRows({
+      engines: [{ engine: 'podman', running: false, pending: 'starting', canStart: true, canStop: true }],
+      containers: [],
+    });
+    expect(rows).toEqual([{ kind: 'unavailable', engine: 'podman', canStart: true, pending: 'starting' }]);
   });
 });
 

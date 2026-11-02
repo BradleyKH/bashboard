@@ -1,8 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 import './containersPane.css';
+import type { ConfirmOptions } from './confirmDialog';
 import {
   containerAction,
   containerStats,
+  startEngine,
+  stopEngine,
   type Container,
   type ContainerAction,
   type ContainerStats,
@@ -15,7 +18,7 @@ import { renderContainerGroup } from './containerGroupView';
 import { containerGroupMenuItems, containerRowMenuItems } from './containerMenus';
 import { ContainerLogs } from './containerLogs';
 import { containerUsage, renderContainerRow, updateContainerRow } from './containerRow';
-import { containerKey, renderKey } from './containersRenderKey';
+import { containerKey, engineBusyKey, renderKey } from './containersRenderKey';
 import type { ContainersStore } from './containersStore';
 import { copyText } from './copyText';
 import { lookup, type Action, type Keymap } from './keymap';
@@ -38,10 +41,18 @@ export interface ContainersPaneOptions {
   store: ContainersStore;
   /** The Shell button: open a terminal in this container beside the pane. */
   onShell: (container: Container) => void;
+  /** Asks before stopping an engine. */
+  confirm: (options: ConfirmOptions) => Promise<boolean>;
 }
 
 const STATS_INTERVAL_MS = 5000;
 const ENGINE_ORDER: Engine[] = ['docker', 'podman'];
+
+function engineStateText(e: EngineState): string {
+  if (e.pending === 'starting') return 'starting…';
+  if (e.pending === 'stopping') return 'stopping…';
+  return e.running ? 'running' : 'not running';
+}
 
 function errorText(err: unknown): string {
   if (typeof err === 'string') return err;
@@ -197,9 +208,11 @@ export class ContainersPane implements PaneView {
     this.rows.clear();
     const out: HTMLElement[] = [];
     for (const e of engines) {
-      if (engines.length > 1) out.push(this.engineHeading(e));
+      // A lone engine needs no heading for its name, but it is where Start and Stop live.
+      if (engines.length > 1 || e.canStart || e.canStop) out.push(this.engineHeading(e));
       if (!e.running) {
-        out.push(this.note(`${engineLabel(e.engine)} is not running`));
+        const what = e.pending === 'starting' ? 'is starting…' : 'is not running';
+        out.push(this.note(`${engineLabel(e.engine)} ${what}`));
         continue;
       }
       const mine = groups.filter((g) => g.engine === e.engine);
@@ -232,10 +245,65 @@ export class ContainersPane implements PaneView {
     name.className = 'ctr-engine-name';
     name.textContent = engineLabel(e.engine);
     const state = document.createElement('span');
-    state.className = `ctr-engine-state${e.running ? ' running' : ''}`;
-    state.textContent = e.running ? 'running' : 'not running';
+    state.className = `ctr-engine-state${e.running && !e.pending ? ' running' : ''}`;
+    state.textContent = engineStateText(e);
     h.append(name, state);
+    const busy = e.pending !== null || this.busy.has(engineBusyKey(e.engine));
+    if (!e.running && e.canStart) {
+      h.append(this.engineButton('Start', `Start ${engineLabel(e.engine)}`, busy, () => void this.startEngine(e)));
+    } else if (e.running && e.canStop) {
+      h.append(this.engineButton('Stop', `Stop ${engineLabel(e.engine)}`, busy, () => void this.stopEngine(e)));
+    }
     return h;
+  }
+
+  private engineButton(label: string, title: string, disabled: boolean, onClick: () => void): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctr-engine-action';
+    b.textContent = label;
+    b.title = title;
+    b.disabled = disabled;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  private async startEngine(e: EngineState): Promise<void> {
+    await this.engineLifecycle(e, () => startEngine(e.engine), 'start');
+  }
+
+  private async stopEngine(e: EngineState): Promise<void> {
+    const label = engineLabel(e.engine);
+    const running = this.snapshot.containers.filter((c) => c.engine === e.engine && c.state === 'running').length;
+    const ok = await this.opts.confirm({
+      title: `Stop ${label}?`,
+      body: [
+        running === 0
+          ? `No containers are running on ${label}.`
+          : `${running} running container${running === 1 ? '' : 's'} on ${label} will stop.`,
+        e.engine === 'docker'
+          ? 'Docker Desktop shuts down for every app that uses it, not just Bashboard.'
+          : 'The Podman machine shuts down for every app that uses it, not just Bashboard.',
+      ],
+      confirmLabel: 'Stop',
+    });
+    if (ok) await this.engineLifecycle(e, () => stopEngine(e.engine), 'stop');
+  }
+
+  /** The snapshot carries the starting or stopping state; the busy key covers the moment before it arrives. */
+  private async engineLifecycle(e: EngineState, run: () => Promise<void>, verb: string): Promise<void> {
+    const key = engineBusyKey(e.engine);
+    if (this.busy.has(key)) return;
+    this.busy.add(key);
+    this.render();
+    try {
+      await run();
+    } catch (err) {
+      showToast(`Could not ${verb} ${engineLabel(e.engine)}: ${errorText(err)}`);
+    } finally {
+      this.busy.delete(key);
+      this.render();
+    }
   }
 
   private note(text: string): HTMLElement {

@@ -3,14 +3,14 @@
   --git-muted: #8a959b;
   --git-border: rgba(255, 255, 255, 0.1);
   --git-hover: rgba(255, 255, 255, 0.08);
-  --git-selected: rgba(79, 179, 200, 0.22);
-  --git-accent: #4fb3c8;
+  --git-selected: color-mix(in srgb, var(--accent) 22%, transparent);
+  --git-accent: var(--accent);
   --git-add: #6fcf7f;
   --git-del: #e8716f;
   --git-mod: #e6c15a;
   --git-add-bg: rgba(60, 160, 80, 0.2);
   --git-del-bg: rgba(200, 70, 70, 0.2);
-  --git-hunk-bg: rgba(79, 179, 200, 0.14);
+  --git-hunk-bg: color-mix(in srgb, var(--accent) 14%, transparent);
   --git-error: #f0948f;
 
   position: relative;
@@ -139,14 +139,14 @@
   padding: 2px 12px;
   border: 1px solid var(--git-accent);
   border-radius: 3px;
-  background: rgba(79, 179, 200, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--git-fg);
   font: inherit;
   cursor: pointer;
 }
 
 .git-commit-btn:hover:not(:disabled) {
-  background: rgba(79, 179, 200, 0.4);
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .git-commit-btn:disabled {

@@ -47,6 +47,8 @@ pub struct Scrim {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Backdrop {
+    /// One of `BACKDROP_STYLES`.
+    pub style: String,
     pub animate: bool,
     pub max_fps: u32,
     pub capacity: u32,
@@ -54,7 +56,23 @@ pub struct Backdrop {
     /// Divides the camera's home distance.
     pub zoom: f64,
     pub waiting_pulse: bool,
+    pub matrix: MatrixBackdrop,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatrixBackdrop {
+    /// `#rrggbb`, any lightness (the rain is drawn dimmer than the text over it).
+    pub color: String,
+    pub zoom: f64,
+    /// Rain steps per second.
+    pub speed: u32,
+    /// Scales how often an idle column starts a new drop.
+    pub density: f64,
+}
+
+/// Ids `backdrop.style` accepts (docs/design.md section 8).
+pub const BACKDROP_STYLES: [&str; 3] = ["none", "lights", "matrix"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,10 +82,53 @@ pub struct Dashboard {
     /// One of `DASHBOARD_SIDES`.
     pub side: String,
     pub sections: DashboardSections,
+    /// One of `CLOCK_STYLES`.
+    pub clock_style: String,
+}
+
+pub const DEFAULT_ACCENT: &str = "#4fb3c8";
+
+/// The accent is drawn as text on near-black panes and behind dark text in find highlights; at
+/// this WCAG relative luminance both keep at least 4.5:1 contrast. Mirrors src/accent.ts.
+const ACCENT_MIN_LUMINANCE: f64 = 0.2;
+
+pub const DEFAULT_CONTENT_TEXT: &str = "#e6e6e6";
+
+/// Content text is read in long stretches, so it must stay well brighter than the dark panes,
+/// and brighter than the accent so links and highlights still stand out. Mirrors
+/// src/contentText.ts.
+const CONTENT_TEXT_MIN_LUMINANCE: f64 = 0.5;
+
+/// Accepts `#rrggbb` (any case) bright enough to read, returned lowercase.
+fn parse_accent(s: &str) -> Option<String> {
+    parse_bright_hex(s, ACCENT_MIN_LUMINANCE)
+}
+
+fn parse_content_text(s: &str) -> Option<String> {
+    parse_bright_hex(s, CONTENT_TEXT_MIN_LUMINANCE)
+}
+
+/// Accepts `#rrggbb` (any case) of any lightness, returned lowercase.
+fn parse_hex(s: &str) -> Option<String> {
+    parse_bright_hex(s, 0.0)
+}
+
+/// Accepts `#rrggbb` (any case) at or above `min` WCAG relative luminance, returned lowercase.
+fn parse_bright_hex(s: &str, min: f64) -> Option<String> {
+    let hex = s.strip_prefix('#').filter(|h| h.len() == 6 && h.chars().all(|c| c.is_ascii_hexdigit()))?;
+    let channel = |i: usize| {
+        let c = f64::from(u8::from_str_radix(&hex[i..i + 2], 16).ok()?) / 255.0;
+        Some(if c <= 0.03928 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) })
+    };
+    let luminance = 0.2126 * channel(0)? + 0.7152 * channel(2)? + 0.0722 * channel(4)?;
+    (luminance >= min).then(|| format!("#{}", hex.to_ascii_lowercase()))
 }
 
 /// Ids `dashboard.side` accepts (docs/design.md section 4.6).
 pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
+
+/// Ids `dashboard.clockStyle` accepts (docs/design.md section 4.6).
+pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
 
 /// Which dashboard elements show; fields follow the panel's default element order.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -137,6 +198,10 @@ pub struct Keybinding {
 pub struct Settings {
     pub shell: Shell,
     pub font: Font,
+    /// `#rrggbb`; see `parse_accent`.
+    pub accent_color: String,
+    /// `#rrggbb`; see `parse_content_text`.
+    pub content_text_color: String,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
@@ -238,14 +303,18 @@ impl Default for Settings {
                 family: "JetBrainsMono Nerd Font Mono, Cascadia Mono".into(),
                 size: 14.0,
             },
+            accent_color: DEFAULT_ACCENT.into(),
+            content_text_color: DEFAULT_CONTENT_TEXT.into(),
             scrim: Scrim { opacity: 0.5, blur_px: 0.0 },
             backdrop: Backdrop {
+                style: "lights".into(),
                 animate: false,
                 max_fps: 20,
                 capacity: 1000,
                 mutation_rate: 0.2,
                 zoom: 2.0,
                 waiting_pulse: false,
+                matrix: MatrixBackdrop { color: "#00ff41".into(), zoom: 1.0, speed: 10, density: 3.0 },
             },
             scrollback: 10000,
             terminal: Terminal { done_after_seconds: 30 },
@@ -262,6 +331,7 @@ impl Default for Settings {
                     system: false,
                     clock: false,
                 },
+                clock_style: "both".into(),
             },
             restore: Restore { enabled: true, resume_claude: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
@@ -541,6 +611,20 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         family: pick(&root, &["font", "family"], &mut w, string, d.font.family),
         size: pick(&root, &["font", "size"], &mut w, |v| number(v).filter(|n| *n > 0.0), d.font.size),
     };
+    let accent_color = pick(
+        &root,
+        &["accentColor"],
+        &mut w,
+        |v| v.as_str().and_then(parse_accent),
+        d.accent_color,
+    );
+    let content_text_color = pick(
+        &root,
+        &["contentTextColor"],
+        &mut w,
+        |v| v.as_str().and_then(parse_content_text),
+        d.content_text_color,
+    );
     let scrim = Scrim {
         opacity: pick(
             &root,
@@ -558,6 +642,13 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         ),
     };
     let backdrop = Backdrop {
+        style: pick(
+            &root,
+            &["backdrop", "style"],
+            &mut w,
+            |v| v.as_str().filter(|s| BACKDROP_STYLES.contains(s)).map(String::from),
+            d.backdrop.style,
+        ),
         animate: pick(&root, &["backdrop", "animate"], &mut w, boolean, d.backdrop.animate),
         // The frame loop clamps each delta to 1/20 s, so a cap below 20 would slow the simulation.
         max_fps: pick(
@@ -590,6 +681,36 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.backdrop.zoom,
         ),
         waiting_pulse: pick(&root, &["backdrop", "waitingPulse"], &mut w, boolean, d.backdrop.waiting_pulse),
+        matrix: MatrixBackdrop {
+            color: pick(
+                &root,
+                &["backdrop", "matrix", "color"],
+                &mut w,
+                |v| v.as_str().and_then(parse_hex),
+                d.backdrop.matrix.color,
+            ),
+            zoom: pick(
+                &root,
+                &["backdrop", "matrix", "zoom"],
+                &mut w,
+                |v| number(v).filter(|n| (0.5..=3.0).contains(n)),
+                d.backdrop.matrix.zoom,
+            ),
+            speed: pick(
+                &root,
+                &["backdrop", "matrix", "speed"],
+                &mut w,
+                |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| (5..=30).contains(n)),
+                d.backdrop.matrix.speed,
+            ),
+            density: pick(
+                &root,
+                &["backdrop", "matrix", "density"],
+                &mut w,
+                |v| number(v).filter(|n| (0.25..=4.0).contains(n)),
+                d.backdrop.matrix.density,
+            ),
+        },
     };
     let scrollback = pick(
         &root,
@@ -645,6 +766,13 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             system: section(&mut w, "system", d.dashboard.sections.system),
             clock: section(&mut w, "clock", d.dashboard.sections.clock),
         },
+        clock_style: pick(
+            &root,
+            &["dashboard", "clockStyle"],
+            &mut w,
+            |v| v.as_str().filter(|s| CLOCK_STYLES.contains(s)).map(String::from),
+            d.dashboard.clock_style,
+        ),
     };
     let restore = Restore {
         enabled: pick(&root, &["restore", "enabled"], &mut w, boolean, d.restore.enabled),
@@ -675,6 +803,8 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         Settings {
             shell,
             font,
+            accent_color,
+            content_text_color,
             scrim,
             backdrop,
             scrollback,
@@ -696,6 +826,17 @@ fn default_file_text() -> String {
     s.keybindings.clear();
     let json = serde_json::to_string_pretty(&s).expect("default settings serialize");
     json.replace(
+        "  \"accentColor\":",
+        "  // Any #rrggbb bright enough to read on the dark panes; darker colors fall back to the default.
+  \"accentColor\":",
+    )
+    .replace(
+        "  \"contentTextColor\":",
+        "  // Text in scratch, file preview, and search panes (not terminals). Any #rrggbb at least as
+  // bright as #bcbcbc; darker colors fall back to the default.
+  \"contentTextColor\":",
+    )
+    .replace(
         "  \"editor\": {",
         "  // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
@@ -961,6 +1102,31 @@ mod tests {
     }
 
     #[test]
+    fn accent_color_needs_bright_six_digit_hex() {
+        let (s, w) = parse_settings(r##"{ "accentColor": "#A68BFF" }"##);
+        assert_eq!(s.accent_color, "#a68bff");
+        assert!(w.is_empty());
+        for bad in [r##""#1a2b4c""##, r##""#fff""##, r##""teal""##, "12"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "accentColor": {bad} }}"#));
+            assert_eq!(s.accent_color, DEFAULT_ACCENT, "{bad}");
+            assert_eq!(w, vec!["accentColor: invalid value, using default"], "{bad}");
+        }
+    }
+
+    #[test]
+    fn content_text_color_needs_brighter_hex_than_accent() {
+        let (s, w) = parse_settings(r##"{ "contentTextColor": "#B5D8DF" }"##);
+        assert_eq!(s.content_text_color, "#b5d8df");
+        assert!(w.is_empty());
+        // #a8b8c8 is the Silver accent: bright enough for an accent, too dim for body text.
+        for bad in [r##""#a8b8c8""##, r##""#eee""##, r##""white""##] {
+            let (s, w) = parse_settings(&format!(r#"{{ "contentTextColor": {bad} }}"#));
+            assert_eq!(s.content_text_color, DEFAULT_CONTENT_TEXT, "{bad}");
+            assert_eq!(w, vec!["contentTextColor: invalid value, using default"], "{bad}");
+        }
+    }
+
+    #[test]
     fn partial_file_keeps_other_defaults() {
         let (s, w) = parse_settings(r#"{ "font": { "size": 18 }, "scrollback": 500 }"#);
         assert_eq!(s.font.size, 18.0);
@@ -994,6 +1160,49 @@ mod tests {
             let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "maxFps": {bad} }} }}"#));
             assert_eq!(s.backdrop.max_fps, Settings::default().backdrop.max_fps, "{bad}");
             assert!(w.iter().any(|m| m.starts_with("backdrop.maxFps")), "{bad}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn backdrop_style_and_matrix_values_parse_and_invalid_ones_fall_back() {
+        let d = Settings::default().backdrop;
+        let (s, w) = parse_settings(r#"{ "backdrop": { "animate": true } }"#);
+        assert_eq!(s.backdrop.style, "lights");
+        assert!(w.is_empty(), "{w:?}");
+
+        let (s, w) = parse_settings(
+            r##"{ "backdrop": { "style": "matrix", "matrix": { "color": "#102030", "zoom": 2.5, "speed": 25, "density": 2.5 } } }"##,
+        );
+        assert_eq!(s.backdrop.style, "matrix");
+        assert_eq!(s.backdrop.matrix, MatrixBackdrop { color: "#102030".into(), zoom: 2.5, speed: 25, density: 2.5 });
+        assert!(w.is_empty(), "{w:?}");
+        let (s, w) = parse_settings(r#"{ "backdrop": { "style": "none" } }"#);
+        assert_eq!(s.backdrop.style, "none");
+        assert!(w.is_empty(), "{w:?}");
+
+        for (path, key, bad) in [
+            ("backdrop.style", "style", r#""rain""#),
+            ("backdrop.style", "style", "1"),
+            ("backdrop.matrix.color", "color", r##""#0f0""##),
+            ("backdrop.matrix.color", "color", r##""green""##),
+            ("backdrop.matrix.zoom", "zoom", "0.4"),
+            ("backdrop.matrix.zoom", "zoom", "3.1"),
+            ("backdrop.matrix.speed", "speed", "4"),
+            ("backdrop.matrix.speed", "speed", "31"),
+            ("backdrop.matrix.speed", "speed", "12.5"),
+            ("backdrop.matrix.speed", "speed", "\"20\""),
+            ("backdrop.matrix.density", "density", "0.2"),
+            ("backdrop.matrix.density", "density", "4.5"),
+            ("backdrop.matrix.density", "density", "\"1\""),
+        ] {
+            let json = if key == "style" {
+                format!(r#"{{ "backdrop": {{ "style": {bad} }} }}"#)
+            } else {
+                format!(r#"{{ "backdrop": {{ "matrix": {{ "{key}": {bad} }} }} }}"#)
+            };
+            let (s, w) = parse_settings(&json);
+            assert_eq!(s.backdrop, d, "{json}");
+            assert_eq!(w, vec![format!("{path}: invalid value, using default")], "{json}");
         }
     }
 
@@ -1099,6 +1308,17 @@ mod tests {
         assert!(w.is_empty(), "{w:?}");
         assert!(s.dashboard.sections.clock && !s.dashboard.sections.panes);
         assert!(s.dashboard.sections.favorites && s.dashboard.sections.external);
+    }
+
+    #[test]
+    fn dashboard_clock_style_parse() {
+        assert_eq!(Settings::default().dashboard.clock_style, "both");
+        let (s, w) = parse_settings(r#"{ "dashboard": { "clockStyle": "binary" } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.dashboard.clock_style, "binary");
+        let (s, w) = parse_settings(r#"{ "dashboard": { "clockStyle": "analog" } }"#);
+        assert_eq!(s.dashboard.clock_style, "both");
+        assert!(w.iter().any(|m| m.starts_with("dashboard.clockStyle")), "missing warning: {w:?}");
     }
 
     #[test]
