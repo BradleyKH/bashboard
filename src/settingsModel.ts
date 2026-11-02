@@ -159,7 +159,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         kind: 'toggle',
         applies: 'live',
         group: 'Show on the dashboard',
-        ...(id === 'containers' ? { hint: 'Also offers Containers in the pane kind menu' } : {}),
       })),
     ],
   },

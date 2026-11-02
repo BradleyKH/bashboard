@@ -1311,8 +1311,8 @@ Each card shows:
 
 **Containers.** One row per container group (4.16) with its state dot, and an Open Containers
 button in the header. Shown while a container engine is available (3.10) and
-`dashboard.sections.containers` is on. The same setting decides whether the kind menu (4.11)
-offers a Containers pane.
+`dashboard.sections.containers` is on. The setting affects only the dashboard; the kind menu
+(4.11) offers a Containers pane whenever an engine is available.
 
 **External sessions.** Claude Code sessions running outside this app (Windows Terminal, VS
 Code), sorted waiting, then busy, then idle, then by most recent change. Clicking a row shows
@@ -1507,8 +1507,8 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   tree, same folder. A pane with no folder passes on the Repo section's repo (4.6). Replacing a
   terminal with a running command or a live Claude session asks first, as closing it does, and
   so does replacing a scratch pad that is not empty. A terminal chosen from the menu runs the
-  default profile. The menu lists Containers only while a container engine is available (3.10)
-  and `dashboard.sections.containers` is on. It is drawn by the shared context menu module (4.4)
+  default profile. The menu lists Containers only while a container engine is available (3.10),
+  whatever `dashboard.sections.containers` says. It is drawn by the shared context menu module (4.4)
   below the button, with the current kind checked; choosing the current kind does nothing. The
   title strip's right-click menu offers the same entries as its Change kind submenu.
 - **Opening.** Ctrl+Shift+N, E, G, and H (4.5), the Repo section, and the Open menu on dashboard
@@ -1984,9 +1984,8 @@ it with no pins, and Automatic omits it.
   // failed; 0 turns it off (4.8).
   "terminal": { "doneAfterSeconds": 30 },
   // side is right or left; an unknown value falls back to right. sections shows or hides each
-  // dashboard element (4.6); sections.containers also decides whether the kind menu offers a
-  // Containers pane. An older file's containers.enabled is still read when sections.containers
-  // is absent.
+  // dashboard element (4.6). An older file's containers.enabled is still read when
+  // sections.containers is absent.
   "dashboard": {
     "visibleOnStart": true,
     "peekOnWaiting": true,

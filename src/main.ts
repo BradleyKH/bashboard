@@ -513,9 +513,7 @@ function confirmReplace(paneId: string, kind: PaneKind): Promise<boolean> {
 }
 
 const containers = new ContainersStore();
-setKindMenuFilter(
-  (kind) => kind !== 'containers' || (containers.available && currentSettings.dashboard.sections.containers),
-);
+setKindMenuFilter((kind) => kind !== 'containers' || containers.available);
 
 /** Start or stop every container of the row's member groups that is not already in that state, per engine. */
 function actOnContainerRow(row: DashboardGroupRow, action: 'start' | 'stop'): void {

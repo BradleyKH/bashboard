@@ -99,9 +99,9 @@ default to `true`:
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
 each dashboard element: `favorites`, `layouts`, `panes`, `containers`, and `external` default to
-`true` and `system` and `clock` to `false` (so `dashboard.sections.system` starts off). `containers` also decides whether the kind menu offers a Containers
-pane; a settings file that still has `containers.enabled` and no `sections.containers` uses it
-for that. All of them apply on save and are in the Dashboard section of the settings dialog, the
+`true` and `system` and `clock` to `false` (so `dashboard.sections.system` starts off). A settings file that still has `containers.enabled` and no
+`sections.containers` uses it for the Containers section. These only affect the dashboard; the
+kind menu offers a Containers pane whenever a container engine is found. All of them apply on save and are in the Dashboard section of the settings dialog, the
 elements under "Show on the dashboard".
 
 ```jsonc
