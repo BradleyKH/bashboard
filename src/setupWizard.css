@@ -63,7 +63,6 @@
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 .setup-wizard-label {
@@ -96,7 +95,7 @@
 .setup-wizard-repo input {
   flex: none;
   margin: 0;
-  accent-color: #4fb3c8;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -126,7 +125,7 @@
 }
 
 .setup-wizard-input:focus {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .setup-wizard-repos {
@@ -136,7 +135,6 @@
   gap: 2px;
   min-height: 60px;
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 .setup-wizard-repo-text {
@@ -171,8 +169,8 @@
 }
 
 .setup-wizard-presets [aria-pressed='true'] {
-  border-color: #4fb3c8;
-  background: rgba(79, 179, 200, 0.18);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: #eef3f5;
 }
 
@@ -231,7 +229,7 @@
 }
 
 .setup-wizard-button.setup-wizard-primary {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .setup-wizard-skip {
@@ -248,7 +246,6 @@
   font: 11px Consolas, 'Cascadia Mono', monospace;
   white-space: pre;
   overflow-x: auto;
-  scrollbar-width: thin;
   user-select: text;
 }
 

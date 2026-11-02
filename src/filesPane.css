@@ -27,7 +27,7 @@
 
 .files-divider:hover,
 .files-divider.dragging {
-  background: rgba(79, 179, 200, 0.5);
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .files-right {

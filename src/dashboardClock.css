@@ -36,5 +36,5 @@
 }
 
 #dashboard .clock-dot.lit {
-  background: #4fb3c8;
+  background: var(--accent);
 }

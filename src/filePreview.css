@@ -7,7 +7,6 @@
   min-width: 0;
   min-height: 0;
   color: #e6e6e6;
-  color-scheme: dark;
 }
 
 .file-preview > * {
@@ -124,7 +123,7 @@
 }
 
 ::highlight(preview-find-current) {
-  background-color: #4fb3c8;
+  background-color: var(--accent);
   color: #06121a;
 }
 
@@ -169,7 +168,7 @@
 }
 
 .markdown-body a {
-  color: #4fb3c8;
+  color: var(--accent);
   text-decoration: none;
   cursor: pointer;
 }
@@ -299,7 +298,7 @@
   resize: none;
   background: transparent;
   color: #e6e6e6;
-  caret-color: #4fb3c8;
+  caret-color: var(--accent);
 }
 
 .editor-mirror {
@@ -319,7 +318,7 @@
 }
 
 .editor-text::selection {
-  background: #4fb3c880;
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 /* Code: the gutter's rows line up with the textarea's only because neither side wraps. */

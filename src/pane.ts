@@ -18,6 +18,8 @@ import type { OscShellState } from './terminalStatus';
 const FIT_SCROLLBAR_PX = 14;
 
 // The addon only reports result counts when decorations are set; backgrounds must be opaque.
+// xterm.js parses literal colors, not CSS variables, so '#4fb3c8' here and in the terminal theme
+// below mirrors --accent in styles.css.
 const FIND_OPTIONS: ISearchOptions = {
   caseSensitive: false,
   regex: false,

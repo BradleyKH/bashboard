@@ -1,3 +1,21 @@
+:root {
+  --accent: #4fb3c8;
+  color-scheme: dark;
+}
+
+/* Set on every element rather than inherited from :root, so only the scroller under the
+   pointer lights up; inheriting would also brighten unhovered scrollers inside a hovered
+   ancestor. Chromium ignores ::-webkit-scrollbar on any element with these standard
+   properties, so scrollbar styling has to stay with them. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 22%, transparent) transparent;
+}
+
+*:hover {
+  scrollbar-color: color-mix(in srgb, var(--accent) 75%, transparent) transparent;
+}
+
 html,
 body {
   margin: 0;
@@ -53,7 +71,7 @@ body {
 
 .divider:hover,
 .divider.dragging {
-  background: rgba(79, 179, 200, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 body.resizing {
@@ -83,7 +101,7 @@ body.resizing.column {
 }
 
 .pane.focused {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 /* The scrim sits under the text layer so it darkens the backdrop without dimming glyphs. */
@@ -200,8 +218,8 @@ body.resizing.column {
 
 /* Same rhythm and accent as .pane.attention. */
 .strip-zoom.attention {
-  border-color: #4fb3c8;
-  color: #4fb3c8;
+  border-color: var(--accent);
+  color: var(--accent);
   animation: attention-pulse 1s ease-in-out infinite;
 }
 
@@ -215,7 +233,7 @@ body.resizing.column {
   align-items: center;
   gap: 4px;
   padding: 4px;
-  border: 1px solid rgba(79, 179, 200, 0.4);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   border-radius: 4px;
   background: rgba(6, 12, 18, 0.92);
   color: #d6dde2;
@@ -234,7 +252,7 @@ body.resizing.column {
 }
 
 .find-input:focus {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .find-count {
@@ -277,22 +295,22 @@ body.resizing.column {
 
 .dock-zone {
   box-sizing: border-box;
-  border: 2px solid #4fb3c8;
+  border: 2px solid var(--accent);
   border-radius: 4px;
-  background: rgba(79, 179, 200, 0.18);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 /* A window-edge band reads as a different target than a pane zone. */
 .dock-zone[data-zone^='window-'] {
   border-width: 4px;
-  background: rgba(79, 179, 200, 0.3);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .dock-ghost {
   padding: 3px 8px;
   border-radius: 4px;
   background: rgba(6, 12, 18, 0.9);
-  border: 1px solid #4fb3c8;
+  border: 1px solid var(--accent);
   color: #eef3f5;
   font: 12px system-ui, sans-serif;
 }
@@ -326,7 +344,7 @@ body.dashboard-left.dashboard-open #panes {
 
 /* System bar band colors; the section's CSS sets only its base fill. */
 :root {
-  --system-accent: #4fb3c8;
+  --system-accent: var(--accent);
   --system-warn: #e0b050;
   --system-error: #e58a7a;
 }
@@ -357,7 +375,6 @@ body.dashboard-left.dashboard-open #panes {
   color: #d6dde2;
   font: 12px system-ui, sans-serif;
   user-select: none;
-  scrollbar-width: thin;
 }
 
 body.dashboard-left #dashboard {
@@ -373,7 +390,7 @@ body.dashboard-peek #dashboard {
 /* The peek floats over the panes (no #panes inset), so nothing refits. */
 body.dashboard-peek:not(.dashboard-open) #dashboard {
   animation: dashboard-peek-in 160ms ease-out;
-  box-shadow: 0 0 0 1px rgba(79, 179, 200, 0.5), 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent), 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 body.dashboard-left.dashboard-peek:not(.dashboard-open) #dashboard {
@@ -426,7 +443,7 @@ body.dashboard-left .dashboard-resize {
 
 .dashboard-resize:hover,
 body.dashboard-resizing .dashboard-resize {
-  background: linear-gradient(to right, transparent 3px, rgba(79, 179, 200, 0.6) 3px 5px, transparent 5px);
+  background: linear-gradient(to right, transparent 3px, color-mix(in srgb, var(--accent) 60%, transparent) 3px 5px, transparent 5px);
 }
 
 body.dashboard-resizing {
@@ -526,7 +543,7 @@ body.dashboard-resizing {
 }
 
 .terminal-card.focused {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .terminal-group {
@@ -550,7 +567,7 @@ body.dashboard-resizing {
 }
 
 .terminal-group.active .terminal-group-cards {
-  border-left-color: rgba(79, 179, 200, 0.7);
+  border-left-color: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
 .terminal-group-header {
@@ -664,7 +681,7 @@ body.dashboard-resizing {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #4fb3c8;
+  color: var(--accent);
   font-size: 11px;
 }
 
@@ -750,12 +767,12 @@ body.dashboard-resizing {
 }
 
 .status-dot.working {
-  background: #4fb3c8;
+  background: var(--accent);
   animation: dot-working 1.6s ease-in-out infinite;
 }
 
 .status-dot.waiting {
-  background: #4fb3c8;
+  background: var(--accent);
   animation: dot-waiting 1s ease-in-out infinite;
 }
 
@@ -785,13 +802,13 @@ body.dashboard-resizing {
 .pane.attention,
 .terminal-card.attention,
 .terminal-group-header.attention {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
   animation: attention-pulse 1s ease-in-out infinite;
 }
 
 @keyframes attention-pulse {
   50% {
-    border-color: rgba(79, 179, 200, 0.2);
+    border-color: color-mix(in srgb, var(--accent) 20%, transparent);
   }
 }
 
@@ -807,10 +824,10 @@ body.dashboard-resizing {
 @keyframes dot-waiting {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(79, 179, 200, 0.7);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(79, 179, 200, 0);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
   }
 }
 
@@ -909,11 +926,11 @@ body.dashboard-resizing {
 }
 
 .favorite-row.drop-before {
-  box-shadow: 0 -2px 0 0 #4fb3c8;
+  box-shadow: 0 -2px 0 0 var(--accent);
 }
 
 .favorite-row.drop-after {
-  box-shadow: 0 2px 0 0 #4fb3c8;
+  box-shadow: 0 2px 0 0 var(--accent);
 }
 
 .favorite-handle {
@@ -955,7 +972,7 @@ body.dashboard-resizing {
   box-sizing: border-box;
   width: 100%;
   padding: 0 4px;
-  border: 1px solid #4fb3c8;
+  border: 1px solid var(--accent);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.4);
   color: #eef3f5;
@@ -1006,7 +1023,7 @@ body.dashboard-resizing {
 
 /* Only the keyboard focuses dashboard rows and buttons (F6); a mouse press keeps focus on the pane. */
 #dashboard :focus:not(input, textarea) {
-  outline: 1px solid #4fb3c8;
+  outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
 
@@ -1050,7 +1067,6 @@ body.dashboard-resizing {
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 .picker-row {
@@ -1070,7 +1086,7 @@ body.dashboard-resizing {
 
 .picker-row.selected {
   background: rgba(255, 255, 255, 0.1);
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .picker-label {
@@ -1154,7 +1170,6 @@ body.dashboard-resizing {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
   font: 11px ui-monospace, Consolas, monospace;
-  scrollbar-width: thin;
 }
 
 .hook-dialog-error {
@@ -1188,7 +1203,7 @@ body.dashboard-resizing {
 }
 
 .hook-dialog-buttons .hook-dialog-install {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .help-dialog-backdrop {
@@ -1252,7 +1267,6 @@ body.dashboard-resizing {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 .help-dialog h3 {
@@ -1304,7 +1318,7 @@ body.dashboard-resizing {
 }
 
 .help-dialog-filter:focus {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .help-dialog-find,
@@ -1339,8 +1353,8 @@ body.dashboard-resizing {
 }
 
 .help-dialog-find.kb-finding {
-  border-color: #4fb3c8;
-  background: rgba(79, 179, 200, 0.12);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   font-family: ui-monospace, Consolas, monospace;
 }
 
@@ -1363,7 +1377,7 @@ body.dashboard-resizing {
 
 @keyframes kb-flash {
   from {
-    background: rgba(79, 179, 200, 0.35);
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
   }
   to {
     background: transparent;
@@ -1380,7 +1394,7 @@ body.dashboard-resizing {
   height: 6px;
   margin-left: 6px;
   border-radius: 50%;
-  background: #4fb3c8;
+  background: var(--accent);
   vertical-align: middle;
 }
 
@@ -1418,7 +1432,7 @@ body.dashboard-resizing {
 }
 
 .help-dialog kbd.kb-key:hover {
-  border-color: rgba(79, 179, 200, 0.6);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -1468,9 +1482,9 @@ body.dashboard-resizing {
 .kb-recording {
   min-width: 80px;
   padding: 1px 8px;
-  border: 1px solid #4fb3c8;
+  border: 1px solid var(--accent);
   border-radius: 3px;
-  background: rgba(79, 179, 200, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: #eef3f5;
   font: 11px ui-monospace, Consolas, monospace;
   text-align: center;
@@ -1492,9 +1506,9 @@ body.dashboard-resizing {
   gap: 8px;
   margin: 2px 4px 4px;
   padding: 6px 8px;
-  border-left: 2px solid #4fb3c8;
+  border-left: 2px solid var(--accent);
   border-radius: 3px;
-  background: rgba(79, 179, 200, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .kb-strip-text {
@@ -1502,7 +1516,7 @@ body.dashboard-resizing {
 }
 
 .kb-strip .kb-strip-move {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .kb-notice {
@@ -1624,7 +1638,6 @@ body.dashboard-resizing {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  scrollbar-width: thin;
   /* Keeps the scrollbar off the unit labels at the right edge. */
   padding-right: 8px;
   /* Room for the row hover band's bleed, which the scroll container would otherwise clip. */
@@ -1733,7 +1746,7 @@ body.dashboard-resizing {
 }
 
 .settings-dialog-input:focus {
-  border-color: #4fb3c8;
+  border-color: var(--accent);
 }
 
 .settings-dialog-control.invalid .settings-dialog-input {
@@ -1742,7 +1755,6 @@ body.dashboard-resizing {
 
 .settings-dialog-number {
   flex: 0 0 96px;
-  color-scheme: dark;
 }
 
 .settings-dialog-list {
@@ -1766,12 +1778,12 @@ body.dashboard-resizing {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
-  accent-color: #4fb3c8;
+  accent-color: var(--accent);
 }
 
 .settings-dialog-toggle {
   margin: 3px 0;
-  accent-color: #4fb3c8;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
