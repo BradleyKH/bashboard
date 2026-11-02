@@ -8,15 +8,12 @@ export interface Settings {
   shell: { path: string; args: string[]; startingDirectory: string; defaultProfile: string };
   font: { family: string; size: number };
   scrim: { opacity: number; blurPx: number };
-  /** maxFps 0 is uncapped (docs/design.md section 6.4); speed is generations per second. */
+  /** maxFps 0 is uncapped (docs/design.md section 6.4). */
   backdrop: {
     animate: boolean;
     maxFps: number;
-    speed: number;
     capacity: number;
     mutationRate: number;
-    lineageThreads: boolean;
-    orbit: boolean;
     zoom: number;
     waitingPulse: boolean;
   };
@@ -53,7 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   font: { family: 'JetBrainsMono Nerd Font Mono, Cascadia Mono', size: 14 },
   scrim: { opacity: 0.5, blurPx: 0 },
-  backdrop: { animate: false, maxFps: 20, speed: 10, capacity: 1000, mutationRate: 0.2, lineageThreads: false, orbit: true, zoom: 2, waitingPulse: false },
+  backdrop: { animate: false, maxFps: 20, capacity: 1000, mutationRate: 0.2, zoom: 2, waitingPulse: false },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30 },
   dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT } },

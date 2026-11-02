@@ -49,12 +49,8 @@ pub struct Scrim {
 pub struct Backdrop {
     pub animate: bool,
     pub max_fps: u32,
-    /// Generations per second.
-    pub speed: f64,
     pub capacity: u32,
     pub mutation_rate: f64,
-    pub lineage_threads: bool,
-    pub orbit: bool,
     /// Divides the camera's home distance.
     pub zoom: f64,
     pub waiting_pulse: bool,
@@ -246,11 +242,8 @@ impl Default for Settings {
             backdrop: Backdrop {
                 animate: false,
                 max_fps: 20,
-                speed: 10.0,
                 capacity: 1000,
                 mutation_rate: 0.2,
-                lineage_threads: false,
-                orbit: true,
                 zoom: 2.0,
                 waiting_pulse: false,
             },
@@ -574,13 +567,6 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n == 0 || (20..=240).contains(n)),
             d.backdrop.max_fps,
         ),
-        speed: pick(
-            &root,
-            &["backdrop", "speed"],
-            &mut w,
-            |v| number(v).filter(|n| (0.25..=12.0).contains(n)),
-            d.backdrop.speed,
-        ),
         // The organism layer draws at most 12000, which leaves room for the tide's swell above 5000.
         capacity: pick(
             &root,
@@ -596,14 +582,6 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             |v| number(v).filter(|n| (0.0..=4.0).contains(n)),
             d.backdrop.mutation_rate,
         ),
-        lineage_threads: pick(
-            &root,
-            &["backdrop", "lineageThreads"],
-            &mut w,
-            boolean,
-            d.backdrop.lineage_threads,
-        ),
-        orbit: pick(&root, &["backdrop", "orbit"], &mut w, boolean, d.backdrop.orbit),
         zoom: pick(
             &root,
             &["backdrop", "zoom"],
@@ -1022,18 +1000,18 @@ mod tests {
     #[test]
     fn simulation_values_parse_and_out_of_range_ones_fall_back() {
         let (s, w) = parse_settings(
-            r#"{ "backdrop": { "speed": 0.5, "capacity": 800, "mutationRate": 1.5, "lineageThreads": true, "orbit": false, "zoom": 2.5, "waitingPulse": true } }"#,
+            r#"{ "backdrop": { "capacity": 800, "mutationRate": 1.5, "zoom": 2.5, "waitingPulse": true } }"#,
         );
-        assert_eq!((s.backdrop.speed, s.backdrop.capacity, s.backdrop.mutation_rate, s.backdrop.zoom), (0.5, 800, 1.5, 2.5));
-        assert!(s.backdrop.lineage_threads && !s.backdrop.orbit && s.backdrop.waiting_pulse);
+        assert_eq!((s.backdrop.capacity, s.backdrop.mutation_rate, s.backdrop.zoom), (800, 1.5, 2.5));
+        assert!(s.backdrop.waiting_pulse);
         assert!(w.is_empty(), "{w:?}");
         let (s, w) = parse_settings(
-            r#"{ "backdrop": { "speed": 0.1, "capacity": 5001, "mutationRate": -1, "zoom": 4, "waitingPulse": "yes" } }"#,
+            r#"{ "backdrop": { "capacity": 5001, "mutationRate": -1, "zoom": 4, "waitingPulse": "yes" } }"#,
         );
         let d = Settings::default().backdrop;
-        assert_eq!((s.backdrop.speed, s.backdrop.capacity, s.backdrop.mutation_rate), (d.speed, d.capacity, d.mutation_rate));
+        assert_eq!((s.backdrop.capacity, s.backdrop.mutation_rate), (d.capacity, d.mutation_rate));
         assert_eq!((s.backdrop.zoom, s.backdrop.waiting_pulse), (d.zoom, d.waiting_pulse));
-        for field in ["backdrop.speed", "backdrop.capacity", "backdrop.mutationRate", "backdrop.zoom", "backdrop.waitingPulse"] {
+        for field in ["backdrop.capacity", "backdrop.mutationRate", "backdrop.zoom", "backdrop.waitingPulse"] {
             assert!(w.iter().any(|m| m.starts_with(field)), "missing warning for {field}: {w:?}");
         }
     }

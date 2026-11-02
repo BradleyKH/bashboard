@@ -3,7 +3,7 @@ import type { SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
 import { fontSuggestions, isSuggestionPick, listFonts } from './fonts';
-import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 export interface SettingsDialogCallbacks {
   /** Dismissed; the caller refocuses the terminal. */
@@ -328,7 +328,7 @@ export class SettingsDialog {
       const flush = (): void => {
         window.clearTimeout(timer);
         c.pending = undefined;
-        this.commit(c, range.value);
+        this.commit(c, String(sliderPosition(f, Number(range.value))));
       };
       range.addEventListener('input', () => {
         readout.textContent = formatSlider(f, Number(range.value));
@@ -337,7 +337,7 @@ export class SettingsDialog {
         timer = window.setTimeout(flush, SLIDER_DEBOUNCE_MS);
       });
       c.show = (v) => {
-        if (typeof v === 'number') range.value = String(v);
+        if (typeof v === 'number') range.value = String(sliderPosition(f, v));
         readout.textContent = formatSlider(f, Number(range.value));
       };
       c.cell.append(readout);

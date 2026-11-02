@@ -744,23 +744,21 @@ for their text.
 The background animation (the backdrop) starts frozen on a still frame; set `backdrop.animate`
 to `true` to run it, at up to 20 frames per second. Raise or lower that with `backdrop.maxFps`
 (0 for the display's refresh rate). Ctrl+Shift+D pauses or resumes the animation and saves the
-choice to that setting. The simulation itself is tuned with `speed` (generations per
-second, 0.25 to 12), `capacity` (the population it sustains, 300 to 5000), `mutationRate` (0 to
-4), `lineageThreads` (faint lines from parents to offspring), `orbit` (a slow camera orbit,
-held still while Windows animation effects are off), `zoom` (0.5 to 3; above 1 brings the colony
-closer so it fills more of the window), and `waitingPulse` (a steady brightness pulse on a
-waiting Claude session's organisms, off by default). All of these are also in the Background
-Animation section of the settings dialog:
+choice to that setting. The simulation runs at 12 generations per second under a slow camera
+orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
+population it sustains, 300 to 5000; Scale in the settings dialog), `mutationRate` (how far
+offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
+above 1 brings the colony closer so it fills more of the window), and `waitingPulse` (a steady
+brightness pulse on a waiting Claude session's organisms, off by default). All of these are also
+in the Background Animation section of the settings dialog, along with Brightness and Blur, which
+set the scrim behind terminals (Brightness is the inverse of `scrim.opacity`):
 
 ```jsonc
 "backdrop": {
   "animate": false,
   "maxFps": 20,
-  "speed": 10,
   "capacity": 1000,
   "mutationRate": 0.2,
-  "lineageThreads": false,
-  "orbit": true,
   "zoom": 2,
   "waitingPulse": false
 }

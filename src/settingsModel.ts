@@ -14,6 +14,8 @@ export interface SettingsField {
   unit?: string;
   /** Number and slider fields: the loader rejects fractions (unsigned integers in settings.rs). */
   integer?: boolean;
+  /** Slider fields only: the slider runs max to min, showing min + max - value. */
+  inverted?: boolean;
   /** Number fields only: nonzero values below this are rejected (0 stays valid). */
   minNonZero?: number;
   /** Text fields only: the loader accepts an empty string and the core treats it as unset. */
@@ -186,22 +188,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
-      { path: ['backdrop', 'speed'], label: 'Speed', kind: 'slider', min: 0.25, max: 12, step: 0.25, unit: 'gen/s', applies: 'live', shownWhen: WHILE_ANIMATED },
-      {
-        path: ['backdrop', 'capacity'],
-        label: 'Population capacity',
-        kind: 'slider',
-        min: 300,
-        max: 5000,
-        step: 100,
-        integer: true,
-        hint: 'How many organisms the colony can sustain',
-        applies: 'live',
-        shownWhen: WHILE_ANIMATED,
-      },
+      { path: ['backdrop', 'capacity'], label: 'Scale', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: WHILE_ANIMATED },
       {
         path: ['backdrop', 'mutationRate'],
-        label: 'Mutation rate',
+        label: 'Color drift',
         kind: 'slider',
         min: 0,
         max: 4,
@@ -210,16 +200,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
-      { path: ['backdrop', 'lineageThreads'], label: 'Lineage threads', kind: 'toggle', hint: 'Faint lines from parents to offspring', applies: 'live', shownWhen: WHILE_ANIMATED },
-      {
-        path: ['backdrop', 'orbit'],
-        label: 'Orbit the camera',
-        kind: 'toggle',
-        hint: 'Stays still while Windows animation effects are off',
-        applies: 'live',
-        shownWhen: WHILE_ANIMATED,
-      },
-      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', hint: 'Above 1 brings the colony closer', applies: 'live' },
+      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live' },
       {
         path: ['backdrop', 'waitingPulse'],
         label: 'Pulse waiting sessions',
@@ -228,8 +209,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
-      { path: ['scrim', 'opacity'], label: 'Dimming behind terminals', kind: 'slider', min: 0, max: 1, step: 0.05, applies: 'live' },
-      { path: ['scrim', 'blurPx'], label: 'Blur behind terminals', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live' },
+      // Stored as the scrim's opacity, so 1 here is fully dimmed and the slider reads as brightness.
+      { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live' },
+      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live' },
     ],
   },
 ];
@@ -241,6 +223,13 @@ export function readField(settings: Settings, path: string[]): unknown {
     cur = (cur as Record<string, unknown>)[key];
   }
   return cur;
+}
+
+/** Maps between a slider's stored value and its position; its own inverse. */
+export function sliderPosition(field: SettingsField, value: number): number {
+  if (!field.inverted) return value;
+  const decimals = field.step !== undefined ? (String(field.step).split('.')[1] ?? '').length : 0;
+  return Number(((field.min ?? 0) + (field.max ?? 0) - value).toFixed(decimals));
 }
 
 export type ParseResult = { ok: true; value: unknown } | { ok: false; error: string };

@@ -40,13 +40,10 @@ void main() {
 
 /**
  * Glowing threads from each living organism to its living parent. A
- * newborn's thread brightens gently and settles; with lineage mode on, the
- * threads persist faintly so the colony reads as a family tree drifting in
- * the current.
+ * newborn's thread brightens gently, then fades out.
  */
 export class ThreadLayer {
   readonly lines: LineSegments;
-  showLineage = false;
   private readonly geometry = new BufferGeometry();
   private readonly position = new Float32Array(MAX_THREADS * 6);
   private readonly color = new Float32Array(MAX_THREADS * 6);
@@ -85,8 +82,7 @@ export class ThreadLayer {
       const rise = Math.min(1, age / GLOW_RISE);
       const fall = Math.max(0, 1 - age / GLOW_FALL);
       const glow = rise * rise * (3 - 2 * rise) * fall * fall;
-      const base = (this.showLineage ? 0.16 : 0) * rise;
-      const strength = base + glow * 0.3;
+      const strength = glow * 0.3;
       if (strength < 0.01) continue;
 
       const c = hueColor(child.genome.hue);

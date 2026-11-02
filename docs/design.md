@@ -1857,7 +1857,7 @@ export interface BackdropHandle {
   setAnimated(animated: boolean): void;
   /** `backdrop.maxFps`; 0 is uncapped. */
   setMaxFps(maxFps: number): void;
-  /** `backdrop.speed`, `capacity`, `mutationRate`, `lineageThreads`, `orbit`, `zoom`, and `waitingPulse`. */
+  /** `backdrop.capacity`, `mutationRate`, `zoom`, and `waitingPulse`. */
   setOptions(options: BackdropOptions): void;
   dispose(): void;
 }
@@ -1873,16 +1873,17 @@ export interface SessionColony {
 export function mountBackdrop(canvas: HTMLCanvasElement): BackdropHandle;
 ```
 
-The simulation and camera controls are settings (section 8), all hot-reloaded: speed
-in generations per second (0.25 to 12, default 2), population capacity (300 to 5000, default
-5000), mutation rate (0 to 4, default 4), lineage threads (default off), and auto-orbit (default
-on, and held still while the OS asks for reduced motion). Two more: zoom
-(0.5 to 3, default 1) divides the camera's home distance, so the colony fills more of the window,
+The simulation runs at a fixed 12 generations per second, and the camera orbits slowly,
+holding still while the OS asks for reduced motion. The simulation and camera controls are
+settings (section 8), all hot-reloaded: population capacity (300 to 5000, default 1000; "Scale"
+in the dialog) and mutation rate (0 to 4, default 0.2; "Color drift"). Two more: zoom
+(0.5 to 3, default 2) divides the camera's home distance, so the colony fills more of the window,
 and the camera glides to a changed value; `waitingPulse` (default off) turns on the waiting
 pulse below. The settings dialog groups them with
 `backdrop.animate`, `backdrop.maxFps`, and the scrim under "Background Animation"; the UI calls
-the backdrop the background animation. While `backdrop.animate` is off, the dialog hides the
-fields a still frame can't show (the frame rate cap, the simulation controls, auto-orbit, and
+the backdrop the background animation, and labels the scrim's controls "Brightness" (shown as
+1 minus `scrim.opacity`, so the far left is fully dimmed) and "Blur". While `backdrop.animate` is off, the dialog hides the
+fields a still frame can't show (the frame rate cap, the simulation controls, and
 `waitingPulse`), leaving zoom and the scrim, which still change the frozen view.
 
 ### 6.3 Sessions as organisms
@@ -2174,15 +2175,12 @@ interface ShellProfile {
   "font": { "family": "JetBrainsMono Nerd Font Mono, Cascadia Mono", "size": 14 },
   "scrim": { "opacity": 0.5, "blurPx": 0 },
   // maxFps 0 renders the backdrop at the display's refresh rate; animate false freezes it (6.4).
-  // speed is generations per second; the rest are the simulation and camera controls (6.2).
+  // The rest are the simulation and camera controls (6.2).
   "backdrop": {
     "animate": false,
     "maxFps": 20,
-    "speed": 10,
     "capacity": 1000,
     "mutationRate": 0.2,
-    "lineageThreads": false,
-    "orbit": true,
     "zoom": 2,
     "waitingPulse": false
   },

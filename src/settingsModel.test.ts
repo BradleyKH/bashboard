@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
 import { DEFAULT_SETTINGS } from './settings';
-import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, parseInput, readField, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 const fields = SETTINGS_SECTIONS.flatMap((s) => s.fields);
 const byPath = (p: string) => fields.find((f) => f.path.join('.') === p) as SettingsField;
@@ -52,7 +52,7 @@ describe('isShown', () => {
   it('hides the loop-only backdrop fields while the backdrop is frozen', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(false))).map((f) => f.path.join('.'));
     expect(hidden.sort()).toEqual(
-      ['maxFps', 'speed', 'capacity', 'mutationRate', 'lineageThreads', 'orbit', 'waitingPulse'].map((k) => `backdrop.${k}`).sort(),
+      ['maxFps', 'capacity', 'mutationRate', 'waitingPulse'].map((k) => `backdrop.${k}`).sort(),
     );
   });
 
@@ -114,6 +114,20 @@ describe('parseInput', () => {
 
   it('passes toggles through', () => {
     expect(parseInput(byPath('backdrop.animate'), false)).toEqual({ ok: true, value: false });
+  });
+});
+
+describe('sliderPosition', () => {
+  it('runs the brightness slider opposite to the stored scrim opacity', () => {
+    const brightness = byPath('scrim.opacity');
+    expect(sliderPosition(brightness, 1)).toBe(0);
+    expect(sliderPosition(brightness, 0)).toBe(1);
+    expect(sliderPosition(brightness, 0.45)).toBe(0.55);
+    expect(sliderPosition(brightness, sliderPosition(brightness, 0.35))).toBe(0.35);
+  });
+
+  it('leaves other sliders as stored', () => {
+    expect(sliderPosition(byPath('scrim.blurPx'), 6)).toBe(6);
   });
 });
 

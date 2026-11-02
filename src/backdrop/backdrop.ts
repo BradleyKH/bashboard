@@ -15,15 +15,12 @@ import { Stage } from './sim/stages';
 
 /** Generations simulated per frame at most, so a slow frame never snowballs. */
 const MAX_TICKS_PER_FRAME = 3;
+const GENS_PER_SECOND = 12;
 const OPENING_SECONDS = 16;
 
 export interface BackdropOptions {
-  /** Generations per second. */
-  speed: number;
   capacity: number;
   mutationRate: number;
-  lineageThreads: boolean;
-  orbit: boolean;
   /** Divides the camera's home distance; above 1 fills more of the window with the colony. */
   zoom: number;
   /** Brightness pulse on a waiting session's organisms (docs/design.md section 6.2). */
@@ -65,12 +62,15 @@ class BackdropLoop implements BackdropHandle {
   private readonly timer = new Timer();
   private readonly centroid = new Vector3();
   private readonly pacer = new FramePacer();
+  private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  private readonly syncOrbit = (): void => {
+    this.viewport.controls.autoRotate = !this.reducedMotion.matches;
+  };
 
   private visible = false;
   private animated = true;
   private running = false;
   private disposed = false;
-  private gensPerSecond = 2;
   private tickDebt = 0;
   private time = 0;
   private homeDistance = HOME_DISTANCE;
@@ -92,6 +92,9 @@ class BackdropLoop implements BackdropHandle {
     });
     // The backdrop never takes input; auto-rotate still runs through controls.update.
     this.viewport.controls.enabled = false;
+    // Windows animation effects off maps to reduced motion; the camera then holds still.
+    this.syncOrbit();
+    this.reducedMotion.addEventListener('change', this.syncOrbit);
     this.timer.connect(document);
   }
 
@@ -112,12 +115,9 @@ class BackdropLoop implements BackdropHandle {
   }
 
   setOptions(options: BackdropOptions): void {
-    this.gensPerSecond = options.speed;
     this.sim.settings.capacity = options.capacity;
     this.sim.settings.mutationRate = options.mutationRate;
-    this.threads.showLineage = options.lineageThreads;
     this.waitingPulse = options.waitingPulse;
-    this.viewport.controls.autoRotate = options.orbit && !matchMedia('(prefers-reduced-motion: reduce)').matches;
     const { minDistance, maxDistance } = this.viewport.controls;
     this.homeDistance = Math.min(Math.max(HOME_DISTANCE / options.zoom, minDistance), maxDistance);
     // A frozen backdrop has no loop to ease toward the new distance, so jump there and redraw.
@@ -133,6 +133,7 @@ class BackdropLoop implements BackdropHandle {
     this.sync();
     this.disposed = true;
     this.timer.disconnect();
+    this.reducedMotion.removeEventListener('change', this.syncOrbit);
     const meshes: Renderable[] = [
       this.skyDome.mesh,
       this.snow.points,
@@ -172,7 +173,7 @@ class BackdropLoop implements BackdropHandle {
   private step(dt: number): void {
     this.time += dt;
 
-    this.tickDebt += dt * this.gensPerSecond;
+    this.tickDebt += dt * GENS_PER_SECOND;
     let ticks = 0;
     while (this.tickDebt >= 1 && ticks < MAX_TICKS_PER_FRAME) {
       this.advance();
@@ -182,7 +183,7 @@ class BackdropLoop implements BackdropHandle {
     if (ticks === MAX_TICKS_PER_FRAME) this.tickDebt = 0;
     this.motion.step(this.sim.organisms, dt, this.time);
 
-    this.organisms.update(this.sim.organisms, dt, this.time, 1 / this.gensPerSecond, true, this.waitingPulse ? this.colony.pulsingLineages() : undefined);
+    this.organisms.update(this.sim.organisms, dt, this.time, 1 / GENS_PER_SECOND, true, this.waitingPulse ? this.colony.pulsingLineages() : undefined);
     this.threads.update(this.sim.organisms, (id) => this.organisms.visualOf(id)?.born ?? Infinity);
     this.sparks.update(dt);
     this.snow.update(this.time);
@@ -198,7 +199,7 @@ class BackdropLoop implements BackdropHandle {
   private advance(): void {
     const result = this.sim.tick();
     this.colony.afterTick();
-    playTickEffects(result, this.organisms, this.sparks, 1 / this.gensPerSecond);
+    playTickEffects(result, this.organisms, this.sparks, 1 / GENS_PER_SECOND);
     if (result.newEpoch) this.organisms.clear();
   }
 
