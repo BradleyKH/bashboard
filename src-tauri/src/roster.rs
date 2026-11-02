@@ -67,6 +67,9 @@ pub struct Session {
     pub pane_id: Option<u32>,
     /// The blocking notification's text while `status` is `Waiting`; serialized as null otherwise.
     pub waiting_reason: Option<String>,
+    /// The newest permission mode a hook reported; omitted for a session that sent none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_mode: Option<String>,
 }
 
 /// One running process as the liveness and ancestry checks need it.
@@ -104,6 +107,7 @@ fn to_session(raw: RawSession) -> Option<Session> {
         version: raw.version,
         pane_id: None,
         waiting_reason: None,
+        permission_mode: None,
     })
 }
 
@@ -244,6 +248,7 @@ fn apply_overlay(sessions: &mut [Session], overlay: &HashMap<String, HookOverlay
         }
         s.waiting_reason =
             if s.status == SessionStatus::Waiting { o.waiting_message.clone() } else { None };
+        s.permission_mode = o.permission_mode.clone();
     }
 }
 
@@ -546,6 +551,15 @@ mod tests {
         let json = serde_json::to_value(merged("idle", 100, HookOverlay::default())).unwrap();
         assert!(json.as_object().unwrap().contains_key("waitingReason"));
         assert!(json["waitingReason"].is_null());
+    }
+
+    #[test]
+    fn overlay_carries_permission_mode() {
+        let overlay = HookOverlay { permission_mode: Some("bypassPermissions".into()), ..hook(HookStatus::Idle, 150) };
+        let json = serde_json::to_value(merged("idle", 100, overlay)).unwrap();
+        assert_eq!(json["permissionMode"], "bypassPermissions");
+        let json = serde_json::to_value(merged("idle", 100, HookOverlay::default())).unwrap();
+        assert!(!json.as_object().unwrap().contains_key("permissionMode"));
     }
 
     #[test]

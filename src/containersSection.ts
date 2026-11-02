@@ -29,7 +29,7 @@ export class ContainersSection {
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'containers-open';
-    open.textContent = 'Open Containers';
+    open.textContent = 'Manage';
     open.title = 'Open the Containers tab';
     open.addEventListener('click', () => this.callbacks.onOpenContainers());
     this.head.append(h, open);

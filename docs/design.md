@@ -253,10 +253,12 @@ exact transitions as they happen.
   codes, checked in this order:
   404 for any other path or method, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a
   body over 64 KiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on
-  success. The receiver keeps only `session_id`, `hook_event_name`, `cwd`, `message`, and
-  `transcript_path`, and emits `sessions://hook` with the first four plus the pane id from the
-  header and the receive time. `transcript_path` is not forwarded; the overlay entry keeps the
-  latest one an event carried, for the transcript reads behind the Panes cards' Claude line (3.4).
+  success. The receiver keeps only `session_id`, `hook_event_name`, `cwd`, `message`,
+  `transcript_path`, and `permission_mode`, and emits `sessions://hook` with the first four plus
+  the pane id from the header and the receive time. `transcript_path` is not forwarded; the
+  overlay entry keeps the latest one an event carried, for the transcript reads behind the Panes
+  cards' Claude line (3.4). It keeps the latest `permission_mode` the same way, and the roster
+  payload carries it as `permissionMode` so restore can resume in that mode (3.7).
 - The hook overlay keeps the `message` of the `Notification` that set `waiting`, trimmed and cut
   at 200 characters, and clears it whenever the overlay's status leaves `waiting`. Held in the
   core, it survives a page reload and covers external sessions. The roster payload carries it as
@@ -1311,7 +1313,7 @@ Each card shows:
 - A close button, which asks first if a command or Claude session is running, or if a scratch
   pad is not empty.
 
-**Containers.** One row per container group (4.16) with its state dot, and an Open Containers
+**Containers.** One row per container group (4.16) with its state dot, and a Manage
 button in the header. Shown while a container engine is available (3.10) and
 `dashboard.sections.containers` is on. The setting affects only the dashboard; the kind menu
 (4.11) offers a Containers pane whenever an engine is available.
@@ -1434,7 +1436,10 @@ the window closes. On launch:
 - A terminal that had a live Claude session bound when last saved gets
   `claude --resume <sessionId>` typed into it once its shell is ready (the first OSC 133 `A`,
   or the first output when the markers are absent), so the command shows in the terminal and
-  in history like any other.
+  in history like any other. When the session's last saved permission mode is anything but
+  `default`, the command adds `--permission-mode <mode>`, so a session in bypass permissions
+  resumes in it. The mode is the one the session's newest hook event reported, so a change
+  made with Shift+Tab after that event is not saved.
 - Scrollback is not restored.
 - A missing or empty workspace opens one tab with one terminal in `startingDirectory`. Closing
   the last tab saves an empty workspace, so the next launch starts fresh.
@@ -1745,8 +1750,11 @@ containers run, partial when some do, and stopped when none do, and its state do
 
 **Dashboard section** (4.6). One row per group, with no mention of the engine: groups with the
 same name on both engines share a row. Each row shows the dot, the name, and a running count
-such as "1 of 2". Hover buttons start the group when any container is stopped and stop it when
-any is running. Clicking a row opens the Containers tab with that group expanded. An engine that
+such as "1 of 2", then one hover button. A single-container group's button is Start when it is
+stopped and Stop when it runs; a group of two or more has a details button (›) that opens the
+Containers tab with that group expanded, so a partly running group is never started or stopped
+without seeing which containers it holds. Clicking a row also opens the Containers tab with that
+group expanded. An engine that
 is not running adds a single row saying so, such as "Podman is not running".
 
 **Containers tab.** Open Containers switches to the tab holding a Containers pane, focusing it,
@@ -1945,13 +1953,14 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 - `dashboardClockTop`: true.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, the zoom new Files and Git panes start at,
   4.12, 4.13): 1 for an absent field or one outside 0.5 to 3.
-- A terminal pane's `profile`: the default profile. A Files pane's `root`: resolved from its
+- A terminal pane's `profile`: the default profile. Its `permissionMode` (letters only, kept
+  only beside a `sessionId`): the default mode. A Files pane's `root`: resolved from its
   `folder`. Its `expanded`: false.
 
 **layouts.json.** Names are unique without regard to case. A layout holds one tab whose
-terminals carry no session ids and whose scratch pads have a null `scratchId`, so they open
-fresh; the tab's own `name` is ignored, since it takes the layout's. An entry whose `workspace`
-holds a version 1 workspace loads as that one tab.
+terminals carry no session ids or permission modes and whose scratch pads have a null
+`scratchId`, so they open fresh; the tab's own `name` is ignored, since it takes the layout's. An
+entry whose `workspace` holds a version 1 workspace loads as that one tab.
 
 **repos.json.** Roots compare without regard to case. A pin's path is relative to the root, with
 forward slashes, when inside the repo, else absolute. `primaryBranch`, the branch the Repo

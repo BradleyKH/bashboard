@@ -942,7 +942,7 @@ body.dashboard-resizing {
 }
 
 #dashboard .layout-rename:focus-visible,
-.layout-row:is(:hover, :focus-within) .layout-rename {
+#dashboard .layout-row:is(:hover, :focus-within) .layout-rename {
   opacity: 1;
 }
 

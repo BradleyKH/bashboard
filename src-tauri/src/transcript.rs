@@ -727,6 +727,7 @@ mod tests {
             version: None,
             pane_id,
             waiting_reason: None,
+            permission_mode: None,
         };
         let sessions = [
             session("hooked", Some(1)),

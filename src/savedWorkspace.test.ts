@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Layout } from './layout';
-import { EMPTY_WORKSPACE, parseSavedTab, parseSavedWorkspace, pruneLayout, remapLayout } from './savedWorkspace';
+import {
+  EMPTY_WORKSPACE,
+  parseSavedTab,
+  parseSavedWorkspace,
+  pruneLayout,
+  remapLayout,
+  resumeCommand,
+} from './savedWorkspace';
 
 const pane = (paneId: string): Layout => ({ kind: 'pane', paneId });
 const row = (a: Layout, b: Layout, ratio = 0.5): Layout => ({ kind: 'split', dir: 'row', ratio, a, b });
@@ -294,11 +301,32 @@ describe('parseSavedTab', () => {
     }
   });
 
+  it('keeps a letters-only permissionMode, and only beside a session id', () => {
+    const mode = (raw: Record<string, unknown>) =>
+      parseSavedTab({ panes: [{ ...term('a'), ...raw }], layout: null, focused: null })?.panes[0];
+    expect(mode({ sessionId: 's1', permissionMode: 'bypassPermissions' })).toMatchObject({
+      permissionMode: 'bypassPermissions',
+    });
+    expect(mode({ sessionId: 's1', permissionMode: 'plan; rm -rf ~' })).not.toHaveProperty('permissionMode');
+    expect(mode({ sessionId: 's1', permissionMode: 7 })).not.toHaveProperty('permissionMode');
+    expect(mode({ sessionId: null, permissionMode: 'bypassPermissions' })).not.toHaveProperty('permissionMode');
+  });
+
   it('filters scratchId to the same alphabet, keeping the pad', () => {
     for (const [input, expected] of ids) {
       const r = parseSavedTab({ panes: [{ ...scratch('a'), scratchId: input }], layout: null, focused: null });
       expect(r?.panes[0]).toEqual({ ...scratch('a', true), scratchId: expected });
     }
+  });
+});
+
+describe('resumeCommand', () => {
+  it('adds the permission mode unless it is absent, default, or unsafe', () => {
+    expect(resumeCommand('s1', 'bypassPermissions')).toBe('claude --resume s1 --permission-mode bypassPermissions');
+    expect(resumeCommand('s1', 'acceptEdits')).toBe('claude --resume s1 --permission-mode acceptEdits');
+    expect(resumeCommand('s1', 'default')).toBe('claude --resume s1');
+    expect(resumeCommand('s1', undefined)).toBe('claude --resume s1');
+    expect(resumeCommand('s1', 'x && y')).toBe('claude --resume s1');
   });
 });
 

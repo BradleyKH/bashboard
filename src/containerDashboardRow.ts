@@ -1,6 +1,6 @@
 import { attachContextMenu } from './contextMenu';
 import { containerSectionMenuItems } from './containerMenus';
-import { engineLabel, type DashboardContainerRow } from './containerGroups';
+import { engineLabel, type DashboardContainerRow, type DashboardGroupRow } from './containerGroups';
 import type { ContainersSectionCallbacks } from './containersSection';
 import { iconButton } from './rowControls';
 
@@ -44,11 +44,22 @@ export function renderContainerDashboardRow(
     }),
     target: el,
   }));
-  if (row.anyStopped) {
-    el.append(iconButton('\u25B6', 'container-action', 'Start', () => callbacks.onStart(row)));
-  }
-  if (row.anyRunning) {
-    el.append(iconButton('\u25A0', 'container-action', 'Stop', () => callbacks.onStop(row)));
-  }
+  el.append(actionButton(row, callbacks));
   return el;
+}
+
+/**
+ * Exactly one button per row so the counts line up. A multi-container group can be partly
+ * running, where a single Start or Stop would hide which containers it acts on, so it gets a
+ * details button into the Containers tab instead; its context menu still offers Start and Stop.
+ */
+function actionButton(row: DashboardGroupRow, callbacks: ContainersSectionCallbacks): HTMLButtonElement {
+  if (row.total > 1) {
+    return iconButton('\u203A', 'container-action', 'Show containers', () =>
+      callbacks.onOpenContainers(row.groupKeys),
+    );
+  }
+  return row.anyRunning
+    ? iconButton('\u25A0', 'container-action', 'Stop', () => callbacks.onStop(row))
+    : iconButton('\u25B6', 'container-action', 'Start', () => callbacks.onStart(row));
 }

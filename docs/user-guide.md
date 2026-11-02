@@ -318,6 +318,9 @@ dropped on a band opens a terminal docked on that edge.
 
 On relaunch, Bashboard reopens your tabs and the active tab, with the terminals you had in the same
 folders, layout, and collapsed state, and types `claude --resume <session id>` into each one that was running a Claude session.
+A session that was in a permission mode other than the default, such as bypass permissions,
+resumes in that mode. The mode saved is the one Claude Code last reported through its hooks, so a
+Shift+Tab change made just before closing, with no prompt after it, may not be saved.
 Scrollback is not restored.
 
 When a terminal starts waiting while the panel is hidden, the panel peeks open over the panes for
@@ -346,9 +349,11 @@ missing is left out. One that is installed but not running shows as "Docker is n
 "Podman is not running", and Bashboard checks it again every 10 seconds. The section appears while
 an engine is found and `dashboard.sections.containers` is on (see [Settings](settings.md#settings)).
 
-Each row shows the project's name, how many of its containers run ("1 of 2"), and, on hover, Start
-when any is stopped or Stop when any is running. A project that exists on both engines is one row.
-Click a row to open the Containers tab with that project expanded. Open Containers in the section's
+Each row shows the project's name, how many of its containers run ("1 of 2"), and one button on
+hover. A project with a single container gets Start or Stop; a project with more gets a details
+button (›) that opens it in the Containers tab, where each container can be started or stopped.
+Right-click a row to start or stop a whole project. A project that exists on both engines is one row.
+Click a row to open the Containers tab with that project expanded. Manage in the section's
 header switches to a Containers tab that is already open, or adds one.
 
 The **Containers pane** has a heading for each engine that is available, Docker and then Podman,

@@ -16,6 +16,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
       kind: 'terminal';
       cwd: string;
       sessionId: string | null;
+      /** The session's last reported permission mode, passed back to `--resume`; absent means default. */
+      permissionMode?: string;
       /** Shell profile id; absent means the default profile. */
       profile?: string;
     }
@@ -85,6 +87,21 @@ function safeId(v: unknown): string | null {
   return typeof v === 'string' && SESSION_ID.test(v) ? v : null;
 }
 
+// Typed into a shell like the session id, so it is held to letters.
+const PERMISSION_MODE = /^[A-Za-z]{1,32}$/;
+
+function safeMode(v: unknown): string | undefined {
+  return typeof v === 'string' && PERMISSION_MODE.test(v) ? v : undefined;
+}
+
+/** The command restore types to resume a session, in its saved permission mode unless that is the default. */
+export function resumeCommand(sessionId: string, permissionMode: string | undefined): string {
+  const mode = safeMode(permissionMode);
+  return mode && mode !== 'default'
+    ? `claude --resume ${sessionId} --permission-mode ${mode}`
+    : `claude --resume ${sessionId}`;
+}
+
 type PaneBase = { key: string; collapsed: boolean };
 
 /** One parser per kind; a kind missing here is dropped on load. */
@@ -92,11 +109,14 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
   terminal: (raw, base) => {
     if (typeof raw.cwd !== 'string') return null;
     const profileId = parseProfileId(raw.profile);
+    const sessionId = safeId(raw.sessionId);
+    const permissionMode = sessionId ? safeMode(raw.permissionMode) : undefined;
     return {
       ...base,
       kind: 'terminal',
       cwd: raw.cwd,
-      sessionId: safeId(raw.sessionId),
+      sessionId,
+      ...(permissionMode ? { permissionMode } : {}),
       ...(profileId ? { profile: profileId } : {}),
     };
   },
