@@ -126,7 +126,7 @@ Behavior:
   environment sets `PROMPT` to `$e]9;9;$P$e\` followed by the inherited `PROMPT` (or `$P$G` when
   there is none). The prompt itself then reports the working directory as OSC 9;9. cmd emits no
   OSC 133, so its status comes from the activity sweep (below).
-  PowerShell reports nothing by default; the README's profile snippet adds OSC 9;9 only. The
+  PowerShell reports nothing by default; the profile snippet in setup.md adds OSC 9;9 only. The
   front end ignores the sweep once a pane emits any OSC 133 marker (4.8), and PowerShell has no
   reliable hook for the command-started marker, so its status also comes from the sweep.
 - **Output** streams over a per-pane `Channel` as raw bytes (`InvokeResponseBody::Raw`), which
@@ -606,8 +606,8 @@ tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
 
 Working-directory reporting (OSC 9;9) and the command-start and command-end markers (OSC 133)
 come from a few lines in Git Bash's `~/.bashrc`. The setup wizard (4.17) installs them with
-`shell_integration_preview` and `shell_integration_install`. The lines are the snippet in the
-README's "New panes in the current folder" section; a test requires the two to match byte for
+`shell_integration_preview` and `shell_integration_install`. The lines are the snippet in
+setup.md's "New panes in the current folder" section; a test requires the two to match byte for
 byte, ignoring line endings.
 
 The install writes the snippet between two marker lines at the end of the file:
@@ -779,22 +779,13 @@ type Layout =
   before moving focus, which then moves as usual; resizing does nothing while zoomed. A tab with
   one expanded pane cannot zoom. While a hidden pane in the zoomed tab is marked for attention
   (4.7), the zoom button pulses.
-- The tree is pure data with its own module (`layout.ts`) and unit tests, including the
-  remove, insert-at-edge, insert-at-root-edge, and swap operations docking uses; DOM rendering
-  is a separate module that rebuilds from the tree on change.
 
 **Duplicating the working directory.** A new pane or tab starts in the focused pane's current
 directory, read from OSC 9;9 (what Windows Terminal uses) or OSC 7 sequences that xterm.js
-handlers capture. Git Bash emits neither by default, so the README documents a `~/.bashrc`
-addition that also emits the OSC 133 command markers terminal status uses (4.8):
-
-```sh
-PS0='\e]133;C\e\\'
-PROMPT_COMMAND='printf "\e]133;D;%s\e\\" "$?"; printf "\e]9;9;%s\e\\" "$(cygpath -w "$PWD")"'"${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
-```
-
-Without it, new panes start in the home directory. The `133;D` printf comes first so `$?` is
-still the finished command's exit code.
+handlers capture. Git Bash emits neither by default, so the `~/.bashrc` lines in
+[setup.md](setup.md#new-panes-in-the-current-folder) (installed by 3.14) emit OSC 9;9 along with
+the OSC 133 command markers terminal status uses (4.8). Without them, new panes start in the home
+directory.
 
 ### 4.3 Collapsing
 
@@ -875,8 +866,7 @@ and behave alike.
   items on `contextmenu`, and the innermost owner wins because it stops the event. An owner with
   nothing to offer at that spot returns no menu and lets the event bubble to an outer owner. A
   builder may be asynchronous (the Open menu's git probe); its menu opens only if no menu opened
-  or closed while it waited. Item lists come from pure functions beside each owner, such as
-  `fileRowMenuItems`, so tests cover them without the DOM.
+  or closed while it waited.
 - **Row outline.** A right-clicked row is outlined while its menu is open but not selected: the
   Files preview, the Git diff, and the Search preview do not change, so a menu can act on a row
   without losing the one being read.
@@ -1009,8 +999,9 @@ or a click elsewhere cancels. The pure rules in `keybindingEdit.ts` check each r
 | Bound to another action | The move strip |
 
 The shell-key list (Ctrl+A, E, K, U, W, R, L, D, Ctrl+Left and Ctrl+Right, and a few more) gives
-each key a few words on what it does, for notes such as "Ctrl+R no longer reaches bash's reverse
-search". A chord the row holds by default has no note, and an unlisted chord gets none.
+each key a few words on what it does in the shell, so the note under a row names the shell
+feature the binding takes over (Ctrl+R: bash's reverse search). Only listed chords get a note,
+and only when the row does not hold them by default.
 
 When the recorded chord belongs to another action, the field holds it and a move strip
 (`keybindingMoveStrip.ts`) opens under the row, naming the action that gives it up and adding "It
@@ -1022,8 +1013,7 @@ Assign a key, which scrolls to its row and starts recording there. The notice st
 next edit or 10 seconds. Undo is a single write that restores both rows. Reset on a row whose
 default chord another action holds opens the strip for those chords (all of them when there are
 several) as "Move it back?", and Cancel resets nothing. Reset all, in the footer, confirms and
-then empties the `keybindings` array, with the same notice and Undo. Rows are built by
-`keybindingEdit.ts` and drawn by `keybindingRow.ts`.
+then empties the `keybindings` array, with the same notice and Undo.
 
 The dialog never writes the merged keymap. It sends ops to `settings_keybindings_edit` (in
 `settings.rs`), which applies them to the raw `keybindings` array in settings.json under the
@@ -1068,9 +1058,7 @@ score higher. With an empty query, the session's recent picks come first (most r
 in memory and not saved), then every row in category order. A leading `>` limits the list to
 actions.
 
-The rows come from `buildPaletteItems` and `rankPalette` in the pure `paletteModel.ts`. The list is
-the shared `Picker`, which takes a category and hint per item and a matcher supplied by the
-palette. Choosing a row refocuses the pane that had focus before the palette opened, then runs the
+Choosing a row refocuses the pane that had focus before the palette opened, then runs the
 choice, so actions such as split, find, and close apply to that pane.
 
 ### 4.6 Dashboard panel
@@ -1143,16 +1131,8 @@ section's header is. The first sample after a start shows memory and disk at onc
 CPU and network on the second, since both are deltas between two refreshes; they read `-` until
 then, and every row reads `-` when the core cannot be reached. GPU utilization and Wi-Fi name and
 signal are not shown: Windows offers GPU load only through costly counters or vendor libraries,
-and the Wi-Fi values need the WLAN API for little benefit. `system.rs` holds a
-`Mutex<SystemSampler>` (the `System`, `Networks`, and `Disks` state plus the last refresh times)
-and `system_sample(includeDisks)`, which returns the rows; the front end passes `includeDisks` on
-its 60 second beat.
-
-**Modules.** `systemModel.ts` is pure: formatting bytes and rates, the bar thresholds, the
-sparkline's ring buffer, and the rate scale. `sparkCanvas.ts` draws a sparkline. `claudeModel.ts` is pure: the token text, model display names, and the Panes card's Claude line.
-`dashboardSystem.ts` is the System section, `claudeContexts.ts` tracks session contexts for the
-Panes cards, `systemApi.ts` and `claudeApi.ts` are their invoke wrappers, and `pollTimer.ts` is
-the polling rule.
+and the Wi-Fi values need the WLAN API for little benefit. `system_sample(includeDisks)` returns
+the rows; the front end passes `includeDisks` on its 60 second beat.
 
 **Keyboard.** F6 moves focus into the panel, onto the row focused there last, else the focused
 pane's card, else the first row; F6 again, or Escape, returns focus to the focused pane. While the
@@ -1380,8 +1360,8 @@ existing `printf '\a'` hook):
 - An expanded terminal's pane border pulses until it is focused; a collapsed terminal's card
   pulses until it is expanded. A terminal in a background tab also pulses that tab in the tab
   strip and its group header in the dashboard, until none of the tab's terminals is marked.
-- A terminal the user is already looking at (the focused, expanded pane of the active tab in a
-  focused window) is not marked. Attention clears when the pane becomes that focused pane,
+- A terminal being **looked at** (the focused, expanded pane of the active tab in a focused
+  window) is not marked. Attention clears when the pane becomes the one looked at,
   including when switching to its tab or when the window regains focus with it focused.
 - If the window is unfocused, the taskbar button flashes. A toast is not sent, because the
   existing `Notification` hook already raises one.
@@ -1398,9 +1378,7 @@ jump goes to the entry after it, wrapping; otherwise to the first entry. `waitin
 on focus, so repeated presses walk the whole list; `done` and `failed` clear on focus, so they
 drop out as they are visited. The jump switches to the pane's tab if needed and focuses it; a
 collapsed terminal expands as clicking its card does (4.3), and a zoomed pane (4.2) in the
-target tab unzooms first. An empty list shows a toast, "Nothing needs you". The ordering is a
-pure function (`attentionQueue.ts`) over pane ids, statuses, change times, tabs, and the focused
-id.
+target tab unzooms first. An empty list shows a toast, "Nothing needs you".
 
 ### 4.8 Terminal status
 
@@ -1418,14 +1396,13 @@ Every terminal is `idle`, `working`, `waiting`, `done`, or `failed`, resolved in
 Plain shells have no `waiting` state; a program that needs the user rings the bell, which
 raises attention (4.7) without changing status.
 
-**Done.** When a bound session's `Stop` hook arrives while its terminal is not the one being
-looked at (the focused, expanded pane of the active tab in a focused window, as in 4.7), the
-terminal shows `done` instead of `idle` until it becomes that pane. Any later status (a new
+**Done.** When a bound session's `Stop` hook arrives while its terminal is not being looked
+at (4.7), the terminal shows `done` instead of `idle` until it is. Any later status (a new
 prompt, `waiting`, the session ending) replaces it. A roster change to `idle` does not set it.
 
 **Long commands.** A shell command that runs at least `terminal.doneAfterSeconds` (section 8;
-default 30, 0 turns it off) and finishes while its terminal is not being looked at (the focused,
-expanded pane of the active tab in a focused window, as in 4.7) marks the terminal `done`, or
+default 30, 0 turns it off) and finishes while its terminal is not being looked at (4.7) marks
+the terminal `done`, or
 `failed` when it exited nonzero. The duration is measured from OSC 133 `C` to `D`, so only Git
 Bash with the `~/.bashrc` lines (4.2) qualifies; PowerShell and Command Prompt terminals never
 get a command mark, and the activity sweep is not used, since it counts background jobs and
@@ -1438,10 +1415,7 @@ newer mark replaces the old. `failed` is a still cross in the error color, where
 still check mark.
 
 `done` and `failed` are display state only; the session stays `idle`, and the backdrop never sees
-them (6.3). They are not saved, so restored terminals start without them. `DoneTracker`
-(`doneStatus.ts`) holds marks of two kinds, `session` (the `Stop` mark) and `command`, each with
-a `failed` flag; `command` marks ignore the session binding rules. `Pane` records the `C` time
-and reports the duration and exit code on `D`.
+them (6.3). They are not saved, so restored terminals start without them.
 
 ### 4.9 Restore
 
@@ -1451,7 +1425,7 @@ the window closes. On launch:
 
 - Each saved terminal gets a new shell of its saved profile (the default profile when none is
   saved or the profile is unavailable) in its saved directory, or in `startingDirectory` if that
-  folder no longer exists. Each tab's layout and collapsed terminals are rebuilt around the new
+  folder is missing. Each tab's layout and collapsed terminals are rebuilt around the new
   pane ids, the tabs keep their order and names, the same tab is active, and each tab's focus
   returns to the same terminal.
 - A terminal that had a live Claude session bound when last saved gets
@@ -1632,9 +1606,6 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
 - Move to (files only, and only when there are targets): the repo's pinned folders and the
   current folder's subfolders (`fs_move`), as a submenu.
 - Pin.
-
-Copy path copies the absolute path with backslashes and no quotes, and Insert path is relative
-to this pane's own root (4.4).
 
 The breadcrumb also has an Open terminal here button for the current folder, and the list's zoom
 buttons. A right-click on the breadcrumb, or on the list outside any row (or the Menu key with no
@@ -1934,233 +1905,55 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
 
 ## 7. Data model
 
-```ts
-type SessionStatus = 'busy' | 'idle' | 'waiting' | 'unknown';
+The TypeScript types are the shapes; this section holds the rules they do not show.
 
-interface Session {
-  sessionId: string;
-  pid: number;
-  name: string | null;
-  cwd: string;
-  status: SessionStatus;
-  /** Raw status string when status is 'unknown'. */
-  rawStatus?: string;
-  statusChangedAt: number; // epoch ms
-  startedAt: number;
-  version: string | null;
-  /** Bound pane, or null for sessions running outside this app. */
-  paneId: number | null;
-}
-```
+| Shape | Defined in | Notes |
+| --- | --- | --- |
+| `Session`, `SessionStatus` | `src/sessions.ts` | The roster payload (3.2); `paneId` is null for sessions outside this app |
+| `TerminalStatus` | `src/terminalStatus.ts` | Resolved as in 4.8 |
+| `SavedWorkspace`, `SavedTab`, `SavedPane` | `src/savedWorkspace.ts` | `workspace.json` (3.7) |
+| `DashboardSection`, `DashboardElement` | `src/dashboardSections.ts` | Collapse state and element order (4.6) |
+| `Favorite` | `src/favorites.ts` | `favorites.json` (3.7), in display order |
+| `NamedLayout` | `src/layouts.ts` | `layouts.json` (3.7), in display order |
+| `RepoPins` | `src/repos.ts` | `repos.json` (3.7, 4.12) |
+| `SearchOptions` | `src/searchOptions.ts` | An empty `include` glob searches every file |
+| `Container`, `EngineState`, `ContainersSnapshot`, `ContainerStats` | `src/containers.ts` | `containers_list` and `containers://changed` (3.10) |
+| `SystemSample`, `DiskRow` | `src/systemModel.ts` | `system_sample` (4.6); `disks` is null unless the call passed `includeDisks` |
+| `ClaudeContext` | `src/claudeModel.ts` | `claude_context` and `claude://context` (3.4) |
+| `ShellProfile` | `src/profiles.ts` | `shell_profiles` (3.1) |
 
-Status resolution: a hook event newer than the roster's `statusUpdatedAt` wins; otherwise the
+**Session status.** A hook event newer than the roster's `statusUpdatedAt` wins; otherwise the
 roster's value. `waiting` exists only from hooks, and clears on the next `UserPromptSubmit`,
 `Stop`, or roster change to `busy`. The roster payload carries `waitingReason: string | null`
 beside each session's status; it is the `Notification` message (3.3) and is present only while
-the merged status is `waiting`.
+the merged status is `waiting`. A terminal's `done` is `idle` after a `Stop`, or a long command
+that finished, that the user has not looked at yet; `failed` is the same for a nonzero exit (4.8).
 
-```ts
-/**
- * 'done' is 'idle' after a Stop, or a long command that finished, the user has not looked at
- * yet; 'failed' is the same for a nonzero exit (4.8).
- */
-type TerminalStatus = 'idle' | 'working' | 'waiting' | 'done' | 'failed';
+**workspace.json.** Version 3, tabs in strip order. Pane ids do not survive a restart, so panes
+are saved under keys, and layout leaves hold those keys. A tab's `name` is null while it follows
+its focused pane's title. A version 2 file's tabs hold `terminals`, which load as terminal panes;
+a version 1 file, which holds one tab's `terminals`, `layout`, and `focused` at the top level,
+loads as a single unnamed tab. Absent optional fields take these defaults:
 
-interface Terminal {
-  paneId: number;
-  /** The tab it belongs to (4.10). */
-  tabId: string;
-  /** From OSC 9;9 or OSC 7, else the directory it was opened in. */
-  cwd: string;
-  collapsed: boolean;
-  status: TerminalStatus; // resolved as in 4.8
-  statusChangedAt: number;
-  /** Set by waiting or the bell; cleared when the terminal is focused. */
-  attention: boolean;
-  sessionId: string | null;
-}
+- `dashboardWidth`: 300 px.
+- `dashboardSectionOrder`: the default order. Reading keeps known names once each, drops unknown
+  names and `repo`, and inserts a missing element at its default position relative to its
+  neighbors.
+- `dashboardClockTop`: true.
+- `textZoom` (`filesList`, `filePreview`, `gitDiff`, the zoom new Files and Git panes start at,
+  4.12, 4.13): 1 for an absent field or one outside 0.5 to 3.
+- A terminal pane's `profile`: the default profile. A Files pane's `root`: resolved from its
+  `folder`. Its `expanded`: false.
 
-interface SearchOptions {
-  caseSensitive: boolean;
-  wholeWord: boolean;
-  regex: boolean;
-  /** Glob; empty searches every file. */
-  include: string;
-}
+**layouts.json.** Names are unique without regard to case. A layout holds one tab whose
+terminals carry no session ids and whose scratch pads have a null `scratchId`, so they open
+fresh; the tab's own `name` is ignored, since it takes the layout's. An entry whose `workspace`
+holds a version 1 workspace loads as that one tab.
 
-/** One pane (4.11). Pane ids do not survive a restart, so entries use saved keys. */
-type SavedPane = { key: string; collapsed: boolean } & (
-  | {
-      kind: 'terminal';
-      cwd: string;
-      sessionId: string | null;
-      /** Shell profile id; absent means the default profile. */
-      profile?: string;
-    }
-  /**
-   * `root`: the repo the pane was opened for; absent, it resolves from `folder`. `expanded`:
-   * the preview filled the pane; absent means false.
-   */
-  | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean }
-  | { kind: 'git'; root: string }
-  | { kind: 'search'; root: string; query: string; options: SearchOptions }
-  /** null in layouts, which open fresh pads. */
-  | { kind: 'scratch'; scratchId: string | null }
-  | { kind: 'containers' }
-);
-
-/** One tab (4.10). */
-interface SavedTab {
-  /** A name the user or a layout fixed; null follows the focused pane's title. */
-  name: string | null;
-  panes: SavedPane[];
-  /** Leaves' paneId fields hold pane keys. */
-  layout: Layout | null;
-  focused: string | null;
-}
-
-type DashboardSection =
-  | 'repo' | 'favorites' | 'layouts' | 'panes' | 'containers' | 'external' | 'claude' | 'system';
-
-/** The elements between Repo and the footer, in default order (4.6). */
-type DashboardElement =
-  | 'favorites' | 'layouts' | 'panes' | 'containers' | 'external' | 'claude' | 'system' | 'clock';
-
-/**
- * workspace.json (3.7), tabs in strip order. A version 2 file's tabs hold `terminals`, which
- * load as terminal panes. A version 1 file, which holds one tab's `terminals`, `layout`, and
- * `focused` at the top level, loads as a single unnamed tab.
- */
-interface SavedWorkspace {
-  version: 3;
-  tabs: SavedTab[];
-  /** Index into tabs. */
-  activeTab: number;
-  /** Dashboard sections collapsed by the user (4.6). */
-  collapsedSections: DashboardSection[];
-  /** Dashboard width in px as last dragged (4.6); absent means the 300 px default. */
-  dashboardWidth?: number;
-  /**
-   * Dashboard element order as last dragged (4.6). Reading keeps known names once each, drops
-   * unknown names and `repo`, and inserts a missing element at its default position relative
-   * to its neighbors; absent means the default order.
-   */
-  dashboardSectionOrder?: DashboardElement[];
-  /**
-   * Whether the clock sits in its slot above Repo (4.6) rather than at its place in
-   * `dashboardSectionOrder`; absent means true.
-   */
-  dashboardClockTop?: boolean;
-  /**
-   * The zoom, from 0.5 to 3, that new Files and Git panes start at, as their zoom buttons last
-   * left it (4.12, 4.13); absent, or a field out of range, means 1.
-   */
-  textZoom?: { filesList: number; filePreview: number; gitDiff: number };
-}
-
-/** favorites.json (3.7), in display order. */
-interface Favorite {
-  label: string;
-  path: string;
-  /** Shell profile id; absent means the default profile. */
-  profile?: string;
-}
-
-/**
- * layouts.json (3.7), in display order. Names are unique without regard to case. An entry
- * whose `workspace` holds a version 1 SavedWorkspace loads as that one tab.
- */
-interface NamedLayout {
-  name: string;
-  /** Every terminal's sessionId is null; name is ignored, since the tab takes the layout's. */
-  tab: SavedTab;
-}
-
-/**
- * repos.json (3.7): pins per repo (4.12). Roots compare without regard to case. A pin's path
- * is relative to the root, with forward slashes, when inside the repo, else absolute.
- */
-interface RepoPins {
-  root: string;
-  pins: { path: string; label?: string }[];
-  /**
-   * The branch the Repo section compares worktrees with (4.6), keyed by the main worktree's
-   * path. An entry may hold it with no pins; Automatic omits it.
-   */
-  primaryBranch?: string;
-}
-type ReposFile = RepoPins[];
-
-/** A container from either engine (3.10). */
-interface Container {
-  engine: 'docker' | 'podman';
-  id: string;
-  name: string;
-  image: string;
-  state: 'running' | 'paused' | 'exited' | 'created' | 'restarting' | 'dead' | 'unknown';
-  /** The engine's own text, e.g. "Up 3 hours". */
-  statusText: string;
-  ports: { host: number; container: number; protocol: string }[];
-  project: string | null;
-  service: string | null;
-}
-
-/** An engine whose CLI was found on `PATH` (3.10); `running` is whether its daemon or machine answers. */
-interface EngineState {
-  engine: 'docker' | 'podman';
-  running: boolean;
-}
-
-/** The result of `containers_list` and the payload of `containers://changed` (3.10). */
-interface ContainersSnapshot {
-  engines: EngineState[];
-  containers: Container[];
-}
-
-/** One `stats --no-stream` sample (3.10); a null field is one the output did not give. */
-interface ContainerStats {
-  engine: 'docker' | 'podman';
-  id: string;
-  cpuPercent: number | null;
-  /** The engine's own usage text, e.g. "12.5MiB / 7.6GiB". */
-  memUsage: string | null;
-  memPercent: number | null;
-}
-
-/** The result of `system_sample` (3.4, 4.6); a null field is one the core has no sample for yet. */
-interface SystemSample {
-  cpuPercent: number | null;
-  memoryUsedBytes: number;
-  memoryTotalBytes: number;
-  /** Bytes per second summed over counted adapters. */
-  netRxPerSec: number | null;
-  netTxPerSec: number | null;
-  /** Null unless the call passed `includeDisks`. */
-  disks: DiskRow[] | null;
-}
-
-/** A fixed drive: `mount` is the drive letter with its colon, as "C:". */
-interface DiskRow {
-  mount: string;
-  totalBytes: number;
-  availableBytes: number;
-}
-
-/** The result of `claude_context` and the payload of `claude://context` (3.4). */
-interface ClaudeContext {
-  sessionId: string;
-  model: string | null;
-  contextTokens: number | null;
-}
-
-/** A shell a terminal can run (3.1), from `shell_profiles`. */
-interface ShellProfile {
-  id: 'gitBash' | 'pwsh' | 'powershell' | 'cmd';
-  name: string;
-  path: string;
-  args: string[];
-}
-```
+**repos.json.** Roots compare without regard to case. A pin's path is relative to the root, with
+forward slashes, when inside the repo, else absolute. `primaryBranch`, the branch the Repo
+section compares worktrees with (4.6), is keyed by the main worktree's path; an entry may hold
+it with no pins, and Automatic omits it.
 
 ## 8. Settings
 
@@ -2260,101 +2053,17 @@ toast, until the file is fixed.
 
 ## 10. Testing
 
-| Area | How |
-| --- | --- |
-| Layout tree | Vitest: split, close, resize clamping, focus movement, docking (remove, insert at edge, insert at a window edge with its share and minimum, swap) |
-| Terminal status | Vitest: resolution order in 4.8, OSC 133 transitions, activity sweep fallback, `done` set only by an unseen `Stop` and cleared on looking or a later status |
-| Zoom | Vitest: zoom state per tab, ending on tree changes and focus moves, no zoom with one pane |
-| Pane CLI | Rust: argument parsing, relative path resolution, the `/cli` answer codes; Vitest: each command dispatching to the same action as its UI counterpart |
-| Saved workspace | Vitest: save and restore round trip, pane id remapping, missing folder fallback, version 1 files and layouts loading as one tab |
-| Tabs | Vitest over the pure tab model: add, close (neighbor activation, last tab), reorder, move a terminal between tabs (closing an emptied tab), name following and fixing, combined status |
-| Key mapping | Vitest: event to action table, including the keypress swallowing |
-| Command palette | Vitest: item building and excluded actions, hints from the live keymap, the fuzzy scorer, ranking with `>` and recents, `pushRecent` |
-| Keybinding editor | Vitest over `keybindingEdit`: per-argument rows, the refusal rules, shell notes, conflict detection, ops and their inverses; Rust: op application to the raw array (rejected entries and order kept, aliases matching) and `set_array_lines` |
-| Roster parsing | Rust unit tests over captured session files, including malformed and unknown status |
-| Hook receiver | Rust tests: token rejection, size limit, field filtering, `transcript_path` kept and cleared with the overlay |
-| System and Claude | Vitest over `systemModel`, `claudeModel`, and `pollTimer`; Rust: transcript parsing (sidechain, synthetic, and usage-less lines skipped, token sums, the 64 KiB tail and its widening) and the `<sessionId>.jsonl` fallback search, adapter filtering, and descendant sums over a synthetic table and a spawned process tree |
-| Pty | Rust integration test: spawn `bash -c 'echo hi'`, read output, observe exit |
-| Backdrop | The copied sim's Vitest suite plus tests for `SessionColony` |
-| Pane kinds | Vitest: workspace version 3 round trip with every kind, version 2 files loading as terminals, layouts saving scratch pads empty, replacing a pane's kind in place |
-| Repo files | Rust over temp folders: repo root detection (a `.git` folder and a worktree's `.git` file), binary refusal, write refused after a change on disk, move refused over an existing name |
-| Git | Rust against temp repos: porcelain v2 parsing, staging in a repo with no commits, undo allowed when pushed (to a local bare remote), refused mid-merge or after HEAD moved |
-| Worktrees | Rust against temp repos: worktree porcelain parsing, listing, primary branch resolution, merged states (merged, squash-merged with the remote branch pruned, unmerged), removal refusals (main, locked, dirty, unmerged branch) and a prunable removal; Vitest: the worktree model (badges, texts, containment, delete choices) and `repos.ts` `primaryBranch` |
-| Code search | Rust over a temp tree: `.gitignore` honored, options, the match cap, cancellation |
-| Containers | Rust: parsing captured `docker ps` and `podman ps` JSON, Compose labels from both; Vitest: grouping, group state, merging same-named groups for the dashboard |
-| Editors | Rust: the argument form for each editor, filling `editor.command`; JetBrains detection over temp folders (exe on `PATH`, a Toolbox script naming an exe, the highest `product-info.json` version) and the VS Code family shims traded for their exes |
-| Fonts | Rust: the sort and dedupe, Consolas listed as monospace; Vitest: the suggestion merge and telling a datalist pick from typing |
-| Setup wizard | Vitest: step visibility, favorites added without duplicates, scrim preset matching, editor choices; Rust: repo candidates over a temp folder, firstRun only when the file was created |
-| End to end | Manual keyboard checklist (Ctrl+F/R/P, Alt+B/F, Shift+Enter, Esc, copy and paste, resize) run before each release |
+Pure modules (no DOM) carry the logic worth testing and are covered by Vitest beside each
+module (`src/**/*.test.ts`); the Rust core's tests sit in each module and run against temp
+folders, temp repos, captured CLI output, and a spawned pty. Keys are the exception: what
+reaches the shell through WebView2 and xterm.js can only be checked by hand, with the keyboard
+checklist in [development.md](development.md#releasing) before each release.
 
 CI: a GitHub Actions workflow (`.github/workflows/ci.yml`) on `windows-latest` runs the type
 check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS installer as the
 `bashboard-installer` artifact.
 
-## 11. Milestones
-
-Each milestone ends with a usable app.
-
-1. **Panes.** Layout tree, splits, close, focus, resize, keybindings from settings, OSC 9;9
-   working directory, WebGL budget fallback. Placeholder gradient backdrop.
-2. **Backdrop.** The colony sim and renderer in `src/backdrop/`, `backdrop.ts` and
-   `mountBackdrop`, scrims and the scrim cycle key, visibility pausing, the `backdrop.maxFps`
-   frame cap.
-3. **Session roster.** Watcher, liveness, ancestry binding to panes, and the dashboard panel's
-   Terminals and External sessions sections.
-4. **Dashboard.** Collapse and expand, docking by drag, favorites and recent folders, shell
-   status from OSC 133 and the activity sweep, workspace save and restore with Claude resume.
-5. **Hooks.** Receiver, hook script, the install command, `waiting` status, attention
-   (border and card pulse, taskbar flash).
-6. **Sessions as organisms.** `SessionColony` in the copied sim, hue matching, moods and pulses.
-7. **Polish and release.** Settings hot reload, find addon, hyperlinks, CSP, installer via
-   `tauri build`, CI.
-8. **Tabs.** The tab model and strip, per-tab layouts, focus, and WebGL budget, the tab
-   keybindings (with the shell picker on Alt+Shift+T), grouped Terminals cards, attention on
-   tabs, moving terminals between tabs, workspace version 2, and layouts that open as tabs.
-9. **Pane kinds.** Panes of more than one kind (4.11) with the kind menu, scratch pads (4.15),
-   the Panes section's cards for every kind, collapsible dashboard sections, workspace version
-   3, and layouts holding any kind.
-10. **Repo files.** Repo detection (3.8), the Repo section, pins and `repos.json`, the Files
-    pane with markdown preview, the text editor, keyboard navigation, the filter, history, and
-    Open terminal here (4.12), and the preferred editor (3.12) with its settings and the Open
-    menu on dashboard rows.
-11. **Git.** The Git pane (4.13) and the git commands and watcher (3.9).
-12. **Containers.** Docker and Podman (3.10), the Containers section, tab, and pane (4.16).
-13. **Code search.** The Search pane (4.14) and the search command (3.11).
-14. **Setup wizard.** The first-run wizard and Run setup (4.17).
-15. **Pane polish.** The `done` status (4.8) on dots everywhere, pane zoom with its key and
-    button (4.2), and window-edge docking (4.2).
-16. **Pane CLI.** `bb` (3.13): the binary and its bundling, `PATH` in pane environments, the
-    `/cli` endpoint, and the front end's handling of each command.
-17. **Install and update.** The bundled terminal font, the Git install (3.15) and shell
-    integration install (3.14) with their wizard steps (4.17), the updater and release workflow
-    (3.16), and the installer's license page, images, and desktop shortcut.
-18. **v0.2.0.** The waiting reason on cards, title strips, tabs, and external sessions (3.3,
-    4.6); `done` and `failed` for long shell commands (4.8) with `terminal.doneAfterSeconds`;
-    `nextAttention`, which jumps to the next terminal that needs you (4.7), with the keybinding
-    changes in 4.5; and suppression of WebView2's context menu (4.4). The Git pane's Fetch,
-    Pull, and Push / Publish buttons, last fetch label, and background fetch (3.9, 4.13).
-    Worktrees in the Repo section: list, detail, primary branch, merged state, and delete
-    (3.9, 4.6). Dragging paths from File Explorer and the Files, Search, and Git panes onto
-    terminals and scratch pads, with `pathInsertText` for Insert path (4.4). The command
-    palette on Ctrl+Shift+P (4.5), with the `Picker` category, hint, and matcher it adds. The
-    keybinding editor in the F1 guide (per-argument rows, recording, moves with Undo, Reset and
-    Reset all, `settings_keybindings_edit`) and the settings dialog's Keyboard section (4.5, 4.6).
-    The expanded file preview (4.12), with its Expand preview button and the rules that bring the
-    list back. Dashboard elements (4.6): a `dashboard.sections.*` toggle for each, with
-    `dashboard.sections.containers` as the one Containers setting; drag to reorder, saved as
-    `dashboardSectionOrder`; `dashboard.side` docking the panel left or right; and the clock.
-    The System dashboard section (4.6): machine load, with a polling rule that stops it while
-    hidden. Each Claude session's model and context on its Panes card (3.4, 4.6).
-    Context menus (4.4): one shared menu module (`contextMenu.ts`) behind the Open menu and kind
-    menu and the right-click menus of title strips, tabs, dashboard rows, Files rows, preview,
-    and breadcrumb, Git files and commits, Search results, container groups and rows, and every
-    text field, with the scratch pad's extras (4.6, 4.10 to 4.16). JetBrains IDEs, Windsurf,
-    VS Code Insiders, and VSCodium as editors (3.12), and installed font suggestions in the
-    settings dialog (3.17, 4.6).
-
-## 12. Risks
+## 11. Risks
 
 - **Undocumented session files.** If Claude Code changes `~/.claude/sessions`, the roster
   degrades to showing only hook-reported sessions in this app's panes. Parsing is lenient and

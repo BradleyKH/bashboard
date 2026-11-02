@@ -11,7 +11,7 @@ use crate::hook_install::write_atomic;
 const BEGIN: &str = "# >>> bashboard shell integration >>>";
 const END: &str = "# <<< bashboard shell integration <<<";
 
-/// Must stay byte-identical to the README's "New panes in the current folder" block; a test
+/// Must stay byte-identical to docs/setup.md's "New panes in the current folder" block; a test
 /// enforces it.
 const SNIPPET: &str = r#"PS0="${PS0-}"'\e]133;C\e\\'
 __bashboard_prompt() {
@@ -81,7 +81,7 @@ fn marked_range(lines: &[&str]) -> Option<Result<(usize, usize), ()>> {
     Some(end.map(|end| (begin, end)).ok_or(()))
 }
 
-/// The index range of the README snippet appearing verbatim, last line inclusive.
+/// The index range of the snippet appearing verbatim, last line inclusive.
 fn verbatim_range(lines: &[&str]) -> Option<(usize, usize)> {
     let want = snippet_lines();
     lines
@@ -293,11 +293,11 @@ mod tests {
     const OLD_BLOCK: &str = "# >>> bashboard shell integration >>>\n__bashboard_prompt() { :; }\nPROMPT_COMMAND=__bashboard_prompt\n# <<< bashboard shell integration <<<\n";
 
     #[test]
-    fn readme_contains_the_snippet_verbatim() {
-        // core.autocrlf may check README.md out with CRLF, and .gitattributes does not pin it.
-        let readme = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md"))
+    fn setup_doc_contains_the_snippet_verbatim() {
+        // core.autocrlf may check the doc out with CRLF, and .gitattributes does not pin it.
+        let doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/setup.md"))
             .replace("\r\n", "\n");
-        assert!(readme.contains(&format!("```sh\n{SNIPPET}```\n")));
+        assert!(doc.contains(&format!("```sh\n{SNIPPET}```\n")));
     }
 
     #[test]
