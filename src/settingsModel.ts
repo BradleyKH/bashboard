@@ -188,7 +188,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
+      // Stored as the scrim's opacity, so 1 here is fully dimmed and the slider reads as brightness.
+      { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live' },
       { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: WHILE_ANIMATED },
+      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live' },
       {
         path: ['backdrop', 'mutationRate'],
         label: 'Color drift',
@@ -200,18 +203,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
-      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live' },
+      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live' },
       {
         path: ['backdrop', 'waitingPulse'],
         label: 'Pulse waiting sessions',
         kind: 'toggle',
-        hint: "Brightens a waiting Claude session's organisms in a steady pulse",
         applies: 'live',
         shownWhen: WHILE_ANIMATED,
       },
-      // Stored as the scrim's opacity, so 1 here is fully dimmed and the slider reads as brightness.
-      { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live' },
-      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live' },
     ],
   },
 ];

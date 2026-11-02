@@ -1680,6 +1680,12 @@ body.dashboard-resizing {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.settings-dialog-row-toggle,
+.settings-dialog-row-toggle label {
+  cursor: pointer;
+  user-select: none;
+}
+
 .settings-dialog-row[hidden] {
   display: none;
 }

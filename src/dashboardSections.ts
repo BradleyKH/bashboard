@@ -7,13 +7,13 @@
  * slot above Repo.
  */
 export const DEFAULT_ELEMENT_ORDER = [
+  'clock',
   'favorites',
   'layouts',
   'panes',
   'containers',
   'external',
   'system',
-  'clock',
 ] as const;
 
 export type DashboardElement = (typeof DEFAULT_ELEMENT_ORDER)[number];

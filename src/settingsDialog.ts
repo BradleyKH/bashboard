@@ -275,6 +275,14 @@ export class SettingsDialog {
       box.className = 'settings-dialog-toggle';
       box.addEventListener('change', () => this.commit(c, box.checked));
       c.show = (v) => (box.checked = v === true);
+      // The whole row toggles. Clicks on the box or its <label> already toggle natively, so a
+      // second click() there would undo them.
+      c.row.classList.add('settings-dialog-row-toggle');
+      c.row.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target === box || target.closest('label')) return;
+        box.click();
+      });
       return box;
     }
 
