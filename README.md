@@ -506,9 +506,10 @@ checkouts made in any shell while the dashboard is open. Its buttons open a Term
 (for a git repo only), Search (see [Code search](#code-search)), or your Editor at the repo root.
 Below them are the repo's pinned files and folders (see [Pins](#pins)).
 
-The **clock**, which is off by default, is one line at the bottom of the panel: three columns of
-dots showing the hours (24-hour), minutes, and seconds in binary, and the time as `h:mm` beside
-them. It ticks only while the panel is on screen.
+The **clock**, which is off by default, is one line at the top of the panel, above Repo: three
+columns of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
+`h:mm` beside them. Drag it down among the other sections to move it there, or back to the top.
+It ticks only while the panel is on screen.
 
 The **System** section is off by default; turn it on under "Show on the
 dashboard" in Settings. It shows CPU use with a 60 second sparkline, memory used of total,

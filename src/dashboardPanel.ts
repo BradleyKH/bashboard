@@ -82,11 +82,14 @@ const AGE_REFRESH_MS = 15_000;
 export class DashboardPanel {
   private open = false;
   private order: DashboardElement[] = [...DEFAULT_ELEMENT_ORDER];
+  /** Whether the clock sits in the slot above Repo; its place in `order` holds for when it is not. */
+  private clockTop = true;
   private shown: Record<DashboardElement, boolean> = { ...ELEMENT_SHOWN_BY_DEFAULT };
   private side: DashboardSide = 'right';
   private windowShown = true;
   private readonly elements = new Map<DashboardElement, HTMLElement>();
   private readonly elementList: HTMLElement;
+  private readonly topSlot: HTMLElement;
   private readonly clock = new DashboardClock();
   private readonly system = new DashboardSystem();
   private readonly claude = new ClaudeContexts(() => this.render());
@@ -179,7 +182,10 @@ export class DashboardPanel {
     // focus change that resizes Repo never shifts them.
     this.elementList = document.createElement('div');
     this.elementList.className = 'dashboard-elements';
-    root.append(resizeHandle, top, this.repoSection.el, this.elementList);
+    this.topSlot = document.createElement('div');
+    this.topSlot.className = 'dashboard-clock-top';
+    this.topSlot.hidden = true;
+    root.append(resizeHandle, top, this.topSlot, this.repoSection.el, this.elementList);
     this.register('repo', this.repoSection.el, this.repoSection.head);
     this.addSection('favorites', this.favoritesSection.el, this.favoritesSection.head);
     this.addSection('layouts', this.layoutsSection.el, this.layoutsSection.head);
@@ -280,6 +286,16 @@ export class DashboardPanel {
     return [...this.order];
   }
 
+  /** Applies a saved clock position without firing `onOrderChange`. */
+  setClockTop(top: boolean): void {
+    this.clockTop = top;
+    this.layoutElements();
+  }
+
+  clockAtTop(): boolean {
+    return this.clockTop;
+  }
+
   /** Whether the window is shown (not hidden or minimized); the clock ticks only while it is. */
   setWindowShown(shown: boolean): void {
     this.windowShown = shown;
@@ -318,10 +334,16 @@ export class DashboardPanel {
    * its place in `order`, so turning it back on returns it there.
    */
   private layoutElements(): void {
-    const next = this.order.filter((id) => this.shown[id]).map((id) => this.elements.get(id)!);
+    const atTop = this.clockTop && this.shown.clock;
+    const next = this.order
+      .filter((id) => this.shown[id] && !(atTop && id === 'clock'))
+      .map((id) => this.elements.get(id)!);
     const current = [...this.elementList.children];
-    if (next.length === current.length && next.every((el, i) => el === current[i])) return;
+    const topSame = atTop === (this.topSlot.firstElementChild === this.clock.el);
+    if (topSame && next.length === current.length && next.every((el, i) => el === current[i])) return;
     const focus = this.nav.capture();
+    this.topSlot.replaceChildren(...(atTop ? [this.clock.el] : []));
+    this.topSlot.hidden = !atTop;
     this.elementList.replaceChildren(...next);
     this.nav.restore(focus);
   }
@@ -520,17 +542,30 @@ export class DashboardPanel {
     this.addElement(id, section, header);
   }
 
-  /** `handle` drags the element: a section's header, or the whole clock. */
+  /**
+   * `handle` drags the element: a section's header, or the whole clock. Only the clock may also
+   * land in the slot above Repo.
+   */
   private addElement(id: DashboardElement, el: HTMLElement, handle: HTMLElement): void {
     el.dataset.element = id;
     this.elements.set(id, el);
-    attachElementDrag(handle, this.elementList, id, (before) => {
-      const next = moveSection(this.order, id, before);
-      if (next.every((e, i) => e === this.order[i])) return;
-      this.order = next;
-      this.layoutElements();
-      this.callbacks.onOrderChange?.(this.sectionOrder());
-    });
+    const isClock = id === 'clock';
+    attachElementDrag(
+      handle,
+      this.elementList,
+      id,
+      (target) => {
+        const toTop = target === 'top';
+        const next = toTop ? this.order : moveSection(this.order, id, target);
+        const clockTop = isClock ? toTop : this.clockTop;
+        if (clockTop === this.clockTop && next.every((e, i) => e === this.order[i])) return;
+        this.order = next;
+        this.clockTop = clockTop;
+        this.layoutElements();
+        this.callbacks.onOrderChange?.(this.sectionOrder());
+      },
+      isClock ? this.topSlot : undefined,
+    );
   }
 
   private render(): void {

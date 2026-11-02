@@ -453,6 +453,13 @@ body.dashboard-resizing {
   position: relative;
 }
 
+/* The clock's slot above Repo, ruled off from whatever follows it. */
+#dashboard .dashboard-clock-top {
+  flex: 0 0 auto;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 #dashboard .hooks-install,
 #dashboard .help-open {
   padding: 4px 8px;

@@ -65,6 +65,8 @@ export interface SavedWorkspace {
    * default order.
    */
   dashboardSectionOrder?: DashboardElement[];
+  /** Whether the clock sits above Repo rather than among the elements; absent means true. */
+  dashboardClockTop?: boolean;
   /** The zoom new Files and Git panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
 }
@@ -236,6 +238,7 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (raw.dashboardSectionOrder !== undefined) {
     saved.dashboardSectionOrder = parseSectionOrder(raw.dashboardSectionOrder);
   }
+  if (typeof raw.dashboardClockTop === 'boolean') saved.dashboardClockTop = raw.dashboardClockTop;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;
 }

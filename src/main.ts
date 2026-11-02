@@ -809,6 +809,7 @@ const saver = new DebouncedSaver(
     collapsedSections: panel.collapsedSections(),
     dashboardWidth: panel.width(),
     dashboardSectionOrder: panel.sectionOrder(),
+    dashboardClockTop: panel.clockAtTop(),
     textZoom: textZoomSnapshot(),
   }),
   workspaceSave,
@@ -886,6 +887,7 @@ try {
   if (saved) panel.setCollapsedSections(saved.collapsedSections);
   if (saved?.dashboardWidth !== undefined) panel.setWidth(saved.dashboardWidth);
   if (saved?.dashboardSectionOrder) panel.setSectionOrder(saved.dashboardSectionOrder);
+  if (saved?.dashboardClockTop !== undefined) panel.setClockTop(saved.dashboardClockTop);
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, { resumeClaude: payload.settings.restore.resumeClaude });

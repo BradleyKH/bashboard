@@ -501,6 +501,13 @@ describe('parseSavedWorkspace', () => {
     ]);
   });
 
+  it('keeps a boolean clock position and drops anything else', () => {
+    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: false })?.dashboardClockTop).toBe(false);
+    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: true })?.dashboardClockTop).toBe(true);
+    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: 'yes' })).not.toHaveProperty('dashboardClockTop');
+    expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardClockTop');
+  });
+
   it('loads a version 1 file as one unnamed tab', () => {
     const v1 = { version: 1, terminals: [legacy('a'), legacy('b', true)], layout: pane('a'), focused: 'a' };
     expect(parseSavedWorkspace(v1)).toEqual({

@@ -2,26 +2,33 @@ import { attachBodyDrag } from './bodyDrag';
 import type { DashboardElement } from './dashboardSections';
 import './dashboardElementDrag.css';
 
+/** Where a dragged element lands: just before an element in the list, last (null), or the top slot. */
+export type ElementDropTarget = DashboardElement | null | 'top';
+
 /**
  * Lets `handle` (a section header, or the whole clock) drag the element `id` to another place in
  * `list`. `onDrop` gets the element the dragged one should land just before, or null for last.
+ * With `top`, the slot above Repo is a drop position too, chosen while the pointer is nearer it
+ * than the list's first gap.
  */
 export function attachElementDrag(
   handle: HTMLElement,
   list: HTMLElement,
   id: DashboardElement,
-  onDrop: (before: DashboardElement | null) => void,
+  onDrop: (target: ElementDropTarget) => void,
+  top?: HTMLElement,
 ): void {
   attachBodyDrag(handle, (start) => {
     if (start.pointerType !== 'mouse') return;
-    const dragged = list.querySelector<HTMLElement>(`:scope > [data-element="${id}"]`);
+    const selector = `:scope > [data-element="${id}"]`;
+    const dragged = list.querySelector<HTMLElement>(selector) ?? top?.querySelector<HTMLElement>(selector) ?? null;
     dragged?.classList.add('dragging');
     document.body.classList.add('dashboard-element-dragging');
     const line = document.createElement('div');
     line.className = 'element-drop-line';
     list.appendChild(line);
 
-    let before: DashboardElement | null = null;
+    let before: ElementDropTarget = null;
 
     const update = (clientY: number): void => {
       const shown = Array.from(list.children).filter(
@@ -43,6 +50,17 @@ export function attachElementDrag(
         prevBottom = r.bottom;
       }
       if (!placed) y = prevBottom ?? listTop;
+      if (top) {
+        // An empty slot is hidden, so it lands just under whatever precedes it.
+        const topY = top.hidden
+          ? (top.previousElementSibling?.getBoundingClientRect().bottom ?? listTop)
+          : top.getBoundingClientRect().top;
+        const firstY = shown.length > 0 ? shown[0].getBoundingClientRect().top : listTop;
+        if (clientY < (topY + firstY) / 2) {
+          before = 'top';
+          y = topY;
+        }
+      }
       line.style.top = `${y - listTop}px`;
     };
 

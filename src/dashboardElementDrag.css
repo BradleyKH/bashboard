@@ -9,7 +9,8 @@
   z-index: 5;
 }
 
-#dashboard .dashboard-elements > .dragging {
+#dashboard .dashboard-elements > .dragging,
+#dashboard .dashboard-clock-top > .dragging {
   opacity: 0.5;
 }
 

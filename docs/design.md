@@ -1082,9 +1082,10 @@ and peeking open briefly while hidden when a terminal starts waiting. Open, it n
 from its side. Dragging its inner edge (its left edge when docked right, its right edge when
 docked left) resizes it, from 280 px (enough for the Repo section's row of buttons on
 one line) up to 60% of the window, and the width is saved with the workspace (section 7); it is
-the same width on either side. Its contents, top to bottom, are Repo, the elements, and the
-footer. Repo, which follows the focused pane, sits at the top; the elements and the footer sit
-at the bottom, so a focus change never shifts them.
+the same width on either side. Its contents, top to bottom, are the clock's top slot, Repo, the
+elements, and the footer. Repo, which follows the focused pane, sits at the top, below the clock
+when the clock is in its top slot; the elements and the footer sit at the bottom, so a focus
+change never shifts them.
 
 **Elements.** The elements between Repo and the footer are Favorites, Layouts, Panes,
 Containers, External sessions, System, and Clock, in that default order. Each has a
@@ -1099,9 +1100,11 @@ with the workspace (section 7). A thin rule separates each element from the one 
 **Order.** The elements reorder by drag: a section by its header, the clock by grabbing
 anywhere on it, with the same movement threshold as favorite rows, so a click on a header still
 collapses or expands it. While dragging, a line in the accent color shows where the element
-will land; Repo and the footer offer no drop position. Dragging is mouse only. The order is
-saved with the workspace as `dashboardSectionOrder` (section 7), and a disabled element keeps
-its place in it, so enabling it returns it where it was.
+will land; Repo and the footer offer no drop position. The clock alone can also be dropped
+above Repo, into a top slot ruled off from Repo below it, which is where it sits by default.
+Dragging is mouse only. The order is saved with the workspace as `dashboardSectionOrder`, and
+whether the clock is in its top slot as `dashboardClockTop` (section 7). A disabled element
+keeps its place in the order, and the clock its slot, so enabling it returns it where it was.
 
 **Clock.** One line with no header, no collapse, and no keyboard row. On the left is a binary
 grid of three columns of six dots: hours (24-hour), minutes, and seconds, most significant bit
@@ -2040,6 +2043,11 @@ interface SavedWorkspace {
    * to its neighbors; absent means the default order.
    */
   dashboardSectionOrder?: DashboardElement[];
+  /**
+   * Whether the clock sits in its slot above Repo (4.6) rather than at its place in
+   * `dashboardSectionOrder`; absent means true.
+   */
+  dashboardClockTop?: boolean;
   /**
    * The zoom, from 0.5 to 3, that new Files and Git panes start at, as their zoom buttons last
    * left it (4.12, 4.13); absent, or a field out of range, means 1.
