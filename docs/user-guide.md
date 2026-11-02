@@ -22,7 +22,7 @@ when the pad has text or the terminal is running a command. A pad's title is its
 line.
 
 A pad saves itself about half a second after you stop typing and comes back with the workspace
-on relaunch. Its toolbar has four buttons:
+on relaunch. Its toolbar has four buttons, then a − and + pair at the right that zooms the text:
 
 - **Send** (Ctrl+Enter) pastes the pad's text into the tab's most recently focused terminal
   without pressing Enter, so you can review it there first. It is disabled in a tab with no
@@ -30,6 +30,8 @@ on relaunch. Its toolbar has four buttons:
 - **Copy** puts all of the text on the clipboard.
 - **Clear** empties the pad.
 - **Save as** writes the text to a file.
+
+Ctrl+wheel over the pad zooms it too, and a new pad starts at the zoom you last chose.
 
 Ctrl+W on a pad with text asks first, and closing a tab lists the pads in it that have text.
 
@@ -68,8 +70,8 @@ The preview depends on the file:
 Text previews have a Find button (or Ctrl+Shift+F in the Files pane) that searches the file,
 ignoring case, and highlights every match. Enter and Shift+Enter step through them, and Esc
 closes the bar and selects the current match, so the editor's caret lands on it. The − and +
-buttons beside Find zoom the preview, and the pair in the breadcrumb zooms the list. A new Files
-pane starts at the zoom you last chose for each.
+buttons beside Find zoom the preview, and the pair in the breadcrumb zooms the list; Ctrl+wheel
+over either one zooms it as well. A new Files pane starts at the zoom you last chose for each.
 
 The Expand preview button after the zoom buttons fills the pane with the preview and shows the
 file's name in the toolbar. The same button, or Esc (a second Esc when the find bar is open),
@@ -150,7 +152,7 @@ The left side stacks four regions, and the diff for the selected file or commit 
 Click a file row to see its diff: the unstaged change for a row in Changes, or the staged change for
 a row in Staged. An untracked file shows its whole content as added. Click a commit to see its
 changes. A diff over 1 MiB is cut off with a note that it was truncated. The − and + buttons above
-the diff zoom it, and a new Git pane starts at the zoom you last chose.
+the diff, or Ctrl+wheel over it, zoom it, and a new Git pane starts at the zoom you last chose.
 
 Push never forces. A rejected push shows git's message, and after undoing a pushed commit the
 force push stays in a terminal.
@@ -215,7 +217,8 @@ selected file with its line highlighted. The divider between the list and the pr
 dragged. Enter, a double click on a matching line, or the Open button that shows on a hovered or
 selected row opens that file in your preferred editor at the line; a file name, or the Open button
 on a file's group header, opens it with no line. A file the preview cannot show, because it is binary or
-over 2 MiB, shows a notice with an Open in editor button.
+over 2 MiB, shows a notice with an Open in editor button. The − and + buttons above the preview, or
+Ctrl+wheel over it, zoom its text, and a new Search pane starts at the zoom you last chose.
 
 The pane's query and options are saved with the layout. A Search pane comes back on relaunch with
 its query and options, and a non-empty query runs again as soon as the pane loads.
@@ -237,7 +240,8 @@ kind's icon and the pane's title. Click a card to focus its pane (for a pane hid
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
-header, or the clock, to put the sections in a different order; that is remembered too. Settings
+header, or the clock, to put the sections in a different order, including into the slot above
+Repo, where the clock sits by default; that is remembered too. Settings
 shows or hides each one (see [Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
 Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
 section appears only while there are some. Hover any favorite, recent folder, card, or session
@@ -368,7 +372,8 @@ image, status text, and published ports, which open `http://localhost:<port>` wh
 CPU and memory, refreshed every 5 seconds while the pane is on screen. Start, Stop, and Restart act
 on a container or on a whole project. Logs opens a panel beside the list that follows the output,
 starting with the last 500 lines and keeping the most recent 5000; scrolling up pauses following
-until you scroll back to the end. Shell opens a terminal split beside the pane, running `bash` in
+until you scroll back to the end. The − and + buttons in its header, or Ctrl+wheel over it, zoom
+the log text, and the next logs panel starts at the zoom you last chose. Shell opens a terminal split beside the pane, running `bash` in
 the container when it has one and `sh` otherwise, titled with the container's name. It needs a
 running container.
 

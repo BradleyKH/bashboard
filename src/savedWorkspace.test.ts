@@ -461,7 +461,14 @@ describe('parseSavedWorkspace', () => {
 
   it('keeps text zoom, falling back per field to 1', () => {
     const raw = { ...v3([]), textZoom: { filesList: 1.25, filePreview: 4, gitDiff: 'big' } };
-    expect(parseSavedWorkspace(raw)?.textZoom).toEqual({ filesList: 1.25, filePreview: 1, gitDiff: 1 });
+    expect(parseSavedWorkspace(raw)?.textZoom).toEqual({
+      filesList: 1.25,
+      filePreview: 1,
+      gitDiff: 1,
+      searchPreview: 1,
+      scratch: 1,
+      containerLogs: 1,
+    });
     expect(parseSavedWorkspace({ ...v3([]), textZoom: 2 })).not.toHaveProperty('textZoom');
   });
 
@@ -529,11 +536,15 @@ describe('parseSavedWorkspace', () => {
     ]);
   });
 
-  it('keeps a boolean clock position and drops anything else', () => {
-    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: false })?.dashboardClockTop).toBe(false);
-    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: true })?.dashboardClockTop).toBe(true);
-    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: 'yes' })).not.toHaveProperty('dashboardClockTop');
-    expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardClockTop');
+  it('keeps the top slot elements, reading an older clock flag', () => {
+    const top = (raw: Record<string, unknown>) => parseSavedWorkspace({ ...v3([]), ...raw })?.dashboardTopElements;
+    expect(top({ dashboardTopElements: ['panes', 'nope', 'clock'] })).toEqual(['panes', 'clock']);
+    expect(top({ dashboardTopElements: [] })).toEqual([]);
+    expect(top({ dashboardTopElements: [], dashboardClockTop: true })).toEqual([]);
+    expect(top({ dashboardClockTop: false })).toEqual([]);
+    expect(top({ dashboardClockTop: true })).toEqual(['clock']);
+    expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: 'yes' })).not.toHaveProperty('dashboardTopElements');
+    expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardTopElements');
   });
 
   it('loads a version 1 file as one unnamed tab', () => {

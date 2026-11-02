@@ -290,3 +290,9 @@
   line-height: 1.35;
   user-select: text;
 }
+
+.ctr-logs-head .zoom-buttons {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}

@@ -26,6 +26,7 @@ export class GitDiffView {
     this.undoError.className = 'git-undo-error';
     const zoomButtons = new ZoomButtons('git-row-btn', 'gitDiff', zoom, (z) =>
       this.el.style.setProperty('--diff-zoom', String(z)),
+      this.el,
     );
     bar.append(this.undo, this.undoError, zoomButtons.el);
     this.note = document.createElement('div');

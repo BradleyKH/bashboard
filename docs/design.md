@@ -1091,9 +1091,9 @@ and peeking open briefly while hidden when a terminal starts waiting. Open, it n
 from its side. Dragging its inner edge (its left edge when docked right, its right edge when
 docked left) resizes it, from 280 px (enough for the Repo section's row of buttons on
 one line) up to 60% of the window, and the width is saved with the workspace (section 7); it is
-the same width on either side. Its contents, top to bottom, are the clock's top slot, Repo, the
-elements, and the footer. Repo, which follows the focused pane, sits at the top, below the clock
-when the clock is in its top slot; the elements and the footer sit at the bottom, so a focus
+the same width on either side. Its contents, top to bottom, are the top slot, Repo, the
+elements, and the footer. Repo, which follows the focused pane, sits at the top, below whatever
+elements are in the top slot; the other elements and the footer sit at the bottom, so a focus
 change never shifts them.
 
 **Elements.** The elements between Repo and the footer are Clock, Favorites, Layouts, Panes,
@@ -1111,11 +1111,12 @@ with the workspace (section 7). A thin rule separates each element from the one 
 **Order.** The elements reorder by drag: a section by its header, the clock by grabbing
 anywhere on it, with the same movement threshold as favorite rows, so a click on a header still
 collapses or expands it. While dragging, a line in the accent color shows where the element
-will land; Repo and the footer offer no drop position. The clock alone can also be dropped
-above Repo, into a top slot ruled off from Repo below it, which is where it sits by default.
-Dragging is mouse only. The order is saved with the workspace as `dashboardSectionOrder`, and
-whether the clock is in its top slot as `dashboardClockTop` (section 7). A disabled element
-keeps its place in the order, and the clock its slot, so enabling it returns it where it was.
+will land, at whichever gap is nearest the pointer; Repo and the footer offer no drop position.
+Any element can also be dropped above Repo, into a top slot ruled off from Repo below it, which
+holds the clock by default and keeps its own order. Dragging is mouse only. The order is saved
+with the workspace as `dashboardSectionOrder`, and which elements are in the top slot as
+`dashboardTopElements` (section 7). A disabled element keeps its place in the order and its
+slot, so enabling it returns it where it was.
 
 **Clock.** One line with no header, no collapse, and no keyboard row. On the left is a binary
 grid of three rows of six rounded-square dots: hours (24-hour) on top, then minutes, then
@@ -1582,10 +1583,14 @@ selects the current match (in the editor, as the caret's selection).
 
 **Zoom.** The preview toolbar ends in − and + buttons that step the preview's text size through
 browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
-Open in File Explorer and Open terminal here. Each scales from its base size (the terminal font
-size for code and the text editor) and holds while browsing the pane. Every step is saved to
-`textZoom.filePreview` or `textZoom.filesList` in workspace.json (section 7), the level a new
-Files pane starts at; other open panes keep their own.
+Open in File Explorer and Open terminal here. Ctrl+wheel over the list or the preview steps that
+one's level too: a mouse notch is one step, and a touchpad pinch adds up its small deltas so it
+steps a level at a time rather than jumping to either end. Each scales from its base size (the
+terminal font size for code and the text editor) and holds while browsing the pane. Every step is
+saved to `textZoom.filePreview` or `textZoom.filesList` in workspace.json (section 7), the level
+a new Files pane starts at; other open panes keep their own. The Git diff (4.13), the Search
+preview (4.14), scratch pads (4.15), and the Containers logs panel (4.16) zoom the same way,
+each under its own `textZoom` key.
 
 **Expand.** The Expand preview button after the − and + buttons fills the pane with the
 preview on every text preview (markdown, plain text, and code); a binary or
@@ -1694,8 +1699,9 @@ For one git repo, top to bottom:
   targets, Undo commit (which asks first, as the button does).
 
 Diffs show in a panel beside the lists, unified, with added and removed lines colored and hunk
-headers kept. A diff over the cap says so. The bar above the diff ends in − and + zoom buttons
-that work as the Files pane's do (4.12), saving to `textZoom.gitDiff` in workspace.json.
+headers kept. A diff over the cap says so. The bar above the diff ends in − and + zoom buttons,
+and Ctrl+wheel over the diff panel steps them, as the Files pane's do (4.12), saving to
+`textZoom.gitDiff` in workspace.json.
 
 **Undo commit** sits at the start of that bar while the selected commit is the newest one and
 HEAD. It asks
@@ -1730,7 +1736,9 @@ focused terminal has a selection starts with that text as the query.
 Results list matching file names first, then matches grouped by file, each group collapsible,
 with line numbers and the match highlighted. A footer gives the count, or says the results stop
 at the first 5,000. Up and Down move through matches. Selecting one previews its file beside the
-list, read-only, scrolled to the line with it highlighted; Enter, a double click, or the Open
+list, read-only, scrolled to the line with it highlighted, under a bar holding − and + zoom
+buttons that, with Ctrl+wheel over the preview, work as the Files pane's do (4.12) and save to
+`textZoom.searchPreview`. Enter, a double click, or the Open
 button shown on a hovered or selected row opens the file in the editor at that line (3.12). A
 file's group header has the same Open button on hover, opening the file with no line. Match rows,
 file group headers, and file name rows drag the file's path, with no line number, onto a terminal
@@ -1752,6 +1760,9 @@ half a second after typing stops and comes back on restore.
   then focuses that terminal. It is disabled while the tab has no terminal.
 - **Copy** copies the whole text. **Clear** empties it.
 - **Save as** writes it to a file chosen in the native save dialog, opened from the core.
+- **− and +** at the toolbar's right end, and Ctrl+wheel over the pad, zoom its text as the Files
+  pane's buttons do (4.12), saving to `textZoom.scratch`. Layout checks measure the pad at its
+  unzoomed size, so zooming does not change which splits fit.
 
 The text area's right-click menu is the text field menu (4.4) with Send (disabled while the tab
 has no terminal), Copy all, Clear, and Save as after a separator, each as its button does.
@@ -1795,7 +1806,9 @@ while the pane is on screen. Groups and containers have Start, Stop, and Restart
 have:
 
 - **Logs**, which follow the container's output in a panel beside the list. Scrolling up stops
-  following; scrolling to the end resumes it.
+  following; scrolling to the end resumes it. The panel's header has − and + zoom buttons before
+  Close that, with Ctrl+wheel over the panel, work as the Files pane's do (4.12) and save to
+  `textZoom.containerLogs`; a zoom keeps a following panel at the end.
 - **Shell**, which opens a terminal running a shell in the container (3.10) as a split beside
   the pane, titled with the container's name. Container shells are not saved by restore or in
   layouts.
@@ -1975,9 +1988,12 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 - `dashboardSectionOrder`: the default order. Reading keeps known names once each, drops unknown
   names and `repo`, and inserts a missing element at its default position relative to its
   neighbors.
-- `dashboardClockTop`: true.
-- `textZoom` (`filesList`, `filePreview`, `gitDiff`, the zoom new Files and Git panes start at,
-  4.12, 4.13): 1 for an absent field or one outside 0.5 to 3.
+- `dashboardTopElements`: the clock alone. Reading keeps known names once each. A file without
+  it but with the boolean `dashboardClockTop` gets the clock alone when that is true and an empty
+  slot when it is false.
+- `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
+  `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
+  field or one outside 0.5 to 3.
 - A terminal pane's `profile`: the default profile. Its `permissionMode` (letters only, kept
   only beside a `sessionId`): the default mode. A Files pane's `root`: resolved from its
   `folder`. Its `expanded`: false.
@@ -2010,6 +2026,12 @@ it with no pins, and Automatic omits it.
   // panes and behind find highlights' dark text. The dialog offers presets, and shows a hand-edited
   // value as Custom.
   "accentColor": "#4fb3c8",
+  // #rrggbb for the text of scratch, file preview, and search panes (results and preview), read
+  // by CSS as --content-fg, with dimmer shades of it for line numbers and quotes. Terminals keep
+  // their own foreground. A value below WCAG relative luminance 0.5 falls back to the default so
+  // body text stays readable. The dialog's presets are pale tints of the accent presets' hues, so
+  // the accent stays the most saturated color for links and highlights.
+  "contentTextColor": "#e6e6e6",
   "scrim": { "opacity": 0.5, "blurPx": 0 },
   // maxFps 0 renders the backdrop at the display's refresh rate; animate false freezes it (6.4).
   // The rest are the simulation and camera controls (6.2).

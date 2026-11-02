@@ -1,4 +1,5 @@
 import { ACCENT_PRESETS } from './accent';
+import { CONTENT_TEXT_PRESETS } from './contentText';
 import { DEFAULT_ELEMENT_ORDER, ELEMENT_LABELS } from './dashboardSections';
 import type { Settings } from './settings';
 
@@ -53,6 +54,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       { path: ['font', 'family'], label: 'Font family', kind: 'text', suggestFrom: 'fonts', applies: 'live' },
       { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live' },
       { path: ['accentColor'], label: 'Accent color', kind: 'select', options: ACCENT_PRESETS, swatches: true, applies: 'live' },
+      { path: ['contentTextColor'], label: 'Text color', kind: 'select', options: CONTENT_TEXT_PRESETS, swatches: true, hint: 'Scratch, file preview, and search panes', applies: 'live' },
     ],
   },
   {

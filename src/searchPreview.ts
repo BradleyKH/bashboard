@@ -3,6 +3,8 @@ import { BinaryNotice } from './binaryNotice';
 import { toFontFamily } from './pane';
 import { classifyReadError, fsReadText } from './repoFiles';
 import type { Settings } from './settings';
+import { textZoom } from './textZoomStore';
+import { ZoomButtons } from './zoomButtons';
 
 export interface SearchPreviewOptions {
   settings: Settings;
@@ -22,6 +24,8 @@ function errorText(err: unknown): string {
  */
 export class SearchPreview {
   readonly el: HTMLElement;
+  /** Below the zoom bar; the file, a notice, or a message. */
+  private readonly content: HTMLElement;
   private readonly opts: SearchPreviewOptions;
   private settings: Settings;
   private view: HTMLElement | null = null;
@@ -30,6 +34,8 @@ export class SearchPreview {
   /** The file on screen, kept so stepping through one file's matches does not re-read it. */
   private loadedPath: string | null = null;
   private lineCount = 0;
+  /** The highlighted line, kept so a zoom step can move the band with the text. */
+  private line: number | null = null;
   private notice: BinaryNotice | null = null;
   /** Bumped per `show`, so a late read for an older selection is dropped. */
   private generation = 0;
@@ -39,6 +45,22 @@ export class SearchPreview {
     this.settings = opts.settings;
     this.el = document.createElement('div');
     this.el.className = 'search-preview';
+    const bar = document.createElement('div');
+    bar.className = 'preview-toolbar search-preview-bar';
+    this.content = document.createElement('div');
+    this.content.className = 'search-preview-content';
+    const zoom = new ZoomButtons(
+      '',
+      'searchPreview',
+      textZoom('searchPreview'),
+      (z) => {
+        this.el.style.setProperty('--search-zoom', String(z));
+        this.placeBand();
+      },
+      this.el,
+    );
+    bar.append(zoom.el);
+    this.el.append(bar, this.content);
     this.showMessage('Select a result to preview its file.');
   }
 
@@ -66,7 +88,7 @@ export class SearchPreview {
             kind === 'binary' ? 'Binary file.' : 'Too large to preview.',
             () => this.opts.onOpenInEditor(path, line),
           );
-          this.el.replaceChildren(this.notice.el);
+          this.content.replaceChildren(this.notice.el);
         } else {
           this.showMessage(`Could not read the file: ${errorText(err)}`, true);
         }
@@ -112,7 +134,7 @@ export class SearchPreview {
     band.hidden = true;
     view.append(band, gutter, code);
     this.applyFont(view);
-    this.el.replaceChildren(view);
+    this.content.replaceChildren(view);
     this.view = view;
     this.code = code;
     this.band = band;
@@ -121,33 +143,43 @@ export class SearchPreview {
   }
 
   private highlight(line: number | null): void {
-    const { view, code, band } = this;
-    if (!view || !code || !band) return;
+    this.line = line;
+    const view = this.view;
+    if (!view) return;
+    const placed = this.placeBand();
+    view.scrollTop = placed ? Math.max(0, placed.top - (view.clientHeight - placed.lineHeight) / 2) : 0;
+  }
+
+  /** Puts the band over the highlighted line at the current zoom; null when there is none. */
+  private placeBand(): { top: number; lineHeight: number } | null {
+    const { view, code, band, line } = this;
+    if (!view || !code || !band) return null;
     if (line === null || line < 1 || line > this.lineCount) {
       band.hidden = true;
-      view.scrollTop = 0;
-      return;
+      return null;
     }
     const style = getComputedStyle(code);
-    const lineHeight = parseFloat(style.lineHeight) || this.settings.font.size * 1.4;
+    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
     const top = code.offsetTop + (parseFloat(style.paddingTop) || 0) + (line - 1) * lineHeight;
     band.style.top = `${top}px`;
     band.style.height = `${lineHeight}px`;
+    band.hidden = true;
+    // Measured with the band hidden, so its old width does not hold the scroll width open.
     band.style.width = `${view.scrollWidth}px`;
     band.hidden = false;
-    view.scrollTop = Math.max(0, top - (view.clientHeight - lineHeight) / 2);
+    return { top, lineHeight };
   }
 
   private applyFont(view: HTMLElement): void {
     view.style.fontFamily = toFontFamily(this.settings.font.family);
-    view.style.fontSize = `${this.settings.font.size}px`;
+    view.style.fontSize = `calc(${this.settings.font.size}px * var(--search-zoom, 1))`;
   }
 
   private showMessage(text: string, error = false): void {
     const div = document.createElement('div');
     div.className = error ? 'preview-empty preview-error' : 'preview-empty';
     div.textContent = text;
-    this.el.replaceChildren(div);
+    this.content.replaceChildren(div);
   }
 
   private reset(): void {
@@ -158,6 +190,7 @@ export class SearchPreview {
     this.band = null;
     this.loadedPath = null;
     this.lineCount = 0;
-    this.el.replaceChildren();
+    this.line = null;
+    this.content.replaceChildren();
   }
 }

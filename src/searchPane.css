@@ -137,6 +137,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   outline: none;
+  /* Results take the content text color; the bar, footer, and Open buttons stay UI gray. */
+  --search-muted: var(--content-faint);
+  color: var(--content-fg);
 }
 
 .search-group-head {
@@ -273,7 +276,22 @@
   min-height: 0;
 }
 
-.search-preview > * {
+/* A .preview-toolbar (filePreview.css) holding only the zoom pair, at the right. */
+.search-preview-bar {
+  justify-content: flex-end;
+}
+
+.search-preview-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  color: var(--content-fg);
+}
+
+.search-preview-content > * {
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -302,7 +320,7 @@
   z-index: 1;
   flex: none;
   text-align: right;
-  color: #7a7a7a;
+  color: var(--content-faint);
   user-select: none;
   background: rgba(0, 0, 0, 0.25);
 }

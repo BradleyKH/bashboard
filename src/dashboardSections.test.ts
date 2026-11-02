@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ELEMENT_ORDER,
-  moveSection,
   parseCollapsedSections,
   parseSectionOrder,
+  parseTopElements,
+  placeElement,
   toggleSection,
   type DashboardElement,
 } from './dashboardSections';
@@ -152,22 +153,15 @@ describe('parseSectionOrder', () => {
   });
 });
 
-describe('moveSection', () => {
+describe('placeElement', () => {
   const order: DashboardElement[] = ['favorites', 'layouts', 'panes', 'containers', 'external', 'clock'];
 
-  it('moves to the top', () => {
-    expect(moveSection(order, 'panes', 'favorites')).toEqual([
-      'panes',
-      'favorites',
-      'layouts',
-      'containers',
-      'external',
-      'clock',
-    ]);
-  });
-
-  it('moves to the bottom when before is null', () => {
-    expect(moveSection(order, 'favorites', null)).toEqual([
+  it('moves within the list', () => {
+    expect(placeElement(order, [], 'panes', 'list', 'favorites')).toEqual({
+      order: ['panes', 'favorites', 'layouts', 'containers', 'external', 'clock'],
+      top: [],
+    });
+    expect(placeElement(order, [], 'favorites', 'list', null).order).toEqual([
       'layouts',
       'panes',
       'containers',
@@ -177,27 +171,56 @@ describe('moveSection', () => {
     ]);
   });
 
-  it('moves before an element in the middle', () => {
-    expect(moveSection(order, 'clock', 'layouts')).toEqual([
-      'favorites',
-      'clock',
-      'layouts',
-      'panes',
-      'containers',
-      'external',
-    ]);
+  it('moves any element into the top slot, ahead of the list', () => {
+    expect(placeElement(order, [], 'panes', 'top', null)).toEqual({
+      order: ['panes', 'favorites', 'layouts', 'containers', 'external', 'clock'],
+      top: ['panes'],
+    });
   });
 
-  it('leaves the order equal when dropped on its own place', () => {
-    expect(moveSection(order, 'panes', 'panes')).toEqual(order);
-    expect(moveSection(order, 'panes', 'containers')).toEqual(order);
-    expect(moveSection(order, 'clock', null)).toEqual(order);
+  it('adds to the end of the top slot or before one of its elements', () => {
+    expect(placeElement(order, ['clock'], 'layouts', 'top', null)).toEqual({
+      order: ['clock', 'layouts', 'favorites', 'panes', 'containers', 'external'],
+      top: ['clock', 'layouts'],
+    });
+    expect(placeElement(order, ['clock'], 'layouts', 'top', 'clock')).toEqual({
+      order: ['layouts', 'clock', 'favorites', 'panes', 'containers', 'external'],
+      top: ['layouts', 'clock'],
+    });
+  });
+
+  it('moves out of the top slot into the list', () => {
+    expect(placeElement(['clock', 'panes', 'favorites'], ['clock', 'panes'], 'clock', 'list', null)).toEqual({
+      order: ['panes', 'favorites', 'clock'],
+      top: ['panes'],
+    });
+  });
+
+  it('keeps a disabled top element in the top slot', () => {
+    // System is in the top slot but hidden, so the panel drops after Clock with before null.
+    expect(placeElement(['system', 'clock', 'panes'], ['system', 'clock'], 'panes', 'top', null)).toEqual({
+      order: ['system', 'clock', 'panes'],
+      top: ['system', 'clock', 'panes'],
+    });
+  });
+
+  it('leaves everything equal when dropped on its own place', () => {
+    expect(placeElement(order, ['clock'], 'panes', 'list', 'panes')).toEqual({ order, top: ['clock'] });
   });
 
   it('does not mutate the input', () => {
     const copy = [...order];
-    const out = moveSection(order, 'clock', 'favorites');
+    const top: DashboardElement[] = ['clock'];
+    placeElement(order, top, 'favorites', 'top', null);
     expect(order).toEqual(copy);
-    expect(out).not.toBe(order);
+    expect(top).toEqual(['clock']);
+  });
+});
+
+describe('parseTopElements', () => {
+  it('keeps known names once each and rejects a non-array', () => {
+    expect(parseTopElements(['panes', 'repo', 'panes', 3, 'clock'])).toEqual(['panes', 'clock']);
+    expect(parseTopElements([])).toEqual([]);
+    expect(parseTopElements('clock')).toBeNull();
   });
 });

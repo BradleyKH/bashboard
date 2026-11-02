@@ -40,11 +40,18 @@
   outline: 0;
   resize: none;
   background: transparent;
-  color: #e6e6e6;
+  color: var(--content-fg);
   caret-color: var(--accent);
   white-space: pre-wrap;
 }
 
 .scratch-text::selection {
   background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* The zoom pair holds the toolbar's right end. */
+.scratch-toolbar .zoom-buttons {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
 }

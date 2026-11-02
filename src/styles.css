@@ -1,5 +1,10 @@
 :root {
   --accent: #4fb3c8;
+  /* contentTextColor (src/contentText.ts). The dimmer shades darken it rather than going gray, so
+     line numbers and quotes keep the chosen hue a step below the text. */
+  --content-fg: #e6e6e6;
+  --content-muted: color-mix(in srgb, var(--content-fg) 80%, black);
+  --content-faint: color-mix(in srgb, var(--content-fg) 58%, black);
   color-scheme: dark;
 }
 
@@ -500,11 +505,25 @@ body.dashboard-resizing {
   position: relative;
 }
 
-/* The clock's slot above Repo, ruled off from whatever follows it. */
-#dashboard .dashboard-clock-top {
+/* The slot above Repo, ruled off from whatever follows it; the clock sits here by default. */
+#dashboard .dashboard-top-slot {
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#dashboard .dashboard-top-slot[hidden],
+#dashboard .dashboard-top-slot:not(:has(> [data-element]:not([hidden]))) {
+  display: none;
+}
+
+/* Elements in the top slot are ruled off from a shown one above them, as in the list below Repo. */
+#dashboard .dashboard-top-slot > [data-element]:not([hidden]) ~ [data-element] {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 #dashboard .hooks-install,
@@ -1594,7 +1613,9 @@ body.dashboard-resizing {
   justify-content: center;
   align-items: flex-start;
   padding-top: 8vh;
-  background: rgba(0, 0, 0, 0.35);
+  /* Transparent rather than dimmed, so color and brightness changes preview at their true values.
+     The element stays to catch outside clicks. */
+  background: transparent;
 }
 
 .settings-dialog {

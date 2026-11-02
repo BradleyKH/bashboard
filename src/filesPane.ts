@@ -159,6 +159,7 @@ export class FilesPane implements PaneView {
       onOpenTerminalHere: () => opts.onOpenTerminalHere(this.currentPath),
       zoom: textZoom('filesList'),
       onZoom: (zoom) => this.left.style.setProperty('--files-zoom', String(zoom)),
+      zoomWheelTarget: this.left,
       onTogglePin: () => this.togglePin(),
       folderMenu: () => this.folderMenu(),
     });

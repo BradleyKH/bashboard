@@ -1,5 +1,7 @@
 import { startLogs, stopLogs, type Container } from './containers';
 import { toFontFamily } from './pane';
+import { textZoom } from './textZoomStore';
+import { ZoomButtons } from './zoomButtons';
 
 /**
  * Bounds memory and the cost of rewriting the panel's text on each frame of a chatty container;
@@ -60,7 +62,6 @@ export class ContainerLogs {
     close.className = 'ctr-btn';
     close.textContent = 'Close';
     close.addEventListener('click', () => this.close());
-    head.append(this.title, this.endBtn, close);
 
     this.body = document.createElement('div');
     this.body.className = 'ctr-logs-body';
@@ -68,6 +69,19 @@ export class ContainerLogs {
     this.text.className = 'ctr-logs-text';
     this.body.append(this.text);
     this.body.addEventListener('scroll', () => this.onScroll());
+
+    const zoom = new ZoomButtons(
+      'ctr-btn',
+      'containerLogs',
+      textZoom('containerLogs'),
+      (z) => {
+        this.el.style.setProperty('--logs-zoom', String(z));
+        // A zoom changes the text's height without a scroll event, so keep a following panel at the end.
+        if (this.following) this.body.scrollTop = this.body.scrollHeight;
+      },
+      this.el,
+    );
+    head.append(this.title, this.endBtn, zoom.el, close);
 
     this.el.append(head, this.body);
   }
@@ -120,7 +134,7 @@ export class ContainerLogs {
 
   setFont(family: string, size: number): void {
     this.text.style.fontFamily = toFontFamily(family);
-    this.text.style.fontSize = `${size}px`;
+    this.text.style.fontSize = `calc(${size}px * var(--logs-zoom, 1))`;
   }
 
   dispose(): void {

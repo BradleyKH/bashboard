@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { DEFAULT_ACCENT } from './accent';
+import { DEFAULT_CONTENT_TEXT } from './contentText';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ClockStyle } from './clockModel';
 import type { DashboardSide } from './dashboardResize';
@@ -11,6 +12,8 @@ export interface Settings {
   font: { family: string; size: number };
   /** #rrggbb, bright enough to read on the dark panes (docs/design.md section 8). */
   accentColor: string;
+  /** #rrggbb for scratch, file preview, and search text (docs/design.md section 8). */
+  contentTextColor: string;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design.md section 6.4). */
   backdrop: {
@@ -55,6 +58,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   font: { family: 'JetBrainsMono Nerd Font Mono, Cascadia Mono', size: 14 },
   accentColor: DEFAULT_ACCENT,
+  contentTextColor: DEFAULT_CONTENT_TEXT,
   scrim: { opacity: 0.5, blurPx: 0 },
   backdrop: { animate: false, maxFps: 20, capacity: 1000, mutationRate: 0.2, zoom: 2, waitingPulse: false },
   scrollback: 10000,

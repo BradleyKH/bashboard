@@ -8,7 +8,9 @@ import { isScratchEmpty, SCRATCH_SAVE_DELAY_MS, scratchMenuExtras, scratchTitle 
 import type { Settings } from './settings';
 import { setTextFieldExtras } from './textFieldMenu';
 import { textFieldOwns } from './textPaneKeys';
+import { textZoom } from './textZoomStore';
 import { showToast } from './toast';
+import { ZoomButtons } from './zoomButtons';
 
 export interface ScratchPaneOptions {
   host: HTMLElement;
@@ -38,6 +40,8 @@ export class ScratchPane implements PaneView {
   private readonly sendBtn: HTMLButtonElement;
   private readonly saver: DebouncedSaver<string>;
   private readonly opts: ScratchPaneOptions;
+  private fontSize: number;
+  private zoom = 1;
   private canSend = true;
   private disposed = false;
   private saveCancelled = false;
@@ -65,7 +69,19 @@ export class ScratchPane implements PaneView {
     this.area = document.createElement('textarea');
     this.area.className = 'scratch-text';
     this.area.spellcheck = false;
+    this.fontSize = opts.settings.font.size;
     this.applySettings(opts.settings);
+    const zoom = new ZoomButtons(
+      '',
+      'scratch',
+      textZoom('scratch'),
+      (z) => {
+        this.zoom = z;
+        this.body.style.setProperty('--scratch-zoom', String(z));
+      },
+      this.body,
+    );
+    toolbar.append(zoom.el);
     this.body.append(toolbar, this.area);
     setTextFieldExtras(this.area, () =>
       scratchMenuExtras(
@@ -157,7 +173,8 @@ export class ScratchPane implements PaneView {
 
   applySettings(settings: Settings): void {
     this.area.style.fontFamily = toFontFamily(settings.font.family);
-    this.area.style.fontSize = `${settings.font.size}px`;
+    this.fontSize = settings.font.size;
+    this.area.style.fontSize = `calc(${settings.font.size}px * var(--scratch-zoom, 1))`;
   }
 
   cellSize(): CellSize {
@@ -166,12 +183,14 @@ export class ScratchPane implements PaneView {
     probe.textContent = 'M'.repeat(10);
     probe.style.cssText = 'position: absolute; visibility: hidden; white-space: pre; font: inherit;';
     this.area.parentElement!.appendChild(probe);
+    // Measured at the unzoomed size, as the other text panes are, so zooming the pad does not
+    // change which splits and resizes the layout allows.
     probe.style.fontFamily = cs.fontFamily;
-    probe.style.fontSize = cs.fontSize;
+    probe.style.fontSize = `${this.fontSize}px`;
     const width = probe.getBoundingClientRect().width / 10;
     probe.remove();
     const lh = parseFloat(cs.lineHeight);
-    const height = Number.isFinite(lh) ? lh : parseFloat(cs.fontSize) * 1.2;
+    const height = Number.isFinite(lh) ? lh / this.zoom : this.fontSize * 1.2;
     const innerPadX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     const innerPadY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     return {

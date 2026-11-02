@@ -53,6 +53,7 @@ export class FilePreview {
     this.el.className = 'file-preview';
     this.zoom = new ZoomButtons('', 'filePreview', textZoom('filePreview'), (zoom) =>
       this.el.style.setProperty('--preview-zoom', String(zoom)),
+      this.el,
     );
     this.expand = new ExpandPreviewButton(() => this.opts.onToggleExpand?.());
     this.nameEl = document.createElement('span');

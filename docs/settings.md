@@ -30,6 +30,14 @@ Gold, Green, Teal, Blue, Violet, and Pink. In the file it takes any `#rrggbb` va
 read on the dark panes; a darker color falls back to the default and shows a notice. A value set
 in the file that is not a preset appears in the dialog as Custom.
 
+`contentTextColor` sets the color of text in scratch panes, the file preview and editor, and search
+results and their preview (default `#e6e6e6`, white). Line numbers and quotes take a dimmer shade
+of it; terminals keep their own colors. The Text color field in the Appearance section offers
+White plus pale tints matching each accent: Silver, Orange, Gold, Green, Teal, Blue, Violet, and
+Pink. Any pairing works, since the tints stay softer than the accents. In the file it takes any
+`#rrggbb` at least as bright as `#bcbcbc`; a darker color falls back to the default and shows a
+notice.
+
 Press F1, or click Keyboard shortcuts at the bottom of the dashboard, for a guide to every key
 in effect, including your own bindings. The guide is also where keys are changed: click a key to
 replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all

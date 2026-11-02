@@ -10,7 +10,7 @@
 }
 
 #dashboard .dashboard-elements > .dragging,
-#dashboard .dashboard-clock-top > .dragging {
+#dashboard .dashboard-top-slot > .dragging {
   opacity: 0.5;
 }
 

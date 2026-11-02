@@ -3,6 +3,7 @@ import {
   type DashboardSection,
   parseCollapsedSections,
   parseSectionOrder,
+  parseTopElements,
 } from './dashboardSections';
 import { type Layout, close, leaves } from './layout';
 import type { PaneKind } from './paneKinds';
@@ -67,9 +68,9 @@ export interface SavedWorkspace {
    * default order.
    */
   dashboardSectionOrder?: DashboardElement[];
-  /** Whether the clock sits above Repo rather than among the elements; absent means true. */
-  dashboardClockTop?: boolean;
-  /** The zoom new Files and Git panes start at; absent means 1 for each. */
+  /** The elements in the dashboard's slot above Repo; absent means just the clock. */
+  dashboardTopElements?: DashboardElement[];
+  /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
 }
 
@@ -258,7 +259,10 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (raw.dashboardSectionOrder !== undefined) {
     saved.dashboardSectionOrder = parseSectionOrder(raw.dashboardSectionOrder);
   }
-  if (typeof raw.dashboardClockTop === 'boolean') saved.dashboardClockTop = raw.dashboardClockTop;
+  const top = parseTopElements(raw.dashboardTopElements);
+  if (top) saved.dashboardTopElements = top;
+  // Files saved before any element but the clock could sit above Repo hold only this flag.
+  else if (typeof raw.dashboardClockTop === 'boolean') saved.dashboardTopElements = raw.dashboardClockTop ? ['clock'] : [];
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;
 }
