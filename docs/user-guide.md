@@ -346,7 +346,8 @@ The **Containers** section of the dashboard lists Docker and Podman containers, 
 project; a container with no project is its own row. Bashboard finds `docker.exe` and `podman.exe`
 on `PATH` at startup, so Docker Desktop or Podman has to be installed. An engine whose CLI is
 missing is left out. One that is installed but not running shows as "Docker is not running" or
-"Podman is not running", and Bashboard checks it again every 10 seconds. The section appears while
+"Podman is not running", with a Start button at the right when Bashboard can start it, and
+Bashboard checks it again every 10 seconds. The section appears while
 an engine is found and `dashboard.sections.containers` is on (see [Settings](settings.md#settings)).
 
 Each row shows the project's name, how many of its containers run ("1 of 2"), and one button on
@@ -357,7 +358,12 @@ Click a row to open the Containers tab with that project expanded. Manage in the
 header switches to a Containers tab that is already open, or adds one.
 
 The **Containers pane** has a heading for each engine that is available, Docker and then Podman,
-and its projects expand to their containers. A container row shows its service or container name,
+and its projects expand to their containers. An engine's heading has a Start or Stop button for
+the engine itself. Stop asks first, since it stops every container on that engine and shuts the
+engine down for other apps too; the dashboard offers only Start. Bashboard starts Docker Desktop
+with `docker desktop start` (or by launching Docker Desktop, which it can then only start, on
+versions before 4.37) and Podman with `podman machine start`. Other setups, such as Docker Engine
+inside WSL, get no buttons. A container row shows its service or container name,
 image, status text, and published ports, which open `http://localhost:<port>` when clicked, and its
 CPU and memory, refreshed every 5 seconds while the pane is on screen. Start, Stop, and Restart act
 on a container or on a whole project. Logs opens a panel beside the list that follows the output,

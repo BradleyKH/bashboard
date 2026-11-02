@@ -1,6 +1,11 @@
 import { attachContextMenu } from './contextMenu';
 import { containerSectionMenuItems } from './containerMenus';
-import { engineLabel, type DashboardContainerRow, type DashboardGroupRow } from './containerGroups';
+import {
+  engineLabel,
+  type DashboardContainerRow,
+  type DashboardGroupRow,
+  type DashboardUnavailableRow,
+} from './containerGroups';
 import type { ContainersSectionCallbacks } from './containersSection';
 import { iconButton } from './rowControls';
 
@@ -16,8 +21,14 @@ export function renderContainerDashboardRow(
     el.classList.add('unavailable');
     const text = document.createElement('div');
     text.className = 'container-name';
-    text.textContent = `${engineLabel(row.engine)} is not running`;
+    text.textContent = `${engineLabel(row.engine)} ${unavailableText(row)}`;
     el.append(text);
+    if (row.canStart && row.pending === null) {
+      const start = iconButton('Start', 'container-engine-start', `Start ${engineLabel(row.engine)}`, () =>
+        callbacks.onStartEngine(row.engine),
+      );
+      el.append(start);
+    }
     return el;
   }
 
@@ -46,6 +57,12 @@ export function renderContainerDashboardRow(
   }));
   el.append(actionButton(row, callbacks));
   return el;
+}
+
+function unavailableText(row: DashboardUnavailableRow): string {
+  if (row.pending === 'starting') return 'is starting\u2026';
+  if (row.pending === 'stopping') return 'is stopping\u2026';
+  return 'is not running';
 }
 
 /**

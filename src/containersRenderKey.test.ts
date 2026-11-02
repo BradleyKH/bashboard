@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Container } from './containers';
 import { groupContainers } from './containerGroups';
-import { renderKey, type RenderKeyInput } from './containersRenderKey';
+import { engineBusyKey, renderKey, type RenderKeyInput } from './containersRenderKey';
 
 function container(over: Partial<Container> = {}): Container {
   return {
@@ -20,7 +20,7 @@ function container(over: Partial<Container> = {}): Container {
 
 function input(containers: Container[], over: Partial<RenderKeyInput> = {}): RenderKeyInput {
   return {
-    engines: [{ engine: 'docker', running: true }],
+    engines: [{ engine: 'docker', running: true, pending: null, canStart: false, canStop: false }],
     groups: groupContainers(containers),
     expandedGroups: new Set(['docker:container:abc']),
     busy: new Set(),
@@ -52,8 +52,18 @@ describe('renderKey', () => {
     expect(renderKey(input([container()], { busy: new Set(['docker:container:abc']) }))).not.toBe(renderKey(base));
     expect(renderKey(input([container()], { logsKey: 'docker:abc' }))).not.toBe(renderKey(base));
     expect(
-      renderKey(input([container()], { engines: [{ engine: 'docker', running: false }] })),
+      renderKey(input([container()], { engines: [{ engine: 'docker', running: false, pending: null, canStart: false, canStop: false }] })),
     ).not.toBe(renderKey(base));
     expect(renderKey(input([container()], { usageText: () => '' }))).not.toBe(renderKey(base));
+  });
+
+  it('changes when an engine starts or stops, its controls change, or its own action is busy', () => {
+    const docker = { engine: 'docker' as const, running: true, pending: null, canStart: false, canStop: false };
+    for (const over of [{ pending: 'stopping' as const }, { canStart: true }, { canStop: true }]) {
+      expect(renderKey(input([container()], { engines: [{ ...docker, ...over }] }))).not.toBe(renderKey(base));
+    }
+    expect(renderKey(input([container()], { busy: new Set([engineBusyKey('docker')]) }))).not.toBe(
+      renderKey(base),
+    );
   });
 });

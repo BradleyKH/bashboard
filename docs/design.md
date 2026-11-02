@@ -35,7 +35,8 @@ title is "Bashboard".
 - Editing code. Panes edit plain text files and scratch pads; code opens in the preferred
   editor (3.12).
 - A full git client or container manager. The Git pane covers status, staging, committing,
-  diffs, and undoing the last commit; the Containers pane covers existing containers.
+  diffs, and undoing the last commit; the Containers pane covers existing containers and
+  starting or stopping the engines that run them.
 
 ## 2. Architecture
 
@@ -479,10 +480,11 @@ line with strings), so each engine has its own parser into the shared `Container
 
 | Command | Runs, on the container's engine |
 | --- | --- |
-| `containers_list() -> ContainersSnapshot` | `ps -a --format json` on every running engine: the engines with their running state, plus each container's engine, id, name, image, state, status text, published ports, and the Compose project and service labels. An engine whose `ps` fails is reported as not running |
+| `containers_list() -> ContainersSnapshot` | `ps -a --format json` on every running engine: the engines with their running state, any start or stop in flight (`pending`), and whether each can be started and stopped (`canStart`, `canStop`), plus each container's engine, id, name, image, state, status text, published ports, and the Compose project and service labels. An engine whose `ps` fails is reported as not running |
 | `containers_action(engine, ids, action)` | `start`, `stop`, or `restart`; ids follow `--` |
 | `containers_logs(engine, id, onData) -> streamId`, `containers_logs_stop(streamId)` | `logs -f --tail 500`, stdout and stderr streamed over a `Channel` as raw bytes |
 | `containers_stats(engine, ids) -> ContainerStats[]` | `stats --no-stream --format json`: CPU and memory |
+| `containers_engine_start(engine)`, `containers_engine_stop(engine)` | The engine's own start or stop (below), then a probe every 2 seconds until the engine agrees, for up to 4 minutes. One at a time per engine |
 
 `containers://changed` carries the same `ContainersSnapshot` as `containers_list`, so the front
 end learns which engines exist and run from the same message as the list. Every CLI runs with an
@@ -497,6 +499,23 @@ resize, which leave the list as it was, do not trigger one. When the events chil
 engine is not running, the core marks that engine not running, emits a snapshot, and probes it
 again every 10 seconds; on recovery it restarts the events child and emits. The logs and events
 children are killed when the app exits.
+
+**Starting and stopping an engine.** At startup, and on each 10-second probe of an engine that
+is not running, the core works out how that engine can be controlled:
+
+- **Docker:** `docker desktop start` and `docker desktop stop` when the `docker desktop` command
+  exists (Docker Desktop 4.37 and later). Otherwise, when `Docker Desktop.exe` is in the install
+  that holds `docker.exe` (`<install>\resources\bin`), start only, by launching it, since an
+  older Docker Desktop has no clean stop short of its own Quit. Docker Engine inside WSL,
+  Rancher Desktop, and other setups get neither, so no button appears that cannot work.
+- **Podman:** `podman machine start` and `podman machine stop` on the machine that `podman
+  machine list` marks as default, else the first one listed. With no machine there is nothing to
+  start; the app does not run `podman machine init`.
+
+While a start or stop runs, every snapshot carries it as `pending`, so each Containers pane and
+the dashboard show it from the same message. A start that succeeds wakes the engine's watcher, so
+it follows events at once instead of at its next probe; a stop ends the events child, which the
+watcher notices as usual.
 
 Container shells open through `pty_spawn` with the command
 `<engine>.exe exec -it <id> sh -c "command -v bash >/dev/null && exec bash || exec sh"`.
@@ -1755,14 +1774,20 @@ stopped and Stop when it runs; a group of two or more has a details button (›)
 Containers tab with that group expanded, so a partly running group is never started or stopped
 without seeing which containers it holds. Clicking a row also opens the Containers tab with that
 group expanded. An engine that
-is not running adds a single row saying so, such as "Podman is not running".
+is not running adds a single row saying so, such as "Podman is not running", with a Start button
+at its right, always shown, when the app can start that engine (3.10). While it starts the row
+reads "Podman is starting…" and has no button. The dashboard never stops an engine.
 
 **Containers tab.** Open Containers switches to the tab holding a Containers pane, focusing it,
 or appends a tab named "Containers" with one. A Containers pane is an ordinary pane and can be
 docked anywhere.
 
 **Containers pane.** One heading per available engine, Docker and then Podman, each showing
-whether that engine is running; only one engine available means no headings. Under each,
+whether that engine is running, starting, or stopping, and at its right a Start button when the
+engine is not running or a Stop button when it is, for each the app can do (3.10). A lone engine
+gets a heading only when it has one of those buttons. Stop asks first, saying how many running
+containers will stop and that the engine shuts down for every app that uses it. The buttons are
+disabled while a start or stop runs. Under each,
 groups expand to their containers. Each container row shows its state dot,
 service or container name, image, status text ("Up 3 hours"), published ports as links to
 `http://localhost:<port>` (through `open_url`), and CPU and memory, refreshed every 5 seconds

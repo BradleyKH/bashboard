@@ -34,10 +34,18 @@ export interface Container {
   service: string | null;
 }
 
+export type EngineLifecycle = 'starting' | 'stopping';
+
 /** An engine whose CLI exists; an engine with no CLI never appears. */
 export interface EngineState {
   engine: Engine;
   running: boolean;
+  /** A start or stop the app has in flight. */
+  pending: EngineLifecycle | null;
+  /** Whether the app knows how to start this engine (Docker Desktop or a Podman machine). */
+  canStart: boolean;
+  /** Whether the app knows how to stop it; an older Docker Desktop can only be started. */
+  canStop: boolean;
 }
 
 export interface ContainersSnapshot {
@@ -62,6 +70,16 @@ export function listContainers(): Promise<ContainersSnapshot> {
 
 export function containerAction(engine: Engine, ids: string[], action: ContainerAction): Promise<void> {
   return invoke('containers_action', { engine, ids, action });
+}
+
+/** Resolves once the engine answers, after the snapshot has already shown it starting. */
+export function startEngine(engine: Engine): Promise<void> {
+  return invoke('containers_engine_start', { engine });
+}
+
+/** Stops Docker Desktop or the Podman machine, and with it every container on the engine. */
+export function stopEngine(engine: Engine): Promise<void> {
+  return invoke('containers_engine_stop', { engine });
 }
 
 /** Streams `logs -f --tail 500` as raw bytes (stdout and stderr interleaved); resolves to the stream id. */

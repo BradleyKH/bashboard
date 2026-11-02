@@ -1,6 +1,7 @@
 //! Docker and Podman container support (docs/design.md section 3.10): parsing each engine's
 //! CLI output into the shared `Container` shape, engine detection, the `containers_*`
-//! commands, and the per-engine `events` watcher that emits `containers://changed`.
+//! commands, starting and stopping the engines themselves, and the per-engine `events`
+//! watcher that emits `containers://changed`.
 //!
 //! The CLIs' `--format json` output is not a stable contract (section 12), so every field is
 //! optional: an element that is not an object is skipped, and a missing field takes an empty
@@ -9,7 +10,7 @@
 //! Every CLI runs with an argument list, never through a shell, and ids follow `--` (section 9).
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -102,6 +103,43 @@ pub struct Container {
 pub struct EngineState {
     pub engine: Engine,
     pub running: bool,
+    /// A start or stop this app has in flight.
+    pub pending: Option<Lifecycle>,
+    /// Whether `containers_engine_start` knows how to start this engine.
+    pub can_start: bool,
+    /// Whether `containers_engine_stop` knows how to stop this engine.
+    pub can_stop: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Lifecycle {
+    Starting,
+    Stopping,
+}
+
+/// How this machine starts and stops an engine. Docker Engine inside WSL and Rancher Desktop
+/// match none of these, so they get no controls rather than a button that cannot work.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Control {
+    None,
+    /// Docker Desktop 4.37 and later: `docker desktop start` and `docker desktop stop`.
+    DockerDesktopCli,
+    /// An older Docker Desktop: launching its executable starts it, and nothing stops it
+    /// cleanly short of its own Quit, so it has no stop.
+    DockerDesktopExe(PathBuf),
+    /// `podman machine start` and `podman machine stop` on this machine.
+    PodmanMachine(String),
+}
+
+impl Control {
+    fn can_start(&self) -> bool {
+        *self != Control::None
+    }
+
+    fn can_stop(&self) -> bool {
+        matches!(self, Control::DockerDesktopCli | Control::PodmanMachine(_))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -392,6 +430,11 @@ const RETRY_INTERVAL: Duration = Duration::from_secs(10);
 const SNAPSHOT_RETRY: Duration = Duration::from_secs(3);
 /// A CLI whose daemon is starting or wedged can hang on `version`; detection must not stall.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(15);
+/// Docker Desktop and a Podman machine take tens of seconds to boot a VM; a cold start on a
+/// slow disk can take a few minutes.
+const LIFECYCLE_TIMEOUT: Duration = Duration::from_secs(240);
+/// How often a start or stop re-probes the engine while waiting for it to change state.
+const LIFECYCLE_POLL: Duration = Duration::from_secs(2);
 /// How long a command waits for startup detection before answering with what it has.
 const DETECTION_WAIT: Duration = Duration::from_secs(20);
 
@@ -481,6 +524,141 @@ fn probe(cli: &Path) -> bool {
     };
     let success = child.wait().is_ok_and(|s| s.success());
     version_says_running(success, &String::from_utf8_lossy(&bytes))
+}
+
+/// The machine `podman machine start` should act on: the default one, else the first. Podman
+/// can mark none as default even when only one machine exists.
+fn podman_machine(list_json: &str) -> Option<String> {
+    let machines = json_array_objects(list_json);
+    let name = |v: &Value| non_empty(v.get("Name").and_then(Value::as_str).map(str::to_string));
+    machines
+        .iter()
+        .find(|v| v.get("Default").and_then(Value::as_bool) == Some(true))
+        .and_then(name)
+        .or_else(|| machines.iter().find_map(name))
+}
+
+/// `Docker Desktop.exe` in the install whose CLI is `<install>\resources\bin\docker.exe`.
+fn docker_desktop_exe_for(cli: &Path) -> Option<PathBuf> {
+    let install = cli.parent()?.parent()?.parent()?;
+    Some(install.join("Docker Desktop.exe"))
+}
+
+/// Whether `docker desktop` exists: without the plugin, docker rejects the command.
+fn has_docker_desktop_cli(cli: &Path) -> bool {
+    exec(cli, &["desktop", "--help"]).is_ok_and(|out| out.contains("start"))
+}
+
+fn detect_control(engine: Engine, cli: &Path) -> Control {
+    match engine {
+        Engine::Docker => {
+            if has_docker_desktop_cli(cli) {
+                return Control::DockerDesktopCli;
+            }
+            match docker_desktop_exe_for(cli) {
+                Some(exe) if exe.is_file() => Control::DockerDesktopExe(exe),
+                _ => Control::None,
+            }
+        }
+        Engine::Podman => exec(cli, &["machine", "list", "--format", "json"])
+            .ok()
+            .and_then(|out| podman_machine(&out))
+            .map_or(Control::None, Control::PodmanMachine),
+    }
+}
+
+/// Runs a command to completion or until `timeout`, killing it then. Errors carry stderr.
+fn exec_timeout(cli: &Path, args: &[&str], timeout: Duration) -> Result<(), String> {
+    let mut child = command(cli, args)
+        .stdout(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("{}: {e}", cli.display()))?;
+    let stderr = child.stderr.take();
+    let reader = thread::spawn(move || {
+        let mut text = String::new();
+        if let Some(mut err) = stderr {
+            let _ = err.read_to_string(&mut text);
+        }
+        text
+    });
+    let end = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < end => thread::sleep(Duration::from_millis(200)),
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{} {} timed out", cli.display(), args.join(" ")));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    };
+    let err = reader.join().unwrap_or_default().trim().to_string();
+    if status.success() {
+        Ok(())
+    } else if err.is_empty() {
+        Err(format!("{} exited with {status}", cli.display()))
+    } else {
+        Err(err)
+    }
+}
+
+/// Probes until the engine's running state is `want` or `timeout` passes.
+fn await_running(inner: &Inner, cli: &Path, want: bool, timeout: Duration) -> bool {
+    let end = Instant::now() + timeout;
+    loop {
+        if probe(cli) == want {
+            return true;
+        }
+        if Instant::now() >= end || !inner.sleep(LIFECYCLE_POLL) {
+            return false;
+        }
+    }
+}
+
+/// Starts or stops the engine, then waits until a probe agrees it did.
+fn run_lifecycle(inner: &Inner, slot: &Slot, to: Lifecycle) -> Result<(), String> {
+    let label = slot.engine.label();
+    let want = to == Lifecycle::Starting;
+    match (&slot.control, to) {
+        (Control::DockerDesktopCli, Lifecycle::Starting) => {
+            exec_timeout(&slot.cli, &["desktop", "start"], LIFECYCLE_TIMEOUT)?
+        }
+        (Control::DockerDesktopCli, Lifecycle::Stopping) => {
+            exec_timeout(&slot.cli, &["desktop", "stop"], LIFECYCLE_TIMEOUT)?
+        }
+        (Control::DockerDesktopExe(exe), Lifecycle::Starting) => {
+            // Docker Desktop runs as its own GUI process, so it is launched and left running
+            // rather than waited on.
+            let mut cmd = Command::new(exe);
+            cmd.stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            hide_console(&mut cmd);
+            cmd.spawn().map_err(|e| format!("{}: {e}", exe.display()))?;
+        }
+        (Control::PodmanMachine(name), Lifecycle::Starting) => exec_timeout(
+            &slot.cli,
+            &["machine", "start", "--", name],
+            LIFECYCLE_TIMEOUT,
+        )?,
+        (Control::PodmanMachine(name), Lifecycle::Stopping) => exec_timeout(
+            &slot.cli,
+            &["machine", "stop", "--", name],
+            LIFECYCLE_TIMEOUT,
+        )?,
+        (_, Lifecycle::Starting) => return Err(format!("Bashboard cannot start {label} here")),
+        (_, Lifecycle::Stopping) => return Err(format!("Bashboard cannot stop {label} here")),
+    }
+    // The start and stop commands can return before the engine answers `version`.
+    if await_running(inner, &slot.cli, want, LIFECYCLE_TIMEOUT) {
+        Ok(())
+    } else if want {
+        Err(format!("{label} did not start in time"))
+    } else {
+        Err(format!("{label} did not stop in time"))
+    }
 }
 
 fn parse_action(action: &str) -> Result<&'static str, String> {
@@ -617,6 +795,7 @@ struct Slot {
     engine: Engine,
     cli: PathBuf,
     running: bool,
+    control: Control,
 }
 
 #[derive(Default)]
@@ -628,6 +807,10 @@ struct Inner {
     next_stream: AtomicU32,
     events: Mutex<HashMap<Engine, Child>>,
     stopping: AtomicBool,
+    /// Engine starts and stops in flight.
+    pending: Mutex<HashMap<Engine, Lifecycle>>,
+    /// Engines whose watcher should re-probe now instead of at its next retry.
+    pokes: Mutex<HashSet<Engine>>,
 }
 
 /// Detected engines, their running flags, and the live `logs` and `events` children.
@@ -648,12 +831,36 @@ impl Inner {
         guard.clone().unwrap_or_default()
     }
 
-    fn cli(&self, engine: Engine) -> Result<PathBuf, String> {
+    fn slot(&self, engine: Engine) -> Result<Slot, String> {
         self.slots()
             .into_iter()
             .find(|s| s.engine == engine)
-            .map(|s| s.cli)
             .ok_or_else(|| format!("{} is not available", engine.label()))
+    }
+
+    fn cli(&self, engine: Engine) -> Result<PathBuf, String> {
+        self.slot(engine).map(|s| s.cli)
+    }
+
+    /// Records how an engine is controlled; true when it changed.
+    fn set_control(&self, engine: Engine, control: Control) -> bool {
+        let mut guard = self.engines.lock().unwrap();
+        match guard.iter_mut().flatten().find(|s| s.engine == engine) {
+            Some(slot) if slot.control != control => {
+                slot.control = control;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Asks the engine's watcher to re-probe without waiting out its retry interval.
+    fn poke(&self, engine: Engine) {
+        self.pokes.lock().unwrap().insert(engine);
+    }
+
+    fn take_poke(&self, engine: Engine) -> bool {
+        self.pokes.lock().unwrap().remove(&engine)
     }
 
     /// Records an engine's running flag; true when it changed.
@@ -678,6 +885,7 @@ impl Inner {
     /// nothing else will refresh that engine's state, so the caller should list again soon.
     fn snapshot_checked(&self) -> (ContainersSnapshot, bool) {
         let mut failed = false;
+        let pending = self.pending.lock().unwrap().clone();
         let mut engines = Vec::new();
         let mut containers = Vec::new();
         for slot in self.slots() {
@@ -692,6 +900,9 @@ impl Inner {
             engines.push(EngineState {
                 engine: slot.engine,
                 running: listed.is_some(),
+                pending: pending.get(&slot.engine).copied(),
+                can_start: slot.control.can_start(),
+                can_stop: slot.control.can_stop(),
             });
             containers.extend(listed.into_iter().flatten());
         }
@@ -706,10 +917,18 @@ impl Inner {
 
     /// Sleeps up to `total`; false once shutdown begins.
     fn sleep(&self, total: Duration) -> bool {
+        self.sleep_unless_poked(None, total)
+    }
+
+    /// Like `sleep`, but returns early when `engine` is poked.
+    fn sleep_unless_poked(&self, engine: Option<Engine>, total: Duration) -> bool {
         let end = Instant::now() + total;
         loop {
             if self.stopping() {
                 return false;
+            }
+            if engine.is_some_and(|e| self.take_poke(e)) {
+                return true;
             }
             let now = Instant::now();
             if now >= end {
@@ -738,10 +957,12 @@ pub fn init(app: &AppHandle) {
             .filter_map(|&engine| {
                 let cli = locate(engine)?;
                 let running = probe(&cli);
+                let control = detect_control(engine, &cli);
                 Some(Slot {
                     engine,
                     cli,
                     running,
+                    control,
                 })
             })
             .collect();
@@ -791,7 +1012,7 @@ fn notify_loop(inner: &Inner, app: &AppHandle, changes: &mpsc::Receiver<()>) {
 }
 
 /// Follows one engine's events while it runs, and re-probes it every RETRY_INTERVAL while it
-/// does not.
+/// does not, rechecking how it can be started, since a Podman machine can be created meanwhile.
 fn watch_engine(inner: &Inner, slot: Slot, changed: &mpsc::Sender<()>) {
     let mut running = slot.running;
     loop {
@@ -806,11 +1027,52 @@ fn watch_engine(inner: &Inner, slot: Slot, changed: &mpsc::Sender<()>) {
             inner.set_running(slot.engine, false);
             let _ = changed.send(());
         }
-        if !inner.sleep(RETRY_INTERVAL) {
+        if !inner.sleep_unless_poked(Some(slot.engine), RETRY_INTERVAL) {
             return;
         }
         running = probe(&slot.cli);
+        if !running && inner.set_control(slot.engine, detect_control(slot.engine, &slot.cli)) {
+            let _ = changed.send(());
+        }
     }
+}
+
+/// Starts or stops an engine, publishing the pending state while it runs. The watcher stays
+/// the owner of the running flag: a start pokes it to probe and follow events at once, and a
+/// stop ends its `events` child, which it notices on its own.
+fn engine_lifecycle(
+    inner: &Inner,
+    app: &AppHandle,
+    engine: Engine,
+    to: Lifecycle,
+) -> Result<(), String> {
+    let slot = inner.slot(engine)?;
+    {
+        let mut pending = inner.pending.lock().unwrap();
+        if pending.contains_key(&engine) {
+            return Err(format!(
+                "{} is already starting or stopping",
+                engine.label()
+            ));
+        }
+        pending.insert(engine, to);
+    }
+    let _ = app.emit("containers://changed", inner.snapshot());
+    let result = run_lifecycle(inner, &slot, to);
+    if to == Lifecycle::Starting && result.is_ok() {
+        inner.poke(engine);
+        // Holds the pending state until the watcher takes the flag, so the snapshot that
+        // clears it already lists the containers.
+        let end = Instant::now() + PROBE_TIMEOUT;
+        while !inner.slot(engine).is_ok_and(|s| s.running) && Instant::now() < end {
+            if !inner.sleep(Duration::from_millis(200)) {
+                break;
+            }
+        }
+    }
+    inner.pending.lock().unwrap().remove(&engine);
+    let _ = app.emit("containers://changed", inner.snapshot());
+    result
 }
 
 /// Runs the engine's `events` child until it exits or is killed.
@@ -968,6 +1230,26 @@ pub async fn containers_action(
     let verb = parse_action(&action)?;
     let inner = state.0.clone();
     blocking(move || action_engine(&inner.cli(engine)?, &ids, verb)).await
+}
+
+#[tauri::command]
+pub async fn containers_engine_start(
+    app: AppHandle,
+    state: State<'_, ContainersState>,
+    engine: Engine,
+) -> Result<(), String> {
+    let inner = state.0.clone();
+    blocking(move || engine_lifecycle(&inner, &app, engine, Lifecycle::Starting)).await
+}
+
+#[tauri::command]
+pub async fn containers_engine_stop(
+    app: AppHandle,
+    state: State<'_, ContainersState>,
+    engine: Engine,
+) -> Result<(), String> {
+    let inner = state.0.clone();
+    blocking(move || engine_lifecycle(&inner, &app, engine, Lifecycle::Stopping)).await
 }
 
 #[tauri::command]
@@ -1352,5 +1634,40 @@ mod tests {
         assert_eq!(find().expect("still listed").state, ContainerState::Exited);
         drop(guard);
         assert!(find().is_none());
+    }
+
+    #[test]
+    fn podman_machine_prefers_the_default_then_the_first() {
+        let list = r#"[{"Name":"a","Default":false},{"Name":"b","Default":true}]"#;
+        assert_eq!(podman_machine(list).as_deref(), Some("b"));
+        let none_default = r#"[{"Name":"podman-machine-default","Default":false}]"#;
+        assert_eq!(
+            podman_machine(none_default).as_deref(),
+            Some("podman-machine-default")
+        );
+        assert_eq!(podman_machine("[]"), None);
+        assert_eq!(podman_machine("not json"), None);
+        assert_eq!(podman_machine(r#"[{"Name":""}]"#), None);
+    }
+
+    #[test]
+    fn docker_desktop_exe_sits_three_levels_above_the_cli() {
+        let cli = Path::new(r"C:\Program Files\Docker\Docker\resources\bin\docker.exe");
+        assert_eq!(
+            docker_desktop_exe_for(cli),
+            Some(PathBuf::from(
+                r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
+            ))
+        );
+        assert_eq!(docker_desktop_exe_for(Path::new("docker.exe")), None);
+    }
+
+    #[test]
+    fn only_the_cli_controls_can_stop() {
+        assert!(!Control::None.can_start());
+        assert!(Control::DockerDesktopExe(PathBuf::from("x")).can_start());
+        assert!(!Control::DockerDesktopExe(PathBuf::from("x")).can_stop());
+        assert!(Control::DockerDesktopCli.can_stop());
+        assert!(Control::PodmanMachine("m".into()).can_stop());
     }
 }

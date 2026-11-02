@@ -1,7 +1,7 @@
 import './containersSection.css';
 import { renderContainerDashboardRow } from './containerDashboardRow';
 import { dashboardRows, type DashboardGroupRow } from './containerGroups';
-import type { ContainersSnapshot } from './containers';
+import type { ContainersSnapshot, Engine } from './containers';
 
 export interface ContainersSectionCallbacks {
   /** Open the Containers tab, expanding the groups with these keys. */
@@ -10,6 +10,8 @@ export interface ContainersSectionCallbacks {
   onStart(row: DashboardGroupRow): void;
   /** Stop every running container in the row's member groups, on each engine. */
   onStop(row: DashboardGroupRow): void;
+  /** Start an engine that is not running. The dashboard never stops one. */
+  onStartEngine(engine: Engine): void;
 }
 
 /** The dashboard's Containers section: one row per container group (docs/design.md sections 4.6 and 4.16). */

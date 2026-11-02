@@ -1,4 +1,4 @@
-import type { Container, ContainersSnapshot, Engine } from './containers';
+import type { Container, ContainersSnapshot, Engine, EngineLifecycle } from './containers';
 
 export type GroupState = 'running' | 'partial' | 'stopped';
 
@@ -28,6 +28,9 @@ export interface DashboardGroupRow {
 export interface DashboardUnavailableRow {
   kind: 'unavailable';
   engine: Engine;
+  /** Show Start. */
+  canStart: boolean;
+  pending: EngineLifecycle | null;
 }
 
 export type DashboardContainerRow = DashboardGroupRow | DashboardUnavailableRow;
@@ -98,6 +101,6 @@ export function dashboardRows(snapshot: ContainersSnapshot): DashboardContainerR
   }
   const unavailable: DashboardUnavailableRow[] = snapshot.engines
     .filter((e) => !e.running)
-    .map((e) => ({ kind: 'unavailable', engine: e.engine }));
+    .map((e) => ({ kind: 'unavailable', engine: e.engine, canStart: e.canStart, pending: e.pending }));
   return [...rows, ...unavailable];
 }

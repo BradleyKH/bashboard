@@ -198,6 +198,7 @@ export class DashboardPanel {
       onOpenContainers: (keys) => this.callbacks.onOpenContainers?.(keys),
       onStart: (row) => this.callbacks.onStart?.(row),
       onStop: (row) => this.callbacks.onStop?.(row),
+      onStartEngine: (engine) => this.callbacks.onStartEngine?.(engine),
     });
     this.containersSection.setVisible(false);
     this.addSection('containers', this.containersSection.el, this.containersSection.head);

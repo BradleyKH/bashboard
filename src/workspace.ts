@@ -1406,6 +1406,7 @@ export class Workspace {
       // Without a store from the app (a browser-only run) the pane shows no engines.
       store: this.hooks.containers ?? (this.emptyContainers ??= new ContainersStore()),
       onShell: (c) => this.openContainerShell(id, c),
+      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
     });
   }
 

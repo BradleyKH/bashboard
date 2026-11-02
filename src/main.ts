@@ -20,8 +20,8 @@ import { onCliCommand } from './cli';
 import { runCliCommand, type CliTarget } from './cliDispatch';
 import { ColonySync } from './colonySync';
 import { setHomeDir } from './displayPath';
-import { containerAction, type Engine } from './containers';
-import { groupContainers, type DashboardGroupRow } from './containerGroups';
+import { containerAction, startEngine, type Engine } from './containers';
+import { engineLabel, groupContainers, type DashboardGroupRow } from './containerGroups';
 import { ContainersStore } from './containersStore';
 import { setKindMenuFilter } from './kindMenu';
 import { DashboardPanel } from './dashboardPanel';
@@ -559,6 +559,10 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onStart: (row) => actOnContainerRow(row, 'start'),
   onStop: (row) => actOnContainerRow(row, 'stop'),
+  onStartEngine: (engine) =>
+    startEngine(engine).catch((e: unknown) =>
+      showToast(`Could not start ${engineLabel(engine)}: ${e instanceof Error ? e.message : String(e)}`),
+    ),
   onOpen: openFolder,
   onInstallHooks: () => {
     hookInstallPreview()

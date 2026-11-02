@@ -51,6 +51,29 @@
   color: var(--ctr-running);
 }
 
+.ctr-engine-action {
+  margin-left: auto;
+  align-self: center;
+  padding: 1px 8px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--ctr-fg);
+  background: transparent;
+  border: 1px solid var(--ctr-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.ctr-engine-action:hover:not(:disabled) {
+  background: var(--ctr-hover);
+  border-color: var(--ctr-accent);
+}
+
+.ctr-engine-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .ctr-note {
   padding: 8px 12px;
   color: var(--ctr-muted);

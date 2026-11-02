@@ -57,3 +57,10 @@
 #dashboard .container-row:is(:hover, :focus-within) .container-action {
   opacity: 1;
 }
+
+/* Always shown, unlike the hover-only row actions: it is the row's only control. */
+#dashboard .container-engine-start {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: 11px;
+}
