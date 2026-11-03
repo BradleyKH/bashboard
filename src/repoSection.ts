@@ -110,7 +110,7 @@ export class RepoSection {
     }
     this.name.textContent = folderName(repo.root);
     this.name.title = repo.root;
-    this.pinsFolder.textContent = `· ${this.name.textContent}`;
+    this.pinsFolder.textContent = ` · ${this.name.textContent}`;
     this.pinsFolder.title = repo.root;
     this.branch.textContent = repo.isGit && repo.branch ? repo.branch : '';
     this.branch.hidden = !this.branch.textContent;

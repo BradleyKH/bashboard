@@ -53,8 +53,10 @@
 
 .repo-pins-folder {
   flex: none;
-  margin-left: 6px;
-  white-space: nowrap;
+  /* A real space each side of the dot keeps the gaps equal; pre keeps the leading one, which a
+     flex item would otherwise trim, and the negative margin cancels "Pins"' trailing tracking. */
+  margin-left: -0.06em;
+  white-space: pre;
   font-weight: normal;
   letter-spacing: 0;
   text-transform: none;
