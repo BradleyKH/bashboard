@@ -92,7 +92,7 @@ pub const DEFAULT_ACCENT: &str = "#4fb3c8";
 /// this WCAG relative luminance both keep at least 4.5:1 contrast. Mirrors src/accent.ts.
 const ACCENT_MIN_LUMINANCE: f64 = 0.2;
 
-pub const DEFAULT_CONTENT_TEXT: &str = "#e6e6e6";
+pub const DEFAULT_CONTENT_TEXT: &str = "#b5d8df";
 
 /// Content text is read in long stretches, so it must stay well brighter than the dark panes,
 /// and brighter than the accent so links and highlights still stand out. Mirrors
@@ -832,8 +832,7 @@ fn default_file_text() -> String {
     )
     .replace(
         "  \"contentTextColor\":",
-        "  // Text in scratch, file preview, and search panes (not terminals). Any #rrggbb at least as
-  // bright as #bcbcbc; darker colors fall back to the default.
+        "  // Any #rrggbb at least as bright as #bcbcbc; darker colors fall back to the default.
   \"contentTextColor\":",
     )
     .replace(
@@ -1115,8 +1114,8 @@ mod tests {
 
     #[test]
     fn content_text_color_needs_brighter_hex_than_accent() {
-        let (s, w) = parse_settings(r##"{ "contentTextColor": "#B5D8DF" }"##);
-        assert_eq!(s.content_text_color, "#b5d8df");
+        let (s, w) = parse_settings(r##"{ "contentTextColor": "#B9D0ED" }"##);
+        assert_eq!(s.content_text_color, "#b9d0ed");
         assert!(w.is_empty());
         // #a8b8c8 is the Silver accent: bright enough for an accent, too dim for body text.
         for bad in [r##""#a8b8c8""##, r##""#eee""##, r##""white""##] {

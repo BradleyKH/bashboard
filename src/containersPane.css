@@ -1,6 +1,9 @@
 .ctr-body {
   --ctr-fg: #e6e6e6;
   --ctr-muted: #8a959b;
+  /* Buttons keep these when the list and logs retint --ctr-fg and --ctr-muted. */
+  --ctr-ui-fg: #e6e6e6;
+  --ctr-ui-muted: #8a959b;
   --ctr-border: rgba(255, 255, 255, 0.1);
   --ctr-hover: rgba(255, 255, 255, 0.08);
   --ctr-selected: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -27,6 +30,14 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* The list and the log text take the content text color; buttons and the logs head stay UI gray. */
+.ctr-list,
+.ctr-logs-body {
+  --ctr-fg: var(--content-fg);
+  --ctr-muted: var(--content-faint);
+  color: var(--content-fg);
 }
 
 .ctr-engine {
@@ -57,7 +68,7 @@
   padding: 1px 8px;
   font: inherit;
   font-size: 11px;
-  color: var(--ctr-fg);
+  color: var(--ctr-ui-fg);
   background: transparent;
   border: 1px solid var(--ctr-border);
   border-radius: 3px;
@@ -224,7 +235,7 @@
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: var(--ctr-muted);
+  color: var(--ctr-ui-muted);
   font: 12px system-ui, sans-serif;
   line-height: 18px;
   cursor: pointer;
@@ -232,7 +243,7 @@
 
 .ctr-btn:hover:not(:disabled) {
   background: var(--ctr-hover);
-  color: var(--ctr-fg);
+  color: var(--ctr-ui-fg);
 }
 
 .ctr-btn:disabled {

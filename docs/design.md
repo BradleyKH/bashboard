@@ -2274,12 +2274,14 @@ it with no pins, and Automatic omits it.
   // panes and behind find highlights' dark text. The dialog offers presets, and shows a hand-edited
   // value as Custom.
   "accentColor": "#4fb3c8",
-  // #rrggbb for the text of scratch, file preview, and search panes (results and preview), read
-  // by CSS as --content-fg, with dimmer shades of it for line numbers and quotes. Terminals keep
-  // their own foreground. A value below WCAG relative luminance 0.5 falls back to the default so
+  // #rrggbb for content text, read by CSS as --content-fg: scratch panes, the file preview, search
+  // results and preview, the Files list, the Git file, commit, and branch lists and diff, the
+  // Containers list and logs, and the dashboard's names, values, and clock. Secondary text in those
+  // places (line numbers, quotes, sizes, dates) takes dimmer shades of it; toolbars, buttons, and
+  // the dashboard's gray labels stay UI gray, and terminals keep their own foreground. A value below WCAG relative luminance 0.5 falls back to the default so
   // body text stays readable. The dialog's presets are pale tints of the accent presets' hues, so
   // the accent stays the most saturated color for links and highlights.
-  "contentTextColor": "#e6e6e6",
+  "contentTextColor": "#b5d8df",
   "scrim": { "opacity": 0.5, "blurPx": 0 },
   // style is none, lights (Swirling Lights), or matrix; a missing or invalid value falls back to
   // lights. animate false freezes lights and matrix on a still frame (6.4); none ignores it.

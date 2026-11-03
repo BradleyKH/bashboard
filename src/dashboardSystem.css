@@ -14,7 +14,7 @@
 }
 
 .system-value {
-  color: #d6dde1;
+  color: var(--content-fg);
   text-align: right;
   white-space: nowrap;
 }

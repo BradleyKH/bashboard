@@ -14,7 +14,7 @@ export interface Settings {
   font: { family: string; size: number };
   /** #rrggbb, bright enough to read on the dark panes (docs/design.md section 8). */
   accentColor: string;
-  /** #rrggbb for scratch, file preview, and search text (docs/design.md section 8). */
+  /** #rrggbb for non-terminal pane content and dashboard text (docs/design.md section 8). */
   contentTextColor: string;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design.md section 6.4). */

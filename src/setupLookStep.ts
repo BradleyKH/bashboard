@@ -75,7 +75,6 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
 
   const accent = swatchGroup('Accent color', ACCENT_PRESETS, (value) => pickAccent(value, true));
   const text = swatchGroup('Text color', CONTENT_TEXT_PRESETS, (value) => pickText(value, true));
-  const textHint = ui.note('Scratch, file preview, and search panes.');
 
   function pickAccent(value: string, byUser: boolean): void {
     if (byUser) ctx.autoColors.set({ ...ctx.autoColors.get(), accent: false });
@@ -111,7 +110,7 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
     sync(ctx.getSettings());
   }
 
-  content.append(backgrounds.group, animate, brightness.group, accent.group, text.group, textHint);
+  content.append(backgrounds.group, animate, brightness.group, accent.group, text.group);
   sync(ctx.getSettings());
   return sync;
 }

@@ -1,6 +1,9 @@
 .git-body {
   --git-fg: #e6e6e6;
   --git-muted: #8a959b;
+  /* Buttons keep these when a content region below retints --git-fg and --git-muted. */
+  --git-ui-fg: #e6e6e6;
+  --git-ui-muted: #8a959b;
   --git-border: rgba(255, 255, 255, 0.1);
   --git-hover: rgba(255, 255, 255, 0.08);
   --git-selected: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -87,6 +90,17 @@
   overflow-x: hidden;
   overflow-y: auto;
   border-right: 1px solid var(--git-border);
+}
+
+/* File and commit lists, branch rows, and the diff take the content text color; the head, tabs,
+   commit box, and buttons stay UI gray. Unchanged diff lines inherit it. */
+.git-files,
+.git-log,
+.git-branches-rows,
+.git-diff-body {
+  --git-fg: var(--content-fg);
+  --git-muted: var(--content-faint);
+  color: var(--content-fg);
 }
 
 .git-right {
@@ -272,7 +286,7 @@
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: var(--git-muted);
+  color: var(--git-ui-muted);
   font: inherit;
   line-height: 18px;
   cursor: pointer;
@@ -281,7 +295,7 @@
 .git-section-btn:hover:not(:disabled),
 .git-row-btn:hover:not(:disabled) {
   background: var(--git-hover);
-  color: var(--git-fg);
+  color: var(--git-ui-fg);
 }
 
 .git-section-btn:disabled {
@@ -378,7 +392,7 @@
 
 .git-undo {
   flex: none;
-  color: var(--git-fg);
+  color: var(--git-ui-fg);
   border: 1px solid var(--git-border);
 }
 

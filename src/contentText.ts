@@ -1,7 +1,8 @@
-// The text color of scratch, file preview, and search panes (docs/design.md section 8,
+// The text color of non-terminal pane content and the dashboard (docs/design.md section 8,
 // contentTextColor). CSS reads it as --content-fg; terminals keep their own foreground.
 
-export const DEFAULT_CONTENT_TEXT = '#e6e6e6';
+// Teal, to pair with the default teal accent.
+export const DEFAULT_CONTENT_TEXT = '#b5d8df';
 
 /**
  * Mirrors CONTENT_TEXT_MIN_LUMINANCE in src-tauri/src/settings.rs. Well above the accent's floor,
@@ -12,12 +13,12 @@ export const CONTENT_TEXT_MIN_LUMINANCE = 0.5;
 // Pale tints of the ACCENT_PRESETS hues (about 35% of the accent mixed into near-white), labeled
 // to pair with them, so any pick keeps the accent more saturated than the text around it.
 export const CONTENT_TEXT_PRESETS: { value: string; label: string }[] = [
-  { value: DEFAULT_CONTENT_TEXT, label: 'White' },
+  { value: '#e6e6e6', label: 'White' },
   { value: '#d4dadf', label: 'Silver' },
   { value: '#edd1b5', label: 'Orange' },
   { value: '#e8ddb5', label: 'Gold' },
   { value: '#bfdec9', label: 'Green' },
-  { value: '#b5d8df', label: 'Teal' },
+  { value: DEFAULT_CONTENT_TEXT, label: 'Teal' },
   { value: '#b9d0ed', label: 'Blue' },
   { value: '#d4caf3', label: 'Violet' },
   { value: '#e8c4e5', label: 'Pink' },

@@ -112,7 +112,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #eef3f5;
+  color: var(--content-fg);
 }
 
 .worktree-branch,

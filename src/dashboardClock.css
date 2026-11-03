@@ -21,7 +21,7 @@
 }
 
 #dashboard .clock-time {
-  color: #fff;
+  color: var(--content-fg);
   font-variant-numeric: tabular-nums;
 }
 

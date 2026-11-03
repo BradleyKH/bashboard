@@ -30,9 +30,12 @@ Gold, Green, Teal, Blue, Violet, and Pink. In the file it takes any `#rrggbb` va
 read on the dark panes; a darker color falls back to the default and shows a notice. A value set
 in the file that is not a preset appears in the dialog as Custom.
 
-`contentTextColor` sets the color of text in scratch panes, the file preview and editor, and search
-results and their preview (default `#e6e6e6`, white). Line numbers and quotes take a dimmer shade
-of it; terminals keep their own colors. The Text color field in the Appearance section offers
+`contentTextColor` sets the color of text in scratch panes, the file preview and editor, search
+results and their preview, the Files list, the Git pane's file, commit, and branch lists and its
+diff, the Containers list and logs, and the dashboard's names, values, and clock (default
+`#b5d8df`, teal, to match the default accent). Secondary text in those places, such as line numbers, quotes, sizes, and dates,
+takes a dimmer shade of it. Toolbars, buttons, and the dashboard's gray labels keep their UI gray,
+and terminals keep their own colors. The Text color field in the Appearance section offers
 White plus pale tints matching each accent: Silver, Orange, Gold, Green, Teal, Blue, Violet, and
 Pink. Any pairing works, since the tints stay softer than the accents. In the file it takes any
 `#rrggbb` at least as bright as `#bcbcbc`; a darker color falls back to the default and shows a
