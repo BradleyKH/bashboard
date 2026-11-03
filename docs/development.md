@@ -121,6 +121,15 @@ then publishes the release. The workflow needs two repository secrets,
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, holding the updater
 signing key. Local builds and CI runs need no key; only the release workflow signs.
 
+The release workflow also Authenticode-signs the app, `bb.exe`, and the installer through Azure
+Artifact Signing when the `AZURE_CLIENT_ID` secret is set, and then fails the release if any of
+them lacks a valid signature. Signing needs three secrets for an Azure app registration
+(`AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`) holding the Artifact Signing
+Certificate Profile Signer role, plus three repository variables naming the signing account:
+`AZURE_SIGNING_ENDPOINT` (for example `https://eus.codesigning.azure.net`),
+`AZURE_SIGNING_ACCOUNT`, and `AZURE_SIGNING_PROFILE`. Without `AZURE_CLIENT_ID`, the release
+ships unsigned and the workflow logs a warning.
+
 Before each release, run through this keyboard checklist in a `pnpm tauri dev` session or the
 built app:
 

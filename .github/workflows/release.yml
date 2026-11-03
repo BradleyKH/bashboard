@@ -37,6 +37,34 @@ jobs:
             exit 1
           fi
 
+      # Authenticode signing turns on once the Azure Artifact Signing secrets exist; without them the
+      # release ships unsigned. signCommand is built here rather than kept in tauri.conf.json because
+      # a local `pnpm tauri build` would run it too, with no Azure credentials.
+      - name: Configure Authenticode signing
+        id: sign
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          if [ -z "$AZURE_CLIENT_ID" ]; then
+            echo "::warning::AZURE_CLIENT_ID is not set, so the installer will not be Authenticode signed"
+            echo 'config={"bundle":{"createUpdaterArtifacts":true}}' >> "$GITHUB_OUTPUT"
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for v in AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE; do
+            if [ -z "${!v}" ]; then
+              echo "::error::repository variable $v is not set"
+              exit 1
+            fi
+          done
+          cmd="artifact-signing-cli -e $AZURE_SIGNING_ENDPOINT -a $AZURE_SIGNING_ACCOUNT -c $AZURE_SIGNING_PROFILE -d Bashboard %1"
+          echo "config={\"bundle\":{\"createUpdaterArtifacts\":true,\"windows\":{\"signCommand\":\"$cmd\"}}}" >> "$GITHUB_OUTPUT"
+          echo 'enabled=true' >> "$GITHUB_OUTPUT"
+
       # Release notes are the annotated tag's message, if any. checkout leaves the tag pointing
       # straight at the commit, so the tag object has to be fetched before its message can be
       # read. A lightweight tag has no message (its %(contents) would be the commit's), so it
@@ -50,8 +78,13 @@ jobs:
           if [ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag ]; then
             notes=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
           fi
-          standard='Alpha release. The installer is unsigned, so Windows SmartScreen may warn on first run:
+          if [ "${{ steps.sign.outputs.enabled }}" = true ]; then
+            standard='Alpha release. Until the signed installer builds SmartScreen reputation, Windows may
+          still warn on first run: choose "More info", then "Run anyway".'
+          else
+            standard='Alpha release. The installer is unsigned, so Windows SmartScreen may warn on first run:
           choose "More info", then "Run anyway".'
+          fi
           delim="NOTES_$(date +%s%N)"
           {
             echo "body<<$delim"
@@ -77,11 +110,18 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      - name: Install artifact-signing-cli
+        if: steps.sign.outputs.enabled == 'true'
+        run: cargo install artifact-signing-cli --locked
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Bashboard v__VERSION__ (alpha)'
@@ -89,7 +129,7 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-          args: --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          args: --config '${{ steps.sign.outputs.config }}'
 
       # tauri-action owns the build, so the check runs on its output while the release is still a
       # draft. bb.exe must sit beside bashboard.exe once installed, so the installer script has
@@ -112,6 +152,23 @@ jobs:
             exit 1
           fi
           echo "bb.exe is built and listed in $nsi"
+
+      - name: Assert binaries are Authenticode signed
+        if: steps.sign.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $release = 'src-tauri/target/release'
+          $files = @("$release/bashboard.exe", "$release/bb.exe") + (Get-ChildItem "$release/bundle/nsis/*-setup.exe").FullName
+          $failed = $false
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f
+            Write-Host "$($sig.Status)  $f  $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') {
+              Write-Host "::error::$f is not validly signed ($($sig.Status))"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
 
       # Publishing last keeps a broken build off releases/latest, which the updater reads.
       - name: Publish release
