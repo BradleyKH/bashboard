@@ -4,6 +4,7 @@ import {
   branchLine,
   canCommit,
   changesList,
+  commitPushKind,
   diffLines,
   lastFetchText,
   mergeUndoMessage,
@@ -102,6 +103,20 @@ describe('undoTarget', () => {
   it('is null when HEAD differs or the repo is unborn', () => {
     expect(undoTarget([commit({ hash: 'b' })], status())).toBeNull();
     expect(undoTarget([], status({ oid: null }))).toBeNull();
+  });
+});
+
+describe('commitPushKind', () => {
+  const tracked = { upstream: 'origin/main' };
+  it('is push on HEAD and upTo on an older unpushed commit', () => {
+    expect(commitPushKind(commit(), status(tracked))).toBe('push');
+    expect(commitPushKind(commit({ hash: 'b' }), status(tracked))).toBe('upTo');
+  });
+  it('is null for a pushed commit, a detached HEAD, or no upstream', () => {
+    expect(commitPushKind(commit({ pushed: true }), status(tracked))).toBeNull();
+    expect(commitPushKind(commit(), status({ ...tracked, branch: null }))).toBeNull();
+    expect(commitPushKind(commit(), status())).toBeNull();
+    expect(commitPushKind(commit(), null)).toBeNull();
   });
 });
 

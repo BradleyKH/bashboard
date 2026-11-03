@@ -29,22 +29,36 @@ export interface GitCommitMenuHandlers {
   copyHash: (hash: string) => void;
   copySubject: (subject: string) => void;
   undo: (hash: string) => void;
+  /** Pushes the branch (`upTo` null) or only up to the given commit. */
+  push: (upTo: string | null) => void;
 }
 
-/** The menu for a commit row; Undo commit only for the commit the diff's Undo button targets. */
-export function gitCommitMenuItems(
-  commit: GitCommit,
-  undoHash: string | null,
-  h: GitCommitMenuHandlers,
-): MenuEntry[] {
+export interface GitCommitMenuState {
+  /** The commit the diff's Undo button targets, if any. */
+  undoHash: string | null;
+  /** From `commitPushKind`; null hides the push entry. */
+  push: 'push' | 'upTo' | null;
+  /** False while a fetch, pull, or push is running. */
+  canPush: boolean;
+}
+
+/** The menu for a commit row (docs/design.md section 4.13). */
+export function gitCommitMenuItems(commit: GitCommit, state: GitCommitMenuState, h: GitCommitMenuHandlers): MenuEntry[] {
   const entries: MenuEntry[] = [
     item('Show diff', () => h.showDiff(commit)),
     separator(),
     item('Copy hash', () => h.copyHash(commit.hash)),
     item('Copy subject', () => h.copySubject(commit.subject)),
   ];
-  if (undoHash !== null && commit.hash === undoHash) {
-    entries.push(separator(), item('Undo commit', () => h.undo(commit.hash)));
+  const actions: MenuEntry[] = [];
+  if (state.push === 'push') {
+    actions.push(item('Push', () => h.push(null), { enabled: state.canPush }));
+  } else if (state.push === 'upTo') {
+    actions.push(item('Push up to here', () => h.push(commit.hash), { enabled: state.canPush }));
   }
+  if (state.undoHash !== null && commit.hash === state.undoHash) {
+    actions.push(item('Undo commit', () => h.undo(commit.hash)));
+  }
+  if (actions.length > 0) entries.push(separator(), ...actions);
   return entries;
 }

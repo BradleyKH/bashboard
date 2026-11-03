@@ -531,6 +531,38 @@ impl Git {
         Self::ok(self.exec(cmd, None, None)?).map(|_| ())
     }
 
+    /// Pushes `hash` and its ancestors to the branch's upstream, leaving newer commits local.
+    /// Never forces, so git rejects it when the upstream is not an ancestor of `hash`.
+    pub(crate) fn push_up_to(&self, hash: &str) -> Result<(), String> {
+        if hash.is_empty() || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(format!("Not a commit hash: {hash}"));
+        }
+        let status = self.status()?;
+        let Some(branch) = status.branch.as_deref() else {
+            return Err("HEAD is detached".into());
+        };
+        if status.upstream.is_none() {
+            return Err("The branch has no upstream; publish it first".into());
+        }
+        if !self.read(["merge-base", "--is-ancestor", hash, "HEAD"])?.ok {
+            return Err("That commit is not on the current branch".into());
+        }
+        let config = |key: &str| -> Result<String, String> {
+            Ok(Self::ok(self.read(["config", "--get", &format!("branch.{branch}.{key}")])?)?
+                .trim()
+                .to_string())
+        };
+        let remote = config("remote")?;
+        let merge = config("merge")?;
+        // "." means the upstream is another local branch, which is not a remote to push to.
+        if remote == "." {
+            return Err("The upstream is a local branch".into());
+        }
+        let refspec = format!("{hash}:{merge}");
+        let cmd = self.remote_command(false, &["push", &remote, &refspec]);
+        Self::ok(self.exec(cmd, None, None)?).map(|_| ())
+    }
+
     fn stage(&self, paths: &[String]) -> Result<(), String> {
         check_paths(paths)?;
         if paths.is_empty() {
@@ -1281,6 +1313,41 @@ mod tests {
         let err = g.push().unwrap_err();
         assert!(err.contains("rejected"), "{err}");
         assert_eq!(sh(&g.root, &["rev-parse", "HEAD"]), ours);
+    }
+
+    #[test]
+    fn git_push_up_to() {
+        let g = repo("push-up-to");
+        with_bare_remote(&g);
+        commit_file(&g, "a.txt", "1
+", "first");
+        g.push().unwrap();
+        let second = commit_file(&g, "a.txt", "2
+", "second");
+        commit_file(&g, "a.txt", "3
+", "third");
+        assert_eq!(g.status().unwrap().ahead, 2);
+
+        g.push_up_to(&second).unwrap();
+        assert_eq!(g.status().unwrap().ahead, 1);
+        assert_eq!(sh(&g.root, &["rev-parse", "origin/main"]), second);
+
+        let err = g.push_up_to("not-a-hash").unwrap_err();
+        assert!(err.contains("Not a commit hash"), "{err}");
+
+        sh(&g.root, &["switch", "-q", "-c", "other", &second]);
+        let elsewhere = commit_file(&g, "b.txt", "x
+", "elsewhere");
+        sh(&g.root, &["switch", "-q", "main"]);
+        let err = g.push_up_to(&elsewhere).unwrap_err();
+        assert!(err.contains("not on the current branch"), "{err}");
+
+        let g = repo("push-up-to-unpublished");
+        with_bare_remote(&g);
+        let only = commit_file(&g, "a.txt", "1
+", "first");
+        let err = g.push_up_to(&only).unwrap_err();
+        assert!(err.contains("no upstream"), "{err}");
     }
 
     #[test]

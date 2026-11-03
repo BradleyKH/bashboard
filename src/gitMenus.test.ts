@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MenuEntry, MenuItem } from './contextMenuModel';
 import type { GitCommit } from './gitApi';
-import { gitCommitMenuItems, gitFileMenuItems } from './gitMenus';
+import { gitCommitMenuItems, gitFileMenuItems, type GitCommitMenuState } from './gitMenus';
 import type { GitRow } from './gitModel';
 
 function row(status: string, path = 'src/a.ts'): GitRow {
@@ -67,27 +67,56 @@ describe('gitFileMenuItems', () => {
 });
 
 describe('gitCommitMenuItems', () => {
-  const commitHandlers = () => ({ showDiff: vi.fn(), copyHash: vi.fn(), copySubject: vi.fn(), undo: vi.fn() });
+  const commitHandlers = () => ({ showDiff: vi.fn(), copyHash: vi.fn(), copySubject: vi.fn(), undo: vi.fn(), push: vi.fn() });
+  const state = (over: Partial<GitCommitMenuState> = {}): GitCommitMenuState => ({
+    undoHash: null,
+    push: null,
+    canPush: true,
+    ...over,
+  });
 
   it('offers Undo commit only for the undo target', () => {
     const c = commit('abc123');
     const labels = (undoHash: string | null) =>
-      items(gitCommitMenuItems(c, undoHash, commitHandlers())).map((i) => i.label);
+      items(gitCommitMenuItems(c, state({ undoHash }), commitHandlers())).map((i) => i.label);
     expect(labels('abc123')).toEqual(['Show diff', 'Copy hash', 'Copy subject', 'Undo commit']);
     expect(labels('def456')).toEqual(['Show diff', 'Copy hash', 'Copy subject']);
     expect(labels(null)).toEqual(['Show diff', 'Copy hash', 'Copy subject']);
   });
 
+  it('offers Push on HEAD and Push up to here on an older unpushed commit', () => {
+    const c = commit('abc123');
+    const labels = (s: GitCommitMenuState) => items(gitCommitMenuItems(c, s, commitHandlers())).map((i) => i.label);
+    expect(labels(state({ push: 'push', undoHash: 'abc123' }))).toEqual([
+      'Show diff',
+      'Copy hash',
+      'Copy subject',
+      'Push',
+      'Undo commit',
+    ]);
+    expect(labels(state({ push: 'upTo' }))).toEqual(['Show diff', 'Copy hash', 'Copy subject', 'Push up to here']);
+  });
+
+  it('disables the push entry while a remote operation runs', () => {
+    const entries = gitCommitMenuItems(commit('abc123'), state({ push: 'upTo', canPush: false }), commitHandlers());
+    expect(byLabel(entries, 'Push up to here').enabled).toBe(false);
+  });
+
   it('passes the commit, full hash, and subject to the handlers', () => {
     const h = commitHandlers();
     const c = commit('abc123def');
-    const entries = gitCommitMenuItems(c, 'abc123def', h);
-    for (const label of ['Show diff', 'Copy hash', 'Copy subject', 'Undo commit']) {
+    const entries = gitCommitMenuItems(c, state({ undoHash: 'abc123def', push: 'push' }), h);
+    for (const label of ['Show diff', 'Copy hash', 'Copy subject', 'Undo commit', 'Push']) {
       byLabel(entries, label).run();
     }
     expect(h.showDiff).toHaveBeenCalledWith(c);
     expect(h.copyHash).toHaveBeenCalledWith('abc123def');
     expect(h.copySubject).toHaveBeenCalledWith('Fix thing');
     expect(h.undo).toHaveBeenCalledWith('abc123def');
+    expect(h.push).toHaveBeenCalledWith(null);
+
+    const older = gitCommitMenuItems(c, state({ push: 'upTo' }), h);
+    byLabel(older, 'Push up to here').run();
+    expect(h.push).toHaveBeenCalledWith('abc123def');
   });
 });

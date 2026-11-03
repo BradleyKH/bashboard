@@ -306,10 +306,18 @@ pub async fn git_pull(app: AppHandle, root: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn git_push(app: AppHandle, root: String) -> Result<(), String> {
+pub async fn git_push(
+    app: AppHandle,
+    root: String,
+    up_to: Option<String>,
+) -> Result<(), String> {
     blocking(move || {
         let settings = app.state::<SettingsState>();
-        Git::open(&settings, &root)?.push()
+        let git = Git::open(&settings, &root)?;
+        match up_to {
+            Some(hash) => git.push_up_to(&hash),
+            None => git.push(),
+        }
     })
     .await
 }

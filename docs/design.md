@@ -1758,8 +1758,11 @@ checks it out (as Check out does below); Create makes the branch from HEAD and s
   their path onto a terminal or scratch pad (4.4), a deleted file's included.
 - **Recent commits:** the last 20, each with subject, short hash, relative time, and a mark when
   no remote-tracking branch contains it. Clicking one shows its diff. A right-click on a commit
-  offers Show diff, Copy hash, Copy subject, and, on the commit the diff bar's Undo commit button
-  targets, Undo commit (which asks first, as the button does).
+  offers Show diff, Copy hash, Copy subject, then a push entry on an unpushed commit while the
+  branch has an upstream: Push (as the branch row's button) on HEAD, and Push up to here on an
+  older one, which runs `git push <remote> <hash>:<upstream branch>` so newer commits stay local
+  (never forced; git rejects it when the upstream has moved). On the commit the diff bar's Undo
+  commit button targets, it also offers Undo commit (which asks first, as the button does).
 
 Diffs show in a panel beside the lists, unified, with added and removed lines colored and hunk
 headers kept. A diff over the cap says so. The bar above the diff ends in − and + zoom buttons,

@@ -43,6 +43,7 @@ import {
   branchLine,
   canCommit,
   changesList,
+  commitPushKind,
   lastFetchText,
   mergeUndoMessage,
   remoteButtons,
@@ -224,15 +225,24 @@ export class GitPane implements PaneView {
     this.logList = new GitLogList({
       onSelect: (hash) => this.selectCommit(hash),
       menuItems: (commit) =>
-        gitCommitMenuItems(commit, this.undoHash, {
-          showDiff: (c) => {
-            this.logList.select(c.hash);
-            this.selectCommit(c.hash);
+        gitCommitMenuItems(
+          commit,
+          {
+            undoHash: this.undoHash,
+            push: commitPushKind(commit, this.status),
+            canPush: this.remoteOp === null,
           },
-          copyHash: (hash) => copyText(hash, 'hash'),
-          copySubject: (subject) => copyText(subject, 'subject'),
-          undo: (hash) => void this.undo(hash),
-        }),
+          {
+            showDiff: (c) => {
+              this.logList.select(c.hash);
+              this.selectCommit(c.hash);
+            },
+            copyHash: (hash) => copyText(hash, 'hash'),
+            copySubject: (subject) => copyText(subject, 'subject'),
+            undo: (hash) => void this.undo(hash),
+            push: (upTo) => void this.runRemote('push', upTo),
+          },
+        ),
     });
     this.left.append(this.commitBox.el, this.stagedList.el, this.changesList.el, this.logList.el);
 
@@ -537,14 +547,15 @@ export class GitPane implements PaneView {
     this.renderLastFetch();
   }
 
-  private async runRemote(op: RemoteOp): Promise<void> {
+  /** `upTo` applies to push only: push that commit and its ancestors rather than the branch. */
+  private async runRemote(op: RemoteOp, upTo: string | null = null): Promise<void> {
     if (this.remoteOp !== null || this.status === null) return;
     this.remoteOp = op;
     this.branch.setButtons(remoteButtons(this.status, op));
     try {
       if (op === 'fetch') await gitFetch(this.rootPath);
       else if (op === 'pull') await gitPull(this.rootPath);
-      else await gitPush(this.rootPath);
+      else await gitPush(this.rootPath, upTo);
       if (this.disposed) return;
       if (this.remoteError) {
         this.commitBox.showError(null);

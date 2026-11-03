@@ -112,9 +112,12 @@ export function gitPull(root: string): Promise<void> {
   return invoke<void>('git_pull', { root });
 }
 
-/** Publishes an unpublished branch; never forces. Rejects with git's output. */
-export function gitPush(root: string): Promise<void> {
-  return invoke<void>('git_push', { root });
+/**
+ * Pushes the branch, or publishes an unpublished one; with `upTo`, pushes only that commit and
+ * its ancestors to the upstream. Never forces. Rejects with git's output.
+ */
+export function gitPush(root: string, upTo: string | null = null): Promise<void> {
+  return invoke<void>('git_push', { root, upTo });
 }
 
 /** Null when the app has not fetched that repo this session. */

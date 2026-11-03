@@ -158,7 +158,10 @@ or commit sits on the right:
   editor**. The button in a list's header stages or unstages every row in it. A rename shows as
   `old -> new`.
 - **Recent commits** lists the last 20 commits with subject, short hash, and relative time. A commit
-  that no remote-tracking branch contains is marked unpushed.
+  that no remote-tracking branch contains is marked unpushed. Right-click an unpushed commit to
+  push it: **Push** on the newest commit pushes the branch, and **Push up to here** on an older
+  one pushes that commit and the ones before it, keeping newer commits local. Both need the branch
+  to have an upstream; use the branch row's Publish first otherwise.
 
 Click a file row to see its diff: the unstaged change for a row in Changes, or the staged change for
 a row in Staged. An untracked file shows its whole content as added. Click a commit to see its

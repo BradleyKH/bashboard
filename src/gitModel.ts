@@ -59,6 +59,16 @@ export function undoTarget(log: readonly GitCommit[], status: GitStatus): GitCom
   return newest;
 }
 
+/**
+ * What a commit row's menu offers for pushing: 'push' on HEAD, 'upTo' on an older unpushed
+ * commit, null when the commit is pushed or the branch is detached or has no upstream (the
+ * branch row's Publish covers that case).
+ */
+export function commitPushKind(commit: GitCommit, status: GitStatus | null): 'push' | 'upTo' | null {
+  if (commit.pushed || status === null || status.branch === null || status.upstream === null) return null;
+  return commit.hash === status.oid ? 'push' : 'upTo';
+}
+
 /** The commit box text after undo: the undone message, followed by any draft that was already there. */
 export function mergeUndoMessage(undone: string, draft: string): string {
   const message = undone.replace(/\s+$/, '');
