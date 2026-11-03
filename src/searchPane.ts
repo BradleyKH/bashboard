@@ -1,7 +1,11 @@
 import './searchPane.css';
-import { copyPath } from './copyText';
+import { attachContextMenu } from './contextMenu';
+import type { MenuEntry } from './contextMenuModel';
+import { copyPath, copyText } from './copyText';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
+import { FilePreview } from './filePreview';
+import { filePreviewMenuItems } from './fileRowMenu';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
@@ -18,11 +22,11 @@ import {
   type SearchResults,
 } from './searchModel';
 import type { SearchOptions } from './searchOptions';
-import { SearchPreview } from './searchPreview';
 import { searchGroupMenuItems, searchMatchMenuItems } from './searchMenus';
 import { itemKey, SearchResultsList, type SearchMenuTarget } from './searchResultsList';
 import { SearchRunner } from './searchRunner';
 import type { Settings } from './settings';
+import { showToast } from './toast';
 import { textFieldOwns } from './textPaneKeys';
 
 export interface SearchPaneOptions {
@@ -44,6 +48,8 @@ export interface SearchPaneOptions {
   onPathDragStart?: (paths: string[], e: PointerEvent) => void;
   /** Insert path on a row: the entry's absolute path and this pane's root, to make it relative to. */
   onInsertPath: (absolute: string, baseRoot: string) => void;
+  /** Show in Files on a row: the file's absolute path and this pane's root. */
+  onShowInFiles: (absolute: string, root: string) => void;
 }
 
 const MIN_SPLIT = 0.15;
@@ -78,7 +84,7 @@ export class SearchPane implements PaneView {
   private readonly divider: HTMLElement;
   private readonly footer: HTMLElement;
   private readonly results: SearchResultsList;
-  private readonly preview: SearchPreview;
+  private readonly preview: FilePreview;
   private readonly runner: SearchRunner;
   private settings: Settings;
   private rootPath: string;
@@ -90,6 +96,10 @@ export class SearchPane implements PaneView {
   private readonly collapsed = new Set<string>();
   private selectedKey: string | null = null;
   private splitFraction = 0.4;
+  /** A save from the preview since the last search, which may have moved or removed matches. */
+  private editedSinceRun = false;
+  /** The running search follows an edit, so losing the selected row keeps the preview. */
+  private keepPreview = false;
   private disposed = false;
   private readonly listeners: Array<() => void> = [];
 
@@ -153,6 +163,7 @@ export class SearchPane implements PaneView {
     this.results = new SearchResultsList({
       onSelect: (item) => this.select(item),
       onOpen: (item) => this.open(item),
+      onShowInFiles: (path) => this.showInFiles(path),
       onToggle: (path) => this.toggle(path),
       onDragStart: (path, e) =>
         this.opts.onPathDragStart?.([absolutePath(this.rootPath, path)], e),
@@ -163,11 +174,19 @@ export class SearchPane implements PaneView {
     this.divider.className = 'search-divider';
     const right = document.createElement('div');
     right.className = 'search-right';
-    this.preview = new SearchPreview({
+    this.preview = new FilePreview({
+      host: right,
       settings: this.settings,
-      onOpenInEditor: (path, line) => void openInEditor(path, line ?? undefined),
+      keymap: opts.keymap,
+      dispatch: opts.dispatch,
+      source: true,
+      zoomKey: 'searchPreview',
+      emptyText: 'Select a result to preview its file.',
+      // Markdown opens as source here, so it has no links to follow.
+      onOpenFile: () => {},
+      onOpenInEditor: (path) => void openInEditor(path),
+      onSaved: () => (this.editedSinceRun = true),
     });
-    right.appendChild(this.preview.el);
     this.split.append(this.left, this.divider, right);
 
     this.footer = document.createElement('div');
@@ -195,6 +214,8 @@ export class SearchPane implements PaneView {
     this.listen(this.results.el, 'keydown', (e) => this.onListKey(e as KeyboardEvent));
     this.listen(this.results.el, 'focus', () => this.onListFocus());
     this.listen(this.divider, 'pointerdown', (e) => this.startDrag(e as PointerEvent));
+    this.listen(this.preview.el, 'focusout', (e) => this.onPreviewBlur(e as FocusEvent));
+    this.listeners.push(attachContextMenu(this.preview.el, () => ({ entries: this.previewMenu() })));
 
     this.renderFooter();
     void this.init();
@@ -225,6 +246,15 @@ export class SearchPane implements PaneView {
   }
 
   setExpanded(_expanded: boolean): void {}
+
+  /** Saves pending edits in the preview. */
+  async flush(): Promise<void> {
+    try {
+      await this.preview.flush();
+    } catch (e) {
+      showToast(`Could not save the file: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
   applySettings(settings: Settings): void {
     this.settings = settings;
@@ -295,6 +325,7 @@ export class SearchPane implements PaneView {
   private run(now: boolean): void {
     if (!this.ready || this.disposed) return;
     this.preview.invalidate();
+    this.editedSinceRun = false;
     if (now) this.runner.runNow(this.rootPath, this.query, this.options);
     else this.runner.schedule(this.rootPath, this.query, this.options);
     // An empty query clears synchronously, which the runner reports without a change in `done`.
@@ -308,8 +339,9 @@ export class SearchPane implements PaneView {
     if (state.done && this.selectedKey !== null && !this.results.has(this.selectedKey)) {
       this.selectedKey = null;
       this.results.select(null);
-      void this.preview.show(null);
+      if (!this.keepPreview) void this.preview.show(null);
     }
+    if (state.done) this.keepPreview = false;
     this.error.textContent = state.error ?? '';
     this.error.hidden = state.error === null;
     this.renderFooter();
@@ -341,9 +373,41 @@ export class SearchPane implements PaneView {
     }
   }
 
+  /**
+   * Focus left the preview after a save there: search again, so line numbers and matches follow
+   * the edit. Debounced, so a click that moved focus to a result row lands before the list redraws.
+   */
+  private onPreviewBlur(e: FocusEvent): void {
+    if (!this.editedSinceRun) return;
+    if (e.relatedTarget instanceof Node && this.preview.el.contains(e.relatedTarget)) return;
+    this.keepPreview = true;
+    this.preview.invalidate();
+    this.editedSinceRun = false;
+    if (this.ready && !this.disposed) this.runner.schedule(this.rootPath, this.query, this.options);
+  }
+
+  private previewMenu(): MenuEntry[] {
+    const sel = window.getSelection();
+    const text = sel && !sel.isCollapsed && this.preview.el.contains(sel.anchorNode) ? sel.toString() : '';
+    return filePreviewMenuItems(
+      { hasSelection: text !== '', path: this.preview.path, canFind: this.preview.findable },
+      {
+        copy: () => void copyText(text, 'text'),
+        find: () => void this.preview.openFind(),
+        openInEditor: (path) => void openInEditor(path),
+        copyPath: (path) => void copyPath(path),
+      },
+    );
+  }
+
+  private showInFiles(path: string): void {
+    this.opts.onShowInFiles(absolutePath(this.rootPath, path), this.rootPath);
+  }
+
   private menuItems(target: SearchMenuTarget) {
     const handlers = {
       open: (item: SearchItem) => this.open(item),
+      showInFiles: (path: string) => this.showInFiles(path),
       copyPath: (path: string) => copyPath(absolutePath(this.rootPath, path)),
       insertPath: (path: string) => this.opts.onInsertPath(absolutePath(this.rootPath, path), this.rootPath),
       toggle: (path: string) => this.toggle(path),
@@ -358,7 +422,7 @@ export class SearchPane implements PaneView {
   private select(item: SearchItem): void {
     this.selectedKey = itemKey(item);
     this.results.select(this.selectedKey);
-    void this.preview.show(absolutePath(this.rootPath, item.path), item.kind === 'match' ? item.match.line : null);
+    void this.preview.show(absolutePath(this.rootPath, item.path), 0, item.kind === 'match' ? item.match.line : null);
   }
 
   private step(delta: number): void {
@@ -409,6 +473,21 @@ export class SearchPane implements PaneView {
     // The fields and the list already handled their own navigation keys.
     if (e.defaultPrevented) return;
     const action = lookup(this.opts.keymap(), e);
+    const inPreview = this.preview.el.contains(e.target as Node);
+    if (inPreview && action?.type === 'find' && this.preview.openFind()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Esc in the preview goes back to the results; an open find bar takes it first.
+    if (inPreview && e.key === 'Escape' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && !e.isComposing) {
+      this.results.focus();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // The preview's editor runs the same lookup on its own keys.
+    if (inPreview) return;
     if (action && !textFieldOwns(action) && this.opts.dispatch(action)) {
       e.preventDefault();
       e.stopPropagation();

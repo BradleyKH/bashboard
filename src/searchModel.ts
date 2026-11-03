@@ -1,3 +1,4 @@
+import { relativeWithin } from './filesModel';
 import type { LineMatch, SearchBatch } from './searchApi';
 
 export interface FileGroup {
@@ -130,4 +131,17 @@ export function absolutePath(root: string, relative: string): string {
 export function initialQuery(selection: string): string {
   const trimmed = selection.trim();
   return trimmed !== '' && !/[\r\n]/.test(trimmed) ? trimmed : '';
+}
+
+/**
+ * The include glob that limits a search of `root` to `folder` (Search in this folder, design
+ * 4.12): anchored with a leading slash, its glob characters escaped. Empty for the root itself
+ * or a folder outside it. A comma would split the include list, so it becomes `?`, which
+ * matches it.
+ */
+export function folderInclude(root: string, folder: string): string {
+  const rel = relativeWithin(root, folder);
+  if (rel === null || rel === '') return '';
+  const escaped = rel.replace(/[[\]{}*?!]/g, (c) => `\\${c}`).replace(/,/g, '?');
+  return `/${escaped}/**`;
 }

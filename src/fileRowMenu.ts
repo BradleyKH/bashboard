@@ -9,6 +9,7 @@ export interface MoveTarget {
 /** Each item reports the entries it acts on; the menu holds no app state. */
 export interface FileRowMenuHandlers {
   openTerminalHere: (entry: FileEntry) => void;
+  searchHere: (entry: FileEntry) => void;
   openInEditor: (entry: FileEntry) => void;
   copyPath: (entries: FileEntry[]) => void;
   insertPath: (entries: FileEntry[]) => void;
@@ -34,7 +35,12 @@ export function fileRowMenuItems(
   const files = entries.filter((e) => !e.isDir);
   const out: MenuEntry[] = [];
   if (!many) {
-    if (entry.isDir) out.push(item('Open terminal here', () => handlers.openTerminalHere(entry)));
+    if (entry.isDir) {
+      out.push(
+        item('Open terminal here', () => handlers.openTerminalHere(entry)),
+        item('Search in this folder', () => handlers.searchHere(entry)),
+      );
+    }
     out.push(item('Open in editor', () => handlers.openInEditor(entry)), separator());
   }
   out.push(
@@ -65,6 +71,7 @@ export interface FolderMenuState {
 export interface FolderMenuHandlers {
   openTerminalHere: () => void;
   openInExplorer: () => void;
+  searchHere: () => void;
   copyPath: () => void;
   /** Pins the current folder, or unpins it when pinned, as the breadcrumb's pin button does. */
   togglePin: () => void;
@@ -75,6 +82,7 @@ export function folderMenuItems(state: FolderMenuState, handlers: FolderMenuHand
   return [
     item('Open terminal here', handlers.openTerminalHere),
     item('Open in File Explorer', handlers.openInExplorer),
+    item('Search in this folder', handlers.searchHere),
     separator(),
     item('Copy path', handlers.copyPath),
     separator(),

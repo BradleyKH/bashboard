@@ -54,6 +54,8 @@ export interface FilesPaneOptions {
   /** The folder, selection, or root changed (title and saved state follow). */
   onChange: () => void;
   onOpenTerminalHere: (folder: string) => void;
+  /** Search in this folder: a Search pane on the folder's repo, limited to the folder. */
+  onSearchHere: (folder: string) => void;
   /** Insert path on rows: their absolute paths and this pane's root, to make them relative to. */
   onInsertPaths: (paths: string[], baseRoot: string) => void;
   /**
@@ -156,6 +158,7 @@ export class FilesPane implements PaneView {
       onForward: () => this.goForward(),
       onNavigate: (folder) => void this.navigate(folder, null, true),
       onOpenInExplorer: () => openFolder(this.currentPath),
+      onSearchHere: () => opts.onSearchHere(this.currentPath),
       onOpenTerminalHere: () => opts.onOpenTerminalHere(this.currentPath),
       zoom: textZoom('filesList'),
       onZoom: (zoom) => this.left.style.setProperty('--files-zoom', String(zoom)),
@@ -561,6 +564,7 @@ export class FilesPane implements PaneView {
     const pathOf = (e: FileEntry) => childPath(folder, e.name);
     const handlers: FileRowMenuHandlers = {
       openTerminalHere: (e) => this.opts.onOpenTerminalHere(pathOf(e)),
+      searchHere: (e) => this.opts.onSearchHere(pathOf(e)),
       openInEditor: (e) => this.openInEditor(pathOf(e)),
       copyPath: (es) => {
         if (es.length === 1) void copyPath(pathOf(es[0]));
@@ -586,6 +590,7 @@ export class FilesPane implements PaneView {
       {
         openTerminalHere: () => this.opts.onOpenTerminalHere(folder),
         openInExplorer: () => openFolder(folder),
+        searchHere: () => this.opts.onSearchHere(folder),
         copyPath: () => void copyPath(folder),
         togglePin: () => this.togglePin(folder),
       },

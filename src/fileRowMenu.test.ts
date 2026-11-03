@@ -28,6 +28,7 @@ function find(entries: MenuEntry[], label: string): MenuItem {
 function rowHandlers(): FileRowMenuHandlers {
   return {
     openTerminalHere: vi.fn(),
+    searchHere: vi.fn(),
     openInEditor: vi.fn(),
     copyPath: vi.fn(),
     insertPath: vi.fn(),
@@ -37,9 +38,10 @@ function rowHandlers(): FileRowMenuHandlers {
 }
 
 describe('fileRowMenuItems', () => {
-  it('offers Open terminal here for folders and no Move to', () => {
+  it('offers Open terminal here and Search in this folder for folders, and no Move to', () => {
     expect(labels(fileRowMenuItems(dir, [dir], targets, rowHandlers()))).toEqual([
       'Open terminal here',
+      'Search in this folder',
       'Open in editor',
       '-',
       'Copy path',
@@ -77,11 +79,13 @@ describe('fileRowMenuItems', () => {
     const h = rowHandlers();
     const items = fileRowMenuItems(dir, [dir], [], h);
     find(items, 'Open terminal here').run();
+    find(items, 'Search in this folder').run();
     find(items, 'Open in editor').run();
     find(items, 'Copy path').run();
     find(items, 'Insert path').run();
     find(items, 'Pin').run();
     expect(h.openTerminalHere).toHaveBeenCalledWith(dir);
+    expect(h.searchHere).toHaveBeenCalledWith(dir);
     expect(h.openInEditor).toHaveBeenCalledWith(dir);
     expect(h.copyPath).toHaveBeenCalledWith([dir]);
     expect(h.insertPath).toHaveBeenCalledWith([dir]);
@@ -121,6 +125,7 @@ describe('folderMenuItems', () => {
   const handlers = () => ({
     openTerminalHere: vi.fn(),
     openInExplorer: vi.fn(),
+    searchHere: vi.fn(),
     copyPath: vi.fn(),
     togglePin: vi.fn(),
   });
@@ -129,6 +134,7 @@ describe('folderMenuItems', () => {
     expect(labels(folderMenuItems({ pinned: false }, handlers()))).toEqual([
       'Open terminal here',
       'Open in File Explorer',
+      'Search in this folder',
       '-',
       'Copy path',
       '-',
@@ -142,10 +148,12 @@ describe('folderMenuItems', () => {
     const items = folderMenuItems({ pinned: true }, h);
     find(items, 'Open terminal here').run();
     find(items, 'Open in File Explorer').run();
+    find(items, 'Search in this folder').run();
     find(items, 'Copy path').run();
     find(items, 'Unpin').run();
     expect(h.openTerminalHere).toHaveBeenCalledOnce();
     expect(h.openInExplorer).toHaveBeenCalledOnce();
+    expect(h.searchHere).toHaveBeenCalledOnce();
     expect(h.copyPath).toHaveBeenCalledOnce();
     expect(h.togglePin).toHaveBeenCalledOnce();
   });

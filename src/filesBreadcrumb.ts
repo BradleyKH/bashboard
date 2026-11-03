@@ -2,6 +2,7 @@ import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { FOLDER_ICON } from './folderButton';
 import { breadcrumb, canBack, canForward, type History } from './filesModel';
+import { paneKindInfo } from './paneKinds';
 import { ZoomButtons } from './zoomButtons';
 
 export interface FilesBreadcrumbOptions {
@@ -9,6 +10,7 @@ export interface FilesBreadcrumbOptions {
   onForward: () => void;
   onNavigate: (folder: string) => void;
   onOpenInExplorer: () => void;
+  onSearchHere: () => void;
   onOpenTerminalHere: () => void;
   /** The list's starting zoom level. */
   zoom: number;
@@ -29,7 +31,10 @@ export interface FilesBreadcrumbState {
   pinned: boolean;
 }
 
-/** Back and forward buttons, the path from the repo root, Open in File Explorer, the list's zoom buttons, Open terminal here, and the pin button. */
+/**
+ * Back and forward buttons, the path from the repo root, Open in File Explorer, Search in this
+ * folder, the list's zoom buttons, Open terminal here, and the pin button.
+ */
 export class FilesBreadcrumb {
   readonly el: HTMLElement;
   private readonly backBtn: HTMLButtonElement;
@@ -46,10 +51,12 @@ export class FilesBreadcrumb {
     this.trail.className = 'files-crumb-trail';
     const explorer = this.button(FOLDER_ICON, 'Open in File Explorer', opts.onOpenInExplorer);
     explorer.classList.add('files-crumb-folder');
+    // The Search pane's own icon, so the button reads as opening one.
+    const search = this.button(paneKindInfo('search').icon, 'Search in this folder', opts.onSearchHere);
     const zoom = new ZoomButtons('files-crumb-btn', 'filesList', opts.zoom, opts.onZoom, opts.zoomWheelTarget);
     const term = this.button('>_', 'Open terminal here', opts.onOpenTerminalHere);
     this.pinBtn = this.button('☆', 'Pin this folder', opts.onTogglePin);
-    this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, zoom.el, term, this.pinBtn);
+    this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, search, zoom.el, term, this.pinBtn);
     attachContextMenu(this.el, () => ({ entries: opts.folderMenu() }));
   }
 

@@ -95,6 +95,28 @@ fn close_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
 }
 
+/// The main window, from its `tauri.conf.json` entry (which has `create: false` so it is built
+/// here). Debug builds give WebView2 its own data folder: the installed app shares the
+/// identifier, and WebView2 refuses a second process on one folder with different browser
+/// arguments, which is what `pnpm tauri:debug`'s remote debugging port adds.
+fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .unwrap_or_default();
+    let builder = tauri::WebviewWindowBuilder::from_config(app, &config)?;
+    #[cfg(debug_assertions)]
+    let builder = match app.path().app_local_data_dir() {
+        Ok(dir) => builder.data_directory(dir.join("dev")),
+        Err(_) => builder,
+    };
+    builder.build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -123,6 +145,7 @@ pub fn run() {
         .manage(system::SystemState::default())
         .manage(transcript::Transcripts::default())
         .setup(|app| {
+            let window = create_main_window(app.handle())?;
             settings::init(app.handle());
             git_fetch::init(app.handle());
             transcript::init(app.handle());
@@ -132,9 +155,9 @@ pub fn run() {
             pty::init_activity(app.handle());
             containers::init(app.handle());
             #[cfg(windows)]
-            if let Some(window) = app.get_webview_window("main") {
-                disable_browser_accelerators(&window);
-            }
+            disable_browser_accelerators(&window);
+            #[cfg(not(windows))]
+            let _ = window;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

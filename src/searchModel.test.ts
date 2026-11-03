@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   absolutePath,
+  folderInclude,
   applyBatch,
   emptyResults,
   flatten,
@@ -158,5 +159,20 @@ describe('initialQuery', () => {
     expect(initialQuery('   ')).toBe('');
     expect(initialQuery('a\nb')).toBe('');
     expect(initialQuery('a\r\nb')).toBe('');
+  });
+});
+
+describe('folderInclude', () => {
+  it('anchors a subfolder under the root', () => {
+    expect(folderInclude('C:\\repo', 'C:\\repo\\src\\ui')).toBe('/src/ui/**');
+    expect(folderInclude('/home/me/repo', '/home/me/repo/docs')).toBe('/docs/**');
+  });
+  it('is empty for the root and for folders outside it', () => {
+    expect(folderInclude('C:\\repo', 'C:\\repo')).toBe('');
+    expect(folderInclude('C:\\repo', 'D:\\other')).toBe('');
+  });
+  it('escapes glob characters and stands in for commas', () => {
+    expect(folderInclude('/r', '/r/[a]{b}*?!')).toBe('/\\[a\\]\\{b\\}\\*\\?\\!/**');
+    expect(folderInclude('/r', '/r/a,b')).toBe('/a?b/**');
   });
 });

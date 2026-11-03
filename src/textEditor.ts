@@ -18,6 +18,8 @@ export interface TextEditorOptions {
   lineNumbers?: boolean;
   /** The read was lossy (`FileText.lossy`); the editor opens read-only. */
   lossy?: boolean;
+  /** A save reached the disk. */
+  onSaved?: () => void;
 }
 
 /** The monospaced editor for a file on disk (docs/design.md section 4.12, Text editor). */
@@ -32,6 +34,9 @@ export class TextEditor {
   private readonly mirror: HTMLElement;
   private readonly gutter: HTMLElement | null;
   private gutterLines = 0;
+  /** The line `revealLine` marked, drawn over the text; dropped on the first edit. */
+  private readonly band: HTMLElement;
+  private bandLine: number | null = null;
   private mirrorOn = false;
   private readonly bar: HTMLElement;
   private readonly error: HTMLElement;
@@ -78,9 +83,12 @@ export class TextEditor {
     this.mirror = document.createElement('div');
     this.mirror.className = 'editor-mirror';
     this.mirror.setAttribute('aria-hidden', 'true');
+    this.band = document.createElement('div');
+    this.band.className = 'editor-band';
+    this.band.hidden = true;
     const body = document.createElement('div');
     body.className = 'editor-body';
-    body.append(this.mirror, this.area);
+    body.append(this.band, this.mirror, this.area);
     this.field = document.createElement('div');
     this.field.className = 'editor-field';
     if (opts.lineNumbers) {
@@ -103,12 +111,14 @@ export class TextEditor {
     this.area.addEventListener('input', () => {
       this.syncMirror();
       this.syncGutter();
+      this.clearBand();
       this.send({ type: 'edit', text: this.area.value });
     });
     this.area.addEventListener('scroll', () => {
       this.mirror.scrollTop = this.area.scrollTop;
       this.mirror.scrollLeft = this.area.scrollLeft;
       if (this.gutter) this.gutter.scrollTop = this.area.scrollTop;
+      this.placeBand();
     });
     this.area.addEventListener('blur', () => this.send({ type: 'saveRequested' }));
     this.area.addEventListener('keydown', (e) => this.onKeyDown(e));
@@ -135,6 +145,31 @@ export class TextEditor {
   applySettings(settings: Settings): void {
     this.field.style.fontFamily = toFontFamily(settings.font.family);
     this.field.style.fontSize = `calc(${settings.font.size}px * var(--preview-zoom, 1))`;
+    this.placeBand();
+  }
+
+  /**
+   * Scrolls the 1-based `line` to the middle, marks it, and puts the caret at its start without
+   * taking focus. Only for an editor with line numbers, whose lines never wrap, so each line is
+   * one row tall.
+   */
+  revealLine(line: number): void {
+    const lines = this.area.value.split('\n');
+    const at = Math.min(Math.max(1, line), lines.length);
+    let offset = 0;
+    for (let i = 0; i < at - 1; i++) offset += lines[i].length + 1;
+    this.area.setSelectionRange(offset, offset);
+    this.bandLine = at;
+    const row = this.rowHeight();
+    const top = this.padTop() + (at - 1) * row;
+    this.area.scrollTop = Math.max(0, top - (this.area.clientHeight - row) / 2);
+    this.area.scrollLeft = 0;
+    this.placeBand();
+  }
+
+  /** Re-places the band after the text size changed (a zoom step). */
+  relayout(): void {
+    this.placeBand();
   }
 
   findSurface(): FindSurface {
@@ -222,6 +257,7 @@ export class TextEditor {
         const modified = await fsWriteText(this.opts.path, onDisk, expectedModified);
         this.showError(null);
         this.send({ type: 'saved', modified });
+        this.opts.onSaved?.();
       } catch (err) {
         const conflict = classifyReadError(err) === 'conflict';
         if (!conflict) this.showError(`Could not save: ${errorMessage(err)}`);
@@ -267,6 +303,34 @@ export class TextEditor {
     this.mirror.textContent = this.area.value;
     this.mirror.scrollTop = this.area.scrollTop;
     this.mirror.scrollLeft = this.area.scrollLeft;
+  }
+
+  private placeBand(): void {
+    if (this.bandLine === null) return;
+    const row = this.rowHeight();
+    this.band.style.top = `${this.padTop() + (this.bandLine - 1) * row - this.area.scrollTop}px`;
+    this.band.style.height = `${row}px`;
+    this.band.hidden = false;
+  }
+
+  private clearBand(): void {
+    this.bandLine = null;
+    this.band.hidden = true;
+  }
+
+  /** The textarea's row height; its `line-height: normal` has no computed number to read. */
+  private rowHeight(): number {
+    const probe = document.createElement('div');
+    probe.className = 'editor-row-probe';
+    probe.textContent = 'x\n'.repeat(9) + 'x';
+    this.field.appendChild(probe);
+    const h = probe.getBoundingClientRect().height / 10;
+    probe.remove();
+    return h || 16;
+  }
+
+  private padTop(): number {
+    return parseFloat(getComputedStyle(this.area).paddingTop) || 0;
   }
 
   /** One gutter row per line; lines never wrap while the gutter shows, so the rows stay aligned. */

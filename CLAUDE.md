@@ -19,6 +19,7 @@ instructions and a doc index only.
 
 ```sh
 pnpm tauri dev                              # run the app (Vite on port 1420 plus the Rust core)
+pnpm tauri:debug                            # the same, with WebView2 remote debugging on port 9222
 pnpm dev                                    # front end only, in a plain browser (see below)
 pnpm test                                   # Vitest, all src/**/*.test.ts
 pnpm exec vitest run src/keys.test.ts       # one test file
@@ -39,6 +40,8 @@ Debug builds keep settings and saved state in `%APPDATA%\dev.bashboard\dev`, not
 app's folder; the first debug run seeds `settings.json` from the installed app unless
 `BASHBOARD_NO_DEV_SEED=1` is set. `BASHBOARD_KEYLOG=<file>` logs every keystroke and paste sent
 to a shell, to confirm a chord reaches bash rather than being eaten by WebView2 or xterm.js.
+`pnpm tauri:debug` opens WebView2's DevTools port, so a CDP client can drive the real window
+beside the installed app (see "Development" in `docs/development.md`).
 
 Releases follow "Releasing" in `docs/development.md`. The step that is easy to get wrong: release
 notes come from an annotated tag made with `git tag -a v<version> --cleanup=whitespace -F notes.md`,

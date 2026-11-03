@@ -8,7 +8,7 @@ import { PreviewFind } from './previewFind';
 import { classifyReadError, fsReadText, type FileText } from './repoFiles';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
-import { textZoom } from './textZoomStore';
+import { textZoom, type TextZoomKey } from './textZoomStore';
 import { ZoomButtons } from './zoomButtons';
 
 export interface FilePreviewOptions {
@@ -19,8 +19,19 @@ export interface FilePreviewOptions {
   /** A markdown link to another file; `path` is absolute. */
   onOpenFile: (path: string) => void;
   onOpenInEditor: (path: string) => void;
-  /** The expand button was clicked. */
+  /** The expand button was clicked; without it the preview has no expand button. */
   onToggleExpand?: () => void;
+  /**
+   * Every text file opens as code, in the editor with line numbers, markdown included: the Search
+   * pane, whose results point at source lines.
+   */
+  source?: boolean;
+  /** The `textZoom` key the zoom buttons save to; `filePreview` by default. */
+  zoomKey?: TextZoomKey;
+  /** Shown while no file is previewed. */
+  emptyText?: string;
+  /** An edit in the preview was saved. */
+  onSaved?: () => void;
   /**
    * A `show(path)` with a path settled; `expandable` is whether the file is a text preview that
    * can fill the pane. Not called for `show(null)`.
@@ -45,14 +56,24 @@ export class FilePreview {
   private settings: Settings;
   private current: Current | null = null;
   private generation = 0;
+  /** Set by `invalidate`: the next `show` re-reads the file even when it is already on screen. */
+  private stale = false;
 
   constructor(opts: FilePreviewOptions) {
     this.opts = opts;
     this.settings = opts.settings;
     this.el = document.createElement('div');
     this.el.className = 'file-preview';
-    this.zoom = new ZoomButtons('', 'filePreview', textZoom('filePreview'), (zoom) =>
-      this.el.style.setProperty('--preview-zoom', String(zoom)),
+    const zoomKey = opts.zoomKey ?? 'filePreview';
+    this.zoom = new ZoomButtons(
+      '',
+      zoomKey,
+      textZoom(zoomKey),
+      (zoom) => {
+        this.el.style.setProperty('--preview-zoom', String(zoom));
+        const c = this.current;
+        if (c?.kind === 'code') c.view.relayout();
+      },
       this.el,
     );
     this.expand = new ExpandPreviewButton(() => this.opts.onToggleExpand?.());
@@ -82,12 +103,20 @@ export class FilePreview {
 
   /**
    * Shows a file, or clears the preview for null. `size` (from the listing) lets a file over
-   * the text cap skip the read. Pending edits in the previous file are saved first.
+   * the text cap skip the read. Pending edits in the previous file are saved first. `line`
+   * (1-based) scrolls a code view to that line and marks it; the file already on screen is
+   * not re-read for it, unless `invalidate` ran since.
    */
-  async show(path: string | null, size = 0): Promise<void> {
+  async show(path: string | null, size = 0, line: number | null = null): Promise<void> {
     const gen = ++this.generation;
+    const c = this.current;
+    if (path !== null && !this.stale && c?.path === path) {
+      if (line !== null && c.kind === 'code') c.view.revealLine(line);
+      return;
+    }
     await this.flush();
     if (gen !== this.generation) return;
+    this.stale = false;
     this.clear();
     if (path === null) {
       this.showEmpty();
@@ -103,7 +132,9 @@ export class FilePreview {
     try {
       const file = await fsReadText(path);
       if (gen !== this.generation) return;
-      this.mount(path, kind, file);
+      this.mount(path, this.opts.source ? 'code' : kind, file);
+      const now = this.current;
+      if (line !== null && now?.kind === 'code') now.view.revealLine(line);
       this.opts.onShown?.(true);
     } catch (err) {
       if (gen !== this.generation) return;
@@ -113,6 +144,11 @@ export class FilePreview {
       else this.setError(err);
       this.opts.onShown?.(false);
     }
+  }
+
+  /** The file may have changed on disk unseen; the next `show` reads it again. */
+  invalidate(): void {
+    this.stale = true;
   }
 
   /** The folder watch saw the selected entry's modified time change. */
@@ -183,7 +219,7 @@ export class FilePreview {
         onOpenFile: this.opts.onOpenFile,
       });
       view.toolbar.prepend(this.fileName(path));
-      view.toolbar.append(this.zoom.el, this.expand.el);
+      view.toolbar.append(this.zoom.el, ...this.expandButton());
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
     } else {
@@ -197,11 +233,16 @@ export class FilePreview {
         keymap,
         dispatch,
         lineNumbers,
+        onSaved: this.opts.onSaved,
       });
       const find = new PreviewFind(() => view.findSurface());
       this.current = { kind, path, view, find };
-      this.el.replaceChildren(framed(view.el, find, this.zoom.el, this.expand.el, this.fileName(path)));
+      this.el.replaceChildren(framed(view.el, find, [this.zoom.el, ...this.expandButton()], this.fileName(path)));
     }
+  }
+
+  private expandButton(): HTMLElement[] {
+    return this.opts.onToggleExpand ? [this.expand.el] : [];
   }
 
   private fileName(path: string): HTMLSpanElement {
@@ -227,7 +268,7 @@ export class FilePreview {
   private showEmpty(): void {
     const div = document.createElement('div');
     div.className = 'preview-empty';
-    div.textContent = 'Select a file to preview it.';
+    div.textContent = this.opts.emptyText ?? 'Select a file to preview it.';
     this.el.replaceChildren(div);
   }
 
@@ -241,18 +282,12 @@ export class FilePreview {
 }
 
 /** A view under a toolbar holding the file name, its find button and bar, then the zoom and expand buttons. */
-function framed(
-  view: HTMLElement,
-  find: PreviewFind,
-  zoom: HTMLElement,
-  expand: HTMLElement,
-  name: HTMLElement,
-): HTMLElement {
+function framed(view: HTMLElement, find: PreviewFind, trailing: HTMLElement[], name: HTMLElement): HTMLElement {
   const frame = document.createElement('div');
   frame.className = 'preview-frame';
   const toolbar = document.createElement('div');
   toolbar.className = 'preview-toolbar';
-  toolbar.append(name, find.button, find.bar, zoom, expand);
+  toolbar.append(name, find.button, find.bar, ...trailing);
   frame.append(toolbar, view);
   return frame;
 }

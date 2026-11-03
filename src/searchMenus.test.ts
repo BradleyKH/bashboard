@@ -3,7 +3,7 @@ import type { MenuEntry, MenuItem } from './contextMenuModel';
 import { searchGroupMenuItems, searchMatchMenuItems } from './searchMenus';
 
 function handlers() {
-  return { open: vi.fn(), copyPath: vi.fn(), insertPath: vi.fn(), toggle: vi.fn() };
+  return { open: vi.fn(), showInFiles: vi.fn(), copyPath: vi.fn(), insertPath: vi.fn(), toggle: vi.fn() };
 }
 
 function labels(entries: MenuEntry[]): string[] {
@@ -17,17 +17,25 @@ function choose(entries: MenuEntry[], label: string): void {
 const match = { kind: 'match' as const, path: 'src/a.ts', match: { line: 12, text: 'x', ranges: [] } };
 
 describe('searchMatchMenuItems', () => {
-  it('lists Open at line, Copy path, Insert path', () => {
-    expect(labels(searchMatchMenuItems(match, handlers()))).toEqual(['Open at line', 'Copy path', 'Insert path']);
+  it('lists Open in editor and Show in Files, then Copy path and Insert path', () => {
+    expect(labels(searchMatchMenuItems(match, handlers()))).toEqual([
+      'Open in editor',
+      'Show in Files',
+      '-',
+      'Copy path',
+      'Insert path',
+    ]);
   });
 
-  it('opens the match and passes the bare file path to copy and insert', () => {
+  it('opens the match and passes the bare file path to the others', () => {
     const h = handlers();
     const items = searchMatchMenuItems(match, h);
-    choose(items, 'Open at line');
+    choose(items, 'Open in editor');
+    choose(items, 'Show in Files');
     choose(items, 'Copy path');
     choose(items, 'Insert path');
     expect(h.open).toHaveBeenCalledWith(match);
+    expect(h.showInFiles).toHaveBeenCalledWith('src/a.ts');
     expect(h.copyPath).toHaveBeenCalledWith('src/a.ts');
     expect(h.insertPath).toHaveBeenCalledWith('src/a.ts');
   });
@@ -36,27 +44,37 @@ describe('searchMatchMenuItems', () => {
 describe('searchGroupMenuItems', () => {
   it('offers Collapse for an expanded group and Expand for a collapsed one', () => {
     expect(labels(searchGroupMenuItems('src/a.ts', false, handlers()))).toEqual([
-      'Open',
+      'Open in editor',
+      'Show in Files',
+      '-',
       'Copy path',
       'Insert path',
       '-',
       'Collapse',
     ]);
-    expect(labels(searchGroupMenuItems('src/a.ts', true, handlers()))[4]).toBe('Expand');
+    expect(labels(searchGroupMenuItems('src/a.ts', true, handlers()))[6]).toBe('Expand');
   });
 
   it('has no collapse item for a file-name row', () => {
-    expect(labels(searchGroupMenuItems('src/a.ts', null, handlers()))).toEqual(['Open', 'Copy path', 'Insert path']);
+    expect(labels(searchGroupMenuItems('src/a.ts', null, handlers()))).toEqual([
+      'Open in editor',
+      'Show in Files',
+      '-',
+      'Copy path',
+      'Insert path',
+    ]);
   });
 
   it('passes the file path to every handler', () => {
     const h = handlers();
     const items = searchGroupMenuItems('src/a.ts', false, h);
-    choose(items, 'Open');
+    choose(items, 'Open in editor');
+    choose(items, 'Show in Files');
     choose(items, 'Copy path');
     choose(items, 'Insert path');
     choose(items, 'Collapse');
     expect(h.open).toHaveBeenCalledWith({ kind: 'name', path: 'src/a.ts' });
+    expect(h.showInFiles).toHaveBeenCalledWith('src/a.ts');
     expect(h.copyPath).toHaveBeenCalledWith('src/a.ts');
     expect(h.insertPath).toHaveBeenCalledWith('src/a.ts');
     expect(h.toggle).toHaveBeenCalledWith('src/a.ts');

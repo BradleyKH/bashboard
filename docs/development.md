@@ -74,6 +74,7 @@ the settings file (see [Settings](settings.md#settings)).
 
 ```sh
 pnpm tauri dev      # run the app with hot reload
+pnpm tauri:debug    # the same, with WebView2's remote debugging port open (9222, or pass one)
 pnpm test           # frontend unit tests (Vitest)
 pnpm tauri build    # release build and installer
 pnpm build:bb       # rebuild bb.exe after editing src-tauri/src/bin/bb.rs
@@ -87,6 +88,17 @@ Rust tests run with `cargo test` from `src-tauri/`.
 Debug builds keep their settings, workspace, favorites, and layouts in
 `%APPDATA%\dev.bashboard\dev`, so a `pnpm tauri dev` run never restores or overwrites the
 installed app's workspace. The first debug run copies the installed app's `settings.json` there.
+WebView2's own data (its cache and storage) is in `%LOCALAPPDATA%\dev.bashboard\dev\EBWebView`,
+apart from the installed app's, because WebView2 refuses to open one data folder from two
+processes with different browser arguments.
+
+`pnpm tauri:debug [port]` sets `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` to
+`--remote-debugging-port=<port>` for the run, so Chrome DevTools (`chrome://inspect`, configured
+for `localhost:<port>`) or Playwright's `chromium.connectOverCDP('http://127.0.0.1:<port>')` can
+attach to the window, read the console, and drive the real app with the real core behind it.
+It works beside the installed app. Like `pnpm tauri dev`, it starts Vite on port 1420, so when
+another Vite server already holds that port, run `src-tauri\target\debug\bashboard.exe` with the
+same variable set instead; it loads from whatever is serving port 1420.
 
 Release builds allow one running instance; debug builds don't enforce it, so a dev run starts
 beside the installed app and several dev runs can start at once. Testing the second-launch

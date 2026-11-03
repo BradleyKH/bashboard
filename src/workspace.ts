@@ -12,7 +12,7 @@ import { DockOverlay } from './dockOverlay';
 import { DoneTracker } from './doneStatus';
 import { samePath } from './favorites';
 import { FilesPane } from './filesPane';
-import { pathInsertText, pathProfileFor, routeFilesRequest, type FilesRequest } from './filesRouting';
+import { pathInsertText, pathProfileFor, pinTarget, routeFilesRequest, type FilesRequest } from './filesRouting';
 import {
   applyDock,
   dropZones,
@@ -59,7 +59,7 @@ import { scratchDelete, scratchLoad, scratchSave, scratchSaveAs, type PtyActivit
 import { restoredTab, snapshotTabs } from './savedTabs';
 import { TabStore } from './tabStore';
 import { type SavedPane, type SavedTab, type SavedWorkspace, resumeCommand } from './savedWorkspace';
-import { initialQuery } from './searchModel';
+import { folderInclude, initialQuery } from './searchModel';
 import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from './searchOptions';
 import { SearchPane } from './searchPane';
 import { newScratchId } from './scratchModel';
@@ -873,7 +873,8 @@ export class Workspace {
   /** Saves every pad's and Files editor's pending text now, for the window closing. */
   async flushPanes(): Promise<void> {
     const panes = [...this.paneViews.values()].filter(
-      (p): p is ScratchPane | FilesPane => p instanceof ScratchPane || p instanceof FilesPane,
+      (p): p is ScratchPane | FilesPane | SearchPane =>
+        p instanceof ScratchPane || p instanceof FilesPane || p instanceof SearchPane,
     );
     await Promise.all(panes.map((p) => p.flush()));
   }
@@ -917,8 +918,8 @@ export class Workspace {
   }
 
   /** Design 4.14: opens a Search pane on the repo as a split of the focused pane, never reusing one. */
-  showSearch(root: string, query = '', opts: OpenPaneOptions = {}): void {
-    this.openPane({ kind: 'search', root, query }, opts);
+  showSearch(root: string, query = '', opts: OpenPaneOptions = {}, options?: SearchOptions): void {
+    this.openPane({ kind: 'search', root, query, options }, opts);
   }
 
   /**
@@ -1375,6 +1376,7 @@ export class Workspace {
       onChange: () => this.paneChanged(id),
       onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
       onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, [absolute], baseRoot),
+      onShowInFiles: (absolute, root) => this.showFiles({ root, ...pinTarget(root, absolute, false) }),
     });
   }
 
@@ -1467,6 +1469,7 @@ export class Workspace {
         this.focusPane(id);
         this.openTerminal(folder);
       },
+      onSearchHere: (folder) => void this.searchFolder(id, folder),
       onInsertPaths: (paths, baseRoot) => this.insertPathIntoTab(id, paths, baseRoot),
       onPathDragStart: (paths, e, move) => this.startPathDrag(paths, e, move),
       onPin: (absolute, isDir) => this.hooks.onPin?.(root(), absolute, isDir),
@@ -1474,6 +1477,21 @@ export class Workspace {
       getPinnedFolders: () => this.hooks.getPinnedFolders?.(root()) ?? [],
     });
     return pane;
+  }
+
+  /**
+   * Search in this folder (design 4.12): a Search pane on the folder's own repo, which can sit
+   * below a Files pane opened outside any repo, limited to the folder.
+   */
+  private async searchFolder(filesPaneId: string, folder: string): Promise<void> {
+    let root = folder;
+    try {
+      root = (await repoRoot(folder)).root;
+    } catch {
+      // Not resolvable: search the folder itself, and let the core report a bad path inline.
+    }
+    this.focusPane(filesPaneId);
+    this.showSearch(root, '', {}, { ...DEFAULT_SEARCH_OPTIONS, include: folderInclude(root, folder) });
   }
 
   /** Ctrl+Shift+E: a Files pane at the root of the focused pane's repo. */
@@ -2026,7 +2044,7 @@ export class Workspace {
     this.focusOrder = forget(this.focusOrder, id);
     this.paneViews.delete(id);
     // The save starts before dispose, so pending editor text still reaches the disk.
-    if (pane instanceof FilesPane) void pane.flush();
+    if (pane instanceof FilesPane || pane instanceof SearchPane) void pane.flush();
     if (pane instanceof ScratchPane) {
       const { scratchId } = pane;
       pane

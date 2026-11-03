@@ -6,7 +6,6 @@
   --search-selected: color-mix(in srgb, var(--accent) 22%, transparent);
   --search-accent: var(--accent);
   --search-hit-bg: rgba(230, 193, 90, 0.35);
-  --search-band: color-mix(in srgb, var(--accent) 18%, transparent);
   --search-error: #f0948f;
 
   position: relative;
@@ -137,7 +136,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   outline: none;
-  /* Results take the content text color; the bar, footer, and Open buttons stay UI gray. */
+  /* Results take the content text color; the bar, footer, and row buttons stay UI gray. */
   --search-muted: var(--content-faint);
   color: var(--content-fg);
 }
@@ -227,11 +226,16 @@
   text-overflow: ellipsis;
 }
 
-.search-open-btn {
+.search-row-actions {
   flex: none;
   align-self: center;
   display: none;
-  padding: 0 6px;
+  gap: 3px;
+}
+
+.search-action-btn {
+  min-width: 22px;
+  padding: 0 4px;
   border: 1px solid var(--search-border);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.35);
@@ -241,14 +245,14 @@
   cursor: pointer;
 }
 
-.search-open-btn:hover {
+.search-action-btn:hover {
   border-color: var(--search-accent);
 }
 
-.search-row:hover .search-open-btn,
-.search-row.selected .search-open-btn,
-.search-group-head:hover .search-open-btn {
-  display: block;
+.search-row:hover .search-row-actions,
+.search-row.selected .search-row-actions,
+.search-group-head:hover .search-row-actions {
+  display: inline-flex;
 }
 
 .search-text mark {
@@ -265,78 +269,4 @@
   color: var(--search-muted);
   font-size: 11px;
   line-height: 18px;
-}
-
-.search-preview {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-}
-
-/* A .preview-toolbar (filePreview.css) holding only the zoom pair, at the right. */
-.search-preview-bar {
-  justify-content: flex-end;
-}
-
-.search-preview-content {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  color: var(--content-fg);
-}
-
-.search-preview-content > * {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.search-code {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  overflow: auto;
-}
-
-.search-code-gutter,
-.search-code-text {
-  position: relative;
-  margin: 0;
-  padding: 4px 8px;
-  white-space: pre;
-  line-height: 1.4;
-  font-family: inherit;
-  font-size: inherit;
-}
-
-.search-code-gutter {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  flex: none;
-  text-align: right;
-  color: var(--content-faint);
-  user-select: none;
-  background: rgba(0, 0, 0, 0.25);
-}
-
-.search-code-text {
-  flex: 1 0 auto;
-  user-select: text;
-}
-
-.search-code-band {
-  position: absolute;
-  left: 0;
-  background: var(--search-band);
-  pointer-events: none;
-}
-
-.search-code-band[hidden] {
-  display: none;
 }

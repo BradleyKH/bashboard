@@ -53,6 +53,7 @@ file selected, and layouts keep it.
 The left side is a breadcrumb over the list of the current folder, with folders first and then
 files, newest first. The breadcrumb has back and forward buttons (the mouse back and forward
 buttons work over the pane too), the path from the repo root (click a segment to go there), Open
+in File Explorer, Search in this folder (⌕, which opens a Search pane limited to the folder), Open
 terminal here, and a pin button for the folder. Click a row to select and preview it, and press
 Enter or double-click to open it: a folder is entered, a file opens in your editor. Ctrl+click
 adds or removes a row, Shift+click (or Shift+Up and Down) selects a range, and Ctrl+A selects
@@ -87,7 +88,7 @@ If the file changes on disk while you have no unsaved edits, it reloads in place
 while you do (or a save finds it changed), a bar offers Reload, which discards your edits, or Keep
 mine, which overwrites the file.
 
-Hover a row for its menu: **Open terminal here** (folders), **Open in editor**, **Copy path**,
+Hover a row for its menu: **Open terminal here** and **Search in this folder** (folders), **Open in editor**, **Copy path**,
 **Insert path** (pastes the path relative to the Files pane's root, or the absolute path outside
 it, quoted for the shell of the tab's most recently focused terminal, without pressing Enter),
 **Move to** (files; the repo's pinned
@@ -256,12 +257,20 @@ glob, and Enter runs it at once. A new search cancels the previous one, so the l
 the latest query. An invalid regex or include glob shows its message under the fields.
 
 Up and Down move through the file names and matching lines, and the preview on the right shows the
-selected file with its line highlighted. The divider between the list and the preview can be
-dragged. Enter, a double click on a matching line, or the Open button that shows on a hovered or
-selected row opens that file in your preferred editor at the line; a file name, or the Open button
-on a file's group header, opens it with no line. A file the preview cannot show, because it is binary or
-over 2 MiB, shows a notice with an Open in editor button. The − and + buttons above the preview, or
-Ctrl+wheel over it, zoom its text, and a new Search pane starts at the zoom you last chose.
+selected file scrolled to its line, which is highlighted. The preview is the same text editor as
+the Files pane's, with line numbers (markdown shows as source), so you can fix a match in place: it
+saves as you type, and once you leave the preview after a save the search runs again, so the list
+follows your edit. Esc in the preview goes back to the list, and Find (or Ctrl+Shift+F in the
+preview) searches the file. The divider between the list and the preview can be dragged.
+
+A hovered or selected row shows two buttons: 🗀, **Show in Files**, shows the file in
+the tab's Files pane for the repo (opening one if there is none), and ↗, **Open in editor**, opens it
+in your preferred editor at the line. Enter and a double click on a matching line also open it in
+your editor. A file's group header has the same two buttons, which act on the file with no line.
+Right-click a row for the same two items plus Copy path and Insert path. A file the preview cannot
+show, because it is binary or over 2 MiB, shows a notice with an Open in editor button. The − and +
+buttons above the preview, or Ctrl+wheel over it, zoom its text, and a new Search pane starts at
+the zoom you last chose.
 
 The pane's query and options are saved with the layout. A Search pane comes back on relaunch with
 its query and options, and a non-empty query runs again as soon as the pane loads.

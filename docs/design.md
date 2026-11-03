@@ -1684,6 +1684,7 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
 
 - Open terminal here (folders only): a new terminal of the default profile in that folder, as a
   split of the Files pane.
+- Search in this folder (folders only): as the breadcrumb button below.
 - Open in editor.
 - Copy path.
 - Insert path: pastes the path, relative to the Files pane's root and quoted for the shell of
@@ -1693,10 +1694,15 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
   current folder's subfolders (`fs_move`), as a submenu.
 - Pin.
 
-The breadcrumb also has an Open terminal here button for the current folder, and the list's zoom
-buttons. A right-click on the breadcrumb, or on the list outside any row (or the Menu key with no
-row selected), opens a menu for the current folder: Open terminal here, Open in File Explorer,
-Copy path, and Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
+The breadcrumb also has an Open terminal here button for the current folder, the list's zoom
+buttons, and, right of Open in File Explorer, a Search in this folder button showing the Search
+pane's kind icon (⌕). It opens a new Search pane (4.14) as a split of the Files pane, on the
+folder's own repo root (`repo_root`, since a Files pane opened outside any repo can browse into
+one), with Files to include set to the folder as an anchored glob (`/src/ui/**`, glob characters
+escaped and a comma standing in as `?`; `folderInclude`), or empty at the repo root, and focuses
+its query field. A right-click on the breadcrumb, or on the list outside any row (or the
+Menu key with no row selected), opens a menu for the current folder: Open terminal here, Open in
+File Explorer, Search in this folder, Copy path, and Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
 does.
 
 A right-click in the preview outside the text editor offers Copy (with text selected), Find
@@ -1842,19 +1848,34 @@ focused terminal has a selection starts with that text as the query.
 
 Results list matching file names first, then matches grouped by file, each group collapsible,
 with line numbers and the match highlighted. A footer gives the count, or says the results stop
-at the first 5,000. Up and Down move through matches. Selecting one previews its file beside the
-list, read-only, scrolled to the line with it highlighted, under a bar holding − and + zoom
-buttons that, with Ctrl+wheel over the preview, work as the Files pane's do (4.12) and save to
-`textZoom.searchPreview`. Enter, a double click, or the Open
-button shown on a hovered or selected row opens the file in the editor at that line (3.12). A
-file's group header has the same Open button on hover, opening the file with no line. Match rows,
-file group headers, and file name rows drag the file's path, with no line number, onto a terminal
-or scratch pad (4.4).
+at the first 5,000. Up and Down move through matches.
 
-A right-click on a match row offers Open at line, Copy path, and Insert path. On a file group
-header it offers Open, Copy path, Insert path, and, after a separator, Collapse or Expand; a file
-name row has the same menu without the collapse item. Copy path and Insert path use the file's
-path with no line number.
+**Preview.** Selecting a result previews its file beside the list in the Files pane's preview
+(`FilePreview`, 4.12) in source mode: every text file, markdown included, opens in the text editor
+with line numbers, since results point at source lines. A match scrolls its line to the middle
+and marks it with a band, with the caret at its start; the list keeps focus, so Up and Down go on
+stepping. Stepping between matches in one file moves the band without re-reading the file; a new
+search makes the next selection read it again. The editor saves as it does in the Files pane, and
+Find, the preview menu, and the − and + zoom buttons work as there, the zoom saving to
+`textZoom.searchPreview`. The Search pane has no folder watch, so a file changed on disk while
+previewed is caught by the editor's save conflict check rather than a reload. Esc in the preview,
+when no find bar takes it, focuses the results list.
+
+When focus leaves the preview after a save there, the search runs again (debounced, so the click
+that moved focus lands first), since the edit may have moved or removed matches. If the selected
+row is gone from that run's results, the selection clears but the preview stays.
+
+**Row buttons.** A hovered or selected row, and a hovered file group header, shows two buttons:
+Show in Files (the Files pane's kind icon) and Open in editor (↗). Show in Files shows the file's
+folder with the file selected in the tab's Files pane for the repo, or opens one (`showFiles`,
+4.12). Open in editor, Enter, and a double click open the file in the editor at that line (3.12);
+on a group header or file name row, with no line. Match rows, file group headers, and file name
+rows drag the file's path, with no line number, onto a terminal or scratch pad (4.4).
+
+A right-click on a match row offers Open in editor and Show in Files, then Copy path and Insert
+path after a separator. A file group header has the same menu with Collapse or Expand after
+another separator; a file name row has it without the collapse item. Copy path and Insert path
+use the file's path with no line number.
 
 ### 4.15 Scratch pads
 

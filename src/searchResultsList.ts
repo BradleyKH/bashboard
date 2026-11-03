@@ -2,6 +2,7 @@ import type { LineMatch } from './searchApi';
 import { attachBodyDrag } from './bodyDrag';
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
+import { paneKindInfo } from './paneKinds';
 import { highlightSegments, type FileGroup, type SearchItem, type SearchResults } from './searchModel';
 
 /** What a menu was opened on: a result row, or a file group header with its collapsed state. */
@@ -11,7 +12,10 @@ export type SearchMenuTarget =
 
 export interface SearchResultsListOptions {
   onSelect: (item: SearchItem) => void;
+  /** Opens in the preferred editor: Enter, a double click, or the row's editor button. */
   onOpen: (item: SearchItem) => void;
+  /** The row's Files button; `path` is the file's repo-relative path. */
+  onShowInFiles: (path: string) => void;
   onToggle: (path: string) => void;
   /** A row or group header was dragged; `path` is the file's repo-relative path. */
   onDragStart?: (path: string, e: PointerEvent) => void;
@@ -24,14 +28,26 @@ export function itemKey(item: SearchItem): string {
   return item.kind === 'name' ? `n:${item.path}` : `m:${item.path}:${item.match.line}`;
 }
 
-function openButton(): HTMLButtonElement {
+function actionButton(className: string, label: string, title: string): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'search-open-btn';
-  b.textContent = 'Open';
-  b.title = 'Open in editor';
+  b.className = `search-action-btn ${className}`;
+  b.textContent = label;
+  b.title = title;
+  b.setAttribute('aria-label', title);
   b.tabIndex = -1;
   return b;
+}
+
+/** The hover buttons at a row's end: Show in Files, then Open in editor. */
+function rowActions(): HTMLElement {
+  const el = document.createElement('span');
+  el.className = 'search-row-actions';
+  el.append(
+    actionButton('search-files-btn', paneKindInfo('files').icon, 'Show in Files'),
+    actionButton('search-open-btn', '↗', 'Open in editor'),
+  );
+  return el;
 }
 
 interface RenderedGroup {
@@ -143,7 +159,7 @@ export class SearchResultsList {
       const text = document.createElement('span');
       text.className = 'search-text';
       text.textContent = path;
-      row.append(text, openButton());
+      row.append(text, rowActions());
       this.attachDrag(row, path);
       rows.appendChild(row);
     }
@@ -166,7 +182,7 @@ export class SearchResultsList {
     const count = document.createElement('span');
     count.className = 'search-group-count';
     count.textContent = String(group.matches.length);
-    head.append(chevron, path, count, openButton());
+    head.append(chevron, path, count, rowActions());
     this.attachDrag(head, group.path);
     const rows = document.createElement('div');
     rows.className = 'search-group-rows';
@@ -194,7 +210,7 @@ export class SearchResultsList {
         text.appendChild(document.createTextNode(seg.text));
       }
     }
-    row.append(line, text, openButton());
+    row.append(line, text, rowActions());
     this.attachDrag(row, path);
     return row;
   }
@@ -246,11 +262,14 @@ export class SearchResultsList {
 
   private onClick(e: MouseEvent): void {
     const target = e.target as HTMLElement;
-    if (target.closest('.search-open-btn')) {
-      // A group head's button opens the file at its top.
+    const action = target.closest('.search-open-btn, .search-files-btn');
+    if (action) {
+      // A group head's buttons act on the file at its top.
       const groupPath = target.closest<HTMLElement>('.search-toggle')?.dataset.path;
       const item = groupPath !== undefined ? { kind: 'name' as const, path: groupPath } : this.itemAt(e);
-      if (item) this.opts.onOpen(item);
+      if (!item) return;
+      if (action.classList.contains('search-files-btn')) this.opts.onShowInFiles(item.path);
+      else this.opts.onOpen(item);
       return;
     }
     const head = (e.target as HTMLElement).closest<HTMLElement>('.search-toggle');
@@ -263,7 +282,7 @@ export class SearchResultsList {
   }
 
   private onDoubleClick(e: MouseEvent): void {
-    if ((e.target as HTMLElement).closest('.search-open-btn')) return;
+    if ((e.target as HTMLElement).closest('.search-row-actions')) return;
     const item = this.itemAt(e);
     if (item) this.opts.onOpen(item);
   }

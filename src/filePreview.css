@@ -273,6 +273,8 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  /* Clips the reveal band as its line scrolls out of view. */
+  overflow: hidden;
 }
 
 /* The textarea and its find mirror must lay text out identically, line for line. */
@@ -315,6 +317,30 @@
   content: '';
   display: block;
   height: 100%;
+}
+
+/* The line a search result points at (revealLine), under the text like the find mirror. */
+.editor-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  pointer-events: none;
+}
+
+.editor-band[hidden] {
+  display: none;
+}
+
+/* Measures one row of the textarea's text, which has the same font and line height. */
+.editor-row-probe {
+  position: absolute;
+  visibility: hidden;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  line-height: normal;
+  white-space: pre;
 }
 
 .editor-text::selection {
