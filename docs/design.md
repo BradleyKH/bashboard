@@ -44,10 +44,9 @@ title is "Bashboard".
 
 ```
 ┌────────────────────────────── WebView2 (one window) ──────────────────────────────┐
-│  z0  Backdrop canvas (per style, full window)                                     │
-│  z1  Pane scrims (per pane, translucent, optional blur)                           │
-│  z2  Pane grid: xterm.js terminals, transparent background                        │
-│  z3  Chrome: tab strip, dashboard panel, pane borders/titles, toasts              │
+│  z0  Backdrop canvas (per style, full window, dimmed, optional blur)              │
+│  z1  Pane grid: xterm.js terminals, transparent background                        │
+│  z2  Chrome: tab strip, dashboard panel, pane borders/titles, toasts              │
 └──────────────▲──────────────────────────────▲───────────────────────▲─────────────┘
                │ invoke / Channel             │ events                │ events
 ┌──────────────┴───────────┐   ┌──────────────┴──────────┐   ┌────────┴────────────┐
@@ -793,7 +792,7 @@ installed app; their saved state is already separate (3.6).
 
 ### 4.1 Layers
 
-`index.html` stacks four fixed layers (section 2). The backdrop owns z0 and receives no pointer events;
+`index.html` stacks three fixed layers (section 2). The backdrop owns z0 and receives no pointer events;
 it never reacts to clicks, drags, or scrolls meant for terminals. Terminals draw with a fully
 transparent background (`allowTransparency`, theme background `#00000000`, and an override
 of xterm.css's black viewport), so whatever is under them shows through.
@@ -1540,7 +1539,7 @@ close button on hover. The tab's tooltip lists each waiting terminal's title and
 - Holding a dragged pane, card, or path (4.4) over a tab for half a second switches to that tab,
   so the drag can continue into a dock target there (4.2) and move the terminal across tabs, or
   into a terminal there to drop the path.
-- The strip is chrome on z3 and draws over the backdrop with the same scrim as the title strips.
+- The strip is chrome on z2 and draws over the backdrop with the same scrim as the title strips.
 - **Menus.** A right-click on a tab offers Rename, New tab, and Close tab, each as the tab's own
   gesture does; a tab being renamed offers its input's text field menu instead. A right-click on
   the strip outside any tab offers New tab.
@@ -1595,7 +1594,7 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   rows (4.6) open a pane as a split of the focused pane, the way a favorite does: when there is
   no room, a toast says so and the pane opens collapsed. A Git pane for a repo that already has
   one in the active tab focuses that one instead.
-- **Common behavior.** Every kind has the title strip, scrim, focus border, docking, collapsing,
+- **Common behavior.** Every kind has the title strip, focus border, docking, collapsing,
   and closing that terminals have. Status, attention, and the WebGL budget apply to terminals
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
   which for other kinds is the folder's name, a scratch pad's first line, or "Containers".
@@ -1960,12 +1959,16 @@ has Back, Next, and Skip setup.
 
 ## 5. Readability
 
-Bloom behind text is the main readability risk. Each pane draws a scrim layer between the backdrop and
-its terminal: a dark fill at configurable opacity (default 0.5) with an optional
-`backdrop-filter: blur()` (default 0, since blur over a constantly moving WebGL canvas is the
-most expensive effect here, so the dialog offers it under Swirling Lights only). Ctrl+Shift+B cycles none, light, and medium presets and saves the
-choice. An opacity of 0 means no scrim, so blur is off there too. The backdrop itself is never dimmed;
-the scrim does the work.
+Bloom behind text is the main readability risk, so the whole backdrop is dimmed by `scrim.opacity`
+(default 0.5) through a CSS `brightness()` filter on its canvas, at 1 minus the opacity; that
+matches a black fill at that opacity, and it covers the gaps between panes as well as what sits
+behind them. Ctrl+Shift+B cycles none, light, and medium presets and saves the choice; an opacity
+of 0 leaves the backdrop undimmed. The None style has no canvas, so nothing is dimmed there.
+
+`scrim.blurPx` (default 0) blurs the whole backdrop in the same filter, under every drawn style
+and at every scrim opacity. The canvas is oversized by twice the blur on each side, since a blur darkens a band
+at the canvas edges as wide as itself, and the oversize pushes that band off screen. Blur over a
+constantly redrawing canvas is the most expensive effect here, hence the default of 0.
 
 ## 6. Backdrop
 
@@ -2074,12 +2077,12 @@ fully dimmed) and "Blur".
 | Style | Always shown | Also shown while `backdrop.animate` is on |
 | --- | --- | --- |
 | None | Background | (nothing) |
-| Swirling Lights | Background, Animate, Brightness, Zoom, Blur | Frame rate cap, Density, Color drift, Pulse waiting sessions |
-| Matrix | Background, Animate, Brightness, Color, Zoom, Density | Speed |
+| Swirling Lights | Background, Animate, Brightness, Blur, Zoom | Frame rate cap, Density, Color drift, Pulse waiting sessions |
+| Matrix | Background, Animate, Brightness, Blur, Color, Zoom, Density | Speed |
 
 While `backdrop.animate` is off, the fields a still frame can't show are hidden. Zoom, Brightness,
 and Blur still change the frozen view, and so do Matrix's Color and Density, which redraw the still
-frame. Blur applies to Swirling Lights only. Matrix has its own Zoom
+frame. Matrix has its own Zoom
 (`backdrop.matrix.zoom`), separate from Swirling Lights' (`backdrop.zoom`).
 
 ### 6.3 Sessions as organisms

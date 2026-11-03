@@ -240,6 +240,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       },
       // Stored as the scrim's opacity, so 1 here is fully dimmed and the slider reads as brightness.
       { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live', shownWhen: IS_DRAWN },
+      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live', shownWhen: IS_DRAWN },
       { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: [IS_LIGHTS, WHILE_ANIMATED] },
       { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live', shownWhen: IS_LIGHTS },
       {
@@ -252,7 +253,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
       },
-      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live', shownWhen: IS_LIGHTS },
       {
         path: ['backdrop', 'waitingPulse'],
         label: 'Pulse waiting sessions',

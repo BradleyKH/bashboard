@@ -74,8 +74,11 @@ drawn behind the panes). A missing or invalid value falls back to `lights` with 
 choice applies live. `backdrop.animate` applies to both drawn styles and starts `false`, a frozen
 still frame; set it to `true` to run the background. Ctrl+Shift+D pauses or resumes whichever style
 is showing and saves the choice to `backdrop.animate`; it does nothing under None. The dialog shows
-only the fields that apply to the chosen style, and Brightness (the inverse of `scrim.opacity`,
-the dimming scrim behind terminals) applies to both drawn styles.
+only the fields that apply to the chosen style. Brightness (the inverse of `scrim.opacity`, which
+dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 0) apply to
+both drawn styles. Blur softens the whole background, including the gaps between panes, and
+stays on when Ctrl+Shift+B turns the scrim off; it costs some GPU time while the background
+animates.
 
 **Swirling Lights** runs at up to 20 frames per second; raise or lower that with `backdrop.maxFps`
 (0 for the display's refresh rate). The simulation runs at 12 generations per second under a slow
@@ -83,8 +86,8 @@ camera orbit, held still while Windows animation effects are off. It is tuned wi
 population it sustains, 300 to 5000; Density in the settings dialog), `mutationRate` (how far
 offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
 above 1 brings the colony closer so it fills more of the window), and `waitingPulse` (a steady
-brightness pulse on a waiting Claude session's organisms, off by default). These and the scrim's
-Blur apply to Swirling Lights only. While `backdrop.animate` is off, the dialog hides the frame
+brightness pulse on a waiting Claude session's organisms, off by default). These apply to
+Swirling Lights only. While `backdrop.animate` is off, the dialog hides the frame
 rate cap, Density, Color drift, and the pulse toggle, which a still frame cannot show.
 
 **Matrix** draws digital rain, one falling column of half-width katakana, digits, and symbols per

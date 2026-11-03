@@ -87,8 +87,10 @@ orphaned by a page reload, then builds the `Workspace`, the `DashboardPanel`, an
   implements over `Workspace`.
 
 **Layers.** A fixed full-window `<canvas id="backdrop">` (z0, `pointer-events: none`) sits under
-`#panes`. Terminals draw with a transparent background, and each `.pane::before` paints a scrim
-driven by the `--scrim-opacity` and `--scrim-blur` custom properties on `:root`.
+`#panes`. Terminals draw with a transparent background. The scrim dims and blurs the whole
+backdrop through a CSS filter on that canvas, driven by the `--backdrop-brightness` and
+`--backdrop-blur` custom properties on `:root` (`src/scrim.ts`), so the gaps between panes match
+what sits behind them.
 
 **Backdrop (`src/backdrop`).** `sim/` is the colony simulation and `render/` the Three.js renderer.
 `sim/` must stay DOM-free. `src/backdrop/backdrop.ts` is the only entry point the rest of the

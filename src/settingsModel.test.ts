@@ -116,19 +116,19 @@ describe('isShown', () => {
 
   it('shows the Swirling Lights controls for lights, and trims the loop-only ones when frozen', () => {
     expect(shownBackdrop('lights', true)).toEqual([
-      'backdrop.style', 'backdrop.animate', 'backdrop.maxFps', 'scrim.opacity', 'backdrop.capacity', 'backdrop.zoom',
-      'backdrop.mutationRate', 'scrim.blurPx', 'backdrop.waitingPulse',
+      'backdrop.style', 'backdrop.animate', 'backdrop.maxFps', 'scrim.opacity', 'scrim.blurPx', 'backdrop.capacity',
+      'backdrop.zoom', 'backdrop.mutationRate', 'backdrop.waitingPulse',
     ]);
-    expect(shownBackdrop('lights', false)).toEqual(['backdrop.style', 'backdrop.animate', 'scrim.opacity', 'backdrop.zoom', 'scrim.blurPx']);
+    expect(shownBackdrop('lights', false)).toEqual(['backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.zoom']);
   });
 
-  it('shows the Matrix controls for matrix, hiding speed when frozen and never the lights density, drift, pulse, or blur', () => {
+  it('shows the Matrix controls for matrix, hiding speed when frozen and never the lights density, drift, or pulse', () => {
     expect(shownBackdrop('matrix', true)).toEqual([
-      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'backdrop.matrix.color', 'backdrop.matrix.zoom', 'backdrop.matrix.speed',
+      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.matrix.color', 'backdrop.matrix.zoom', 'backdrop.matrix.speed',
       'backdrop.matrix.density',
     ]);
     expect(shownBackdrop('matrix', false)).toEqual([
-      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'backdrop.matrix.color', 'backdrop.matrix.zoom', 'backdrop.matrix.density',
+      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.matrix.color', 'backdrop.matrix.zoom', 'backdrop.matrix.density',
     ]);
   });
 });

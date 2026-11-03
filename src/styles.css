@@ -59,11 +59,16 @@ body {
   background: #01070c;
 }
 
+/* The blur pulls in transparent pixels at the canvas edges, darkening a band as wide as the
+   blur. Oversizing the canvas by twice the blur on each side pushes that band off screen; the
+   styles size their backing store to the window, so the CSS stretches it by that small margin. */
 #backdrop {
   position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  top: calc(var(--backdrop-blur) * -2);
+  left: calc(var(--backdrop-blur) * -2);
+  width: calc(100% + var(--backdrop-blur) * 4);
+  height: calc(100% + var(--backdrop-blur) * 4);
+  filter: blur(var(--backdrop-blur)) brightness(var(--backdrop-brightness));
   display: block;
   pointer-events: none;
   z-index: 0;
@@ -122,8 +127,8 @@ body.resizing.column {
 }
 
 :root {
-  --scrim-opacity: 0.5;
-  --scrim-blur: 0px;
+  --backdrop-brightness: 0.5;
+  --backdrop-blur: 0px;
 }
 
 .pane {
@@ -137,17 +142,6 @@ body.resizing.column {
 
 .pane.focused {
   border-color: var(--accent);
-}
-
-/* The scrim sits under the text layer so it darkens the backdrop without dimming glyphs. */
-.pane::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, var(--scrim-opacity));
-  backdrop-filter: blur(var(--scrim-blur));
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* Title strip (docs/design.md section 4.4): in the flow with two or more panes, otherwise an
@@ -847,7 +841,7 @@ body.dashboard-resizing {
   }
 }
 
-/* Same rhythm as the waiting dot; border-color only, since the pane's ::before is the scrim. */
+/* Same rhythm as the waiting dot. */
 .pane.attention,
 .terminal-card.attention,
 .terminal-group-header.attention {
