@@ -1,7 +1,6 @@
 // Pure helpers for the setup wizard (docs/design.md section 4.17).
 
 import { ACCENT_PRESETS, DEFAULT_ACCENT } from './accent';
-import { CONTENT_TEXT_PRESETS, DEFAULT_CONTENT_TEXT } from './contentText';
 import { lastFolder } from './dashboardModel';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
@@ -110,14 +109,12 @@ function presetValue(presets: Choice[], label: string): string {
   return found.value;
 }
 
-/** The green presets the Matrix background pairs with, closest to its default rain color. */
+/** The green preset the Matrix background pairs with, closest to its default rain color. */
 export const MATRIX_ACCENT = presetValue(ACCENT_PRESETS, 'Green');
-export const MATRIX_CONTENT_TEXT = presetValue(CONTENT_TEXT_PRESETS, 'Green');
 
-/** Which colors the wizard switched to green itself, so it may switch them back. */
+/** Whether the wizard switched the accent to green itself, so it may switch it back. */
 export interface AutoColors {
   accent: boolean;
-  text: boolean;
 }
 
 export type SettingSave = [path: string[], value: string];
@@ -125,31 +122,19 @@ export type SettingSave = [path: string[], value: string];
 const sameColor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /**
- * The color saves that go with picking a background. Matrix turns a still-default accent and
- * text color green; leaving Matrix puts back only the ones it turned green and that are still
- * green, so a color the user picked is never overridden.
+ * The accent save that goes with picking a background. Matrix turns a still-default accent green,
+ * and text in accent mode follows it; leaving Matrix puts the accent back only when the wizard
+ * turned it green and it is still green, so a color the user picked is never overridden.
  */
 export function backgroundColorSaves(
   style: BackdropStyle,
-  current: { accent: string; text: string },
+  accent: string,
   auto: AutoColors,
 ): { saves: SettingSave[]; auto: AutoColors } {
-  const saves: SettingSave[] = [];
-  const next = { ...auto };
-  const pairs = [
-    { key: 'accent', path: ['accentColor'], value: current.accent, base: DEFAULT_ACCENT, green: MATRIX_ACCENT },
-    { key: 'text', path: ['contentTextColor'], value: current.text, base: DEFAULT_CONTENT_TEXT, green: MATRIX_CONTENT_TEXT },
-  ] as const;
-  for (const p of pairs) {
-    if (style === 'matrix') {
-      if (sameColor(p.value, p.base)) {
-        saves.push([[...p.path], p.green]);
-        next[p.key] = true;
-      }
-    } else if (auto[p.key]) {
-      if (sameColor(p.value, p.green)) saves.push([[...p.path], p.base]);
-      next[p.key] = false;
-    }
+  if (style === 'matrix') {
+    if (!sameColor(accent, DEFAULT_ACCENT)) return { saves: [], auto };
+    return { saves: [[['accentColor'], MATRIX_ACCENT]], auto: { accent: true } };
   }
-  return { saves, auto: next };
+  const saves: SettingSave[] = auto.accent && sameColor(accent, MATRIX_ACCENT) ? [[['accentColor'], DEFAULT_ACCENT]] : [];
+  return { saves, auto: { accent: false } };
 }

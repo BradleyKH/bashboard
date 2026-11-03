@@ -2,7 +2,8 @@
 import type { BackdropStyle, Settings } from '../settings';
 import type { BackdropHandle } from './backdrop';
 import { ColonyRelay } from './colonyRelay';
-import type { MatrixBackdrop } from './matrix/matrixBackdrop';
+import type { MatrixBackdrop, MatrixOptions } from './matrix/matrixBackdrop';
+import { matrixRainColor } from './matrix/rainColor';
 
 type BackdropSettings = Settings['backdrop'];
 type Mounted = { style: 'lights'; handle: BackdropHandle } | { style: 'matrix'; handle: MatrixBackdrop };
@@ -17,6 +18,8 @@ export class BackdropHost {
   /** Bumped by every style switch, so a mount that finishes after a later switch knows it lost. */
   private generation = 0;
   private settings: BackdropSettings | undefined;
+  /** The Matrix rain can follow the accent. */
+  private accent = '';
   private visible = true;
   private animated = true;
 
@@ -32,8 +35,9 @@ export class BackdropHost {
   }
 
   /** Rejects only when the latest requested style fails to mount. */
-  async apply(settings: BackdropSettings): Promise<void> {
+  async apply(settings: BackdropSettings, accent: string): Promise<void> {
     this.settings = settings;
+    this.accent = accent;
     this.animated = settings.animate;
     if (settings.style === this.wanted) {
       this.configure();
@@ -48,7 +52,7 @@ export class BackdropHost {
     const canvas = this.canvas;
     let mounted: Mounted;
     try {
-      mounted = await mount(style, canvas, settings);
+      mounted = await mount(style, canvas, matrixOptions(settings, accent));
     } catch (err) {
       if (generation !== this.generation) return;
       throw err;
@@ -80,7 +84,7 @@ export class BackdropHost {
       current.handle.setMaxFps(settings.maxFps);
       current.handle.setOptions(settings);
     } else {
-      current.handle.setOptions(settings.matrix);
+      current.handle.setOptions(matrixOptions(settings, this.accent));
     }
     current.handle.setAnimated(this.animated);
     current.handle.setVisible(this.visible);
@@ -101,12 +105,17 @@ export class BackdropHost {
   }
 }
 
-async function mount(style: 'lights' | 'matrix', canvas: HTMLCanvasElement, settings: BackdropSettings): Promise<Mounted> {
+/** The Matrix settings with the color mode resolved to the #rrggbb the renderer draws. */
+function matrixOptions(settings: BackdropSettings, accent: string): MatrixOptions {
+  return { ...settings.matrix, color: matrixRainColor(settings.matrix.color, accent) };
+}
+
+async function mount(style: 'lights' | 'matrix', canvas: HTMLCanvasElement, matrix: MatrixOptions): Promise<Mounted> {
   // Dynamic imports keep Three.js out of the main bundle; only the lights style loads it.
   if (style === 'lights') {
     const { mountBackdrop } = await import('./backdrop');
     return { style, handle: mountBackdrop(canvas) };
   }
   const { mountMatrix } = await import('./matrix/matrixBackdrop');
-  return { style, handle: mountMatrix(canvas, settings.matrix) };
+  return { style, handle: mountMatrix(canvas, matrix) };
 }

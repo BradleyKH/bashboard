@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
 import { DEFAULT_SETTINGS, type BackdropStyle, type Settings } from './settings';
-import { appliesNote, installedChoices, isShown, MATRIX_COLOR_PRESETS, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 const fields = SETTINGS_SECTIONS.flatMap((s) => s.fields);
 const byPath = (p: string) => fields.find((f) => f.path.join('.') === p) as SettingsField;
@@ -64,7 +64,7 @@ describe('isShown', () => {
   const reader = (s: Settings) => (path: string[]) => readField(s, path);
   const withAnimate = (animate: boolean, clock = false) => reader(settingsWith(animate, clock));
   const shownBackdrop = (style: BackdropStyle, animate: boolean) =>
-    SETTINGS_SECTIONS.find((s) => s.title === 'Background Animation')!
+    SETTINGS_SECTIONS.find((s) => s.title === 'Background')!
       .fields.filter((f) => isShown(f, reader(settingsWith(animate, true, style))))
       .map((f) => f.path.join('.'));
 
@@ -134,12 +134,11 @@ describe('isShown', () => {
 });
 
 describe('Matrix settings', () => {
-  it('offers the six rain colors as swatches, led by the default', () => {
+  it('offers Green and Accent as swatches drawn in the rain each gives, led by the default', () => {
     const color = byPath('backdrop.matrix.color');
-    expect(color.swatches).toBe(true);
-    expect(color.options).toBe(MATRIX_COLOR_PRESETS);
-    expect(MATRIX_COLOR_PRESETS.map((o) => o.value)).toEqual(['#00ff41', '#ffb000', '#00e5ff', '#a68bff', '#ff3b3b', '#e8e8e8']);
-    expect(MATRIX_COLOR_PRESETS[0].value).toBe(DEFAULT_SETTINGS.backdrop.matrix.color);
+    expect(color.options?.map((o) => o.value)).toEqual([DEFAULT_SETTINGS.backdrop.matrix.color, 'accent']);
+    const violet = { ...DEFAULT_SETTINGS, accentColor: '#a68bff' };
+    expect(color.options?.map((o) => color.swatchColor?.(o.value, violet))).toEqual(['#00ff41', '#7a51ff']);
   });
 
   it('bounds zoom to 0.5 to 3 and speed to whole numbers from 5 to 30', () => {

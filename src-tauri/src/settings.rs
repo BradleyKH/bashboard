@@ -62,7 +62,7 @@ pub struct Backdrop {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MatrixBackdrop {
-    /// `#rrggbb`, any lightness (the rain is drawn dimmer than the text over it).
+    /// One of `MATRIX_COLOR_MODES`; see `parse_matrix_color`.
     pub color: String,
     pub zoom: f64,
     /// Rain steps per second.
@@ -73,6 +73,23 @@ pub struct MatrixBackdrop {
 
 /// Ids `backdrop.style` accepts (docs/design.md section 8).
 pub const BACKDROP_STYLES: [&str; 3] = ["none", "lights", "matrix"];
+
+/// The front end derives the rain's color from the mode and the accent
+/// (src/backdrop/matrix/rainColor.ts).
+pub const MATRIX_COLOR_MODES: [&str; 2] = ["green", "accent"];
+
+/// The classic rain color, the one `#rrggbb` that maps to the green mode.
+const MATRIX_GREEN: &str = "#00ff41";
+
+/// A mode, or a `#rrggbb` from a file that predates modes: the classic green reads as green and
+/// any other hex as accent. Mapped silently so those files load without a notice.
+fn parse_matrix_color(s: &str) -> Option<String> {
+    if MATRIX_COLOR_MODES.contains(&s) {
+        return Some(s.into());
+    }
+    let hex = parse_hex(s)?;
+    Some(if hex == MATRIX_GREEN { "green" } else { "accent" }.into())
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,20 +109,27 @@ pub const DEFAULT_ACCENT: &str = "#4fb3c8";
 /// this WCAG relative luminance both keep at least 4.5:1 contrast. Mirrors src/accent.ts.
 const ACCENT_MIN_LUMINANCE: f64 = 0.2;
 
-pub const DEFAULT_CONTENT_TEXT: &str = "#b5d8df";
+/// The front end derives the color from the mode and the accent (src/contentText.ts).
+pub const CONTENT_TEXT_MODES: [&str; 2] = ["accent", "white"];
+pub const DEFAULT_CONTENT_TEXT_MODE: &str = "accent";
 
-/// Content text is read in long stretches, so it must stay well brighter than the dark panes,
-/// and brighter than the accent so links and highlights still stand out. Mirrors
-/// src/contentText.ts.
-const CONTENT_TEXT_MIN_LUMINANCE: f64 = 0.5;
+/// The White text color, the one `#rrggbb` that maps to the white mode.
+const WHITE_CONTENT_TEXT: &str = "#e6e6e6";
 
 /// Accepts `#rrggbb` (any case) bright enough to read, returned lowercase.
 fn parse_accent(s: &str) -> Option<String> {
     parse_bright_hex(s, ACCENT_MIN_LUMINANCE)
 }
 
+/// A mode, or a `#rrggbb` from a file that predates modes: White's hex reads as white and any
+/// other hex as accent, since every other preset was an accent tint. Mapped silently so those
+/// files load without a notice.
 fn parse_content_text(s: &str) -> Option<String> {
-    parse_bright_hex(s, CONTENT_TEXT_MIN_LUMINANCE)
+    if CONTENT_TEXT_MODES.contains(&s) {
+        return Some(s.into());
+    }
+    let hex = parse_hex(s)?;
+    Some(if hex == WHITE_CONTENT_TEXT { "white" } else { "accent" }.into())
 }
 
 /// Accepts `#rrggbb` (any case) of any lightness, returned lowercase.
@@ -200,7 +224,7 @@ pub struct Settings {
     pub font: Font,
     /// `#rrggbb`; see `parse_accent`.
     pub accent_color: String,
-    /// `#rrggbb`; see `parse_content_text`.
+    /// One of `CONTENT_TEXT_MODES`; see `parse_content_text`.
     pub content_text_color: String,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
@@ -304,8 +328,8 @@ impl Default for Settings {
                 size: 14.0,
             },
             accent_color: DEFAULT_ACCENT.into(),
-            content_text_color: DEFAULT_CONTENT_TEXT.into(),
-            scrim: Scrim { opacity: 0.5, blur_px: 0.0 },
+            content_text_color: DEFAULT_CONTENT_TEXT_MODE.into(),
+            scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {
                 style: "lights".into(),
                 animate: false,
@@ -314,7 +338,7 @@ impl Default for Settings {
                 mutation_rate: 0.2,
                 zoom: 2.0,
                 waiting_pulse: false,
-                matrix: MatrixBackdrop { color: "#00ff41".into(), zoom: 1.0, speed: 10, density: 3.0 },
+                matrix: MatrixBackdrop { color: "green".into(), zoom: 1.0, speed: 10, density: 3.0 },
             },
             scrollback: 10000,
             terminal: Terminal { done_after_seconds: 30 },
@@ -686,7 +710,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
                 &root,
                 &["backdrop", "matrix", "color"],
                 &mut w,
-                |v| v.as_str().and_then(parse_hex),
+                |v| v.as_str().and_then(parse_matrix_color),
                 d.backdrop.matrix.color,
             ),
             zoom: pick(
@@ -832,7 +856,7 @@ fn default_file_text() -> String {
     )
     .replace(
         "  \"contentTextColor\":",
-        "  // Any #rrggbb at least as bright as #bcbcbc; darker colors fall back to the default.
+        "  // accent (a pale tint of accentColor) or white.
   \"contentTextColor\":",
     )
     .replace(
@@ -1113,14 +1137,20 @@ mod tests {
     }
 
     #[test]
-    fn content_text_color_needs_brighter_hex_than_accent() {
-        let (s, w) = parse_settings(r##"{ "contentTextColor": "#B9D0ED" }"##);
-        assert_eq!(s.content_text_color, "#b9d0ed");
-        assert!(w.is_empty());
-        // #a8b8c8 is the Silver accent: bright enough for an accent, too dim for body text.
-        for bad in [r##""#a8b8c8""##, r##""#eee""##, r##""white""##] {
+    fn content_text_color_takes_a_mode_or_maps_a_hex() {
+        for (given, mode) in [
+            (r#""white""#, "white"),
+            (r#""accent""#, "accent"),
+            (r##""#E6E6E6""##, "white"),
+            (r##""#b9d0ed""##, "accent"),
+        ] {
+            let (s, w) = parse_settings(&format!(r#"{{ "contentTextColor": {given} }}"#));
+            assert_eq!(s.content_text_color, mode, "{given}");
+            assert!(w.is_empty(), "{given}");
+        }
+        for bad in [r##""#eee""##, r#""teal""#, "12"] {
             let (s, w) = parse_settings(&format!(r#"{{ "contentTextColor": {bad} }}"#));
-            assert_eq!(s.content_text_color, DEFAULT_CONTENT_TEXT, "{bad}");
+            assert_eq!(s.content_text_color, DEFAULT_CONTENT_TEXT_MODE, "{bad}");
             assert_eq!(w, vec!["contentTextColor: invalid value, using default"], "{bad}");
         }
     }
@@ -1170,10 +1200,16 @@ mod tests {
         assert!(w.is_empty(), "{w:?}");
 
         let (s, w) = parse_settings(
-            r##"{ "backdrop": { "style": "matrix", "matrix": { "color": "#102030", "zoom": 2.5, "speed": 25, "density": 2.5 } } }"##,
+            r#"{ "backdrop": { "style": "matrix", "matrix": { "color": "accent", "zoom": 2.5, "speed": 25, "density": 2.5 } } }"#,
         );
         assert_eq!(s.backdrop.style, "matrix");
-        assert_eq!(s.backdrop.matrix, MatrixBackdrop { color: "#102030".into(), zoom: 2.5, speed: 25, density: 2.5 });
+        assert_eq!(s.backdrop.matrix, MatrixBackdrop { color: "accent".into(), zoom: 2.5, speed: 25, density: 2.5 });
+        assert!(w.is_empty(), "{w:?}");
+        for (given, mode) in [(r##""#00FF41""##, "green"), (r##""#a68bff""##, "accent"), (r#""green""#, "green")] {
+            let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "matrix": {{ "color": {given} }} }} }}"#));
+            assert_eq!(s.backdrop.matrix.color, mode, "{given}");
+            assert!(w.is_empty(), "{given}");
+        }
         assert!(w.is_empty(), "{w:?}");
         let (s, w) = parse_settings(r#"{ "backdrop": { "style": "none" } }"#);
         assert_eq!(s.backdrop.style, "none");
@@ -1183,7 +1219,7 @@ mod tests {
             ("backdrop.style", "style", r#""rain""#),
             ("backdrop.style", "style", "1"),
             ("backdrop.matrix.color", "color", r##""#0f0""##),
-            ("backdrop.matrix.color", "color", r##""green""##),
+            ("backdrop.matrix.color", "color", r#""amber""#),
             ("backdrop.matrix.zoom", "zoom", "0.4"),
             ("backdrop.matrix.zoom", "zoom", "3.1"),
             ("backdrop.matrix.speed", "speed", "4"),

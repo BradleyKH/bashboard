@@ -32,14 +32,14 @@ in the file that is not a preset appears in the dialog as Custom.
 
 `contentTextColor` sets the color of text in scratch panes, the file preview and editor, search
 results and their preview, the Files list, the Git pane's file, commit, and branch lists and its
-diff, the Containers list and logs, and the dashboard's names, values, and clock (default
-`#b5d8df`, teal, to match the default accent). Secondary text in those places, such as line numbers, quotes, sizes, and dates,
-takes a dimmer shade of it. Toolbars, buttons, and the dashboard's gray labels keep their UI gray,
-and terminals keep their own colors. The Text color field in the Appearance section offers
-White plus pale tints matching each accent: Silver, Orange, Gold, Green, Teal, Blue, Violet, and
-Pink. Any pairing works, since the tints stay softer than the accents. In the file it takes any
-`#rrggbb` at least as bright as `#bcbcbc`; a darker color falls back to the default and shows a
-notice.
+diff, the Containers list and logs, and the dashboard's names, values, and clock. It is `accent`
+(the default), a pale tint of the accent color that changes with it, or `white`. The tint stays
+softer than the accent, so links and highlights still stand out. Secondary text in those places,
+such as line numbers, quotes, sizes, and dates, takes a dimmer shade of it. Toolbars, buttons,
+and the dashboard's gray labels keep their UI gray, and terminals take it only for pure white
+text (the default foreground, bright white, and `#ffffff` in the 256-color palette), keeping
+every other color a program picks. The Text color field in the Appearance section offers Accent
+tint and White.
 
 Press F1, or click Keyboard shortcuts at the bottom of the dashboard, for a guide to every key
 in effect, including your own bindings. The guide is also where keys are changed: click a key to
@@ -71,14 +71,14 @@ Keys that type text (`sendInput`) are added in the file; the guide lists them bu
 for their text.
 
 The background (the backdrop) has three styles, chosen with `backdrop.style` or the Background
-select in the Background Animation section of the settings dialog: `lights` (Swirling Lights, the
+select in the Background section of the settings dialog: `lights` (Swirling Lights, the
 default, a living colony simulation), `matrix` (Matrix, falling glyph rain), and `none` (nothing is
 drawn behind the panes). A missing or invalid value falls back to `lights` with a notice. The
 choice applies live. `backdrop.animate` applies to both drawn styles and starts `false`, a frozen
 still frame; set it to `true` to run the background. Ctrl+Shift+D pauses or resumes whichever style
 is showing and saves the choice to `backdrop.animate`; it does nothing under None. The dialog shows
 only the fields that apply to the chosen style. Brightness (the inverse of `scrim.opacity`, which
-dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 0) apply to
+dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 1) apply to
 both drawn styles. Blur softens the whole background, including the gaps between panes, and
 stays on when Ctrl+Shift+B turns the scrim off; it costs some GPU time while the background
 animates.
@@ -97,9 +97,9 @@ rate cap, Density, Color drift, and the pulse toggle, which a still frame cannot
 cell column, in the `MS Gothic` or `Yu Gothic` font that ships with Windows. Its fields live under
 `backdrop.matrix`, which are Color, Zoom, Speed, and Density in the dialog:
 
-- `color` is the rain's color as six-digit hex (`#rrggbb`, default `#00ff41`). The dialog offers
-  Green, Amber, Cyan, Violet, Red, and White presets; a hand-edited value shows as Custom. The
-  leading glyph of each column is drawn near white, and the trail fades to black.
+- `color` is the rain's color: `green` (the default, the classic `#00ff41`) or `accent`, a
+  vivid, full-brightness version of the accent color that changes with it (Silver stays a pale
+  silver). The leading glyph of each column is drawn near white, and the trail fades to black.
 - `zoom` (0.5 to 3, default 1) scales the glyph size; at 1 a cell is 20 px.
 - `speed` (5 to 30, default 10) is how many rain steps run per second. It is independent of
   `maxFps`, which Matrix ignores. The dialog hides Speed while `backdrop.animate` is off.
@@ -120,7 +120,7 @@ falling, not an empty screen.
   "mutationRate": 0.2,
   "zoom": 2,
   "waitingPulse": false,
-  "matrix": { "color": "#00ff41", "zoom": 1, "speed": 10, "density": 3 }
+  "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 }
 }
 ```
 

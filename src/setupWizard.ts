@@ -111,7 +111,7 @@ export class SetupWizard {
   private shellDone = new Set<IntegrationShell>();
   /** The shell just picked in the Shell step, until the settings file catches up. */
   private pickedProfile: string | null = null;
-  private autoColors: AutoColors = { accent: false, text: false };
+  private autoColors: AutoColors = { accent: false };
 
   private readonly ui: SetupStepUi = {
     note: (text) => this.note(text),
@@ -138,7 +138,7 @@ export class SetupWizard {
     this.shellInstalling = false;
     this.shellDone = new Set();
     this.pickedProfile = null;
-    this.autoColors = { accent: false, text: false };
+    this.autoColors = { accent: false };
     this.steps = setupSteps(this.stepOptions());
     this.index = 0;
     this.editors = null;

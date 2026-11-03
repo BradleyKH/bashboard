@@ -1,5 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app';
-import type { SettingsPayload } from './settings';
+import type { Settings, SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
 import { fontSuggestions, isSuggestionPick, listFonts } from './fonts';
@@ -43,6 +43,8 @@ export class SettingsDialog {
   private backdrop: HTMLElement | null = null;
   private warnings: HTMLElement | null = null;
   private controls: Control[] = [];
+  /** The last loaded file, for swatches drawn from other settings. */
+  private settings: Settings | null = null;
   private fontList: HTMLDataListElement | null = null;
   /** The editors the core found; just `default` until the list arrives or when it cannot be read. */
   private editors: Editor[] = [DEFAULT_EDITOR];
@@ -188,6 +190,7 @@ export class SettingsDialog {
       }),
     );
     this.warnings.hidden = payload.warnings.length === 0;
+    this.settings = payload.settings;
 
     const active = document.activeElement;
     for (const c of this.controls) {
@@ -306,7 +309,7 @@ export class SettingsDialog {
             if (head) {
               const swatch = document.createElement('span');
               swatch.className = 'settings-dialog-swatch';
-              swatch.style.background = o.value;
+              swatch.style.background = f.swatchColor && this.settings ? f.swatchColor(o.value, this.settings) : o.value;
               opt.prepend(swatch);
             }
             return opt;

@@ -108,7 +108,7 @@ let backdropAnimated = true;
 
 function applyBackdropSettings(settings: Settings): void {
   backdropAnimated = settings.backdrop.animate;
-  backdrop.apply(settings.backdrop).catch((err: unknown) =>
+  backdrop.apply(settings.backdrop, settings.accentColor).catch((err: unknown) =>
     showToast(`Could not start the background animation: ${String(err)}`),
   );
 }

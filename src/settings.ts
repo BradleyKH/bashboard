@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { DEFAULT_ACCENT } from './accent';
-import { DEFAULT_CONTENT_TEXT } from './contentText';
+import { DEFAULT_MATRIX_COLOR_MODE, type MatrixColorMode } from './backdrop/matrix/rainColor';
+import { DEFAULT_CONTENT_TEXT_MODE, type ContentTextMode } from './contentText';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ClockStyle } from './clockModel';
 import type { DashboardSide } from './dashboardResize';
@@ -14,8 +15,8 @@ export interface Settings {
   font: { family: string; size: number };
   /** #rrggbb, bright enough to read on the dark panes (docs/design.md section 8). */
   accentColor: string;
-  /** #rrggbb for non-terminal pane content and dashboard text (docs/design.md section 8). */
-  contentTextColor: string;
+  /** Non-terminal pane content and dashboard text, derived from the accent (docs/design.md section 8). */
+  contentTextColor: ContentTextMode;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design.md section 6.4). */
   backdrop: {
@@ -26,7 +27,8 @@ export interface Settings {
     mutationRate: number;
     zoom: number;
     waitingPulse: boolean;
-    matrix: { color: string; zoom: number; speed: number; density: number };
+    /** color is a mode; the rain's #rrggbb is derived from it and the accent. */
+    matrix: { color: MatrixColorMode; zoom: number; speed: number; density: number };
   };
   scrollback: number;
   /** Seconds a command runs before its finish is marked done; 0 turns command marks off. */
@@ -62,8 +64,8 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   font: { family: 'JetBrainsMono Nerd Font Mono, Cascadia Mono', size: 14 },
   accentColor: DEFAULT_ACCENT,
-  contentTextColor: DEFAULT_CONTENT_TEXT,
-  scrim: { opacity: 0.5, blurPx: 0 },
+  contentTextColor: DEFAULT_CONTENT_TEXT_MODE,
+  scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {
     style: 'lights',
     animate: false,
@@ -72,7 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
     mutationRate: 0.2,
     zoom: 2,
     waitingPulse: false,
-    matrix: { color: '#00ff41', zoom: 1, speed: 10, density: 3 },
+    matrix: { color: DEFAULT_MATRIX_COLOR_MODE, zoom: 1, speed: 10, density: 3 },
   },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30 },

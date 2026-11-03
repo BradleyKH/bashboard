@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { applyAccent } from './accent';
-import { applyContentText } from './contentText';
+import { applyContentText, contentTextColor } from './contentText';
 import type { AttentionCause } from './attention';
 import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
 import type { ConfirmOptions } from './confirmDialog';
@@ -250,7 +250,7 @@ export class Workspace {
     this.scrim = scrimFromSettings(payload.settings.scrim);
     applyScrim(document.documentElement, this.scrim);
     applyAccent(document.documentElement, payload.settings.accentColor);
-    applyContentText(document.documentElement, payload.settings.contentTextColor);
+    applyContentText(document.documentElement, contentTextColor(payload.settings.contentTextColor, payload.settings.accentColor));
     this.view = new LayoutView(root, {
       clampRatio: (path, ratio) => {
         const cell = this.layoutCell();
@@ -361,7 +361,8 @@ export class Workspace {
     this.scrim = scrimFromSettings(this.config.settings.scrim);
     applyScrim(document.documentElement, this.scrim);
     applyAccent(document.documentElement, this.config.settings.accentColor);
-    applyContentText(document.documentElement, this.config.settings.contentTextColor);
+    const { contentTextColor: mode, accentColor } = this.config.settings;
+    applyContentText(document.documentElement, contentTextColor(mode, accentColor));
     for (const pane of this.paneViews.values()) pane.applySettings(this.config.settings);
   }
 

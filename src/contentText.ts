@@ -1,32 +1,76 @@
 // The text color of non-terminal pane content and the dashboard (docs/design.md section 8,
-// contentTextColor). CSS reads it as --content-fg; terminals keep their own foreground.
+// contentTextColor). The setting picks a mode; the color is derived from the accent here, so the
+// two always pair. CSS reads it as --content-fg; terminals take it only for pure white text.
 
-// Teal, to pair with the default teal accent.
-export const DEFAULT_CONTENT_TEXT = '#b5d8df';
+import { relativeLuminance } from './accent';
+
+export type ContentTextMode = 'accent' | 'white';
+
+/** Mirrors CONTENT_TEXT_MODES in src-tauri/src/settings.rs. */
+export const DEFAULT_CONTENT_TEXT_MODE: ContentTextMode = 'accent';
+
+export const CONTENT_TEXT_MODES: { value: ContentTextMode; label: string }[] = [
+  { value: 'accent', label: 'Accent tint' },
+  { value: 'white', label: 'White' },
+];
+
+export const WHITE_TEXT = '#e6e6e6';
 
 /**
- * Mirrors CONTENT_TEXT_MIN_LUMINANCE in src-tauri/src/settings.rs. Well above the accent's floor,
- * since this is body text and the accent must stay the brighter color for links and highlights.
+ * Body text is read in long stretches, so it must stay well brighter than the dark panes, and
+ * well above the accent's floor so the accent stays the brighter color for links and highlights.
  */
 export const CONTENT_TEXT_MIN_LUMINANCE = 0.5;
 
-// Pale tints of the ACCENT_PRESETS hues (about 35% of the accent mixed into near-white), labeled
-// to pair with them, so any pick keeps the accent more saturated than the text around it.
-export const CONTENT_TEXT_PRESETS: { value: string; label: string }[] = [
-  { value: '#e6e6e6', label: 'White' },
-  { value: '#d4dadf', label: 'Silver' },
-  { value: '#edd1b5', label: 'Orange' },
-  { value: '#e8ddb5', label: 'Gold' },
-  { value: '#bfdec9', label: 'Green' },
-  { value: DEFAULT_CONTENT_TEXT, label: 'Teal' },
-  { value: '#b9d0ed', label: 'Blue' },
-  { value: '#d4caf3', label: 'Violet' },
-  { value: '#e8c4e5', label: 'Pink' },
-];
+// 35% of the accent into near-white keeps the tint pale enough that the accent stays the most
+// saturated color on screen.
+const TINT_BASE: [number, number, number] = [0xec, 0xec, 0xec];
+const TINT_FRACTION = 0.35;
+
+function mix(accent: string, fraction: number): string {
+  const n = parseInt(accent.slice(1, 7), 16);
+  const rgb = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+  return `#${rgb
+    .map((c, i) => Math.round(c * fraction + TINT_BASE[i] * (1 - fraction)).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+/**
+ * The pale tint of an accent used as text. A dim accent (one near its own luminance floor) can
+ * mix below the text floor, so the accent's share shrinks until the tint is bright enough.
+ */
+export function accentTint(accent: string): string {
+  for (let fraction = TINT_FRACTION; fraction > 0; fraction -= 0.05) {
+    const tint = mix(accent, fraction);
+    if (relativeLuminance(tint) >= CONTENT_TEXT_MIN_LUMINANCE) return tint;
+  }
+  return mix(accent, 0);
+}
+
+/** The #rrggbb content text color for a mode and accent. */
+export function contentTextColor(mode: string, accent: string): string {
+  return mode === 'white' ? WHITE_TEXT : accentTint(accent);
+}
 
 export function applyContentText(
   root: { style: { setProperty(name: string, value: string): void } },
   hex: string,
 ): void {
   root.style.setProperty('--content-fg', hex);
+}
+
+/** Index of pure white (#ffffff) in the 256-color cube, as an offset into xterm's extendedAnsi. */
+const CUBE_WHITE = 231 - 16;
+
+/**
+ * The terminal theme entries that put the content text color on pure white: the default
+ * foreground, bright white (SGR 97, index 15), and the cube's #ffffff (index 231). Plain white
+ * (SGR 37, #e5e5e5) is left alone, since programs use it as a deliberately dimmer shade, and every
+ * other color a program picks is kept. Truecolor white (38;2;255;255;255) bypasses the theme.
+ */
+export function terminalWhites(hex: string): { foreground: string; brightWhite: string; extendedAnsi: string[] } {
+  // Unset slots fall back to xterm's own palette.
+  const extendedAnsi: string[] = [];
+  extendedAnsi[CUBE_WHITE] = hex;
+  return { foreground: hex, brightWhite: hex, extendedAnsi };
 }

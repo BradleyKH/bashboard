@@ -1,5 +1,5 @@
 import { ACCENT_PRESETS } from './accent';
-import { CONTENT_TEXT_PRESETS } from './contentText';
+import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { SCRIM_PRESETS } from './scrim';
 import type { BackdropStyle, Settings } from './settings';
 import {
@@ -15,7 +15,7 @@ export interface LookStepContext {
   getSettings(): Settings;
   /** Saves one value; on failure the wizard shows the error and calls `revert`. */
   save(path: string[], value: unknown, revert: () => void): void;
-  /** The colors the wizard turned green for Matrix, kept across re-renders of the step. */
+  /** Whether the wizard turned the accent green for Matrix, kept across re-renders of the step. */
   autoColors: { get(): AutoColors; set(next: AutoColors): void };
 }
 
@@ -40,18 +40,15 @@ const BRIGHTNESS: { preset: keyof typeof SCRIM_PRESETS; label: string }[] = [
  */
 export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: Settings) => void {
   const { ui } = ctx;
-  // What the controls show, ahead of the settings file catching up with a pick.
-  let shown = { accent: '', text: '' };
+  // The accent the controls show, ahead of the settings file catching up with a pick.
+  let shownAccent = '';
 
   const backgrounds = pressGroup('Background', BACKGROUNDS, ui, (style) => {
     showStyle(style);
     ctx.save(['backdrop', 'style'], style, revert);
-    const { saves, auto } = backgroundColorSaves(style, shown, ctx.autoColors.get());
+    const { saves, auto } = backgroundColorSaves(style, shownAccent, ctx.autoColors.get());
     ctx.autoColors.set(auto);
-    for (const [path, value] of saves) {
-      if (path[0] === 'accentColor') pickAccent(value, false);
-      else pickText(value, false);
-    }
+    for (const [, value] of saves) pickAccent(value, false);
   });
 
   const animate = document.createElement('label');
@@ -74,20 +71,22 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
   );
 
   const accent = swatchGroup('Accent color', ACCENT_PRESETS, (value) => pickAccent(value, true));
-  const text = swatchGroup('Text color', CONTENT_TEXT_PRESETS, (value) => pickText(value, true));
+  const text = swatchGroup('Text color', CONTENT_TEXT_MODES, (mode) => {
+    text.mark(mode);
+    ctx.save(['contentTextColor'], mode, revert);
+  });
 
   function pickAccent(value: string, byUser: boolean): void {
-    if (byUser) ctx.autoColors.set({ ...ctx.autoColors.get(), accent: false });
-    shown.accent = value;
-    accent.mark(value);
+    if (byUser) ctx.autoColors.set({ accent: false });
+    showAccent(value);
     ctx.save(['accentColor'], value, revert);
   }
 
-  function pickText(value: string, byUser: boolean): void {
-    if (byUser) ctx.autoColors.set({ ...ctx.autoColors.get(), text: false });
-    shown.text = value;
-    text.mark(value);
-    ctx.save(['contentTextColor'], value, revert);
+  // The Text color swatches are drawn from the accent, so they follow it.
+  function showAccent(value: string): void {
+    shownAccent = value;
+    accent.mark(value);
+    text.paint((mode) => contentTextColor(mode, value));
   }
 
   // None draws nothing, so there is nothing to animate or dim.
@@ -99,11 +98,10 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
   }
 
   const sync = (s: Settings): void => {
-    shown = { accent: s.accentColor, text: s.contentTextColor };
     showStyle(s.backdrop.style);
     animateBox.checked = s.backdrop.animate;
     brightness.mark(scrimPresetFor(s.scrim.opacity));
-    accent.mark(s.accentColor);
+    showAccent(s.accentColor);
     text.mark(s.contentTextColor);
   };
   function revert(): void {
@@ -118,6 +116,11 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
 interface Group<T extends string> {
   group: HTMLElement;
   mark(value: T | string | null): void;
+}
+
+interface SwatchGroup extends Group<string> {
+  /** Recolors each swatch from its value, for swatches whose value is not itself a color. */
+  paint(color: (value: string) => string): void;
 }
 
 function labelled(label: string): { group: HTMLElement; row: HTMLElement } {
@@ -157,7 +160,7 @@ function pressGroup<T extends string>(
 }
 
 /** Round color buttons, each named by its preset for screen readers and on hover. */
-function swatchGroup(label: string, presets: Choice[], onPick: (value: string) => void): Group<string> {
+function swatchGroup(label: string, presets: Choice[], onPick: (value: string) => void): SwatchGroup {
   const { group, row } = labelled(label);
   row.className = 'setup-wizard-swatches';
   const buttons = presets.map((p) => {
@@ -177,6 +180,9 @@ function swatchGroup(label: string, presets: Choice[], onPick: (value: string) =
     mark: (value) => {
       const v = value?.toLowerCase();
       for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.value?.toLowerCase() === v));
+    },
+    paint: (color) => {
+      for (const b of buttons) b.style.background = color(b.dataset.value ?? '');
     },
   };
 }

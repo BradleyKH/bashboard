@@ -4,8 +4,9 @@ import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type ITheme } from '@xterm/xterm';
 import { terminalAccent } from './accent';
+import { contentTextColor, terminalWhites } from './contentText';
 import { openLink } from './links';
 import { type Osc133, parseOsc133, parseOsc7, parseOsc9 } from './osc';
 import { webglBudget } from './rendererBudget';
@@ -96,6 +97,8 @@ export class TerminalPane implements PaneView {
   private readonly search = new SearchAddon();
   private lastQuery = '';
   private accent: string;
+  /** The resolved #rrggbb, not the setting's mode. */
+  private textColor: string;
   private readonly onExitCb: (code: number) => void;
   private readonly spawnCwd: string | undefined;
   private readonly spawnCommand: string[] | undefined;
@@ -129,6 +132,7 @@ export class TerminalPane implements PaneView {
     this.currentCwd = opts.cwd ?? null;
     this.expanded = opts.expanded ?? true;
     this.accent = opts.settings.accentColor;
+    this.textColor = contentTextColor(opts.settings.contentTextColor, opts.settings.accentColor);
 
     // The body is a flex child so a strip inserted before it takes its height from the host.
     this.host.style.display = 'flex';
@@ -302,15 +306,18 @@ export class TerminalPane implements PaneView {
     this.term.options.fontFamily = toFontFamily(settings.font.family);
     this.term.options.fontSize = settings.font.size;
     this.term.options.scrollback = settings.scrollback;
-    if (settings.accentColor !== this.accent) {
+    const textColor = contentTextColor(settings.contentTextColor, settings.accentColor);
+    if (settings.accentColor !== this.accent || textColor !== this.textColor) {
       this.accent = settings.accentColor;
+      this.textColor = textColor;
       this.term.options.theme = this.theme();
     }
     this.fitIfReady();
   }
 
-  private theme(): { background: string; selectionInactiveBackground: string } {
+  private theme(): ITheme {
     return {
+      ...terminalWhites(this.textColor),
       background: '#00000000',
       selectionInactiveBackground: terminalAccent(this.accent).selectionInactiveBackground,
     };

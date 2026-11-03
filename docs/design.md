@@ -1979,10 +1979,11 @@ has Back, Next, and Skip setup.
 7. **Look.** Applied live, in the settings dialog's terms (6.2). Background (None, Swirling
    Lights, Matrix; `backdrop.style`). Animate the background (`backdrop.animate`) and Brightness
    (Low, Medium, High, the scrim presets of section 5 from darkest), both hidden under None. Accent
-   color and Text color as swatches of their presets (`accentColor`, `contentTextColor`). Picking
-   Matrix turns whichever of the two colors is still at its default to the Green preset, to go
-   with the green rain; picking another background turns back only the colors the wizard turned
-   green that are still green, so a color the user chose is never overridden.
+   color as swatches of its presets (`accentColor`), and Text color as an Accent tint swatch, drawn
+   from the accent shown, and a White one (`contentTextColor`). Picking Matrix turns the accent
+   to the Green preset while it is still at its default, to go with the green rain, and the
+   accent tint follows; picking another background turns the accent back only when the wizard
+   turned it green and it is still green, so a color the user chose is never overridden.
 
 ## 5. Readability
 
@@ -1992,7 +1993,7 @@ matches a black fill at that opacity, and it covers the gaps between panes as we
 behind them. Ctrl+Shift+B cycles none, light, and medium presets and saves the choice; an opacity
 of 0 leaves the backdrop undimmed. The None style has no canvas, so nothing is dimmed there.
 
-`scrim.blurPx` (default 0) blurs the whole backdrop in the same filter, under every drawn style
+`scrim.blurPx` (default 1) blurs the whole backdrop in the same filter, under every drawn style
 and at every scrim opacity. The canvas is oversized by twice the blur on each side, since a blur darkens a band
 at the canvas edges as wide as itself, and the oversize pushes that band off screen. Blur over a
 constantly redrawing canvas is the most expensive effect here, hence the default of 0.
@@ -2274,20 +2275,25 @@ it with no pins, and Automatic omits it.
   // panes and behind find highlights' dark text. The dialog offers presets, and shows a hand-edited
   // value as Custom.
   "accentColor": "#4fb3c8",
-  // #rrggbb for content text, read by CSS as --content-fg: scratch panes, the file preview, search
+  // accent or white: content text, read by CSS as --content-fg: scratch panes, the file preview, search
   // results and preview, the Files list, the Git file, commit, and branch lists and diff, the
   // Containers list and logs, and the dashboard's names, values, and clock. Secondary text in those
   // places (line numbers, quotes, sizes, dates) takes dimmer shades of it; toolbars, buttons, and
-  // the dashboard's gray labels stay UI gray, and terminals keep their own foreground. A value below WCAG relative luminance 0.5 falls back to the default so
-  // body text stays readable. The dialog's presets are pale tints of the accent presets' hues, so
-  // the accent stays the most saturated color for links and highlights.
-  "contentTextColor": "#b5d8df",
-  "scrim": { "opacity": 0.5, "blurPx": 0 },
+  // the dashboard's gray labels stay UI gray. Terminals take it only for pure white: the default
+  // foreground, bright white, and 256-color index 231 (plain white and truecolor white are
+  // untouched). accent is 35% of accentColor mixed into #ececec, with the accent's share lowered
+  // as needed to keep WCAG relative luminance at 0.5 or more, so it stays paler than the accent
+  // for links and highlights; white is #e6e6e6. A #rrggbb value loads as white when it is
+  // #e6e6e6 and as accent otherwise; any other value falls back to accent with a notice.
+  "contentTextColor": "accent",
+  "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), or matrix; a missing or invalid value falls back to
   // lights. animate false freezes lights and matrix on a still frame (6.4); none ignores it.
   // maxFps, capacity, mutationRate, zoom, and waitingPulse apply to lights only: maxFps 0 renders
   // at the display's refresh rate, and the rest are the simulation and camera controls (6.2).
-  // matrix.color is #rrggbb (any lightness); matrix.zoom is 0.5 to 3 (the base cell is 20 px);
+  // matrix.color is green (#00ff41) or accent: accentColor at full brightness with its HSV
+  // saturation raised by half, so a gray accent stays gray. A #rrggbb value loads as green when it
+  // is #00ff41 and as accent otherwise. matrix.zoom is 0.5 to 3 (the base cell is 20 px);
   // matrix.speed is a whole number of rain steps per second, 5 to 30; matrix.density (0.25 to 4)
   // scales how often a new drop starts. Out-of-range or invalid values fall back to their defaults.
   "backdrop": {
@@ -2298,7 +2304,7 @@ it with no pins, and Automatic omits it.
     "mutationRate": 0.2,
     "zoom": 2,
     "waitingPulse": false,
-    "matrix": { "color": "#00ff41", "zoom": 1, "speed": 10, "density": 3 }
+    "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 }
   },
   "scrollback": 10000,
   // A shell command that runs this many seconds and finishes unseen marks its terminal done or

@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ACCENT } from './accent';
-import { DEFAULT_CONTENT_TEXT } from './contentText';
 import {
   backgroundColorSaves,
   editorChoices,
   effectiveProfile,
   favoritesToAdd,
   MATRIX_ACCENT,
-  MATRIX_CONTENT_TEXT,
   scrimPresetFor,
   setupSteps,
 } from './setupModel';
@@ -96,41 +94,30 @@ describe('effectiveProfile', () => {
 });
 
 describe('backgroundColorSaves', () => {
-  const defaults = { accent: DEFAULT_ACCENT, text: DEFAULT_CONTENT_TEXT };
-  const none = { accent: false, text: false };
+  const none = { accent: false };
 
-  it('turns default colors green for Matrix', () => {
-    expect(backgroundColorSaves('matrix', defaults, none)).toEqual({
-      saves: [
-        [['accentColor'], MATRIX_ACCENT],
-        [['contentTextColor'], MATRIX_CONTENT_TEXT],
-      ],
-      auto: { accent: true, text: true },
+  it('turns a default accent green for Matrix', () => {
+    expect(backgroundColorSaves('matrix', DEFAULT_ACCENT.toUpperCase(), none)).toEqual({
+      saves: [[['accentColor'], MATRIX_ACCENT]],
+      auto: { accent: true },
     });
   });
 
-  it('leaves a color the user picked alone, comparing without case', () => {
-    expect(backgroundColorSaves('matrix', { accent: '#f0a050', text: DEFAULT_CONTENT_TEXT.toUpperCase() }, none)).toEqual({
-      saves: [[['contentTextColor'], MATRIX_CONTENT_TEXT]],
-      auto: { accent: false, text: true },
-    });
+  it('leaves an accent the user picked alone', () => {
+    expect(backgroundColorSaves('matrix', '#f0a050', none)).toEqual({ saves: [], auto: none });
   });
 
   it('puts back only what it turned green, and only while still green', () => {
-    const green = { accent: MATRIX_ACCENT, text: '#b9d0ed' };
-    expect(backgroundColorSaves('lights', green, { accent: true, text: true })).toEqual({
+    expect(backgroundColorSaves('lights', MATRIX_ACCENT, { accent: true })).toEqual({
       saves: [[['accentColor'], DEFAULT_ACCENT]],
       auto: none,
     });
-    expect(backgroundColorSaves('none', { accent: MATRIX_ACCENT, text: MATRIX_CONTENT_TEXT }, none)).toEqual({
-      saves: [],
-      auto: none,
-    });
+    expect(backgroundColorSaves('lights', '#5b9cf0', { accent: true })).toEqual({ saves: [], auto: none });
+    expect(backgroundColorSaves('none', MATRIX_ACCENT, none)).toEqual({ saves: [], auto: none });
   });
 
-  it('picks the green presets', () => {
+  it('picks the green preset', () => {
     expect(MATRIX_ACCENT).toBe('#6cc487');
-    expect(MATRIX_CONTENT_TEXT).toBe('#bfdec9');
   });
 });
 
