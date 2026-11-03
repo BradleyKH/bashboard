@@ -27,6 +27,8 @@ import { ContainersStore } from './containersStore';
 import { setKindMenuFilter } from './kindMenu';
 import { DashboardPanel } from './dashboardPanel';
 import { lastFolder, paneCards, type PaneCardInput } from './dashboardModel';
+import { hiddenNotice } from './dashboardRevealModel';
+import { chordHint } from './paletteModel';
 import { DebouncedSaver } from './debouncedSaver';
 import { listEditors, openInEditor } from './editors';
 import { ConfirmDialog } from './confirmDialog';
@@ -214,6 +216,11 @@ try {
 function focusTerminal(): void {
   const focused = workspace.panes().find((p) => p.focused);
   if (focused) workspace.focusPane(focused.paneId);
+}
+
+/** The dashboard toggle's current chords, for the edge handle and the hide notice. */
+function toggleKeys(): string | undefined {
+  return chordHint(currentSettings.keybindings, 'toggleDashboard');
 }
 
 function updateFavorites(next: Favorite[]): void {
@@ -580,7 +587,12 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onDragStart: (path, e) => workspace.startDrag({ kind: 'folder', path }, e),
   onShowHelp: () => showHelp(),
   onShowSettings: () => showSettings(),
-  onHide: () => focusTerminal(),
+  onHide: () => {
+    showToast(hiddenNotice(toggleKeys(), currentSettings.dashboard.side));
+    focusTerminal();
+  },
+  onReveal: () => focusTerminal(),
+  toggleKeys: () => toggleKeys(),
   onLeave: () => focusTerminal(),
   onKey: (e): boolean => workspace.runKey(e),
   onOpenLayout: (name) => openLayout(name),

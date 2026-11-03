@@ -57,7 +57,8 @@ function lastSegment(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
-function chordHint(entries: KeybindingEntry[], action: string, direction?: Direction): string | undefined {
+/** Every chord bound to `action` (and `direction`, if given), formatted and comma-separated. */
+export function chordHint(entries: KeybindingEntry[], action: string, direction?: Direction): string | undefined {
   const keys = entries.flatMap((e) => {
     if (e?.action !== action || (direction && e.direction !== direction)) return [];
     const chord = parseChord(String(e.keys ?? ''));

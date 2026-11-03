@@ -1138,7 +1138,10 @@ choice, so actions such as split, find, and close apply to that pane.
 A collapsible panel docked on the side `dashboard.side` names (`right` by default, or `left`;
 an unknown value falls back to `right` with a warning), open on start by default, toggled with
 Ctrl+Shift+S, hidden by a × button at its top right on either side (which also ends a peek),
-and peeking open briefly while hidden when a terminal starts waiting. Open, it narrows the panes
+and peeking open briefly while hidden when a terminal starts waiting. Hiding it with × shows a
+toast naming the toggle's current keys and the edge handle. While the panel is neither open nor
+peeking, the edge handle, a pill in the 8 px gutter on the panel's side at mid-height that widens
+to a chevron on hover, opens it on click, so a user who never learned the shortcut is not stranded. Open, it narrows the panes
 from its side. Dragging its inner edge (its left edge when docked right, its right edge when
 docked left) resizes it, from 280 px (enough for the Repo section's row of buttons on
 one line) up to 60% of the window, and the width is saved with the workspace (section 7); it is

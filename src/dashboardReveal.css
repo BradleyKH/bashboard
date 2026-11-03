@@ -1,0 +1,74 @@
+/* The hidden dashboard's edge handle (docs/design.md section 4.6). It lives in the 8px gutter
+   between the panes and the window edge on the dashboard's side, so at rest it covers no pane. */
+.dashboard-reveal {
+  display: none;
+  position: fixed;
+  top: 50%;
+  right: 0;
+  z-index: 3;
+  width: 8px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px 0 0 4px;
+  transform: translateY(-50%);
+  background: transparent;
+  color: #eef3f5;
+  font: 14px/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: width 120ms ease-out, background-color 120ms ease-out;
+}
+
+body.dashboard-left .dashboard-reveal {
+  right: auto;
+  left: 0;
+  border-radius: 0 4px 4px 0;
+}
+
+body:not(.dashboard-open):not(.dashboard-peek) .dashboard-reveal {
+  display: block;
+}
+
+/* The pill. */
+.dashboard-reveal::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 50%;
+  width: 3px;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* The chevron points toward where the panel will open from. */
+.dashboard-reveal::after {
+  content: '\2039';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+body.dashboard-left .dashboard-reveal::after {
+  content: '\203A';
+}
+
+.dashboard-reveal:is(:hover, :focus-visible) {
+  width: 18px;
+  /* Opaque, since the widened handle covers the pane's border. */
+  background: rgb(6, 12, 18);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+  outline: none;
+}
+
+.dashboard-reveal:is(:hover, :focus-visible)::before {
+  opacity: 0;
+}
+
+.dashboard-reveal:is(:hover, :focus-visible)::after {
+  opacity: 1;
+}

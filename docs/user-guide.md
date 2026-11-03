@@ -266,8 +266,9 @@ its query and options, and a non-empty query runs again as soon as the pane load
 ## Dashboard
 
 The panel opens on the right (or the left, with `dashboard.side`) on start (set
-`dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+S toggles it, as does
-the × button at its top right. F6 moves focus
+`dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+S toggles it. The ×
+button at its top right hides it too, with a notice naming the ways back. While it is hidden, a
+small handle sits on that edge of the window, halfway down; click it to bring the panel back. F6 moves focus
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
 clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,
 and F6 or Escape returns to the pane. Drag its inner

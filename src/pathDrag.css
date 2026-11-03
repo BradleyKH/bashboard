@@ -1,4 +1,4 @@
-/* A terminal or scratch pad under a path drag. Drawn on ::after because ::before is the scrim. */
+/* A terminal or scratch pad under a path drag. */
 .pane.path-drop-target::after {
   content: '';
   position: absolute;

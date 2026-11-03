@@ -15,6 +15,7 @@ import {
 } from './dashboardResize';
 import type { DashboardSide } from './dashboardResize';
 import { DashboardNav } from './dashboardNav';
+import { dashboardRevealHandle } from './dashboardReveal';
 import { DashboardSystem } from './dashboardSystem';
 import {
   DEFAULT_ELEMENT_ORDER,
@@ -76,6 +77,10 @@ export interface DashboardCallbacks
   onShowSettings: () => void;
   /** The hide button closed the panel. */
   onHide?: () => void;
+  /** The edge handle opened the hidden panel. */
+  onReveal?: () => void;
+  /** The toggle's formatted chords, for the edge handle's tooltip. */
+  toggleKeys?: () => string | undefined;
   /** Escape or F6 left the panel; focus goes back to the panes. */
   onLeave?: () => void;
   /** A key pressed in the panel that it does not use itself; true when a workspace action ran. */
@@ -175,6 +180,15 @@ export class DashboardPanel {
       this.hide();
       this.callbacks.onHide?.();
     });
+    document.body.append(
+      dashboardRevealHandle(
+        () => {
+          this.setOpen(true);
+          this.callbacks.onReveal?.();
+        },
+        () => this.callbacks.toggleKeys?.(),
+      ),
+    );
     const resizeHandle = dashboardResizeHandle(
       () => this.shownWidth(),
       (width) => {
