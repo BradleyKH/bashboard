@@ -12,6 +12,7 @@ import { DockOverlay } from './dockOverlay';
 import { DoneTracker } from './doneStatus';
 import { samePath } from './favorites';
 import { FilesPane } from './filesPane';
+import type { FilesSort } from './filesModel';
 import { pathInsertText, pathProfileFor, pinTarget, routeFilesRequest, type FilesRequest } from './filesRouting';
 import {
   applyDock,
@@ -196,7 +197,7 @@ export type PaneSpec =
       container?: { name: string };
     }
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
-  | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean }
+  | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   | { kind: 'git'; root: string; tab?: GitTab }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' };
@@ -1233,7 +1234,14 @@ export class Workspace {
         if (loadScratch && p.scratchId) return { kind: 'scratch', scratchId: p.scratchId, text: scratchLoad(p.scratchId) };
         return { kind: 'scratch' };
       case 'files':
-        return { kind: 'files', folder: p.folder, selected: p.selected, root: p.root, expanded: p.expanded ?? false };
+        return {
+          kind: 'files',
+          folder: p.folder,
+          selected: p.selected,
+          root: p.root,
+          expanded: p.expanded ?? false,
+          sort: p.sort,
+        };
       case 'git':
         return { kind: 'git', root: p.root, tab: p.tab };
       case 'search':
@@ -1311,6 +1319,7 @@ export class Workspace {
         break;
     }
     this.paneViews.set(id, pane);
+    strip.setActions(pane.stripActions ?? null);
     this.openedAt.set(id, Date.now());
     this.refreshStrip(id);
     return pane;
@@ -1478,6 +1487,7 @@ export class Workspace {
       selected: spec.selected,
       root: spec.root,
       expanded: spec.expanded,
+      sort: spec.sort,
       keymap: () => this.config.keymap,
       dispatch: (a) => this.dispatch(a),
       onFocus: () => this.setFocused(id),

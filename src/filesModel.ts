@@ -18,10 +18,65 @@ function byName(a: FileEntry, b: FileEntry): number {
   return folded !== 0 ? folded : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
 }
 
-/** Folders first by name, then files newest modified first (ties by name). */
-export function sortEntries(entries: readonly FileEntry[]): FileEntry[] {
-  const folders = entries.filter((e) => e.isDir).sort(byName);
-  const files = entries.filter((e) => !e.isDir).sort((a, b) => b.modified - a.modified || byName(a, b));
+export type FilesSortKey = 'name' | 'type' | 'modified';
+
+/** The list's order, chosen from the breadcrumb's sort button and saved with the pane. */
+export interface FilesSort {
+  key: FilesSortKey;
+  desc: boolean;
+}
+
+export const FILES_SORT_KEYS: readonly FilesSortKey[] = ['name', 'type', 'modified'];
+
+/** The direction a key starts in when picked: newest first for modified, A to Z otherwise. */
+function startsDesc(key: FilesSortKey): boolean {
+  return key === 'modified';
+}
+
+export const DEFAULT_FILES_SORT: FilesSort = { key: 'modified', desc: true };
+
+/** Picking the active key flips its direction; another key starts in its own direction. */
+export function nextSort(current: FilesSort, key: FilesSortKey): FilesSort {
+  return key === current.key ? { key, desc: !current.desc } : { key, desc: startsDesc(key) };
+}
+
+/** A saved sort, or the default when it is missing or malformed. */
+export function parseFilesSort(raw: unknown): FilesSort {
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_FILES_SORT;
+  const { key, desc } = raw as { key?: unknown; desc?: unknown };
+  if (!FILES_SORT_KEYS.includes(key as FilesSortKey) || typeof desc !== 'boolean') return DEFAULT_FILES_SORT;
+  return { key: key as FilesSortKey, desc };
+}
+
+/** The sort button's text, such as "Modified ↓". */
+export function sortLabel(sort: FilesSort): string {
+  return `${sortKeyLabel(sort.key)} ${sort.desc ? '↓' : '↑'}`;
+}
+
+export function sortKeyLabel(key: FilesSortKey): string {
+  return key === 'name' ? 'Name' : key === 'type' ? 'Type' : 'Modified';
+}
+
+/** The lowercased extension; a dotfile such as `.gitignore` with no other dot has none. */
+function extension(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+}
+
+/**
+ * Folders first, then files in `sort` order with ties by name. Folders sort by name, A to Z,
+ * whatever the key, except that name descending reverses them too.
+ */
+export function sortEntries(entries: readonly FileEntry[], sort: FilesSort = DEFAULT_FILES_SORT): FileEntry[] {
+  const sign = sort.desc ? -1 : 1;
+  const folderSign = sort.key === 'name' && sort.desc ? -1 : 1;
+  const folders = entries.filter((e) => e.isDir).sort((a, b) => folderSign * byName(a, b));
+  const byKey = (a: FileEntry, b: FileEntry): number => {
+    if (sort.key === 'name') return sign * byName(a, b);
+    if (sort.key === 'type') return sign * extension(a.name).localeCompare(extension(b.name)) || byName(a, b);
+    return sign * (a.modified - b.modified) || byName(a, b);
+  };
+  const files = entries.filter((e) => !e.isDir).sort(byKey);
   return [...folders, ...files];
 }
 

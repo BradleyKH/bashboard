@@ -50,12 +50,16 @@ export function titleStripMenuItems(
   return entries;
 }
 
-/** The per-pane title bar: kind button, status dot, title, collapse, zoom, and close buttons (docs/design.md section 4.4). */
+/**
+ * The per-pane title bar: kind button, status dot, title, the pane's own action buttons, then
+ * collapse, zoom, and close (docs/design.md section 4.4).
+ */
 export class TitleStrip {
   readonly el: HTMLElement;
   private readonly kindButton: HTMLButtonElement;
   private readonly dot: HTMLElement;
   private readonly title: HTMLElement;
+  private readonly actions: HTMLElement;
   private readonly zoomButton: HTMLButtonElement;
   private kind: PaneKind;
   private zoom: TitleStripZoomState = { available: false, zoomed: false, attention: false };
@@ -82,6 +86,10 @@ export class TitleStrip {
 
     this.title = document.createElement('span');
     this.title.className = 'strip-title';
+
+    // Always present: it is the spacer that holds collapse, zoom, and close at the right edge.
+    this.actions = document.createElement('div');
+    this.actions.className = 'strip-actions';
 
     this.zoomButton = document.createElement('button');
     this.zoomButton.type = 'button';
@@ -113,7 +121,7 @@ export class TitleStrip {
       this.hooks.onClose();
     });
 
-    this.el.append(this.kindButton, this.dot, this.title, collapse, this.zoomButton, close);
+    this.el.append(this.kindButton, this.dot, this.title, this.actions, collapse, this.zoomButton, close);
 
     // Keeps focus in xterm; pointer events and click handlers are unaffected.
     this.el.addEventListener('mousedown', (e) => e.preventDefault());
@@ -132,6 +140,11 @@ export class TitleStrip {
     const info = paneKindInfo(kind);
     this.kindButton.textContent = info.icon;
     this.kindButton.title = `${info.label}, change pane kind`;
+  }
+
+  /** Shows a pane kind's own buttons after the title; null clears them. */
+  setActions(el: HTMLElement | null): void {
+    this.actions.replaceChildren(...(el ? [el] : []));
   }
 
   setZoom(state: TitleStripZoomState): void {

@@ -7,6 +7,10 @@ import {
   canBack,
   canForward,
   currentFolder,
+  DEFAULT_FILES_SORT,
+  nextSort,
+  parseFilesSort,
+  type FilesSort,
   filterEntries,
   forward,
   listKey,
@@ -32,6 +36,48 @@ describe('sortEntries', () => {
     const input = [file('b', 5), file('a', 5)];
     expect(sortEntries(input).map((e) => e.name)).toEqual(['a', 'b']);
     expect(input[0].name).toBe('b');
+  });
+
+  const mixed = [file('b.ts', 1), file('a.md', 3), file('c.md', 2), file('README', 3), dir('zeta'), dir('Alpha')];
+  const names = (sort: FilesSort) => sortEntries(mixed, sort).map((e) => e.name);
+
+  it('sorts by name either way, folders following only name descending', () => {
+    expect(names({ key: 'name', desc: false })).toEqual(['Alpha', 'zeta', 'a.md', 'b.ts', 'c.md', 'README']);
+    expect(names({ key: 'name', desc: true })).toEqual(['zeta', 'Alpha', 'README', 'c.md', 'b.ts', 'a.md']);
+  });
+
+  it('sorts by extension with ties by name, folders staying A to Z', () => {
+    expect(names({ key: 'type', desc: false })).toEqual(['Alpha', 'zeta', 'README', 'a.md', 'c.md', 'b.ts']);
+    expect(names({ key: 'type', desc: true })).toEqual(['Alpha', 'zeta', 'b.ts', 'a.md', 'c.md', 'README']);
+  });
+
+  it('sorts by modified either way, ties by name', () => {
+    expect(names({ key: 'modified', desc: true })).toEqual(['Alpha', 'zeta', 'a.md', 'README', 'c.md', 'b.ts']);
+    expect(names({ key: 'modified', desc: false })).toEqual(['Alpha', 'zeta', 'b.ts', 'c.md', 'a.md', 'README']);
+  });
+
+  it('treats a dotfile as having no extension', () => {
+    const sorted = sortEntries([file('x.a', 1), file('.gitignore', 1)], { key: 'type', desc: false });
+    expect(sorted.map((e) => e.name)).toEqual(['.gitignore', 'x.a']);
+  });
+});
+
+describe('nextSort', () => {
+  it('flips the active key and starts other keys in their own direction', () => {
+    expect(nextSort(DEFAULT_FILES_SORT, 'modified')).toEqual({ key: 'modified', desc: false });
+    expect(nextSort(DEFAULT_FILES_SORT, 'name')).toEqual({ key: 'name', desc: false });
+    expect(nextSort({ key: 'name', desc: false }, 'name')).toEqual({ key: 'name', desc: true });
+    expect(nextSort({ key: 'name', desc: true }, 'type')).toEqual({ key: 'type', desc: false });
+    expect(nextSort({ key: 'type', desc: false }, 'modified')).toEqual({ key: 'modified', desc: true });
+  });
+});
+
+describe('parseFilesSort', () => {
+  it('keeps a valid sort and falls back otherwise', () => {
+    expect(parseFilesSort({ key: 'type', desc: true })).toEqual({ key: 'type', desc: true });
+    expect(parseFilesSort({ key: 'size', desc: true })).toEqual(DEFAULT_FILES_SORT);
+    expect(parseFilesSort({ key: 'name' })).toEqual(DEFAULT_FILES_SORT);
+    expect(parseFilesSort(undefined)).toEqual(DEFAULT_FILES_SORT);
   });
 });
 

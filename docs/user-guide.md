@@ -50,11 +50,17 @@ title strip lists Files too, and so does the Open menu on dashboard rows (see
 [Dashboard](#dashboard)). A Files pane comes back on relaunch in the same folder with the same
 file selected, and layouts keep it.
 
+The title strip, after the folder's name, has Open in File Explorer, Search in this folder (⌕,
+which opens a Search pane limited to the folder), and Open terminal here, all for the current
+folder.
+
 The left side is a breadcrumb over the list of the current folder, with folders first and then
 files, newest first. The breadcrumb has back and forward buttons (the mouse back and forward
-buttons work over the pane too), the path from the repo root (click a segment to go there), Open
-in File Explorer, Search in this folder (⌕, which opens a Search pane limited to the folder), Open
-terminal here, and a pin button for the folder. Click a row to select and preview it, and press
+buttons work over the pane too), the path from the repo root (click a segment to go there), a
+sort button, zoom buttons for the list, and a pin button for the folder. The sort button sorts
+files by **Name**, **Type** (extension), or **Modified**; pick the current one again to reverse
+it. Folders always stay on top, A to Z (Z to A when you sort by name in reverse). Each Files pane
+keeps its own sort. Click a row to select and preview it, and press
 Enter or double-click to open it: a folder is entered, a file opens in your editor. Ctrl+click
 adds or removes a row, Shift+click (or Shift+Up and Down) selects a range, and Ctrl+A selects
 every row, as in File Explorer. Up and Down move the selection, Backspace goes up a folder, typing filters the list by name (Backspace edits

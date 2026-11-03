@@ -10,6 +10,7 @@ import {
 import { type Layout, close, leaves } from './layout';
 import type { GitTab } from './gitBranchModel';
 import type { PaneKind } from './paneKinds';
+import { parseFilesSort, type FilesSort } from './filesModel';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
 import { type TextZoom, parseTextZoom } from './textZoomStore';
@@ -32,7 +33,7 @@ export type SavedPane = { key: string; collapsed: boolean } & (
    * for, which can be an ancestor of `folder`; absent, it resolves from `folder`. `expanded` is
    * whether the preview filled the pane; absent means false.
    */
-  | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean }
+  | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Changes. */
   | { kind: 'git'; root: string; tab?: GitTab }
   /** `root` is the repo root the pane searches. */
@@ -131,6 +132,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
       selected: typeof raw.selected === 'string' ? raw.selected : null,
       ...(typeof raw.root === 'string' && { root: raw.root }),
       ...(typeof raw.expanded === 'boolean' && { expanded: raw.expanded }),
+      ...(raw.sort !== undefined && { sort: parseFilesSort(raw.sort) }),
     };
   },
   git: (raw, base) => {

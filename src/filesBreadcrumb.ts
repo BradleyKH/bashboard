@@ -1,17 +1,25 @@
-import { attachContextMenu } from './contextMenu';
-import type { MenuEntry } from './contextMenuModel';
-import { FOLDER_ICON } from './folderButton';
-import { breadcrumb, canBack, canForward, type History } from './filesModel';
-import { paneKindInfo } from './paneKinds';
+import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextMenu } from './contextMenu';
+import { item, type MenuEntry } from './contextMenuModel';
+import {
+  breadcrumb,
+  canBack,
+  canForward,
+  DEFAULT_FILES_SORT,
+  FILES_SORT_KEYS,
+  sortKeyLabel,
+  sortLabel,
+  type FilesSort,
+  type FilesSortKey,
+  type History,
+} from './filesModel';
 import { ZoomButtons } from './zoomButtons';
 
 export interface FilesBreadcrumbOptions {
   onBack: () => void;
   onForward: () => void;
   onNavigate: (folder: string) => void;
-  onOpenInExplorer: () => void;
-  onSearchHere: () => void;
-  onOpenTerminalHere: () => void;
+  /** A key was picked from the sort button's menu. */
+  onSort: (key: FilesSortKey) => void;
   /** The list's starting zoom level. */
   zoom: number;
   /** Applies the list's zoom level. */
@@ -29,18 +37,18 @@ export interface FilesBreadcrumbState {
   folder: string;
   history: History;
   pinned: boolean;
+  sort: FilesSort;
 }
 
-/**
- * Back and forward buttons, the path from the repo root, Open in File Explorer, Search in this
- * folder, the list's zoom buttons, Open terminal here, and the pin button.
- */
+/** Back and forward buttons, the path from the repo root, the sort button, the list's zoom buttons, and the pin button. */
 export class FilesBreadcrumb {
   readonly el: HTMLElement;
   private readonly backBtn: HTMLButtonElement;
   private readonly forwardBtn: HTMLButtonElement;
   private readonly trail: HTMLElement;
+  private readonly sortBtn: HTMLButtonElement;
   private readonly pinBtn: HTMLButtonElement;
+  private sort: FilesSort = DEFAULT_FILES_SORT;
 
   constructor(private readonly opts: FilesBreadcrumbOptions) {
     this.el = document.createElement('div');
@@ -49,14 +57,11 @@ export class FilesBreadcrumb {
     this.forwardBtn = this.button('›', 'Forward', opts.onForward);
     this.trail = document.createElement('div');
     this.trail.className = 'files-crumb-trail';
-    const explorer = this.button(FOLDER_ICON, 'Open in File Explorer', opts.onOpenInExplorer);
-    explorer.classList.add('files-crumb-folder');
-    // The Search pane's own icon, so the button reads as opening one.
-    const search = this.button(paneKindInfo('search').icon, 'Search in this folder', opts.onSearchHere);
+    this.sortBtn = this.button('', 'Sort', () => this.toggleSortMenu());
+    this.sortBtn.classList.add('files-crumb-sort');
     const zoom = new ZoomButtons('files-crumb-btn', 'filesList', opts.zoom, opts.onZoom, opts.zoomWheelTarget);
-    const term = this.button('>_', 'Open terminal here', opts.onOpenTerminalHere);
     this.pinBtn = this.button('☆', 'Pin this folder', opts.onTogglePin);
-    this.el.append(this.backBtn, this.forwardBtn, this.trail, explorer, search, zoom.el, term, this.pinBtn);
+    this.el.append(this.backBtn, this.forwardBtn, this.trail, this.sortBtn, zoom.el, this.pinBtn);
     attachContextMenu(this.el, () => ({ entries: opts.folderMenu() }));
   }
 
@@ -66,6 +71,8 @@ export class FilesBreadcrumb {
     this.pinBtn.textContent = state.pinned ? '★' : '☆';
     this.pinBtn.title = state.pinned ? 'Unpin this folder' : 'Pin this folder';
     this.pinBtn.classList.toggle('on', state.pinned);
+    this.sort = state.sort;
+    this.sortBtn.textContent = sortLabel(state.sort);
 
     const crumbs = breadcrumb(state.root, state.folder);
     this.trail.replaceChildren();
@@ -87,6 +94,20 @@ export class FilesBreadcrumb {
       this.trail.append(seg);
     });
     this.trail.scrollLeft = this.trail.scrollWidth;
+  }
+
+  /** Picking the active key flips its direction, so the menu shows that key's current arrow. */
+  private toggleSortMenu(): void {
+    if (isContextMenuOpenFor(this.sortBtn)) {
+      closeContextMenu();
+      return;
+    }
+    const entries = FILES_SORT_KEYS.map((key) =>
+      item(key === this.sort.key ? sortLabel(this.sort) : sortKeyLabel(key), () => this.opts.onSort(key), {
+        checked: key === this.sort.key,
+      }),
+    );
+    openContextMenu(entries, { anchorEl: this.sortBtn, align: 'right' });
   }
 
   private button(label: string, title: string, onClick: () => void): HTMLButtonElement {

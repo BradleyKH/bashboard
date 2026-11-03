@@ -92,6 +92,13 @@ describe('parseSavedTab', () => {
     }
   });
 
+  it('round-trips a Files pane sort, falling back to the default when malformed', () => {
+    const sorted = { ...files('a'), sort: { key: 'name' as const, desc: true } };
+    expect(parseSavedTab({ panes: [sorted], layout: pane('a'), focused: 'a' })?.panes[0]).toEqual(sorted);
+    const bad = parseSavedTab({ panes: [{ ...files('a'), sort: { key: 'size' } }], layout: pane('a'), focused: 'a' });
+    expect(bad?.panes[0]).toEqual({ ...files('a'), sort: { key: 'modified', desc: true } });
+  });
+
   it('drops a Files pane with no folder', () => {
     const { folder: _f, ...bad } = files('b');
     const r = parseSavedTab({ panes: [term('a'), bad], layout: row(pane('a'), pane('b')), focused: 'a' });

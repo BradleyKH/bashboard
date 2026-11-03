@@ -8,6 +8,8 @@ export interface PaneView {
   readonly paneId: string;
   /** A terminal's working directory; null for kinds with no folder. */
   readonly folder: string | null;
+  /** Buttons the title strip shows after the title, for kinds that have their own. */
+  readonly stripActions?: HTMLElement;
   focus(): void;
   setExpanded(expanded: boolean): void;
   cellSize(): CellSize;

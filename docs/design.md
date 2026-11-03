@@ -888,14 +888,16 @@ switching back attaches one again if the budget allows. If the browser drops a W
 (`onContextLoss`), that pane falls back to the DOM renderer instead of going blank.
 
 **Title strip:** the kind menu (4.11), the status dot (4.8), the bound session's name or the
-shell's working directory, then a collapse button, a zoom button (with two or more expanded
+shell's working directory, any buttons of the pane's own kind (`PaneView.stripActions`; the
+Files pane's, 4.12), then a collapse button, a zoom button (with two or more expanded
 panes in the tab, 4.2), and a close button that acts as Ctrl+W (`requestClosePane`); the rest of
 the strip is the drag handle for docking. The status dot's tooltip shows the waiting reason
 (3.3) while the terminal is `waiting`; the strip's text is unchanged. Every pane kind
 has the same strip, with its own title and no status dot. With two or more panes in the tab the strip
 sits in the layout above each terminal. A lone pane's strip is an overlay, so it never reflows
 the terminal; it is invisible until the pointer enters its own top band, so the pointer resting
-elsewhere in the terminal never covers the first row.
+elsewhere in the terminal never covers the first row. The title is cut short with an ellipsis
+before the pane's own buttons give up any room.
 
 **Title strip menu.** A right-click on a title strip of any pane kind opens Change kind (a
 submenu of the kind menu's entries, 4.11), Collapse, Zoom or Restore (only while the zoom button
@@ -1583,7 +1585,7 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
   which for other kinds is the folder's name, a scratch pad's first line, or "Containers".
 - **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder,
-  selected file, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Search pane's
+  selected file, sort, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Search pane's
   repo, query, and options (rerun on restore), and a scratch pad's text. A pane whose folder no
   longer exists opens on a notice naming the path, with the kind menu still available. A Files
   pane restored expanded over a file that is missing or cannot be previewed as text shows its list.
@@ -1591,10 +1593,21 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
 
 ### 4.12 Files and pins
 
-A Files pane shows one folder: on the left, a list with folders first and then files newest
-modified first, under a breadcrumb that leads up to the repo root; on the right, a preview of
-the selected file. The divider between them drags. The list follows the folder on disk
-(`fs_watch`, 3.8).
+A Files pane shows one folder: on the left, a list with folders first and then files, under a
+breadcrumb that leads up to the repo root; on the right, a preview of the selected file. The
+divider between them drags. The list follows the folder on disk (`fs_watch`, 3.8).
+
+**Sort.** A button in the breadcrumb, left of the list's zoom buttons, shows the order (such as
+"Modified ↓") and opens a menu of Name, Type, and Modified, the current one checked
+(`sortEntries`, `nextSort`). Picking the current key reverses it; picking another starts it A to
+Z for Name and Type and newest first for Modified. Type compares extensions, ignoring case (a
+dotfile such as `.gitignore` has none). Ties go by name, A to Z. Folders stay above the files and
+sort by name, A to Z, under every key except Name descending, which reverses them too. A new pane
+starts at Modified, newest first; each pane saves its own sort (4.11).
+
+**Title strip buttons.** After the folder's name, the title strip (4.4) carries Open in File
+Explorer, Search in this folder (described below), and Open terminal here, all for the current
+folder.
 
 The preview depends on the file:
 
@@ -1618,7 +1631,7 @@ selects the current match (in the editor, as the caret's selection).
 
 **Zoom.** The preview toolbar ends in − and + buttons that step the preview's text size through
 browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
-Open in File Explorer and Open terminal here. Ctrl+wheel over the list or the preview steps that
+the sort button and the pin button. Ctrl+wheel over the list or the preview steps that
 one's level too: a mouse notch is one step, and a touchpad pinch adds up its small deltas so it
 steps a level at a time rather than jumping to either end. Each scales from its base size (the
 terminal font size for code and the text editor) and holds while browsing the pane. Every step is
@@ -1665,7 +1678,7 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
 
 - Open terminal here (folders only): a new terminal of the default profile in that folder, as a
   split of the Files pane.
-- Search in this folder (folders only): as the breadcrumb button below.
+- Search in this folder (folders only): as the title strip button below.
 - Open in editor.
 - Copy path.
 - Insert path: pastes the path, relative to the Files pane's root and quoted for the shell of
@@ -1676,9 +1689,7 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
 - Rename: as F2, below.
 - Pin.
 
-The breadcrumb also has an Open terminal here button for the current folder, the list's zoom
-buttons, and, right of Open in File Explorer, a Search in this folder button showing the Search
-pane's kind icon (⌕). It opens a new Search pane (4.14) as a split of the Files pane, on the
+The title strip's Search in this folder button shows the Search pane's kind icon (⌕). It opens a new Search pane (4.14) as a split of the Files pane, on the
 folder's own repo root (`repo_root`, since a Files pane opened outside any repo can browse into
 one), with Files to include set to the folder as an anchored glob (`/src/ui/**`, glob characters
 escaped and a comma standing in as `?`; `folderInclude`), or empty at the repo root, and focuses

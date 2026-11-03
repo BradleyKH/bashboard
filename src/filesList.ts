@@ -1,7 +1,15 @@
 import './filesList.css';
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
-import { fileNameError, filterEntries, listKey, sortEntries, type FileEntry } from './filesModel';
+import {
+  DEFAULT_FILES_SORT,
+  fileNameError,
+  filterEntries,
+  listKey,
+  sortEntries,
+  type FileEntry,
+  type FilesSort,
+} from './filesModel';
 import { renderFileRow } from './fileRow';
 import {
   EMPTY_SELECTION,
@@ -48,6 +56,7 @@ export class FilesList {
   private entries: FileEntry[] = [];
   private sel: FileSelection = EMPTY_SELECTION;
   private filterValue = '';
+  private sort: FilesSort = DEFAULT_FILES_SORT;
   /** The entry whose name field is open; renders wait for it, as they would drop what was typed. */
   private renaming: string | null = null;
 
@@ -114,6 +123,12 @@ export class FilesList {
       this.sel,
       this.entries.map((e) => e.name),
     );
+    this.render();
+  }
+
+  /** Reorders the rows; the selection and filter stay. */
+  setSort(sort: FilesSort): void {
+    this.sort = sort;
     this.render();
   }
 
@@ -220,7 +235,7 @@ export class FilesList {
   }
 
   private visible(): FileEntry[] {
-    return filterEntries(sortEntries(this.entries), this.filterValue);
+    return filterEntries(sortEntries(this.entries, this.sort), this.filterValue);
   }
 
   private visibleNames(): string[] {

@@ -15,21 +15,25 @@ import {
 } from './fileRowMenu';
 import { FilesBreadcrumb } from './filesBreadcrumb';
 import { FilesList } from './filesList';
-import { openFolder } from './folderButton';
+import { FOLDER_ICON, openFolder } from './folderButton';
 import {
   back,
   currentFolder,
+  DEFAULT_FILES_SORT,
   EMPTY_HISTORY,
   forward,
+  nextSort,
   parentWithin,
   visit,
   type FileEntry,
+  type FilesSort,
   type History,
 } from './filesModel';
 import { insertPathText, pinTarget } from './filesRouting';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
+import { paneKindInfo } from './paneKinds';
 import type { PaneView } from './paneView';
 import { fsList, fsMove, fsRename, fsUnwatch, fsWatch, repoRoot } from './repoFiles';
 import type { Settings } from './settings';
@@ -48,6 +52,8 @@ export interface FilesPaneOptions {
   root?: string;
   /** Start with the preview filling the pane (a restored pane whose `selected` is a file). */
   expanded?: boolean;
+  /** The list's order; defaults to newest modified first. */
+  sort?: FilesSort;
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
@@ -105,6 +111,8 @@ function selectionName(folder: string, select: string | null | undefined): strin
 export class FilesPane implements PaneView {
   readonly kind = 'files' as const;
   readonly paneId: string;
+  /** Open in File Explorer, Search in this folder, and Open terminal here, for the title strip. */
+  readonly stripActions: HTMLElement;
   private readonly opts: FilesPaneOptions;
   private readonly host: HTMLElement;
   private readonly body: HTMLElement;
@@ -122,6 +130,7 @@ export class FilesPane implements PaneView {
   private selectedModified: number | null = null;
   private history: History = EMPTY_HISTORY;
   private entries: FileEntry[] = [];
+  private sort: FilesSort;
   private split = 0.4;
   /** The preview fills the pane, with the list, breadcrumb, and divider hidden. */
   private previewExpanded = false;
@@ -144,6 +153,8 @@ export class FilesPane implements PaneView {
     this.rootPath = opts.root ?? opts.folder;
     this.currentPath = opts.folder;
     this.selectedName = selectionName(opts.folder, opts.selected);
+    this.sort = opts.sort ?? DEFAULT_FILES_SORT;
+    this.stripActions = this.buildStripActions();
 
     this.host.style.display = 'flex';
     this.host.style.flexDirection = 'column';
@@ -157,9 +168,7 @@ export class FilesPane implements PaneView {
       onBack: () => this.goBack(),
       onForward: () => this.goForward(),
       onNavigate: (folder) => void this.navigate(folder, null, true),
-      onOpenInExplorer: () => openFolder(this.currentPath),
-      onSearchHere: () => opts.onSearchHere(this.currentPath),
-      onOpenTerminalHere: () => opts.onOpenTerminalHere(this.currentPath),
+      onSort: (key) => this.setSort(nextSort(this.sort, key)),
       zoom: textZoom('filesList'),
       onZoom: (zoom) => this.left.style.setProperty('--files-zoom', String(zoom)),
       zoomWheelTarget: this.left,
@@ -182,6 +191,7 @@ export class FilesPane implements PaneView {
       onDragStart: (entries, e) => this.startRowDrag(entries, e),
       onRename: (entry, newName) => this.renameEntry(entry, newName),
     });
+    this.list.setSort(this.sort);
     this.notice = document.createElement('div');
     this.notice.className = 'files-notice';
     this.notice.hidden = true;
@@ -263,13 +273,44 @@ export class FilesPane implements PaneView {
    * The `files` saved-pane fields; `selected` is the selected entry's name within `folder`, and
    * `expanded` whether the preview fills the pane.
    */
-  saved(): { folder: string; selected: string | null; root: string; expanded: boolean } {
+  saved(): { folder: string; selected: string | null; root: string; expanded: boolean; sort: FilesSort } {
     return {
       folder: this.currentPath,
       selected: this.selectedName,
       root: this.rootPath,
       expanded: this.previewExpanded,
+      sort: this.sort,
     };
+  }
+
+  private setSort(sort: FilesSort): void {
+    this.sort = sort;
+    this.list.setSort(sort);
+    this.renderCrumb();
+    this.opts.onChange();
+  }
+
+  private buildStripActions(): HTMLElement {
+    const el = document.createElement('div');
+    const button = (label: string, title: string, run: () => void, symbol = false): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = symbol ? 'strip-action strip-action-symbol' : 'strip-action';
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        run();
+      });
+      return b;
+    };
+    el.append(
+      button(FOLDER_ICON, 'Open in File Explorer', () => openFolder(this.currentPath), true),
+      // The Search pane's own icon, so the button reads as opening one.
+      button(paneKindInfo('search').icon, 'Search in this folder', () => this.opts.onSearchHere(this.currentPath)),
+      button('>_', 'Open terminal here', () => this.opts.onOpenTerminalHere(this.currentPath)),
+    );
+    return el;
   }
 
   /**
@@ -660,6 +701,7 @@ export class FilesPane implements PaneView {
       folder: this.currentPath,
       history: this.history,
       pinned: this.isPinned(this.currentPath),
+      sort: this.sort,
     });
   }
 
