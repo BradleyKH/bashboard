@@ -4,6 +4,8 @@ export interface GitBranchRowOptions {
   onFetch: () => void;
   onPull: () => void;
   onPush: () => void;
+  /** The branch name was clicked; the pane opens the switcher under it. */
+  onBranchClick: (anchor: HTMLElement) => void;
 }
 
 /** A button label while its operation runs ends in an ellipsis. */
@@ -23,8 +25,11 @@ export class GitBranchRow {
   constructor(opts: GitBranchRowOptions) {
     this.el = document.createElement('div');
     this.el.className = 'git-branch';
-    this.branch = document.createElement('span');
-    this.branch.className = 'git-branch-name';
+    const branch = document.createElement('button');
+    branch.type = 'button';
+    branch.className = 'git-branch-name';
+    branch.addEventListener('click', () => opts.onBranchClick(branch));
+    this.branch = branch;
     this.fetched = document.createElement('span');
     this.fetched.className = 'git-fetched';
     this.fetched.hidden = true;
@@ -39,7 +44,7 @@ export class GitBranchRow {
 
   setBranch(text: string): void {
     this.branch.textContent = text;
-    this.branch.title = text;
+    this.branch.title = `${text}\nClick to switch or create a branch`;
   }
 
   setButtons(buttons: RemoteButtons): void {

@@ -25,6 +25,7 @@ import {
 import { FindBar } from './findBar';
 import { GitPane } from './gitPane';
 import { routeGitRequest } from './gitModel';
+import type { GitTab } from './gitBranchModel';
 import { forget, recentTerminal, touch } from './focusHistory';
 import { DEFAULT_FONT_SIZE, stepFontSize } from './fontSize';
 import { lookup, type Action } from './keymap';
@@ -188,7 +189,7 @@ export type PaneSpec =
     }
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
   | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean }
-  | { kind: 'git'; root: string }
+  | { kind: 'git'; root: string; tab?: GitTab }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' };
 
@@ -1219,7 +1220,7 @@ export class Workspace {
       case 'files':
         return { kind: 'files', folder: p.folder, selected: p.selected, root: p.root, expanded: p.expanded ?? false };
       case 'git':
-        return { kind: 'git', root: p.root };
+        return { kind: 'git', root: p.root, tab: p.tab };
       case 'search':
         return { kind: 'search', root: p.root, query: p.query, options: p.options };
       case 'containers':
@@ -1396,7 +1397,24 @@ export class Workspace {
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
       onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
       onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, [absolute], baseRoot),
+      onInsertText: (text) => this.insertTextIntoTab(id, text),
+      onOpenGit: (root) => this.showGit(root),
+      tab: spec.tab,
     });
+  }
+
+  /** Insert name from a Git pane's branch row: as typed, into the tab's most recently focused terminal. */
+  private insertTextIntoTab(paneId: string, text: string): void {
+    const tab = this.store.tabOf(paneId);
+    const targetId = tab ? recentTerminal(this.focusOrder, tab.panes, (p) => this.terminal(p) !== undefined) : null;
+    const term = targetId ? this.terminal(targetId) : undefined;
+    if (!targetId || !term) {
+      showToast('No terminal in this tab to insert the name into');
+      return;
+    }
+    term.pasteText(text);
+    if (this.store.isCollapsed(targetId)) this.expandPane(targetId);
+    else this.focusPane(targetId);
   }
 
   private createContainers(id: string, host: HTMLElement, expanded: boolean): ContainersPane {

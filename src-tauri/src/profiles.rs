@@ -86,7 +86,7 @@ fn find_pwsh(path_var: &OsStr, program_files: Option<&Path>) -> Option<PathBuf> 
 }
 
 /// Searched once per run: an install made while the app is open shows up after a restart.
-fn detected_pwsh() -> Option<&'static PathBuf> {
+pub(crate) fn detected_pwsh() -> Option<&'static PathBuf> {
     static PWSH_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
     PWSH_PATH
         .get_or_init(|| {
@@ -108,7 +108,7 @@ fn find_windows_powershell(system_root: Option<&Path>) -> Option<PathBuf> {
     .filter(|p| p.is_file())
 }
 
-fn detected_windows_powershell() -> Option<&'static PathBuf> {
+pub(crate) fn detected_windows_powershell() -> Option<&'static PathBuf> {
     static POWERSHELL_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
     POWERSHELL_PATH
         .get_or_init(|| {

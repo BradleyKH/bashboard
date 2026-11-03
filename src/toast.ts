@@ -18,10 +18,38 @@ function getContainer(): HTMLElement {
   return container;
 }
 
-export function showToast(message: string, ms = 6000): void {
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
+/** With `action`, the toast carries one button that runs it and closes the toast. */
+export function showToast(message: string, ms = 6000, action?: ToastAction): void {
   const parent = getContainer();
   const el = document.createElement('div');
   el.textContent = message;
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = action.label;
+    Object.assign(btn.style, {
+      marginLeft: '10px',
+      padding: '1px 8px',
+      border: '1px solid var(--accent)',
+      borderRadius: '3px',
+      background: 'transparent',
+      color: 'inherit',
+      font: 'inherit',
+      cursor: 'pointer',
+    });
+    btn.addEventListener('click', () => {
+      el.remove();
+      action.run();
+    });
+    el.append(btn);
+    // The container ignores the pointer so toasts never block the panes under them.
+    el.style.pointerEvents = 'auto';
+  }
   Object.assign(el.style, {
     maxWidth: '420px',
     padding: '8px 12px',

@@ -1,10 +1,13 @@
 // Pure helpers for the setup wizard (docs/design.md section 4.17).
 
+import { ACCENT_PRESETS, DEFAULT_ACCENT } from './accent';
+import { CONTENT_TEXT_PRESETS, DEFAULT_CONTENT_TEXT } from './contentText';
 import { lastFolder } from './dashboardModel';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
 import { SCRIM_PRESETS } from './scrim';
-import type { ShellIntegrationStatus } from './shellIntegration';
+import type { BackdropStyle } from './settings';
+import { isIntegrationShell, type ShellIntegrationStatus } from './shellIntegration';
 
 export type SetupStep = 'git' | 'shell' | 'shellIntegration' | 'editor' | 'favorites' | 'claude' | 'look';
 
@@ -15,8 +18,13 @@ export interface SetupStepOptions {
   gitBashFound: boolean;
   /** Set once Git is installed from the wizard, which keeps the Git step listed. */
   gitInstalled?: boolean;
-  /** Null when the `.bashrc` state could not be read, which hides that step. */
-  shellIntegrationStatus: ShellIntegrationStatus | null;
+  /** The profile new panes open with (`effectiveProfile`); null when no shells were listed. */
+  defaultShell: string | null;
+  /**
+   * That shell's integration state, 'loading' while it is read. Null when it could not be read,
+   * which hides the step.
+   */
+  shellIntegrationStatus: ShellIntegrationStatus | 'loading' | null;
 }
 
 /** The wizard's element builders, shared with the step renderers in their own files. */
@@ -33,21 +41,37 @@ export interface Choice {
 const DEFAULT_EDITOR: Choice = { value: 'default', label: "The file's default app" };
 
 /**
- * The steps to show, in order: Git only when Git Bash was missing, shell integration only once Git
- * Bash is there and the lines are not current, Claude Code only when detected without the hooks.
+ * The steps to show, in order: Git only when Git Bash was missing, shell integration only when
+ * the default shell takes the lines (not cmd) and they are not current, Claude Code only when
+ * detected without the hooks.
  */
 export function setupSteps(opts: SetupStepOptions): SetupStep[] {
   const steps: SetupStep[] = [];
   if (!opts.gitBashFound) steps.push('git');
   steps.push('shell');
+  const shell = opts.defaultShell;
   const hasBash = opts.gitBashFound || opts.gitInstalled === true;
-  if (hasBash && opts.shellIntegrationStatus !== null && opts.shellIntegrationStatus !== 'installed') {
+  if (
+    shell !== null &&
+    isIntegrationShell(shell) &&
+    (shell !== 'gitBash' || hasBash) &&
+    opts.shellIntegrationStatus !== null &&
+    opts.shellIntegrationStatus !== 'installed'
+  ) {
     steps.push('shellIntegration');
   }
   steps.push('editor', 'favorites');
   if (opts.claudeDetected && !opts.hooksInstalled) steps.push('claude');
   steps.push('look');
   return steps;
+}
+
+/**
+ * The profile a new pane runs: the saved default when it is installed, else the first installed
+ * one, matching `pick` in src-tauri/src/profiles.rs. Null for an empty list.
+ */
+export function effectiveProfile(saved: string, installed: string[]): string | null {
+  return installed.includes(saved) ? saved : (installed[0] ?? null);
 }
 
 /** New favorites for the checked repo paths, without paths already favorited or repeated. */
@@ -78,4 +102,54 @@ export function editorChoices(found: Editor[], saved: string): Choice[] {
     choices.unshift({ value: saved, label: `${saved} (not found)` });
   }
   return choices;
+}
+
+function presetValue(presets: Choice[], label: string): string {
+  const found = presets.find((p) => p.label === label);
+  if (!found) throw new Error(`no ${label} preset`);
+  return found.value;
+}
+
+/** The green presets the Matrix background pairs with, closest to its default rain color. */
+export const MATRIX_ACCENT = presetValue(ACCENT_PRESETS, 'Green');
+export const MATRIX_CONTENT_TEXT = presetValue(CONTENT_TEXT_PRESETS, 'Green');
+
+/** Which colors the wizard switched to green itself, so it may switch them back. */
+export interface AutoColors {
+  accent: boolean;
+  text: boolean;
+}
+
+export type SettingSave = [path: string[], value: string];
+
+const sameColor = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+/**
+ * The color saves that go with picking a background. Matrix turns a still-default accent and
+ * text color green; leaving Matrix puts back only the ones it turned green and that are still
+ * green, so a color the user picked is never overridden.
+ */
+export function backgroundColorSaves(
+  style: BackdropStyle,
+  current: { accent: string; text: string },
+  auto: AutoColors,
+): { saves: SettingSave[]; auto: AutoColors } {
+  const saves: SettingSave[] = [];
+  const next = { ...auto };
+  const pairs = [
+    { key: 'accent', path: ['accentColor'], value: current.accent, base: DEFAULT_ACCENT, green: MATRIX_ACCENT },
+    { key: 'text', path: ['contentTextColor'], value: current.text, base: DEFAULT_CONTENT_TEXT, green: MATRIX_CONTENT_TEXT },
+  ] as const;
+  for (const p of pairs) {
+    if (style === 'matrix') {
+      if (sameColor(p.value, p.base)) {
+        saves.push([[...p.path], p.green]);
+        next[p.key] = true;
+      }
+    } else if (auto[p.key]) {
+      if (sameColor(p.value, p.green)) saves.push([[...p.path], p.base]);
+      next[p.key] = false;
+    }
+  }
+  return { saves, auto: next };
 }

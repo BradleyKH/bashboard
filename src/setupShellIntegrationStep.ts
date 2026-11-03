@@ -1,15 +1,25 @@
+import { profileName } from './profiles';
 import type { SetupStepUi } from './setupModel';
-import type { ShellIntegrationPreview } from './shellIntegration';
+import type { IntegrationShell, ShellIntegrationPreview } from './shellIntegration';
 
 export interface ShellIntegrationStepState {
-  preview: ShellIntegrationPreview;
+  shell: IntegrationShell;
+  /** Undefined while it is read. */
+  preview: ShellIntegrationPreview | undefined;
   installing: boolean;
   done: boolean;
 }
 
+const PURPOSE: Record<IntegrationShell, string> = {
+  gitBash:
+    'These lines let new panes open in the current folder, and let the app tell exactly when a shell is working or idle.',
+  pwsh: 'These lines let new panes open in the current folder.',
+  powershell: 'These lines let new panes open in the current folder.',
+};
+
 /**
- * The setup wizard's shell-integration step: the `.bashrc` lines that report the folder and the
- * prompt to the app (docs/design.md section 4.17).
+ * The setup wizard's shell-integration step, for the shell new panes open with: the `.bashrc`
+ * lines for Git Bash, or the profile lines for PowerShell (docs/design.md section 4.17).
  */
 export function renderShellIntegrationStep(
   content: HTMLElement,
@@ -17,14 +27,15 @@ export function renderShellIntegrationStep(
   ui: SetupStepUi,
   install: () => void,
 ): void {
+  const name = profileName(state.shell);
+  content.append(ui.note(`For ${name}, the shell new panes open with. ${PURPOSE[state.shell]}`));
   const { preview } = state;
-  content.append(
-    ui.note(
-      'These lines let new panes open in the current folder, and let the app tell exactly when a shell is working or idle.',
-    ),
-  );
+  if (!preview) {
+    content.append(ui.note(`Reading the ${name} profile...`));
+    return;
+  }
 
-  const target = ui.note(`${preview.status === 'missing' ? 'Adds to' : 'Updates'} ${preview.bashrcPath}:`);
+  const target = ui.note(`${preview.createsFile ? 'Creates' : preview.status === 'missing' ? 'Adds to' : 'Updates'} ${preview.path}:`);
   const block = document.createElement('pre');
   block.className = 'setup-wizard-block';
   block.textContent = preview.block;
@@ -32,20 +43,19 @@ export function renderShellIntegrationStep(
 
   if (preview.status === 'custom') {
     const err = ui.note(
-      `${preview.bashrcPath} already has customized Bashboard shell integration lines; update them by hand.`,
+      `${preview.path} already has customized Bashboard shell integration lines; update them by hand.`,
     );
     err.classList.add('setup-wizard-error');
     content.append(err);
     return;
   }
 
-  if (preview.createsBashrc) content.append(ui.note(`${preview.bashrcPath} does not exist yet, so it is created.`));
-  else content.append(ui.note('The current file is backed up to ~/.bashrc.bashboard-backup first.'));
+  if (!preview.createsFile) content.append(ui.note(`The current file is backed up to ${preview.path}.bashboard-backup first.`));
   if (preview.createsBashProfile) {
     content.append(ui.note('~/.bash_profile is created too, so login shells read ~/.bashrc.'));
   }
-  if (preview.bashProfileWarning) {
-    const warn = ui.note(preview.bashProfileWarning);
+  if (preview.warning) {
+    const warn = ui.note(preview.warning);
     warn.classList.add('setup-wizard-error');
     content.append(warn);
   }
@@ -56,11 +66,11 @@ export function renderShellIntegrationStep(
     const done = document.createElement('span');
     done.className = 'setup-wizard-done';
     const cmd = document.createElement('code');
-    cmd.textContent = 'source ~/.bashrc';
+    cmd.textContent = state.shell === 'gitBash' ? 'source ~/.bashrc' : '. $PROFILE';
     done.append('Added. Panes opened from now on use it; run ', cmd, ' in panes already open.');
     actions.append(done);
   } else {
-    const add = ui.button('Add to .bashrc', install);
+    const add = ui.button(state.shell === 'gitBash' ? 'Add to .bashrc' : 'Add to profile', install);
     add.classList.add('setup-wizard-primary');
     add.disabled = state.installing;
     actions.append(add);

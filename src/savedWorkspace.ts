@@ -6,6 +6,7 @@ import {
   parseTopElements,
 } from './dashboardSections';
 import { type Layout, close, leaves } from './layout';
+import type { GitTab } from './gitBranchModel';
 import type { PaneKind } from './paneKinds';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
@@ -30,8 +31,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
    * whether the preview filled the pane; absent means false.
    */
   | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean }
-  /** `root` is the repo root the pane shows. */
-  | { kind: 'git'; root: string }
+  /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Changes. */
+  | { kind: 'git'; root: string; tab?: GitTab }
   /** `root` is the repo root the pane searches. */
   | { kind: 'search'; root: string; query: string; options: SearchOptions }
   /** The Containers pane saves no state; its containers come from the engines. */
@@ -135,7 +136,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
   },
   git: (raw, base) => {
     if (typeof raw.root !== 'string') return null;
-    return { ...base, kind: 'git', root: raw.root };
+    return { ...base, kind: 'git', root: raw.root, ...(raw.tab === 'branches' && { tab: 'branches' as const }) };
   },
   search: (raw, base) => {
     if (typeof raw.root !== 'string') return null;

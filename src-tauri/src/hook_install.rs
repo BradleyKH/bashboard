@@ -123,7 +123,7 @@ fn merge(settings: &mut Value, additions: &Map<String, Value>) -> Result<(), Str
 }
 
 /// Writes `<name>.tmp` then renames it over the target, so a crash never leaves a torn file.
-pub(crate) fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
+pub(crate) fn write_atomic(path: &Path, text: impl AsRef<[u8]>) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }

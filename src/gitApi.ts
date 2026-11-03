@@ -136,3 +136,77 @@ export function gitFetchVisible(visible: boolean): Promise<void> {
 export function onGitFetched(cb: (roots: string[]) => void): Promise<UnlistenFn> {
   return listen<{ roots: string[] }>('git://fetched', (e) => cb(e.payload.roots));
 }
+
+export interface GitLocalBranch {
+  name: string;
+  /** Checked out in this worktree. */
+  head: boolean;
+  upstream: string | null;
+  /** The upstream is configured but its remote branch was deleted. */
+  gone: boolean;
+  ahead: number;
+  behind: number;
+  /** Epoch ms of the tip commit. */
+  time: number;
+  subject: string;
+  /** The other worktree that has it checked out, else null. */
+  worktree: string | null;
+}
+
+export interface GitRemoteBranch {
+  /** `origin/feature/x`. */
+  name: string;
+  remote: string;
+  /** The name a local copy gets. */
+  branch: string;
+  time: number;
+  subject: string;
+}
+
+export interface GitBranchList {
+  /** The current branch first, then newest first. */
+  local: GitLocalBranch[];
+  /** Only remote branches with no local copy. */
+  remote: GitRemoteBranch[];
+}
+
+export interface GitDeleteOutcome {
+  deleted: boolean;
+  /** The tip the branch pointed at, for Restore. */
+  hash: string;
+  /** Set when `branch -d` refused: the commits no other ref holds. */
+  unmerged: number | null;
+}
+
+export function gitBranches(root: string): Promise<GitBranchList> {
+  return invoke<GitBranchList>('git_branches', { root });
+}
+
+/** Rejects with git's output, as when uncommitted changes would be overwritten. */
+export function gitSwitch(root: string, name: string): Promise<void> {
+  return invoke<void>('git_switch', { root, name });
+}
+
+/** Creates a local branch tracking `name` (`origin/x`) and switches to it. */
+export function gitCheckoutRemote(root: string, name: string): Promise<void> {
+  return invoke<void>('git_checkout_remote', { root, name });
+}
+
+/** `base` is a local branch, or null for HEAD. The new branch has no upstream. */
+export function gitCreateBranch(root: string, name: string, base: string | null, switchTo: boolean): Promise<void> {
+  return invoke<void>('git_create_branch', { root, name, base, switchTo });
+}
+
+/** Resolves to whether the branch's upstream was cleared. */
+export function gitRenameBranch(root: string, from: string, to: string): Promise<boolean> {
+  return invoke<{ upstreamCleared: boolean }>('git_rename_branch', { root, from, to }).then((r) => r.upstreamCleared);
+}
+
+/** Without `force`, an unmerged branch is kept and reported in `unmerged`. */
+export function gitDeleteBranch(root: string, name: string, force: boolean): Promise<GitDeleteOutcome> {
+  return invoke<GitDeleteOutcome>('git_delete_branch', { root, name, force });
+}
+
+export function gitRestoreBranch(root: string, name: string, hash: string): Promise<void> {
+  return invoke<void>('git_restore_branch', { root, name, hash });
+}

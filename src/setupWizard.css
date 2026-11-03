@@ -175,6 +175,45 @@
   color: #eef3f5;
 }
 
+.setup-wizard-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The flex rules above would otherwise override the hidden attribute. */
+.setup-wizard-field[hidden],
+.setup-wizard-choice[hidden] {
+  display: none;
+}
+
+.setup-wizard-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setup-wizard-swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* The ring is drawn in the panel's own color first, so it reads against any swatch. */
+.setup-wizard-swatch[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px #060c12,
+    0 0 0 4px #eef3f5;
+}
+
+.setup-wizard-swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
 .setup-wizard-actions {
   display: flex;
   align-items: center;

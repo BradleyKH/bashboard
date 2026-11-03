@@ -124,15 +124,18 @@ JSON you can edit by hand, and the panel updates when you save it.
 
 ## Git pane
 
-A Git pane shows a repo's status and lets you stage, commit, and undo the last commit without
-leaving Bashboard. Ctrl+Shift+G (the `openGit` action) opens one at the root of the focused pane's
+A Git pane shows a repo's status and lets you stage, commit, undo the last commit, and manage
+branches without leaving Bashboard. Ctrl+Shift+G (the `openGit` action) opens one at the root of the focused pane's
 repo, as a split of the focused pane. When the active tab already has a Git pane for that repo,
 Ctrl+Shift+G focuses it instead (expanding it if collapsed). In a folder outside a repo,
 Ctrl+Shift+G shows a toast and opens nothing. The kind menu on a title strip lists Git too, and so
 do the Repo section and the Open menu on dashboard rows, which offer Git only for a git repo (see
-[Dashboard](#dashboard)). A Git pane comes back on relaunch on the same repo, and layouts keep it.
+[Dashboard](#dashboard)). A Git pane comes back on relaunch on the same repo and tab, and layouts
+keep it.
 
-The left side stacks four regions, and the diff for the selected file or commit sits on the right:
+Across the top, the branch line sits beside the **Changes** and **Branches** tabs. In Changes, the
+commit box, file lists, and recent commits stack on the left, and the diff for the selected file
+or commit sits on the right:
 
 - **Branch line** shows the branch, its upstream, and how many commits it is ahead and behind. A
   detached HEAD is shown as such. It also holds a last fetch label ("Fetched 3 min ago", or "Fetch
@@ -142,7 +145,10 @@ The left side stacks four regions, and the diff for the selected file or commit 
   it reads **Publish** and pushes to `origin` (or the repo's only remote) and sets the upstream.
   Publish is disabled, with a tooltip, in a repo with no remote or with several and none named
   `origin`. The three buttons are disabled while one runs, and a failure shows git's output under
-  the commit box.
+  the commit box. Click the branch name for the **branch switcher**: type to filter, Up and Down
+  to move, Enter to switch. Remote branches are listed after local ones, and picking one checks it
+  out. When what you typed is a new valid name, the last row creates that branch from HEAD and
+  switches to it.
 - **Commit box** takes a multi-line message. Commit is enabled when something is staged and the
   message is not blank. Ctrl+Enter in the box also commits. Commit runs the repo's hooks as usual,
   so a failing `pre-commit` hook stops the commit: its output shows under the box and your message
@@ -176,6 +182,35 @@ message goes back into the commit box, ready to edit and commit again. The undo 
 reason shows beside the button, when HEAD has moved since the pane loaded, the commit has no
 parent, or a merge, rebase, cherry-pick, or revert is in
 progress.
+
+### Branches tab
+
+The Branches tab lists your local branches, the current one first and the rest newest first, and
+under them a collapsed **Remote** section of remote branches you have no local copy of. Each row
+shows the branch's last commit and how far it is ahead (↑) or behind (↓) its upstream. A **gone**
+badge means its remote branch was deleted, usually because its pull request was merged. A
+**worktree** badge means another worktree has it checked out; git won't switch to or delete such a
+branch, so its row offers **Open**, which opens a Git pane on that worktree.
+
+- **Filter or create.** Typing in the field at the top filters both lists (and opens Remote).
+  Press Enter, or New branch, to create a branch with that name and switch to it. It starts with
+  no upstream, so Push reads Publish. Right-click a branch and choose **New branch from here** to
+  base the new branch on it; the chip beside the field shows the base, and clicking it goes back
+  to HEAD.
+- **Switch** (or double-click, or Enter). With uncommitted changes that the switch would
+  overwrite, git refuses and its message shows above the list. Bashboard never stashes for you.
+- **Rename** (or F2) edits the name in place; Enter saves and Escape cancels. A branch with an
+  upstream loses it on rename, since the upstream would still point at the old name, and Push reads
+  Publish.
+- **Delete** (or the Delete key) removes a merged branch straight away. For an unmerged one, a
+  confirm says how many commits are on no other branch before you choose Delete anyway.
+- **Clean up N gone** deletes every gone branch at once, after a confirm that lists them. A
+  squash-merged branch looks unmerged to git, so these are deleted even when unmerged.
+- **Check out** on a remote branch creates a local branch that tracks it and switches to it.
+
+After a delete or clean-up, a toast offers **Restore** for a few seconds, putting the branches back
+where they were. A right-click on a row also offers Copy name and Insert name, which types the name
+into the tab's most recent terminal.
 
 The pane refreshes when git changes the repo's `HEAD`, index, or refs (the watcher skips the
 `objects` folder, and changes are debounced about 300 ms), when its window regains focus, and when

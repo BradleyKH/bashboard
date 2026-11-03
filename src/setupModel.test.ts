@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { editorChoices, favoritesToAdd, scrimPresetFor, setupSteps } from './setupModel';
+import { DEFAULT_ACCENT } from './accent';
+import { DEFAULT_CONTENT_TEXT } from './contentText';
+import {
+  backgroundColorSaves,
+  editorChoices,
+  effectiveProfile,
+  favoritesToAdd,
+  MATRIX_ACCENT,
+  MATRIX_CONTENT_TEXT,
+  scrimPresetFor,
+  setupSteps,
+} from './setupModel';
 
 describe('setupSteps', () => {
-  const base = { gitBashFound: true, shellIntegrationStatus: 'installed' as const };
+  const base = { gitBashFound: true, defaultShell: 'gitBash', shellIntegrationStatus: 'installed' as const };
 
   it('includes claude only when detected and not installed', () => {
     expect(setupSteps({ ...base, claudeDetected: true, hooksInstalled: false })).toEqual([
@@ -18,34 +29,108 @@ describe('setupSteps', () => {
   });
 
   const hooks = { claudeDetected: false, hooksInstalled: false };
+  const bash = { ...hooks, gitBashFound: true, defaultShell: 'gitBash' };
 
   it('puts git first only when Git Bash is not found', () => {
-    expect(setupSteps({ ...hooks, gitBashFound: false, shellIntegrationStatus: null })).toEqual([
-      'git', 'shell', 'editor', 'favorites', 'look',
-    ]);
+    expect(
+      setupSteps({ ...hooks, gitBashFound: false, defaultShell: 'cmd', shellIntegrationStatus: null }),
+    ).toEqual(['git', 'shell', 'editor', 'favorites', 'look']);
   });
 
   it('shows shell integration after shell unless installed or unknown', () => {
-    for (const status of ['missing', 'outdated', 'handAdded', 'custom'] as const) {
-      expect(setupSteps({ ...hooks, gitBashFound: true, shellIntegrationStatus: status })).toEqual([
+    for (const status of ['missing', 'outdated', 'handAdded', 'custom', 'loading'] as const) {
+      expect(setupSteps({ ...bash, shellIntegrationStatus: status })).toEqual([
         'shell', 'shellIntegration', 'editor', 'favorites', 'look',
       ]);
     }
-    expect(setupSteps({ ...hooks, gitBashFound: true, shellIntegrationStatus: null })).toEqual([
+    expect(setupSteps({ ...bash, shellIntegrationStatus: null })).toEqual([
       'shell', 'editor', 'favorites', 'look',
     ]);
   });
 
-  it('hides shell integration while Git Bash is missing', () => {
-    expect(setupSteps({ ...hooks, gitBashFound: false, shellIntegrationStatus: 'missing' })).toEqual([
-      'git', 'shell', 'editor', 'favorites', 'look',
-    ]);
+  it('follows the default shell: PowerShell takes the step, cmd never does', () => {
+    for (const shell of ['pwsh', 'powershell']) {
+      expect(setupSteps({ ...bash, defaultShell: shell, shellIntegrationStatus: 'missing' })).toContain(
+        'shellIntegration',
+      );
+    }
+    expect(setupSteps({ ...bash, defaultShell: 'cmd', shellIntegrationStatus: 'missing' })).not.toContain(
+      'shellIntegration',
+    );
+    expect(setupSteps({ ...bash, defaultShell: null, shellIntegrationStatus: 'missing' })).not.toContain(
+      'shellIntegration',
+    );
+  });
+
+  it('offers PowerShell lines while Git Bash is missing', () => {
+    expect(
+      setupSteps({ ...hooks, gitBashFound: false, defaultShell: 'pwsh', shellIntegrationStatus: 'missing' }),
+    ).toEqual(['git', 'shell', 'shellIntegration', 'editor', 'favorites', 'look']);
+  });
+
+  it('hides Git Bash integration while Git Bash is missing', () => {
+    expect(
+      setupSteps({ ...hooks, gitBashFound: false, defaultShell: 'gitBash', shellIntegrationStatus: 'missing' }),
+    ).toEqual(['git', 'shell', 'editor', 'favorites', 'look']);
   });
 
   it('keeps git and adds shell integration once Git is installed from the wizard', () => {
     expect(
-      setupSteps({ ...hooks, gitBashFound: false, gitInstalled: true, shellIntegrationStatus: 'missing' }),
+      setupSteps({
+        ...hooks,
+        gitBashFound: false,
+        gitInstalled: true,
+        defaultShell: 'gitBash',
+        shellIntegrationStatus: 'missing',
+      }),
     ).toEqual(['git', 'shell', 'shellIntegration', 'editor', 'favorites', 'look']);
+  });
+});
+
+describe('effectiveProfile', () => {
+  it('keeps an installed saved profile, else takes the first installed one', () => {
+    expect(effectiveProfile('pwsh', ['gitBash', 'pwsh', 'cmd'])).toBe('pwsh');
+    expect(effectiveProfile('gitBash', ['pwsh', 'powershell', 'cmd'])).toBe('pwsh');
+    expect(effectiveProfile('gitBash', [])).toBeNull();
+  });
+});
+
+describe('backgroundColorSaves', () => {
+  const defaults = { accent: DEFAULT_ACCENT, text: DEFAULT_CONTENT_TEXT };
+  const none = { accent: false, text: false };
+
+  it('turns default colors green for Matrix', () => {
+    expect(backgroundColorSaves('matrix', defaults, none)).toEqual({
+      saves: [
+        [['accentColor'], MATRIX_ACCENT],
+        [['contentTextColor'], MATRIX_CONTENT_TEXT],
+      ],
+      auto: { accent: true, text: true },
+    });
+  });
+
+  it('leaves a color the user picked alone, comparing without case', () => {
+    expect(backgroundColorSaves('matrix', { accent: '#f0a050', text: DEFAULT_CONTENT_TEXT.toUpperCase() }, none)).toEqual({
+      saves: [[['contentTextColor'], MATRIX_CONTENT_TEXT]],
+      auto: { accent: false, text: true },
+    });
+  });
+
+  it('puts back only what it turned green, and only while still green', () => {
+    const green = { accent: MATRIX_ACCENT, text: '#b9d0ed' };
+    expect(backgroundColorSaves('lights', green, { accent: true, text: true })).toEqual({
+      saves: [[['accentColor'], DEFAULT_ACCENT]],
+      auto: none,
+    });
+    expect(backgroundColorSaves('none', { accent: MATRIX_ACCENT, text: MATRIX_CONTENT_TEXT }, none)).toEqual({
+      saves: [],
+      auto: none,
+    });
+  });
+
+  it('picks the green presets', () => {
+    expect(MATRIX_ACCENT).toBe('#6cc487');
+    expect(MATRIX_CONTENT_TEXT).toBe('#bfdec9');
   });
 });
 

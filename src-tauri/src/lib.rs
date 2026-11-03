@@ -6,6 +6,7 @@ mod editors;
 mod files;
 mod fonts;
 mod git;
+mod git_branches;
 mod git_fetch;
 mod git_install;
 mod git_watch;
@@ -188,6 +189,13 @@ pub fn run() {
             git::git_show,
             git::git_commit,
             git::git_undo_commit,
+            git_branches::git_branches,
+            git_branches::git_switch,
+            git_branches::git_checkout_remote,
+            git_branches::git_create_branch,
+            git_branches::git_rename_branch,
+            git_branches::git_delete_branch,
+            git_branches::git_restore_branch,
             git_fetch::git_fetch,
             git_fetch::git_pull,
             git_fetch::git_push,

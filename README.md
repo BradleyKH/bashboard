@@ -39,13 +39,15 @@ Bashboard runs the tools you already use:
 3. **Optional:** Docker Desktop or Podman for the dashboard's containers list.
 
 On first launch, a setup wizard walks through installing Git when it is missing, the default
-shell, adding the `~/.bashrc` lines that let new panes open in the current folder (see
+shell, adding the lines that let new panes open in the current folder to that shell's
+`~/.bashrc` or PowerShell profile (see
 [New panes in the current folder](docs/setup.md#new-panes-in-the-current-folder)), the editor,
-favorite repos, Claude Code hooks, and look. Each choice saves as soon as you make it, and
-**Run setup** in the settings dialog reopens the wizard. The Git step appears only when Git Bash
-is missing, the shell integration step only when `~/.bashrc` does not already hold the current
-lines, and the Claude Code hooks step only when Claude Code is detected and the hooks are not yet
-installed.
+favorite repos, Claude Code hooks, and the look: the background, its brightness, and the accent
+and text colors. Each choice saves as soon as you make it, and **Run setup** in the settings
+dialog reopens the wizard. The Git step appears only when Git Bash is missing, the shell
+integration step only when the default shell is Git Bash or PowerShell and its file does not
+already hold the current lines, and the Claude Code hooks step only when Claude Code is detected
+and the hooks are not yet installed.
 
 WebView2 comes with Windows 11; on a machine without it, the installer downloads it. Uninstall
 from **Settings > Apps > Installed apps**.

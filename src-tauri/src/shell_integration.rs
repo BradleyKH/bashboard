@@ -1,19 +1,25 @@
-//! Installs the shell integration lines (OSC 133 markers and OSC 9;9 working directory) into
-//! `~/.bashrc` (docs/design.md section 3.14). The file work runs over an injectable home
-//! directory so tests never touch the real one; the Tauri commands resolve home and delegate.
+//! Installs the shell integration lines into a shell's startup file (docs/design.md section
+//! 3.14): the OSC 133 markers and OSC 9;9 working directory into Git Bash's `~/.bashrc`, and the
+//! OSC 9;9 prompt wrapper into a PowerShell profile (`powershell`). Both files take the same
+//! marked block, so the classify-and-rewrite logic is shared and each shell supplies a `Flavor`.
+//! The file work runs over injectable paths so tests never touch the real ones; the Tauri
+//! commands resolve them and delegate.
+
+mod powershell;
 
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
 use crate::hook_install::write_atomic;
+use crate::profiles::{GIT_BASH, POWERSHELL, PWSH};
 
 const BEGIN: &str = "# >>> bashboard shell integration >>>";
 const END: &str = "# <<< bashboard shell integration <<<";
 
 /// Must stay byte-identical to docs/setup.md's "New panes in the current folder" block; a test
 /// enforces it.
-const SNIPPET: &str = r#"PS0="${PS0-}"'\e]133;C\e\\'
+const BASH_SNIPPET: &str = r#"PS0="${PS0-}"'\e]133;C\e\\'
 __bashboard_prompt() {
   local status=$?
   printf '\e]133;D;%s\e\\' "$status"
@@ -24,7 +30,25 @@ PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 "#;
 
 const BASH_PROFILE: &str = "test -f ~/.profile && . ~/.profile\ntest -f ~/.bashrc && . ~/.bashrc\n";
-const BACKUP_NAME: &str = ".bashrc.bashboard-backup";
+const BACKUP_SUFFIX: &str = ".bashboard-backup";
+
+/// What differs between the shells' startup files.
+struct Flavor {
+    snippet: &'static str,
+    /// Earlier published snippets, recognized when pasted by hand and replaced by the current one.
+    older: &'static [&'static str],
+    /// A line outside the block that shows the user wrote their own version of the lines.
+    is_custom_line: fn(&str) -> bool,
+    /// How errors name the file.
+    file_label: &'static str,
+}
+
+const BASH: Flavor = Flavor {
+    snippet: BASH_SNIPPET,
+    older: &[],
+    is_custom_line: defines_bash_prompt_fn,
+    file_label: "~/.bashrc",
+};
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -39,21 +63,22 @@ pub enum Status {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
-    pub bashrc_path: String,
+    /// The profile id the lines are for: gitBash, pwsh, or powershell.
+    pub shell: String,
+    /// The file the install writes.
+    pub path: String,
     pub status: Status,
     pub block: String,
-    pub creates_bashrc: bool,
+    pub creates_file: bool,
+    /// Git Bash only: `~/.bash_profile` is missing, so the install creates it.
     pub creates_bash_profile: bool,
-    pub bash_profile_warning: Option<String>,
+    /// Something outside the file that keeps the lines from running, with how to fix it.
+    pub warning: Option<String>,
 }
 
 /// The marked block, LF line endings.
-fn block() -> String {
-    format!("{BEGIN}\n{SNIPPET}{END}\n")
-}
-
-fn snippet_lines() -> Vec<&'static str> {
-    SNIPPET.lines().collect()
+fn block(f: &Flavor) -> String {
+    format!("{BEGIN}\n{}{END}\n", f.snippet)
 }
 
 /// Lines with their endings kept, so untouched lines are rewritten byte for byte.
@@ -81,17 +106,21 @@ fn marked_range(lines: &[&str]) -> Option<Result<(usize, usize), ()>> {
     Some(end.map(|end| (begin, end)).ok_or(()))
 }
 
-/// The index range of the snippet appearing verbatim, last line inclusive.
-fn verbatim_range(lines: &[&str]) -> Option<(usize, usize)> {
-    let want = snippet_lines();
-    lines
-        .windows(want.len())
-        .position(|w| w.iter().zip(&want).all(|(l, s)| content(l) == *s))
-        .map(|start| (start, start + want.len() - 1))
+/// The index range of the current or an older snippet appearing verbatim, last line inclusive.
+fn verbatim_range(f: &Flavor, lines: &[&str]) -> Option<(usize, usize)> {
+    std::iter::once(f.snippet)
+        .chain(f.older.iter().copied())
+        .find_map(|snippet| {
+            let want: Vec<&str> = snippet.lines().collect();
+            lines
+                .windows(want.len())
+                .position(|w| w.iter().zip(&want).all(|(l, s)| content(l) == *s))
+                .map(|start| (start, start + want.len() - 1))
+        })
 }
 
-fn defines_prompt_fn(line: &str) -> bool {
-    let line = content(line).trim_start();
+fn defines_bash_prompt_fn(line: &str) -> bool {
+    let line = line.trim_start();
     let line = line
         .strip_prefix("function ")
         .map(str::trim_start)
@@ -101,8 +130,8 @@ fn defines_prompt_fn(line: &str) -> bool {
     })
 }
 
-/// Classifies the current `.bashrc` text; `None` means the file does not exist.
-pub fn status(text: Option<&str>) -> Status {
+/// Classifies the file's current text; `None` means the file does not exist.
+fn status(f: &Flavor, text: Option<&str>) -> Status {
     let Some(text) = text else {
         return Status::Missing;
     };
@@ -110,7 +139,7 @@ pub fn status(text: Option<&str>) -> Status {
     match marked_range(&lines) {
         Some(Ok((begin, end))) => {
             let inner: Vec<&str> = lines[begin + 1..end].iter().map(|l| content(l)).collect();
-            return if inner == snippet_lines() {
+            return if inner == f.snippet.lines().collect::<Vec<_>>() {
                 Status::Installed
             } else {
                 Status::Outdated
@@ -119,48 +148,50 @@ pub fn status(text: Option<&str>) -> Status {
         Some(Err(())) => return Status::Custom,
         None => {}
     }
-    if verbatim_range(&lines).is_some() {
+    if verbatim_range(f, &lines).is_some() {
         return Status::HandAdded;
     }
-    if lines.iter().any(|l| defines_prompt_fn(l)) {
+    if lines.iter().any(|l| (f.is_custom_line)(content(l))) {
         return Status::Custom;
     }
     Status::Missing
 }
 
-fn block_with(eol: &str) -> String {
+fn block_with(f: &Flavor, eol: &str) -> String {
     if eol == "\n" {
-        block()
+        block(f)
     } else {
-        block().replace('\n', eol)
+        block(f).replace('\n', eol)
     }
 }
 
-fn replace_range(lines: &[&str], (start, end): (usize, usize), eol: &str) -> String {
+fn replace_range(f: &Flavor, lines: &[&str], (start, end): (usize, usize), eol: &str) -> String {
     let mut out: String = lines[..start].concat();
-    out.push_str(&block_with(eol));
+    out.push_str(&block_with(f, eol));
     out.push_str(&lines[end + 1..].concat());
     out
 }
 
-/// The new `.bashrc` text, keeping the file's line endings. Errors for hand-customized lines.
-pub fn apply(text: Option<&str>) -> Result<String, String> {
+/// The file's new text, keeping its line endings. Errors for hand-customized lines.
+fn apply(f: &Flavor, text: Option<&str>) -> Result<String, String> {
     let current = text.unwrap_or("");
     let eol = if uses_crlf(current) { "\r\n" } else { "\n" };
     let lines = split_lines(current);
-    match status(text) {
+    match status(f, text) {
         Status::Installed => Ok(current.to_string()),
-        Status::Custom => Err(
-            "~/.bashrc already has customized Bashboard shell integration lines; update them by hand."
-                .into(),
-        ),
+        Status::Custom => Err(format!(
+            "{} already has customized Bashboard shell integration lines; update them by hand.",
+            f.file_label
+        )),
         Status::Outdated => {
-            let Some(Ok(range)) = marked_range(&lines) else { unreachable!() };
-            Ok(replace_range(&lines, range, eol))
+            let Some(Ok(range)) = marked_range(&lines) else {
+                unreachable!()
+            };
+            Ok(replace_range(f, &lines, range, eol))
         }
         Status::HandAdded => {
-            let range = verbatim_range(&lines).expect("status found the snippet");
-            Ok(replace_range(&lines, range, eol))
+            let range = verbatim_range(f, &lines).expect("status found the snippet");
+            Ok(replace_range(f, &lines, range, eol))
         }
         Status::Missing => {
             let mut out = current.to_string();
@@ -172,10 +203,17 @@ pub fn apply(text: Option<&str>) -> Result<String, String> {
                     out.push_str(eol);
                 }
             }
-            out.push_str(&block_with(eol));
+            out.push_str(&block_with(f, eol));
             Ok(out)
         }
     }
+}
+
+/// `<file>.bashboard-backup` beside the file.
+fn backup_path(file: &Path) -> PathBuf {
+    let mut name = file.file_name().unwrap_or_default().to_os_string();
+    name.push(BACKUP_SUFFIX);
+    file.with_file_name(name)
 }
 
 /// Git Bash's own rule: `HOME`, falling back to `USERPROFILE`.
@@ -225,25 +263,26 @@ fn bash_profile_state(home: &Path) -> Result<(bool, Option<String>), String> {
     })
 }
 
-fn preview_in(home: &Path) -> Result<Preview, String> {
+fn bash_preview_in(home: &Path) -> Result<Preview, String> {
     let bashrc = home.join(".bashrc");
     let text = read_bashrc(&bashrc)?;
-    let (creates_bash_profile, bash_profile_warning) = bash_profile_state(home)?;
+    let (creates_bash_profile, warning) = bash_profile_state(home)?;
     Ok(Preview {
-        bashrc_path: bashrc.to_string_lossy().into_owned(),
-        status: status(text.as_deref()),
-        block: block(),
-        creates_bashrc: text.is_none(),
+        shell: GIT_BASH.into(),
+        path: bashrc.to_string_lossy().into_owned(),
+        status: status(&BASH, text.as_deref()),
+        block: block(&BASH),
+        creates_file: text.is_none(),
         creates_bash_profile,
-        bash_profile_warning,
+        warning,
     })
 }
 
-fn install_in(home: &Path) -> Result<(), String> {
+fn bash_install_in(home: &Path) -> Result<(), String> {
     let bashrc = home.join(".bashrc");
     let text = read_bashrc(&bashrc)?;
     // Computed before any write so a customized file leaves the disk untouched.
-    let next = apply(text.as_deref())?;
+    let next = apply(&BASH, text.as_deref())?;
     let (creates_bash_profile, _) = bash_profile_state(home)?;
     if creates_bash_profile {
         write_atomic(&home.join(".bash_profile"), BASH_PROFILE)?;
@@ -252,22 +291,41 @@ fn install_in(home: &Path) -> Result<(), String> {
         return Ok(());
     }
     if text.is_some() {
-        std::fs::copy(&bashrc, home.join(BACKUP_NAME))
+        std::fs::copy(&bashrc, backup_path(&bashrc))
             .map_err(|e| format!("could not back up {}: {e}", bashrc.display()))?;
     }
     write_atomic(&bashrc, &next)
 }
 
+fn preview_for(shell: &str) -> Result<Preview, String> {
+    match shell {
+        GIT_BASH => bash_preview_in(&home_dir()?),
+        PWSH | POWERSHELL => powershell::preview(shell),
+        _ => Err(format!("{shell} has no shell integration to install")),
+    }
+}
+
+fn install_for(shell: &str) -> Result<(), String> {
+    match shell {
+        GIT_BASH => bash_install_in(&home_dir()?),
+        PWSH | POWERSHELL => powershell::install(shell),
+        _ => Err(format!("{shell} has no shell integration to install")),
+    }
+}
+
+/// `shell` is a profile id (gitBash, pwsh, or powershell) and defaults to Git Bash.
 #[tauri::command]
-pub async fn shell_integration_preview() -> Result<Preview, String> {
-    tauri::async_runtime::spawn_blocking(|| preview_in(&home_dir()?))
+pub async fn shell_integration_preview(shell: Option<String>) -> Result<Preview, String> {
+    let shell = shell.unwrap_or_else(|| GIT_BASH.into());
+    tauri::async_runtime::spawn_blocking(move || preview_for(&shell))
         .await
         .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub async fn shell_integration_install() -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(|| install_in(&home_dir()?))
+pub async fn shell_integration_install(shell: Option<String>) -> Result<(), String> {
+    let shell = shell.unwrap_or_else(|| GIT_BASH.into());
+    tauri::async_runtime::spawn_blocking(move || install_for(&shell))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -276,7 +334,7 @@ pub async fn shell_integration_install() -> Result<(), String> {
 mod tests {
     use super::*;
 
-    fn temp_dir(tag: &str) -> PathBuf {
+    pub(super) fn temp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "bashboard-shell-integration-{tag}-{}",
             std::process::id()
@@ -291,124 +349,132 @@ mod tests {
     }
 
     const OLD_BLOCK: &str = "# >>> bashboard shell integration >>>\n__bashboard_prompt() { :; }\nPROMPT_COMMAND=__bashboard_prompt\n# <<< bashboard shell integration <<<\n";
+    const BACKUP_NAME: &str = ".bashrc.bashboard-backup";
 
     #[test]
     fn setup_doc_contains_the_snippet_verbatim() {
         // core.autocrlf may check the doc out with CRLF, and .gitattributes does not pin it.
         let doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/setup.md"))
             .replace("\r\n", "\n");
-        assert!(doc.contains(&format!("```sh\n{SNIPPET}```\n")));
+        assert!(doc.contains(&format!("```sh\n{BASH_SNIPPET}```\n")));
     }
 
     #[test]
     fn status_missing() {
-        assert_eq!(status(None), Status::Missing);
-        assert_eq!(status(Some("")), Status::Missing);
-        assert_eq!(status(Some("alias ll='ls -l'\n")), Status::Missing);
+        assert_eq!(status(&BASH, None), Status::Missing);
+        assert_eq!(status(&BASH, Some("")), Status::Missing);
+        assert_eq!(status(&BASH, Some("alias ll='ls -l'\n")), Status::Missing);
     }
 
     #[test]
     fn status_installed_outdated_hand_added_custom() {
         assert_eq!(
-            status(Some(&format!("x=1\n\n{}", block()))),
+            status(&BASH, Some(&format!("x=1\n\n{}", block(&BASH)))),
             Status::Installed
         );
         assert_eq!(
-            status(Some(&format!("x=1\n{OLD_BLOCK}y=2\n"))),
+            status(&BASH, Some(&format!("x=1\n{OLD_BLOCK}y=2\n"))),
             Status::Outdated
         );
         assert_eq!(
-            status(Some(&format!("x=1\n{SNIPPET}y=2\n"))),
+            status(&BASH, Some(&format!("x=1\n{BASH_SNIPPET}y=2\n"))),
             Status::HandAdded
         );
-        let custom = SNIPPET.replace("cygpath -w", "cygpath -m");
-        assert_eq!(status(Some(&custom)), Status::Custom);
+        let custom = BASH_SNIPPET.replace("cygpath -w", "cygpath -m");
+        assert_eq!(status(&BASH, Some(&custom)), Status::Custom);
         assert_eq!(
-            status(Some("function __bashboard_prompt {\n:\n}\n")),
+            status(&BASH, Some("function __bashboard_prompt {\n:\n}\n")),
             Status::Custom
         );
-        assert_eq!(status(Some(&format!("{BEGIN}\nfoo\n"))), Status::Custom);
+        assert_eq!(
+            status(&BASH, Some(&format!("{BEGIN}\nfoo\n"))),
+            Status::Custom
+        );
     }
 
     #[test]
     fn apply_missing_appends_after_one_blank_line() {
-        assert_eq!(apply(None).unwrap(), block());
-        assert_eq!(apply(Some("")).unwrap(), block());
-        assert_eq!(apply(Some("x=1")).unwrap(), format!("x=1\n\n{}", block()));
-        assert_eq!(apply(Some("x=1\n")).unwrap(), format!("x=1\n\n{}", block()));
+        let b = block(&BASH);
+        assert_eq!(apply(&BASH, None).unwrap(), b);
+        assert_eq!(apply(&BASH, Some("")).unwrap(), b);
+        assert_eq!(apply(&BASH, Some("x=1")).unwrap(), format!("x=1\n\n{b}"));
+        assert_eq!(apply(&BASH, Some("x=1\n")).unwrap(), format!("x=1\n\n{b}"));
         assert_eq!(
-            apply(Some("x=1\n\n")).unwrap(),
-            format!("x=1\n\n{}", block())
+            apply(&BASH, Some("x=1\n\n")).unwrap(),
+            format!("x=1\n\n{b}")
         );
     }
 
     #[test]
     fn apply_outdated_and_hand_added_replace_in_place() {
-        let expected = format!("x=1\n{}y=2\n", block());
+        let expected = format!("x=1\n{}y=2\n", block(&BASH));
         assert_eq!(
-            apply(Some(&format!("x=1\n{OLD_BLOCK}y=2\n"))).unwrap(),
+            apply(&BASH, Some(&format!("x=1\n{OLD_BLOCK}y=2\n"))).unwrap(),
             expected
         );
         assert_eq!(
-            apply(Some(&format!("x=1\n{SNIPPET}y=2\n"))).unwrap(),
+            apply(&BASH, Some(&format!("x=1\n{BASH_SNIPPET}y=2\n"))).unwrap(),
             expected
         );
     }
 
     #[test]
     fn apply_installed_is_unchanged_and_custom_errors() {
-        let text = format!("x=1\n\n{}", block());
-        assert_eq!(apply(Some(&text)).unwrap(), text);
-        let custom = SNIPPET.replace("cygpath -w", "cygpath -m");
-        assert!(apply(Some(&custom)).unwrap_err().contains("by hand"));
+        let text = format!("x=1\n\n{}", block(&BASH));
+        assert_eq!(apply(&BASH, Some(&text)).unwrap(), text);
+        let custom = BASH_SNIPPET.replace("cygpath -w", "cygpath -m");
+        assert!(apply(&BASH, Some(&custom)).unwrap_err().contains("by hand"));
     }
 
     #[test]
     fn apply_keeps_crlf() {
-        let crlf_block = block().replace('\n', "\r\n");
+        let crlf_block = block(&BASH).replace('\n', "\r\n");
         assert_eq!(
-            apply(Some("x=1\r\n")).unwrap(),
+            apply(&BASH, Some("x=1\r\n")).unwrap(),
             format!("x=1\r\n\r\n{crlf_block}")
         );
         let old = format!("x=1\r\n{}y=2\r\n", OLD_BLOCK.replace('\n', "\r\n"));
-        assert_eq!(status(Some(&old)), Status::Outdated);
+        assert_eq!(status(&BASH, Some(&old)), Status::Outdated);
         assert_eq!(
-            apply(Some(&old)).unwrap(),
+            apply(&BASH, Some(&old)).unwrap(),
             format!("x=1\r\n{crlf_block}y=2\r\n")
         );
-        let hand = format!("x=1\r\n{}", SNIPPET.replace('\n', "\r\n"));
-        assert_eq!(status(Some(&hand)), Status::HandAdded);
-        assert_eq!(apply(Some(&hand)).unwrap(), format!("x=1\r\n{crlf_block}"));
-        assert_eq!(status(Some(&crlf_block)), Status::Installed);
+        let hand = format!("x=1\r\n{}", BASH_SNIPPET.replace('\n', "\r\n"));
+        assert_eq!(status(&BASH, Some(&hand)), Status::HandAdded);
+        assert_eq!(
+            apply(&BASH, Some(&hand)).unwrap(),
+            format!("x=1\r\n{crlf_block}")
+        );
+        assert_eq!(status(&BASH, Some(&crlf_block)), Status::Installed);
     }
 
     #[test]
     fn install_into_empty_home_creates_bashrc_and_bash_profile() {
         let dir = temp_dir("fresh");
-        let p = preview_in(&dir).unwrap();
+        let p = bash_preview_in(&dir).unwrap();
         assert_eq!(p.status, Status::Missing);
-        assert!(p.creates_bashrc && p.creates_bash_profile);
-        assert_eq!(p.bash_profile_warning, None);
-        install_in(&dir).unwrap();
-        assert_eq!(read(&dir, ".bashrc"), block());
+        assert!(p.creates_file && p.creates_bash_profile);
+        assert_eq!(p.warning, None);
+        bash_install_in(&dir).unwrap();
+        assert_eq!(read(&dir, ".bashrc"), block(&BASH));
         assert_eq!(read(&dir, ".bash_profile"), BASH_PROFILE);
         assert!(!dir.join(BACKUP_NAME).exists());
-        assert_eq!(preview_in(&dir).unwrap().status, Status::Installed);
+        assert_eq!(bash_preview_in(&dir).unwrap().status, Status::Installed);
     }
 
     #[test]
     fn bash_profile_without_bashrc_warns_and_is_left_alone() {
         let dir = temp_dir("profile");
         std::fs::write(dir.join(".bash_profile"), "export X=1\n").unwrap();
-        let p = preview_in(&dir).unwrap();
+        let p = bash_preview_in(&dir).unwrap();
         assert!(!p.creates_bash_profile);
-        assert!(p.bash_profile_warning.unwrap().contains(".bashrc"));
-        install_in(&dir).unwrap();
+        assert!(p.warning.unwrap().contains(".bashrc"));
+        bash_install_in(&dir).unwrap();
         assert_eq!(read(&dir, ".bash_profile"), "export X=1\n");
 
         let dir = temp_dir("profile-ok");
         std::fs::write(dir.join(".bash_profile"), BASH_PROFILE).unwrap();
-        assert_eq!(preview_in(&dir).unwrap().bash_profile_warning, None);
+        assert_eq!(bash_preview_in(&dir).unwrap().warning, None);
     }
 
     #[test]
@@ -416,40 +482,47 @@ mod tests {
         let dir = temp_dir("backup");
         std::fs::write(dir.join(BACKUP_NAME), "older").unwrap();
         std::fs::write(dir.join(".bashrc"), "x=1\n").unwrap();
-        install_in(&dir).unwrap();
+        bash_install_in(&dir).unwrap();
         assert_eq!(read(&dir, BACKUP_NAME), "x=1\n");
-        assert_eq!(read(&dir, ".bashrc"), format!("x=1\n\n{}", block()));
+        assert_eq!(read(&dir, ".bashrc"), format!("x=1\n\n{}", block(&BASH)));
     }
 
     #[test]
     fn custom_or_non_utf8_bashrc_errors_and_writes_nothing() {
         let dir = temp_dir("custom");
-        let custom = SNIPPET.replace("cygpath -w", "cygpath -m");
+        let custom = BASH_SNIPPET.replace("cygpath -w", "cygpath -m");
         std::fs::write(dir.join(".bashrc"), &custom).unwrap();
-        assert!(install_in(&dir).is_err());
+        assert!(bash_install_in(&dir).is_err());
         assert_eq!(read(&dir, ".bashrc"), custom);
         assert!(!dir.join(BACKUP_NAME).exists());
         assert!(!dir.join(".bash_profile").exists());
 
         let dir = temp_dir("utf8");
         std::fs::write(dir.join(".bashrc"), b"x=\xff\n").unwrap();
-        assert!(preview_in(&dir).unwrap_err().contains("UTF-8"));
-        assert!(install_in(&dir).is_err());
+        assert!(bash_preview_in(&dir).unwrap_err().contains("UTF-8"));
+        assert!(bash_install_in(&dir).is_err());
     }
 
     #[test]
     fn preview_serializes_camel_case() {
         let dir = temp_dir("wire");
-        let v = serde_json::to_value(preview_in(&dir).unwrap()).unwrap();
-        assert!(v["bashrcPath"].is_string());
+        let v = serde_json::to_value(bash_preview_in(&dir).unwrap()).unwrap();
+        assert_eq!(v["shell"], "gitBash");
+        assert!(v["path"].is_string());
         assert_eq!(v["status"], "missing");
-        assert_eq!(v["block"], block());
-        assert_eq!(v["createsBashrc"], true);
+        assert_eq!(v["block"], block(&BASH));
+        assert_eq!(v["createsFile"], true);
         assert_eq!(v["createsBashProfile"], true);
-        assert!(v["bashProfileWarning"].is_null());
+        assert!(v["warning"].is_null());
         assert_eq!(
             serde_json::to_value(Status::HandAdded).unwrap(),
             "handAdded"
         );
+    }
+
+    #[test]
+    fn cmd_has_no_integration() {
+        assert!(preview_for("cmd").is_err());
+        assert!(install_for("cmd").is_err());
     }
 }

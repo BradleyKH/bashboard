@@ -5,6 +5,7 @@ import { copyPath, copyText } from './copyText';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import {
+  gitBranches,
   gitCommit,
   gitDiff,
   gitFetch,
@@ -21,16 +22,22 @@ import {
   gitWatch,
   onGitChanged,
   onGitFetched,
+  type GitBranchList,
   type GitCommit,
   type GitDiff,
   type GitLastFetch,
   type GitStatus,
 } from './gitApi';
+import { GitBranchActions } from './gitBranchActions';
+import type { GitTab } from './gitBranchModel';
 import { GitBranchRow } from './gitBranchRow';
+import { GitBranchesView } from './gitBranchesView';
+import { openBranchSwitcher } from './gitBranchSwitcher';
 import { GitCommitBox } from './gitCommitBox';
 import { GitDiffView } from './gitDiffView';
 import { GitFileList } from './gitFileList';
 import { GitLogList } from './gitLogList';
+import { GitTabStrip } from './gitTabStrip';
 import { gitCommitMenuItems, gitFileMenuItems } from './gitMenus';
 import {
   branchLine,
@@ -75,6 +82,12 @@ export interface GitPaneOptions {
   onPathDragStart?: (paths: string[], e: PointerEvent) => void;
   /** Insert path on a row: the entry's absolute path and this pane's root, to make it relative to. */
   onInsertPath: (absolute: string, baseRoot: string) => void;
+  /** Insert name on a branch row: the text goes into the tab's recent terminal as typed. */
+  onInsertText: (text: string) => void;
+  /** Opens (or focuses) a Git pane on another worktree, for a branch checked out there. */
+  onOpenGit: (root: string) => void;
+  /** The tab the pane opens on; absent means Changes. */
+  tab?: GitTab;
 }
 
 const LOG_COUNT = 20;
@@ -119,6 +132,7 @@ export class GitPane implements PaneView {
   private readonly opts: GitPaneOptions;
   private readonly host: HTMLElement;
   private readonly body: HTMLElement;
+  private readonly main: HTMLElement;
   private readonly left: HTMLElement;
   private readonly right: HTMLElement;
   private readonly notice: HTMLElement;
@@ -128,6 +142,11 @@ export class GitPane implements PaneView {
   private readonly changesList: GitFileList;
   private readonly logList: GitLogList;
   private readonly diffView: GitDiffView;
+  private readonly tabStrip: GitTabStrip;
+  private readonly branchesView: GitBranchesView;
+  private readonly branchActions: GitBranchActions;
+  private tab: GitTab;
+  private branches: GitBranchList | null = null;
   private settings: Settings;
   private rootPath: string;
   private expanded: boolean;
@@ -162,6 +181,7 @@ export class GitPane implements PaneView {
     this.settings = opts.settings;
     this.rootPath = opts.root;
     this.expanded = opts.expanded;
+    this.tab = opts.tab ?? 'changes';
 
     this.host.style.display = 'flex';
     this.host.style.flexDirection = 'column';
@@ -175,6 +195,7 @@ export class GitPane implements PaneView {
       onFetch: () => void this.runRemote('fetch'),
       onPull: () => void this.runRemote('pull'),
       onPush: () => void this.runRemote('push'),
+      onBranchClick: (anchor) => this.openSwitcher(anchor),
     });
     this.commitBox = new GitCommitBox({
       onCommit: (message) => void this.commit(message),
@@ -213,7 +234,7 @@ export class GitPane implements PaneView {
           undo: (hash) => void this.undo(hash),
         }),
     });
-    this.left.append(this.branch.el, this.commitBox.el, this.stagedList.el, this.changesList.el, this.logList.el);
+    this.left.append(this.commitBox.el, this.stagedList.el, this.changesList.el, this.logList.el);
 
     this.right = document.createElement('div');
     this.right.className = 'git-right';
@@ -225,7 +246,33 @@ export class GitPane implements PaneView {
     this.notice = document.createElement('div');
     this.notice.className = 'git-notice';
 
-    this.body.append(this.left, this.right, this.notice);
+    this.branchActions = new GitBranchActions({
+      root: () => this.rootPath,
+      confirm: (o) => this.opts.confirm(o),
+      showError: (text) => this.showBranchError(text),
+      refresh: () => this.refresh(),
+    });
+    this.branchesView = new GitBranchesView({
+      onSwitch: (b) => void this.branchActions.switchTo(b.name),
+      onOpenWorktree: (path) => this.opts.onOpenGit(path),
+      onCheckOut: (b) => void this.branchActions.checkOut(b.name),
+      onCreate: (name, base) => this.branchActions.create(name, base),
+      onRename: (from, to) => this.branchActions.rename(from, to),
+      onDelete: (b) => void this.branchActions.remove(b),
+      onCleanup: (bs) => void this.branchActions.cleanup(bs),
+      copyName: (name) => copyText(name, 'branch name'),
+      insertName: (name) => this.opts.onInsertText(name),
+    });
+    this.tabStrip = new GitTabStrip(this.tab, (tab) => this.setTab(tab));
+
+    const head = document.createElement('div');
+    head.className = 'git-head';
+    head.append(this.branch.el, this.tabStrip.el);
+    this.main = document.createElement('div');
+    this.main.className = 'git-main';
+    this.main.append(this.left, this.right);
+    this.body.append(head, this.main, this.branchesView.el, this.notice);
+    this.body.classList.toggle('tab-branches', this.tab === 'branches');
     this.host.appendChild(this.body);
     // Nothing shows until the root is checked, so a non-repo never flashes an empty pane.
     this.setBodyShown(false);
@@ -273,9 +320,48 @@ export class GitPane implements PaneView {
     return baseName(this.rootPath);
   }
 
-  /** The `git` saved-pane fields. */
-  saved(): { root: string } {
-    return { root: this.rootPath };
+  /** The `git` saved-pane fields; `tab` only when it is not the default. */
+  saved(): { root: string; tab?: GitTab } {
+    return this.tab === 'changes' ? { root: this.rootPath } : { root: this.rootPath, tab: this.tab };
+  }
+
+  private setTab(tab: GitTab): void {
+    if (tab === this.tab) return;
+    this.tab = tab;
+    this.tabStrip.set(tab);
+    this.body.classList.toggle('tab-branches', tab === 'branches');
+    if (tab === 'branches') this.branchesView.focus();
+    this.opts.onChange();
+  }
+
+  private openSwitcher(anchor: HTMLElement): void {
+    if (this.branches === null) return;
+    openBranchSwitcher(anchor, this.branches, {
+      onLocal: (b) => {
+        if (b.worktree !== null) this.opts.onOpenGit(b.worktree);
+        else void this.branchActions.switchTo(b.name);
+      },
+      onRemote: (b) => void this.branchActions.checkOut(b.name),
+      onCreate: (name) => void this.branchActions.create(name, null),
+    });
+  }
+
+  /**
+   * A branch failure shows where the user is looking: in the Branches tab, or under the commit
+   * box, where a remote failure shows and the next success clears it the same way.
+   */
+  private showBranchError(text: string | null): void {
+    if (this.tab === 'branches') {
+      this.branchesView.showError(text);
+      return;
+    }
+    if (text !== null) {
+      this.commitBox.showError(text);
+      this.remoteError = true;
+    } else if (this.remoteError) {
+      this.commitBox.showError(null);
+      this.remoteError = false;
+    }
   }
 
   /**
@@ -397,11 +483,14 @@ export class GitPane implements PaneView {
     let status: GitStatus;
     let log: GitCommit[];
     let lastFetch: GitLastFetch | null;
+    let branches: GitBranchList | null;
     try {
-      [status, log, lastFetch] = await Promise.all([
+      [status, log, lastFetch, branches] = await Promise.all([
         gitStatus(root),
         gitLog(root, LOG_COUNT),
         gitLastFetch(root).catch(() => null),
+        // A failed branch read keeps the last list rather than blanking the tab.
+        gitBranches(root).catch(() => this.branches),
       ]);
     } catch (e) {
       if (this.disposed) return;
@@ -414,6 +503,8 @@ export class GitPane implements PaneView {
     this.status = status;
     this.log = log;
     this.lastFetch = lastFetch;
+    this.branches = branches;
+    if (branches !== null) this.branchesView.setList(branches);
 
     this.branch.setBranch(branchLine(status));
     this.branch.setButtons(remoteButtons(status, this.remoteOp));

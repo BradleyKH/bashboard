@@ -3,7 +3,8 @@
 ## New panes in the current folder
 
 A new pane opens in the focused pane's working directory. Git Bash does not report its working
-directory by default, so the setup wizard offers to add these lines to `~/.bashrc`, in a block
+directory by default, so when Git Bash is the default shell, the setup wizard offers to add these
+lines to `~/.bashrc`, in a block
 marked `# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<` at the
 end of the file, below any prompt framework's init line. It backs the file up to
 `~/.bashrc.bashboard-backup` first, and creates `~/.bash_profile` when it is missing so login
@@ -47,22 +48,32 @@ processes every 2 seconds.
 
 PowerShell 7 and Windows PowerShell do not report their folder until you tell them to. This follows Microsoft's
 [Windows Terminal shell integration](https://learn.microsoft.com/en-us/windows/terminal/tutorials/shell-integration)
-guidance for the working directory: add the following to your PowerShell profile (open it with
-`notepad $PROFILE`). It wraps whatever `prompt` you already have and emits the folder (OSC 9;9)
-ahead of it, so new panes open in the same folder. The same snippet works in Windows PowerShell. Place it after any prompt framework's init
-line, such as `oh-my-posh init`:
+guidance for the working directory: the lines below wrap whatever `prompt` you already have and
+emit the folder (OSC 9;9) ahead of it, so new panes open in the same folder. When PowerShell 7 or
+Windows PowerShell is the default shell, the setup wizard offers to add them to that shell's
+profile (`$PROFILE`; the two shells keep separate ones), in the same marked block as `~/.bashrc`,
+after backing the file up to `<profile>.bashboard-backup`. To add them yourself, open the profile
+with `notepad $PROFILE` and put them at the end, after any prompt framework's init line, such as
+`oh-my-posh init`:
 
 ```powershell
-$Global:__BashboardOriginalPrompt = $function:prompt
+if (-not (Test-Path variable:Global:__BashboardOriginalPrompt)) {
+  $Global:__BashboardOriginalPrompt = $function:prompt
+}
 
 function Global:prompt {
   $exit = $global:LASTEXITCODE
   $loc = $executionContext.SessionState.Path.CurrentLocation
-  $out = "`e]9;9;`"$loc`"`a" + (& $Global:__BashboardOriginalPrompt)
+  $out = "$([char]27)]9;9;`"$loc`"$([char]7)" + (& $Global:__BashboardOriginalPrompt)
   $global:LASTEXITCODE = $exit   # keep the last native exit code visible to the user
   return $out
 }
 ```
+
+The lines work in both shells, and running `. $PROFILE` again does not wrap the prompt twice.
+Windows PowerShell's default execution policy on Windows 11 is `Restricted`, which runs no profile
+at all; the wizard warns when the policy blocks the profile, and
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` lets it run.
 
 The snippet deliberately leaves out the OSC 133 markers from Microsoft's example. Bashboard uses
 the markers exclusively once a pane emits any of them, and PowerShell has no reliable hook for

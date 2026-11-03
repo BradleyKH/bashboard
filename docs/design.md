@@ -36,7 +36,8 @@ title is "Bashboard".
 - Editing code. Panes edit plain text files and scratch pads; code opens in the preferred
   editor (3.12).
 - A full git client or container manager. The Git pane covers status, staging, committing,
-  diffs, and undoing the last commit; the Containers pane covers existing containers and
+  diffs, undoing the last commit, and creating, switching, renaming, and deleting local branches,
+  with no merge or rebase; the Containers pane covers existing containers and
   starting or stopping the engines that run them.
 
 ## 2. Architecture
@@ -365,7 +366,7 @@ Paths must be absolute and are normalized before use, so `..` segments cannot st
 folder they name. `fs_write_text` and `fs_move` work on any existing file, and nothing creates or
 deletes files except the scratch commands above.
 
-### 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`)
+### 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`)
 
 Runs `git` (from `PATH`, else beside Git Bash's `bash.exe`) as `git -C <root> ...` with an
 argument list, never through a shell, and with paths after `--`. Reads set
@@ -382,6 +383,13 @@ own git commands.
 | `git_show(root, hash)` | One commit's diff, capped at 1 MiB |
 | `git_commit(root, message)` | `commit -F -` with the message on stdin; the repo's hooks run as usual |
 | `git_undo_commit(root, expectedHead) -> message` | `reset --soft HEAD~1`, returning the undone commit's message |
+| `git_branches(root)` | `for-each-ref` over `refs/heads` (upstream, track, tip time and subject, and the worktree that has each checked out) and `refs/remotes`; returns local branches, current first then newest first, and the remote branches no local branch tracks or shares a name with, newest first |
+| `git_switch(root, name)` | `switch --no-guess <name>` |
+| `git_checkout_remote(root, name)` | `switch --track <remote>/<branch>` |
+| `git_create_branch(root, name, base, switchTo)` | `switch --no-track -c <name> <base>`, or `branch --no-track <name> <base>`; `base` is a local branch, or HEAD when null |
+| `git_rename_branch(root, from, to) -> {upstreamCleared}` | `branch -m <from> <to>`, then `branch --unset-upstream <to>` when it had an upstream |
+| `git_delete_branch(root, name, force) -> {deleted, hash, unmerged}` | `branch -d`, or `branch -D` with `force` |
+| `git_restore_branch(root, name, hash)` | `branch <name> <hash>` |
 | `git_fetch(root, background)` | `fetch --prune` |
 | `git_pull(root)` | `pull --ff-only` |
 | `git_push(root)` | `push`, or `push -u <remote> <branch>` for a branch with no upstream |
@@ -414,6 +422,18 @@ background fetch never run at once; `git_pull` waits on the same lock and `git_p
 Every fetch attempt, and every successful pull (which fetches), records its outcome and emits
 `git://fetched` with the roots that share the repo, plus the root a manual command ran on, since a
 failed fetch moves no refs and so raises no `git://changed`. A failed pull records nothing.
+
+The branch commands live in `git_branches.rs` and reuse the runner in `git.rs`. Every branch
+name from the front end must pass `check-ref-format --branch`, may not start with `-` or hold
+`@{`, and, for an existing branch, must exist under `refs/heads`, so git never reads one as an
+option or a revision expression. A remote branch name must exist under `refs/remotes`. A new
+branch never tracks its base, so it is published with Push like any branch with no upstream.
+Rename clears the upstream because git keeps the old one, and a plain push then refuses the
+mismatched name. Delete without `force` returns `deleted: false` and `unmerged`, the count of the
+branch's commits on no other branch, remote-tracking branch, or tag, when `branch -d` refuses an
+unmerged branch; every other refusal, such as the current branch or one checked out in another
+worktree, returns git's output. `hash` is the tip the branch had, so the pane can restore it.
+The parsers are pure functions with unit tests.
 
 The worktree commands live in `git_worktrees.rs` and reuse the runner in `git.rs`; the reads set
 `GIT_OPTIONAL_LOCKS=0`. Every worktree of the repo's common git dir is listed, the main worktree
@@ -627,35 +647,52 @@ tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
 ### 3.14 Shell integration install (`src-tauri/src/shell_integration.rs`)
 
 Working-directory reporting (OSC 9;9) and the command-start and command-end markers (OSC 133)
-come from a few lines in Git Bash's `~/.bashrc`. The setup wizard (4.17) installs them with
-`shell_integration_preview` and `shell_integration_install`. The lines are the snippet in
-setup.md's "New panes in the current folder" section; a test requires the two to match byte for
-byte, ignoring line endings.
+come from a few lines in Git Bash's `~/.bashrc`; PowerShell 7 and Windows PowerShell report the
+working directory from a prompt wrapper in their profile (no OSC 133, for the reason in setup.md).
+The setup wizard (4.17) installs either with `shell_integration_preview(shell)` and
+`shell_integration_install(shell)`, where `shell` is the profile id `gitBash`, `pwsh`, or
+`powershell` (cmd needs no lines, 3.1). The lines are the snippets in setup.md's "New panes in
+the current folder" and PowerShell sections; tests require each to match byte for byte, ignoring
+line endings. The PowerShell snippet uses `$([char]27)` rather than the `` `e `` escape, which
+Windows PowerShell 5.1 lacks.
 
 The install writes the snippet between two marker lines at the end of the file:
-`# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<`. The home
-directory is `HOME`, then `USERPROFILE`, as Git Bash resolves it. `shell_integration_preview`
-returns the `.bashrc` path, the status, the block to add, whether `.bashrc` or `.bash_profile`
-would be created, and a warning about `.bash_profile`.
+`# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<`. For Git
+Bash the file is `~/.bashrc`, with home as `HOME`, then `USERPROFILE`, as Git Bash resolves it.
+For PowerShell it is `$PROFILE.CurrentUserCurrentHost`, which differs between the two shells and
+follows a Documents folder moved to OneDrive, so the core asks the shell itself: it runs the
+shell with `-NoProfile -NonInteractive` (no console window) and reads back the profile path and
+`Get-ExecutionPolicy`. The PowerShell code is `src-tauri/src/shell_integration/powershell.rs`.
+`shell_integration_preview` returns the shell, the file's path, the status, the block to add,
+whether the file or `.bash_profile` would be created, and a warning.
 
 | Status | Meaning | Install does |
 | --- | --- | --- |
-| `missing` | No `.bashrc`, or no Bashboard lines in it | Appends the block, after a blank line |
+| `missing` | No file, or no Bashboard lines in it | Appends the block, after a blank line |
 | `installed` | A marked block equal to the current snippet | Nothing |
 | `outdated` | A marked block that differs from the current snippet | Replaces the block in place |
-| `handAdded` | The snippet appears verbatim, without markers | Replaces those lines with the marked block, in place |
-| `custom` | A begin marker with no end marker, or a `__bashboard_prompt` function that is not the snippet | Refuses; the user updates the lines by hand |
+| `handAdded` | The snippet, or an earlier published one, appears verbatim without markers | Replaces those lines with the marked block, in place |
+| `custom` | A begin marker with no end marker, or lines of the user's own (a `__bashboard_prompt` function, or a `__BashboardOriginalPrompt` line) that are not the snippet | Refuses; the user updates the lines by hand |
 
-- **Backup.** An existing `.bashrc` is copied to `~/.bashrc.bashboard-backup` before it is
-  rewritten. The write is atomic (the helper the hook install uses, 3.3).
-- **Line endings.** The file's own line endings are kept, and lines outside the block are
-  rewritten byte for byte. A `.bashrc` that is not UTF-8 is left alone with an error.
+- **Backup.** An existing file is copied to `<file>.bashboard-backup` beside it before it is
+  rewritten. The write is atomic (the helper the hook install uses, 3.3) and creates a missing
+  folder, which a PowerShell profile's often is.
+- **Encoding and line endings.** The file's own line endings are kept, and lines outside the
+  block are rewritten byte for byte. `.bashrc` must be UTF-8. A PowerShell profile may also be
+  UTF-8 with a BOM or UTF-16 LE (what Windows PowerShell's `>` writes), and is written back the
+  same way; a new profile is plain UTF-8, which is safe since the block is ASCII. Anything else
+  is left alone with an error.
 - **Login shells.** Git Bash's login shell reads `~/.bash_profile`, not `~/.bashrc`. When that
   file is missing, the install creates it with the two standard lines that source `~/.profile`
   and `~/.bashrc`. When it exists and never mentions `.bashrc`, the preview carries a warning
   and the file is left untouched.
-- Panes already open do not pick the lines up until their shell reads `~/.bashrc` again
-  (`source ~/.bashrc`).
+- **Execution policy.** A PowerShell whose effective policy is `Restricted` (Windows
+  PowerShell's default on Windows clients) or `AllSigned` will not run the profile, so the
+  preview warns and names `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. The install
+  never changes the policy.
+- Panes already open do not pick the lines up until their shell reads the file again
+  (`source ~/.bashrc`, or `. $PROFILE`, which the snippet's guard keeps from wrapping the prompt
+  twice).
 
 ### 3.15 Git install (`src-tauri/src/git_install.rs`)
 
@@ -1563,7 +1600,7 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
   which for other kinds is the folder's name, a scratch pad's first line, or "Containers".
 - **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder,
-  selected file, and whether its preview is expanded (4.12), a Git pane's repo, a Search pane's
+  selected file, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Search pane's
   repo, query, and options (rerun on restore), and a scratch pad's text. A pane whose folder no
   longer exists opens on a notice naming the path, with the kind menu still available. A Files
   pane restored expanded over a file that is missing or cannot be previewed as text shows its list.
@@ -1695,10 +1732,19 @@ longer exists is shown dimmed and opens nothing.
 
 ### 4.13 Git pane
 
-For one git repo, top to bottom:
+For one git repo. A head row spans the pane: the **branch line** and the **Changes** and
+**Branches** tabs. The tab shows in workspace.json as the pane's `tab`, absent for Changes.
 
-- **Branch** with its upstream and the ahead and behind counts, the last fetch label, and the
-  Fetch, Pull, and Push buttons.
+The **branch line** shows the branch with its upstream and the ahead and behind counts, the last
+fetch label, and the Fetch, Pull, and Push buttons. Clicking the branch name opens the
+**branch switcher**: a filter field over the local branches, then the remote ones, ending in a
+"Create branch <name>" row when the text is a valid name no local branch has. Up and Down move,
+Enter picks, Escape closes. It opens on the first branch that is not current. Picking a local
+branch switches to it, or opens a Git pane on the worktree that has it checked out; a remote one
+checks it out (as Check out does below); Create makes the branch from HEAD and switches to it.
+
+**Changes**, top to bottom:
+
 - **Commit box.** A message field and a Commit button (Ctrl+Enter in the field), enabled while
   something is staged and the message is not empty. A failed commit (a hook rejecting it, for
   example) shows git's output under the box and keeps the message.
@@ -1739,8 +1785,49 @@ The **last fetch label** reads "Fetched 3 min ago" after a fetch, background or 
 "Fetch failed" after a failed one, with git's output as its tooltip. It is empty until the repo
 has been fetched this session, and updates on `git://fetched` (3.9).
 
+**Branches** fills the pane below the head row, from `git_branches` (3.9):
+
+- **Bar.** A field that filters both lists by name, ignoring case, and names a new branch; a
+  New branch button (Enter in the field) that creates the field's name and switches to it,
+  disabled with the reason as its tooltip while the name is invalid or taken; and **Clean up N
+  gone**, shown while any branch other than the current one, and not checked out in another
+  worktree, has a gone upstream: its remote-tracking branch was deleted. After New branch
+  from here, a "from <branch> ×" chip beside the field names the base; clicking it goes back to HEAD. Escape in the field
+  clears it and the chip.
+- **Local**, the current branch first and marked, then newest first. Each row shows the name; a
+  worktree badge (its path as tooltip) when another worktree has it checked out; the upstream
+  state as `↑2 ↓1`, or a **gone** badge; and the tip's subject and relative time. Hover shows
+  Switch (Open, for a branch in another worktree, which opens or focuses a Git pane there),
+  Rename, and Delete, which is disabled with the reason on the current branch and one in another
+  worktree. A right-click offers Switch (or Open its worktree), New branch from here, Rename,
+  Delete, Copy name, and Insert name.
+- **Remote**, collapsed until its header is clicked, and open while the field holds a filter:
+  the remote branches with no local copy, each with Check out, which creates a local branch
+  tracking it and switches to it. A right-click offers Check out, Copy name, and Insert name.
+
+Click selects a row and double-click runs its first action. With the list focused, Up and Down
+move (Up from the first row returns to the field, Down from the field enters the list), Enter
+runs the first action, F2 renames, and Delete deletes. Rename edits the name in place: Enter
+renames, Escape or leaving the field cancels, and an invalid or taken name outlines the field and
+is not sent. Renaming a branch with an upstream clears it (3.9) and says so in a toast, so Push
+reads Publish.
+
+**Delete** runs `branch -d`. When git refuses an unmerged branch, a confirm says how many of its
+commits are on no other branch, and Delete anyway runs `branch -D`. **Clean up** confirms with
+the branches listed, noting that a squash-merged branch looks unmerged, and deletes each with
+`branch -D`. After either, a toast offers **Restore** for about 12 seconds, recreating each
+branch at the tip it had.
+
+Switching never stashes: when git refuses because of uncommitted changes, its output shows
+instead. A failed branch operation shows git's output above the lists in Branches, or under the
+commit box when it came from the switcher in Changes, where the next successful branch or remote
+operation clears it.
+
+Insert name sends the name, as typed, to the tab's most recently focused terminal.
+
 The pane refreshes on `git://changed`, when it comes on screen, and when the window regains
-focus. A folder that is not a git repo shows a notice instead.
+focus; each refresh rereads the branches too. A folder that is not a git repo shows a notice
+instead.
 
 ### 4.14 Search pane
 
@@ -1844,10 +1931,16 @@ has Back, Next, and Skip setup.
    button runs the install and shows its progress and result; the step stays in the list once
    Git is installed, reading "Git installed". Without winget, a button opens git-scm.com.
 2. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
-3. **Shell integration.** Shown when Git Bash is found and `~/.bashrc` does not already hold the
-   current block (3.14), and hidden when its state could not be read. It lists the lines and
-   the file they go in, notes the backup and any `.bash_profile` it will create, and runs the
-   install with Add to .bashrc. A `custom` status shows the lines and an error instead of the
+3. **Shell integration.** For the shell new panes open with: the chosen default when it is
+   installed, else the first installed profile, as the core resolves it (3.1). Shown when that
+   shell is Git Bash, PowerShell 7, or Windows PowerShell and its file does not already hold the
+   current block (3.14); hidden for cmd, which needs no lines, and when the file's state could
+   not be read. Every installed shell's state is read in the background when the wizard opens,
+   so changing the Shell step's choice adds or drops this step at once, updating the step count
+   without re-rendering the Shell step. It lists the lines and the file they go in, notes the
+   backup, any `.bash_profile` it will create, and any warning (a `.bash_profile` that skips
+   `.bashrc`, or an execution policy that blocks the profile), and runs the install with Add to
+   .bashrc or Add to profile. A `custom` status shows the lines and an error instead of the
    button.
 4. **Editor.** The editors found (3.12) and the file's default app; sets `editor.preferred`.
 5. **Favorites.** A folder field, starting at `%USERPROFILE%\source\repos` when it exists,
@@ -1857,7 +1950,13 @@ has Back, Next, and Skip setup.
    favorites, skipping any already there.
 6. **Claude Code.** Shown while Claude Code is detected and the hooks are not installed;
    explains the hooks and runs the install with its confirmation (3.3).
-7. **Look.** The scrim presets (section 5) and the background animation on or off, applied live.
+7. **Look.** Applied live, in the settings dialog's terms (6.2). Background (None, Swirling
+   Lights, Matrix; `backdrop.style`). Animate the background (`backdrop.animate`) and Brightness
+   (Low, Medium, High, the scrim presets of section 5 from darkest), both hidden under None. Accent
+   color and Text color as swatches of their presets (`accentColor`, `contentTextColor`). Picking
+   Matrix turns whichever of the two colors is still at its default to the Green preset, to go
+   with the green rain; picking another background turns back only the colors the wizard turned
+   green that are still green, so a color the user chose is never overridden.
 
 ## 5. Readability
 

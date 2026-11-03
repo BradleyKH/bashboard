@@ -54,3 +54,27 @@ export function replaceConfirm(card: PaneCard, kind: PaneKind): ConfirmOptions {
     confirmLabel: 'Replace',
   };
 }
+
+/** Asked after `branch -d` refuses a branch that is not merged (docs/design.md section 4.13). */
+export function deleteUnmergedConfirm(name: string, unmerged: number): ConfirmOptions {
+  const commits = unmerged === 1 ? '1 commit' : `${unmerged} commits`;
+  const body =
+    unmerged > 0
+      ? [`${name} is not merged, and ${commits} on it ${unmerged === 1 ? 'is' : 'are'} on no other branch.`]
+      : [`Git says ${name} is not merged into its upstream or the current branch, though its commits are on other branches.`];
+  body.push('Right after deleting, the toast can restore it.');
+  return { title: 'Delete unmerged branch', body, confirmLabel: 'Delete anyway' };
+}
+
+/** Clean up removes branches whose upstream was deleted, which squash merges leave unmerged. */
+export function cleanupGoneConfirm(names: readonly string[]): ConfirmOptions {
+  const n = names.length;
+  return {
+    title: 'Clean up gone branches',
+    body: [
+      `Delete ${n} ${n === 1 ? 'branch' : 'branches'} whose remote branch was deleted? A squash-merged branch looks unmerged to git, so these are deleted even when unmerged.`,
+      ...names,
+    ],
+    confirmLabel: 'Delete',
+  };
+}

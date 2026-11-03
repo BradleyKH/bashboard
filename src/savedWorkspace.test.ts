@@ -116,6 +116,14 @@ describe('parseSavedTab', () => {
     expect(r?.layout).toEqual(pane('a'));
   });
 
+  it('keeps a Git pane on its Branches tab and drops an unknown tab', () => {
+    const git = (tab?: unknown) => ({ key: 'a', kind: 'git', collapsed: false, root: '/c/a', ...(tab !== undefined && { tab }) });
+    const parse = (p: object) => parseSavedTab({ panes: [p], layout: pane('a'), focused: 'a' })?.panes[0];
+    expect(parse(git('branches'))).toEqual(git('branches'));
+    expect(parse(git('bogus'))).toEqual(git());
+    expect(parse(git())).toEqual(git());
+  });
+
   it('round-trips a Search pane, defaulting bad options and a missing query, and drops one with no root', () => {
     const search = {
       key: 'a',

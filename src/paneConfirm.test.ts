@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OtherCard, TerminalCard } from './dashboardModel';
-import { closePadConfirm, closeTabConfirm, replaceConfirm, undoCommitConfirm } from './paneConfirm';
+import { cleanupGoneConfirm, closePadConfirm, closeTabConfirm, deleteUnmergedConfirm, replaceConfirm, undoCommitConfirm } from './paneConfirm';
 
 const terminal: TerminalCard = {
   kind: 'terminal',
@@ -86,5 +86,25 @@ describe('replaceConfirm', () => {
 
   it('warns about a force push when the commit is pushed', () => {
     expect(undoCommitConfirm('1a2b3c4', 'Fix the parser', true).body.join(' ')).toContain('force push');
+  });
+});
+
+describe('deleteUnmergedConfirm', () => {
+  it('counts the commits only this branch holds', () => {
+    expect(deleteUnmergedConfirm('topic', 1).body[0]).toBe('topic is not merged, and 1 commit on it is on no other branch.');
+    expect(deleteUnmergedConfirm('topic', 3).body[0]).toContain('3 commits on it are');
+    expect(deleteUnmergedConfirm('topic', 3).confirmLabel).toBe('Delete anyway');
+  });
+
+  it('explains a refusal when every commit is on another branch', () => {
+    expect(deleteUnmergedConfirm('topic', 0).body[0]).toContain('its commits are on other branches');
+  });
+});
+
+describe('cleanupGoneConfirm', () => {
+  it('lists each branch after the explanation', () => {
+    const opts = cleanupGoneConfirm(['a', 'b']);
+    expect(opts.body[0]).toMatch(/^Delete 2 branches/);
+    expect(opts.body.slice(1)).toEqual(['a', 'b']);
   });
 });

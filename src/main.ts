@@ -733,17 +733,13 @@ const setupWizard = new SetupWizard({
 });
 const showSetup = async (): Promise<void> => {
   await refreshProfiles();
-  const [preview, git, shellIntegration] = await Promise.all([
+  const [preview, git] = await Promise.all([
     hookInstallPreview().catch((e: unknown) => {
       console.warn('hook install state unavailable:', e);
       return null;
     }),
     gitInstallStatus().catch((e: unknown) => {
       console.warn('git install state unavailable:', e);
-      return null;
-    }),
-    shellIntegrationPreview().catch((e: unknown) => {
-      console.warn('shell integration state unavailable:', e);
       return null;
     }),
   ]);
@@ -754,7 +750,6 @@ const showSetup = async (): Promise<void> => {
     // An unknown Git state skips the Git step rather than offering an install that may not apply.
     gitBashFound: git?.gitBashFound ?? true,
     wingetFound: git?.wingetFound ?? false,
-    shellIntegration,
   });
 };
 // Opened before the first pane mounts so the pane fits the narrowed area and keeps focus.

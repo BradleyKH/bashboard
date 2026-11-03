@@ -3,21 +3,26 @@ import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
 import type { ShellProfile } from './profiles';
 import { repoCandidates } from './repoCandidates';
-import { SCRIM_PRESETS } from './scrim';
 import type { Settings } from './settings';
 import { renderGitStep } from './setupGitStep';
+import { renderLookStep } from './setupLookStep';
 import {
   editorChoices,
+  effectiveProfile,
   favoritesToAdd,
-  scrimPresetFor,
   setupSteps,
+  type AutoColors,
   type Choice,
   type SetupStep,
   type SetupStepOptions,
   type SetupStepUi,
 } from './setupModel';
 import { renderShellIntegrationStep } from './setupShellIntegrationStep';
-import type { ShellIntegrationPreview } from './shellIntegration';
+import {
+  isIntegrationShell,
+  type IntegrationShell,
+  type ShellIntegrationPreview,
+} from './shellIntegration';
 
 export interface SetupWizardCallbacks {
   /** Closed by Escape, Skip setup, or Done; the caller refocuses the terminal. */
@@ -35,8 +40,8 @@ export interface SetupWizardCallbacks {
   /** Installs Git and refreshes the shell profiles; rejects with the installer's error. */
   installGit(): Promise<void>;
   openGitDownload(): void;
-  getShellIntegrationPreview(): Promise<ShellIntegrationPreview>;
-  installShellIntegration(): Promise<void>;
+  getShellIntegrationPreview(shell: IntegrationShell): Promise<ShellIntegrationPreview>;
+  installShellIntegration(shell: IntegrationShell): Promise<void>;
 }
 
 export interface SetupWizardOpenOptions {
@@ -44,9 +49,9 @@ export interface SetupWizardOpenOptions {
   hooksInstalled: boolean;
   gitBashFound: boolean;
   wingetFound: boolean;
-  /** Null when it could not be read, which hides the shell-integration step. */
-  shellIntegration: ShellIntegrationPreview | null;
 }
+
+type BaseStepOptions = Omit<SetupStepOptions, 'defaultShell' | 'shellIntegrationStatus'>;
 
 interface Repo {
   name: string;
@@ -56,17 +61,11 @@ interface Repo {
 const STEP_TEXT: Record<SetupStep, { title: string; intro: string }> = {
   git: { title: 'Git', intro: 'Install Git for Windows, which brings Git Bash.' },
   shell: { title: 'Shell', intro: 'The shell new panes open with.' },
-  shellIntegration: { title: 'Shell integration', intro: 'A few lines in ~/.bashrc that report each prompt to the app.' },
+  shellIntegration: { title: 'Shell integration', intro: "A few lines in your shell's startup file that report each prompt to the app." },
   editor: { title: 'Editor', intro: 'Where files and folders open from the Files pane, the Git pane, and search.' },
   favorites: { title: 'Favorites', intro: 'Pin the repos you work in, so they are one click away in the dashboard.' },
   claude: { title: 'Claude Code', intro: 'Let the dashboard follow your Claude Code sessions.' },
-  look: { title: 'Look', intro: 'How much the panes darken the backdrop, and whether it moves.' },
-};
-
-const SCRIM_LABELS: Record<keyof typeof SCRIM_PRESETS, string> = {
-  none: 'None',
-  light: 'Light',
-  medium: 'Medium',
+  look: { title: 'Look', intro: 'The background behind the panes, and the colors the app draws with.' },
 };
 
 /** First-run setup, one choice per step, each saved as it is made (docs/design.md section 4.17). */
@@ -102,13 +101,17 @@ export class SetupWizard {
   private hooksDone = false;
   private installing = false;
 
-  private stepOptions!: SetupStepOptions;
+  private base!: BaseStepOptions;
   private wingetFound = false;
   private gitInstalling = false;
   private gitDone = false;
-  private shellPreview: ShellIntegrationPreview | null = null;
+  /** Per shell; absent while it is read, null when it could not be. */
+  private previews = new Map<IntegrationShell, ShellIntegrationPreview | null>();
   private shellInstalling = false;
-  private shellDone = false;
+  private shellDone = new Set<IntegrationShell>();
+  /** The shell just picked in the Shell step, until the settings file catches up. */
+  private pickedProfile: string | null = null;
+  private autoColors: AutoColors = { accent: false, text: false };
 
   private readonly ui: SetupStepUi = {
     note: (text) => this.note(text),
@@ -123,20 +126,21 @@ export class SetupWizard {
 
   open(opts: SetupWizardOpenOptions): void {
     if (this.backdrop) this.close();
-    this.stepOptions = {
+    this.base = {
       claudeDetected: opts.claudeDetected,
       hooksInstalled: opts.hooksInstalled,
       gitBashFound: opts.gitBashFound,
-      shellIntegrationStatus: opts.shellIntegration?.status ?? null,
     };
-    this.steps = setupSteps(this.stepOptions);
-    this.index = 0;
     this.wingetFound = opts.wingetFound;
     this.gitInstalling = false;
     this.gitDone = false;
-    this.shellPreview = opts.shellIntegration;
+    this.previews = new Map();
     this.shellInstalling = false;
-    this.shellDone = false;
+    this.shellDone = new Set();
+    this.pickedProfile = null;
+    this.autoColors = { accent: false, text: false };
+    this.steps = setupSteps(this.stepOptions());
+    this.index = 0;
     this.editors = null;
     this.editorsFailed = false;
     this.folder = '';
@@ -191,6 +195,12 @@ export class SetupWizard {
     box.focus();
     void this.loadEditors(backdrop);
     void this.listRepos(undefined, backdrop);
+    // Each installed shell's file is read up front, so switching shells in the Shell step shows
+    // the right lines at once. PowerShell has to start to report its profile path, which takes
+    // a moment, hence in the background.
+    for (const p of this.callbacks.getProfiles()) {
+      if (isIntegrationShell(p.id)) void this.loadPreview(p.id, backdrop);
+    }
   }
 
   close(): void {
@@ -202,7 +212,39 @@ export class SetupWizard {
   /** Reflects a reloaded settings file in the shown step, leaving typed input alone. */
   update(settings: Settings): void {
     if (!this.backdrop) return;
+    this.pickedProfile = null;
     this.refresh?.(settings);
+    this.syncSteps();
+  }
+
+  /** The shell new panes open with, as the step list sees it. */
+  private defaultShell(): string | null {
+    const saved = this.pickedProfile ?? this.callbacks.getSettings().shell.defaultProfile;
+    return effectiveProfile(saved, this.callbacks.getProfiles().map((p) => p.id));
+  }
+
+  private stepOptions(): SetupStepOptions {
+    const shell = this.defaultShell();
+    let status: SetupStepOptions['shellIntegrationStatus'] = null;
+    if (shell !== null && isIntegrationShell(shell)) {
+      const preview = this.previews.get(shell);
+      status = preview === undefined ? 'loading' : (preview?.status ?? null);
+    }
+    return { ...this.base, defaultShell: shell, shellIntegrationStatus: status };
+  }
+
+  private async loadPreview(shell: IntegrationShell, owner: HTMLElement): Promise<void> {
+    let preview: ShellIntegrationPreview | null;
+    try {
+      preview = await this.callbacks.getShellIntegrationPreview(shell);
+    } catch (err) {
+      console.warn(`shell integration state for ${shell} unavailable:`, err);
+      preview = null;
+    }
+    if (this.backdrop !== owner) return;
+    this.previews.set(shell, preview);
+    this.syncSteps();
+    this.rerender('shellIntegration');
   }
 
   private footer(): HTMLElement {
@@ -230,11 +272,7 @@ export class SetupWizard {
     const moved = index !== this.index;
     this.index = index;
     const step = this.steps[index];
-    this.counter.textContent = `Step ${index + 1} of ${this.steps.length}`;
-    this.title.textContent = STEP_TEXT[step].title;
-    this.intro.textContent = STEP_TEXT[step].intro;
-    this.back.disabled = index === 0;
-    this.next.textContent = index === this.steps.length - 1 ? 'Done' : 'Next';
+    this.showChrome();
     this.setError('');
     this.refresh = null;
     this.content.replaceChildren();
@@ -246,6 +284,16 @@ export class SetupWizard {
     else if (step === 'claude') this.renderClaude();
     else this.renderLook();
     if (moved) this.box.focus();
+  }
+
+  /** The header and footer for the shown step, which depend on the step list too. */
+  private showChrome(): void {
+    const step = this.steps[this.index];
+    this.counter.textContent = `Step ${this.index + 1} of ${this.steps.length}`;
+    this.title.textContent = STEP_TEXT[step].title;
+    this.intro.textContent = STEP_TEXT[step].intro;
+    this.back.disabled = this.index === 0;
+    this.next.textContent = this.index === this.steps.length - 1 ? 'Done' : 'Next';
   }
 
   private rerender(step: SetupStep): void {
@@ -265,15 +313,27 @@ export class SetupWizard {
     }
   }
 
-  /** Recomputes the step list after a step changes what applies, staying on the shown step. */
-  private resetSteps(): void {
-    const current = this.steps[this.index];
-    this.steps = setupSteps(this.stepOptions);
-    const at = this.steps.indexOf(current);
+  /**
+   * Recomputes the step list after something changes what applies. The shown step stays as it
+   * is, with only the counter updated, so a choice made in it keeps its focus; if the shown step
+   * dropped out, the one now in its place shows.
+   */
+  private syncSteps(): void {
+    if (!this.backdrop) return;
+    const was = this.index;
+    const current = this.steps[was];
+    const next = setupSteps(this.stepOptions());
+    if (next.join() === this.steps.join()) return;
+    this.steps = next;
+    const at = next.indexOf(current);
     if (at >= 0) {
       this.index = at;
-      this.rerender(current);
-    } else this.show(0);
+      this.showChrome();
+    } else {
+      // -1 so show() counts it as a move and takes focus off the removed step's content.
+      this.index = -1;
+      this.show(Math.min(was, next.length - 1));
+    }
   }
 
   private renderGit(): void {
@@ -300,7 +360,7 @@ export class SetupWizard {
     let hooks: { claudeDetected: boolean; hooksInstalled: boolean } | null = null;
     if (!failure) {
       [preview, hooks] = await Promise.all([
-        this.callbacks.getShellIntegrationPreview().catch(() => null),
+        this.callbacks.getShellIntegrationPreview('gitBash').catch(() => null),
         this.callbacks.getHookState().catch(() => null),
       ]);
     }
@@ -311,42 +371,42 @@ export class SetupWizard {
       if (this.steps[this.index] === 'git') this.setError(failure);
     } else {
       this.gitDone = true;
-      this.shellPreview = preview;
-      this.stepOptions = {
-        ...this.stepOptions,
-        ...(hooks ?? {}),
-        gitInstalled: true,
-        shellIntegrationStatus: preview?.status ?? null,
-      };
-      this.resetSteps();
+      this.previews.set('gitBash', preview);
+      this.base = { ...this.base, ...(hooks ?? {}), gitInstalled: true };
+      this.syncSteps();
+      this.rerender('git');
     }
     if (this.steps[this.index] === 'git') this.box.focus();
   }
 
   private renderShellIntegration(): void {
-    if (!this.shellPreview) return;
+    const shell = this.defaultShell();
+    if (shell === null || !isIntegrationShell(shell)) return;
+    const preview = this.previews.get(shell);
+    // Null hides the step; this render only happens in the moment before the list catches up.
+    if (preview === null) return;
     renderShellIntegrationStep(
       this.content,
-      { preview: this.shellPreview, installing: this.shellInstalling, done: this.shellDone },
+      { shell, preview, installing: this.shellInstalling, done: this.shellDone.has(shell) },
       this.ui,
-      () => void this.installShellIntegration(),
+      () => void this.installShellIntegration(shell),
     );
   }
 
-  private async installShellIntegration(): Promise<void> {
+  private async installShellIntegration(shell: IntegrationShell): Promise<void> {
     if (this.shellInstalling) return;
     const owner = this.backdrop;
     this.shellInstalling = true;
     this.rerender('shellIntegration');
     let failure = '';
     try {
-      await this.callbacks.installShellIntegration();
+      await this.callbacks.installShellIntegration(shell);
     } catch (err) {
       failure = errorText(err);
     }
     this.shellInstalling = false;
     if (this.backdrop !== owner) return;
-    if (!failure) this.shellDone = true;
+    if (!failure) this.shellDone.add(shell);
     this.rerender('shellIntegration');
     if (failure && this.steps[this.index] === 'shellIntegration') this.setError(failure);
     this.box.focus();
@@ -359,7 +419,11 @@ export class SetupWizard {
       return;
     }
     const choices = profiles.map((p) => ({ value: p.id, label: p.name }));
-    this.radioList(choices, ['shell', 'defaultProfile'], (s) => s.shell.defaultProfile);
+    // The shell integration step follows this choice, so the step count can change here.
+    this.radioList(choices, ['shell', 'defaultProfile'], (s) => s.shell.defaultProfile, (id) => {
+      this.pickedProfile = id;
+      this.syncSteps();
+    });
   }
 
   private renderEditor(): void {
@@ -387,7 +451,12 @@ export class SetupWizard {
   }
 
   /** One radio per choice; picking one saves `path`, and a failure shows the file's value again. */
-  private radioList(choices: Choice[], path: string[], read: (s: Settings) => string): void {
+  private radioList(
+    choices: Choice[],
+    path: string[],
+    read: (s: Settings) => string,
+    onPick?: (value: string) => void,
+  ): void {
     const list = document.createElement('div');
     list.className = 'setup-wizard-choices';
     list.setAttribute('role', 'radiogroup');
@@ -406,7 +475,12 @@ export class SetupWizard {
       input.value = choice.value;
       input.addEventListener('change', () => {
         if (!input.checked) return;
-        this.save(path, choice.value, () => sync(this.callbacks.getSettings()));
+        this.save(path, choice.value, () => {
+          const s = this.callbacks.getSettings();
+          sync(s);
+          onPick?.(read(s));
+        });
+        onPick?.(choice.value);
       });
       inputs.push(input);
       const text = document.createElement('span');
@@ -596,45 +670,12 @@ export class SetupWizard {
   }
 
   private renderLook(): void {
-    const scrimLabel = document.createElement('div');
-    scrimLabel.className = 'setup-wizard-label';
-    scrimLabel.textContent = 'Scrim';
-    const presets = document.createElement('div');
-    presets.className = 'setup-wizard-presets';
-    presets.setAttribute('role', 'group');
-    presets.setAttribute('aria-label', 'Scrim');
-    const names = Object.keys(SCRIM_PRESETS) as (keyof typeof SCRIM_PRESETS)[];
-    const buttons = names.map((name) => {
-      const b = this.button(SCRIM_LABELS[name], () => {
-        mark(name);
-        this.save(['scrim', 'opacity'], SCRIM_PRESETS[name], () => sync(this.callbacks.getSettings()));
-      });
-      b.dataset.preset = name;
-      return b;
+    this.refresh = renderLookStep(this.content, {
+      ui: this.ui,
+      getSettings: () => this.callbacks.getSettings(),
+      save: (path, value, revert) => this.save(path, value, revert),
+      autoColors: { get: () => this.autoColors, set: (next) => (this.autoColors = next) },
     });
-    const mark = (selected: string | null) => {
-      for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.preset === selected));
-    };
-    presets.append(...buttons);
-
-    const animate = document.createElement('label');
-    animate.className = 'setup-wizard-choice';
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.addEventListener('change', () => {
-      this.save(['backdrop', 'animate'], box.checked, () => sync(this.callbacks.getSettings()));
-    });
-    const text = document.createElement('span');
-    text.textContent = 'Animate the background';
-    animate.append(box, text);
-
-    const sync = (s: Settings) => {
-      mark(scrimPresetFor(s.scrim.opacity));
-      box.checked = s.backdrop.animate;
-    };
-    this.content.append(scrimLabel, presets, animate);
-    sync(this.callbacks.getSettings());
-    this.refresh = sync;
   }
 
   /** Saves one value; a failure shows inline, then `revert` shows the file's value again. */
