@@ -54,6 +54,9 @@ import {
   type RemoteOp,
 } from './gitModel';
 import { lookup, type Action, type Keymap } from './keymap';
+import type { OpenInHandler } from './openMenu';
+import { gitWorktrees, type Worktree, type WorktreeList } from './worktreeApi';
+import { isRepoRoot } from './worktreeModel';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import { undoCommitConfirm } from './paneConfirm';
@@ -87,6 +90,12 @@ export interface GitPaneOptions {
   onInsertText: (text: string) => void;
   /** Opens (or focuses) a Git pane on another worktree, for a branch checked out there. */
   onOpenGit: (root: string) => void;
+  /** A worktree row's Open menu. */
+  onOpenIn: OpenInHandler;
+  /** Asks, then removes the worktree; resolves to a message to show inline, or null when removed or cancelled. */
+  onDeleteWorktree: (root: string, w: Worktree) => Promise<string | null>;
+  /** The Worktrees group's compare choice for the repo whose main worktree is `root`; null is automatic. */
+  onSetPrimaryBranch: (root: string, branch: string | null) => void;
   /** The tab the pane opens on; absent means Changes. */
   tab?: GitTab;
 }
@@ -148,6 +157,10 @@ export class GitPane implements PaneView {
   private readonly branchActions: GitBranchActions;
   private tab: GitTab;
   private branches: GitBranchList | null = null;
+  /** Read only while the Branches tab shows, since each read runs a rev-list per worktree. */
+  private worktrees: WorktreeList | null = null;
+  private worktreesLoading = false;
+  private worktreesQueued = false;
   private settings: Settings;
   private rootPath: string;
   private expanded: boolean;
@@ -272,6 +285,14 @@ export class GitPane implements PaneView {
       onCleanup: (bs) => void this.branchActions.cleanup(bs),
       copyName: (name) => copyText(name, 'branch name'),
       insertName: (name) => this.opts.onInsertText(name),
+      onOpenIn: (kind, path) => this.opts.onOpenIn(kind, path),
+      onDeleteWorktree: async (w) => {
+        const message = await this.opts.onDeleteWorktree(this.mainWorktree(), w);
+        // A removal also changes the branch list when it deleted the branch.
+        this.refresh();
+        return message;
+      },
+      onSetPrimaryBranch: (branch) => this.opts.onSetPrimaryBranch(this.mainWorktree(), branch),
     });
     this.tabStrip = new GitTabStrip(this.tab, (tab) => this.setTab(tab));
 
@@ -292,8 +313,10 @@ export class GitPane implements PaneView {
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
     this.listen(window, 'focus', () => this.refresh());
 
-    onGitChanged((root) => {
+    onGitChanged((root, metadata) => {
       if (samePath(root, this.rootPath)) this.refresh();
+      // A checkout or commit in another worktree moves its row.
+      else if (metadata && this.worktrees && isRepoRoot(root, this.worktrees.worktrees)) this.reloadWorktrees();
     }).then(
       (off) => {
         if (this.disposed) off();
@@ -304,6 +327,8 @@ export class GitPane implements PaneView {
 
     onGitFetched((roots) => {
       if (roots.some((r) => samePath(r, this.rootPath))) void this.reloadLastFetch();
+      // A fetch moves the comparison ref every worktree is counted against.
+      if (this.worktrees && roots.some((r) => isRepoRoot(r, this.worktrees?.worktrees ?? []))) this.reloadWorktrees();
     }).then(
       (off) => {
         if (this.disposed) off();
@@ -340,8 +365,49 @@ export class GitPane implements PaneView {
     this.tab = tab;
     this.tabStrip.set(tab);
     this.body.classList.toggle('tab-branches', tab === 'branches');
-    if (tab === 'branches') this.branchesView.focus();
+    if (tab === 'branches') {
+      this.branchesView.focus();
+      this.reloadWorktrees();
+    }
     this.opts.onChange();
+  }
+
+  /** The main worktree's path, which keys the repo's primary branch and removals; the pane's root until the list loads. */
+  private mainWorktree(): string {
+    return this.worktrees?.worktrees[0]?.path ?? this.rootPath;
+  }
+
+  /**
+   * Re-reads the repo's worktrees for the Branches tab; skipped while another tab shows or the
+   * pane is hidden. A call during a read queues exactly one more.
+   */
+  reloadWorktrees(): void {
+    if (this.disposed || !this.ready || !this.expanded || this.tab !== 'branches') return;
+    if (this.worktreesLoading) {
+      this.worktreesQueued = true;
+      return;
+    }
+    this.worktreesLoading = true;
+    const root = this.rootPath;
+    gitWorktrees(root)
+      .then(
+        (list) => {
+          if (this.disposed || root !== this.rootPath) return;
+          this.worktrees = list;
+          this.branchesView.setWorktrees(list, null, root);
+        },
+        (err: unknown) => {
+          // The last good list stays on screen under the error.
+          if (!this.disposed && root === this.rootPath) this.branchesView.setWorktrees(null, errorText(err), root);
+        },
+      )
+      .finally(() => {
+        this.worktreesLoading = false;
+        if (this.worktreesQueued) {
+          this.worktreesQueued = false;
+          this.reloadWorktrees();
+        }
+      });
   }
 
   private openSwitcher(anchor: HTMLElement): void {
@@ -515,6 +581,7 @@ export class GitPane implements PaneView {
     this.lastFetch = lastFetch;
     this.branches = branches;
     if (branches !== null) this.branchesView.setList(branches);
+    this.reloadWorktrees();
 
     this.branch.setBranch(branchLine(status));
     this.branch.setButtons(remoteButtons(status, this.remoteOp));

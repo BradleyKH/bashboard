@@ -155,7 +155,7 @@ built app:
 - Ctrl+Shift+T, Ctrl+Shift+W, Ctrl+Tab, Ctrl+Shift+Tab, and Ctrl+Alt+1 through 9 work on tabs;
   confirm WebView2 does not take Ctrl+Tab
 - Alt+Shift+T opens the shell picker
-- Ctrl+Shift+N opens a scratch pad, and Ctrl+Enter in it sends to the tab's last terminal
+- Ctrl+Shift+S opens a scratch pad, and Ctrl+Enter in it sends to the tab's last terminal
 - Ctrl+Shift+E opens a Files pane at the focused pane's repo root, or focuses the tab's existing
   one for that repo
 - Ctrl+Shift+G opens a Git pane at the focused pane's repo root, or focuses the tab's
@@ -168,7 +168,9 @@ built app:
   Ctrl+=
 - F6 moves focus into the dashboard (peeking it when hidden), the arrows and Enter work there,
   and F6 or Esc returns to the pane
-- Ctrl+Shift+L jumps to the next waiting, done, or failed terminal
+- Ctrl+Shift+N jumps to the next waiting, done, or failed terminal
+- Ctrl+Shift+D toggles the dashboard, and Ctrl+Shift+A pauses or resumes the background
+  animation; confirm WebView2 does not take Ctrl+Shift+A
 - a right-click in a terminal shows no browser menu
 
 ## Debugging input

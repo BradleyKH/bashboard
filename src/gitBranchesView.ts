@@ -3,6 +3,9 @@ import type { GitBranchList, GitLocalBranch, GitRemoteBranch } from './gitApi';
 import { localBranchMenuItems, remoteBranchMenuItems } from './gitBranchMenus';
 import { branchNameError, filterBranches, goneBranches, lockedReason, trackText, trackTitle } from './gitBranchModel';
 import { relativeTime } from './gitModel';
+import { GitWorktreeGroup } from './gitWorktreeGroup';
+import type { OpenInHandler } from './openMenu';
+import type { Worktree, WorktreeList } from './worktreeApi';
 
 export interface GitBranchesViewOptions {
   onSwitch: (b: GitLocalBranch) => void;
@@ -16,12 +19,20 @@ export interface GitBranchesViewOptions {
   onCleanup: (branches: GitLocalBranch[]) => void;
   copyName: (name: string) => void;
   insertName: (name: string) => void;
+  /** A worktree row's Open menu. */
+  onOpenIn: OpenInHandler;
+  /** Resolves to a message to show inline, or null when it was removed or cancelled. */
+  onDeleteWorktree: (w: Worktree) => Promise<string | null>;
+  onSetPrimaryBranch: (branch: string | null) => void;
 }
 
-/** A row's identity across renders: `local:<name>` or `remote:<name>`. */
+/** A row's identity across renders: `local:<name>`, `remote:<name>`, or `worktree:<path>`. */
 type RowKey = string;
 
-/** The Branches tab (docs/design.md section 4.13): local branches, then remote ones with no local copy. */
+/**
+ * The Branches tab (docs/design.md section 4.13): the repo's worktrees, then local branches, then
+ * remote ones with no local copy.
+ */
 export class GitBranchesView {
   readonly el: HTMLElement;
   private readonly field: HTMLInputElement;
@@ -30,6 +41,7 @@ export class GitBranchesView {
   private readonly cleanupBtn: HTMLButtonElement;
   private readonly error: HTMLElement;
   private readonly rows: HTMLElement;
+  private readonly worktrees: GitWorktreeGroup;
   private list: GitBranchList = { local: [], remote: [] };
   /** The branch "New branch from here" picked; null branches from HEAD. */
   private base: string | null = null;
@@ -41,6 +53,12 @@ export class GitBranchesView {
   constructor(private readonly opts: GitBranchesViewOptions) {
     this.el = document.createElement('div');
     this.el.className = 'git-branches';
+    this.worktrees = new GitWorktreeGroup({
+      onOpenIn: opts.onOpenIn,
+      onDelete: (w) => opts.onDeleteWorktree(w),
+      onSetPrimaryBranch: (branch) => opts.onSetPrimaryBranch(branch),
+      onChange: () => this.rerender(),
+    });
 
     const bar = document.createElement('div');
     bar.className = 'git-branches-bar';
@@ -84,6 +102,8 @@ export class GitBranchesView {
       const el = origin ?? (keyboard ? this.selectedEl() : null);
       const key = el?.dataset.key;
       if (!el || !key) return null;
+      const worktree = this.worktreeOf(key);
+      if (worktree) return this.worktrees.menuEntries(worktree).then((entries) => ({ entries, target: el }));
       const local = this.localOf(key);
       if (local) return { entries: localBranchMenuItems(local, this.menuHandlers()), target: el };
       const remote = this.remoteOf(key);
@@ -105,7 +125,17 @@ export class GitBranchesView {
     this.list = list;
     if (this.base !== null && !list.local.some((b) => b.name === this.base)) this.setBase(null);
     if (this.renaming !== null && !list.local.some((b) => b.name === this.renaming)) this.renaming = null;
-    // A rename in progress keeps its field; re-rendering would drop what was typed.
+    this.rerender();
+  }
+
+  /** The repo's worktrees; a null list keeps the last one under `error`. `here` is the pane's own worktree. */
+  setWorktrees(list: WorktreeList | null, error: string | null, here: string): void {
+    this.worktrees.set(list, error, here);
+    this.rerender();
+  }
+
+  /** A rename in progress keeps its field; re-rendering would drop what was typed. */
+  private rerender(): void {
     if (this.renaming === null) this.render();
     else this.updateBar();
   }
@@ -220,6 +250,17 @@ export class GitBranchesView {
       return;
     }
     if (this.selected === null) return;
+    const worktree = this.worktreeOf(this.selected);
+    if (worktree) {
+      if (e.key === 'Enter') {
+        handled();
+        this.worktrees.toggle(worktree);
+      } else if (e.key === 'Delete' && !worktree.main && !worktree.locked) {
+        handled();
+        this.worktrees.delete(worktree);
+      }
+      return;
+    }
     const local = this.localOf(this.selected);
     const remote = this.remoteOf(this.selected);
     if (e.key === 'Enter') {
@@ -239,6 +280,11 @@ export class GitBranchesView {
   private primary(b: GitLocalBranch): void {
     if (b.worktree !== null) this.opts.onOpenWorktree(b.worktree);
     else if (!b.head) this.opts.onSwitch(b);
+  }
+
+  private worktreeOf(key: RowKey): Worktree | undefined {
+    const path = GitWorktreeGroup.pathOf(key);
+    return path === null ? undefined : this.worktrees.find(path);
   }
 
   private localOf(key: RowKey): GitLocalBranch | undefined {
@@ -274,7 +320,12 @@ export class GitBranchesView {
     const filtering = this.field.value.trim() !== '';
     const shown = filterBranches(this.list, this.field.value);
     const now = Date.now();
-    const out: HTMLElement[] = [];
+    const out: HTMLElement[] = this.worktrees.render(
+      this.field.value,
+      filtering,
+      (open, count) => this.sectionHead('Worktrees', count, open),
+      (key) => this.rowShell(key),
+    );
 
     out.push(this.sectionHead('Local', shown.local.length));
     if (shown.local.length === 0) out.push(this.empty(filtering ? 'No local branch matches' : 'No branches yet'));

@@ -75,7 +75,7 @@ select in the Background section of the settings dialog: `lights` (Swirling Ligh
 default, a living colony simulation), `matrix` (Matrix, falling glyph rain), and `none` (nothing is
 drawn behind the panes). A missing or invalid value falls back to `lights` with a notice. The
 choice applies live. `backdrop.animate` applies to both drawn styles and starts `false`, a frozen
-still frame; set it to `true` to run the background. Ctrl+Shift+D pauses or resumes whichever style
+still frame; set it to `true` to run the background. Ctrl+Shift+A pauses or resumes whichever style
 is showing and saves the choice to `backdrop.animate`; it does nothing under None. The dialog shows
 only the fields that apply to the chosen style. Brightness (the inverse of `scrim.opacity`, which
 dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 1) apply to
@@ -146,8 +146,9 @@ default to `true`:
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `favorites`, `layouts`, `panes`, `containers`, and `external` default to
-`true` and `system` and `clock` to `false` (so `dashboard.sections.system` starts off). A settings file that still has `containers.enabled` and no
+each dashboard element: `folder`, `panes`, `containers`, and `external` default to `true`, and
+`favorites`, `layouts`, `system`, and `clock` to `false`. While `favorites` or `layouts` is off,
+the panel's top bar has a button for it instead. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found. All of them apply on save and are in the Dashboard section of the settings dialog, the
 elements under "Show on the dashboard".
@@ -161,8 +162,9 @@ dashboard", shown while the clock is on.
 "dashboard": {
   "side": "right",
   "sections": {
-    "favorites": true,
-    "layouts": true,
+    "folder": true,
+    "favorites": false,
+    "layouts": false,
     "panes": true,
     "containers": true,
     "external": true,

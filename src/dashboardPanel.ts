@@ -16,6 +16,7 @@ import {
 import type { DashboardSide } from './dashboardResize';
 import { DashboardNav } from './dashboardNav';
 import { dashboardRevealHandle } from './dashboardReveal';
+import { withKeys } from './dashboardRevealModel';
 import { DashboardSystem } from './dashboardSystem';
 import {
   DEFAULT_ELEMENT_ORDER,
@@ -45,7 +46,6 @@ import { renderSessionRow } from './sessionRow';
 import { renderPaneCard } from './paneCard';
 import { renderPaneGroup } from './paneGroup';
 import type { TabInfo } from './workspace';
-import type { WorktreeCallbacks } from './worktreeList';
 
 export interface DashboardCallbacks
   extends Partial<FavoritesCallbacks>,
@@ -66,10 +66,11 @@ export interface DashboardCallbacks
   onOrderChange?: (order: DashboardElement[]) => void;
   /** The panel's own menu asked to show or hide an element; the setting's reload applies it. */
   onSetElementShown?: (element: DashboardElement, shown: boolean) => void;
-  /** Open menu on a folder row or the Repo section's buttons. */
+  /** Open menu on a folder row or the Folder section's buttons. */
   onOpenIn?: OpenInHandler;
-  onDeleteWorktree?: WorktreeCallbacks['onDeleteWorktree'];
-  onSetPrimaryBranch?: WorktreeCallbacks['onSetPrimaryBranch'];
+  /** The top bar's Favorites and Layouts buttons, shown while their section is hidden; the menu drops from `anchor`. */
+  onOpenFavoritesMenu?: (anchor: HTMLElement) => void;
+  onOpenLayoutsMenu?: (anchor: HTMLElement) => void;
   /** The panel came on screen (open or peeking) or left it. */
   onShownChange?: (shown: boolean) => void;
   onInstallHooks: () => void;
@@ -79,8 +80,8 @@ export interface DashboardCallbacks
   onHide?: () => void;
   /** The edge handle opened the hidden panel. */
   onReveal?: () => void;
-  /** The toggle's formatted chords, for the edge handle's tooltip. */
-  toggleKeys?: () => string | undefined;
+  /** An action's formatted chords, for the top bar's and the edge handle's tooltips. */
+  actionKeys?: (action: string) => string | undefined;
   /** Escape or F6 left the panel; focus goes back to the panes. */
   onLeave?: () => void;
   /** A key pressed in the panel that it does not use itself; true when a workspace action ran. */
@@ -89,15 +90,35 @@ export interface DashboardCallbacks
 
 const AGE_REFRESH_MS = 15_000;
 
+/** `getKeys` is read on hover, so the tooltip shows a rebinding without a reload. */
+function topButton(
+  className: string,
+  text: string,
+  title: string,
+  getKeys: () => string | undefined,
+  run: (button: HTMLButtonElement) => void,
+): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = className;
+  b.textContent = text;
+  b.title = title;
+  b.addEventListener('pointerenter', () => {
+    b.title = withKeys(title, getKeys());
+  });
+  b.addEventListener('click', () => run(b));
+  return b;
+}
+
 /**
- * The dashboard, docked on the left or right side of the window: Repo at the top, the footer at
- * the bottom, and between them the elements in the user's order, each shown or hidden by its
- * setting (docs/design.md section 4.6).
+ * The dashboard, docked on the left or right side of the window: the top bar, the top slot, Pins,
+ * then the lower list; the elements sit in either slot in the user's order, each shown or hidden
+ * by its setting (docs/design.md section 4.6).
  */
 export class DashboardPanel {
   private open = false;
   private order: DashboardElement[] = [...DEFAULT_ELEMENT_ORDER];
-  /** The elements in the slot above Repo; the rest sit between Repo and the footer. */
+  /** The elements in the slot above Pins; the rest sit between Pins and the footer. */
   private top: DashboardElement[] = [...DEFAULT_TOP_ELEMENTS];
   private shown: Record<DashboardElement, boolean> = { ...ELEMENT_SHOWN_BY_DEFAULT };
   private side: DashboardSide = 'right';
@@ -121,7 +142,7 @@ export class DashboardPanel {
   private favoritesKey = '';
   private layouts: NamedLayout[] = [];
   private layoutsKey = '';
-  private repo: RepoSectionState = { repo: null, pins: [], worktrees: null };
+  private repo: RepoSectionState = { repo: null, pins: [] };
   private wasShown = false;
   private repoKey = '';
   private timer: number | undefined;
@@ -133,6 +154,8 @@ export class DashboardPanel {
   private hovered = false;
   private readonly nav: DashboardNav;
   private readonly installButton: HTMLButtonElement;
+  private readonly favoritesMenuButton: HTMLButtonElement;
+  private readonly layoutsMenuButton: HTMLButtonElement;
   private readonly repoSection: RepoSection;
   private readonly favoritesSection: FavoritesSection;
   private readonly layoutsSection: LayoutsSection;
@@ -152,8 +175,6 @@ export class DashboardPanel {
       onRenamePin: (index, label) => this.callbacks.onRenamePin?.(index, label),
       onRemovePin: (index) => this.callbacks.onRemovePin?.(index),
       onReorderPin: (from, to) => this.callbacks.onReorderPin?.(from, to),
-      onDeleteWorktree: (root, w) => this.callbacks.onDeleteWorktree?.(root, w) ?? Promise.resolve(null),
-      onSetPrimaryBranch: (root, branch) => this.callbacks.onSetPrimaryBranch?.(root, branch),
     });
     this.favoritesSection = new FavoritesSection({
       onOpen: (path, opts) => this.callbacks.onOpen?.(path, opts),
@@ -171,22 +192,42 @@ export class DashboardPanel {
       onRenameLayout: (index, name) => this.callbacks.onRenameLayout?.(index, name),
       onRemoveLayout: (index) => this.callbacks.onRemoveLayout?.(index),
     });
-    const hideButton = document.createElement('button');
-    hideButton.type = 'button';
-    hideButton.className = 'dashboard-hide';
-    hideButton.textContent = '×';
-    hideButton.title = 'Hide the dashboard';
-    hideButton.addEventListener('click', () => {
-      this.hide();
-      this.callbacks.onHide?.();
-    });
+    const keys = (action: string) => () => this.callbacks.actionKeys?.(action);
+    this.favoritesMenuButton = topButton(
+      'dashboard-top-menu',
+      'Favorites ▾',
+      'Open a favorite folder',
+      keys('openFavorite'),
+      (b) => this.callbacks.onOpenFavoritesMenu?.(b),
+    );
+    this.layoutsMenuButton = topButton('dashboard-top-menu', 'Layouts ▾', 'Open a layout', keys('openLayout'), (b) =>
+      this.callbacks.onOpenLayoutsMenu?.(b),
+    );
+    const spacer = document.createElement('span');
+    spacer.className = 'dashboard-top-spacer';
+    const helpButton = topButton('dashboard-top-icon', '?', 'Keyboard shortcuts', keys('showHelp'), () =>
+      this.callbacks.onShowHelp(),
+    );
+    const settingsButton = topButton('dashboard-top-icon', '⚙', 'Settings', keys('openSettings'), () =>
+      this.callbacks.onShowSettings(),
+    );
+    const hideButton = topButton(
+      'dashboard-top-icon dashboard-hide',
+      '×',
+      'Hide the dashboard',
+      keys('toggleDashboard'),
+      () => {
+        this.hide();
+        this.callbacks.onHide?.();
+      },
+    );
     document.body.append(
       dashboardRevealHandle(
         () => {
           this.setOpen(true);
           this.callbacks.onReveal?.();
         },
-        () => this.callbacks.toggleKeys?.(),
+        keys('toggleDashboard'),
       ),
     );
     const resizeHandle = dashboardResizeHandle(
@@ -201,16 +242,18 @@ export class DashboardPanel {
     this.applyWidth();
     const top = document.createElement('div');
     top.className = 'dashboard-top';
-    top.append(hideButton);
-    // Repo follows the focused pane and stays at the top; the elements sit at the bottom, so a
-    // focus change that resizes Repo never shifts them.
+    top.append(this.favoritesMenuButton, this.layoutsMenuButton, helpButton, settingsButton, spacer, hideButton);
+    // Pins follow the focused pane and appear or vanish with it, so they stay fixed between the
+    // slots rather than among the elements, and the lower list sits at the bottom, where a focus
+    // change that resizes Pins never shifts it.
     this.elementList = document.createElement('div');
     this.elementList.className = 'dashboard-elements';
     this.topSlot = document.createElement('div');
     this.topSlot.className = 'dashboard-top-slot';
     this.topSlot.hidden = true;
-    root.append(resizeHandle, top, this.topSlot, this.repoSection.el, this.elementList);
-    this.register('repo', this.repoSection.el, this.repoSection.head);
+    root.append(resizeHandle, top, this.topSlot, this.repoSection.pins, this.elementList);
+    this.addSection('folder', this.repoSection.el, this.repoSection.head);
+    this.register('pins', this.repoSection.pins, this.repoSection.pinsHead);
     this.addSection('favorites', this.favoritesSection.el, this.favoritesSection.head);
     this.addSection('layouts', this.layoutsSection.el, this.layoutsSection.head);
     this.terminalList = this.section('panes', 'Panes');
@@ -231,19 +274,10 @@ export class DashboardPanel {
     this.installButton.textContent = 'Install Claude Code hooks';
     this.installButton.hidden = true;
     this.installButton.addEventListener('click', () => this.callbacks.onInstallHooks());
-    const helpButton = document.createElement('button');
-    helpButton.type = 'button';
-    helpButton.className = 'help-open';
-    helpButton.textContent = 'Keyboard shortcuts';
-    helpButton.addEventListener('click', () => this.callbacks.onShowHelp());
-    const settingsButton = document.createElement('button');
-    settingsButton.type = 'button';
-    settingsButton.className = 'help-open';
-    settingsButton.textContent = 'Settings';
-    settingsButton.addEventListener('click', () => this.callbacks.onShowSettings());
+    // Only the hooks offer lives here, and it hides once they are installed.
     const footer = document.createElement('div');
     footer.className = 'dashboard-footer';
-    footer.append(this.installButton, helpButton, settingsButton);
+    footer.append(this.installButton);
     root.append(footer);
     this.nav = new DashboardNav(root, {
       onLeave: () => this.leave(),
@@ -295,7 +329,15 @@ export class DashboardPanel {
     const focus = this.nav.capture();
     this.containersSection.update(store.current());
     this.containersSection.setVisible(store.available);
+    this.syncPinsFolder();
     this.nav.restore(focus);
+  }
+
+  /** Pins name their folder unless the Folder section is the last thing shown above them. */
+  private syncPinsFolder(): void {
+    const shown = [...this.topSlot.children].filter((el) => !(el as HTMLElement).hidden);
+    const above = shown[shown.length - 1];
+    this.repoSection.setPinsFolderShown(above !== this.repoSection.el);
   }
 
   /** Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md section 4.6). */
@@ -317,7 +359,7 @@ export class DashboardPanel {
     return [...this.order];
   }
 
-  /** Applies the saved elements above Repo without firing `onOrderChange`. */
+  /** Applies the saved top slot elements without firing `onOrderChange`. */
   setTopElements(top: DashboardElement[]): void {
     this.top = [...top];
     this.layoutElements();
@@ -361,11 +403,14 @@ export class DashboardPanel {
   }
 
   /**
-   * Puts the shown elements in their slot (above Repo, or between Repo and the footer) in order
+   * Puts the shown elements in their slot (above Pins, or between Pins and the footer) in order
    * and detaches the rest; a disabled element keeps its place in `order` and its slot, so turning
    * it back on returns it there.
    */
   private layoutElements(): void {
+    // A hidden section's list stays reachable from the top bar (docs/design.md section 4.6).
+    this.favoritesMenuButton.hidden = this.shown.favorites;
+    this.layoutsMenuButton.hidden = this.shown.layouts;
     const shownIn = (atTop: boolean): HTMLElement[] =>
       this.order
         .filter((id) => this.shown[id] && this.top.includes(id) === atTop)
@@ -379,6 +424,7 @@ export class DashboardPanel {
     this.topSlot.replaceChildren(...top);
     this.topSlot.hidden = top.length === 0;
     this.elementList.replaceChildren(...list);
+    this.syncPinsFolder();
     this.nav.restore(focus);
   }
 
@@ -630,6 +676,7 @@ export class DashboardPanel {
     if (repoKey !== this.repoKey) {
       this.repoKey = repoKey;
       this.repoSection.update(this.repo);
+      this.syncPinsFolder();
     }
 
     const layoutsKey = JSON.stringify(this.layouts.map((l) => [l.name, l.tab.panes.length]));

@@ -8,7 +8,7 @@ import { folderButton, openFolder } from './folderButton';
 import { openMenuButton, openInMenuItems } from './openMenu';
 import { profileBadge } from './profiles';
 import { attachReorder } from './rowReorder';
-import { iconButton, startRename } from './rowControls';
+import { iconButton, setRowRename, startRename } from './rowControls';
 import { attachBodyDrag } from './bodyDrag';
 
 const DOUBLE_CLICK_MS = 300;
@@ -48,11 +48,15 @@ export function renderFavoriteRow(
   label.className = 'favorite-label';
   label.textContent = favorite.label;
   label.title = favorite.path;
-  label.addEventListener('dblclick', (e) => {
-    e.stopPropagation();
+  const beginRename = (): void => {
     window.clearTimeout(openTimer);
     startRename(label, favorite.label, (value) => callbacks.onRename(index, value));
+  };
+  label.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    beginRename();
   });
+  setRowRename(el, beginRename);
 
   const path = document.createElement('div');
   path.className = 'favorite-path';

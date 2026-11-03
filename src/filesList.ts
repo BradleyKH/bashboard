@@ -1,7 +1,7 @@
 import './filesList.css';
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
-import { filterEntries, listKey, sortEntries, type FileEntry } from './filesModel';
+import { fileNameError, filterEntries, listKey, sortEntries, type FileEntry } from './filesModel';
 import { renderFileRow } from './fileRow';
 import {
   EMPTY_SELECTION,
@@ -32,6 +32,8 @@ export interface FilesListOptions {
   folderMenu: () => MenuEntry[];
   /** A row's body was dragged past the threshold; `entries` are the dragged selection. */
   onDragStart?: (entries: FileEntry[], e: PointerEvent) => void;
+  /** Enter in a rename field with a new, valid name; resolves true when the rename went through. */
+  onRename: (entry: FileEntry, newName: string) => Promise<boolean>;
 }
 
 /**
@@ -46,6 +48,8 @@ export class FilesList {
   private entries: FileEntry[] = [];
   private sel: FileSelection = EMPTY_SELECTION;
   private filterValue = '';
+  /** The entry whose name field is open; renders wait for it, as they would drop what was typed. */
+  private renaming: string | null = null;
 
   constructor(private readonly opts: FilesListOptions) {
     this.el = document.createElement('div');
@@ -133,6 +137,83 @@ export class FilesList {
     return this.filterValue;
   }
 
+  /** Opens a name field on `entry`, or on the cursor's entry; F2 and the row menu's Rename. */
+  startRename(entry: FileEntry | null = this.selected()): void {
+    if (!entry || this.renaming !== null) return;
+    this.sel = single(entry.name);
+    this.paint();
+    const label = this.rowEl(entry)?.querySelector<HTMLElement>('.file-row-name');
+    if (!label) return;
+    this.renaming = entry.name;
+    label.replaceWith(this.renameField(entry));
+  }
+
+  /**
+   * Enter renames; Escape or leaving the field cancels, as in the Git pane's branch rename, so a
+   * stray click never renames something on disk.
+   */
+  private renameField(entry: FileEntry): HTMLInputElement {
+    const from = entry.name;
+    const input = document.createElement('input');
+    input.className = 'file-rename-field';
+    input.value = from;
+    input.spellcheck = false;
+    let done = false;
+    const end = (renamed: string | null, focus: boolean): void => {
+      this.renaming = null;
+      if (renamed !== null) this.sel = single(renamed);
+      this.paint();
+      if (focus) this.focus();
+      const now = renamed === null ? undefined : this.entries.find((e) => e.name === renamed);
+      if (now) this.opts.onSelect(now);
+    };
+    input.addEventListener('input', () => {
+      const to = input.value.trim();
+      // A change of case alone names the same entry, so it is not a clash.
+      const clash =
+        to.toLowerCase() !== from.toLowerCase() && this.entries.some((e) => e.name.toLowerCase() === to.toLowerCase());
+      const err = to === from ? null : (fileNameError(to) ?? (clash ? `${to} already exists` : null));
+      input.classList.toggle('invalid', err !== null);
+      input.title = err ?? '';
+    });
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        done = true;
+        end(null, true);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const to = input.value.trim();
+        if (to === from) {
+          done = true;
+          end(null, true);
+          return;
+        }
+        if (input.classList.contains('invalid') || to === '') return;
+        done = true;
+        input.readOnly = true;
+        void this.opts.onRename(entry, to).then((ok) => end(ok ? to : null, true));
+      }
+    });
+    input.addEventListener('blur', () => {
+      if (done) return;
+      done = true;
+      end(null, false);
+    });
+    // The row's own handlers select, open, and drag; inside the field these place the caret.
+    for (const type of ['click', 'dblclick', 'pointerdown', 'mousedown']) {
+      input.addEventListener(type, (e) => e.stopPropagation());
+    }
+    queueMicrotask(() => {
+      input.focus();
+      // As in File Explorer, a file's name is selected up to its extension.
+      const dot = entry.isDir ? -1 : from.lastIndexOf('.');
+      input.setSelectionRange(0, dot > 0 ? dot : from.length);
+    });
+    return input;
+  }
+
   /** What an action on `entry` covers: the whole selection when the entry is in it. */
   private selectionFor(entry: FileEntry): FileEntry[] {
     return isMarked(this.sel, entry.name) ? this.selection() : [entry];
@@ -152,6 +233,12 @@ export class FilesList {
 
   private onKeyDown(e: KeyboardEvent): void {
     if (e.altKey || e.metaKey) return;
+    if (e.key === 'F2' && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.startRename();
+      return;
+    }
     if (e.ctrlKey) {
       if (!e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
@@ -197,6 +284,10 @@ export class FilesList {
   }
 
   private render(): void {
+    if (this.renaming === null) this.paint();
+  }
+
+  private paint(): void {
     this.filterBar.hidden = this.filterValue === '';
     this.filterText.textContent = this.filterValue;
     const rows = this.visible().map((entry) =>

@@ -199,6 +199,7 @@ pub fn run() {
             files::fs_read_text,
             files::fs_write_text,
             files::fs_move,
+            files::fs_rename,
             files::fs_watch,
             files::fs_unwatch,
             editors::editors,

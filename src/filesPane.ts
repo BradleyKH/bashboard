@@ -31,7 +31,7 @@ import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
-import { fsList, fsMove, fsUnwatch, fsWatch, repoRoot } from './repoFiles';
+import { fsList, fsMove, fsRename, fsUnwatch, fsWatch, repoRoot } from './repoFiles';
 import type { Settings } from './settings';
 import { textFieldOwns } from './textPaneKeys';
 import { textZoom } from './textZoomStore';
@@ -180,6 +180,7 @@ export class FilesPane implements PaneView {
       rowMenu: (entry, selection) => this.rowMenu(entry, selection),
       folderMenu: () => this.folderMenu(),
       onDragStart: (entries, e) => this.startRowDrag(entries, e),
+      onRename: (entry, newName) => this.renameEntry(entry, newName),
     });
     this.notice = document.createElement('div');
     this.notice.className = 'files-notice';
@@ -323,6 +324,21 @@ export class FilesPane implements PaneView {
     else if (failed.length > 1) showToast(`Could not move ${failed.length} files; ${failed[0]}`);
     // The folder watch re-lists too; this makes the rows disappear without waiting for it.
     if (!this.disposed) await this.relist(this.generation);
+  }
+
+  /** Renames an entry of the folder shown, toasting a failure, then re-lists. */
+  private async renameEntry(entry: FileEntry, newName: string): Promise<boolean> {
+    const path = childPath(this.currentPath, entry.name);
+    // The preview's unsaved text goes to the file before its name changes.
+    if (this.preview.path !== null && samePath(path, this.preview.path)) await this.flush();
+    try {
+      await fsRename(path, newName);
+    } catch (e) {
+      showToast(`Could not rename ${entry.name}: ${errorText(e)}`);
+      return false;
+    }
+    if (!this.disposed) await this.relist(this.generation);
+    return true;
   }
 
   /** The repo's pins changed; refreshes the breadcrumb's pin button. */
@@ -572,6 +588,7 @@ export class FilesPane implements PaneView {
       },
       insertPath: (es) => this.opts.onInsertPaths(es.map(pathOf), this.rootPath),
       moveTo: (files, toDir) => void this.movePaths(files.map(pathOf), toDir),
+      rename: (e) => this.list.startRename(e),
       pin: (e) => this.opts.onPin(pathOf(e), e.isDir),
     };
     return fileRowMenuItems(entry, selection, this.moveTargets(selection), handlers);

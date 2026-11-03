@@ -33,6 +33,7 @@ function rowHandlers(): FileRowMenuHandlers {
     copyPath: vi.fn(),
     insertPath: vi.fn(),
     moveTo: vi.fn(),
+    rename: vi.fn(),
     pin: vi.fn(),
   };
 }
@@ -47,6 +48,7 @@ describe('fileRowMenuItems', () => {
       'Copy path',
       'Insert path',
       '-',
+      'Rename',
       'Pin',
     ]);
   });
@@ -59,6 +61,7 @@ describe('fileRowMenuItems', () => {
       'Insert path',
       '-',
       'Move to',
+      'Rename',
       'Pin',
     ]);
   });

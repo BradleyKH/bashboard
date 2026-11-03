@@ -496,17 +496,17 @@ describe('parseSavedWorkspace', () => {
   });
 
   it('filters collapsed sections and defaults them when absent', () => {
-    expect(parseSavedWorkspace(v3([tab(null, 'a')], 0, ['repo', 'bogus', 'repo', 7]))?.collapsedSections).toEqual([
-      'repo',
+    expect(parseSavedWorkspace(v3([tab(null, 'a')], 0, ['folder', 'bogus', 'repo', 7]))?.collapsedSections).toEqual([
+      'folder',
     ]);
     expect(parseSavedWorkspace(v3([tab(null, 'a')], 0, 'panes'))?.collapsedSections).toEqual([]);
     expect(parseSavedWorkspace({ version: 3, tabs: [], activeTab: 0 })?.collapsedSections).toEqual([]);
   });
 
   it('keeps a saved element order and cleans it', () => {
-    const order = ['clock', 'external', 'system', 'favorites', 'layouts', 'panes', 'containers'];
+    const order = ['clock', 'folder', 'external', 'system', 'favorites', 'layouts', 'panes', 'containers'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);
-    const messy = ['repo', 'panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock'];
+    const messy = ['repo', 'panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock', 'folder'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: messy })?.dashboardSectionOrder).toEqual([
       'panes',
       'favorites',
@@ -515,6 +515,7 @@ describe('parseSavedWorkspace', () => {
       'external',
       'system',
       'clock',
+      'folder',
     ]);
   });
 
@@ -522,6 +523,7 @@ describe('parseSavedWorkspace', () => {
     const raw = { ...v3([]), dashboardSectionOrder: ['clock', 'favorites', 'layouts', 'containers', 'external'] };
     expect(parseSavedWorkspace(raw)?.dashboardSectionOrder).toEqual([
       'clock',
+      'folder',
       'favorites',
       'layouts',
       'panes',
@@ -535,6 +537,7 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardSectionOrder');
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: 'panes' })?.dashboardSectionOrder).toEqual([
       'clock',
+      'folder',
       'favorites',
       'layouts',
       'panes',
@@ -546,13 +549,29 @@ describe('parseSavedWorkspace', () => {
 
   it('keeps the top slot elements, reading an older clock flag', () => {
     const top = (raw: Record<string, unknown>) => parseSavedWorkspace({ ...v3([]), ...raw })?.dashboardTopElements;
-    expect(top({ dashboardTopElements: ['panes', 'nope', 'clock'] })).toEqual(['panes', 'clock']);
-    expect(top({ dashboardTopElements: [] })).toEqual([]);
-    expect(top({ dashboardTopElements: [], dashboardClockTop: true })).toEqual([]);
-    expect(top({ dashboardClockTop: false })).toEqual([]);
-    expect(top({ dashboardClockTop: true })).toEqual(['clock']);
+    expect(top({ dashboardTopElements: ['panes', 'nope', 'clock', 'folder'] })).toEqual(['panes', 'clock', 'folder']);
+    expect(top({ dashboardTopElements: [], dashboardSectionOrder: ['folder'] })).toEqual([]);
+    expect(top({ dashboardTopElements: [], dashboardClockTop: true, dashboardSectionOrder: ['folder'] })).toEqual([]);
     expect(parseSavedWorkspace({ ...v3([]), dashboardClockTop: 'yes' })).not.toHaveProperty('dashboardTopElements');
     expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardTopElements');
+  });
+
+  it('puts Folder last in the top slot of a file saved before it was an element', () => {
+    const saved = (raw: Record<string, unknown>) => parseSavedWorkspace({ ...v3([]), ...raw });
+    expect(saved({ dashboardClockTop: false })?.dashboardTopElements).toEqual(['folder']);
+    expect(saved({ dashboardClockTop: true })?.dashboardTopElements).toEqual(['clock', 'folder']);
+    const custom = saved({
+      dashboardSectionOrder: ['favorites', 'clock', 'panes', 'layouts', 'containers', 'external', 'system'],
+      dashboardTopElements: ['favorites', 'clock'],
+    });
+    expect(custom?.dashboardTopElements).toEqual(['favorites', 'clock', 'folder']);
+    expect(custom?.dashboardSectionOrder?.slice(0, 4)).toEqual(['favorites', 'clock', 'folder', 'panes']);
+    // Once Folder is placed anywhere, the file's placement stands.
+    const moved = saved({
+      dashboardSectionOrder: ['clock', 'panes', 'folder', 'favorites', 'layouts', 'containers', 'external', 'system'],
+      dashboardTopElements: ['clock'],
+    });
+    expect(moved?.dashboardTopElements).toEqual(['clock']);
   });
 
   it('loads a version 1 file as one unnamed tab', () => {

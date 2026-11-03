@@ -52,7 +52,7 @@ export const ACTION_LABELS: Record<string, string> = {
   openPalette: 'Command palette',
   nextAttention: 'Jump to the next terminal that needs you',
   splitWithProfile: 'Split with a chosen shell',
-  cycleScrim: 'Cycle backdrop dimming',
+  cycleScrim: 'Cycle background brightness',
   toggleBackdrop: 'Pause or resume the background animation',
   showHelp: 'Keyboard shortcuts',
   openSettings: 'Settings',

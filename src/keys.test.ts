@@ -135,8 +135,8 @@ describe('handleKey', () => {
     expect(dispatch).toHaveBeenCalledWith({ type: 'cycleScrim' });
   });
 
-  it('dispatches toggleDashboard on Ctrl+Shift+S and swallows the rest of the key', () => {
-    const init = { key: 'S', code: 'KeyS', ctrlKey: true, shiftKey: true };
+  it('dispatches toggleDashboard on Ctrl+Shift+D and swallows the rest of the key', () => {
+    const init = { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true };
     expect(handleKey(ev('keydown', init), ctx)).toBe(false);
     expect(handleKey(ev('keypress', init), ctx)).toBe(false);
     expect(handleKey(ev('keyup', init), ctx)).toBe(false);
@@ -159,10 +159,10 @@ describe('handleKey', () => {
     { key: 'O', code: 'KeyO', type: 'openFavorite' },
     { key: 'R', code: 'KeyR', type: 'openLayout' },
     { key: 'P', code: 'KeyP', type: 'openPalette' },
-    { key: 'L', code: 'KeyL', type: 'nextAttention' },
-    { key: 'D', code: 'KeyD', type: 'toggleBackdrop' },
+    { key: 'N', code: 'KeyN', type: 'nextAttention' },
+    { key: 'A', code: 'KeyA', type: 'toggleBackdrop' },
     { key: 'T', code: 'KeyT', type: 'newTab' },
-    { key: 'N', code: 'KeyN', type: 'newScratch' },
+    { key: 'S', code: 'KeyS', type: 'newScratch' },
     { key: 'E', code: 'KeyE', type: 'openFiles' },
     { key: 'G', code: 'KeyG', type: 'openGit' },
     { key: 'H', code: 'KeyH', type: 'openSearch' },

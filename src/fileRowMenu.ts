@@ -15,6 +15,7 @@ export interface FileRowMenuHandlers {
   insertPath: (entries: FileEntry[]) => void;
   /** `toDir` is the chosen target's absolute folder; `files` are never folders. */
   moveTo: (files: FileEntry[], toDir: string) => void;
+  rename: (entry: FileEntry) => void;
   pin: (entry: FileEntry) => void;
 }
 
@@ -58,7 +59,7 @@ export function fileRowMenuItems(
   }
   if (!many) {
     if (files.length === 0 || moveTargets.length === 0) out.push(separator());
-    out.push(item('Pin', () => handlers.pin(entry)));
+    out.push(item('Rename', () => handlers.rename(entry)), item('Pin', () => handlers.pin(entry)));
   }
   return out;
 }

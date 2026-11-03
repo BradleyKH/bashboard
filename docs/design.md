@@ -333,7 +333,7 @@ a file:
 | `workspace.json` | `workspace_load`, `workspace_save` | Open tabs, their panes, and layouts (section 7), for restore (4.9); dashboard state and pane text zoom |
 | `favorites.json` | `favorites_load`, `favorites_save` | Favorite folders (4.6) |
 | `layouts.json` | `layouts_load`, `layouts_save` | Named layouts (4.6) |
-| `repos.json` | `repos_load`, `repos_save` | Pinned files and folders per repo (4.12), and the branch worktrees are compared with (4.6) |
+| `repos.json` | `repos_load`, `repos_save` | Pinned files and folders per repo (4.12), and the branch worktrees are compared with (4.13) |
 
 The core treats all four as opaque JSON, except that the worktree commands (3.9) read each repo's
 `primaryBranch` from `repos.json`; the front end owns their shape and validation.
@@ -349,8 +349,8 @@ and removed by `scratch_delete(id)`; `scratch_load(id)` reads one back on restor
 
 A path's repo is the nearest folder at or above it holding `.git` (a directory, or the file a
 worktree has); a folder in no repo is its own repo, without git. A linked worktree is its
-own repo root here, so each worktree of one repository has its own `repo_root`; the Repo
-section lists them together through the worktree commands in 3.9.
+own repo root here, so each worktree of one repository has its own `repo_root`; the Git pane's
+Branches tab lists them together through the worktree commands in 3.9.
 
 | Command | Purpose |
 | --- | --- |
@@ -359,10 +359,11 @@ section lists them together through the worktree commands in 3.9.
 | `fs_read_text(path) -> { text, modified, lossy }` | Up to 2 MiB; a file with a NUL byte in its first 8 KiB is refused as binary. Invalid UTF-8 decodes with U+FFFD in place of the bad bytes and sets `lossy` |
 | `fs_write_text(path, text, expectedModified)` | Writes through a temp file and a rename; refused when the file's modified time differs from `expectedModified`, so a save never overwrites a change made on disk since the read, and refused when the file on disk is not valid UTF-8 |
 | `fs_move(path, toDir)` | Moves a file into another folder; refused when the target name exists |
+| `fs_rename(path, newName) -> path` | Renames a file or folder within its folder; refused (`invalid:`) for a name Windows forbids and (`exists:`) when another entry has the name, though a change of case alone goes through |
 | `fs_watch(dir, onChange) -> id`, `fs_unwatch(id)` | One folder, not recursive, debounced 200 ms |
 
 Paths must be absolute and are normalized before use, so `..` segments cannot step outside the
-folder they name. `fs_write_text` and `fs_move` work on any existing file, and nothing creates or
+folder they name. `fs_write_text`, `fs_move`, and `fs_rename` work on any existing entry, and nothing creates or
 deletes files except the scratch commands above.
 
 ### 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`)
@@ -482,9 +483,7 @@ are reference-counted per normalized root, so Git panes on one repo share one. A
 `git://changed` with the root, debounced 300 ms for metadata and 1 second for the worktree, and
 at most 3 seconds after the first change while changes keep arriving. The payload's `metadata`
 flag is true when refs, `HEAD`, the index, or a worktree record changed (or the watcher reported
-an error), and false when only worktree files changed. The Repo section holds its own reference
-to this watcher, on the repo's main worktree, while it shows a worktree list (4.6), so
-`git://changed` reaches the list whether or not a Git pane is open.
+an error), and false when only worktree files changed.
 
 ### 3.10 Containers (`src-tauri/src/containers.rs`)
 
@@ -1012,7 +1011,7 @@ Defaults mirror the current Windows Terminal settings:
 | Alt+Shift+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) |
 | Ctrl+Shift+T | New tab (4.10) |
 | Ctrl+Shift+W | Close tab |
-| Ctrl+Shift+N | New scratch pad (4.15) |
+| Ctrl+Shift+S | New scratch pad (4.15) |
 | Ctrl+Shift+E | Files pane for the focused pane's repo (4.12) |
 | Ctrl+Shift+G | Git pane for the focused pane's repo (4.13) |
 | Ctrl+Shift+H | Search pane for the focused pane's repo (4.14) |
@@ -1026,11 +1025,11 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+C | Copy |
 | Ctrl+V, Ctrl+Shift+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image |
 | Shift+Enter | Send ESC+CR (Claude Code's newline) |
-| Ctrl+Shift+S | Toggle dashboard panel |
+| Ctrl+Shift+D | Toggle dashboard panel |
 | F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) |
 | Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) |
-| Ctrl+Shift+D | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None |
-| Ctrl+Shift+L | Focus the next terminal that needs you, across all tabs (4.7) |
+| Ctrl+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None |
+| Ctrl+Shift+N | Focus the next terminal that needs you, across all tabs (4.7) |
 | Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+0 | Reset the terminal font size to the default, 14 px (saved to `font.size`; applies to every terminal) |
@@ -1113,7 +1112,7 @@ terminal. The Files pane is the exception for Ctrl+Shift+F, which opens its prev
 favorite, layout, the focused repo's pins and worktrees, and every keymap action that makes sense
 without a key context. Each row shows its category at the right edge. Enter behaves as the item's
 own control does: a pane is focused (expanded first when collapsed), a tab is switched to, a
-favorite opens as a split, a layout opens as a new tab, a pin opens as clicking it in the Repo
+favorite opens as a split, a layout opens as a new tab, a pin opens as clicking it in the Pins
 section does, a worktree opens a terminal there as a split, and an action runs as its key would.
 Ctrl+Enter opens a favorite or worktree collapsed. Pins whose path is missing are left out.
 
@@ -1137,22 +1136,39 @@ choice, so actions such as split, find, and close apply to that pane.
 
 A collapsible panel docked on the side `dashboard.side` names (`right` by default, or `left`;
 an unknown value falls back to `right` with a warning), open on start by default, toggled with
-Ctrl+Shift+S, hidden by a × button at its top right on either side (which also ends a peek),
+Ctrl+Shift+D, hidden by the × button at the right end of its top bar (which also ends a peek),
 and peeking open briefly while hidden when a terminal starts waiting. Hiding it with × shows a
 toast naming the toggle's current keys and the edge handle. While the panel is neither open nor
 peeking, the edge handle, a pill in the 8 px gutter on the panel's side at mid-height that widens
 to a chevron on hover, opens it on click, so a user who never learned the shortcut is not stranded. Open, it narrows the panes
 from its side. Dragging its inner edge (its left edge when docked right, its right edge when
-docked left) resizes it, from 280 px (enough for the Repo section's row of buttons on
+docked left) resizes it, from 280 px (enough for the Folder section's row of buttons on
 one line) up to 60% of the window, and the width is saved with the workspace (section 7); it is
-the same width on either side. Its contents, top to bottom, are the top slot, Repo, the
-elements, and the footer. Repo, which follows the focused pane, sits at the top, below whatever
-elements are in the top slot; the other elements and the footer sit at the bottom, so a focus
-change never shifts them.
+the same width on either side. Its contents, top to bottom, are the top bar, the top slot, Pins,
+the lower list, and the footer. Pins, which follow the focused pane and appear and vanish with
+it, sit fixed below whatever elements are in the top slot; the lower list and the footer sit at
+the bottom, so a focus change never shifts them.
 
-**Elements.** The elements between Repo and the footer are Clock, Favorites, Layouts, Panes,
-Containers, External sessions, and System, in that default order. Each has a
-`dashboard.sections.*` toggle (section 8), on by default except System and Clock, set from the settings
+**Top bar.** One line that stays at the panel's top edge while the panel scrolls. On the left,
+a Favorites button shows while the Favorites element is disabled and a Layouts button while
+Layouts is, each dropping the picker its shortcut opens (Ctrl+Shift+O and Ctrl+Shift+R, 4.5) as a
+menu under the button: it filters as you type, Enter opens the selection and Ctrl+Enter opens a
+favorite collapsed, and Escape closes it, handing focus back to the button when the keyboard
+opened it. Beside the filter, the Favorites menu has a "+ Add" button that adds the focused
+terminal's folder as the section's "+" does, disabled when there is none or it is already a
+favorite, and the Layouts menu has a "+ Save" button that turns the filter into a name field: a
+single row previews "Save as" or, for an existing name in any capitalization, "Replace", Enter
+saves, and Escape returns to the filter. The pickers have these buttons however they open, from the
+top bar or from their shortcuts. Renaming, removing, and reordering stay with the sections. After
+them come icon buttons for Keyboard shortcuts (?), which opens the help dialog, also bound to F1,
+and Settings (⚙), which opens the settings dialog, also bound to Ctrl+,. The × that hides the
+panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
+parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
+
+**Elements.** The elements are Clock, Folder, Favorites, Layouts, Panes, Containers, External
+sessions, and System, in that default order; Clock and Folder start in the top slot and the rest
+in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
+Favorites, Layouts, System, and Clock (Favorites and Layouts start as top bar menus), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
 panel no row's menu claims and lists every element with a check on the shown ones; choosing one
 flips its toggle. A disabled element is gone from the panel, not collapsed, and its
@@ -1160,14 +1176,15 @@ rows leave the keyboard rows below. Toggles and `dashboard.side` apply live, and
 sides while a peek is showing ends the peek.
 
 Clicking a section's header collapses or expands it, and which sections are collapsed is saved
-with the workspace (section 7). A thin rule separates each element from the one above it.
+with the workspace (section 7). A thin rule separates each element from the one above it, and
+the top slot from Pins below it.
 
 **Order.** The elements reorder by drag: a section by its header, the clock by grabbing
 anywhere on it, with the same movement threshold as favorite rows, so a click on a header still
 collapses or expands it. While dragging, a line in the accent color shows where the element
-will land, at whichever gap is nearest the pointer; Repo and the footer offer no drop position.
-Any element can also be dropped above Repo, into a top slot ruled off from Repo below it, which
-holds the clock by default and keeps its own order. Dragging is mouse only. The order is saved
+will land, at whichever gap is nearest the pointer; Pins and the footer offer no drop position.
+Any element can be dropped in the top slot above Pins or the lower list below it, and each slot
+keeps its own order. Dragging is mouse only. The order is saved
 with the workspace as `dashboardSectionOrder`, and which elements are in the top slot as
 `dashboardTopElements` (section 7). A disabled element keeps its place in the order and its
 slot, so enabling it returns it where it was.
@@ -1215,18 +1232,20 @@ the rows; the front end passes `includeDisks` on its 60 second beat.
 **Keyboard.** F6 moves focus into the panel, onto the row focused there last, else the focused
 pane's card, else the first row; F6 again, or Escape, returns focus to the focused pane. While the
 panel is hidden, F6 shows it as a peek that lasts until focus leaves it, instead of timing out.
-The rows are every section header, the Repo section's buttons, every favorite, recent folder,
-layout, pin, container, tab group header, pane card, and external session, and the footer's
-buttons, top to bottom, skipping collapsed and disabled sections:
+The rows are the top bar's buttons, every section header, the Folder section's
+buttons, every favorite, recent folder, layout, pin, container, tab group header, pane card, and
+external session, and the footer's button, top to bottom, skipping collapsed and disabled
+sections:
 
 - Up and Down move one row, stopping at the ends; Home and End go to the first and last.
 - Enter or Space acts as a click on the row, and Ctrl+Enter as a Ctrl+click.
+- F2 on a favorite, layout, or pin (one whose target exists) opens the rename field its button,
+  double-click, or menu opens. Enter saves and Escape cancels, both returning focus to the row;
+  leaving the field saves, as it does for a mouse rename.
 - Left on a row goes to its section's header, and on an expanded header collapses the section.
   Right on a collapsed header expands it, and on an expanded one goes to its first row.
 - Tab reaches the buttons inside rows (folder, Open menu, close, remove), which show while their
   row has focus as they do on hover.
-- On a worktree row, Enter or Space expands or collapses it, and Tab reaches the buttons of its
-  expanded detail.
 - Any other key runs its workspace action (4.5), as it would in a pane.
 
 Only the keyboard focuses rows: the panel keeps mouse presses from taking focus off the pane, so
@@ -1254,12 +1273,10 @@ a git repo; "Explorer" is Open in File Explorer.
 | Recent | The Open entries, Explorer, Copy path, Add to favorites |
 | Layout | Open, Rename, Remove (asking inline, as its button does) |
 | Repo pin | Open, Explorer (a file pin's folder), Copy path, Rename, Remove pin |
-| Worktree | The Open entries, Explorer, Copy path, Delete (absent for the main worktree, disabled while locked) |
 | Containers | Start when any container in the group is stopped, Stop when any runs, Open Containers |
 | Claude | Focus, Copy path |
 
-A row whose path is missing (a dimmed pin, a prunable worktree) disables everything but its
-Remove pin or Delete item. A Containers row that only reports an engine not running has no menu.
+A pin whose path is missing is dimmed, and its menu disables everything but Remove pin. A Containers row that only reports an engine not running has no menu.
 Section headers, tab group headers, the clock, the System section, the footer, gaps between
 panes, and the backdrop have no menu.
 
@@ -1267,59 +1284,24 @@ The Open menu button on those rows, and the Files row's menu button (4.12), open
 menu below the button, toggling on a second press. The Git entry waits for the git probe, and the
 menu is dropped if another menu opened or closed meanwhile.
 
-**Repo.** The repo (3.8) of the focused pane's folder, or of the last focused pane that had
-one. A Files pane counts as the repo it was opened for, not the folder it is showing, so opening
-a pinned subfolder keeps the section on its repo. The header shows the repo folder's name and, for a git repo, its branch; while the panel is open
-the repo is re-read every 3 seconds, so a checkout in any shell shows up without a folder change.
-Under it, a row of buttons opens a Terminal, Files, Git, or Search pane for the repo, or opens it
-in the editor (3.12). Then come the repo's pins (4.12), each showing a file or
-folder icon and its label or path; clicking one opens it, and pins reorder by drag and can be
-renamed and removed. The section is hidden until some pane has a folder.
+**Folder.** The repo (3.8) of the focused pane's folder, or of the last focused pane that had
+one; a folder outside any repo counts as its own. A Files pane counts as the repo it was opened
+for, not the folder it is showing, so opening a pinned subfolder keeps the section on its repo.
+The header reads Folder with the folder's name right-aligned on the same line, cut with an
+ellipsis when long, and for a git repo the branch right-aligned on a line below it, so a collapsed
+section still shows both. While the panel is open the repo is re-read every 3 seconds, so a
+checkout in any shell shows up without a folder change. Under the header, a row of buttons opens a Terminal, Files, Git, or Search pane for the repo, or opens it
+in the editor (3.12). The Files, Git, and Search tooltips end with the keys of openFiles,
+openGit, and openSearch, which open the same pane at the same root, read on hover like the top
+bar's; Terminal names none, since splitAuto opens at the focused pane's folder rather than the
+repo root. The section is hidden until some pane has a folder.
 
-**Worktrees.** Under the pins, when the focused repo is a git repo with two or more worktrees,
-the section lists every worktree of the repo (3.9), the main worktree first, then the rest by
-folder name, and the worktree of the focused pane is highlighted. Each row shows the folder name
-(the path on hover), the branch or the short hash when detached, ahead and behind counts
-against the primary branch such as "3 ahead, 12 behind" (omitted when both are zero), a badge,
-and the folder button and Open menu every dashboard row has. The badge is **Merged**,
-**Probably merged**, **Locked**, or **Prunable** (folder missing), in that priority; the main
-worktree never shows Merged. A prunable row has no folder button or Open menu.
-
-The list loads when the section shows a repo and reloads on `git://changed` events whose
-`metadata` flag is true for any of the repo's worktree roots, and after an app-run fetch. While
-the panel is open and shows the list, the section holds its own `git_watch` on the main
-worktree (3.9), released when the section switches repo or the panel closes, so a fetch, a
-branch move, or a worktree added or removed in a terminal reaches the list. Ordinary file edits
-never reload it, and it does not follow the 3 second re-read, since its counts cost a `rev-list`
-per worktree. A checkout in the focused worktree also reloads it, ahead of the watcher.
-
-Clicking a row expands it in place (clicking it again, or another row, collapses it) and loads
-`git_worktree_detail`:
-
-- **Head.** The newest commit's subject, short hash, and relative time.
-- **Against primary.** The ahead and behind counts with the comparison ref, and the merged
-  state in words: "Merged: every commit is in `origin/main`", "Probably merged:
-  `origin/feature-x` was deleted on the remote", or "Not merged".
-- **Upstream.** Its name with ahead and behind, "No upstream", or "Upstream deleted on the
-  remote".
-- **Working tree.** "Clean", or the counts of staged, changed, and untracked files.
-- **Actions.** Terminal, Files, Git, and Editor, Open in File Explorer, and Delete (not on the
-  main worktree, and disabled on a locked one).
-
-A "Compare worktrees with..." button in the section header, shown while the list is, opens a
-menu of "Automatic" (with the branch it resolves to) and the repo's local branches, checking the
-current choice. Picking one writes `primaryBranch` for the repo in `repos.json` (section 7);
-Automatic clears it.
-
-Delete first checks that no pane in the app (a terminal's working directory, or another kind's
-folder) and no external Claude session is inside the worktree, since a shell's working
-directory holds the folder open on Windows; if one is, it shows the panes' names inline instead
-of a dialog. Otherwise it asks in a confirm dialog naming the folder and branch, with a checkbox
-"Also delete branch `<name>`". The checkbox is checked and enabled only when the state is
-Merged; for Probably merged it is disabled with the note "Squash-merged branches need
-`git branch -D` in a terminal", since the app never runs `-D`. For a prunable worktree the
-dialog adds that the folder is missing and that Delete runs `git worktree prune`. Refusals from
-`git_worktree_remove` and git's own output show inline in the detail.
+**Pins.** The same repo's pins (4.12), under a **Pins** heading that collapses and expands them
+like any section; it is absent while the repo has no pins, and shows whether or not Folder does.
+Unless Folder is the last shown element right above it, the heading names the folder after the
+title ("Pins · bashboard"), dropping the name rather than wrapping when it does not fit. Each pin
+shows a file or folder icon and its label or path; clicking one opens it, and pins reorder by
+drag and can be renamed and removed.
 
 **Favorites.** One row per favorite folder (3.7), showing its label and path:
 
@@ -1397,9 +1379,8 @@ Code), sorted waiting, then busy, then idle, then by most recent change. Clickin
 its cwd and session id with copy buttons. A `waiting` row shows the reason under the folder,
 the same as a card. The section is hidden while there are none.
 
-**Footer.** Three buttons sit at the bottom of the panel. Install Claude Code hooks is shown only
-while Claude Code is detected and the hooks are not installed (3.3). Keyboard shortcuts opens the
-help dialog, also bound to F1. Settings opens the settings dialog, also bound to Ctrl+,.
+**Footer.** Install Claude Code hooks sits at the bottom of the panel while Claude Code is
+detected and the hooks are not installed (3.3); otherwise the footer takes no space.
 
 The settings dialog edits every user-facing setting, in the sections Appearance, Backdrop, Terminal,
 Editor, Dashboard, Restore, and Keyboard. Dashboard holds the side choice, Left or Right, and a
@@ -1449,7 +1430,7 @@ existing `printf '\a'` hook):
 tab, and group header, and nothing else. They raise no attention, so no pulse, taskbar flash, or
 panel peek.
 
-**Next terminal that needs you.** `nextAttention` (Ctrl+Shift+L) focuses the next such
+**Next terminal that needs you.** `nextAttention` (Ctrl+Shift+N) focuses the next such
 terminal across all tabs. The order is every `waiting` terminal, oldest `statusChangedAt` first,
 then every `done` or `failed` terminal, oldest mark first. Terminals that rang the bell without a
 status are not included; their pulse stays the cue. When the focused pane is in the list, the
@@ -1586,14 +1567,14 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   kinds. A terminal's pty id (3.1) is separate.
 - **Kind menu.** The first control in the title strip shows the pane's kind as an icon.
   Clicking it lists the kinds, and choosing one replaces the pane in place: same spot in the
-  tree, same folder. A pane with no folder passes on the Repo section's repo (4.6). Replacing a
+  tree, same folder. A pane with no folder passes on the Folder section's repo (4.6). Replacing a
   terminal with a running command or a live Claude session asks first, as closing it does, and
   so does replacing a scratch pad that is not empty. A terminal chosen from the menu runs the
   default profile. The menu lists Containers only while a container engine is available (3.10),
   whatever `dashboard.sections.containers` says. It is drawn by the shared context menu module (4.4)
   below the button, with the current kind checked; choosing the current kind does nothing. The
   title strip's right-click menu offers the same entries as its Change kind submenu.
-- **Opening.** Ctrl+Shift+N, E, G, and H (4.5), the Repo section, and the Open menu on dashboard
+- **Opening.** Ctrl+Shift+S, E, G, and H (4.5), the Folder section, and the Open menu on dashboard
   rows (4.6) open a pane as a split of the focused pane, the way a favorite does: when there is
   no room, a toast says so and the pane opens collapsed. A Git pane for a repo that already has
   one in the active tab focuses that one instead.
@@ -1692,6 +1673,7 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
   Enter, then focuses that terminal.
 - Move to (files only, and only when there are targets): the repo's pinned folders and the
   current folder's subfolders (`fs_move`), as a submenu.
+- Rename: as F2, below.
 - Pin.
 
 The breadcrumb also has an Open terminal here button for the current folder, the list's zoom
@@ -1722,6 +1704,12 @@ each failure, such as a name already taken, is toasted and the rest still move.
 **Keyboard and filter.** While the list has focus:
 
 - Up and Down move the selection, previewing as a click does; Enter acts as a double click.
+- F2 renames the cursor's entry, selecting just it: its name becomes a field with a file's name
+  selected up to its extension. The field marks a name Windows forbids or another entry has (a
+  change of case alone is allowed). Enter renames through `fs_rename`, after saving the preview's
+  pending text, and the renamed entry stays selected and previewed; a failure is toasted. Escape
+  or leaving the field cancels, so a stray click never renames on disk. The list holds its
+  refreshes while the field is open.
 - Typing a printable character filters the list to names containing the typed text, ignoring
   case, and shows the filter above the list with a clear button. Backspace edits it, and Esc
   clears it. Moving to another folder clears it too.
@@ -1733,7 +1721,7 @@ History is not saved.
 
 **Pins** are files and folders kept per repo in `repos.json` (section 7). A pin inside the repo
 is stored relative to its root; one outside it, such as a meeting notes folder, is stored as an
-absolute path. The breadcrumb's pin button pins the current folder. In the Repo section
+absolute path. The breadcrumb's pin button pins the current folder. In the Pins section
 (4.6), clicking a pinned folder shows it in the active tab's Files pane for that repo, or opens
 one; clicking a pinned file does the same with its folder and selects it. A pin whose path no
 longer exists is shown dimmed and opens nothing.
@@ -1796,7 +1784,7 @@ The **last fetch label** reads "Fetched 3 min ago" after a fetch, background or 
 "Fetch failed" after a failed one, with git's output as its tooltip. It is empty until the repo
 has been fetched this session, and updates on `git://fetched` (3.9).
 
-**Branches** fills the pane below the head row, from `git_branches` (3.9):
+**Branches** fills the pane below the head row, from `git_branches` and `git_worktrees` (3.9):
 
 - **Bar.** A field that filters both lists by name, ignoring case, and names a new branch; a
   New branch button (Enter in the field) that creates the field's name and switches to it,
@@ -1805,6 +1793,8 @@ has been fetched this session, and updates on `git://fetched` (3.9).
   worktree, has a gone upstream: its remote-tracking branch was deleted. After New branch
   from here, a "from <branch> ×" chip beside the field names the base; clicking it goes back to HEAD. Escape in the field
   clears it and the chip.
+- **Worktrees**, shown while the repo has two or more worktrees and open until its header is
+  clicked (described below).
 - **Local**, the current branch first and marked, then newest first. Each row shows the name; a
   worktree badge (its path as tooltip) when another worktree has it checked out; the upstream
   state as `↑2 ↓1`, or a **gone** badge; and the tip's subject and relative time. Hover shows
@@ -1835,6 +1825,48 @@ commit box when it came from the switcher in Changes, where the next successful 
 operation clears it.
 
 Insert name sends the name, as typed, to the tab's most recently focused terminal.
+
+**Worktrees.** Every worktree of the repo (3.9), the main worktree first, then the rest by folder
+name, with the pane's own worktree marked as current. The field filters them by folder name or
+branch too. Each row shows the folder name (the path on hover), the branch or the short hash
+when detached, ahead and behind counts against the primary branch such as "3 ahead, 12 behind"
+(omitted when both are zero), and a badge: **Merged**, **Probably merged**, **Locked**, or
+**Prunable** (folder missing), in that priority; the main worktree never shows Merged. Hover
+shows the Open menu (4.6) and Delete; a prunable row has no Open menu, the main worktree has no
+Delete, and a locked one's is disabled with the lock reason. A right-click offers the Open
+entries, Open in File Explorer, Copy path, and Delete.
+
+Clicking a row, or Enter on it, expands it in place (again, or another row, collapses it) and
+loads `git_worktree_detail`:
+
+- **Head.** The newest commit's subject, short hash, and relative time.
+- **Against primary.** The ahead and behind counts with the comparison ref, and the merged
+  state in words: "Merged: every commit is in `origin/main`", "Probably merged:
+  `origin/feature-x` was deleted on the remote", or "Not merged".
+- **Upstream.** Its name with ahead and behind, "No upstream", or "Upstream deleted on the
+  remote".
+- **Working tree.** "Clean", or the counts of staged, changed, and untracked files.
+
+A compare button at the right of the group's header names the primary branch ("Compare with
+main (auto)") and opens a menu of "Automatic" (with the branch it resolves to) and the repo's
+local branches, checking the current choice. Picking one writes `primaryBranch` for the repo,
+keyed by its main worktree, in `repos.json` (section 7); Automatic clears it. Every Git pane's
+list reloads once the file is written, and when `repos.json` changes on disk.
+
+Delete, or the Delete key on a row, expands the row and first checks that no pane in the app (a
+terminal's working directory, or another kind's folder) and no external Claude session is inside
+the worktree, since a shell's working directory holds the folder open on Windows; if one is, it
+shows the panes' names in the detail instead of a dialog. Otherwise it asks in a confirm dialog
+naming the folder and branch, with a checkbox "Also delete branch `<name>`". The checkbox is
+checked and enabled only when the state is Merged; for Probably merged it is disabled with the
+note "Squash-merged branches need `git branch -D` in a terminal", since the app never runs `-D`.
+For a prunable worktree the dialog adds that the folder is missing and that Delete runs
+`git worktree prune`. Refusals from `git_worktree_remove` and git's own output show in the
+detail.
+
+The list is read only while the Branches tab shows, since its counts cost a `rev-list` per
+worktree: on every refresh of the pane, on `git://changed` with the `metadata` flag for any of
+the repo's worktree roots, and after a fetch of any of them.
 
 The pane refreshes on `git://changed`, when it comes on screen, and when the window regains
 focus; each refresh rereads the branches too. A folder that is not a git repo shows a notice
@@ -2197,7 +2229,7 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
 - `setVisible(false)` on minimize, and when the window is fully covered (Tauri window events
   plus the page's `visibilitychange`), so it costs nothing while out of sight. The dashboard
   clock and System section (4.6) pause on the same signal, and Matrix stops its loop on it too.
-- Ctrl+Shift+D pauses or resumes the mounted style and saves `backdrop.animate`; under None it
+- Ctrl+Shift+A pauses or resumes the mounted style and saves `backdrop.animate`; under None it
   does nothing and saves nothing.
 - None mounts nothing: no renderer, no frame loop, and no Three.js load.
 
@@ -2235,11 +2267,11 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 
 - `dashboardWidth`: 300 px.
 - `dashboardSectionOrder`: the default order. Reading keeps known names once each, drops unknown
-  names and `repo`, and inserts a missing element at its default position relative to its
-  neighbors.
-- `dashboardTopElements`: the clock alone. Reading keeps known names once each. A file without
+  names, and inserts a missing element at its default position relative to its neighbors.
+- `dashboardTopElements`: the clock and Folder. Reading keeps known names once each. A file without
   it but with the boolean `dashboardClockTop` gets the clock alone when that is true and an empty
-  slot when it is false.
+  slot when it is false. When neither list names `folder`, Folder joins the top slot last.
+- `collapsedSections`: none. Reading keeps known names once each and reads `repo` as `folder`.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
@@ -2253,8 +2285,8 @@ terminals carry no session ids or permission modes and whose scratch pads have a
 entry whose `workspace` holds a version 1 workspace loads as that one tab.
 
 **repos.json.** Roots compare without regard to case. A pin's path is relative to the root, with
-forward slashes, when inside the repo, else absolute. `primaryBranch`, the branch the Repo
-section compares worktrees with (4.6), is keyed by the main worktree's path; an entry may hold
+forward slashes, when inside the repo, else absolute. `primaryBranch`, the branch the Git pane
+compares worktrees with (4.13), is keyed by the main worktree's path; an entry may hold
 it with no pins, and Automatic omits it.
 
 ## 8. Settings
@@ -2319,8 +2351,9 @@ it with no pins, and Automatic omits it.
     "peekOnWaiting": true,
     "side": "right",
     "sections": {
-      "favorites": true,
-      "layouts": true,
+      "folder": true,
+      "favorites": false,
+      "layouts": false,
       "panes": true,
       "containers": true,
       "external": true,

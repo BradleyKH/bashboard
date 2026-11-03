@@ -121,10 +121,10 @@ describe('default keybindings', () => {
   });
 
   it('maps nextAttention, toggleBackdrop, and openPalette', () => {
-    expect(lookup(keymap, ev({ key: 'L', code: 'KeyL', ctrlKey: true, shiftKey: true }))).toEqual({
+    expect(lookup(keymap, ev({ key: 'N', code: 'KeyN', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'nextAttention',
     });
-    expect(lookup(keymap, ev({ key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true }))).toEqual({
+    expect(lookup(keymap, ev({ key: 'A', code: 'KeyA', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'toggleBackdrop',
     });
     expect(lookup(keymap, ev({ key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true }))).toEqual({
@@ -141,7 +141,7 @@ describe('default keybindings', () => {
   });
 
   it('maps newScratch to its chord', () => {
-    expect(lookup(keymap, ev({ key: 'N', code: 'KeyN', ctrlKey: true, shiftKey: true }))).toEqual({
+    expect(lookup(keymap, ev({ key: 'S', code: 'KeyS', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'newScratch',
     });
   });

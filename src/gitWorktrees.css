@@ -1,0 +1,99 @@
+/* The Branches tab's Worktrees group (gitWorktreeGroup.ts). Rows reuse the branch row styles. */
+.worktree-item {
+  cursor: pointer;
+}
+
+.worktree-item.missing .git-branch-label,
+.worktree-item.missing .worktree-branch {
+  opacity: 0.55;
+}
+
+.worktree-branch.detached {
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.worktree-compare {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.worktree-badge {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9aa6ad;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.worktree-badge[data-badge='merged'] {
+  background: rgba(90, 190, 120, 0.18);
+  color: #8fd6a4;
+}
+
+.worktree-badge[data-badge='probably-merged'] {
+  background: rgba(150, 190, 110, 0.14);
+  color: #b5cf95;
+}
+
+.worktree-badge[data-badge='locked'] {
+  background: rgba(224, 176, 80, 0.16);
+  color: #e0c080;
+}
+
+.worktree-badge[data-badge='prunable'] {
+  background: rgba(224, 138, 138, 0.16);
+  color: #e08a8a;
+}
+
+/* Indented under its row, so it reads as that row's detail rather than a row of its own. */
+.worktree-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 8px 4px 20px;
+  padding: 4px 8px 6px;
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  cursor: default;
+}
+
+.worktree-detail-line {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.worktree-detail-label {
+  flex: 0 0 auto;
+  color: var(--git-muted);
+}
+
+.worktree-detail-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--git-fg);
+}
+
+.worktree-detail-note {
+  color: var(--git-muted);
+}
+
+.worktree-detail-note.error {
+  color: #e08a8a;
+}
+
+.worktree-message {
+  margin: 4px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #e0c080;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+}

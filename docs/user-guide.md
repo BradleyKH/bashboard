@@ -21,7 +21,7 @@ tab in that folder. The Start menu and taskbar shortcuts just bring the window f
 ## Scratch pads
 
 A scratch pad is a plain text pane for drafting a prompt or keeping notes beside your terminals.
-Ctrl+Shift+N (the `newScratch` action) opens one as a split of the focused pane. The kind menu,
+Ctrl+Shift+S (the `newScratch` action) opens one as a split of the focused pane. The kind menu,
 the first control on every title strip, turns a pane into another kind in place; it asks first
 when the pad has text or the terminal is running a command. A pad's title is its first non-empty
 line.
@@ -58,7 +58,8 @@ terminal here, and a pin button for the folder. Click a row to select and previe
 Enter or double-click to open it: a folder is entered, a file opens in your editor. Ctrl+click
 adds or removes a row, Shift+click (or Shift+Up and Down) selects a range, and Ctrl+A selects
 every row, as in File Explorer. Up and Down move the selection, Backspace goes up a folder, typing filters the list by name (Backspace edits
-the filter, Esc clears it), and the list refreshes when files change on disk. The divider between
+the filter, Esc clears it), and the list refreshes when files change on disk. F2 renames the
+selected file or folder in place: Enter saves, and Escape or clicking away cancels. The divider between
 the list and the preview can be dragged.
 
 The preview depends on the file:
@@ -92,7 +93,7 @@ Hover a row for its menu: **Open terminal here** and **Search in this folder** (
 **Insert path** (pastes the path relative to the Files pane's root, or the absolute path outside
 it, quoted for the shell of the tab's most recently focused terminal, without pressing Enter),
 **Move to** (files; the repo's pinned
-folders and the current folder's subfolders), and **Pin**. With several rows selected, the menu
+folders and the current folder's subfolders), **Rename**, and **Pin**. With several rows selected, the menu
 offers Copy paths, Insert paths, and Move to for all of them.
 
 Drag files onto a folder row to move them there, for example a finished plan into `done/`. A
@@ -112,7 +113,8 @@ quoted for the shell. Holding a drag over a tab for half a second switches to it
 ### Pins
 
 Pins are the files and folders you keep close in a repo. Pin the current folder from the
-breadcrumb, or any row from its menu; they appear in the dashboard's Repo section, where a click
+breadcrumb, or any row from its menu; they appear in the dashboard's **Pins** section
+(the heading collapses them, and is absent while the repo has none), where a click
 opens one (a folder in a Files pane, a file in its folder with the file selected), its rename
 button renames it, a handle drags it to reorder, and its remove button removes it. A pin whose file or folder is gone is
 dimmed and does nothing.
@@ -130,7 +132,7 @@ branches without leaving Bashboard. Ctrl+Shift+G (the `openGit` action) opens on
 repo, as a split of the focused pane. When the active tab already has a Git pane for that repo,
 Ctrl+Shift+G focuses it instead (expanding it if collapsed). In a folder outside a repo,
 Ctrl+Shift+G shows a toast and opens nothing. The kind menu on a title strip lists Git too, and so
-do the Repo section and the Open menu on dashboard rows, which offer Git only for a git repo (see
+do the Folder section and the Open menu on dashboard rows, which offer Git only for a git repo (see
 [Dashboard](#dashboard)). A Git pane comes back on relaunch on the same repo and tab, and layouts
 keep it.
 
@@ -196,6 +198,18 @@ badge means its remote branch was deleted, usually because its pull request was 
 **worktree** badge means another worktree has it checked out; git won't switch to or delete such a
 branch, so its row offers **Open**, which opens a Git pane on that worktree.
 
+When the repo has more than one worktree, a **Worktrees** group sits above the branches. Each row
+shows the worktree's folder, its branch (or commit, when detached), how far it is ahead of and
+behind the primary branch, and a badge: **Merged**, **Probably merged** (its remote branch was
+deleted), **Locked**, or **Prunable** (its folder is gone). Click a row, or press Enter, to see its
+last commit, its upstream, and whether its working tree is clean. Its **Open** menu opens the
+worktree as a Terminal, Files, Git, or Search pane, or in your editor, and **Delete** (or the
+Delete key) removes it after a confirm, offering to delete a merged branch too. Delete refuses
+while any pane or Claude session is working in the folder, and never deletes a worktree with
+uncommitted changes. The **Compare with** button in the group's header picks the primary branch;
+Automatic uses the remote's default branch, or else the first of `dev`, `develop`, `main`, and
+`master` that exists. The choice is saved in `repos.json`.
+
 - **Filter or create.** Typing in the field at the top filters both lists (and opens Remote).
   Press Enter, or New branch, to create a branch with that name and switch to it. It starts with
   no upstream, so Push reads Publish. Right-click a branch and choose **New branch from here** to
@@ -232,7 +246,7 @@ terminal. Only open Git panes on repos you trust.
 
 A Search pane searches the files of a repo for a text or regex query and lists the matching lines.
 Ctrl+Shift+H (the `openSearch` action) opens one for the focused pane's repo, as a split of the
-focused pane. Outside a repo, it searches the folder itself. The Repo section's Search button, the
+focused pane. Outside a repo, it searches the folder itself. The Folder section's Search button, the
 Open menu on dashboard rows, and the kind menu on a title strip open one the same way. Each of them
 always adds another Search pane, even when the tab already has one. When the focused terminal has a
 selection that is a single line, that text becomes the starting query.
@@ -278,12 +292,13 @@ its query and options, and a non-empty query runs again as soon as the pane load
 ## Dashboard
 
 The panel opens on the right (or the left, with `dashboard.side`) on start (set
-`dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+S toggles it. The ×
-button at its top right hides it too, with a notice naming the ways back. While it is hidden, a
+`dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+D toggles it. Its top
+bar holds the **?** (Keyboard shortcuts, also F1) and **⚙** (Settings, also Ctrl+,) buttons, and
+the × at its right end hides the panel too, with a notice naming the ways back. While it is hidden, a
 small handle sits on that edge of the window, halfway down; click it to bring the panel back. F6 moves focus
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
 clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,
-and F6 or Escape returns to the pane. Drag its inner
+F2 renames the focused favorite, layout, or pin, and F6 or Escape returns to the pane. Drag its inner
 edge to make it wider or narrower; the width is saved with the workspace. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab). A terminal's card shows its status (a green check mark when it is done),
@@ -293,8 +308,8 @@ kind's icon and the pane's title. Click a card to focus its pane (for a pane hid
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
-header, or the clock, to put the sections in a different order, including into the slot above
-Repo, where the clock sits by default; that is remembered too. Settings
+header, or the clock, to put the sections in a different order, in the top slot above Pins or
+the list at the bottom; that is remembered too. Settings
 shows or hides each one (see [Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
 Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
 section appears only while there are some. Hover any favorite, recent folder, card, or session
@@ -303,13 +318,18 @@ the row's repo root as a Terminal, as Files (see [Files panes](#files-panes)), a
 [Git pane](#git-pane), for a git repo only), as Search (see [Code search](#code-search)), or in
 your Editor.
 
-**Repo** sits at the top and appears while the focused pane is in a folder (a scratch pad keeps the
-last repo shown). Its header shows the repo folder's name and, in a git repo, the current branch, which follows
-checkouts made in any shell while the dashboard is open. Its buttons open a Terminal, Files, Git
-(for a git repo only), Search (see [Code search](#code-search)), or your Editor at the repo root.
-Below them are the repo's pinned files and folders (see [Pins](#pins)).
+**Folder** sits at the top by default and appears while the focused pane is in a folder (a
+scratch pad keeps the last one shown). Its header shows the repo folder's name and, in a git
+repo, the current branch, which follows checkouts made in any shell while the dashboard is open.
+Its buttons open a Terminal, Files, Git (for a git repo only), Search (see
+[Code search](#code-search)), or your Editor at the repo root. Like the other sections it can be
+dragged elsewhere or turned off.
 
-The **clock**, which is off by default, is one line at the top of the panel, above Repo: three
+**Pins**, the repo's pinned files and folders (see [Pins](#pins)), stay put just below the top
+slot so the sections don't jump as pins come and go. When Folder isn't right above them, the
+heading names the folder too, if it fits.
+
+The **clock**, which is off by default, is one line at the top of the panel, above Folder: three
 rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
 `h:mm` beside them. Clock style in the settings dialog shows just the time or just the dots
 instead. Drag it down among the other sections to move it there, or back to the top.
@@ -321,23 +341,35 @@ network receive and send rates with a sparkline for each, and free space on each
 80% and red at 90%. CPU and network fill in on the second sample after the section starts. It
 samples only while it is expanded, the panel is on screen, and the window is shown.
 
-**Favorites** sit above the terminals. Click one to open a terminal there as a split of the
-focused pane, or Ctrl+click to open it collapsed; the "+" button adds the focused terminal's
-folder (and its shell, when that is not the default), and rows can be renamed, removed, and reordered by dragging. Below them, **Recent**
-lists up to five folders from Claude sessions that are not already favorites, each with a star
-to promote it. Ctrl+Shift+O opens a picker that filters your favorites as you type: Enter opens
-the selection as a split and Ctrl+Enter opens it collapsed. When the focused pane has no room
-for another split, a toast says so and the terminal opens collapsed.
+**Favorites** are folders you open terminals in often. By default they live behind the
+**Favorites** button in the panel's top bar, which drops a list that filters as you type;
+Ctrl+Shift+O opens the same list in the middle of the window. Enter or a click opens the selection
+as a split of the focused pane, and Ctrl+Enter or Ctrl+click opens it collapsed. The **+ Add**
+button beside the filter adds the focused terminal's folder (and its shell, when that is not the
+default); it is grayed out when that folder is already a favorite. When the focused pane has no
+room for another split, a toast says so and the terminal opens collapsed.
+
+Turning Favorites on under "Show on the dashboard" lists them on the panel instead, above the
+terminals, where rows can also be renamed, removed, and reordered by dragging, and the
+section's "+" adds the focused folder. Below them, **Recent** lists up to five folders from Claude
+sessions that are not already favorites, each with a star to promote it. While the section is
+shown, the top bar's Favorites button is not.
 
 ### Layouts
 
-**Layouts** sit below Favorites and save the active tab's arrangement of panes under a name: each
-pane's kind, its folder and shell (for terminals), its collapsed state, and how the panes are split.
-Scratch pads are saved as panes but open empty. The "+" button asks
-for a name; saving under an existing name (any capitalization) asks before it replaces that
-layout. Each row shows the name and pane count; click it to open the layout, and use the row's
-buttons to rename it or remove it (removing asks first). Ctrl+Shift+R opens a picker that filters
-your layouts as you type.
+**Layouts** save the active tab's arrangement of panes under a name: each pane's kind, its folder
+and shell (for terminals), its collapsed state, and how the panes are split. Scratch pads are
+saved as panes but open empty. By default they live behind the **Layouts** button in the panel's
+top bar, and Ctrl+Shift+R opens the same list in the middle of the window; both filter as you
+type, and Enter or a click opens the selection. The **+ Save** button beside the filter turns it
+into a name field: type a name and press Enter to save, or Escape to go back to the list. The row
+under the name says "Replace" when a layout already has that name (any capitalization), so you
+see it before you press Enter.
+
+Turning Layouts on under "Show on the dashboard" lists them on the panel instead, below
+Favorites. Each row shows the name and pane count; click it to open the layout, and use the row's
+buttons to rename it or remove it (removing asks first). The section's "+" asks for a name and
+asks again before it replaces an existing layout.
 
 Opening a layout adds a tab named after the layout and leaves your other tabs alone. Layouts never
 store Claude sessions, so opening one does not resume Claude. Layouts are kept in `layouts.json`
@@ -398,7 +430,9 @@ own colored lineage. It blooms while the session is busy and thins while it is i
 matches the swatch beside the session in the dashboard. The Matrix and None backgrounds show no
 lineages; switching back to Swirling Lights brings each live session's lineage back as a fresh
 founder. The Background choice in the settings dialog picks the style (see
-[Settings](settings.md#settings)), and Ctrl+Shift+D pauses or resumes it.
+[Settings](settings.md#settings)), and Ctrl+Shift+A pauses or resumes it. Ctrl+Shift+B cycles
+the background's brightness through full, three quarters, and half, and saves the choice as
+Brightness in the settings dialog; the blur stays as set there.
 
 ### Containers
 
@@ -446,7 +480,7 @@ A waiting terminal shows why: the pane card, the status dot's tooltip on the tit
 tab's tooltip, and an external session's row carry the message from Claude's notification (for
 example that it needs your permission to use a tool), or "Waiting for you" when there is none.
 
-Ctrl+Shift+L jumps to the next terminal that needs you, across all tabs: waiting ones first,
+Ctrl+Shift+N jumps to the next terminal that needs you, across all tabs: waiting ones first,
 oldest first, then done and failed ones. It switches to the pane's tab, expands a collapsed card,
 and ends a zoom in the way. Repeated presses walk the list, and a toast says "Nothing needs you"
 when it is empty.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  fileNameError,
   EMPTY_HISTORY,
   back,
   breadcrumb,
@@ -184,5 +185,26 @@ describe('listKey', () => {
     expect(listKey({ selected: null, filter: 'q' }, ' ', names).state.filter).toBe('q ');
     expect(listKey(start, 'F5', names)).toEqual({ state: start, effect: 'none' });
     expect(listKey(start, 'Shift', names)).toEqual({ state: start, effect: 'none' });
+  });
+});
+
+describe('fileNameError', () => {
+  it('accepts ordinary names, dots inside, and leading dots', () => {
+    for (const name of ['a.txt', 'notes', '.gitignore', 'v1.2.3', 'with space.md']) expect(fileNameError(name)).toBeNull();
+  });
+
+  it('refuses empty, dot, and dot-dot names', () => {
+    for (const name of ['', '.', '..']) expect(fileNameError(name)).not.toBeNull();
+  });
+
+  it('refuses the characters Windows forbids and control characters', () => {
+    for (const name of ['a/b', 'a\\b', 'a:b', 'a*b', 'a?b', 'a"b', 'a<b', 'a>b', 'a|b', 'a\tb']) {
+      expect(fileNameError(name)).not.toBeNull();
+    }
+  });
+
+  it('refuses a trailing dot or space', () => {
+    expect(fileNameError('a.')).not.toBeNull();
+    expect(fileNameError('a ')).not.toBeNull();
   });
 });

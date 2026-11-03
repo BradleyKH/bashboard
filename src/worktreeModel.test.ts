@@ -3,8 +3,10 @@ import type { OtherCardInput, PaneCardInput, TerminalCardInput } from './dashboa
 import type { Session } from './sessions';
 import type { Worktree } from './worktreeApi';
 import {
+  compareLabel,
   countsText,
   deleteBranchChoice,
+  filterWorktrees,
   isRepoRoot,
   mergedText,
   removalBlockers,
@@ -12,7 +14,6 @@ import {
   upstreamText,
   workingTreeText,
   worktreeBadge,
-  worktreeOf,
 } from './worktreeModel';
 
 function wt(over: Partial<Worktree> = {}): Worktree {
@@ -145,19 +146,6 @@ describe('sameOrInside', () => {
   });
 });
 
-describe('worktreeOf', () => {
-  it('picks the longest matching path', () => {
-    const main = wt({ path: 'C:\\src\\app', main: true });
-    const nested = wt({ path: 'C:\\src\\app\\.worktrees\\x' });
-    const other = wt({ path: 'C:\\src\\other' });
-    expect(worktreeOf('C:\\src\\app\\.worktrees\\x\\src', [main, nested, other])).toBe(nested);
-    expect(worktreeOf('C:\\src\\app\\docs', [main, nested, other])).toBe(main);
-  });
-  it('returns null outside every worktree', () => {
-    expect(worktreeOf('D:\\x', [wt()])).toBeNull();
-  });
-});
-
 describe('removalBlockers', () => {
   const path = 'C:\\src\\wt';
   it('names a terminal inside the folder', () => {
@@ -203,5 +191,29 @@ describe('isRepoRoot', () => {
     const list = [wt({ path: 'C:\\src\\app' }), wt({ path: 'C:\\src\\wt' })];
     expect(isRepoRoot('c:/src/WT/', list)).toBe(true);
     expect(isRepoRoot('C:\\src\\w', list)).toBe(false);
+  });
+});
+
+describe('filterWorktrees', () => {
+  const list = [
+    wt({ path: 'C:/src/app', branch: 'main' }),
+    wt({ path: 'C:/src/app-fix', branch: 'Bug-42' }),
+    wt({ path: 'C:/src/scratch', branch: null }),
+  ];
+  it('keeps every worktree for a blank query', () => {
+    expect(filterWorktrees(list, '  ')).toBe(list);
+  });
+  it('matches the folder name or the branch, ignoring case', () => {
+    expect(filterWorktrees(list, 'FIX').map((w) => w.path)).toEqual(['C:/src/app-fix']);
+    expect(filterWorktrees(list, 'bug').map((w) => w.path)).toEqual(['C:/src/app-fix']);
+    expect(filterWorktrees(list, 'src')).toEqual([]);
+  });
+});
+
+describe('compareLabel', () => {
+  it('names the configured branch, then the automatic one, then nothing', () => {
+    expect(compareLabel({ branch: 'dev', comparison: 'origin/dev', configured: 'dev' })).toBe('Compare with dev');
+    expect(compareLabel({ branch: 'main', comparison: 'origin/main', configured: null })).toBe('Compare with main (auto)');
+    expect(compareLabel({ branch: null, comparison: null, configured: null })).toBe('Compare with...');
   });
 });

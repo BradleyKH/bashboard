@@ -1,3 +1,4 @@
+import { setHintedTitle } from './keyHints';
 import { findMatches, matchAtOrAfter, matchCountText, stepMatch, type FindMatches } from './previewFindModel';
 
 /** What a preview view offers the find bar. */
@@ -54,7 +55,7 @@ export class PreviewFind {
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.textContent = 'Find';
-    this.button.title = 'Find in this file (Ctrl+Shift+F)';
+    setHintedTitle(this.button, 'Find in this file', 'find');
     this.button.addEventListener('click', () => this.open());
 
     this.bar = document.createElement('div');

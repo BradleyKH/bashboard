@@ -18,9 +18,14 @@ describe('parseCollapsedSections', () => {
   });
 
   it('keeps every known name in order', () => {
-    const all = ['repo', 'favorites', 'layouts', 'panes', 'containers', 'external', 'system'];
+    const all = ['pins', 'folder', 'favorites', 'layouts', 'panes', 'containers', 'external', 'system'];
     expect(parseCollapsedSections(all)).toEqual(all);
-    expect(parseCollapsedSections(['panes', 'repo'])).toEqual(['panes', 'repo']);
+    expect(parseCollapsedSections(['panes', 'folder'])).toEqual(['panes', 'folder']);
+  });
+
+  it('reads the older repo name as folder', () => {
+    expect(parseCollapsedSections(['repo', 'pins'])).toEqual(['folder', 'pins']);
+    expect(parseCollapsedSections(['folder', 'repo'])).toEqual(['folder']);
   });
 
   it('drops unknown names, non-strings, and duplicates', () => {
@@ -38,20 +43,21 @@ describe('parseCollapsedSections', () => {
 
 describe('toggleSection', () => {
   it('adds an absent section at the end', () => {
-    expect(toggleSection(['repo'], 'panes')).toEqual(['repo', 'panes']);
+    expect(toggleSection(['folder'], 'panes')).toEqual(['folder', 'panes']);
   });
 
   it('removes a present section without mutating the input', () => {
-    const list = ['repo' as const, 'panes' as const];
-    expect(toggleSection(list, 'repo')).toEqual(['panes']);
-    expect(list).toEqual(['repo', 'panes']);
+    const list = ['folder' as const, 'panes' as const];
+    expect(toggleSection(list, 'folder')).toEqual(['panes']);
+    expect(list).toEqual(['folder', 'panes']);
   });
 });
 
 describe('DEFAULT_ELEMENT_ORDER', () => {
-  it('puts the clock first and System after External sessions', () => {
+  it('puts the clock and Folder first and System after External sessions', () => {
     expect([...DEFAULT_ELEMENT_ORDER]).toEqual([
       'clock',
+      'folder',
       'favorites',
       'layouts',
       'panes',
@@ -81,6 +87,7 @@ describe('parseSectionOrder', () => {
       'external',
       'system',
       'clock',
+      'folder',
       'favorites',
       'layouts',
       'panes',
@@ -91,6 +98,7 @@ describe('parseSectionOrder', () => {
   it('keeps a saved custom order', () => {
     const custom: DashboardElement[] = [
       'clock',
+      'folder',
       'system',
       'external',
       'containers',
@@ -102,8 +110,9 @@ describe('parseSectionOrder', () => {
   });
 
   it('inserts one missing element after its nearest default predecessor', () => {
-    expect(parseSectionOrder(['clock', 'favorites', 'layouts', 'containers', 'external', 'system'])).toEqual([
+    expect(parseSectionOrder(['clock', 'folder', 'favorites', 'layouts', 'containers', 'external', 'system'])).toEqual([
       'clock',
+      'folder',
       'favorites',
       'layouts',
       'panes',
@@ -114,9 +123,10 @@ describe('parseSectionOrder', () => {
   });
 
   it('puts a missing first element at index 0', () => {
-    expect(parseSectionOrder(['favorites', 'layouts', 'panes', 'containers', 'external', 'system'])).toEqual(def);
-    expect(parseSectionOrder(['layouts', 'favorites', 'panes', 'containers', 'external', 'system'])).toEqual([
+    expect(parseSectionOrder(['folder', 'favorites', 'layouts', 'panes', 'containers', 'external', 'system'])).toEqual(def);
+    expect(parseSectionOrder(['folder', 'layouts', 'favorites', 'panes', 'containers', 'external', 'system'])).toEqual([
       'clock',
+      'folder',
       'layouts',
       'favorites',
       'panes',
@@ -129,6 +139,7 @@ describe('parseSectionOrder', () => {
   it('inserts several missing elements, later ones anchoring on earlier inserted ones', () => {
     expect(parseSectionOrder(['external', 'layouts'])).toEqual([
       'clock',
+      'folder',
       'favorites',
       'external',
       'system',
@@ -140,8 +151,8 @@ describe('parseSectionOrder', () => {
   });
 
   it('places System after External sessions in an order saved before it existed', () => {
-    expect(parseSectionOrder(['clock', 'favorites', 'layouts', 'panes', 'containers', 'external'])).toEqual(def);
-    expect(parseSectionOrder(['favorites', 'layouts', 'panes', 'containers', 'external', 'clock'])).toEqual([
+    expect(parseSectionOrder(['clock', 'folder', 'favorites', 'layouts', 'panes', 'containers', 'external'])).toEqual(def);
+    expect(parseSectionOrder(['favorites', 'layouts', 'panes', 'containers', 'external', 'clock', 'folder'])).toEqual([
       'favorites',
       'layouts',
       'panes',
@@ -149,7 +160,13 @@ describe('parseSectionOrder', () => {
       'external',
       'system',
       'clock',
+      'folder',
     ]);
+  });
+
+  it('puts Folder after the clock in an order saved before it existed', () => {
+    const old = ['panes', 'clock', 'favorites', 'layouts', 'containers', 'external', 'system'];
+    expect(parseSectionOrder(old).indexOf('folder')).toBe(2);
   });
 });
 

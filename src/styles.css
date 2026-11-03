@@ -481,6 +481,38 @@ body.dashboard-resizing {
   user-select: none;
 }
 
+#dashboard .dashboard-top-spacer {
+  flex: 1;
+}
+
+/* Every button shares the dropdowns' height, so the bar keeps one height whether they show or not. */
+#dashboard .dashboard-top button {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+#dashboard .dashboard-top-menu {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: 2px;
+  padding-left: 8px;
+  padding-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+#dashboard .dashboard-top-menu[hidden] {
+  display: none;
+}
+
+#dashboard .dashboard-top-icon {
+  flex: 0 0 auto;
+  min-width: 22px;
+  font-size: 13px;
+}
+
 #dashboard .dashboard-hide {
   font-size: 14px;
 }
@@ -492,6 +524,10 @@ body.dashboard-resizing {
   gap: 6px;
 }
 
+#dashboard .dashboard-footer:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
 #dashboard .dashboard-elements {
   display: flex;
   flex-direction: column;
@@ -500,7 +536,7 @@ body.dashboard-resizing {
   position: relative;
 }
 
-/* The slot above Repo, ruled off from whatever follows it; the clock sits here by default. */
+/* The slot above Pins, ruled off from whatever follows it; the clock and Folder sit here by default. */
 #dashboard .dashboard-top-slot {
   flex: 0 0 auto;
   display: flex;
@@ -515,14 +551,13 @@ body.dashboard-resizing {
   display: none;
 }
 
-/* Elements in the top slot are ruled off from a shown one above them, as in the list below Repo. */
+/* Elements in the top slot are ruled off from a shown one above them, as in the lower list. */
 #dashboard .dashboard-top-slot > [data-element]:not([hidden]) ~ [data-element] {
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-#dashboard .hooks-install,
-#dashboard .help-open {
+#dashboard .hooks-install {
   padding: 4px 8px;
   border-color: rgba(255, 255, 255, 0.18);
 }
@@ -531,14 +566,14 @@ body.dashboard-resizing {
   display: none;
 }
 
-/* Repo, the top section, has no rule; neither does whichever element is first while it is hidden. */
+/* The top slot's own rule sits above Pins, so Pins has none; neither does the lower list's first element while Pins is hidden. */
 #dashboard .dashboard-elements > [data-element] {
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Selects the first shown element when the Repo section is hidden: the outer :not([hidden]) keeps it visible, and the inner :not() excludes any element that follows an earlier shown sibling. */
-#dashboard .repo-section[hidden] + .dashboard-elements > [data-element]:not([hidden]):not([data-element]:not([hidden]) ~ *) {
+/* Selects the first shown element when Pins is hidden: the outer :not([hidden]) keeps it visible, and the inner :not() excludes any element that follows an earlier shown sibling. */
+#dashboard .repo-pins[hidden] + .dashboard-elements > [data-element]:not([hidden]):not([data-element]:not([hidden]) ~ *) {
   padding-top: 0;
   border-top: none;
 }
@@ -1101,9 +1136,61 @@ body.dashboard-resizing {
   user-select: none;
 }
 
+.picker-backdrop.anchored {
+  display: block;
+  padding: 0;
+  background: transparent;
+}
+
+.picker-backdrop.anchored .picker {
+  position: fixed;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
 .picker-input {
   padding: 4px 8px;
   font-size: 13px;
+}
+
+.picker-head {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.picker-head .picker-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-action {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.picker-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.picker-action:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.picker-action:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.picker-row.picker-replace .picker-label {
+  color: #e8b45a;
 }
 
 .picker-list {
@@ -1932,8 +2019,8 @@ h2.collapsible-head::before {
   color: #6c777e;
 }
 
-.dashboard-section.collapsed .collapsible-head h2::before,
-h2.collapsible-head::before {
+.dashboard-section.collapsed > .collapsible-head h2::before,
+.dashboard-section.collapsed > h2.collapsible-head::before {
   content: '▸';
 }
 

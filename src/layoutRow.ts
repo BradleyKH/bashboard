@@ -2,7 +2,7 @@ import { attachContextMenu } from './contextMenu';
 import { layoutRowMenuItems } from './favoriteMenus';
 import type { NamedLayout } from './layouts';
 import type { LayoutsCallbacks } from './layoutsSection';
-import { iconButton, startRename } from './rowControls';
+import { iconButton, setRowRename, startRename } from './rowControls';
 
 /** One saved layout in the dashboard's Layouts section. */
 export function renderLayoutRow(layout: NamedLayout, index: number, callbacks: LayoutsCallbacks): HTMLElement {
@@ -27,7 +27,8 @@ export function renderLayoutRow(layout: NamedLayout, index: number, callbacks: L
   text.append(label, meta);
 
   const beginRename = (): void => startRename(label, layout.name, (value) => callbacks.onRenameLayout(index, value));
-  const rename = iconButton('✎', 'layout-rename', 'Rename layout', beginRename);
+  const rename = iconButton('✎', 'layout-rename', 'Rename layout (F2)', beginRename);
+  setRowRename(el, beginRename);
   // A layout is costly to rebuild by hand, so removing it asks inline first.
   const remove = iconButton('×', 'favorite-remove', 'Remove layout', () => {
     const confirm = document.createElement('span');

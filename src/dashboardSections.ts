@@ -2,12 +2,12 @@
 // Pure, no DOM.
 
 /**
- * The panel's elements between Repo and the footer, in default order (docs/design.md section
- * 4.6). The clock is first here, so it sits at the top of the elements whenever it is not in the
- * slot above Repo.
+ * The panel's draggable elements in default order (docs/design.md section 4.6). The clock and
+ * Folder lead, so each sits at the top of the lower list whenever it is not in the top slot.
  */
 export const DEFAULT_ELEMENT_ORDER = [
   'clock',
+  'folder',
   'favorites',
   'layouts',
   'panes',
@@ -18,18 +18,19 @@ export const DEFAULT_ELEMENT_ORDER = [
 
 export type DashboardElement = (typeof DEFAULT_ELEMENT_ORDER)[number];
 
-/** The collapsible sections: Repo plus every element except the clock. */
-export type DashboardSection = 'repo' | Exclude<DashboardElement, 'clock'>;
+/** The collapsible sections: Pins and every element except the clock. */
+export type DashboardSection = 'pins' | Exclude<DashboardElement, 'clock'>;
 
 const SECTIONS: readonly DashboardSection[] = [
-  'repo',
+  'pins',
   ...DEFAULT_ELEMENT_ORDER.filter((e): e is Exclude<DashboardElement, 'clock'> => e !== 'clock'),
 ];
 
 /** Whether each element is shown when the user has not said otherwise. */
 export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
-  favorites: true,
-  layouts: true,
+  folder: true,
+  favorites: false,
+  layouts: false,
   panes: true,
   containers: true,
   external: true,
@@ -39,6 +40,7 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
 
 /** Display names, shared by the settings dialog's checkboxes. */
 export const ELEMENT_LABELS: Record<DashboardElement, string> = {
+  folder: 'Folder',
   favorites: 'Favorites',
   layouts: 'Layouts',
   panes: 'Panes',
@@ -56,11 +58,17 @@ function isElement(v: unknown): v is DashboardElement {
   return typeof v === 'string' && (DEFAULT_ELEMENT_ORDER as readonly string[]).includes(v);
 }
 
-/** Keeps known names in order, once each, dropping anything else; a non-array gives []. */
+/**
+ * Keeps known names in order, once each, dropping anything else; a non-array gives []. `repo` is
+ * the Folder section's name in files saved before it became an element.
+ */
 export function parseCollapsedSections(raw: unknown): DashboardSection[] {
   if (!Array.isArray(raw)) return [];
   const out: DashboardSection[] = [];
-  for (const item of raw) if (isSection(item) && !out.includes(item)) out.push(item);
+  for (const name of raw) {
+    const item = name === 'repo' ? 'folder' : name;
+    if (isSection(item) && !out.includes(item)) out.push(item);
+  }
   return out;
 }
 
@@ -101,10 +109,10 @@ export function parseTopElements(raw: unknown): DashboardElement[] | null {
   return out;
 }
 
-/** The elements in the slot above Repo when the user has not moved any: just the clock. */
-export const DEFAULT_TOP_ELEMENTS: readonly DashboardElement[] = ['clock'];
+/** The elements in the top slot when the user has not moved any. */
+export const DEFAULT_TOP_ELEMENTS: readonly DashboardElement[] = ['clock', 'folder'];
 
-/** The slot above Repo, or the list between Repo and the footer. */
+/** The slot above Pins, or the list between Pins and the footer. */
 export type ElementZone = 'top' | 'list';
 
 export interface ElementPlacement {

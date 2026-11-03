@@ -3,7 +3,7 @@
 //! Every path must be absolute and is normalized before use. Modified times cross the boundary
 //! as integer epoch milliseconds from `modified_ms`, so a time read by one command compares
 //! equal in another. Errors the front end acts on start with a fixed prefix: `binary:`,
-//! `tooLarge:`, `conflict:`, and `exists:`.
+//! `tooLarge:`, `conflict:`, `exists:`, and `invalid:`.
 
 use std::{
     collections::HashMap,
@@ -239,6 +239,36 @@ fn move_file(path: &str, to_dir: &str) -> Result<String, String> {
     Ok(display(&to))
 }
 
+/// Characters Windows refuses in a file name, beside the path separators.
+const INVALID_NAME_CHARS: &[char] = &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+/// Renames a file or folder within its folder; returns the new path.
+fn rename_entry(path: &str, new_name: &str) -> Result<String, String> {
+    let from = normalize(path)?;
+    if new_name.is_empty()
+        || new_name == "."
+        || new_name == ".."
+        || new_name.ends_with(['.', ' '])
+        || new_name.chars().any(|c| c.is_control() || INVALID_NAME_CHARS.contains(&c))
+    {
+        return Err(format!("invalid: {new_name} is not a valid name"));
+    }
+    if fs::symlink_metadata(&from).is_err() {
+        return Err(format!("not found: {}", display(&from)));
+    }
+    let old_name = from
+        .file_name()
+        .ok_or_else(|| format!("no file name: {}", display(&from)))?;
+    let to = from.with_file_name(new_name);
+    // A change of case only names the same entry on Windows, so it exists under the new name too.
+    let case_only = old_name.to_string_lossy().to_lowercase() == new_name.to_lowercase();
+    if !case_only && fs::symlink_metadata(&to).is_ok() {
+        return Err(format!("exists: {new_name} already exists"));
+    }
+    fs::rename(&from, &to).map_err(|e| format!("{}: {e}", display(&from)))?;
+    Ok(display(&to))
+}
+
 #[tauri::command]
 pub async fn repo_root(path: String) -> Result<RepoInfo, String> {
     find_repo(&path)
@@ -266,6 +296,11 @@ pub async fn fs_write_text(
 #[tauri::command]
 pub async fn fs_move(path: String, to_dir: String) -> Result<String, String> {
     move_file(&path, &to_dir)
+}
+
+#[tauri::command]
+pub async fn fs_rename(path: String, new_name: String) -> Result<String, String> {
+    rename_entry(&path, &new_name)
 }
 
 #[derive(Default)]
@@ -537,6 +572,33 @@ mod tests {
             move_file(&s(&dest), &s(&dir)).is_err(),
             "folders are not moved"
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rename_renames_files_and_folders_and_refuses_bad_names() {
+        let dir = temp_dir("rename");
+        fs::create_dir_all(dir.join("sub")).unwrap();
+        fs::write(dir.join("a.txt"), "a").unwrap();
+        fs::write(dir.join("b.txt"), "b").unwrap();
+
+        let err = rename_entry(&s(&dir.join("a.txt")), "b.txt").unwrap_err();
+        assert!(err.starts_with("exists:"), "{err}");
+        assert_eq!(fs::read_to_string(dir.join("b.txt")).unwrap(), "b");
+        for bad in ["", ".", "..", "x/y", "x\\y", "x:y", "x?", "trailing.", "trailing "] {
+            let err = rename_entry(&s(&dir.join("a.txt")), bad).unwrap_err();
+            assert!(err.starts_with("invalid:"), "{bad}: {err}");
+        }
+
+        assert_eq!(rename_entry(&s(&dir.join("a.txt")), "c.txt").unwrap(), s(&dir.join("c.txt")));
+        assert_eq!(fs::read_to_string(dir.join("c.txt")).unwrap(), "a");
+        assert_eq!(rename_entry(&s(&dir.join("sub")), "lib").unwrap(), s(&dir.join("lib")));
+        assert!(dir.join("lib").is_dir());
+
+        // A change of case alone goes through, though the new name already "exists" on Windows.
+        rename_entry(&s(&dir.join("c.txt")), "C.txt").unwrap();
+        let names: Vec<String> = list_dir(&s(&dir)).unwrap().into_iter().map(|e| e.name).collect();
+        assert!(names.contains(&"C.txt".to_string()), "{names:?}");
         let _ = fs::remove_dir_all(&dir);
     }
 

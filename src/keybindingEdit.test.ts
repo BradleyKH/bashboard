@@ -94,7 +94,7 @@ describe('editSections', () => {
     const r = row(CUSTOM, 'splitAuto');
     expect(r.chords).toEqual(['alt+shift+d', 'Shift+Ctrl+D']);
     expect(r.modified).toBe(true);
-    expect(row(CUSTOM, 'toggleBackdrop')).toMatchObject({ chords: [], modified: true });
+    expect(row(CUSTOM, 'toggleDashboard')).toMatchObject({ chords: [], modified: true });
     expect(row(DEFAULTS, 'copy').note).toMatch(/nothing selected/);
     expect(rows(DEFAULTS).every((x) => !x.modified)).toBe(true);
   });
@@ -151,7 +151,7 @@ describe('checkChord', () => {
 
   it('detects conflicts with and without leavesEmpty', () => {
     const toggle = checkChord(chord('ctrl+shift+d'), row(DEFAULTS, 'splitAuto'), DEFAULTS);
-    expect(toggle).toMatchObject({ kind: 'conflict', leavesEmpty: true, owner: { id: 'toggleBackdrop' } });
+    expect(toggle).toMatchObject({ kind: 'conflict', leavesEmpty: true, owner: { id: 'toggleDashboard' } });
     const copy = checkChord(chord('ctrl+c'), row(DEFAULTS, 'find'), DEFAULTS);
     expect(copy).toMatchObject({ kind: 'conflict', leavesEmpty: false, owner: { id: 'copy' } });
   });
@@ -192,7 +192,7 @@ describe('ops', () => {
     expect(ops).toEqual([{ op: 'bind', keys: 'ctrl+shift+d', action: 'splitAuto' }]);
     const after = applyOps(DEFAULTS, ops);
     expect(row(after, 'splitAuto').chords).toEqual(['alt+shift+d', 'ctrl+shift+d']);
-    expect(row(after, 'toggleBackdrop').chords).toEqual([]);
+    expect(row(after, 'toggleDashboard').chords).toEqual([]);
   });
 
   it('carries row arguments', () => {
@@ -208,7 +208,7 @@ describe('ops', () => {
 
   it('plans a reset that takes chords back', () => {
     const live = applyOps(DEFAULTS, [
-      ...addOps(row(DEFAULTS, 'toggleBackdrop'), chord('alt+shift+d')),
+      ...addOps(row(DEFAULTS, 'toggleDashboard'), chord('alt+shift+d')),
       { op: 'bind', keys: 'ctrl+alt+s', action: 'splitAuto' },
     ]);
     const r = row(live, 'splitAuto');
@@ -218,14 +218,14 @@ describe('ops', () => {
       { op: 'reset', keys: 'ctrl+alt+s' },
       { op: 'reset', keys: 'alt+shift+d' },
     ]);
-    expect(plan.takes.map((t) => [t.keys, t.owner.id])).toEqual([['alt+shift+d', 'toggleBackdrop']]);
+    expect(plan.takes.map((t) => [t.keys, t.owner.id])).toEqual([['alt+shift+d', 'toggleDashboard']]);
     const after = applyOps(live, plan.ops);
     expect(row(after, 'splitAuto')).toMatchObject({ chords: ['alt+shift+d'], modified: false });
-    expect(row(after, 'toggleBackdrop')).toMatchObject({ chords: ['ctrl+shift+d'], modified: false });
+    expect(row(after, 'toggleDashboard')).toMatchObject({ chords: ['ctrl+shift+d'], modified: false });
   });
 
   it('plans a reset whose default another row holds, and one with nothing to take', () => {
-    const plan = resetPlan(row(CUSTOM, 'toggleBackdrop'), CUSTOM);
+    const plan = resetPlan(row(CUSTOM, 'toggleDashboard'), CUSTOM);
     expect(plan.ops).toEqual([{ op: 'reset', keys: 'Shift+Ctrl+D' }]);
     expect(plan.takes.map((t) => t.owner.id)).toEqual(['splitAuto']);
     expect(resetPlan(row(DEFAULTS, 'find'), DEFAULTS)).toEqual({ ops: [], takes: [] });
@@ -248,7 +248,7 @@ describe('inverseOps', () => {
     ['move', (live) => addOps(row(live, 'nextTab'), chord('ctrl+shift+d'))],
     ['move by replace', (live) => replaceOps(row(live, 'newTab'), 'ctrl+shift+t', chord('ctrl+w'))],
     ['reset', (live) => resetPlan(row(live, 'splitAuto'), live).ops],
-    ['reset a moved row', (live) => resetPlan(row(live, 'toggleBackdrop'), live).ops],
+    ['reset a moved row', (live) => resetPlan(row(live, 'toggleDashboard'), live).ops],
     ['reset all', () => resetAllOps()],
   ];
   for (const [name, live] of [['defaults', DEFAULTS], ['custom', CUSTOM]] as const) {
@@ -296,21 +296,21 @@ describe('inverseOps', () => {
 });
 
 describe('text', () => {
-  const owner = row(DEFAULTS, 'toggleBackdrop');
+  const owner = row(DEFAULTS, 'toggleDashboard');
   it('builds the strip and notice text', () => {
     expect(moveStripText('ctrl+shift+d', owner, true)).toBe(
-      'Ctrl+Shift+D runs "Pause or resume the background animation". Move it here? It will have no key.',
+      'Ctrl+Shift+D runs "Toggle dashboard". Move it here? It will have no key.',
     );
     expect(moveStripText('ctrl+shift+d', owner, false)).toBe(
-      'Ctrl+Shift+D runs "Pause or resume the background animation". Move it here?',
+      'Ctrl+Shift+D runs "Toggle dashboard". Move it here?',
     );
     const split = row(DEFAULTS, 'splitAuto');
     expect(resetStripText([{ keys: 'ctrl+shift+d', owner: split }])).toBe(
       'Ctrl+Shift+D runs Split along the longer side. Move it back?',
     );
     expect(resetStripText([{ keys: 'ctrl+shift+d', owner: split }, { keys: 'ctrl+w', owner }])).toBe(
-      'Ctrl+Shift+D runs Split along the longer side. Ctrl+W runs Pause or resume the background animation. Move them back?',
+      'Ctrl+Shift+D runs Split along the longer side. Ctrl+W runs Toggle dashboard. Move them back?',
     );
-    expect(movedNoticeText('ctrl+shift+d', owner)).toBe('Ctrl+Shift+D moved from Pause or resume the background animation');
+    expect(movedNoticeText('ctrl+shift+d', owner)).toBe('Ctrl+Shift+D moved from Toggle dashboard');
   });
 });

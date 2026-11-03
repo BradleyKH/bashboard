@@ -1,5 +1,6 @@
 import { attachContextMenu } from './contextMenu';
 import { item, separator, submenu, type MenuEntry, type MenuLeaf } from './contextMenuModel';
+import { setHintedTitle } from './keyHints';
 import { kindMenu, kindMenuItems } from './kindMenu';
 import { paneKindInfo, type PaneKind } from './paneKinds';
 import type { TerminalStatus } from './terminalStatus';
@@ -106,7 +107,7 @@ export class TitleStrip {
     close.type = 'button';
     close.className = 'strip-close';
     close.textContent = '×';
-    close.title = 'Close pane (Ctrl+W)';
+    setHintedTitle(close, 'Close pane', 'closePane');
     close.addEventListener('click', (e) => {
       e.stopPropagation();
       this.hooks.onClose();
@@ -139,7 +140,7 @@ export class TitleStrip {
     this.zoomButton.classList.toggle('zoomed', state.zoomed);
     this.zoomButton.classList.toggle('attention', state.attention);
     this.zoomButton.textContent = state.zoomed ? '⧉' : '⤢';
-    this.zoomButton.title = state.zoomed ? 'Restore panes (Ctrl+Shift+Z)' : 'Zoom pane (Ctrl+Shift+Z)';
+    setHintedTitle(this.zoomButton, state.zoomed ? 'Restore panes' : 'Zoom pane', 'togglePaneZoom');
   }
 
   update(state: TitleStripState): void {

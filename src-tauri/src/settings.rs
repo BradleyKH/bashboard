@@ -158,6 +158,7 @@ pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DashboardSections {
+    pub folder: bool,
     pub favorites: bool,
     pub layouts: bool,
     pub panes: bool,
@@ -280,11 +281,11 @@ pub fn default_keybindings() -> Vec<Keybinding> {
         kb("ctrl+v", "paste", None, None),
         kb("ctrl+shift+v", "paste", None, None),
         kb("shift+enter", "sendInput", None, Some("\u{1b}\r")),
-        kb("ctrl+shift+s", "toggleDashboard", None, None),
+        kb("ctrl+shift+d", "toggleDashboard", None, None),
         kb("f6", "focusDashboard", None, None),
         kb("ctrl+shift+b", "cycleScrim", None, None),
-        kb("ctrl+shift+d", "toggleBackdrop", None, None),
-        kb("ctrl+shift+l", "nextAttention", None, None),
+        kb("ctrl+shift+a", "toggleBackdrop", None, None),
+        kb("ctrl+shift+n", "nextAttention", None, None),
         kb("ctrl+shift+m", "collapsePane", None, None),
         kb("ctrl+shift+z", "togglePaneZoom", None, None),
         kb("ctrl+shift+o", "openFavorite", None, None),
@@ -292,7 +293,7 @@ pub fn default_keybindings() -> Vec<Keybinding> {
         kb("ctrl+shift+p", "openPalette", None, None),
         kb("alt+shift+t", "splitWithProfile", None, None),
         kb("ctrl+shift+t", "newTab", None, None),
-        kb("ctrl+shift+n", "newScratch", None, None),
+        kb("ctrl+shift+s", "newScratch", None, None),
         kb("ctrl+shift+e", "openFiles", None, None),
         kb("ctrl+shift+g", "openGit", None, None),
         kb("ctrl+shift+h", "openSearch", None, None),
@@ -347,8 +348,9 @@ impl Default for Settings {
                 peek_on_waiting: true,
                 side: "right".into(),
                 sections: DashboardSections {
-                    favorites: true,
-                    layouts: true,
+                    folder: true,
+                    favorites: false,
+                    layouts: false,
                     panes: true,
                     containers: true,
                     external: true,
@@ -782,6 +784,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.dashboard.side,
         ),
         sections: DashboardSections {
+            folder: section(&mut w, "folder", d.dashboard.sections.folder),
             favorites: section(&mut w, "favorites", d.dashboard.sections.favorites),
             layouts: section(&mut w, "layouts", d.dashboard.sections.layouts),
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
@@ -1330,8 +1333,9 @@ mod tests {
         assert_eq!(
             d.sections,
             DashboardSections {
-                favorites: true,
-                layouts: true,
+                folder: true,
+                favorites: false,
+                layouts: false,
                 panes: true,
                 containers: true,
                 external: true,
@@ -1342,7 +1346,10 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "clock": true, "panes": false } } }"#);
         assert!(w.is_empty(), "{w:?}");
         assert!(s.dashboard.sections.clock && !s.dashboard.sections.panes);
-        assert!(s.dashboard.sections.favorites && s.dashboard.sections.external);
+        assert!(!s.dashboard.sections.favorites && s.dashboard.sections.external);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "folder": false } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!s.dashboard.sections.folder && s.dashboard.sections.panes);
     }
 
     #[test]
@@ -1370,7 +1377,7 @@ mod tests {
     #[test]
     fn invalid_dashboard_section_value_falls_back_with_warning() {
         let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "layouts": "yes" } } }"#);
-        assert!(s.dashboard.sections.layouts);
+        assert!(!s.dashboard.sections.layouts);
         assert!(w.iter().any(|m| m.starts_with("dashboard.sections.layouts")), "missing warning: {w:?}");
     }
 
@@ -1425,7 +1432,7 @@ mod tests {
         assert_eq!(find(&s, "ctrl+shift+p").map(|k| k.action.as_str()), Some("openPalette"));
         assert_eq!(find(&s, "alt+shift+t").map(|k| k.action.as_str()), Some("splitWithProfile"));
         assert_eq!(find(&s, "ctrl+shift+t").map(|k| k.action.as_str()), Some("newTab"));
-        assert_eq!(find(&s, "ctrl+shift+n").map(|k| k.action.as_str()), Some("newScratch"));
+        assert_eq!(find(&s, "ctrl+shift+s").map(|k| k.action.as_str()), Some("newScratch"));
     }
 
     #[test]
@@ -1534,13 +1541,13 @@ mod tests {
     #[test]
     fn backdrop_toggle_is_bound_by_default() {
         let s = Settings::default();
-        assert_eq!(find(&s, "ctrl+shift+d").map(|k| k.action.as_str()), Some("toggleBackdrop"));
+        assert_eq!(find(&s, "ctrl+shift+a").map(|k| k.action.as_str()), Some("toggleBackdrop"));
     }
 
     #[test]
     fn next_attention_is_bound_by_default() {
         let s = Settings::default();
-        assert_eq!(find(&s, "ctrl+shift+l").map(|k| k.action.as_str()), Some("nextAttention"));
+        assert_eq!(find(&s, "ctrl+shift+n").map(|k| k.action.as_str()), Some("nextAttention"));
     }
 
     #[test]
@@ -1881,7 +1888,7 @@ mod tests {
         let out = apply_keybinding_ops(vec![], &[bind("ctrl+shift+d", "splitAuto")]);
         let kbs = merged(&out);
         assert_eq!(action_of(&kbs, "ctrl+shift+d").as_deref(), Some("splitAuto"));
-        assert!(kbs.iter().all(|k| k.action != "toggleBackdrop"));
+        assert!(kbs.iter().all(|k| k.action != "toggleDashboard"));
     }
 
     #[test]

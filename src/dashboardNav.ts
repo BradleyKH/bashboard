@@ -1,5 +1,6 @@
 import { retargetContextMenu } from './contextMenu';
 import { restoreIndex, stepIndex, type NavMove } from './dashboardNavModel';
+import { rowRename } from './rowControls';
 
 export interface DashboardNavOptions {
   /** Escape: hand focus back to the panes. */
@@ -16,12 +17,12 @@ export interface NavSnapshot {
 }
 
 // Section headers and every row a click acts on. Layout, pin, and container rows share
-// `.favorite-row`; the Repo section's buttons, its worktree rows, and the footer's buttons are
-// rows of their own.
+// `.favorite-row`; the top bar's buttons, the Folder section's buttons, and the footer's button
+// are rows of their own.
 const ITEM_SELECTOR = [
+  '.dashboard-top button',
   '.collapsible-head',
   '.repo-button',
-  '.worktree-row',
   '.favorite-row',
   '.recent-row',
   '.terminal-group-header',
@@ -33,8 +34,9 @@ const ITEM_SELECTOR = [
 
 /**
  * Keyboard navigation of the dashboard (docs/design.md section 4.6): arrows move between rows,
- * Enter acts as a click, and keys the dashboard does not use run as workspace actions. Rows are
- * focused only from the keyboard, since the panel keeps mouse presses from taking focus.
+ * Enter acts as a click, F2 renames a row that can be renamed, and keys the dashboard does not
+ * use run as workspace actions. Rows are focused only from the keyboard, since the panel keeps
+ * mouse presses from taking focus.
  */
 export class DashboardNav {
   private lastKey: string | null = null;
@@ -116,12 +118,12 @@ export class DashboardNav {
     if (el.dataset.paneId) return `pane:${el.dataset.paneId}`;
     if (el.dataset.claudePaneId) return `claude:${el.dataset.claudePaneId}`;
     if (el.dataset.tabId) return `tab:${el.dataset.tabId}`;
-    if (el.dataset.worktreePath) return `worktree:${el.dataset.worktreePath.toLowerCase()}`;
     const session = el.closest<HTMLElement>('[data-session-id]');
     if (session) return `session:${session.dataset.sessionId}`;
-    const section = el.closest<HTMLElement>('[data-section]')?.dataset.section ?? 'footer';
+    const section =
+      el.closest<HTMLElement>('[data-section]')?.dataset.section ?? (el.closest('.dashboard-top') ? 'top' : 'footer');
     if (el.matches('.collapsible-head')) return `head:${section}`;
-    const scope = el.closest<HTMLElement>('[data-section], .dashboard-footer') ?? this.root;
+    const scope = el.closest<HTMLElement>('[data-section], .dashboard-top, .dashboard-footer') ?? this.root;
     const peers = [...scope.querySelectorAll<HTMLElement>(ITEM_SELECTOR)].filter(
       (p) => !p.matches('.collapsible-head'),
     );
@@ -170,6 +172,12 @@ export class DashboardNav {
         return item ? this.left(item) : false;
       case 'ArrowRight':
         return item ? this.right(item) : false;
+      case 'F2': {
+        const rename = item ? rowRename(item) : undefined;
+        if (!rename) return false;
+        rename();
+        return true;
+      }
       case 'Enter':
       case ' ':
         // Buttons, including those inside a row, keep their native Enter and Space.

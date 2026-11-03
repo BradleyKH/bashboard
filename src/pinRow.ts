@@ -3,7 +3,7 @@ import { copyPath } from './copyText';
 import { openFolder } from './folderButton';
 import type { Pin } from './repos';
 import { pinRowMenuItems } from './repoMenus';
-import { iconButton, startRename } from './rowControls';
+import { iconButton, setRowRename, startRename } from './rowControls';
 import { attachReorder } from './rowReorder';
 
 export interface PinRowCallbacks {
@@ -55,9 +55,11 @@ export function renderPinRow(
   label.textContent = name;
   label.title = pin.path;
 
-  const rename = iconButton('✎', 'layout-rename', 'Rename pin', () => {
+  const rename = iconButton('✎', 'layout-rename', 'Rename pin (F2)', () => {
     startRename(label, name, (value) => callbacks.onRenamePin(index, value));
   });
+  // A missing pin's menu disables Rename, so F2 leaves it alone too.
+  if (exists) setRowRename(el, () => rename.click());
   const remove = iconButton('×', 'favorite-remove', 'Remove pin', () => callbacks.onRemovePin(index));
 
   el.append(handle, icon, label, rename, remove);

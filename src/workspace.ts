@@ -24,6 +24,8 @@ import {
 } from './docking';
 import { FindBar } from './findBar';
 import { GitPane } from './gitPane';
+import type { OpenInHandler } from './openMenu';
+import type { Worktree } from './worktreeApi';
 import { routeGitRequest } from './gitModel';
 import type { GitTab } from './gitBranchModel';
 import { forget, recentTerminal, touch } from './focusHistory';
@@ -164,6 +166,12 @@ export interface WorkspaceHooks {
   getRepoFolder?: () => string | null;
   /** The container snapshot every Containers pane shares (docs/design.md section 4.16). */
   containers?: ContainersStore;
+  /** A Git pane's worktree row opened its folder as another pane kind or in the editor. */
+  onOpenIn?: OpenInHandler;
+  /** Asks, then removes the worktree; resolves to a message to show inline, or null when removed or cancelled. */
+  onDeleteWorktree?: (root: string, w: Worktree) => Promise<string | null>;
+  /** A Git pane's "Compare with" choice; null goes back to automatic. */
+  onSetPrimaryBranch?: (root: string, branch: string | null) => void;
 }
 
 export interface OpenPaneOptions {
@@ -955,6 +963,11 @@ export class Workspace {
     for (const pane of this.paneViews.values()) if (pane instanceof FilesPane) pane.pinsChanged();
   }
 
+  /** The primary branch changed, so every Git pane's worktree comparison is stale. */
+  reloadWorktrees(): void {
+    for (const pane of this.paneViews.values()) if (pane instanceof GitPane) pane.reloadWorktrees();
+  }
+
   setActivity(list: PtyActivity[]): void {
     const { next, changed } = applyActivity(this.sweeps, list, Date.now());
     this.sweeps = next;
@@ -1402,6 +1415,9 @@ export class Workspace {
       onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, [absolute], baseRoot),
       onInsertText: (text) => this.insertTextIntoTab(id, text),
       onOpenGit: (root) => this.showGit(root),
+      onOpenIn: (kind, path) => this.hooks.onOpenIn?.(kind, path),
+      onDeleteWorktree: (root, w) => this.hooks.onDeleteWorktree?.(root, w) ?? Promise.resolve(null),
+      onSetPrimaryBranch: (root, branch) => this.hooks.onSetPrimaryBranch?.(root, branch),
       tab: spec.tab,
     });
   }
@@ -1497,7 +1513,7 @@ export class Workspace {
 
   /** Ctrl+Shift+E: a Files pane at the root of the focused pane's repo. */
   private async openFilesForFocused(): Promise<void> {
-    const folder = this.folderForNew();
+    const folder = this.folderForNew() ?? this.hooks.getRepoFolder?.() ?? undefined;
     if (!folder) {
       showToast('No folder to open');
       return;

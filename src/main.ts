@@ -14,7 +14,7 @@ import {
   type SettingsPayload,
 } from './settings';
 import { bindWindowVisibility } from './windowVisibility';
-import { gitFetchVisible, onGitChanged, onGitFetched } from './gitApi';
+import { gitFetchVisible } from './gitApi';
 import { syncGitFetchRoots } from './gitFetchRoots';
 import { onCliCommand } from './cli';
 import { onSecondLaunch } from './secondLaunch';
@@ -29,6 +29,7 @@ import { DashboardPanel } from './dashboardPanel';
 import { lastFolder, paneCards, type PaneCardInput } from './dashboardModel';
 import { hiddenNotice } from './dashboardRevealModel';
 import { chordHint } from './paletteModel';
+import { setKeyHintBindings } from './keyHints';
 import { DebouncedSaver } from './debouncedSaver';
 import { listEditors, openInEditor } from './editors';
 import { ConfirmDialog } from './confirmDialog';
@@ -76,9 +77,8 @@ import {
   type ReposFile,
 } from './repos';
 import type { RepoPinState } from './repoSection';
+import { gitWorktrees, type Worktree } from './worktreeApi';
 import { deleteWorktree } from './worktreeDelete';
-import { isRepoRoot, worktreeOf } from './worktreeModel';
-import { WorktreeStore } from './worktreeStore';
 import { parseSavedWorkspace } from './savedWorkspace';
 import { loadSessions, onHookEvent, onSessionsChanged, type Session } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
@@ -171,6 +171,7 @@ setHomeDir(await homeDir().catch(() => null));
 const payload = await settingsLoaded;
 // Read by onAttention, so peekOnWaiting hot-reloads.
 let currentSettings = payload.settings;
+setKeyHintBindings(currentSettings.keybindings);
 // Kept current on hot reload so the settings dialog opens with fresh warnings.
 let latestPayload = payload;
 
@@ -223,15 +224,33 @@ function toggleKeys(): string | undefined {
   return chordHint(currentSettings.keybindings, 'toggleDashboard');
 }
 
+function showFavorites(): void {
+  panel.setFavorites(favorites);
+  picker.setItems(favoriteItems());
+}
+
 function updateFavorites(next: Favorite[]): void {
   favorites = next;
-  panel.setFavorites(favorites);
+  showFavorites();
   favoritesSave(favorites).catch((err: unknown) => showToast(`Could not save favorites: ${String(err)}`));
 }
 
 function addFavorite(path: string, profile?: string): void {
   if (favorites.some((f) => samePath(f.path, path))) return;
   updateFavorites([...favorites, { label: lastFolder(path) || path, path, ...(profile ? { profile } : {}) }]);
+}
+
+function canAddFocusedFolder(): boolean {
+  const cwd = workspace.terminals().find((t) => t.focused)?.cwd;
+  return !!cwd && !favorites.some((f) => samePath(f.path, cwd));
+}
+
+/** The dashboard's and the favorites menu's "+": the focused terminal's folder, and its shell when not the default. */
+function addFocusedFolder(): void {
+  const focused = workspace.terminals().find((t) => t.focused);
+  if (!focused?.cwd) return;
+  const profile = focused.profile !== currentSettings.shell.defaultProfile ? focused.profile : undefined;
+  addFavorite(focused.cwd, profile);
 }
 
 /** Collapsed opens leave focus where it was, so the terminal is refocused explicitly. */
@@ -247,9 +266,14 @@ function openWithProfile(profile: string, opts: { collapsed: boolean }): void {
   focusTerminal();
 }
 
+function showLayouts(): void {
+  panel.setLayouts(layouts);
+  layoutPicker.setItems(layoutItems());
+}
+
 function updateLayouts(next: NamedLayout[]): void {
   layouts = next;
-  panel.setLayouts(layouts);
+  showLayouts();
   layoutsSave(layouts).catch((err: unknown) => showToast(`Could not save layouts: ${String(err)}`));
 }
 
@@ -275,7 +299,7 @@ function openLayout(name: string): void {
   workspace.openLayout(layout.tab, layout.name);
 }
 
-// Design 4.6 Repo: the repo of the focused pane's folder, or of the last focused pane that had one.
+// Design 4.6 Folder: the repo of the focused pane's folder, or of the last focused pane that had one.
 let currentRepo: RepoInfo | null = null;
 let repoFolder: string | null = null;
 let repoPins: RepoPinState[] = [];
@@ -340,42 +364,9 @@ function repoPinStates(root: string): RepoPinState[] {
   });
 }
 
-// The Repo section's worktree list is hidden for now. False keeps the store unshown, so the
-// section gets no list (and no "Compare worktrees with..." button) and no git watch runs; the
-// palette's worktree items load on their own (openPalette) and are unaffected.
-const SHOW_WORKTREE_LIST = false;
-const worktreeStore = new WorktreeStore(() => renderRepo());
-/** The focused worktree's path as last rendered, so a focus change redraws only when it moves the highlight. */
-let worktreeFocus: string | null = null;
-let worktreeRoot: string | null = null;
-
-/** The root the store shows; moving focus between worktrees of the listed repo keeps it, so the list and its expanded row stay. */
-function worktreeRootFor(repo: RepoInfo | null): string | null {
-  if (!SHOW_WORKTREE_LIST || !panel.isShown() || !repo?.isGit) return null;
-  const data = worktreeStore.current();
-  if (worktreeRoot && data && isRepoRoot(repo.root, data.list.worktrees)) return worktreeRoot;
-  return repo.root;
-}
-
-function focusedWorktreePath(): string | null {
-  // Checked before focusedFolder(): the panel's first render runs before `workspace` exists.
-  const data = worktreeStore.current();
-  if (!data) return null;
-  const folder = focusedFolder();
-  return folder ? (worktreeOf(folder, data.list.worktrees)?.path ?? null) : null;
-}
-
 function renderRepo(): void {
   repoPins = currentRepo ? repoPinStates(currentRepo.root) : [];
-  // Released while the panel is off screen, so its git_watch does not outlive the view.
-  worktreeRoot = worktreeRootFor(currentRepo);
-  worktreeStore.show(worktreeRoot);
-  const data = worktreeStore.current();
-  worktreeFocus = focusedWorktreePath();
-  const worktrees = data
-    ? { root: data.root, list: data.list, focusedPath: worktreeFocus, error: worktreeStore.error() ?? undefined }
-    : null;
-  panel.setRepo({ repo: currentRepo, pins: repoPins, worktrees });
+  panel.setRepo({ repo: currentRepo, pins: repoPins });
 }
 
 /** Re-checks the current repo's pins, then redraws the section and the Files panes' pin buttons. */
@@ -394,7 +385,6 @@ function focusedFolder(): string | null {
 
 function trackRepo(): void {
   const folder = focusedFolder();
-  if (worktreeStore.current() && focusedWorktreePath() !== worktreeFocus) renderRepo();
   if (!folder || (repoFolder !== null && pathKey(folder) === pathKey(repoFolder))) return;
   repoFolder = folder;
   lookUpRepo(folder);
@@ -408,11 +398,7 @@ function lookUpRepo(folder: string): void {
     (info) => {
       if (repoFolder !== folder) return;
       const same = currentRepo !== null && pathKey(currentRepo.root) === pathKey(info.root) && currentRepo.branch === info.branch;
-      const branchMoved =
-        currentRepo !== null && pathKey(currentRepo.root) === pathKey(info.root) && currentRepo.branch !== info.branch;
       currentRepo = info;
-      // A checkout moves this worktree's row before the debounced watcher event arrives.
-      if (branchMoved) worktreeStore.reload();
       if (!same) void refreshPins();
     },
     (e: unknown) => {
@@ -440,12 +426,13 @@ function pinnedFolders(root: string): string[] {
     .map((p) => p.absolute);
 }
 
-function updateRepos(next: ReposFile): void {
-  if (next === repos) return;
+/** Resolves once repos.json is written (or failed to be), for callers whose next read goes through the core. */
+function updateRepos(next: ReposFile): Promise<void> {
+  if (next === repos) return Promise.resolve();
   repos = next;
   renderRepo();
   workspace.pinsChanged();
-  reposSave(repos).catch((err: unknown) => showToast(`Could not save repos.json: ${String(err)}`));
+  return reposSave(repos).catch((err: unknown) => showToast(`Could not save repos.json: ${String(err)}`));
 }
 
 function pinPath(root: string, absolute: string, isDir: boolean): void {
@@ -573,12 +560,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
       })
       .catch((err: unknown) => showToast(`Could not prepare the hook install: ${String(err)}`));
   },
-  onAdd: () => {
-    const focused = workspace.terminals().find((t) => t.focused);
-    if (!focused?.cwd) return;
-    const profile = focused.profile !== currentSettings.shell.defaultProfile ? focused.profile : undefined;
-    addFavorite(focused.cwd, profile);
-  },
+  onAdd: addFocusedFolder,
   onRename: (index, label) =>
     updateFavorites(favorites.map((f, i) => (i === index ? { ...f, label } : f))),
   onRemove: (index) => updateFavorites(favorites.filter((_, i) => i !== index)),
@@ -592,7 +574,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     focusTerminal();
   },
   onReveal: () => focusTerminal(),
-  toggleKeys: () => toggleKeys(),
+  actionKeys: (action) => chordHint(currentSettings.keybindings, action),
   onLeave: () => focusTerminal(),
   onKey: (e): boolean => workspace.runKey(e),
   onOpenLayout: (name) => openLayout(name),
@@ -604,19 +586,8 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onRenamePin: (index, label) => currentRepo && updateRepos(renamePin(repos, currentRepo.root, index, label)),
   onRemovePin: (index) => currentRepo && updateRepos(removePin(repos, currentRepo.root, index)),
   onReorderPin: (from, to) => currentRepo && updateRepos(movePin(repos, currentRepo.root, from, to)),
-  onDeleteWorktree: async (root, w): Promise<string | null> => {
-    const msg = await deleteWorktree(root, w, {
-      panes: (): PaneCardInput[] => workspace.panes(),
-      sessions: () => sessions,
-      confirm: confirmDialog,
-    });
-    worktreeStore.reload();
-    return msg;
-  },
-  onSetPrimaryBranch: (root, branch) => {
-    updateRepos(setPrimaryBranch(repos, root, branch));
-    worktreeStore.reload();
-  },
+  onOpenFavoritesMenu: (anchor) => picker.open(favoriteItems(), 'Open a favorite folder', anchor),
+  onOpenLayoutsMenu: (anchor) => layoutPicker.open(layoutItems(), 'Open a layout', anchor),
   onShownChange: () => renderRepo(),
 });
 panel.setFavorites(favorites);
@@ -632,23 +603,48 @@ const hookDialog = new HookInstallDialog({
 hookInstallPreview()
   .then((p) => panel.setHooksInstalled(p.alreadyInstalled || !p.claudeDetected))
   .catch((e) => console.warn('hook install state unavailable:', e));
-const picker = new Picker({ onOpen: openFolder, onClose: focusTerminal });
+const picker = new Picker(
+  { onOpen: openFolder, onClose: focusTerminal },
+  {
+    action: {
+      kind: 'run',
+      label: '+ Add',
+      title: 'Add the focused terminal’s folder to favorites',
+      enabled: canAddFocusedFolder,
+      run: addFocusedFolder,
+    },
+  },
+);
 const favoriteItems = (): PickerItem[] =>
   favorites.map((f) => ({ label: f.label, detail: f.path, value: f.path }));
 const profilePicker = new Picker({ onOpen: openWithProfile, onClose: focusTerminal });
 const profileItems = (): PickerItem[] => profiles.map((p) => ({ label: p.name, value: p.id }));
 // A layout always opens as a new tab, so Ctrl+Enter has nothing to collapse.
-const layoutPicker = new Picker({ onOpen: (name) => openLayout(name), onClose: focusTerminal });
+const layoutPicker = new Picker(
+  { onOpen: (name) => openLayout(name), onClose: focusTerminal },
+  {
+    action: {
+      kind: 'name',
+      label: '+ Save',
+      title: 'Save the current panes as a layout',
+      placeholder: 'Name this layout',
+      exists: (name) => layouts.some((l) => l.name.toLowerCase() === name.toLowerCase()),
+      submit: saveLayout,
+    },
+  },
+);
 const layoutItems = (): PickerItem[] =>
   layouts.map((l) => {
     const n = l.tab.panes.length;
     return { label: l.name, detail: `${n} ${n === 1 ? 'pane' : 'panes'}`, value: l.name };
   });
-/** The Repo section's worktrees; it lists none for fewer than two. */
+/** The focused repo's worktrees, loaded when the palette opens; null until then. */
+let paletteWorktreeList: Worktree[] | null = null;
+/** The focused repo's worktrees for the palette; it lists none for fewer than two. */
 function paletteWorktrees(): { path: string; name: string; branch: string }[] {
-  const data = worktreeStore.current() ?? worktreeStore.peeked();
-  if (!data || data.list.worktrees.length < 2) return [];
-  return data.list.worktrees.map((w) => ({
+  const list = paletteWorktreeList;
+  if (!list || list.length < 2) return [];
+  return list.map((w) => ({
     path: w.path,
     name: lastFolder(w.path) || w.path,
     branch: w.branch ?? w.head?.slice(0, 7) ?? '',
@@ -679,13 +675,20 @@ const palette = new CommandPalette({
     if (command === 'checkForUpdates') checkForUpdatesNow();
   },
 });
-/** The palette opens at once; while the store is not shown, its worktree items arrive when the one-shot load finishes. */
+/** The palette opens at once; its worktree items arrive when the load finishes. */
 function openPalette(): void {
+  paletteWorktreeList = null;
   palette.open();
   const root = currentRepo?.isGit ? currentRepo.root : null;
-  // loadOnce is a no-op while the store is shown, so this covers both a hidden dashboard and the
-  // hidden worktree list (worktreeRootFor).
-  if (root) void worktreeStore.loadOnce(root).then(() => palette.refresh());
+  if (!root) return;
+  gitWorktrees(root).then(
+    (list) => {
+      paletteWorktreeList = list.worktrees;
+      palette.refresh();
+    },
+    // The palette just lists no worktrees.
+    () => {},
+  );
 }
 const confirmDialog = new ConfirmDialog();
 const help = new HelpDialog({
@@ -805,6 +808,16 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   getPinnedFolders: pinnedFolders,
   getRepoFolder: () => currentRepo?.root ?? null,
   containers,
+  onOpenIn: openIn,
+  onDeleteWorktree: (root, w) =>
+    deleteWorktree(root, w, {
+      panes: (): PaneCardInput[] => workspace.panes(),
+      sessions: () => sessions,
+      confirm: confirmDialog,
+    }),
+  // The core reads primaryBranch from repos.json, so the Git panes reload once it is written.
+  onSetPrimaryBranch: (root, branch) =>
+    void updateRepos(setPrimaryBranch(repos, root, branch)).then(() => workspace.reloadWorktrees()),
 });
 const tabStrip: TabStrip | undefined = new TabStrip(
   document.getElementById('tab-strip') as HTMLElement,
@@ -873,24 +886,18 @@ onSecondLaunch((folder) => {
 onPtyActivity((list) => workspace.setActivity(list)).catch((e) => console.warn('activity sweep unavailable:', e));
 onFavoritesChanged((raw) => {
   favorites = parseFavorites(raw);
-  panel.setFavorites(favorites);
+  showFavorites();
 }).catch((e) => console.warn('favorites updates unavailable:', e));
 onReposChanged((raw) => {
   repos = parseRepos(raw);
   pinRootsChecked.clear();
   void refreshPins();
-  // A hand edit of primaryBranch changes every row's comparison.
-  worktreeStore.reload();
+  // A hand edit of primaryBranch changes every worktree row's comparison.
+  workspace.reloadWorktrees();
 }).catch((e) => console.warn('repos updates unavailable:', e));
-onGitChanged((root, metadata) => worktreeStore.handleGitChanged(root, metadata)).catch((e) =>
-  console.warn('git change events unavailable:', e),
-);
-onGitFetched((roots) => {
-  for (const root of roots) worktreeStore.handleGitChanged(root, true);
-}).catch((e) => console.warn('git fetch events unavailable:', e));
 onLayoutsChanged((raw) => {
   layouts = parseLayouts(raw);
-  panel.setLayouts(layouts);
+  showLayouts();
 }).catch((e) => console.warn('layouts updates unavailable:', e));
 // Also fires for close_window after the last pane closes, so an empty workspace is saved.
 appWindow
@@ -923,6 +930,7 @@ if (payload.firstRun) void showSetup();
 void checkForUpdate({ manual: false, confirm: (o) => confirmDialog.open(o) });
 onSettingsChanged((p) => {
   currentSettings = p.settings;
+  setKeyHintBindings(p.settings.keybindings);
   latestPayload = p;
   settingsDialog.update(p);
   if (setupWizard.isOpen()) setupWizard.update(p.settings);

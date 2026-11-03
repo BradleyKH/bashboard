@@ -47,6 +47,11 @@ export function fsMove(path: string, toDir: string): Promise<string> {
   return invoke<string>('fs_move', { path, toDir });
 }
 
+/** Renames a file or folder within its folder; resolves to its new path. */
+export function fsRename(path: string, newName: string): Promise<string> {
+  return invoke<string>('fs_rename', { path, newName });
+}
+
 /** Watches one folder (not recursive); resolves to the id to pass to `fsUnwatch`. */
 export function fsWatch(dir: string, onChange: () => void): Promise<number> {
   const channel = new Channel<null>();

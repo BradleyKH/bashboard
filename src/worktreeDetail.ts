@@ -1,6 +1,4 @@
-import { openFolder } from './folderButton';
 import { relativeTime } from './gitModel';
-import type { OpenInHandler, OpenInKind } from './openMenu';
 import type { Worktree, WorktreeDetail } from './worktreeApi';
 import { countsText, mergedText, upstreamText, workingTreeText } from './worktreeModel';
 
@@ -9,16 +7,7 @@ export interface WorktreeDetailOptions {
   error?: string;
   /** A refusal or git's output from Delete. */
   message?: string;
-  onOpenIn: OpenInHandler;
-  onDelete(): void;
 }
-
-const OPEN_ACTIONS: { kind: OpenInKind; label: string }[] = [
-  { kind: 'terminal', label: 'Terminal' },
-  { kind: 'files', label: 'Files' },
-  { kind: 'git', label: 'Git' },
-  { kind: 'editor', label: 'Editor' },
-];
 
 function line(label: string, text: string): HTMLElement {
   const el = document.createElement('div');
@@ -39,15 +28,6 @@ function note(className: string, text: string): HTMLElement {
   el.className = className;
   el.textContent = text;
   return el;
-}
-
-function action(label: string, run: () => void): HTMLButtonElement {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'worktree-action';
-  b.textContent = label;
-  b.addEventListener('click', run);
-  return b;
 }
 
 function statusLines(w: Worktree, detail: WorktreeDetail): HTMLElement[] {
@@ -71,7 +51,7 @@ function statusLines(w: Worktree, detail: WorktreeDetail): HTMLElement[] {
   ];
 }
 
-/** The expanded part of a worktree row (docs/design.md section 4.6). */
+/** The expanded part of a worktree row in the Git pane's Branches tab (docs/design.md section 4.13). */
 export function renderWorktreeDetail(
   w: Worktree,
   detail: WorktreeDetail | null,
@@ -86,25 +66,6 @@ export function renderWorktreeDetail(
   else if (opts.error) el.append(note('worktree-detail-note error', opts.error));
   else if (detail) el.append(...statusLines(w, detail));
   else if (opts.loading) el.append(note('worktree-detail-note', 'Loading...'));
-
-  const actions = document.createElement('div');
-  actions.className = 'worktree-actions';
-  if (!w.prunable) {
-    actions.append(
-      ...OPEN_ACTIONS.map(({ kind, label }) => action(label, () => opts.onOpenIn(kind, w.path))),
-      action('Open in File Explorer', () => openFolder(w.path)),
-    );
-  }
-  if (!w.main) {
-    const del = action('Delete', () => opts.onDelete());
-    del.classList.add('danger');
-    if (w.locked) {
-      del.disabled = true;
-      del.title = w.lockReason ? `Locked: ${w.lockReason}` : 'The worktree is locked';
-    }
-    actions.append(del);
-  }
-  if (actions.childElementCount > 0) el.append(actions);
 
   if (opts.message) {
     const msg = document.createElement('pre');

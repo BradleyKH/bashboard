@@ -1,9 +1,11 @@
 import {
   type DashboardElement,
   type DashboardSection,
+  DEFAULT_ELEMENT_ORDER,
   parseCollapsedSections,
   parseSectionOrder,
   parseTopElements,
+  placeElement,
 } from './dashboardSections';
 import { type Layout, close, leaves } from './layout';
 import type { GitTab } from './gitBranchModel';
@@ -64,12 +66,9 @@ export interface SavedWorkspace {
   collapsedSections: DashboardSection[];
   /** The dashboard's width in px as the user last dragged it; absent means the default. */
   dashboardWidth?: number;
-  /**
-   * The dashboard's element order between Repo and the footer as last dragged; absent means the
-   * default order.
-   */
+  /** The dashboard's element order as last dragged; absent means the default order. */
   dashboardSectionOrder?: DashboardElement[];
-  /** The elements in the dashboard's slot above Repo; absent means just the clock. */
+  /** The elements in the dashboard's slot above Pins; absent means the clock and Folder. */
   dashboardTopElements?: DashboardElement[];
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
@@ -262,8 +261,19 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   }
   const top = parseTopElements(raw.dashboardTopElements);
   if (top) saved.dashboardTopElements = top;
-  // Files saved before any element but the clock could sit above Repo hold only this flag.
+  // Files saved before any element but the clock could sit in the top slot hold only this flag.
   else if (typeof raw.dashboardClockTop === 'boolean') saved.dashboardTopElements = raw.dashboardClockTop ? ['clock'] : [];
+  // Files saved before Folder was an element had its section fixed below the top slot, so it
+  // joins the top slot last, where it was.
+  const placed = [raw.dashboardSectionOrder, raw.dashboardTopElements].some(
+    (l) => Array.isArray(l) && l.includes('folder'),
+  );
+  if (!placed && saved.dashboardTopElements) {
+    const order = saved.dashboardSectionOrder ?? [...DEFAULT_ELEMENT_ORDER];
+    const next = placeElement(order, saved.dashboardTopElements, 'folder', 'top', null);
+    saved.dashboardSectionOrder = next.order;
+    saved.dashboardTopElements = next.top;
+  }
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;
 }

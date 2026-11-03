@@ -210,3 +210,14 @@ export function listKey(
       return { state, effect: 'none' };
   }
 }
+
+/**
+ * Why `name` cannot name a file or folder on Windows, or null when it can. `fs_rename` checks
+ * the same rules; this one marks the rename field while it is typed.
+ */
+export function fileNameError(name: string): string | null {
+  if (name === '' || name === '.' || name === '..') return 'Not a valid name';
+  if (/[<>:"/\\|?*\x00-\x1f]/.test(name)) return 'A name cannot contain < > : " / \\ | ? *';
+  if (/[. ]$/.test(name)) return 'A name cannot end with a dot or a space';
+  return null;
+}

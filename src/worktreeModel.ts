@@ -1,9 +1,9 @@
 import type { PaneCardInput } from './dashboardModel';
 import { samePath } from './favorites';
 import type { Session } from './sessions';
-import type { MergedState, Worktree, WorktreeDetail } from './worktreeApi';
+import type { MergedState, PrimaryBranch, Worktree, WorktreeDetail } from './worktreeApi';
 
-/** Pure text and matching rules for the Repo section's worktree list (docs/design.md section 4.6). */
+/** Pure text and matching rules for the Git pane's worktree list (docs/design.md section 4.13). */
 
 export type WorktreeBadge = 'Merged' | 'Probably merged' | 'Locked' | 'Prunable';
 
@@ -72,16 +72,6 @@ export function sameOrInside(path: string, folder: string): boolean {
   return p === f || p.startsWith(f + '/');
 }
 
-/** The worktree containing `folder`; the longest matching path wins since linked worktrees may sit inside the main one. */
-export function worktreeOf(folder: string, worktrees: Worktree[]): Worktree | null {
-  let best: Worktree | null = null;
-  for (const w of worktrees) {
-    if (!sameOrInside(folder, w.path)) continue;
-    if (!best || normalized(w.path).length > normalized(best.path).length) best = w;
-  }
-  return best;
-}
-
 function lastFolder(p: string): string {
   const parts = p.split(/[\\/]+/).filter(Boolean);
   return parts[parts.length - 1] ?? p;
@@ -133,4 +123,18 @@ export function deleteBranchChoice(w: Worktree): DeleteBranchChoice {
 /** Whether a `git://changed` root is one of the listed worktrees. */
 export function isRepoRoot(root: string, worktrees: Worktree[]): boolean {
   return worktrees.some((w) => samePath(w.path, root));
+}
+
+/** The worktrees whose folder name or branch contains the query, ignoring case; all of them for a blank query. */
+export function filterWorktrees(worktrees: Worktree[], query: string): Worktree[] {
+  const q = query.trim().toLowerCase();
+  if (q === '') return worktrees;
+  return worktrees.filter((w) => lastFolder(w.path).toLowerCase().includes(q) || (w.branch ?? '').toLowerCase().includes(q));
+}
+
+/** The Worktrees group's compare button: the chosen branch, the automatic one, or none. */
+export function compareLabel(primary: PrimaryBranch): string {
+  if (primary.configured) return `Compare with ${primary.configured}`;
+  if (primary.branch) return `Compare with ${primary.branch} (auto)`;
+  return 'Compare with...';
 }
