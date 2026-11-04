@@ -24,9 +24,7 @@ import { KeybindingWrites } from './keybindingWrites';
 import { chordId, chordKeys, parseChord, type Chord, type KeybindingEntry } from './keymap';
 import type { KeybindingOp } from './settings';
 
-export interface HelpDialogCallbacks {
-  /** Dismissed; the caller refocuses the terminal. */
-  onClose(): void;
+export interface ShortcutsTabCallbacks {
   /**
    * Saves keybinding edits and resolves to the raw keybindings array they replaced, for Undo. The
    * rows change only through the `update` that hot reload brings.
@@ -53,9 +51,10 @@ function noModifiers(c: Chord): boolean {
   return !c.ctrl && !c.alt && !c.shift && !c.meta;
 }
 
-/** The F1 keyboard shortcut guide and keybinding editor (docs/design.md section 4.5). */
-export class HelpDialog {
-  private backdrop: HTMLElement | null = null;
+/** The app dialog's Shortcuts tab: the shortcut guide and keybinding editor (docs/design.md section 4.5). */
+export class ShortcutsTab {
+  private root: HTMLElement | null = null;
+  /** The dialog box, which takes focus when the focused control goes away. */
   private box: HTMLElement | null = null;
   private body: HTMLElement | null = null;
   private filterInput: HTMLInputElement | null = null;
@@ -86,58 +85,32 @@ export class HelpDialog {
     onReset: (row) => this.resetRow(row),
   };
 
-  constructor(private readonly callbacks: HelpDialogCallbacks) {
+  constructor(private readonly callbacks: ShortcutsTabCallbacks) {
     this.writes = new KeybindingWrites({
       onEdit: (ops) => this.callbacks.onEdit(ops),
       entries: () => this.entries,
       notice: () => this.notice,
-      isOpen: () => this.isOpen(),
+      isOpen: () => this.isMounted(),
       assign: (rowId) => this.assign(rowId),
       render: () => this.render(),
     });
   }
 
-  isOpen(): boolean {
-    return this.backdrop !== null;
+  isMounted(): boolean {
+    return this.root !== null;
   }
 
-  open(entries: KeybindingEntry[]): void {
-    if (this.backdrop) this.close();
-
-    const backdrop = document.createElement('div');
-    backdrop.className = 'help-dialog-backdrop';
-    backdrop.addEventListener('mousedown', (e) => {
-      if (e.target === backdrop) {
-        e.preventDefault();
-        this.dismiss();
-      }
-    });
-
-    const box = document.createElement('div');
-    box.className = 'help-dialog';
-    box.tabIndex = -1;
-    box.setAttribute('role', 'dialog');
-    box.setAttribute('aria-modal', 'true');
-    box.setAttribute('aria-label', 'Keyboard shortcuts');
-    box.addEventListener('keydown', (e) => this.onKey(e));
-
-    const header = document.createElement('div');
-    header.className = 'help-dialog-header';
-    const title = document.createElement('h2');
-    title.textContent = 'Keyboard shortcuts';
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'help-dialog-close';
-    close.textContent = '×';
-    close.title = 'Close (Escape)';
-    close.addEventListener('click', () => this.dismiss());
-    header.append(title, close);
+  /** Builds the tab into `host`; `box` is the dialog, which takes focus as a fallback. */
+  mount(host: HTMLElement, box: HTMLElement, entries: KeybindingEntry[]): void {
+    if (this.root) this.unmount();
+    const root = document.createElement('div');
+    root.className = 'shortcuts-tab';
 
     const bar = document.createElement('div');
-    bar.className = 'help-dialog-bar';
+    bar.className = 'shortcuts-tab-bar';
     const filter = document.createElement('input');
     filter.type = 'search';
-    filter.className = 'help-dialog-filter';
+    filter.className = 'shortcuts-tab-filter';
     filter.placeholder = 'Filter actions';
     filter.spellcheck = false;
     filter.addEventListener('input', () => {
@@ -146,34 +119,33 @@ export class HelpDialog {
     });
     const find = document.createElement('button');
     find.type = 'button';
-    find.className = 'help-dialog-find';
+    find.className = 'shortcuts-tab-find';
     find.title = 'Press a key to find the action it runs';
     find.addEventListener('click', () => this.startFind());
     bar.append(filter, find);
 
     const body = document.createElement('div');
-    body.className = 'help-dialog-body';
+    body.className = 'shortcuts-tab-body';
 
     const notice = new KeybindingNotice();
 
     const footer = document.createElement('div');
-    footer.className = 'help-dialog-footer';
+    footer.className = 'shortcuts-tab-footer';
     const resetAll = document.createElement('button');
     resetAll.type = 'button';
-    resetAll.className = 'help-dialog-reset-all';
+    resetAll.className = 'shortcuts-tab-reset-all';
     resetAll.textContent = 'Reset all';
     resetAll.title = 'Use the default key for every action';
     resetAll.addEventListener('click', () => void this.resetAll());
     const note = document.createElement('span');
-    note.className = 'help-dialog-footer-note';
+    note.className = 'shortcuts-tab-footer-note';
     note.textContent = 'Keys that type text are added to the "keybindings" list in settings.json.';
     footer.append(resetAll, note);
 
-    box.append(header, bar, body, notice.element, footer);
-    backdrop.append(box);
-    document.body.append(backdrop);
+    root.append(bar, body, notice.element, footer);
+    host.append(root);
 
-    this.backdrop = backdrop;
+    this.root = root;
     this.box = box;
     this.body = body;
     this.filterInput = filter;
@@ -187,26 +159,33 @@ export class HelpDialog {
 
     this.setEntries(entries);
     this.render();
-    box.focus();
+  }
+
+  /** Leaving the tab ends any recording or open strip. */
+  hide(): void {
+    if (!this.root) return;
+    this.stopRecording();
+    this.strip = null;
+    this.render();
   }
 
   /** New live keybindings from hot reload; the only path that changes the rows. */
   update(entries: KeybindingEntry[]): void {
-    if (!this.backdrop) return;
+    if (!this.root) return;
     this.setEntries(entries);
     this.writes.consumePending();
     this.reconcile();
     this.render();
   }
 
-  close(): void {
+  unmount(): void {
     this.recorder.stop();
     this.notice?.dispose();
     this.writes.dispose();
     window.removeEventListener('mousedown', this.onWindowMouseDown, true);
     window.removeEventListener('mouseup', this.onWindowMouseUp, true);
-    this.backdrop?.remove();
-    this.backdrop = null;
+    this.root?.remove();
+    this.root = null;
     this.box = null;
     this.body = null;
     this.filterInput = null;
@@ -279,7 +258,7 @@ export class HelpDialog {
     const h = document.createElement('h3');
     h.textContent = section.title;
     const rows = document.createElement('div');
-    rows.className = 'help-dialog-rows';
+    rows.className = 'shortcuts-tab-rows';
     for (const row of section.rows) {
       const view: RowView = {};
       const rec = this.recording;
@@ -326,7 +305,7 @@ export class HelpDialog {
     const h = document.createElement('h3');
     h.textContent = section.title;
     const rows = document.createElement('div');
-    rows.className = 'help-dialog-rows';
+    rows.className = 'shortcuts-tab-rows';
     for (const row of section.rows) {
       const r = document.createElement('div');
       r.className = 'kb-row kb-row-fixed';
@@ -335,7 +314,7 @@ export class HelpDialog {
       label.textContent = row.label;
       if (row.note) {
         const note = document.createElement('div');
-        note.className = 'help-dialog-note';
+        note.className = 'shortcuts-tab-note';
         note.textContent = row.note;
         label.append(note);
       }
@@ -520,7 +499,7 @@ export class HelpDialog {
 
   private assign(rowId: string): void {
     const row = this.findRow(rowId);
-    if (!row || !this.backdrop) return;
+    if (!row || !this.root) return;
     this.reveal(rowId);
     this.startRecording(row, 'add');
     this.rowElement(rowId)?.scrollIntoView({ block: 'center' });
@@ -563,7 +542,7 @@ export class HelpDialog {
       body: ['Remove every custom key and use the defaults?'],
       confirmLabel: 'Reset all',
     });
-    if (!this.backdrop) return;
+    if (!this.root) return;
     this.box?.focus();
     if (ok) await this.writes.send(resetAllOps(), { notice: 'Every key uses its default' });
   }
@@ -605,32 +584,19 @@ export class HelpDialog {
     this.strip = plan.takes.length === 0 ? null : { ...strip, ops: plan.ops, takes: plan.takes };
   }
 
-  private dismiss(): void {
-    this.close();
-    this.callbacks.onClose();
-  }
-
-  private onKey(e: KeyboardEvent): void {
-    // Keep keys away from the workspace keymap and xterm. While recording, the recorder's
-    // capture listener has already swallowed the key, so this sees only keys typed outside it.
-    e.stopPropagation();
+  /** A key typed in the dialog outside the recorder; true when the tab consumed it. */
+  onKey(e: KeyboardEvent): boolean {
     const strip = this.strip;
-    if (strip?.kind === 'reset' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        this.strip = null;
-        this.render();
-        return;
-      }
-      if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
-        e.preventDefault();
-        this.confirmReset();
-        return;
-      }
+    if (strip?.kind !== 'reset' || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return false;
+    if (e.key === 'Escape') {
+      this.strip = null;
+      this.render();
+      return true;
     }
-    if (e.key === 'Escape' || e.key === 'F1') {
-      e.preventDefault();
-      this.dismiss();
+    if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+      this.confirmReset();
+      return true;
     }
+    return false;
   }
 }

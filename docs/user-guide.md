@@ -299,7 +299,8 @@ its query and options, and a non-empty query runs again as soon as the pane load
 
 The panel opens on the right (or the left, with `dashboard.side`) on start (set
 `dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+D toggles it. Its top
-bar holds the **⚙** (Settings, also Ctrl+,) and **?** (Keyboard shortcuts, also F1) buttons, and
+bar holds the **⚙** (Settings, also Ctrl+,) and **?** (Help, also F1) buttons, which open the
+[app dialog](#help-settings-and-shortcuts) on those tabs, and
 the × at its right end hides the panel too, with a notice naming the ways back. While it is hidden, a
 small handle sits on that edge of the window, halfway down; click it to bring the panel back. F6 moves focus
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
@@ -347,7 +348,7 @@ fits.
 
 The **clock**, which is off by default, is one line at the top of the panel, above Launch: three
 rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
-`h:mm` beside them. Clock style in the settings dialog shows just the time or just the dots
+`h:mm` beside them. Clock style in the Settings tab shows just the time or just the dots
 instead. Drag it down among the other sections to move it there, or back to the top.
 It ticks only while the panel is on screen.
 
@@ -449,10 +450,10 @@ own colored lineage. It blooms while the session is busy and thins while it is i
 `backdrop.waitingPulse` to `true` to also make it pulse while it waits for you. The color
 matches the swatch beside the session in the dashboard. The Matrix and None backgrounds show no
 lineages; switching back to Swirling Lights brings each live session's lineage back as a fresh
-founder. The Background choice in the settings dialog picks the style (see
+founder. The Background choice in the Settings tab picks the style (see
 [Settings](settings.md#settings)), and Ctrl+Shift+A pauses or resumes it. Ctrl+Shift+B cycles
 the background's brightness through full, three quarters, and half, and saves the choice as
-Brightness in the settings dialog; the blur stays as set there.
+Brightness in the Settings tab; the blur stays as set there.
 
 ### Containers
 
@@ -542,9 +543,28 @@ Ctrl+= (or Ctrl+numpad +) enlarges the terminal font, Ctrl+- shrinks it, and Ctr
 to 14. Each step is 1 px, from 6 to 48, applies to every terminal, and is saved to `font.size` in
 `settings.json`.
 
+## Help, settings, and shortcuts
+
+One dialog holds five tabs: **Help**, **Settings**, **Shortcuts**, **CLI**, and **About**. F1 or the
+dashboard's **?** opens it on Help, and Ctrl+, or **⚙** opens it on Settings. The command palette
+lists all five, and Shortcuts, CLI, and About can be given keys of their own. Ctrl+Tab and
+Ctrl+Shift+Tab (or Ctrl+PageDown and Ctrl+PageUp) move between tabs, pressing a tab's own key
+again closes the dialog, and Escape or a click outside closes it too.
+
+- **Help** is a short tour of the main features with your current keys, and a Setup list that
+  checks Git Bash, each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),
+  and the Claude Code hooks. Anything missing has an Install button, and **Run setup** reopens the
+  setup wizard.
+- **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the
+  list. The window behind it stays undimmed, so color and brightness changes show as they will look.
+- **Shortcuts** lists every key and is where keys are changed (see [Settings](settings.md)).
+- **CLI** lists the `bb` commands below, with examples to copy.
+- **About** shows the version, **Check for updates**, and links to the release notes and docs.
+
 ## Pane CLI
 
-`bb` is a small console program that lets a shell in a pane drive Bashboard. Each command that
+`bb` is a small console program that lets a shell in a pane drive Bashboard. The app dialog's
+CLI tab lists the same commands, with examples to copy. Each command that
 opens a pane splits the pane that ran it, in that pane's tab, and focus moves to the new pane.
 
 | Command                   | What it does                                                                |

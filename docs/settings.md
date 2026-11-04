@@ -18,10 +18,10 @@ app and a toast says so.
 `code.cmd -g "{path}:{line}"`. Double quotes group an argument, and no shell runs it, so the
 program name must include its extension when it is a shim such as `code.cmd`. `{path}` and
 `{line}` are filled in wherever they appear (and only there; a command without `{path}` gets no
-path), and `{line}` is 1 when no line applies. The Editor section of the settings dialog sets both
+path), and `{line}` is 1 when no line applies. The Editor section of the Settings tab sets both
 fields and lists only the editors it found.
 
-The Font family field in the Appearance section of the settings dialog suggests installed fonts as
+The Font family field in the Appearance section of the Settings tab suggests installed fonts as
 you type, and still accepts any name or a comma-separated fallback list.
 
 `accentColor` sets the color of focus borders, selections, find highlights, and other accents
@@ -41,16 +41,15 @@ text (the default foreground, bright white, and `#ffffff` in the 256-color palet
 every other color a program picks. The Text color field in the Appearance section offers Accent
 tint and White.
 
-Press F1, or click Keyboard shortcuts at the bottom of the dashboard, for a guide to every key
-in effect, including your own bindings. The guide is also where keys are changed: click a key to
+The Shortcuts tab of the app dialog (open it with F1 or the dashboard's **?** button, then click
+Shortcuts) lists every key in effect, including your own bindings. It is also where keys are changed: click a key to
 replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all
 to drop every custom key. Giving a key to an action that already uses it moves it, and the notice
 that follows has Undo.
 
-Most settings can also be changed from the Settings button at the bottom of the dashboard or with
-Ctrl+Comma. Changes save to settings.json and keep its comments. Keybindings are edited in the
-shortcut guide (Settings > Keyboard > Edit keyboard shortcuts opens it) or in the file; the guide
-rewrites the `keybindings` list one entry per line and does not keep comments inside that list.
+Most settings can also be changed in the Settings tab, which the dashboard's **⚙** button and
+Ctrl+Comma open; its filter field narrows the list as you type. Changes save to settings.json and
+keep its comments. Keybindings are edited in the Shortcuts tab or in the file; the tab rewrites the `keybindings` list one entry per line and does not keep comments inside that list.
 
 Entries in the `keybindings` list add to or override the default keys. To remove a default so
 the key reaches the shell, add an `unbound` entry. Ctrl+W closes a pane by default, so this
@@ -71,7 +70,7 @@ Keys that type text (`sendInput`) are added in the file; the guide lists them bu
 for their text.
 
 The background (the backdrop) has three styles, chosen with `backdrop.style` or the Background
-select in the Background section of the settings dialog: `lights` (Swirling Lights, the
+select in the Background section of the Settings tab: `lights` (Swirling Lights, the
 default, a living colony simulation), `matrix` (Matrix, falling glyph rain), and `none` (nothing is
 drawn behind the panes). A missing or invalid value falls back to `lights` with a notice. The
 choice applies live. `backdrop.animate` applies to both drawn styles and starts `false`, a frozen
@@ -86,7 +85,7 @@ animates.
 **Swirling Lights** runs at up to 20 frames per second; raise or lower that with `backdrop.maxFps`
 (0 for the display's refresh rate). The simulation runs at 12 generations per second under a slow
 camera orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
-population it sustains, 300 to 5000; Density in the settings dialog), `mutationRate` (how far
+population it sustains, 300 to 5000; Density in the Settings tab), `mutationRate` (how far
 offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
 above 1 brings the colony closer so it fills more of the window), and `waitingPulse` (a steady
 brightness pulse on a waiting Claude session's organisms, off by default). These apply to
@@ -129,7 +128,7 @@ falling, not an empty screen.
 `gitBash` with a notice. A profile that is not installed falls back to the first available profile
 in the order Git Bash, PowerShell 7, Windows PowerShell, Command Prompt, with a notice the first
 time each missing shell is asked for. `shell.path` and `shell.args` configure Git Bash only. The
-Default shell select in the Terminal section of the settings dialog sets it too (see
+Default shell select in the Terminal section of the Settings tab sets it too (see
 [PowerShell, Windows PowerShell, and Command Prompt](setup.md#powershell-windows-powershell-and-command-prompt)):
 
 ```jsonc
@@ -154,7 +153,7 @@ the panel's top bar has a button for it instead, and while `launch` is off, a **
 drops the Launch menu. A settings file that still has `sections.folder` and no `sections.launch`
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
-kind menu offers a Containers pane whenever a container engine is found. All of them apply on save and are in the Dashboard section of the settings dialog, the
+kind menu offers a Containers pane whenever a container engine is found. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -189,7 +188,7 @@ the `~/.bashrc` lines only.
 
 `git.autoFetchMinutes` (default 5, 0 to 1440) is the number of minutes between background fetches
 of repos with an open Git pane; 0 turns them off. It applies on save and is also in the Git
-section of the settings dialog.
+section of the Settings tab.
 
 ```jsonc
 "git": { "autoFetchMinutes": 5 }

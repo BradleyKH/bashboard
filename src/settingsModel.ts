@@ -407,3 +407,11 @@ export function appliesNote(field: SettingsField): string {
   if (field.applies === 'newPanes') return 'Applies to new panes';
   return '';
 }
+
+/** Whether every word of `query` appears in the field's label, hint, group, or section title. */
+export function matchesFilter(field: SettingsField, sectionTitle: string, query: string): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter((w) => w);
+  if (words.length === 0) return true;
+  const text = [field.label, field.hint, field.group, sectionTitle].filter((s) => s).join(' ').toLowerCase();
+  return words.every((w) => text.includes(w));
+}

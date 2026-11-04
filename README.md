@@ -1,8 +1,24 @@
 Bashboard
 =========
 
-A Windows terminal for Claude Code, built with Tauri: Git Bash panes rendered by xterm.js over
-a live backdrop.
+**Stop jumping between apps while Claude works.** Bashboard is a
+Windows terminal built around Claude Code: split terminal panes, a live status board, and the Git, file, and search views you'd otherwise leave for an IDE.
+
+## Why Bashboard
+
+- **See every session at a glance.** The dashboard lists each pane with its status (working,
+  waiting, done, failed), folder, model, and context size. Claude sessions running in Windows
+  Terminal or VS Code show up too.
+- **Never miss a prompt.** A session that needs permission or finishes its turn pulses its pane
+  and tab, flashes the taskbar, and says why. Ctrl+Shift+N jumps to the next one, across tabs.
+  Long shell commands get the same done/failed marks.
+- **Pick up where you left off.** Tabs, splits, and pads come back on relaunch; named layouts
+  rebuild a whole workspace in one click. A command palette (Ctrl+Shift+P) reaches everything.
+- **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
+- **Drive it from the shell.** `bb edit src/main.ts:40`, `git diff | bb scratch`, `bb git`: the
+  `bb` CLI opens panes from any prompt, so Claude can use it too.
+- **Draft prompts properly.** Scratch pads hold longer prompts and notes, then send them to the
+  terminal for a final look.
 
 ## Installing
 
@@ -16,7 +32,7 @@ The installer is not code-signed, so Windows SmartScreen shows "Windows protecte
 first time. Click **More info**, then **Run anyway**.
 
 Once installed, Bashboard checks for a newer release at launch and offers it in a banner; the
-update installs from inside the app. **Check for updates** in the settings dialog or the command
+update installs from inside the app. **Check for updates** in the About tab (F1, then About) or the command
 palette (Ctrl+Shift+P) checks on demand.
 
 Bashboard runs the tools you already use:
@@ -43,8 +59,8 @@ shell, adding the lines that let new panes open in the current folder to that sh
 `~/.bashrc` or PowerShell profile (see
 [New panes in the current folder](docs/setup.md#new-panes-in-the-current-folder)), the editor,
 favorite repos, Claude Code hooks, and the look: the background, its brightness, and the accent
-and text colors. Each choice saves as soon as you make it, and **Run setup** in the settings
-dialog reopens the wizard. The Git step appears only when Git Bash is missing, the shell
+and text colors. Each choice saves as soon as you make it, and **Run setup** in the Help tab
+(F1) reopens the wizard. The Git step appears only when Git Bash is missing, the shell
 integration step only when the default shell is Git Bash or PowerShell and its file does not
 already hold the current lines, and the Claude Code hooks step only when Claude Code is detected
 and the hooks are not yet installed.

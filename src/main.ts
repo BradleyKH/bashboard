@@ -36,11 +36,17 @@ import { listEditors, openInEditor } from './editors';
 import { ConfirmDialog } from './confirmDialog';
 import { Picker, type PickerItem } from './picker';
 import { CommandPalette } from './commandPalette';
-import { HelpDialog } from './helpDialog';
+import { AboutTab } from './aboutTab';
+import { AppDialog } from './appDialog';
+import { DIALOG_TAB_FOR_ACTION, type DialogTab } from './appDialogModel';
+import { CliTab } from './cliTab';
+import { HelpTab } from './helpTab';
+import { SetupStatus } from './setupStatus';
+import { ShortcutsTab } from './shortcutsTab';
 import { gitInstall, gitInstallStatus, openGitDownload } from './gitInstall';
 import { hookInstall, hookInstallPreview } from './hookInstall';
 import { shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
-import { SettingsDialog } from './settingsDialog';
+import { SettingsTab } from './settingsTab';
 import { SetupWizard } from './setupWizard';
 import { HookInstallDialog } from './hookInstallDialog';
 import { moveItem, parseFavorites, samePath, type Favorite } from './favorites';
@@ -606,8 +612,8 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onReorder: (from, to) => updateFavorites(moveItem(favorites, from, to)),
   onPromote: (path) => addFavorite(path),
   onDragStart: (path, e) => workspace.startDrag({ kind: 'folder', path }, e),
-  onShowHelp: () => showHelp(),
-  onShowSettings: () => showSettings(),
+  onShowHelp: () => void openDialog('help'),
+  onShowSettings: () => void openDialog('settings'),
   onHide: () => {
     showToast(hiddenNotice(toggleKeys(), currentSettings.dashboard.side));
     focusTerminal();
@@ -733,25 +739,80 @@ function openPalette(): void {
   );
 }
 const confirmDialog = new ConfirmDialog();
-const help = new HelpDialog({
-  onClose: focusTerminal,
+const checkForUpdatesNow = (): void => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) });
+/** Shows the hook install preview unless the hooks are in; resolves to whether they are installed. */
+const installHooks = (): Promise<boolean> =>
+  hookInstallPreview().then(
+    (preview) =>
+      new Promise<boolean>((resolve) => {
+        if (preview.alreadyInstalled) {
+          panel.setHooksInstalled(true);
+          resolve(true);
+        } else {
+          hookDialog.open(preview, resolve);
+        }
+      }),
+    (err: unknown) => {
+      showToast(`Could not prepare the hook install: ${String(err)}`);
+      return false;
+    },
+  );
+const shortcutsTab = new ShortcutsTab({
   onEdit: editKeybindings,
   confirm: (o) => confirmDialog.open(o),
 });
-const showHelp = (): void => help.open(currentSettings.keybindings);
-const checkForUpdatesNow = (): void => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) });
-const settingsDialog = new SettingsDialog({
-  onClose: focusTerminal,
+const settingsTab = new SettingsTab({
   onSave: saveSetting,
   onOpenFile: openSettingsFile,
   getProfiles: () => profiles,
-  onRunSetup: () => void showSetup(),
-  onCheckForUpdates: checkForUpdatesNow,
-  onEditKeys: () => showHelp(),
 });
-const showSettings = async (): Promise<void> => {
-  await refreshProfiles();
-  settingsDialog.open(latestPayload);
+const helpTab = new HelpTab(
+  new SetupStatus({
+    getProfiles: () => profiles,
+    getDefaultProfile: () => currentSettings.shell.defaultProfile,
+    installGit: () => gitInstall().then(refreshProfiles),
+    openGitDownload: () => {
+      openGitDownload().catch((e: unknown) => console.warn('open_url failed', e));
+    },
+    // The hook preview stacks over the dialog and hands focus back to it when it closes.
+    installHooks: () => installHooks().finally(() => appDialog.element?.focus()),
+    onRunSetup: () => void showSetup(),
+  }),
+);
+const cliTab = new CliTab();
+const aboutTab = new AboutTab({ onCheckForUpdates: checkForUpdatesNow });
+const appDialog: AppDialog = new AppDialog(
+  {
+    help: {
+      mount: (host) => helpTab.mount(host, currentSettings.keybindings),
+      unmount: () => helpTab.unmount(),
+      show: () => helpTab.show(),
+    },
+    settings: {
+      mount: (host) => settingsTab.mount(host, latestPayload),
+      unmount: () => settingsTab.unmount(),
+    },
+    shortcuts: {
+      mount: (host) => shortcutsTab.mount(host, appDialog.element!, currentSettings.keybindings),
+      unmount: () => shortcutsTab.unmount(),
+      hide: () => shortcutsTab.hide(),
+      onKey: (e) => shortcutsTab.onKey(e),
+    },
+    cli: cliTab,
+    about: aboutTab,
+  },
+  {
+    onClose: focusTerminal,
+    tabForKey: (e) => {
+      const action = workspace.keyAction(e);
+      return action ? (DIALOG_TAB_FOR_ACTION[action.type] ?? null) : null;
+    },
+  },
+);
+const openDialog = async (tab: DialogTab): Promise<void> => {
+  // The settings tab's shell fields list only the shells installed now.
+  if (tab === 'settings' || tab === 'help') await refreshProfiles();
+  appDialog.open(tab);
 };
 const setupWizard = new SetupWizard({
   onClose: focusTerminal,
@@ -763,22 +824,7 @@ const setupWizard = new SetupWizard({
   addFavorites: (list) => {
     if (list.length > 0) updateFavorites([...favorites, ...list]);
   },
-  installHooks: () =>
-    hookInstallPreview().then(
-      (preview) =>
-        new Promise<boolean>((resolve) => {
-          if (preview.alreadyInstalled) {
-            panel.setHooksInstalled(true);
-            resolve(true);
-          } else {
-            hookDialog.open(preview, resolve);
-          }
-        }),
-      (err: unknown) => {
-        showToast(`Could not prepare the hook install: ${String(err)}`);
-        return false;
-      },
-    ),
+  installHooks,
   getHookState: () =>
     hookInstallPreview().then((p) => ({ claudeDetected: p.claudeDetected, hooksInstalled: p.alreadyInstalled })),
   installGit: () => gitInstall().then(refreshProfiles),
@@ -800,7 +846,7 @@ const showSetup = async (): Promise<void> => {
       return null;
     }),
   ]);
-  if (settingsDialog.isOpen()) settingsDialog.close();
+  appDialog.close();
   setupWizard.open({
     claudeDetected: preview?.claudeDetected ?? false,
     hooksInstalled: preview?.alreadyInstalled ?? false,
@@ -828,8 +874,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenLayoutPicker: () => layoutPicker.open(layoutItems(), 'Open a layout'),
   onOpenLaunchMenu: () => openLaunchMenu(),
   onOpenPalette: () => openPalette(),
-  onShowHelp: showHelp,
-  onOpenSettings: showSettings,
+  onOpenDialog: (tab) => void openDialog(tab),
   onToggleBackdrop: toggleBackdrop,
   onToggleFullscreen: toggleFullscreen,
   onAttention: (paneId, cause) => {
@@ -990,11 +1035,12 @@ onSettingsChanged((p) => {
   currentSettings = p.settings;
   setKeyHintBindings(p.settings.keybindings);
   latestPayload = p;
-  settingsDialog.update(p);
+  settingsTab.update(p);
+  helpTab.update(p.settings.keybindings);
   if (setupWizard.isOpen()) setupWizard.update(p.settings);
-  if (help.isOpen()) help.update(p.settings.keybindings);
+  shortcutsTab.update(p.settings.keybindings);
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
   panel.applyDashboardSettings(p.settings.dashboard);
-  void refreshProfiles().then(() => settingsDialog.update(latestPayload));
+  void refreshProfiles().then(() => settingsTab.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

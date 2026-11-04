@@ -67,6 +67,9 @@ function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
     case 'splitWithProfile':
     case 'showHelp':
     case 'openSettings':
+    case 'showShortcuts':
+    case 'showCli':
+    case 'showAbout':
     case 'toggleFullscreen':
     case 'newTab':
     case 'newScratch':

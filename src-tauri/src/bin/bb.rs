@@ -6,20 +6,31 @@ use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::Duration;
 
-const HELP: &str = "\
-bb drives the Bashboard pane it runs in.
+/// The command reference, shared with the app dialog's CLI tab.
+const REFERENCE: &str = include_str!("../../cli-commands.json");
 
-Usage:
-  bb open <path>            Show a folder in the Files pane, or a file's folder with it selected
-  bb edit <path>[:<line>]   Open the file in the preferred editor
-  bb git                    Open the Git pane for this folder's repo
-  bb search [<query>]       Open a Search pane for this folder's repo
-  bb scratch [<text>]       Open a scratch pad holding the text, or piped standard input
-  bb help                   List the commands
+#[derive(serde::Deserialize)]
+struct Reference {
+    intro: String,
+    commands: Vec<Entry>,
+    options: Vec<Entry>,
+}
 
-Options:
-  --collapsed               Open the new pane collapsed
-";
+#[derive(serde::Deserialize)]
+struct Entry {
+    usage: String,
+    summary: String,
+}
+
+fn help_text() -> String {
+    let r: Reference = serde_json::from_str(REFERENCE).expect("cli-commands.json is valid");
+    let line = |e: &Entry| format!("  {:<26}{}\n", e.usage, e.summary);
+    let mut text = format!("{}\n\nUsage:\n", r.intro);
+    r.commands.iter().for_each(|e| text.push_str(&line(e)));
+    text.push_str("\nOptions:\n");
+    r.options.iter().for_each(|e| text.push_str(&line(e)));
+    text
+}
 
 const MAX_STDIN: u64 = 1024 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -37,11 +48,11 @@ fn main() -> ExitCode {
 
 fn run(args: &[String]) -> Result<(), String> {
     let Some((command, rest)) = args.split_first() else {
-        print!("{HELP}");
+        print!("{}", help_text());
         return Ok(());
     };
     if is_help(command) {
-        print!("{HELP}");
+        print!("{}", help_text());
         return Ok(());
     }
     let url = std::env::var("BASHBOARD_HOOK_URL").unwrap_or_default();
@@ -180,6 +191,15 @@ mod tests {
 
     fn strings(args: &[&str]) -> Vec<String> {
         args.iter().map(|a| a.to_string()).collect()
+    }
+
+    #[test]
+    fn help_lists_every_command() {
+        let text = help_text();
+        for name in ["open", "edit", "git", "search", "scratch", "help", "--collapsed"] {
+            assert!(text.contains(name), "{name} missing from help");
+        }
+        assert!(text.contains("  bb edit <path>[:<line>]   Open the file"));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
 import { DEFAULT_SETTINGS, type BackdropStyle, type Settings } from './settings';
-import { appliesNote, installedChoices, isShown, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 const fields = SETTINGS_SECTIONS.flatMap((s) => s.fields);
 const byPath = (p: string) => fields.find((f) => f.path.join('.') === p) as SettingsField;
@@ -320,5 +320,16 @@ describe('selectChoices', () => {
 
   it('appends a hand-edited value as Custom', () => {
     expect(selectChoices(options, '#123456')).toEqual([...options, { value: '#123456', label: 'Custom (#123456)' }]);
+  });
+});
+
+describe('matchesFilter', () => {
+  const field: SettingsField = { path: ['scrollback'], label: 'Scrollback', kind: 'number', hint: 'Lines kept per terminal', applies: 'live' };
+
+  it('matches every word against the label, hint, and section, ignoring case', () => {
+    expect(matchesFilter(field, 'Terminal', '')).toBe(true);
+    expect(matchesFilter(field, 'Terminal', 'scroll')).toBe(true);
+    expect(matchesFilter(field, 'Terminal', 'terminal LINES')).toBe(true);
+    expect(matchesFilter(field, 'Terminal', 'scroll color')).toBe(false);
   });
 });

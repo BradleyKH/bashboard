@@ -27,6 +27,9 @@ export type Action =
   | { type: 'splitWithProfile' }
   | { type: 'showHelp' }
   | { type: 'openSettings' }
+  | { type: 'showShortcuts' }
+  | { type: 'showCli' }
+  | { type: 'showAbout' }
   | { type: 'toggleFullscreen' }
   | { type: 'newTab' }
   | { type: 'newScratch' }
@@ -86,6 +89,9 @@ export const SIMPLE_ACTIONS = [
   'splitWithProfile',
   'showHelp',
   'openSettings',
+  'showShortcuts',
+  'showCli',
+  'showAbout',
   'toggleFullscreen',
   'newTab',
   'newScratch',

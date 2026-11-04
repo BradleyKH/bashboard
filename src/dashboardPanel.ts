@@ -224,7 +224,7 @@ export class DashboardPanel {
     this.launchMenuButton = topButton('dashboard-top-icon dashboard-launch', '+', 'Launch', keys('openLaunch'), (b) =>
       this.callbacks.onOpenLaunchMenu?.(b),
     );
-    const helpButton = topButton('dashboard-top-icon', '?', 'Keyboard shortcuts', keys('showHelp'), () =>
+    const helpButton = topButton('dashboard-top-icon', '?', 'Help', keys('showHelp'), () =>
       this.callbacks.onShowHelp(),
     );
     const settingsButton = topButton('dashboard-top-icon', '⚙', 'Settings', keys('openSettings'), () =>

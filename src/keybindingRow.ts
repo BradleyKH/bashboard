@@ -61,7 +61,7 @@ export function renderKeybindingRow(row: EditRow, view: RowView, callbacks: RowC
     dot.title = 'Differs from the default';
     labelCell.append(dot);
   }
-  if (row.note) labelCell.append(div('help-dialog-note', row.note));
+  if (row.note) labelCell.append(div('shortcuts-tab-note', row.note));
   for (const note of row.shellNotes) labelCell.append(div('kb-shell-note', note));
 
   const keysCell = div('kb-keys');

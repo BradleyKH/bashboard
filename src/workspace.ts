@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { DialogTab } from './appDialogModel';
 import { applyAccent } from './accent';
 import { applyContentText, contentTextColor } from './contentText';
 import type { AttentionCause } from './attention';
@@ -152,8 +153,8 @@ export interface WorkspaceHooks {
   onOpenLaunchMenu?: () => void;
   onOpenPalette?: () => void;
   onOpenProfilePicker?: () => void;
-  onShowHelp?: () => void;
-  onOpenSettings?: () => void;
+  /** Opens the Help, Settings, Shortcuts, CLI, and About dialog on the given tab. */
+  onOpenDialog?: (tab: DialogTab) => void;
   onToggleBackdrop?: () => void;
   onToggleFullscreen?: () => void;
   /** Called whenever a pane's attention is newly raised (docs/design.md section 4.7). */
@@ -1184,10 +1185,19 @@ export class Workspace {
         this.hooks.onOpenProfilePicker?.();
         return true;
       case 'showHelp':
-        this.hooks.onShowHelp?.();
+        this.hooks.onOpenDialog?.('help');
         return true;
       case 'openSettings':
-        this.hooks.onOpenSettings?.();
+        this.hooks.onOpenDialog?.('settings');
+        return true;
+      case 'showShortcuts':
+        this.hooks.onOpenDialog?.('shortcuts');
+        return true;
+      case 'showCli':
+        this.hooks.onOpenDialog?.('cli');
+        return true;
+      case 'showAbout':
+        this.hooks.onOpenDialog?.('about');
         return true;
       case 'toggleBackdrop':
         this.hooks.onToggleBackdrop?.();
@@ -1264,6 +1274,11 @@ export class Workspace {
   runKey(e: KeyboardEvent): boolean {
     const action = lookup(this.config.keymap, e);
     return action !== null && this.dispatch(action);
+  }
+
+  /** The action bound to a key, without running it. */
+  keyAction(e: KeyboardEvent): Action | null {
+    return lookup(this.config.keymap, e);
   }
 
   /** Runs an action as its key would, for the command palette. */

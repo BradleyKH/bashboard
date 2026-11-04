@@ -1,0 +1,56 @@
+{
+  "intro": "bb drives the Bashboard pane it runs in.",
+  "commands": [
+    {
+      "name": "open",
+      "usage": "bb open <path>",
+      "summary": "Show a folder in the Files pane, or a file's folder with it selected",
+      "details": "The path must exist. Relative paths resolve against the folder bb runs in.",
+      "examples": ["bb open .", "bb open docs", "bb open src/main.ts"]
+    },
+    {
+      "name": "edit",
+      "usage": "bb edit <path>[:<line>]",
+      "summary": "Open the file in the preferred editor",
+      "details": "A trailing :<digits> is the line to open at, 1 or more. Folders open too.",
+      "examples": ["bb edit README.md", "bb edit src/main.ts:40"]
+    },
+    {
+      "name": "git",
+      "usage": "bb git",
+      "summary": "Open the Git pane for this folder's repo",
+      "details": "Outside a repo it reports \"not a git repository\".",
+      "examples": ["bb git", "bb git --collapsed"]
+    },
+    {
+      "name": "search",
+      "usage": "bb search [<query>]",
+      "summary": "Open a Search pane for this folder's repo",
+      "details": "The query is filled in when given. Outside a repo it searches the current folder.",
+      "examples": ["bb search", "bb search TODO"]
+    },
+    {
+      "name": "scratch",
+      "usage": "bb scratch [<text>]",
+      "summary": "Open a scratch pad holding the text, or piped standard input",
+      "details": "Without arguments it reads standard input, up to 1 MiB.",
+      "examples": ["bb scratch \"remember to rebase\"", "git diff | bb scratch", "ls -la | bb scratch --collapsed"]
+    },
+    {
+      "name": "help",
+      "usage": "bb help",
+      "summary": "List the commands",
+      "details": "bb, bb -h, and bb --help do the same, and work outside Bashboard too.",
+      "examples": ["bb help"]
+    }
+  ],
+  "options": [
+    {
+      "name": "--collapsed",
+      "usage": "--collapsed",
+      "summary": "Open the new pane collapsed",
+      "details": "Goes anywhere in the command.",
+      "examples": ["bb git --collapsed"]
+    }
+  ]
+}

@@ -13,7 +13,7 @@ The other docs are user-facing, and a user-visible change updates the one that o
 `docs/setup.md` (the `~/.bashrc` and PowerShell lines, Claude Code hooks), and
 `docs/development.md` (machine setup, releasing, and the pre-release keyboard checklist, which
 gains a line when a new chord could collide with WebView2 or xterm.js). The README is install
-instructions and a doc index only.
+instructions, a doc index, and a short feature summary above them.
 
 ## Commands
 
@@ -59,7 +59,7 @@ rest: `pty.rs` runs one ConPTY per pane via `portable-pty` and streams output to
 over a Tauri `Channel`; `settings.rs` loads the JSONC settings file leniently (each invalid field
 falls back to its default with a warning), layers user keybindings over the built-in defaults,
 and watches the file, emitting `settings://changed` on save, while `settings_edit.rs` rewrites
-one value in place for the settings dialog, keeping comments. `hooks.rs` is the loopback hook
+one value in place for the Settings tab, keeping comments. `hooks.rs` is the loopback hook
 receiver, also serving `POST /cli` for `bb` (`bin/bb.rs`, parsed in `cli.rs`); its per-session
 status overlays the session list `roster.rs` builds. `workspace.rs` stores the front end's
 JSON files verbatim without inspecting them. `lib.rs` registers commands and disables WebView2's
@@ -68,8 +68,9 @@ browser accelerator keys so Ctrl+F, Ctrl+R, and similar reach the shell.
 **Front end (`src`)** is no-framework TypeScript, one class or module per file, with pure
 `*Model.ts` modules (no DOM, unit-tested) beside the DOM classes that use them. Don't introduce
 React. `main.ts` mounts the backdrop first (so it draws while settings load), kills ptys
-orphaned by a page reload, then builds the `Workspace`, the `DashboardPanel`, and the
-`SetupWizard`.
+orphaned by a page reload, then builds the `Workspace`, the `DashboardPanel`, the
+`SetupWizard`, and the `AppDialog` (Help, Settings, Shortcuts, CLI, and About tabs, one
+`<name>Tab.ts` each).
 - `Workspace` owns the tabs (each with its own split tree, focus, and collapsed panes), every
   pane of every kind, and the scrim state; whatever acts on "the" tree or focus acts on the
   active tab. `layout.ts` is the pure split-tree model; `layoutView.ts` renders it as nested
@@ -107,12 +108,12 @@ still frame when `backdrop.animate` is false.
 - **A settings field** lives in places that must agree: the Rust struct, `Default`, and
   `try_parse_settings` in `settings.rs`; the `Settings` interface and `DEFAULT_SETTINGS` in
   `src/settings.ts`; the schema in `docs/design.md` section 8; and, if user-facing,
-  `docs/settings.md` and a field in `src/settingsModel.ts` for the settings dialog. Hot reload
+  `docs/settings.md` and a field in `src/settingsModel.ts` for the Settings tab. Hot reload
   reaches the front end through `onSettingsChanged` in `main.ts` and `Workspace.applySettings`.
 - **A keybinding action** needs its name in `keymap.ts` (the action type, the name list, and
   `DEFAULT_KEYBINDINGS`), the matching default in `default_keybindings()` in `settings.rs`, a
   case in `isHandled` in `keys.ts` (workspace actions go through `ctx.dispatch`), handling in
-  `Workspace.dispatch`, a label and section in `src/helpModel.ts` (the F1 shortcut guide's
+  `Workspace.dispatch`, a label and section in `src/helpModel.ts` (the Shortcuts tab's
   rows, which `keybindingEdit.ts` turns into the editor's rows and `paletteModel.ts` into the
   command palette's), a row in the design doc's section 4.5 table, and its key in
   `docs/user-guide.md`. An action that takes an argument also needs its per-argument rows

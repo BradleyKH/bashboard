@@ -1,23 +1,14 @@
-import { getVersion } from '@tauri-apps/api/app';
 import type { Settings, SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
 import { fontSuggestions, isSuggestionPick, listFonts } from './fonts';
-import { appliesNote, installedChoices, isShown, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
-export interface SettingsDialogCallbacks {
-  /** Dismissed; the caller refocuses the terminal. */
-  onClose(): void;
+export interface SettingsTabCallbacks {
   onSave(path: string[], value: unknown): Promise<void>;
   onOpenFile(): Promise<void>;
   /** The shells the core can launch, for fields limited to installed options. */
   getProfiles(): ShellProfile[];
-  /** Run setup was clicked; the dialog has already closed without onClose. */
-  onRunSetup(): void;
-  /** Check for updates was clicked; the dialog stays open. Omit to hide the button. */
-  onCheckForUpdates?(): void;
-  /** Edit keyboard shortcuts was clicked; the dialog has already closed without onClose, as with onRunSetup. Omit to hide the Keyboard section. */
-  onEditKeys?(): void;
 }
 
 const SLIDER_DEBOUNCE_MS = 250;
@@ -27,6 +18,7 @@ interface Control {
   field: SettingsField;
   /** The label and control cells' wrapper, laid out on the parent grid via subgrid. */
   row: HTMLElement;
+  sectionTitle: string;
   cell: HTMLElement;
   error: HTMLElement;
   /** The last value read from the file or sent to onSave; saves equal to it are skipped. */
@@ -38,113 +30,88 @@ interface Control {
   read?: () => string;
 }
 
-/** The settings editor; each control writes one value to settings.json (docs/design.md section 8). */
-export class SettingsDialog {
-  private backdrop: HTMLElement | null = null;
+/** The app dialog's Settings tab; each control writes one value to settings.json (docs/design.md section 8). */
+export class SettingsTab {
+  private root: HTMLElement | null = null;
   private warnings: HTMLElement | null = null;
   private controls: Control[] = [];
+  private sections: { el: HTMLElement; groups: HTMLElement[] }[] = [];
+  private filter = '';
+  private empty: HTMLElement | null = null;
   /** The last loaded file, for swatches drawn from other settings. */
   private settings: Settings | null = null;
   private fontList: HTMLDataListElement | null = null;
   /** The editors the core found; just `default` until the list arrives or when it cannot be read. */
   private editors: Editor[] = [DEFAULT_EDITOR];
 
-  constructor(private readonly callbacks: SettingsDialogCallbacks) {}
+  constructor(private readonly callbacks: SettingsTabCallbacks) {}
 
-  isOpen(): boolean {
-    return this.backdrop !== null;
+  isMounted(): boolean {
+    return this.root !== null;
   }
 
-  open(payload: SettingsPayload): void {
-    if (this.backdrop) this.close();
-
-    const backdrop = document.createElement('div');
-    backdrop.className = 'settings-dialog-backdrop';
-    backdrop.addEventListener('mousedown', (e) => {
-      if (e.target === backdrop) {
-        e.preventDefault();
-        this.dismiss();
-      }
-    });
-
-    const box = document.createElement('div');
-    box.className = 'settings-dialog';
-    box.tabIndex = -1;
-    box.setAttribute('role', 'dialog');
-    box.setAttribute('aria-modal', 'true');
-    box.setAttribute('aria-label', 'Settings');
-    box.addEventListener('keydown', (e) => this.onKey(e));
-
-    const header = document.createElement('div');
-    header.className = 'settings-dialog-header';
-    const title = document.createElement('h2');
-    title.textContent = 'Settings';
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'settings-dialog-close';
-    close.textContent = '×';
-    close.title = 'Close (Escape)';
-    close.addEventListener('click', () => this.dismiss());
-    header.append(title, close);
+  mount(host: HTMLElement, payload: SettingsPayload): void {
+    if (this.root) this.unmount();
+    const root = document.createElement('div');
+    root.className = 'settings-tab';
 
     const warnings = document.createElement('div');
-    warnings.className = 'settings-dialog-warnings';
+    warnings.className = 'settings-tab-warnings';
     warnings.setAttribute('role', 'status');
     this.warnings = warnings;
 
+    const filter = document.createElement('input');
+    filter.type = 'search';
+    filter.className = 'settings-tab-filter';
+    filter.placeholder = 'Filter settings';
+    filter.spellcheck = false;
+    filter.addEventListener('input', () => {
+      this.filter = filter.value;
+      this.applyVisibility();
+    });
+    this.filter = '';
+
     const body = document.createElement('div');
-    body.className = 'settings-dialog-body';
+    body.className = 'settings-tab-body';
     this.controls = [];
+    this.sections = [];
     for (const section of SETTINGS_SECTIONS) {
+      const groups: HTMLElement[] = [];
       const el = document.createElement('section');
       const h = document.createElement('h3');
       h.textContent = section.title;
       const rows = document.createElement('div');
-      rows.className = 'settings-dialog-rows';
+      rows.className = 'settings-tab-rows';
       let group: string | undefined;
       for (const field of section.fields) {
         if (field.group !== group) {
           group = field.group;
           if (group) {
             const sub = document.createElement('div');
-            sub.className = 'settings-dialog-group';
+            sub.className = 'settings-tab-group';
             sub.textContent = group;
             rows.append(sub);
+            groups.push(sub);
           }
         }
-        rows.append(this.row(field));
+        rows.append(this.row(field, section.title));
       }
       el.append(h, rows);
       body.append(el);
+      this.sections.push({ el, groups });
     }
-    const onEditKeys = this.callbacks.onEditKeys;
-    if (onEditKeys) {
-      const el = document.createElement('section');
-      const h = document.createElement('h3');
-      h.textContent = 'Keyboard';
-      const rows = document.createElement('div');
-      rows.className = 'settings-dialog-rows';
-      const edit = document.createElement('button');
-      edit.type = 'button';
-      edit.className = 'settings-dialog-open';
-      edit.textContent = 'Edit keyboard shortcuts';
-      edit.addEventListener('click', () => {
-        this.close();
-        onEditKeys();
-      });
-      rows.append(edit);
-      el.append(h, rows);
-      body.append(el);
-    }
-
-    box.append(header, warnings, body, this.footer());
-    backdrop.append(box);
-    document.body.append(backdrop);
-    this.backdrop = backdrop;
+    const empty = document.createElement('p');
+    empty.className = 'settings-tab-note';
+    empty.textContent = 'No settings match.';
+    empty.hidden = true;
+    body.append(empty);
+    this.empty = empty;
+    root.append(filter, warnings, body, this.footer());
+    host.append(root);
+    this.root = root;
     this.update(payload);
-    box.focus();
-    void this.loadEditors(backdrop);
-    void this.loadFonts(backdrop);
+    void this.loadEditors(root);
+    void this.loadFonts(root);
   }
 
   private async loadFonts(owner: HTMLElement): Promise<void> {
@@ -154,7 +121,7 @@ export class SettingsDialog {
     } catch {
       return;
     }
-    if (this.backdrop !== owner || !this.fontList) return;
+    if (this.root !== owner || !this.fontList) return;
     this.fontList.replaceChildren(
       ...fontSuggestions(found).map((family) => {
         const option = document.createElement('option');
@@ -171,7 +138,7 @@ export class SettingsDialog {
     } catch {
       return;
     }
-    if (this.backdrop !== owner) return;
+    if (this.root !== owner) return;
     const active = document.activeElement;
     for (const c of this.controls) {
       if (c.field.installedFrom !== 'editors' || (active && c.cell.contains(active))) continue;
@@ -181,7 +148,7 @@ export class SettingsDialog {
 
   /** Refreshes from a reloaded file, leaving the control being edited alone. */
   update(payload: SettingsPayload): void {
-    if (!this.backdrop || !this.warnings) return;
+    if (!this.root || !this.warnings) return;
     this.warnings.replaceChildren(
       ...payload.warnings.map((w) => {
         const p = document.createElement('p');
@@ -203,16 +170,29 @@ export class SettingsDialog {
     this.applyVisibility();
   }
 
-  /** Hides fields whose `shownWhen` doesn't hold, judged from each control's last saved value. */
+  /**
+   * Hides fields whose `shownWhen` doesn't hold, judged from each control's last saved value, and
+   * fields the filter leaves out, then sections left with no field.
+   */
   private applyVisibility(): void {
     const read = (path: string[]): unknown => this.controls.find((c) => c.field.path.join('.') === path.join('.'))?.last;
     for (const c of this.controls) {
-      const hide = !isShown(c.field, read);
-      c.row.hidden = hide;
+      c.row.hidden = !isShown(c.field, read) || !matchesFilter(c.field, c.sectionTitle, this.filter);
     }
+    const filtering = this.filter.trim() !== '';
+    let any = false;
+    for (const s of this.sections) {
+      const shown = [...s.el.querySelectorAll<HTMLElement>('.settings-tab-row')].some((r) => !r.hidden);
+      s.el.hidden = !shown;
+      any ||= shown;
+      // A group heading can't tell which of its rows survive, so filtered results drop them.
+      for (const g of s.groups) g.hidden = filtering;
+    }
+    if (this.empty) this.empty.hidden = any;
   }
 
-  close(): void {
+  /** Commits a pending slider or the focused input, then removes the tab. */
+  unmount(): void {
     const active = document.activeElement;
     for (const c of this.controls) {
       c.pending?.();
@@ -221,16 +201,18 @@ export class SettingsDialog {
     }
     this.controls = [];
     this.fontList = null;
-    this.backdrop?.remove();
-    this.backdrop = null;
+    this.root?.remove();
+    this.root = null;
     this.warnings = null;
+    this.sections = [];
+    this.empty = null;
   }
 
-  private row(field: SettingsField): HTMLElement {
+  private row(field: SettingsField, sectionTitle: string): HTMLElement {
     const id = `settings-${field.path.join('-')}`;
 
     const labelCell = document.createElement('div');
-    labelCell.className = 'settings-dialog-label';
+    labelCell.className = 'settings-tab-label';
     const label = document.createElement('label');
     label.htmlFor = id;
     label.textContent = field.label;
@@ -239,7 +221,7 @@ export class SettingsDialog {
     const describedBy: string[] = [];
     if (noteText) {
       const note = document.createElement('div');
-      note.className = 'settings-dialog-note';
+      note.className = 'settings-tab-note';
       note.id = `${id}-note`;
       note.textContent = noteText;
       labelCell.append(note);
@@ -247,19 +229,19 @@ export class SettingsDialog {
     }
 
     const cell = document.createElement('div');
-    cell.className = 'settings-dialog-control';
+    cell.className = 'settings-tab-control';
     const error = document.createElement('div');
-    error.className = 'settings-dialog-error';
+    error.className = 'settings-tab-error';
     error.id = `${id}-error`;
     error.setAttribute('role', 'alert');
     error.hidden = true;
     describedBy.push(error.id);
 
     const row = document.createElement('div');
-    row.className = 'settings-dialog-row';
+    row.className = 'settings-tab-row';
     row.append(labelCell, cell);
 
-    const control: Control = { field, row, cell, error, last: undefined, show: () => {} };
+    const control: Control = { field, row, sectionTitle, cell, error, last: undefined, show: () => {} };
     const input = this.input(control);
     input.id = id;
     input.setAttribute('aria-describedby', describedBy.join(' '));
@@ -275,12 +257,12 @@ export class SettingsDialog {
     if (f.kind === 'toggle') {
       const box = document.createElement('input');
       box.type = 'checkbox';
-      box.className = 'settings-dialog-toggle';
+      box.className = 'settings-tab-toggle';
       box.addEventListener('change', () => this.commit(c, box.checked));
       c.show = (v) => (box.checked = v === true);
       // The whole row toggles. Clicks on the box or its <label> already toggle natively, so a
       // second click() there would undo them.
-      c.row.classList.add('settings-dialog-row-toggle');
+      c.row.classList.add('settings-tab-row-toggle');
       c.row.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         if (target === box || target.closest('label')) return;
@@ -291,12 +273,12 @@ export class SettingsDialog {
 
     if (f.kind === 'select') {
       const sel = document.createElement('select');
-      sel.className = 'settings-dialog-input';
+      sel.className = 'settings-tab-input';
       // A customizable select (appearance: base-select) keeps markup inside options, and
       // <selectedcontent> copies the chosen option's swatch into the closed select.
       const head = f.swatches ? document.createElement('button') : null;
       if (head) {
-        sel.classList.add('settings-dialog-swatch-select');
+        sel.classList.add('settings-tab-swatch-select');
         head.append(document.createElement('selectedcontent'));
       }
       const fill = (options: { value: string; label: string }[]): void => {
@@ -308,7 +290,7 @@ export class SettingsDialog {
             opt.textContent = o.label;
             if (head) {
               const swatch = document.createElement('span');
-              swatch.className = 'settings-dialog-swatch';
+              swatch.className = 'settings-tab-swatch';
               swatch.style.background = f.swatchColor && this.settings ? f.swatchColor(o.value, this.settings) : o.value;
               opt.prepend(swatch);
             }
@@ -319,7 +301,7 @@ export class SettingsDialog {
       sel.addEventListener('change', () => this.commit(c, sel.value));
       if (f.installedFrom) {
         const warn = document.createElement('div');
-        warn.className = 'settings-dialog-note';
+        warn.className = 'settings-tab-note';
         warn.hidden = true;
         c.cell.append(warn);
         c.show = (v) => {
@@ -342,12 +324,12 @@ export class SettingsDialog {
     if (f.kind === 'slider') {
       const range = document.createElement('input');
       range.type = 'range';
-      range.className = 'settings-dialog-slider';
+      range.className = 'settings-tab-slider';
       if (f.min !== undefined) range.min = String(f.min);
       if (f.max !== undefined) range.max = String(f.max);
       if (f.step !== undefined) range.step = String(f.step);
       const readout = document.createElement('span');
-      readout.className = 'settings-dialog-readout';
+      readout.className = 'settings-tab-readout';
       readout.setAttribute('aria-hidden', 'true');
       let timer: number | undefined;
       const flush = (): void => {
@@ -371,7 +353,7 @@ export class SettingsDialog {
 
     if (f.kind === 'list') {
       const area = document.createElement('textarea');
-      area.className = 'settings-dialog-input settings-dialog-list';
+      area.className = 'settings-tab-input settings-tab-list';
       area.rows = 3;
       area.spellcheck = false;
       area.addEventListener('blur', () => this.commit(c, area.value));
@@ -387,17 +369,17 @@ export class SettingsDialog {
     }
 
     const input = document.createElement('input');
-    input.className = 'settings-dialog-input';
+    input.className = 'settings-tab-input';
     input.spellcheck = false;
     if (f.kind === 'number') {
       input.type = 'number';
-      input.classList.add('settings-dialog-number');
+      input.classList.add('settings-tab-number');
       if (f.min !== undefined) input.min = String(f.min);
       if (f.max !== undefined) input.max = String(f.max);
       if (f.step !== undefined) input.step = String(f.step);
       if (f.unit) {
         const unit = document.createElement('span');
-        unit.className = 'settings-dialog-unit';
+        unit.className = 'settings-tab-unit';
         unit.textContent = f.unit;
         c.cell.append(unit);
       }
@@ -405,7 +387,7 @@ export class SettingsDialog {
       input.type = 'text';
       if (f.suggestFrom === 'fonts') {
         const list = document.createElement('datalist');
-        list.id = 'settings-dialog-font-suggestions';
+        list.id = 'settings-tab-font-suggestions';
         input.setAttribute('list', list.id);
         c.cell.append(list);
         this.fontList = list;
@@ -455,16 +437,16 @@ export class SettingsDialog {
 
   private footer(): HTMLElement {
     const footer = document.createElement('div');
-    footer.className = 'settings-dialog-footer';
+    footer.className = 'settings-tab-footer';
 
     const actions = document.createElement('div');
-    actions.className = 'settings-dialog-actions';
+    actions.className = 'settings-tab-actions';
     const open = document.createElement('button');
     open.type = 'button';
-    open.className = 'settings-dialog-open';
+    open.className = 'settings-tab-open';
     open.textContent = 'Open settings.json';
     const error = document.createElement('span');
-    error.className = 'settings-dialog-error';
+    error.className = 'settings-tab-error';
     error.setAttribute('role', 'alert');
     error.hidden = true;
     open.addEventListener('click', () => {
@@ -474,58 +456,15 @@ export class SettingsDialog {
         error.hidden = false;
       });
     });
-    const setup = document.createElement('button');
-    setup.type = 'button';
-    setup.className = 'settings-dialog-open';
-    setup.textContent = 'Run setup';
-    // close(), not dismiss(): onClose would refocus a terminal under the wizard.
-    setup.addEventListener('click', () => {
-      this.close();
-      this.callbacks.onRunSetup();
-    });
-    actions.append(open, setup);
-    const checkForUpdates = this.callbacks.onCheckForUpdates;
-    if (checkForUpdates) {
-      const update = document.createElement('button');
-      update.type = 'button';
-      update.className = 'settings-dialog-open';
-      update.textContent = 'Check for updates';
-      update.addEventListener('click', () => checkForUpdates());
-      actions.append(update);
-    }
+    actions.append(open);
     actions.append(error);
 
     const note = document.createElement('p');
-    note.className = 'settings-dialog-note';
-    note.textContent = 'Keyboard shortcuts are changed in the shortcut guide (F1); keys that type text are added to the "keybindings" list in settings.json.';
+    note.className = 'settings-tab-note';
+    note.textContent = 'Keyboard shortcuts are changed in the Shortcuts tab; keys that type text are added to the "keybindings" list in settings.json.';
 
-    const version = document.createElement('p');
-    version.className = 'settings-dialog-note';
-    version.hidden = true;
-    // Fails outside Tauri (plain browser); the line just stays hidden.
-    getVersion()
-      .then((v) => {
-        version.textContent = `Bashboard ${v}`;
-        version.hidden = false;
-      })
-      .catch(() => {});
-
-    footer.append(actions, note, version);
+    footer.append(actions, note);
     return footer;
-  }
-
-  private dismiss(): void {
-    this.close();
-    this.callbacks.onClose();
-  }
-
-  private onKey(e: KeyboardEvent): void {
-    // Keep keys away from the workspace keymap and xterm.
-    e.stopPropagation();
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      this.dismiss();
-    }
   }
 }
 

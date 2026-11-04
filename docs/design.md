@@ -629,6 +629,10 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb scratch [<text>]` | A new scratch pad (4.15) holding the text, or standard input when it is not a terminal (`git diff \| bb scratch`) |
 | `bb help` | Lists the commands |
 
+`src-tauri/cli-commands.json` holds each command's usage, summary, details, and examples. `bb help`
+prints the usage and summary lines from it (embedded at build time), and the app dialog's CLI tab
+(4.18) shows all of it, so the two cannot drift.
+
 New panes open as a split of the calling pane, as a favorite does (4.6), in the calling pane's
 tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
 
@@ -725,7 +729,7 @@ the newest non-prerelease release. The Windows install mode is `passive`: the NS
 shows its progress without prompts.
 
 `src/updater.ts` exports `checkForUpdate({ manual, confirm })`. It runs once at launch after the
-workspace is up, quietly, and again from the settings dialog's Check for updates button or the
+workspace is up, quietly, and again from the app dialog's About tab (4.18) or the
 command palette's Check for updates entry (4.5), both of which also report "up to date" and
 failures. It does not check in a dev build, which has no installed bundle to replace; a manual
 check there says so in a toast. An available update shows as a banner (`updateNotice.ts`) with
@@ -769,7 +773,7 @@ workspace, since xterm.js measures its character cell when a terminal opens.
 
 ### 3.17 Fonts (`src-tauri/src/fonts.rs`)
 
-`fonts() -> { family, monospace }[]` lists the installed font families for the settings dialog's
+`fonts() -> { family, monospace }[]` lists the installed font families for the Settings tab's
 Font family suggestions (4.6). It is an `async` command, so the enumeration runs off the main
 thread. It reads DirectWrite's system font collection through the `windows` crate, which
 includes fonts installed for the current user only. A family's name is its `en-us` localized
@@ -1042,15 +1046,18 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
 | Ctrl+0 | Reset the terminal font size to the default, 14 px (saved to `font.size`; applies to every terminal) |
-| F1 | Show the keyboard shortcut guide, built from the live keymap so overrides show; keys are changed there (below) |
-| Ctrl+, | Open the settings dialog |
+| F1 | Open the app dialog on its Help tab (4.18) |
+| Ctrl+, | Open the app dialog on its Settings tab |
 | F11 | Toggle full screen |
+
+Three more actions have no default key: `showShortcuts`, `showCli`, and `showAbout` open the app
+dialog on its Shortcuts, CLI, and About tabs.
 
 These are built-in defaults. Entries in the settings file (section 8) layer on top, as in
 Windows Terminal: an entry for a chord that has a default replaces it, a new chord adds a
 binding, and `"action": "unbound"` removes a default so the key reaches the shell.
 
-**Keybinding editor.** Keys are changed in the F1 guide (`helpDialog.ts`), which lists every
+**Keybinding editor.** Keys are changed in the app dialog's Shortcuts tab (`shortcutsTab.ts`, 4.18), which lists every
 action by section with its live chords. Every action in the name list has a row, including one
 with no default. An action that takes an argument has one row per argument: Move focus and Resize
 pane per direction, Go to tab 1 through 8. Each `sendInput` binding has its own row labeled by
@@ -1086,14 +1093,14 @@ When the recorded chord belongs to another action, the field holds it and a move
 will have no key." when the move would leave that action empty. Enter moves, Escape cancels, and
 a different chord records that one instead. A move is a single write. The other action's row
 flashes once with the chord struck through, and a notice (`keybindingNotice.ts`) at the bottom of
-the dialog says where the chord moved from, with Undo and, when that action has no key left,
+the tab says where the chord moved from, with Undo and, when that action has no key left,
 Assign a key, which scrolls to its row and starts recording there. The notice stays until the
 next edit or 10 seconds. Undo is a single write that restores both rows. Reset on a row whose
 default chord another action holds opens the strip for those chords (all of them when there are
 several) as "Move it back?", and Cancel resets nothing. Reset all, in the footer, confirms and
 then empties the `keybindings` array, with the same notice and Undo.
 
-The dialog never writes the merged keymap. It sends ops to `settings_keybindings_edit` (in
+The tab never writes the merged keymap. It sends ops to `settings_keybindings_edit` (in
 `settings.rs`), which applies them to the raw `keybindings` array in settings.json under the
 settings write lock:
 
@@ -1108,8 +1115,8 @@ Chords match through `normalize_chord`, aliases included, so `Shift+Ctrl+L` in t
 entry for `ctrl+shift+l`. Entries the loader rejected and the order of the others are kept, so an
 edit to one entry never deletes a typo in another. The array is written whole by
 `set_array_lines` in `settings_edit.rs`, one entry per line; comments outside the array survive
-and comments inside it are not kept. The dialog does not update itself after a save: the watcher's
-`settings://changed` rebuilds the keymap and re-renders the dialog, as a hand edit does. A failed
+and comments inside it are not kept. The tab does not update itself after a save: the watcher's
+`settings://changed` rebuilds the keymap and re-renders the tab, as a hand edit does. A failed
 save leaves the rows as they were and shows the error in the notice.
 
 In panes other than terminals, copy, paste, Shift+Enter, Ctrl+Shift+F, and typing act on the
@@ -1127,10 +1134,10 @@ Ctrl+Enter opens a favorite or worktree collapsed. Pins whose path is missing ar
 
 Actions left out are `copy`, `paste`, `sendInput` (Claude Code's newline), `switchToTab` (tabs are
 items instead), and `openPalette` itself. Labels come from `helpModel.ts`, so the palette and the
-F1 guide agree, and each action's hint lists its chords from the live keymap, so overrides show.
+Shortcuts tab agree, and each action's hint lists its chords from the live keymap, so overrides show.
 `moveFocus` and `resizePane` get one row per direction. Check for updates (3.16) is an action
 row with no keymap action behind it (`PALETTE_COMMANDS` in `paletteModel.ts`), so it never
-appears in the F1 guide or takes a key.
+appears in the Shortcuts tab or takes a key.
 
 Matching is fuzzy over the label, then the detail (a pane's tab name, a favorite's path), and a
 detail-only match ranks after every label match. Consecutive characters and matches at word starts
@@ -1169,8 +1176,8 @@ favorite, and the Layouts menu has a "+ Save" button that turns the filter into 
 single row previews "Save as" or, for an existing name in any capitalization, "Replace", Enter
 saves, and Escape returns to the filter. The pickers have these buttons however they open, from the
 top bar or from their shortcuts. Renaming, removing, and reordering stay with the sections. After
-them come icon buttons for Settings (⚙, also bound to Ctrl+,), which opens the settings dialog,
-and Keyboard shortcuts (?), which opens the help dialog, also bound to F1. The × that hides the
+them come icon buttons for Settings (⚙, also bound to Ctrl+,) and Help (?, also bound to F1),
+which open the app dialog (4.18) on those tabs. The × that hides the
 panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
 parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
 
@@ -1402,28 +1409,29 @@ the same as a card. The section is hidden while there are none.
 **Footer.** Install Claude Code hooks sits at the bottom of the panel while Claude Code is
 detected and the hooks are not installed (3.3); otherwise the footer takes no space.
 
-The settings dialog edits every user-facing setting, in the sections Appearance, Backdrop, Terminal,
-Editor, Dashboard, Restore, and Keyboard. Dashboard holds the side choice, Left or Right, and a
+The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the
+sections Appearance, Backdrop, Terminal, Editor, Dashboard, and Restore. A filter field above them
+shows only the fields whose label, hint, group, or section holds every word typed, and hides
+sections left empty. Dashboard holds the side choice, Left or Right, and a
 checkbox per element under "Show on the dashboard", followed by the Clock style select while the
-clock is on. Keyboard holds one button, Edit keyboard
-shortcuts, which closes the dialog and opens the F1 guide (4.5). Terminal includes a Default shell
+clock is on. Terminal includes a Default shell
 select listing the available profiles. Editor selects the preferred editor from those found (3.12),
 plus a custom command field. Appearance's Font family field suggests installed fonts as you type
 (3.17), monospace first, with the bundled JetBrainsMono Nerd Font Mono (3.16) leading. It stays a
 text field, so a name that is not installed or a comma-separated fallback list saves as typed;
-picking an entry replaces the whole value and saves it at once. The list loads after the dialog
-opens. A Run setup button reopens the setup wizard (4.17). Each change is written to settings.json
+picking an entry replaces the whole value and saves it at once. The list loads after the tab
+opens. Each change is written to settings.json
 through the app, so the file's comments survive. Toggles save immediately; number and text fields
 save on blur or Enter; the shell arguments list (one argument per line) saves on blur or Ctrl+Enter;
 sliders save shortly after the drag stops and show the live value. Invalid input (out of range,
 empty, or not a number) shows an inline error and is not saved, and a failed save shows an inline
-error too. When settings.json changes on disk while the dialog is open, every control except the
+error too. When settings.json changes on disk while the tab is open, every control except the
 focused one refreshes. Fields that do not apply live say so beside the control:
 dashboard.visibleOnStart and restore.* apply at the next launch, and shell.* applies to panes opened
-afterward. Warnings about the current settings appear at the top of the dialog. The Open
+afterward. Warnings about the current settings appear at the top of the tab. The Open
 settings.json button in the footer opens the file in the default editor, with the note "Keyboard
-shortcuts are changed in the shortcut guide (F1); keys that type text are added to the "keybindings"
-list in settings.json." Escape or a click outside the dialog closes it.
+shortcuts are changed in the Shortcuts tab; keys that type text are added to the "keybindings"
+list in settings.json."
 
 A peek overlays the panes from the panel's side without narrowing them. It ends after a few seconds, but stays
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends
@@ -2017,7 +2025,7 @@ then Copy name. A dashboard Containers row has its own menu (4.6).
 ### 4.17 Setup wizard
 
 Shown at launch when `settings.json` did not exist before that launch (the settings payload's
-`firstRun`), and from the settings dialog's Run setup button. Each step saves through
+`firstRun`), and from the Run setup button in the app dialog's Help tab (4.18). Each step saves through
 `settings_set` as soon as a choice is made, so leaving partway keeps what was chosen. Every step
 has Back, Next, and Skip setup.
 
@@ -2044,7 +2052,7 @@ has Back, Next, and Skip setup.
    favorites, skipping any already there.
 6. **Claude Code.** Shown while Claude Code is detected and the hooks are not installed;
    explains the hooks and runs the install with its confirmation (3.3).
-7. **Look.** Applied live, in the settings dialog's terms (6.2). Background (None, Swirling
+7. **Look.** Applied live, in the Settings tab's terms (6.2). Background (None, Swirling
    Lights, Matrix; `backdrop.style`). Animate the background (`backdrop.animate`) and Brightness
    (Low, Medium, High, the scrim presets of section 5 from darkest), both hidden under None. Accent
    color as swatches of its presets (`accentColor`), and Text color as an Accent tint swatch, drawn
@@ -2052,6 +2060,44 @@ has Back, Next, and Skip setup.
    to the Green preset while it is still at its default, to go with the green rain, and the
    accent tint follows; picking another background turns the accent back only when the wizard
    turned it green and it is still green, so a color the user chose is never overridden.
+
+### 4.18 App dialog
+
+One modal (`appDialog.ts`) holds the tabs Help, Settings, Shortcuts, CLI, and About, in that order
+(`appDialogModel.ts`). Each entry point opens its own tab: the dashboard's ? button and F1
+(`showHelp`) open Help, ⚙ and Ctrl+, (`openSettings`) open Settings, and `showShortcuts`,
+`showCli`, and `showAbout` (no default keys; all five are in the command palette) open the rest.
+Opening it while it is open switches tabs. The dialog has one fixed size, so switching tabs never
+moves its edges, and each tab scrolls inside it.
+
+A tab builds on its first visit and stays built, with its filter and scroll, until the dialog
+closes, when every built tab is torn down (Settings commits a pending edit then). Leaving
+Shortcuts ends any recording or open strip. The backdrop dims the window behind the dialog except
+on Settings, where it stays clear so color and brightness changes preview at their true values;
+a click on it closes the dialog either way.
+
+Keys: Escape closes. Ctrl+Tab and Ctrl+PageDown move one tab right, Ctrl+Shift+Tab and Ctrl+PageUp
+left, wrapping, and Left and Right do the same while a tab button has focus. A chord or function
+key bound to one of the five actions above switches to its tab, or closes the dialog when that tab
+already shows, so F1 toggles Help. Plain keys never switch, since they may be typing into a field.
+The Shortcuts tab's recorder sees keys first while it records (4.5).
+
+- **Help** (`helpTab.ts`) is a short tour of the user guide (`helpTour.ts`), a paragraph or two
+  per area, whose `{action}` tokens render as the action's live keycaps, or "no key" when it is
+  unbound, followed by a link to the full user guide. Below it, Setup (`setupStatus.ts`) checks Git
+  Bash (3.15), the shell integration lines of each installed shell that takes them (3.14), and the
+  Claude Code hooks (3.3), each row reading ✓, !, or • with a short status and, where the app can
+  fix it, a button: Install Git (winget, or Download without it), Install or Update for the
+  shell lines, and Install for the hooks, which opens the hook preview (3.3) over the dialog.
+  Missing lines warn only for the default shell; other shells get the button without the warning.
+  The checks rerun on each visit and after each fix. Run setup closes the dialog and opens the
+  setup wizard (4.17).
+- **Settings** is the settings editor (4.6).
+- **Shortcuts** is the shortcut guide and keybinding editor (4.5).
+- **CLI** (`cliTab.ts`) lists each `bb` command and option from `cli-commands.json` (3.13) with
+  its usage, what it does, and examples, each with a Copy button.
+- **About** (`aboutTab.ts`) shows the version, Check for updates (3.16), and links to this
+  version's release notes on GitHub, the documentation, and the source.
 
 ## 5. Readability
 
@@ -2164,7 +2210,7 @@ in the dialog) and mutation rate (0 to 4, default 0.2; "Color drift"). Two more:
 and the camera glides to a changed value; `waitingPulse` (default off) turns on the waiting
 pulse below.
 
-The settings dialog groups the backdrop's settings, and the scrim, under "Background
+The Settings tab groups the backdrop's settings, and the scrim, under "Background
 Animation"; the UI calls the backdrop the background animation. It opens with a Background select
 (None, Swirling Lights, Matrix) and shows only the fields that apply to the chosen style. The
 scrim's controls are labeled "Brightness" (shown as 1 minus `scrim.opacity`, so the far left is
@@ -2412,7 +2458,7 @@ it with no pins, and Automatic omits it.
   // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
   "git": { "autoFetchMinutes": 5 },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
-  // a field: switchToTab takes "index" from 1 to 8. The shortcut guide (F1) edits this list,
+  // a field: switchToTab takes "index" from 1 to 8. The Shortcuts tab (4.18) edits this list,
   // rewriting it with one entry per line; comments inside the list are not kept, comments
   // elsewhere in the file are.
   "keybindings": [

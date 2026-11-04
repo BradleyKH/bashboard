@@ -1,0 +1,348 @@
+.app-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 8vh;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* The element stays to catch outside clicks. */
+.app-dialog-backdrop.app-dialog-see-through {
+  background: transparent;
+}
+
+/* One size for every tab, so switching tabs doesn't move the edges. */
+.app-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: min(680px, 92vw);
+  height: min(760px, 84vh);
+  padding: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.94);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  user-select: none;
+  outline: none;
+}
+
+.app-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.app-dialog-tabs {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-dialog-tab {
+  margin-bottom: -1px;
+  padding: 5px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9aa6ad;
+  font: 600 12px system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-dialog-tab:hover {
+  color: #eef3f5;
+}
+
+.app-dialog-tab.active {
+  border-bottom-color: var(--accent);
+  color: #eef3f5;
+}
+
+.app-dialog-tab:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.app-dialog-close {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: 16px system-ui, sans-serif;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.app-dialog-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+.app-dialog-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-dialog-tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-dialog-tab-panel[hidden] {
+  display: none;
+}
+
+/* The root of a tab that scrolls as a whole. */
+.app-dialog-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+  user-select: text;
+}
+
+.app-dialog h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7f8c94;
+}
+
+.app-dialog p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.app-dialog p + p {
+  margin-top: 6px;
+}
+
+.app-dialog kbd {
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef3f5;
+  font: 11px ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.app-dialog code {
+  color: #eef3f5;
+  font: 11px ui-monospace, Consolas, monospace;
+}
+
+.app-dialog-note {
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.app-dialog-button {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #d6dde2;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-dialog-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app-dialog-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.app-dialog-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.app-dialog-link:hover {
+  color: #eef3f5;
+}
+
+/* Help */
+
+.help-tab-tour {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.help-tab-unbound {
+  color: #7f8c94;
+  font-style: italic;
+  cursor: help;
+}
+
+.setup-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.setup-status-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setup-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-status-mark {
+  flex: 0 0 16px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.setup-status-ok .setup-status-mark {
+  color: #6fcf8f;
+}
+
+.setup-status-missing .setup-status-mark {
+  color: #e0b050;
+}
+
+.setup-status-info .setup-status-mark {
+  color: #7f8c94;
+}
+
+.setup-status-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.setup-status-label {
+  color: #eef3f5;
+}
+
+.setup-status-error {
+  color: #e87878;
+  overflow-wrap: anywhere;
+}
+
+.setup-status-error[hidden] {
+  display: none;
+}
+
+/* CLI */
+
+.cli-tab-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 0;
+}
+
+.cli-tab-entry + .cli-tab-entry {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app-dialog .cli-tab-usage {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cli-tab-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.cli-tab-example {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cli-tab-example code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cli-tab-copy {
+  padding: 1px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #9aa6ad;
+  font: 11px system-ui, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.cli-tab-example:hover .cli-tab-copy,
+.cli-tab-copy:focus-visible {
+  opacity: 1;
+}
+
+.cli-tab-copy:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+/* About */
+
+.about-tab-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #eef3f5;
+}
+
+.about-tab-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.about-tab-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}

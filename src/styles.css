@@ -1392,107 +1392,42 @@ body.dashboard-resizing {
   border-color: var(--accent);
 }
 
-.help-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 8vh;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.help-dialog {
+/* The shortcuts tab's root, inside the app dialog. */
+.shortcuts-tab {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-sizing: border-box;
-  width: min(640px, 92vw);
-  max-height: 84vh;
-  padding: 12px;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  background: rgba(6, 12, 18, 0.94);
-  color: #d6dde2;
-  font: 12px system-ui, sans-serif;
-  user-select: none;
-  outline: none;
+  flex: 1;
+  min-height: 0;
 }
 
-.help-dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.help-dialog h2 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #eef3f5;
-}
-
-.help-dialog-close {
-  padding: 0 6px;
-  border: none;
-  border-radius: 3px;
-  background: transparent;
-  color: #9aa6ad;
-  font: 16px system-ui, sans-serif;
-  line-height: 20px;
-  cursor: pointer;
-}
-
-.help-dialog-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #eef3f5;
-}
-
-.help-dialog-body {
+.shortcuts-tab-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
 }
 
-.help-dialog h3 {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #7f8c94;
-}
-
-.help-dialog-rows {
+.shortcuts-tab-rows {
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
-.help-dialog-note {
+.shortcuts-tab-note {
   color: #7f8c94;
   font-size: 11px;
 }
 
-.help-dialog kbd {
-  padding: 1px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #eef3f5;
-  font: 11px ui-monospace, Consolas, monospace;
-  white-space: nowrap;
-}
-
-.help-dialog-bar {
+.shortcuts-tab-bar {
   display: flex;
   gap: 8px;
 }
 
-.help-dialog-filter {
+.shortcuts-tab-filter,
+.settings-tab-filter {
   flex: 1;
   min-width: 0;
   padding: 3px 8px;
@@ -1504,12 +1439,18 @@ body.dashboard-resizing {
   outline: none;
 }
 
-.help-dialog-filter:focus {
+.shortcuts-tab-filter:focus,
+.settings-tab-filter:focus {
   border-color: var(--accent);
 }
 
-.help-dialog-find,
-.help-dialog-reset-all,
+/* The settings tab stacks its filter in a column, where the shared flex: 1 would stretch it tall. */
+.settings-tab-filter {
+  flex: 0 0 auto;
+}
+
+.shortcuts-tab-find,
+.shortcuts-tab-reset-all,
 .kb-add,
 .kb-reset,
 .kb-strip button,
@@ -1525,8 +1466,8 @@ body.dashboard-resizing {
   cursor: pointer;
 }
 
-.help-dialog-find:hover,
-.help-dialog-reset-all:hover:not(:disabled),
+.shortcuts-tab-find:hover,
+.shortcuts-tab-reset-all:hover:not(:disabled),
 .kb-add:hover,
 .kb-reset:hover,
 .kb-strip button:hover,
@@ -1534,12 +1475,12 @@ body.dashboard-resizing {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.help-dialog-find {
+.shortcuts-tab-find {
   min-width: 96px;
   line-height: 22px;
 }
 
-.help-dialog-find.kb-finding {
+.shortcuts-tab-find.kb-finding {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   font-family: ui-monospace, Consolas, monospace;
@@ -1592,7 +1533,7 @@ body.dashboard-resizing {
   opacity: 0.8;
 }
 
-.kb-label .help-dialog-note {
+.kb-label .shortcuts-tab-note {
   line-height: 15px;
 }
 
@@ -1612,13 +1553,13 @@ body.dashboard-resizing {
   min-height: 20px;
 }
 
-.help-dialog kbd.kb-key {
+.shortcuts-tab kbd.kb-key {
   display: inline-flex;
   align-items: center;
   padding: 0;
 }
 
-.help-dialog kbd.kb-key:hover {
+.shortcuts-tab kbd.kb-key:hover {
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   background: rgba(255, 255, 255, 0.1);
 }
@@ -1646,7 +1587,7 @@ body.dashboard-resizing {
   color: #eef3f5;
 }
 
-.help-dialog kbd.kb-key.kb-struck {
+.shortcuts-tab kbd.kb-key.kb-struck {
   padding: 1px 6px;
   color: #7f8c94;
   text-decoration: line-through;
@@ -1728,7 +1669,7 @@ body.dashboard-resizing {
   color: #f0b4b4;
 }
 
-.help-dialog-footer {
+.shortcuts-tab-footer {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1736,71 +1677,21 @@ body.dashboard-resizing {
   font-size: 11px;
 }
 
-.help-dialog-reset-all:disabled {
+.shortcuts-tab-reset-all:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.settings-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 8vh;
-  /* Transparent rather than dimmed, so color and brightness changes preview at their true values.
-     The element stays to catch outside clicks. */
-  background: transparent;
-}
-
-.settings-dialog {
+/* The settings tab's root, inside the app dialog. */
+.settings-tab {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-sizing: border-box;
-  width: min(640px, 90vw);
-  max-height: 84vh;
-  padding: 12px;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  background: rgba(6, 12, 18, 0.94);
-  color: #d6dde2;
-  font: 12px system-ui, sans-serif;
-  user-select: none;
-  outline: none;
+  flex: 1;
+  min-height: 0;
 }
 
-.settings-dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.settings-dialog h2 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #eef3f5;
-}
-
-.settings-dialog-close {
-  padding: 0 6px;
-  border: none;
-  border-radius: 3px;
-  background: transparent;
-  color: #9aa6ad;
-  font: 16px system-ui, sans-serif;
-  line-height: 20px;
-  cursor: pointer;
-}
-
-.settings-dialog-close:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #eef3f5;
-}
-
-.settings-dialog-warnings {
+.settings-tab-warnings {
   padding: 6px 8px;
   border-left: 2px solid #e0b050;
   border-radius: 3px;
@@ -1811,19 +1702,21 @@ body.dashboard-resizing {
   user-select: text;
 }
 
-.settings-dialog-warnings[hidden] {
+.settings-tab-warnings[hidden] {
   display: none;
 }
 
-.settings-dialog-warnings p {
+.settings-tab-warnings p {
   margin: 0;
 }
 
-.settings-dialog-warnings p + p {
+.settings-tab-warnings p + p {
   margin-top: 2px;
 }
 
-.settings-dialog-body {
+.settings-tab-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1835,13 +1728,13 @@ body.dashboard-resizing {
   padding-left: 6px;
 }
 
-.settings-dialog-body > section {
+.settings-tab-body > section {
   position: relative;
   padding-top: 10px;
 }
 
 /* A pseudo-element rather than border-top so the rule also spans the body's right padding. */
-.settings-dialog-body > section::before {
+.settings-tab-body > section::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1850,16 +1743,7 @@ body.dashboard-resizing {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.settings-dialog h3 {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #7f8c94;
-}
-
-.settings-dialog-rows {
+.settings-tab-rows {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
   column-gap: 16px;
@@ -1868,7 +1752,7 @@ body.dashboard-resizing {
 
 /* Spans both columns so a hover band ties each label to its control; the negative margin keeps
    the cells aligned with the headings while the band bleeds past them. */
-.settings-dialog-row {
+.settings-tab-row {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -1878,22 +1762,23 @@ body.dashboard-resizing {
   border-radius: 4px;
 }
 
-.settings-dialog-row:hover,
-.settings-dialog-row:focus-within {
+.settings-tab-row:hover,
+.settings-tab-row:focus-within {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.settings-dialog-row-toggle,
-.settings-dialog-row-toggle label {
+.settings-tab-row-toggle,
+.settings-tab-row-toggle label {
   cursor: pointer;
   user-select: none;
 }
 
-.settings-dialog-row[hidden] {
+.settings-tab-group[hidden],
+.settings-tab-row[hidden] {
   display: none;
 }
 
-.settings-dialog-group {
+.settings-tab-group {
   grid-column: 1 / -1;
   margin: 10px 0 4px;
   color: #7f8c94;
@@ -1901,17 +1786,17 @@ body.dashboard-resizing {
   font-weight: 600;
 }
 
-.settings-dialog-label {
+.settings-tab-label {
   padding-top: 3px;
 }
 
-.settings-dialog-note {
+.settings-tab-note {
   margin: 0;
   color: #7f8c94;
   font-size: 11px;
 }
 
-.settings-dialog-control {
+.settings-tab-control {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1920,7 +1805,7 @@ body.dashboard-resizing {
   min-width: 0;
 }
 
-.settings-dialog-input {
+.settings-tab-input {
   box-sizing: border-box;
   flex: 1 1 auto;
   min-width: 0;
@@ -1935,18 +1820,18 @@ body.dashboard-resizing {
   user-select: text;
 }
 
-.settings-dialog-input:focus {
+.settings-tab-input:focus {
   border-color: var(--accent);
 }
 
-.settings-dialog-swatch-select selectedcontent,
-.settings-dialog-swatch-select option {
+.settings-tab-swatch-select selectedcontent,
+.settings-tab-swatch-select option {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.settings-dialog-swatch {
+.settings-tab-swatch {
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
@@ -1954,72 +1839,72 @@ body.dashboard-resizing {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 
-.settings-dialog-control.invalid .settings-dialog-input {
+.settings-tab-control.invalid .settings-tab-input {
   border-color: #e87878;
 }
 
-.settings-dialog-number {
+.settings-tab-number {
   flex: 0 0 96px;
 }
 
-.settings-dialog-list {
+.settings-tab-list {
   font: 11px ui-monospace, Consolas, monospace;
   resize: vertical;
 }
 
-.settings-dialog-unit,
-.settings-dialog-readout {
+.settings-tab-unit,
+.settings-tab-readout {
   color: #9aa6ad;
   white-space: nowrap;
 }
 
-.settings-dialog-readout {
+.settings-tab-readout {
   min-width: 44px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.settings-dialog-slider {
+.settings-tab-slider {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
   accent-color: var(--accent);
 }
 
-.settings-dialog-toggle {
+.settings-tab-toggle {
   margin: 3px 0;
   accent-color: var(--accent);
   cursor: pointer;
 }
 
-.settings-dialog-error {
+.settings-tab-error {
   color: #e87878;
   font-size: 11px;
   overflow-wrap: anywhere;
 }
 
-.settings-dialog-control .settings-dialog-error {
+.settings-tab-control .settings-tab-error {
   flex: 1 0 100%;
   text-align: right;
 }
 
-.settings-dialog-error[hidden] {
+.settings-tab-error[hidden] {
   display: none;
 }
 
-.settings-dialog-footer {
+.settings-tab-footer {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.settings-dialog-actions {
+.settings-tab-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.settings-dialog-open {
+.settings-tab-open {
   padding: 4px 12px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 3px;
@@ -2029,7 +1914,7 @@ body.dashboard-resizing {
   cursor: pointer;
 }
 
-.settings-dialog-open:hover {
+.settings-tab-open:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
