@@ -3,6 +3,7 @@ import './portsPane.css';
 import type { ConfirmOptions } from './confirmDialog';
 import { attachContextMenu } from './contextMenu';
 import { copyText } from './copyText';
+import { setPathText } from './displayPath';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
@@ -11,6 +12,7 @@ import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
 import {
   addressLabel,
+  canStop,
   formatUptime,
   isExposed,
   listenerKey,
@@ -48,6 +50,7 @@ export class PortsPane implements PaneView {
   private readonly body: HTMLElement;
   private readonly filterInput: HTMLInputElement;
   private readonly servicesBox: HTMLInputElement;
+  private readonly paneOnlyBox: HTMLInputElement;
   private readonly count: HTMLElement;
   private readonly list: HTMLElement;
   private settings: Settings;
@@ -77,15 +80,14 @@ export class PortsPane implements PaneView {
     this.filterInput.className = 'ports-filter';
     this.filterInput.placeholder = 'Filter by port, program, command, or pane';
     this.filterInput.spellcheck = false;
-    const services = document.createElement('label');
-    services.className = 'ports-services';
+    this.paneOnlyBox = document.createElement('input');
+    const paneOnly = this.checkbox(this.paneOnlyBox, 'Started from a pane', 'List only ports started from a Bashboard pane');
     this.servicesBox = document.createElement('input');
-    this.servicesBox.type = 'checkbox';
-    services.append(this.servicesBox, document.createTextNode('Windows services'));
-    services.title = 'Also list ports held by Windows services and the system';
+    const services = this.checkbox(this.servicesBox, 'Windows services', 'Also list ports held by Windows services and the system');
     this.count = document.createElement('span');
     this.count.className = 'ports-count';
-    bar.append(this.filterInput, services, this.count);
+    // Left of the checkboxes, so the count's changing width never moves them.
+    bar.append(this.filterInput, this.count, paneOnly, services);
 
     this.list = document.createElement('div');
     this.list.className = 'ports-list';
@@ -95,6 +97,7 @@ export class PortsPane implements PaneView {
     this.unsubscribe = opts.store.subscribe(() => this.render());
     this.listen(this.filterInput, 'input', () => this.render());
     this.listen(this.servicesBox, 'change', () => this.render());
+    this.listen(this.paneOnlyBox, 'change', () => this.render());
     this.listen(this.host, 'focusin', () => opts.onFocus());
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
 
@@ -164,8 +167,10 @@ export class PortsPane implements PaneView {
     if (this.disposed) return;
     const store = this.opts.store;
     const all = store.current();
-    const rows = paneListeners(all, { showSystem: this.servicesBox.checked, text: this.filterInput.value }, (l) =>
-      this.owner(l),
+    const rows = paneListeners(
+      all,
+      { showSystem: this.servicesBox.checked, paneOnly: this.paneOnlyBox.checked, text: this.filterInput.value },
+      (l) => this.owner(l),
     );
     const hidden = all.length - rows.length;
     this.count.textContent = `${rows.length} listening${hidden > 0 ? `, ${hidden} hidden` : ''}`;
@@ -187,56 +192,105 @@ export class PortsPane implements PaneView {
       return;
     }
     // Rebuilding keeps the scroll position, since the list element itself stays.
-    this.list.replaceChildren(...rows.map((l) => this.renderRow(l, nowSec)));
+    this.list.replaceChildren(this.renderHead(), ...rows.map((l) => this.renderRow(l, nowSec)));
+  }
+
+  private renderHead(): HTMLElement {
+    const head = document.createElement('div');
+    head.className = 'ports-head';
+    for (const label of ['', 'Port', 'Program', 'Pane', 'Address', 'PID', 'Up', '']) {
+      head.append(this.cell('ports-head-cell', label));
+    }
+    return head;
   }
 
   private renderRow(l: Listener, nowSec: number): HTMLElement {
     const key = listenerKey(l);
     const owner = this.owner(l);
+    const ptyId = owner === null ? null : l.ptyId;
     const el = document.createElement('div');
     el.className = 'ports-row';
     el.classList.toggle('selected', key === this.selected);
     el.classList.toggle('system', l.system);
     el.title = listenerTooltip(l, owner, nowSec);
 
-    const top = document.createElement('div');
-    top.className = 'ports-line';
     const dot = document.createElement('span');
     dot.className = 'status-dot port-dot';
     dot.classList.toggle('exposed', isExposed(l.addresses));
-    const port = this.cell('ports-port', String(l.port));
-    const name = this.cell('ports-name', processLabel(l.name));
-    const pid = this.cell('ports-pid', `pid ${l.pid}`);
-    const addr = this.cell('ports-addr', addressLabel(l.addresses));
-    const up = this.cell('ports-up', formatUptime(nowSec, l.startedAt));
-    top.append(dot, port, name, pid, addr);
-    if (owner) top.append(this.cell('ports-owner', owner));
-    top.append(up);
+    const url = localUrl(l);
+    const stop = () => void stopListener(l, owner, this.opts.confirm, this.opts.store);
+    const actions = document.createElement('span');
+    actions.className = 'ports-actions';
+    actions.append(
+      this.button('Open', `Open ${url}`, true, () => this.openUrl(url)),
+      // Present but disabled when no pane started it, so every row's buttons line up.
+      this.button('Go to pane', owner ? `Go to ${owner}` : 'Not started from a pane', ptyId !== null, () => {
+        if (ptyId !== null) this.opts.onGoToPane(ptyId);
+      }),
+      this.button('Stop', `Stop ${processLabel(l.name)} (pid ${l.pid})`, canStop(l), stop),
+    );
+    el.append(
+      dot,
+      this.cell('ports-port', String(l.port)),
+      this.cell('ports-name', processLabel(l.name)),
+      this.cell('ports-owner', owner ?? ''),
+      this.cell('ports-addr', addressLabel(l.addresses)),
+      this.cell('ports-pid', String(l.pid)),
+      this.cell('ports-up', formatUptime(nowSec, l.startedAt)),
+      actions,
+    );
 
-    const detail = document.createElement('div');
-    detail.className = 'ports-detail';
-    detail.textContent = l.command || (l.system ? 'Windows service' : 'Command line not available');
-    el.append(top, detail);
-    if (l.cwd) el.append(this.cell('ports-cwd', l.cwd));
+    // The folder names the project, so it leads; the command line is supporting detail.
+    if (l.cwd) {
+      const cwd = document.createElement('span');
+      cwd.className = 'ports-cwd';
+      setPathText(cwd, l.cwd);
+      el.append(cwd);
+    }
+    el.append(this.cell('ports-detail', l.command || (l.system ? 'Windows service' : 'Command line not available')));
 
-    const ptyId = owner === null ? null : l.ptyId;
     // Selecting in place, rather than rebuilding, keeps the row under the pointer for a double-click.
     el.addEventListener('click', () => {
       this.selected = key;
       for (const r of this.list.querySelectorAll('.ports-row.selected')) r.classList.remove('selected');
       el.classList.add('selected');
     });
-    el.addEventListener('dblclick', () => this.openUrl(localUrl(l)));
+    el.addEventListener('dblclick', (e) => {
+      if (!(e.target instanceof Element && e.target.closest('button'))) this.openUrl(url);
+    });
     attachContextMenu(el, () => ({
       target: el,
       entries: portMenuItems(l, {
-        onOpenUrl: (url) => this.openUrl(url),
+        onOpenUrl: (u) => this.openUrl(u),
         onCopy: (text, what) => void copyText(text, what),
         onGoToPane: ptyId === null ? undefined : () => this.opts.onGoToPane(ptyId),
-        onStop: () => void stopListener(l, owner, this.opts.confirm, this.opts.store),
+        onStop: stop,
       }),
     }));
     return el;
+  }
+
+  private checkbox(box: HTMLInputElement, label: string, title: string): HTMLElement {
+    const el = document.createElement('label');
+    el.className = 'ports-check';
+    box.type = 'checkbox';
+    el.append(box, document.createTextNode(label));
+    el.title = title;
+    return el;
+  }
+
+  private button(label: string, title: string, enabled: boolean, onClick: () => void): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ports-btn';
+    b.textContent = label;
+    b.title = title;
+    b.disabled = !enabled;
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClick();
+    });
+    return b;
   }
 
   private cell(className: string, text: string): HTMLElement {

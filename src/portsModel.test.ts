@@ -61,14 +61,18 @@ describe('paneListeners', () => {
   const owner = (x: Listener) => (x.ptyId === 2 ? 'bashboard' : null);
 
   it('hides services unless asked', () => {
-    expect(paneListeners(list, { showSystem: false, text: '' }, owner).map((r) => r.port)).toEqual([1420, 3000]);
-    expect(paneListeners(list, { showSystem: true, text: '' }, owner).map((r) => r.port)).toEqual([135, 1420, 3000]);
+    expect(paneListeners(list, { showSystem: false, paneOnly: false, text: '' }, owner).map((r) => r.port)).toEqual([1420, 3000]);
+    expect(paneListeners(list, { showSystem: true, paneOnly: false, text: '' }, owner).map((r) => r.port)).toEqual([135, 1420, 3000]);
   });
 
   it('filters on port, program, and owning pane', () => {
-    expect(paneListeners(list, { showSystem: true, text: '135' }, owner).map((r) => r.port)).toEqual([135]);
-    expect(paneListeners(list, { showSystem: true, text: 'SVCHOST' }, owner).map((r) => r.port)).toEqual([135]);
-    expect(paneListeners(list, { showSystem: true, text: 'bashb' }, owner).map((r) => r.port)).toEqual([1420]);
+    expect(paneListeners(list, { showSystem: true, paneOnly: false, text: '135' }, owner).map((r) => r.port)).toEqual([135]);
+    expect(paneListeners(list, { showSystem: true, paneOnly: false, text: 'SVCHOST' }, owner).map((r) => r.port)).toEqual([135]);
+    expect(paneListeners(list, { showSystem: true, paneOnly: false, text: 'bashb' }, owner).map((r) => r.port)).toEqual([1420]);
+  });
+
+  it('keeps only pane-started rows when asked', () => {
+    expect(paneListeners(list, { showSystem: true, paneOnly: true, text: '' }, owner).map((r) => r.port)).toEqual([1420]);
   });
 });
 

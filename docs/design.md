@@ -2156,7 +2156,8 @@ It polls every 3 s while any of them wants it (the section shown and expanded on
 expanded Ports pane), polls at once when the first one starts, and polls again right after a
 stop.
 
-**Stop.** A row's context menu offers Stop, never a button. It asks first, naming the program,
+**Stop.** A row's context menu offers Stop, and so does the Ports pane's Stop button; the
+dashboard section has no button for it. It asks first, naming the program,
 pid, port, command line, and where it came from, then runs `taskkill /PID <pid> /T /F`, ending the
 process and everything it started. `ports_stop(pid, startedAt)` refuses when the pid now belongs
 to a process with another start time, refuses pid 4 and below and Bashboard itself, and a toast
@@ -2166,13 +2167,18 @@ reports the result.
 tab order, expanding it if collapsed, or add a Ports tab holding one, then select the row asked
 for. A Ports pane is also in the kind menu (4.11).
 
-**Ports pane.** A filter field (matching the port, program, command line, folder, or owning
-pane's title; Escape clears it), a Windows services checkbox that also lists `system` rows,
-dimmed, and a count of the rows shown and hidden. Each row shows the dot, port, program, pid,
-address ("localhost", "all interfaces", or the address itself), the owning pane, and uptime, with
-the command line and folder in monospace beneath. Rows sort by port. A click selects a row, a
-double-click opens `http://localhost:<port>`, and the context menu is the dashboard's, less Show
-in Ports. When nothing on screen changed but the uptimes, a poll updates them in place rather than
+**Ports pane.** A bar holds a filter field (matching the port, program, command line, folder, or
+owning pane's title; Escape clears it), a count of the rows shown and hidden, a Started from a
+pane checkbox that keeps only rows whose owning pane is still open, and a Windows services
+checkbox that also lists `system` rows, dimmed. The count sits left of the checkboxes so its
+changing width never moves them. The list is a grid under a sticky header, with the columns
+dot, Port, Program, Pane (the owning pane's title, in the accent color), Address ("localhost",
+"all interfaces", or the address itself), PID, Up, and the buttons Open, Go to pane (disabled
+when no pane started it), and Stop (disabled for Bashboard and pid 4 and below). Beneath, in
+monospace, come the folder in the content color with home shown as `~` (cut from the left when
+long), then the command line, muted. The row tooltip lists the folder before the command line
+too. Rows sort by port. A click selects a row, a double-click outside the buttons opens
+`http://localhost:<port>`, and the context menu is the dashboard's, less Show in Ports. When nothing on screen changed but the uptimes, a poll updates them in place rather than
 rebuilding the list. The pane saves no state.
 
 ## 5. Readability

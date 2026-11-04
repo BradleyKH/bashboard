@@ -1,6 +1,6 @@
 import { item, separator, type MenuEntry } from './contextMenuModel';
 import type { Listener } from './ports';
-import { localUrl, processLabel } from './portsModel';
+import { canStop, localUrl, processLabel } from './portsModel';
 
 export interface PortMenuHandlers {
   onOpenUrl: (url: string) => void;
@@ -24,7 +24,7 @@ export function portMenuItems(l: Listener, handlers: PortMenuHandlers): MenuEntr
   entries.push(item('Copy PID', () => handlers.onCopy(String(l.pid), 'PID')));
   entries.push(
     separator(),
-    item(`Stop ${processLabel(l.name)}…`, handlers.onStop, { enabled: !l.own && l.pid > 4 }),
+    item(`Stop ${processLabel(l.name)}…`, handlers.onStop, { enabled: canStop(l) }),
   );
   return entries;
 }

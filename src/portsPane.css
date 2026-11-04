@@ -19,7 +19,7 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--ports-border);
 }
@@ -40,39 +40,78 @@
   border-color: var(--accent);
 }
 
-.ports-services {
+.ports-check {
   flex: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--content-faint);
+  color: var(--content-muted);
   cursor: pointer;
   white-space: nowrap;
+}
+
+.ports-check input {
+  margin: 0;
 }
 
 .ports-count {
   flex: none;
   color: var(--content-faint);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
+/* One grid for the header and every row (each a subgrid), so the columns line up down the list. */
 .ports-list {
   flex: 1 1 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 1fr) auto auto auto auto;
+  align-content: start;
+  column-gap: 10px;
 }
 
 .ports-note {
+  grid-column: 1 / -1;
   padding: 10px 8px;
   color: var(--content-faint);
 }
 
+.ports-head,
 .ports-row {
-  padding: 5px 8px;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.ports-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-top: 4px;
+  padding-bottom: 4px;
   border-bottom: 1px solid var(--ports-border);
-  border-left: 2px solid transparent;
+  background: rgba(10, 16, 22, 0.85);
+  backdrop-filter: blur(6px);
+}
+
+.ports-head-cell {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--content-faint);
+  white-space: nowrap;
+}
+
+.ports-row {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  row-gap: 2px;
+  border-bottom: 1px solid var(--ports-border);
   cursor: default;
 }
 
@@ -80,73 +119,87 @@
   background: var(--ports-hover);
 }
 
+/* An inset shadow rather than a border, which would push this row's columns off the header's. */
 .ports-row.selected {
   background: var(--ports-selected);
-  border-left-color: var(--accent);
+  box-shadow: inset 2px 0 var(--accent);
 }
 
 .ports-row.system {
   opacity: 0.65;
 }
 
-.ports-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
 .ports-port {
-  flex: none;
   min-width: 5ch;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.ports-name {
-  flex: 0 1 auto;
+.ports-name,
+.ports-owner {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ports-owner {
+  color: var(--accent);
 }
 
 .ports-pid,
 .ports-addr,
 .ports-up {
-  flex: none;
-  color: var(--content-faint);
+  color: var(--content-muted);
   font-size: 11px;
-}
-
-.ports-owner {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 11px;
-  color: var(--accent);
-}
-
-.ports-up {
-  margin-left: auto;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-.ports-detail,
-.ports-cwd {
-  display: block;
-  margin-top: 2px;
-  padding-left: calc(8px + 8px);
+.ports-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.ports-btn {
+  padding: 0 6px;
+  border: 1px solid var(--ports-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--content-muted);
+  font: 11px system-ui, sans-serif;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ports-btn:hover:not(:disabled) {
+  background: var(--ports-hover);
+  border-color: var(--accent);
+  color: var(--content-fg);
+}
+
+.ports-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ports-cwd,
+.ports-detail {
+  grid-column: 2 / -1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 11px;
-  color: var(--content-faint);
 }
 
 .ports-cwd {
-  margin-top: 0;
-  opacity: 0.8;
+  font-size: 12px;
+  color: var(--content-fg);
+}
+
+.ports-detail {
+  color: var(--content-faint);
 }

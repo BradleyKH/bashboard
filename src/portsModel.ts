@@ -1,6 +1,7 @@
 // Listening ports for the dashboard's Ports section and the Ports pane (docs/design.md section
 // 4.19). Pure, no DOM.
 import type { ConfirmOptions } from './confirmDialog';
+import { displayPath } from './displayPath';
 import type { Listener } from './ports';
 
 /** Names one listener: the process (pid and start time, so a reused pid differs) and the port. */
@@ -38,6 +39,8 @@ export function dashboardListeners(list: readonly Listener[]): DashboardPorts {
 
 export interface PaneFilter {
   showSystem: boolean;
+  /** Only rows traced to a pane that is still open. */
+  paneOnly: boolean;
   /** Case-insensitive; matches the port, process name, command line, folder, or owning pane. */
   text: string;
 }
@@ -51,6 +54,7 @@ export function paneListeners(
   const needle = filter.text.trim().toLowerCase();
   return list
     .filter((l) => filter.showSystem || !l.system)
+    .filter((l) => !filter.paneOnly || ownerTitle(l) !== null)
     .filter((l) => {
       if (needle === '') return true;
       const hay = [String(l.port), l.name, l.command, l.cwd ?? '', ownerTitle(l) ?? ''].join('\n').toLowerCase();
@@ -97,6 +101,11 @@ export function formatUptime(nowSec: number, startedAt: number): string {
   return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
 }
 
+/** Whether Stop may end it: never Bashboard itself or the kernel. */
+export function canStop(l: Listener): boolean {
+  return !l.own && l.pid > 4;
+}
+
 export function localUrl(l: Listener): string {
   return `http://localhost:${l.port}`;
 }
@@ -104,8 +113,8 @@ export function localUrl(l: Listener): string {
 /** The row tooltip: what is running, where, and since when. */
 export function listenerTooltip(l: Listener, owner: string | null, nowSec: number): string {
   const lines = [`${processLabel(l.name)} (pid ${l.pid}) on port ${l.port}, ${addressLabel(l.addresses)}`];
+  if (l.cwd) lines.push(`in ${displayPath(l.cwd)}`);
   if (l.command) lines.push(l.command);
-  if (l.cwd) lines.push(`in ${l.cwd}`);
   lines.push(owner ? `Started from ${owner}` : 'Not started from a pane');
   lines.push(`Up ${formatUptime(nowSec, l.startedAt)}`);
   return lines.join('\n');
