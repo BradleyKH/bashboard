@@ -905,7 +905,8 @@ the strip is the drag handle for docking. The status dot's tooltip shows the wai
 has the same strip, with its own title and no status dot. With two or more panes in the tab the strip
 sits in the layout above each terminal. A lone pane's strip is an overlay, so it never reflows
 the terminal; it is invisible until the pointer enters its own top band, so the pointer resting
-elsewhere in the terminal never covers the first row. The title is cut short with an ellipsis
+elsewhere in the terminal never covers the first row. Ports and Containers panes keep the strip
+in the layout even when alone, since an overlay would sit over the buttons in their top row. The title is cut short with an ellipsis
 before the pane's own buttons give up any room.
 
 **Title strip menu.** A right-click on a title strip of any pane kind opens Change kind (a
@@ -2171,15 +2172,22 @@ for. A Ports pane is also in the kind menu (4.11).
 owning pane's title; Escape clears it), a count of the rows shown and hidden, a Started from a
 pane checkbox, checked when the pane opens, that keeps only rows whose owning pane is still open
 (Show in Ports on a row no pane started, and the "+ N other programs" row, clear it so the rows
-they point at show), and a Windows services
-checkbox that also lists `system` rows, dimmed. The count sits left of the checkboxes so its
+they point at show), a Windows services
+checkbox that also lists `system` rows, dimmed, and a Command lines checkbox, unchecked when the
+pane opens, that shows each row's command line. The count sits left of the checkboxes so its
 changing width never moves them. The list is a grid under a sticky header, with the columns
 dot, Port, Program, Pane (the owning pane's title, in the accent color), Address ("localhost",
 "all interfaces", or the address itself), PID, Up, and the buttons Open, Go to pane (disabled
-when no pane started it), and Stop (disabled for Bashboard and pid 4 and below). Beneath, in
-monospace, come the folder in the content color with home shown as `~` (cut from the left when
-long), then the command line, muted. The row tooltip lists the folder before the command line
-too. Rows sort by port. A click selects a row, a double-click outside the buttons opens
+when no pane started it), and Stop (disabled for Bashboard and pid 4 and below). When no row shown has an owning pane, the
+Pane column is dropped from the header, the rows, and the grid. The folder, in monospace and
+the content color with home shown as `~` (cut from the left when long), gets a Folder column
+after Program when the pane is at least 900px wide, and otherwise sits beneath the row. Beneath
+that, when Command lines is checked, comes the command line, in monospace and muted. Rows have
+no tooltip, since every detail is in a column; the dot's tooltip reads "Local only" or "Reachable
+from other machines". Rows sort by port until a header is clicked; Port, Program, Pane, Address, PID, and Up are
+buttons that sort on that column ascending (Up shortest first), a second click descending, with
+an arrow on the active one. Ties fall back to port, then pid, and rows with no owning pane stay
+last when sorting by Pane in either direction. The sort is not saved. A click selects a row, a double-click outside the buttons opens
 `http://localhost:<port>`, and the context menu is the dashboard's, less Show in Ports. When nothing on screen changed but the uptimes, a poll updates them in place rather than
 rebuilding the list. The pane saves no state.
 

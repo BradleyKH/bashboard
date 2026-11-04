@@ -517,8 +517,11 @@ are left out. The Manage button (an arrow
 leaving a square) in the header opens the Ports tab.
 
 The **Ports pane** lists every listening port in columns (port, program, the pane that started
-it, address, process id, and uptime), with its folder beneath and the full command line under
-that, sorted by port. Each row has **Open**, **Go to pane**, and **Stop** buttons. Type in the
+it, address, process id, and uptime), sorted by port. Each port's folder gets its own column
+when the pane is wide enough, and sits beneath the row otherwise. Tick **Command
+lines** to show each port's full command line under its folder. Click a column header to sort by it, and click it again to reverse the
+order. Each row has **Open**, **Go to pane**, and **Stop** buttons. The
+Pane column is left out when no listed port was started from a pane. Type in the
 filter to narrow it by port, program, command, folder, or pane name (Escape clears it). The pane
 opens with **Started from a pane** ticked, listing only ports your panes started; untick it to
 see everything else, and tick **Windows services** to include the system's own ports, dimmed.

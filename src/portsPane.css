@@ -13,6 +13,7 @@
   outline: none;
   font: 12px system-ui, sans-serif;
   color: var(--content-fg);
+  container: ports / inline-size;
 }
 
 .ports-bar {
@@ -74,6 +75,10 @@
   column-gap: 10px;
 }
 
+.ports-list.no-pane {
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto;
+}
+
 .ports-note {
   grid-column: 1 / -1;
   padding: 10px 8px;
@@ -105,6 +110,28 @@
   font-weight: 600;
   color: var(--content-faint);
   white-space: nowrap;
+}
+
+.ports-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  justify-self: start;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ports-sort:hover,
+.ports-sort.active {
+  color: var(--content-fg);
+}
+
+.ports-sort-arrow {
+  font-size: 8px;
 }
 
 .ports-row {
@@ -184,9 +211,23 @@
   cursor: default;
 }
 
-.ports-cwd,
 .ports-detail {
   grid-column: 2 / -1;
+}
+
+/* Beneath the row by default; the explicit row keeps the cells after it on the first line. */
+.ports-cwd {
+  grid-row: 2;
+  grid-column: 2 / -1;
+}
+
+.ports-cwd:empty,
+.ports-head-folder {
+  display: none;
+}
+
+.ports-cwd,
+.ports-detail {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -202,4 +243,29 @@
 
 .ports-detail {
   color: var(--content-faint);
+}
+
+.ports-list.hide-commands .ports-detail {
+  display: none;
+}
+
+/* A wide pane has room for the folder as a column of its own, after Program. */
+@container ports (min-width: 900px) {
+  .ports-list {
+    grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) auto auto auto auto;
+  }
+
+  .ports-list.no-pane {
+    grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 2fr) auto auto auto auto;
+  }
+
+  .ports-cwd {
+    grid-row: auto;
+    grid-column: auto;
+  }
+
+  .ports-cwd:empty,
+  .ports-head-folder {
+    display: block;
+  }
 }

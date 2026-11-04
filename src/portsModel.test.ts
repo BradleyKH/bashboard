@@ -4,14 +4,17 @@ import type { Listener } from './ports';
 import {
   addressLabel,
   dashboardListeners,
+  exposureLabel,
   formatUptime,
   isExposed,
   listenerKey,
   listenerTooltip,
   newKeys,
+  nextPortSort,
   paneListeners,
   processLabel,
   stopConfirm,
+  type PortSort,
 } from './portsModel';
 
 function l(over: Partial<Listener> = {}): Listener {
@@ -74,6 +77,34 @@ describe('paneListeners', () => {
   it('keeps only pane-started rows when asked', () => {
     expect(paneListeners(list, { showSystem: true, paneOnly: true, text: '' }, owner).map((r) => r.port)).toEqual([1420]);
   });
+
+  it('sorts on the chosen column, either way', () => {
+    const all = { showSystem: true, paneOnly: false, text: '' };
+    const ports = (sort: PortSort) => paneListeners(list, all, owner, sort).map((r) => r.port);
+    expect(ports({ column: 'port', desc: true })).toEqual([3000, 1420, 135]);
+    expect(ports({ column: 'program', desc: false })).toEqual([1420, 3000, 135]);
+    expect(ports({ column: 'program', desc: true })).toEqual([135, 1420, 3000]);
+  });
+
+  it('keeps rows with no pane last when sorting by pane', () => {
+    const all = { showSystem: true, paneOnly: false, text: '' };
+    expect(paneListeners(list, all, owner, { column: 'pane', desc: false }).map((r) => r.port)).toEqual([1420, 135, 3000]);
+    expect(paneListeners(list, all, owner, { column: 'pane', desc: true }).map((r) => r.port)).toEqual([1420, 135, 3000]);
+  });
+
+  it('sorts uptime shortest first', () => {
+    const rows = [l({ port: 1, startedAt: 100 }), l({ port: 2, startedAt: 300 }), l({ port: 3, startedAt: 200 })];
+    const all = { showSystem: true, paneOnly: false, text: '' };
+    expect(paneListeners(rows, all, () => null, { column: 'up', desc: false }).map((r) => r.port)).toEqual([2, 3, 1]);
+  });
+});
+
+describe('nextPortSort', () => {
+  it('flips the same column and starts a new one ascending', () => {
+    expect(nextPortSort({ column: 'port', desc: false }, 'port')).toEqual({ column: 'port', desc: true });
+    expect(nextPortSort({ column: 'port', desc: true }, 'port')).toEqual({ column: 'port', desc: false });
+    expect(nextPortSort({ column: 'port', desc: true }, 'pid')).toEqual({ column: 'pid', desc: false });
+  });
 });
 
 describe('addresses', () => {
@@ -85,6 +116,8 @@ describe('addresses', () => {
 
   it('flags anything beyond loopback as exposed', () => {
     expect(isExposed(['127.0.0.1', '::1'])).toBe(false);
+    expect(exposureLabel(['127.0.0.1'])).toBe('Local only');
+    expect(exposureLabel(['0.0.0.0'])).toBe('Reachable from other machines');
     expect(isExposed(['0.0.0.0'])).toBe(true);
   });
 });

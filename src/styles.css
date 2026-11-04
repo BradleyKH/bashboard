@@ -186,6 +186,14 @@ body.resizing.column {
   pointer-events: none;
 }
 
+/* These panes have buttons in their top row, which the hover overlay would sit on. */
+#panes:not(.multi) .pane:has(> .ports-body, > .ctr-body) > .pane-strip {
+  position: relative;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .pane.focused .strip-title {
   color: #eef3f5;
 }

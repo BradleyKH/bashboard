@@ -45,22 +45,74 @@ export interface PaneFilter {
   text: string;
 }
 
-/** The Ports pane's rows, sorted by port. */
+export type PortSortColumn = 'port' | 'program' | 'pane' | 'address' | 'pid' | 'up';
+
+export interface PortSort {
+  column: PortSortColumn;
+  desc: boolean;
+}
+
+export const DEFAULT_PORT_SORT: PortSort = { column: 'port', desc: false };
+
+/** A header click: the same column flips direction, a new one starts ascending. */
+export function nextPortSort(current: PortSort, column: PortSortColumn): PortSort {
+  return column === current.column ? { column, desc: !current.desc } : { column, desc: false };
+}
+
+const text = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+
+/** Compares on the column alone, ascending; 0 on a tie. */
+function compareColumn(column: PortSortColumn, a: Listener, b: Listener, ownerTitle: (l: Listener) => string | null): number {
+  switch (column) {
+    case 'port':
+      return a.port - b.port;
+    case 'program':
+      return text(processLabel(a.name), processLabel(b.name));
+    case 'pane':
+      return text(ownerTitle(a) ?? '', ownerTitle(b) ?? '');
+    case 'address':
+      return text(addressLabel(a.addresses), addressLabel(b.addresses));
+    case 'pid':
+      return a.pid - b.pid;
+    case 'up':
+      // Shortest uptime first, so the latest start leads.
+      return b.startedAt - a.startedAt;
+  }
+}
+
+/** Sorts on `sort`, then by port and pid. Rows with no pane sort last either way, being blanks. */
+export function sortListeners(
+  rows: Listener[],
+  sort: PortSort,
+  ownerTitle: (l: Listener) => string | null,
+): Listener[] {
+  const sign = sort.desc ? -1 : 1;
+  return rows.sort((a, b) => {
+    if (sort.column === 'pane') {
+      const blank = Number(ownerTitle(a) === null) - Number(ownerTitle(b) === null);
+      if (blank !== 0) return blank;
+    }
+    return sign * compareColumn(sort.column, a, b, ownerTitle) || a.port - b.port || a.pid - b.pid;
+  });
+}
+
+/** The Ports pane's rows, sorted on `sort`. */
 export function paneListeners(
   list: readonly Listener[],
   filter: PaneFilter,
   ownerTitle: (l: Listener) => string | null,
+  sort: PortSort = DEFAULT_PORT_SORT,
 ): Listener[] {
   const needle = filter.text.trim().toLowerCase();
-  return list
+  const rows = list
     .filter((l) => filter.showSystem || !l.system)
     .filter((l) => !filter.paneOnly || ownerTitle(l) !== null)
     .filter((l) => {
       if (needle === '') return true;
       const hay = [String(l.port), l.name, l.command, l.cwd ?? '', ownerTitle(l) ?? ''].join('\n').toLowerCase();
       return hay.includes(needle);
-    })
-    .sort((a, b) => a.port - b.port || a.pid - b.pid);
+    });
+  return sortListeners(rows, sort, ownerTitle);
 }
 
 function isLoopback(a: string): boolean {
@@ -81,6 +133,11 @@ export function addressLabel(addresses: readonly string[]): string {
 /** Whether the port answers from other machines, which the rows flag. */
 export function isExposed(addresses: readonly string[]): boolean {
   return !addresses.every(isLoopback);
+}
+
+/** The status dot's tooltip. */
+export function exposureLabel(addresses: readonly string[]): string {
+  return isExposed(addresses) ? 'Reachable from other machines' : 'Local only';
 }
 
 /** The process name without `.exe`. */

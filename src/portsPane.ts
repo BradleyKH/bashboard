@@ -13,13 +13,17 @@ import type { Listener } from './ports';
 import {
   addressLabel,
   canStop,
+  DEFAULT_PORT_SORT,
+  exposureLabel,
   formatUptime,
   isExposed,
   listenerKey,
-  listenerTooltip,
   localUrl,
+  nextPortSort,
   paneListeners,
   processLabel,
+  type PortSort,
+  type PortSortColumn,
 } from './portsModel';
 import { stopListener } from './portStop';
 import type { PortsStore } from './portsStore';
@@ -51,10 +55,12 @@ export class PortsPane implements PaneView {
   private readonly filterInput: HTMLInputElement;
   private readonly servicesBox: HTMLInputElement;
   private readonly paneOnlyBox: HTMLInputElement;
+  private readonly commandsBox: HTMLInputElement;
   private readonly count: HTMLElement;
   private readonly list: HTMLElement;
   private settings: Settings;
   private selected: string | null = null;
+  private sort: PortSort = DEFAULT_PORT_SORT;
   /** What the rows on screen show apart from uptimes; unchanged, only the uptimes refresh. */
   private shownKey: string | null = null;
   private disposed = false;
@@ -85,13 +91,15 @@ export class PortsPane implements PaneView {
     this.paneOnlyBox.checked = true;
     this.servicesBox = document.createElement('input');
     const services = this.checkbox(this.servicesBox, 'Windows services', 'Also list ports held by Windows services and the system');
+    this.commandsBox = document.createElement('input');
+    const commands = this.checkbox(this.commandsBox, 'Command lines', "Show each port's full command line under its folder");
     this.count = document.createElement('span');
     this.count.className = 'ports-count';
     // Left of the checkboxes, so the count's changing width never moves them.
-    bar.append(this.filterInput, this.count, paneOnly, services);
+    bar.append(this.filterInput, this.count, paneOnly, services, commands);
 
     this.list = document.createElement('div');
-    this.list.className = 'ports-list';
+    this.list.className = 'ports-list hide-commands';
     this.body.append(bar, this.list);
     this.host.appendChild(this.body);
 
@@ -99,6 +107,7 @@ export class PortsPane implements PaneView {
     this.listen(this.filterInput, 'input', () => this.render());
     this.listen(this.servicesBox, 'change', () => this.render());
     this.listen(this.paneOnlyBox, 'change', () => this.render());
+    this.listen(this.commandsBox, 'change', () => this.list.classList.toggle('hide-commands', !this.commandsBox.checked));
     this.listen(this.host, 'focusin', () => opts.onFocus());
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
 
@@ -181,11 +190,12 @@ export class PortsPane implements PaneView {
       all,
       { showSystem: this.servicesBox.checked, paneOnly: this.paneOnlyBox.checked, text: this.filterInput.value },
       (l) => this.owner(l),
+      this.sort,
     );
     const hidden = all.length - rows.length;
     this.count.textContent = `${rows.length} listening${hidden > 0 ? `, ${hidden} hidden` : ''}`;
     const nowSec = Date.now() / 1000;
-    const key = JSON.stringify([rows.map((l) => [listenerKey(l), l.addresses, this.owner(l)]), this.selected, store.ready]);
+    const key = JSON.stringify([rows.map((l) => [listenerKey(l), l.addresses, this.owner(l)]), this.selected, this.sort, store.ready]);
     if (key === this.shownKey) {
       const cells = this.list.querySelectorAll<HTMLElement>('.ports-up');
       rows.forEach((l, i) => {
@@ -202,19 +212,56 @@ export class PortsPane implements PaneView {
       return;
     }
     // Rebuilding keeps the scroll position, since the list element itself stays.
-    this.list.replaceChildren(this.renderHead(), ...rows.map((l) => this.renderRow(l, nowSec)));
+    // With no row started from a pane, the Pane column would be blank, so it goes.
+    const showPane = rows.some((l) => this.owner(l) !== null);
+    this.list.classList.toggle('no-pane', !showPane);
+    this.list.replaceChildren(this.renderHead(showPane), ...rows.map((l) => this.renderRow(l, nowSec, showPane)));
   }
 
-  private renderHead(): HTMLElement {
+  private renderHead(showPane: boolean): HTMLElement {
     const head = document.createElement('div');
     head.className = 'ports-head';
-    for (const label of ['', 'Port', 'Program', 'Pane', 'Address', 'PID', 'Up', '']) {
-      head.append(this.cell('ports-head-cell', label));
+    const columns: Array<[string, PortSortColumn | null]> = [
+      ['', null],
+      ['Port', 'port'],
+      ['Program', 'program'],
+      ['Folder', null],
+      ...(showPane ? [['Pane', 'pane'] as [string, PortSortColumn]] : []),
+      ['Address', 'address'],
+      ['PID', 'pid'],
+      ['Up', 'up'],
+      ['', null],
+    ];
+    for (const [label, column] of columns) {
+      const cell = column === null ? this.cell('ports-head-cell', label) : this.sortHeader(label, column);
+      if (label === 'Folder') cell.classList.add('ports-head-folder');
+      head.append(cell);
     }
     return head;
   }
 
-  private renderRow(l: Listener, nowSec: number): HTMLElement {
+  private sortHeader(label: string, column: PortSortColumn): HTMLElement {
+    const active = this.sort.column === column;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ports-head-cell ports-sort';
+    b.classList.toggle('active', active);
+    b.textContent = label;
+    if (active) {
+      const arrow = document.createElement('span');
+      arrow.className = 'ports-sort-arrow';
+      arrow.textContent = this.sort.desc ? '▼' : '▲';
+      b.append(arrow);
+    }
+    b.title = active && !this.sort.desc ? `Sort by ${label}, descending` : `Sort by ${label}`;
+    b.addEventListener('click', () => {
+      this.sort = nextPortSort(this.sort, column);
+      this.render();
+    });
+    return b;
+  }
+
+  private renderRow(l: Listener, nowSec: number, showPane: boolean): HTMLElement {
     const key = listenerKey(l);
     const owner = this.owner(l);
     const ptyId = owner === null ? null : l.ptyId;
@@ -222,11 +269,11 @@ export class PortsPane implements PaneView {
     el.className = 'ports-row';
     el.classList.toggle('selected', key === this.selected);
     el.classList.toggle('system', l.system);
-    el.title = listenerTooltip(l, owner, nowSec);
 
     const dot = document.createElement('span');
     dot.className = 'status-dot port-dot';
     dot.classList.toggle('exposed', isExposed(l.addresses));
+    dot.title = exposureLabel(l.addresses);
     const url = localUrl(l);
     const stop = () => void stopListener(l, owner, this.opts.confirm, this.opts.store);
     const actions = document.createElement('span');
@@ -243,20 +290,14 @@ export class PortsPane implements PaneView {
       dot,
       this.cell('ports-port', String(l.port)),
       this.cell('ports-name', processLabel(l.name)),
-      this.cell('ports-owner', owner ?? ''),
+      this.folderCell(l),
+      ...(showPane ? [this.cell('ports-owner', owner ?? '')] : []),
       this.cell('ports-addr', addressLabel(l.addresses)),
       this.cell('ports-pid', String(l.pid)),
       this.cell('ports-up', formatUptime(nowSec, l.startedAt)),
       actions,
     );
 
-    // The folder names the project, so it leads; the command line is supporting detail.
-    if (l.cwd) {
-      const cwd = document.createElement('span');
-      cwd.className = 'ports-cwd';
-      setPathText(cwd, l.cwd);
-      el.append(cwd);
-    }
     el.append(this.cell('ports-detail', l.command || (l.system ? 'Windows service' : 'Command line not available')));
 
     // Selecting in place, rather than rebuilding, keeps the row under the pointer for a double-click.
@@ -278,6 +319,17 @@ export class PortsPane implements PaneView {
       }),
     }));
     return el;
+  }
+
+  /**
+   * Present on every row, empty when the folder is unknown, so a wide pane can give it a column
+   * that lines up; a narrow pane moves it beneath the row (portsPane.css).
+   */
+  private folderCell(l: Listener): HTMLElement {
+    const cwd = document.createElement('span');
+    cwd.className = 'ports-cwd';
+    if (l.cwd) setPathText(cwd, l.cwd);
+    return cwd;
   }
 
   private checkbox(box: HTMLInputElement, label: string, title: string): HTMLElement {
