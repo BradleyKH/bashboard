@@ -139,14 +139,18 @@ fn primary_branch_in(data: &Value, root: &str) -> Option<String> {
         })
 }
 
-/// Path of a scratch pad's file. The id alphabet excludes separators and dots, so the result
-/// can never leave `<dir>/scratch`.
-fn scratch_path(dir: &Path, id: &str) -> Result<PathBuf, String> {
+/// Path of `<dir>/<sub>/<id>.txt`. The id alphabet excludes separators and dots, so the result
+/// can never leave `<dir>/<sub>`.
+fn id_path(dir: &Path, sub: &str, id: &str) -> Result<PathBuf, String> {
     let ok = (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
     if !ok {
-        return Err(format!("invalid scratch id: {id:?}"));
+        return Err(format!("invalid {sub} id: {id:?}"));
     }
-    Ok(dir.join("scratch").join(format!("{id}.txt")))
+    Ok(dir.join(sub).join(format!("{id}.txt")))
+}
+
+fn scratch_path(dir: &Path, id: &str) -> Result<PathBuf, String> {
+    id_path(dir, "scratch", id)
 }
 
 fn scratch_write(dir: &Path, id: &str, text: &str) -> Result<(), String> {
@@ -169,6 +173,40 @@ fn scratch_remove(dir: &Path, id: &str) -> Result<(), String> {
     }
 }
 
+/// One terminal's serialized scrollback, saved as the window closes (design section 4.9).
+#[derive(serde::Deserialize)]
+pub struct ScrollbackEntry {
+    id: String,
+    text: String,
+}
+
+/// Writes every entry and removes any other file in `<dir>/scrollback`, so the folder holds
+/// exactly the terminals of the workspace being saved.
+fn scrollback_write_all(dir: &Path, entries: &[ScrollbackEntry]) -> Result<(), String> {
+    let mut keep = std::collections::HashSet::new();
+    for e in entries {
+        let path = id_path(dir, "scrollback", &e.id)?;
+        write_atomic(&path, e.text.as_bytes())?;
+        keep.insert(path);
+    }
+    let Ok(listing) = std::fs::read_dir(dir.join("scrollback")) else { return Ok(()) };
+    for entry in listing.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|x| x == "txt") && !keep.contains(&path) {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+    Ok(())
+}
+
+fn scrollback_read(dir: &Path, id: &str) -> Result<String, String> {
+    match std::fs::read_to_string(id_path(dir, "scrollback", id)?) {
+        Ok(t) => Ok(t),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 fn config_root(app: &AppHandle) -> Result<PathBuf, String> {
     crate::config_dir::config_dir(app).ok_or_else(|| "no config directory".to_string())
 }
@@ -186,6 +224,17 @@ pub fn scratch_load(app: AppHandle, id: String) -> Result<String, String> {
 #[tauri::command]
 pub fn scratch_delete(app: AppHandle, id: String) -> Result<(), String> {
     scratch_remove(&config_root(&app)?, &id)
+}
+
+#[tauri::command]
+pub fn scrollback_save_all(app: AppHandle, entries: Vec<ScrollbackEntry>) -> Result<(), String> {
+    scrollback_write_all(&config_root(&app)?, &entries)
+}
+
+/// An empty string when the terminal has no saved scrollback.
+#[tauri::command]
+pub fn scrollback_load(app: AppHandle, id: String) -> Result<String, String> {
+    scrollback_read(&config_root(&app)?, &id)
 }
 
 /// Asks for a destination in the native save dialog and writes the text there. `None` means the
@@ -328,6 +377,21 @@ world");
         }
         assert!(scratch_path(&dir, &"a".repeat(64)).is_ok());
         assert!(!dir.exists());
+    }
+
+    #[test]
+    fn scrollback_save_all_keeps_only_the_saved_terminals() {
+        let dir = temp_dir("scrollback");
+        let entry = |id: &str, text: &str| ScrollbackEntry { id: id.into(), text: text.into() };
+        scrollback_write_all(&dir, &[entry("a-1", "one"), entry("b-2", "two")]).unwrap();
+        assert_eq!(scrollback_read(&dir, "a-1").unwrap(), "one");
+        scrollback_write_all(&dir, &[entry("b-2", "three")]).unwrap();
+        assert_eq!(scrollback_read(&dir, "a-1").unwrap(), "");
+        assert_eq!(scrollback_read(&dir, "b-2").unwrap(), "three");
+        scrollback_write_all(&dir, &[]).unwrap();
+        assert_eq!(scrollback_read(&dir, "b-2").unwrap(), "");
+        assert!(scrollback_write_all(&dir, &[entry("../x", "bad")]).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

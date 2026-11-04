@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
+import { SerializeAddon } from '@xterm/addon-serialize';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -10,6 +11,7 @@ import { contentTextColor, terminalWhites } from './contentText';
 import { openLink } from './links';
 import { type Osc133, parseOsc133, parseOsc7, parseOsc9 } from './osc';
 import { webglBudget } from './rendererBudget';
+import { replayText } from './scrollbackModel';
 import { noteShellFallback } from './shellFallback';
 import type { CellSize } from './layout';
 import type { PaneView } from './paneView';
@@ -72,6 +74,10 @@ export interface TerminalPaneOptions {
   onBell?: () => void;
   /** False builds the pane detached and without a WebGL slot; defaults to true. */
   expanded?: boolean;
+  /** Names this terminal's saved scrollback file. */
+  scrollbackId: string;
+  /** Saved scrollback, written above the shell's first output when it resolves non-blank. */
+  replay?: Promise<string>;
 }
 
 export function toFontFamily(family: string): string {
@@ -87,6 +93,7 @@ export function toFontFamily(family: string): string {
 export class TerminalPane implements PaneView {
   readonly kind = 'terminal' as const;
   readonly paneId: string;
+  readonly scrollbackId: string;
   /** Assigned by the Rust side on spawn; null before spawn and after the shell exits. */
   private id: number | null = null;
   private readonly host: HTMLElement;
@@ -95,6 +102,8 @@ export class TerminalPane implements PaneView {
   private readonly term: Terminal;
   private readonly fit = new FitAddon();
   private readonly search = new SearchAddon();
+  private readonly serializer = new SerializeAddon();
+  private readonly replay: Promise<string> | undefined;
   private lastQuery = '';
   private accent: string;
   /** The resolved #rrggbb, not the setting's mode. */
@@ -121,6 +130,7 @@ export class TerminalPane implements PaneView {
   constructor(opts: TerminalPaneOptions) {
     this.host = opts.host;
     this.paneId = opts.paneId;
+    this.scrollbackId = opts.scrollbackId;
     this.onExitCb = opts.onExit;
     this.spawnCwd = opts.cwd;
     this.spawnCommand = opts.command;
@@ -129,6 +139,7 @@ export class TerminalPane implements PaneView {
     this.onShellChangeCb = opts.onShellChange;
     this.onCommandCb = opts.onCommand;
     this.onReadyCb = opts.onReady;
+    this.replay = opts.replay;
     this.currentCwd = opts.cwd ?? null;
     this.expanded = opts.expanded ?? true;
     this.accent = opts.settings.accentColor;
@@ -158,6 +169,7 @@ export class TerminalPane implements PaneView {
     });
     this.term.loadAddon(this.fit);
     this.term.loadAddon(this.search);
+    this.term.loadAddon(this.serializer);
     this.term.loadAddon(new WebLinksAddon((e, uri) => openLink(e, uri)));
     this.term.loadAddon(new Unicode11Addon());
     this.term.unicode.activeVersion = '11';
@@ -226,6 +238,13 @@ export class TerminalPane implements PaneView {
 
   async start(): Promise<void> {
     this.fitIfReady();
+    if (this.replay) {
+      // Written before the spawn so the shell's first output lands under it.
+      const saved = await this.replay.catch(() => '');
+      if (this.disposed) return;
+      const text = replayText(saved);
+      if (text) this.term.write(text);
+    }
     const onData = new Channel<ArrayBuffer>();
     onData.onmessage = (bytes) => {
       if (this.disposed) return;
@@ -357,6 +376,16 @@ export class TerminalPane implements PaneView {
       padX: scrollbar + borderX + 1,
       padY: borderY + 1,
     };
+  }
+
+  /**
+   * The normal buffer as escape sequences, for restoring on the next launch. Modes are left out
+   * so a replay cannot switch on mouse reporting or bracketed paste for the new shell, and the
+   * alternate buffer is left out since the full-screen program that drew it will not be running.
+   */
+  serialize(): string {
+    if (this.disposed) return '';
+    return this.serializer.serialize({ excludeModes: true, excludeAltBuffer: true });
   }
 
   /** The terminal's selected text, or '' when nothing is selected. */

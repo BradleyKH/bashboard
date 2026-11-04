@@ -136,12 +136,14 @@ Default shell select in the Terminal section of the settings dialog sets it too 
 "shell": { "defaultProfile": "gitBash" }
 ```
 
-Restore on relaunch is controlled by `restore.enabled` (reopen the saved terminals) and
-`restore.resumeClaude` (type `claude --resume` into terminals that had a Claude session); both
-default to `true`:
+Restore on relaunch is controlled by `restore.enabled` (reopen the saved terminals),
+`restore.resumeClaude` (type `claude --resume` into terminals that had a Claude session), and
+`restore.scrollback` (save each terminal's scrollback when the window closes and show it again
+above the new prompt); all three default to `true`. Turning `restore.scrollback` off also deletes
+the scrollback already saved, at the next close:
 
 ```jsonc
-"restore": { "enabled": true, "resumeClaude": true }
+"restore": { "enabled": true, "resumeClaude": true, "scrollback": true }
 ```
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the

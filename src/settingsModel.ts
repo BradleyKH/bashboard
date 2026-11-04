@@ -297,6 +297,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     fields: [
       { path: ['restore', 'enabled'], label: 'Restore panes at launch', kind: 'toggle', applies: 'nextLaunch' },
       { path: ['restore', 'resumeClaude'], label: 'Resume Claude Code sessions', kind: 'toggle', applies: 'nextLaunch' },
+      { path: ['restore', 'scrollback'], label: 'Restore terminal scrollback', kind: 'toggle', applies: 'nextLaunch' },
     ],
   },
 ];

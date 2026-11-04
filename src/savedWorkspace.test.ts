@@ -327,6 +327,15 @@ describe('parseSavedTab', () => {
     expect(mode({ sessionId: null, permissionMode: 'bypassPermissions' })).not.toHaveProperty('permissionMode');
   });
 
+  it('filters scrollbackId to the same alphabet, dropping it when unsafe', () => {
+    for (const [input, expected] of ids) {
+      const pane = parseSavedTab({ panes: [{ ...term('a'), scrollbackId: input }], layout: null, focused: null })
+        ?.panes[0];
+      if (expected === null) expect(pane).not.toHaveProperty('scrollbackId');
+      else expect(pane).toMatchObject({ scrollbackId: expected });
+    }
+  });
+
   it('filters scratchId to the same alphabet, keeping the pad', () => {
     for (const [input, expected] of ids) {
       const r = parseSavedTab({ panes: [{ ...scratch('a'), scratchId: input }], layout: null, focused: null });

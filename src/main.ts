@@ -903,6 +903,9 @@ onLayoutsChanged((raw) => {
 appWindow
   ?.onCloseRequested(async () => {
     await workspace.flushPanes();
+    await workspace
+      .saveScrollback(currentSettings.restore.scrollback)
+      .catch((e) => console.warn('scrollback save on close failed:', e));
     await saver.flush().catch((e) => console.warn('workspace save on close failed:', e));
   })
   .catch((e) => console.warn('close handling unavailable:', e));
@@ -917,7 +920,10 @@ try {
   if (saved?.dashboardTopElements) panel.setTopElements(saved.dashboardTopElements);
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
-    workspace.restore(saved, { resumeClaude: payload.settings.restore.resumeClaude });
+    workspace.restore(saved, {
+      resumeClaude: payload.settings.restore.resumeClaude,
+      scrollback: payload.settings.restore.scrollback,
+    });
     restored = true;
   }
 } catch (err) {

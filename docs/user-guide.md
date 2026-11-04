@@ -299,7 +299,7 @@ its query and options, and a non-empty query runs again as soon as the pane load
 
 The panel opens on the right (or the left, with `dashboard.side`) on start (set
 `dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+D toggles it. Its top
-bar holds the **?** (Keyboard shortcuts, also F1) and **⚙** (Settings, also Ctrl+,) buttons, and
+bar holds the **⚙** (Settings, also Ctrl+,) and **?** (Keyboard shortcuts, also F1) buttons, and
 the × at its right end hides the panel too, with a notice naming the ways back. While it is hidden, a
 small handle sits on that edge of the window, halfway down; click it to bring the panel back. F6 moves focus
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
@@ -416,7 +416,11 @@ folders, layout, and collapsed state, and types `claude --resume <session id>` i
 A session that was in a permission mode other than the default, such as bypass permissions,
 resumes in that mode. The mode saved is the one Claude Code last reported through its hooks, so a
 Shift+Tab change made just before closing, with no prompt after it, may not be saved.
-Scrollback is not restored.
+
+Each terminal's scrollback comes back too, above a gray "restored scrollback" line, with the new
+prompt below it. It is saved when you close the window, so after a crash you get the scrollback
+from the last normal close. Container shells and terminals opened from a layout start empty. Turn
+off **Restore terminal scrollback** in Settings (`restore.scrollback`) to stop saving it.
 
 When a terminal starts waiting while the panel is hidden, the panel peeks open over the panes for
 a few seconds and stays while the pointer is over it. Set `dashboard.peekOnWaiting` to `false`

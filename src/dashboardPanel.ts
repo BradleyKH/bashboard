@@ -242,7 +242,7 @@ export class DashboardPanel {
     this.applyWidth();
     const top = document.createElement('div');
     top.className = 'dashboard-top';
-    top.append(this.favoritesMenuButton, this.layoutsMenuButton, helpButton, settingsButton, spacer, hideButton);
+    top.append(this.favoritesMenuButton, this.layoutsMenuButton, settingsButton, helpButton, spacer, hideButton);
     // Pins follow the focused pane and appear or vanish with it, so they stay fixed between the
     // slots rather than among the elements, and the lower list sits at the bottom, where a focus
     // change that resizes Pins never shifts it.

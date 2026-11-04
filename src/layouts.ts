@@ -10,7 +10,7 @@ export interface NamedLayout {
 function forLayoutPane(p: SavedPane): SavedPane {
   switch (p.kind) {
     case 'terminal': {
-      const { permissionMode: _, ...rest } = p;
+      const { permissionMode: _, scrollbackId: __, ...rest } = p;
       return { ...rest, sessionId: null };
     }
     case 'scratch':

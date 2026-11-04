@@ -25,6 +25,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
       permissionMode?: string;
       /** Shell profile id; absent means the default profile. */
       profile?: string;
+      /** Names the file holding the terminal's scrollback as the window last closed; absent in layouts. */
+      scrollbackId?: string;
     }
   /** null in layouts, which open fresh pads. */
   | { kind: 'scratch'; scratchId: string | null }
@@ -113,6 +115,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
     const profileId = parseProfileId(raw.profile);
     const sessionId = safeId(raw.sessionId);
     const permissionMode = sessionId ? safeMode(raw.permissionMode) : undefined;
+    const scrollbackId = safeId(raw.scrollbackId);
     return {
       ...base,
       kind: 'terminal',
@@ -120,6 +123,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
       sessionId,
       ...(permissionMode ? { permissionMode } : {}),
       ...(profileId ? { profile: profileId } : {}),
+      ...(scrollbackId ? { scrollbackId } : {}),
     };
   },
   scratch: (raw, base) => ({ ...base, kind: 'scratch', scratchId: safeId(raw.scratchId) }),

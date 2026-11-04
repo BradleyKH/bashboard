@@ -92,6 +92,13 @@ describe('parseLayouts', () => {
     expect(out).toEqual([{ name: 'Dev', tab: tab(null, 'pwsh') }]);
   });
 
+  it("drops a terminal's scrollbackId, since a layout opens fresh shells", () => {
+    const saved = tab('abc-1');
+    const withScrollback = { ...saved, panes: saved.panes.map((p) => ({ ...p, scrollbackId: 'sb-1' })) };
+    const out = parseLayouts([{ name: 'Dev', tab: withScrollback }]);
+    expect(out[0].tab.panes[0]).not.toHaveProperty('scrollbackId');
+  });
+
   it('keeps scratch pads empty', () => {
     const out = parseLayouts([{ name: 'Dev', tab: mixed('abc-1', 'f00d-1') }]);
     expect(out).toEqual([{ name: 'Dev', tab: mixed(null, null) }]);

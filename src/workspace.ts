@@ -58,7 +58,16 @@ import { PathDragLayer, sameDropTarget, type PathDrag, type PathDropTarget } fro
 import { repoRoot } from './repoFiles';
 import type { PaneKind } from './paneKinds';
 import type { PaneView } from './paneView';
-import { scratchDelete, scratchLoad, scratchSave, scratchSaveAs, type PtyActivity } from './persistence';
+import {
+  scratchDelete,
+  scratchLoad,
+  scratchSave,
+  scratchSaveAs,
+  scrollbackLoad,
+  scrollbackSaveAll,
+  type PtyActivity,
+  type ScrollbackEntry,
+} from './persistence';
 import { restoredTab, snapshotTabs } from './savedTabs';
 import { TabStore } from './tabStore';
 import { type SavedPane, type SavedTab, type SavedWorkspace, resumeCommand } from './savedWorkspace';
@@ -195,6 +204,10 @@ export type PaneSpec =
       command?: string[];
       /** Marks a container shell (design 4.16), which is titled by it and never saved. */
       container?: { name: string };
+      /** The saved terminal's scrollback id, kept so the next save reuses its file. */
+      scrollbackId?: string;
+      /** Saved scrollback to write before the shell starts (design 4.9). */
+      replay?: Promise<string>;
     }
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
   | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
@@ -551,7 +564,7 @@ export class Workspace {
     // Every expanded host must be attached and sized before its pane opens, since start() fits to it.
     for (const p of saved.panes) if (!p.collapsed) this.createHost(ids.get(p.key)!);
     this.render();
-    this.buildTab(saved, ids, true, { resumeClaude: false, loadScratch: false });
+    this.buildTab(saved, ids, true, { resumeClaude: false, loadScratch: false, loadScrollback: false });
     // A layout of only collapsed panes would leave nothing to type into.
     if (!this.store.tree) {
       this.expandPane(tab.panes[0]);
@@ -846,6 +859,7 @@ export class Workspace {
           collapsed,
           ...this.savedSession(id, pane.ptyId),
           ...(pane.profile !== undefined && { profile: pane.profile }),
+          scrollbackId: pane.scrollbackId,
         };
       }
       if (pane instanceof ScratchPane) return { key: id, collapsed, kind: 'scratch', scratchId: pane.scratchId };
@@ -861,7 +875,7 @@ export class Workspace {
    * Design 4.9: a new shell per saved terminal and each pad with its saved text, tab by tab in
    * saved order. Expects an empty workspace and at least one saved tab.
    */
-  restore(saved: SavedWorkspace, opts: { resumeClaude: boolean }): void {
+  restore(saved: SavedWorkspace, opts: { resumeClaude: boolean; scrollback: boolean }): void {
     if (saved.tabs.length === 0) return;
     const built = saved.tabs.map((t) => ({
       saved: t,
@@ -873,11 +887,31 @@ export class Workspace {
     for (const p of active.saved.panes) if (!p.collapsed) this.createHost(active.ids.get(p.key)!);
     this.render();
     for (const b of built) {
-      this.buildTab(b.saved, b.ids, b === active, { resumeClaude: opts.resumeClaude, loadScratch: true });
+      this.buildTab(b.saved, b.ids, b === active, {
+        resumeClaude: opts.resumeClaude,
+        loadScratch: true,
+        loadScrollback: opts.scrollback,
+      });
     }
     for (const [hid, host] of this.hosts) host.classList.toggle('focused', hid === this.store.focusedId);
     this.paneViews.get(this.store.focusedId)?.focus();
     this.notify();
+  }
+
+  /**
+   * Design 4.9: saves each saved terminal's scrollback for the next launch and removes any other
+   * saved scrollback. Off, it saves none, so stale files go too.
+   */
+  async saveScrollback(enabled: boolean): Promise<void> {
+    const entries: ScrollbackEntry[] = [];
+    if (enabled) {
+      for (const [id, pane] of this.paneViews) {
+        if (pane instanceof TerminalPane && !this.containerShells.has(id)) {
+          entries.push({ id: pane.scrollbackId, text: pane.serialize() });
+        }
+      }
+    }
+    await scrollbackSaveAll(entries);
   }
 
   /** Saves every pad's and Files editor's pending text now, for the window closing. */
@@ -1202,7 +1236,7 @@ export class Workspace {
     saved: SavedTab,
     ids: Map<string, string>,
     visible: boolean,
-    opts: { resumeClaude: boolean; loadScratch: boolean },
+    opts: { resumeClaude: boolean; loadScratch: boolean; loadScrollback: boolean },
   ): void {
     for (const p of saved.panes) {
       const id = ids.get(p.key)!;
@@ -1215,7 +1249,7 @@ export class Workspace {
           onReady = () => this.terminal(id)?.typeText(`${command}\r`);
         }
       }
-      const spec = this.restoredSpec(p, opts.loadScratch);
+      const spec = this.restoredSpec(p, opts);
       if (visible && !p.collapsed) {
         this.startPane(id, this.buildPane(id, this.hosts.get(id)!, spec, true, onReady));
       } else {
@@ -1224,14 +1258,23 @@ export class Workspace {
     }
   }
 
-  /** A pad keeps its saved file only when restoring the workspace; layouts and missing ids open fresh. */
-  private restoredSpec(p: SavedPane, loadScratch: boolean): PaneSpec {
+  /**
+   * A pad keeps its saved file, and a terminal its saved scrollback, only when restoring the
+   * workspace; layouts and missing ids open fresh.
+   */
+  private restoredSpec(p: SavedPane, opts: { loadScratch: boolean; loadScrollback: boolean }): PaneSpec {
     switch (p.kind) {
       case 'terminal':
         // An empty cwd lets the core fall back to startingDirectory.
-        return { kind: 'terminal', cwd: p.cwd || undefined, profile: p.profile };
+        return {
+          kind: 'terminal',
+          cwd: p.cwd || undefined,
+          profile: p.profile,
+          scrollbackId: p.scrollbackId,
+          ...(opts.loadScrollback && p.scrollbackId && { replay: scrollbackLoad(p.scrollbackId) }),
+        };
       case 'scratch':
-        if (loadScratch && p.scratchId) return { kind: 'scratch', scratchId: p.scratchId, text: scratchLoad(p.scratchId) };
+        if (opts.loadScratch && p.scratchId) return { kind: 'scratch', scratchId: p.scratchId, text: scratchLoad(p.scratchId) };
         return { kind: 'scratch' };
       case 'files':
         return {
@@ -1340,6 +1383,8 @@ export class Workspace {
       cwd: spec.cwd,
       profile: spec.profile,
       command: spec.command,
+      scrollbackId: spec.scrollbackId ?? newScratchId(),
+      replay: spec.replay,
       expanded,
       keyHandler: (e, term, send) =>
         handleKey(e, { keymap: () => this.config.keymap, term, send, dispatch: (a) => this.dispatch(a) }),

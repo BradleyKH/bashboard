@@ -40,7 +40,7 @@ export interface Settings {
     sections: Record<DashboardElement, boolean>;
     clockStyle: ClockStyle;
   };
-  restore: { enabled: boolean; resumeClaude: boolean };
+  restore: { enabled: boolean; resumeClaude: boolean; scrollback: boolean };
   editor: { preferred: string; command: string };
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
   git: { autoFetchMinutes: number };
@@ -79,7 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30 },
   dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both' },
-  restore: { enabled: true, resumeClaude: true },
+  restore: { enabled: true, resumeClaude: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5 },
   keybindings: DEFAULT_KEYBINDINGS,

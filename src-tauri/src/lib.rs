@@ -194,6 +194,8 @@ pub fn run() {
             workspace::scratch_load,
             workspace::scratch_delete,
             workspace::scratch_save_as,
+            workspace::scrollback_save_all,
+            workspace::scrollback_load,
             files::repo_root,
             files::fs_list,
             files::fs_read_text,

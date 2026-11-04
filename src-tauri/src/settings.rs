@@ -173,6 +173,7 @@ pub struct DashboardSections {
 pub struct Restore {
     pub enabled: bool,
     pub resume_claude: bool,
+    pub scrollback: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -359,7 +360,7 @@ impl Default for Settings {
                 },
                 clock_style: "both".into(),
             },
-            restore: Restore { enabled: true, resume_claude: true },
+            restore: Restore { enabled: true, resume_claude: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5 },
             keybindings: default_keybindings(),
@@ -804,6 +805,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
     let restore = Restore {
         enabled: pick(&root, &["restore", "enabled"], &mut w, boolean, d.restore.enabled),
         resume_claude: pick(&root, &["restore", "resumeClaude"], &mut w, boolean, d.restore.resume_claude),
+        scrollback: pick(&root, &["restore", "scrollback"], &mut w, boolean, d.restore.scrollback),
     };
     let editor = Editor {
         preferred: pick(
@@ -1265,12 +1267,12 @@ mod tests {
 
     #[test]
     fn restore_values_parse_and_invalid_ones_fall_back() {
-        let (s, w) = parse_settings(r#"{ "restore": { "enabled": false, "resumeClaude": false } }"#);
-        assert_eq!(s.restore, Restore { enabled: false, resume_claude: false });
+        let (s, w) = parse_settings(r#"{ "restore": { "enabled": false, "resumeClaude": false, "scrollback": false } }"#);
+        assert_eq!(s.restore, Restore { enabled: false, resume_claude: false, scrollback: false });
         assert!(w.is_empty());
-        let (s, w) = parse_settings(r#"{ "restore": { "enabled": "no", "resumeClaude": 0 } }"#);
+        let (s, w) = parse_settings(r#"{ "restore": { "enabled": "no", "resumeClaude": 0, "scrollback": [] } }"#);
         assert_eq!(s.restore, Settings::default().restore);
-        for field in ["restore.enabled", "restore.resumeClaude"] {
+        for field in ["restore.enabled", "restore.resumeClaude", "restore.scrollback"] {
             assert!(w.iter().any(|m| m.starts_with(field)), "missing warning for {field}: {w:?}");
         }
     }
@@ -1278,7 +1280,7 @@ mod tests {
     #[test]
     fn restore_defaults_to_enabled_and_is_in_default_file() {
         let d = Settings::default();
-        assert_eq!(d.restore, Restore { enabled: true, resume_claude: true });
+        assert_eq!(d.restore, Restore { enabled: true, resume_claude: true, scrollback: true });
         let text = default_file_text();
         assert!(text.contains("\"restore\"") && text.contains("\"resumeClaude\""));
     }

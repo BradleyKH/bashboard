@@ -345,6 +345,11 @@ dashboard, and rewriting a hand-edited JSONC file would drop its comments.
 Scratch pads (4.15) live beside them as `scratch/<id>.txt`, written by `scratch_save(id, text)`
 and removed by `scratch_delete(id)`; `scratch_load(id)` reads one back on restore.
 
+Terminal scrollback (4.9) lives in `scrollback/<id>.txt`. `scrollback_save_all(entries)` writes
+each `{ id, text }` and deletes every other file in the folder, so it holds exactly the terminals
+of the last saved workspace; `scrollback_load(id)` reads one back, as an empty string when it is
+missing. Ids use the scratch pads' alphabet.
+
 ### 3.8 Repo files (`src-tauri/src/files.rs`)
 
 A path's repo is the nearest folder at or above it holding `.git` (a directory, or the file a
@@ -1162,8 +1167,8 @@ favorite, and the Layouts menu has a "+ Save" button that turns the filter into 
 single row previews "Save as" or, for an existing name in any capitalization, "Replace", Enter
 saves, and Escape returns to the filter. The pickers have these buttons however they open, from the
 top bar or from their shortcuts. Renaming, removing, and reordering stay with the sections. After
-them come icon buttons for Keyboard shortcuts (?), which opens the help dialog, also bound to F1,
-and Settings (⚙), which opens the settings dialog, also bound to Ctrl+,. The × that hides the
+them come icon buttons for Settings (⚙, also bound to Ctrl+,), which opens the settings dialog,
+and Keyboard shortcuts (?), which opens the help dialog, also bound to F1. The × that hides the
 panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
 parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
 
@@ -1497,11 +1502,18 @@ the window closes. On launch:
   `default`, the command adds `--permission-mode <mode>`, so a session in bypass permissions
   resumes in it. The mode is the one the session's newest hook event reported, so a change
   made with Shift+Tab after that event is not saved.
-- Scrollback is not restored.
+- Each terminal's scrollback is saved as the window closes: xterm.js's serialize addon writes
+  the normal buffer as escape sequences, leaving out terminal modes (so a replay cannot turn on
+  mouse reporting or bracketed paste) and the alternate buffer. On launch the saved text is
+  written into the terminal before its shell spawns, followed by a gray "restored scrollback"
+  rule, so the new prompt (and any resumed Claude session) appears below it. Container shells
+  and terminals opened from a layout start empty. Only a normal close saves it, so after a crash
+  the scrollback is the one from the last clean close.
 - A missing or empty workspace opens one tab with one terminal in `startingDirectory`. Closing
   the last tab saves an empty workspace, so the next launch starts fresh.
 
-`restore.enabled` and `restore.resumeClaude` (section 8) turn either part off.
+`restore.enabled`, `restore.resumeClaude`, and `restore.scrollback` (section 8) turn each part
+off. With `restore.scrollback` off, closing saves no scrollback and deletes what was saved.
 
 Opening a named layout (4.6) rebuilds one tab the same way, appended as a new tab with the
 layout's terminals in their saved directories and profiles. Session ids are always null in a
@@ -2287,11 +2299,12 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
 - A terminal pane's `profile`: the default profile. Its `permissionMode` (letters only, kept
-  only beside a `sessionId`): the default mode. A Files pane's `root`: resolved from its
+  only beside a `sessionId`): the default mode. Its `scrollbackId` (the scratch id alphabet):
+  none, so the terminal starts without saved scrollback. A Files pane's `root`: resolved from its
   `folder`. Its `expanded`: false.
 
 **layouts.json.** Names are unique without regard to case. A layout holds one tab whose
-terminals carry no session ids or permission modes and whose scratch pads have a null
+terminals carry no session ids, permission modes, or scrollback ids and whose scratch pads have a null
 `scratchId`, so they open fresh; the tab's own `name` is ignored, since it takes the layout's. An
 entry whose `workspace` holds a version 1 workspace loads as that one tab.
 
@@ -2373,7 +2386,7 @@ it with no pins, and Automatic omits it.
     },
     "clockStyle": "both"
   },
-  "restore": { "enabled": true, "resumeClaude": true },
+  "restore": { "enabled": true, "resumeClaude": true, "scrollback": true },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
   // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in

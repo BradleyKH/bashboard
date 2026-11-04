@@ -74,6 +74,22 @@ export function scratchSaveAs(text: string): Promise<string | null> {
   return invoke<string | null>('scratch_save_as', { text });
 }
 
+/** One terminal's serialized scrollback. */
+export interface ScrollbackEntry {
+  id: string;
+  text: string;
+}
+
+/** Saves every entry and deletes any saved scrollback not among them. */
+export function scrollbackSaveAll(entries: ScrollbackEntry[]): Promise<void> {
+  return invoke<void>('scrollback_save_all', { entries });
+}
+
+/** An empty string when the terminal has no saved scrollback. */
+export function scrollbackLoad(id: string): Promise<string> {
+  return invoke<string>('scrollback_load', { id });
+}
+
 export function onPtyActivity(cb: (list: PtyActivity[]) => void): Promise<UnlistenFn> {
   return listen<PtyActivity[]>('pty://activity', (e) => cb(e.payload));
 }
