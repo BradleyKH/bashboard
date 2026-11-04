@@ -2091,18 +2091,18 @@ h2.collapsible-head::before {
   display: none;
 }
 
-/* A pane card's lead sits in a 14px column, so titles align whether it is a glyph or a terminal's
+/* A pane card's lead sits in a 16px column, so titles align whether it is a glyph or a terminal's
    status dot. The column fits the widest glyph (the files icon) at this size. */
 .kind-icon {
   flex: none;
-  width: 14px;
+  width: 16px;
   display: flex;
   justify-content: center;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   color: #9aa6ad;
 }
 
 .card-head > .status-dot {
-  margin-inline: 3px;
+  margin-inline: 4px;
 }

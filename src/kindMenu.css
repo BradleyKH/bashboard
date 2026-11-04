@@ -7,8 +7,11 @@
   background: transparent;
   color: #9aa6ad;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 16px;
+  /* A fixed width keeps the title from shifting when the kind changes. */
+  width: 24px;
+  text-align: center;
   cursor: pointer;
 }
 

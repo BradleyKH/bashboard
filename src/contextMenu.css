@@ -44,10 +44,14 @@
   cursor: default;
 }
 
+/* Wide enough for the widest pane-kind glyph (the files icon) at 14px. */
 .context-menu-icon {
   flex: none;
-  width: 14px;
-  text-align: center;
+  width: 16px;
+  display: flex;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
   color: var(--accent);
 }
 
