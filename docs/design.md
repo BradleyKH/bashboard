@@ -749,9 +749,9 @@ need no key: only the release workflow turns on `bundle.createUpdaterArtifacts`,
 `src-tauri/Cargo.lock`; `tauri.conf.json` reads `package.json`. Pushing a `v<version>` tag runs
 the workflow on a Windows runner: it checks that the tag matches `package.json`, runs the type
 check, the front end tests, and the Rust tests, then builds with `tauri-action` into a draft
-release named "Bashboard v<version> (alpha)", not marked as a prerelease, with the NSIS
+release named "Bashboard v<version> (beta)", not marked as a prerelease, with the NSIS
 installer, its `.sig`, and `latest.json`. The release body, which also becomes the `notes` in
-`latest.json`, is the annotated tag's message (if any) followed by the standard alpha
+`latest.json`, is the annotated tag's message (if any) followed by the standard beta
 SmartScreen text; a lightweight tag gets the standard text alone. A step then checks that `bb.exe` was built and is
 listed in the installer script (3.13), and only after that is the release published, so a
 broken build never becomes the release the updater reads.

@@ -122,12 +122,12 @@ To publish a release:
    `git push origin main v<version>`. To give the release notes, make it an annotated tag
    instead: `git tag -a v<version> --cleanup=whitespace -F notes.md` (or `-m "..."`). The tag
    message leads the release description and the update notes installed apps see; without one,
-   the release carries only the standard alpha text. `--cleanup=whitespace` keeps markdown `#`
+   the release carries only the standard beta text. `--cleanup=whitespace` keeps markdown `#`
    headings, which git otherwise strips as comments.
 
 The `.github/workflows/release.yml` workflow runs on the tag. It checks that the tag matches
 `package.json`, runs the checks, builds a draft GitHub release named
-"Bashboard v<version> (alpha)" holding the installer, its `.sig` signature, and `latest.json`
+"Bashboard v<version> (beta)" holding the installer, its `.sig` signature, and `latest.json`
 (the file installed apps read to find updates), checks that the installer ships `bb.exe`, and
 then publishes the release. The workflow needs two repository secrets,
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, holding the updater

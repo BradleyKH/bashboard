@@ -79,10 +79,10 @@ jobs:
             notes=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
           fi
           if [ "${{ steps.sign.outputs.enabled }}" = true ]; then
-            standard='Alpha release. Until the signed installer builds SmartScreen reputation, Windows may
+            standard='Beta release. Until the signed installer builds SmartScreen reputation, Windows may
           still warn on first run: choose "More info", then "Run anyway".'
           else
-            standard='Alpha release. The installer is unsigned, so Windows SmartScreen may warn on first run:
+            standard='Beta release. The installer is unsigned, so Windows SmartScreen may warn on first run:
           choose "More info", then "Run anyway".'
           fi
           delim="NOTES_$(date +%s%N)"
@@ -124,7 +124,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Bashboard v__VERSION__ (alpha)'
+          releaseName: 'Bashboard v__VERSION__ (beta)'
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
