@@ -1390,8 +1390,8 @@ Each card shows:
   pad is not empty.
 
 **Containers.** One row per container group (4.16) with its state dot, and a Manage
-button in the header. Shown while a container engine is available (3.10) and
-`dashboard.sections.containers` is on. The setting affects only the dashboard; the kind menu
+button (an arrow leaving a square) in the header. Shown while a container engine is available
+(3.10) and `dashboard.sections.containers` is on. The setting affects only the dashboard; the kind menu
 (4.11) offers a Containers pane whenever an engine is available.
 
 **External sessions.** Claude Code sessions running outside this app (Windows Terminal, VS

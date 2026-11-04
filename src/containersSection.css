@@ -5,8 +5,16 @@
 
 #dashboard .containers-open {
   flex: 0 0 auto;
-  padding: 2px 8px;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+}
+
+.containers-open svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
 }
 
 .favorite-row.container-row {

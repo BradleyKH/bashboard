@@ -468,8 +468,9 @@ Each row shows the project's name, how many of its containers run ("1 of 2"), an
 hover. A project with a single container gets Start or Stop; a project with more gets a details
 button (›) that opens it in the Containers tab, where each container can be started or stopped.
 Right-click a row to start or stop a whole project. A project that exists on both engines is one row.
-Click a row to open the Containers tab with that project expanded. Manage in the section's
-header switches to a Containers tab that is already open, or adds one.
+Click a row to open the Containers tab with that project expanded. The Manage button (an arrow
+leaving a square) in the section's header switches to a Containers tab that is already open, or
+adds one.
 
 The **Containers pane** has a heading for each engine that is available, Docker and then Podman,
 and its projects expand to their containers. An engine's heading has a Start or Stop button for
