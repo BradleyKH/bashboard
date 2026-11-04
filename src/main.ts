@@ -595,7 +595,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   ports: {
-    onOpenPorts: (key): void => workspace.openPorts(key),
+    onOpenPorts: (key, showAll): void => workspace.openPorts(key, showAll),
     ownerTitle: (ptyId): string | null => workspace.titleForPty(ptyId),
     onGoToPane: (ptyId): void => workspace.revealPty(ptyId),
     onOpenUrl: (url) => void invoke('open_url', { url }).catch((e: unknown) => console.warn('open_url failed', e)),

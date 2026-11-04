@@ -519,9 +519,10 @@ leaving a square) in the header opens the Ports tab.
 The **Ports pane** lists every listening port in columns (port, program, the pane that started
 it, address, process id, and uptime), with its folder beneath and the full command line under
 that, sorted by port. Each row has **Open**, **Go to pane**, and **Stop** buttons. Type in the
-filter to narrow it by port, program, command, folder, or pane name (Escape clears it), tick
-**Started from a pane** to list only ports your panes started, and tick **Windows services** to
-include the system's own ports, dimmed. Double-click a row to open it in your browser;
+filter to narrow it by port, program, command, folder, or pane name (Escape clears it). The pane
+opens with **Started from a pane** ticked, listing only ports your panes started; untick it to
+see everything else, and tick **Windows services** to include the system's own ports, dimmed.
+Opening the pane from the dashboard on a port no pane started unticks it for you. Double-click a row to open it in your browser;
 right-click for the same menu as the dashboard.
 You can also turn any pane into a Ports pane from its kind menu.
 

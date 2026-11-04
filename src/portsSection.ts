@@ -6,8 +6,8 @@ import type { Listener } from './ports';
 import { dashboardListeners, listenerKey, newKeys } from './portsModel';
 
 export interface PortsSectionCallbacks {
-  /** Open the Ports tab, highlighting the row with this `listenerKey`. */
-  onOpenPorts(key?: string): void;
+  /** Open the Ports tab, highlighting the row with this `listenerKey`, or listing every port with `showAll`. */
+  onOpenPorts(key?: string, showAll?: boolean): void;
   /** The title of the pane running pty `ptyId`, or null when it has closed. */
   ownerTitle(ptyId: number): string | null;
   /** Focus the pane running pty `ptyId`. */
@@ -54,7 +54,7 @@ export class PortsSection {
       row.className = 'favorite-row port-row port-others';
       row.textContent = `+ ${others} other ${others === 1 ? 'program' : 'programs'}`;
       row.title = 'Open the Ports tab to see them';
-      row.addEventListener('click', () => cb.onOpenPorts());
+      row.addEventListener('click', () => cb.onOpenPorts(undefined, true));
       more.push(row);
     }
     if (rows.length === 0 && more.length === 0) {

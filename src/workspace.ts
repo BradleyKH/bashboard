@@ -1094,9 +1094,9 @@ export class Workspace {
 
   /**
    * Design 4.19: shows the first Ports pane in tab order, or appends a Ports tab, then selects
-   * the row with that `listenerKey`.
+   * the row with that `listenerKey`, or, with `showAll`, clears its Started from a pane filter.
    */
-  openPorts(key?: string): void {
+  openPorts(key?: string, showAll = false): void {
     const find = (tabs: TabState[]) =>
       tabs.flatMap((t) => t.panes).find((id) => this.paneViews.get(id) instanceof PortsPane);
     let id = find(this.store.state.tabs);
@@ -1116,7 +1116,9 @@ export class Workspace {
       id = find([this.store.active]);
     }
     const pane = id ? this.paneViews.get(id) : undefined;
-    if (pane instanceof PortsPane && key !== undefined) pane.highlight(key);
+    if (!(pane instanceof PortsPane)) return;
+    if (showAll) pane.showAll();
+    if (key !== undefined) pane.highlight(key);
   }
 
   /** The repos' pins changed; Files panes refresh their pin buttons. */

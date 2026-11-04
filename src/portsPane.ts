@@ -82,6 +82,7 @@ export class PortsPane implements PaneView {
     this.filterInput.spellcheck = false;
     this.paneOnlyBox = document.createElement('input');
     const paneOnly = this.checkbox(this.paneOnlyBox, 'Started from a pane', 'List only ports started from a Bashboard pane');
+    this.paneOnlyBox.checked = true;
     this.servicesBox = document.createElement('input');
     const services = this.checkbox(this.servicesBox, 'Windows services', 'Also list ports held by Windows services and the system');
     this.count = document.createElement('span');
@@ -112,8 +113,17 @@ export class PortsPane implements PaneView {
   /** Selects and scrolls to the row with this `listenerKey` (the dashboard opens the pane on one). */
   highlight(key: string): void {
     this.selected = key;
+    const target = this.opts.store.current().find((l) => listenerKey(l) === key);
+    // A row no pane started is filtered out by default; show it rather than select nothing.
+    if (target && this.owner(target) === null) this.paneOnlyBox.checked = false;
     this.render();
     this.list.querySelector<HTMLElement>('.ports-row.selected')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  /** Clears Started from a pane, for the dashboard's "+ N other programs" row. */
+  showAll(): void {
+    this.paneOnlyBox.checked = false;
+    this.render();
   }
 
   focus(): void {
