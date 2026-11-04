@@ -19,6 +19,7 @@ function forLayoutPane(p: SavedPane): SavedPane {
     case 'git':
     case 'search':
     case 'containers':
+    case 'ports':
       return p;
   }
 }

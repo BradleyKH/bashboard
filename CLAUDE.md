@@ -75,7 +75,7 @@ orphaned by a page reload, then builds the `Workspace`, the `DashboardPanel`, th
   pane of every kind, and the scrim state; whatever acts on "the" tree or focus acts on the
   active tab. `layout.ts` is the pure split-tree model; `layoutView.ts` renders it as nested
   flex containers.
-- Pane kinds (`paneKinds.ts`) are terminal, scratch, files, git, search, and containers. Each
+- Pane kinds (`paneKinds.ts`) are terminal, scratch, files, git, search, containers, and ports. Each
   implements `PaneView`; `pane.ts` is the terminal (one xterm.js instance bound to one pty) and
   the others are `<kind>Pane.ts`. `savedWorkspace.ts` is the shape of the restored workspace.
 - Keys: `keys.ts` runs before xterm.js and swallows a handled key for keydown, keypress, *and*

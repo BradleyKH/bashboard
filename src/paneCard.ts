@@ -29,6 +29,8 @@ export interface PaneCardOptions {
 }
 
 const DRAG_THRESHOLD = 4;
+/** Must match the `card-waiting` animation's duration in styles.css. */
+const WAITING_PULSE_MS = 2400;
 
 function button(label: string, className: string, onClick: () => void): HTMLButtonElement {
   const el = document.createElement('button');
@@ -51,6 +53,11 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
   el.dataset.paneId = card.paneId;
   el.classList.toggle('collapsed', card.collapsed);
   el.classList.toggle('attention', card.attention);
+  if (card.kind === 'terminal' && card.status === 'waiting') {
+    el.classList.add('waiting');
+    // The panel rebuilds its cards often; phasing the pulse off the wall clock keeps it smooth across rebuilds.
+    el.style.setProperty('--waiting-phase', `-${Date.now() % WAITING_PULSE_MS}ms`);
+  }
 
   let dragged = false;
   el.addEventListener('click', () => {

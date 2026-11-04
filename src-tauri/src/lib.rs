@@ -14,6 +14,7 @@ mod git_worktrees;
 mod hook_install;
 mod hooks;
 mod links;
+mod ports;
 mod profiles;
 mod pty;
 mod roster;
@@ -144,6 +145,7 @@ pub fn run() {
         .manage(containers::ContainersState::default())
         .manage(search::SearchState::default())
         .manage(system::SystemState::default())
+        .manage(ports::PortsState::default())
         .manage(transcript::Transcripts::default())
         .setup(|app| {
             let window = create_main_window(app.handle())?;
@@ -247,6 +249,8 @@ pub fn run() {
             search::search_cancel,
             setup::setup_repo_candidates,
             system::system_sample,
+            ports::ports_list,
+            ports::ports_stop,
             transcript::claude_context,
             transcript::claude_context_stop,
         ])

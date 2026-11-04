@@ -18,6 +18,7 @@ import { DashboardNav } from './dashboardNav';
 import { dashboardRevealHandle } from './dashboardReveal';
 import { withKeys } from './dashboardRevealModel';
 import { DashboardSystem } from './dashboardSystem';
+import { DashboardWave } from './dashboardWave';
 import {
   DEFAULT_ELEMENT_ORDER,
   DEFAULT_TOP_ELEMENTS,
@@ -31,6 +32,8 @@ import type { Favorite } from './favorites';
 import { ContainersSection } from './containersSection';
 import type { ContainersSectionCallbacks } from './containersSection';
 import type { ContainersStore } from './containersStore';
+import { PortsSection, type PortsSectionCallbacks } from './portsSection';
+import type { PortsStore } from './portsStore';
 import { FavoritesSection } from './favoritesSection';
 import type { FavoritesCallbacks } from './favoritesSection';
 import { LayoutsSection } from './layoutsSection';
@@ -55,6 +58,8 @@ export interface DashboardCallbacks
     Partial<ContainersSectionCallbacks> {
   onFocus: (paneId: string) => void;
   onClose: (paneId: string) => void;
+  /** The Ports section's rows; omitted, they only list. */
+  ports?: PortsSectionCallbacks;
   /** A Panes card's menu collapses or expands its pane. */
   onToggleCollapse?: (paneId: string) => void;
   onCardDragStart?: (paneId: string, e: PointerEvent) => void;
@@ -137,6 +142,7 @@ export class DashboardPanel {
   private readonly topSlot: HTMLElement;
   private readonly clock = new DashboardClock();
   private readonly system = new DashboardSystem();
+  private readonly wave = new DashboardWave();
   private readonly claude = new ClaudeContexts(() => this.render());
   private panes: PaneCardInput[] = [];
   private collapsed: DashboardSection[] = [];
@@ -175,6 +181,9 @@ export class DashboardPanel {
   private readonly containersSection: ContainersSection;
   private containersStore: ContainersStore | null = null;
   private unsubscribeContainers: (() => void) | null = null;
+  private readonly portsSection: PortsSection;
+  private portsStore: PortsStore | null = null;
+  private unsubscribePorts: (() => void) | null = null;
   private readonly terminalList: HTMLElement;
   private readonly sessionList: HTMLElement;
 
@@ -284,9 +293,22 @@ export class DashboardPanel {
     });
     this.containersSection.setVisible(false);
     this.addSection('containers', this.containersSection.el, this.containersSection.head);
+    const noPorts = (): void => {};
+    this.portsSection = new PortsSection(
+      this.callbacks.ports ?? {
+        onOpenPorts: noPorts,
+        ownerTitle: () => null,
+        onGoToPane: noPorts,
+        onOpenUrl: noPorts,
+        onCopy: noPorts,
+        onStop: noPorts,
+      },
+    );
+    this.addSection('ports', this.portsSection.el, this.portsSection.head);
     this.sessionList = this.section('external', 'External sessions');
     this.addSection('system', this.system.el, this.system.head);
     this.addElement('clock', this.clock.el, this.clock.el);
+    this.addElement('wave', this.wave.el, this.wave.el);
     this.installButton = document.createElement('button');
     this.installButton.type = 'button';
     this.installButton.className = 'hooks-install';
@@ -342,6 +364,23 @@ export class DashboardPanel {
     this.renderContainers();
   }
 
+  /** Follows the store; the section polls it only while on screen and expanded (`syncTimers`). */
+  setPortsStore(store: PortsStore): void {
+    this.unsubscribePorts?.();
+    this.portsStore = store;
+    this.unsubscribePorts = store.subscribe(() => this.renderPorts());
+    this.renderPorts();
+    this.syncTimers();
+  }
+
+  private renderPorts(): void {
+    const store = this.portsStore;
+    if (!store) return;
+    const focus = this.nav.capture();
+    this.portsSection.update(store.current(), store.ready);
+    this.nav.restore(focus);
+  }
+
   private renderContainers(): void {
     const store = this.containersStore;
     if (!store) return;
@@ -351,9 +390,13 @@ export class DashboardPanel {
     this.nav.restore(focus);
   }
 
-  /** Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md section 4.6). */
-  applyDashboardSettings(d: Settings['dashboard']): void {
+  /**
+   * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md
+   * section 4.6); `animate` is `backdrop.animate`, which also stills the Wave.
+   */
+  applyDashboardSettings(d: Settings['dashboard'], animate: boolean): void {
     this.shown = { ...d.sections };
+    this.wave.setAnimate(animate);
     this.clock.setStyle(d.clockStyle);
     this.setSide(d.side);
     this.layoutElements();
@@ -404,6 +447,11 @@ export class DashboardPanel {
   private syncTimers(): void {
     const onScreen = this.isShown();
     this.clock.setRunning(this.shown.clock && onScreen && this.windowShown);
+    this.wave.setRunning(this.shown.wave && onScreen && this.windowShown);
+    this.portsStore?.setWanted(
+      'dashboard',
+      this.shown.ports && !this.collapsed.includes('ports') && onScreen && this.windowShown,
+    );
     this.system.setGate({
       enabled: this.shown.system,
       expanded: !this.collapsed.includes('system'),

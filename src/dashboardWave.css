@@ -1,0 +1,12 @@
+/* The dashboard's Wave element: one canvas, dragged by its whole box like the clock. */
+#dashboard .dashboard-wave {
+  cursor: grab;
+  /* No vertical padding: the containers space every element evenly (--element-space). */
+  padding-inline: 10px;
+}
+
+#dashboard .wave-canvas {
+  display: block;
+  width: 100%;
+  height: 56px;
+}

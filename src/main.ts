@@ -25,6 +25,9 @@ import { setHomeDir } from './displayPath';
 import { containerAction, startEngine, type Engine } from './containers';
 import { engineLabel, groupContainers, type DashboardGroupRow } from './containerGroups';
 import { ContainersStore } from './containersStore';
+import { copyText } from './copyText';
+import { stopListener } from './portStop';
+import { PortsStore } from './portsStore';
 import { setKindMenuFilter } from './kindMenu';
 import { DashboardPanel } from './dashboardPanel';
 import { lastFolder, paneCards, type PaneCardInput } from './dashboardModel';
@@ -545,6 +548,7 @@ function confirmReplace(paneId: string, kind: PaneKind): Promise<boolean> {
 }
 
 const containers = new ContainersStore();
+const ports = new PortsStore();
 setKindMenuFilter((kind) => kind !== 'containers' || containers.available);
 
 /** Start or stop every container of the row's member groups that is not already in that state, per engine. */
@@ -590,6 +594,17 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
       showToast(`Could not save the setting: ${String(err)}`),
     ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
+  ports: {
+    onOpenPorts: (key): void => workspace.openPorts(key),
+    ownerTitle: (ptyId): string | null => workspace.titleForPty(ptyId),
+    onGoToPane: (ptyId): void => workspace.revealPty(ptyId),
+    onOpenUrl: (url) => void invoke('open_url', { url }).catch((e: unknown) => console.warn('open_url failed', e)),
+    onCopy: (text, what) => void copyText(text, what),
+    onStop: (l): void => {
+      const owner: string | null = l.ptyId === null ? null : workspace.titleForPty(l.ptyId);
+      void stopListener(l, owner, (o) => confirmDialog.open(o), ports);
+    },
+  },
   onStart: (row) => actOnContainerRow(row, 'start'),
   onStop: (row) => actOnContainerRow(row, 'stop'),
   onStartEngine: (engine) =>
@@ -857,8 +872,9 @@ const showSetup = async (): Promise<void> => {
 };
 // Opened before the first pane mounts so the pane fits the narrowed area and keeps focus.
 panel.setContainersStore(containers);
+panel.setPortsStore(ports);
 void containers.start();
-panel.applyDashboardSettings(payload.settings.dashboard);
+panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop.animate);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
 panel.setOpen(payload.settings.dashboard.visibleOnStart);
@@ -900,6 +916,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   getPinnedFolders: pinnedFolders,
   getRepoFolder: () => currentRepo?.root ?? null,
   containers,
+  ports,
   onOpenIn: openIn,
   onDeleteWorktree: (root, w) =>
     deleteWorktree(root, w, {
@@ -1041,6 +1058,6 @@ onSettingsChanged((p) => {
   shortcutsTab.update(p.settings.keybindings);
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
-  panel.applyDashboardSettings(p.settings.dashboard);
+  panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop.animate);
   void refreshProfiles().then(() => settingsTab.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

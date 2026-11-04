@@ -1,0 +1,64 @@
+/* The dashboard's Ports section. Rows reuse the favorite row styles. */
+.favorite-row.port-row {
+  padding-left: 8px;
+}
+
+.port-dot {
+  background: #5fbf7a;
+}
+
+/* Reachable from other machines, not just this one. */
+.port-dot.exposed {
+  background: #d9a441;
+}
+
+.port-number {
+  flex: 0 0 auto;
+  min-width: 4.5ch;
+  font-variant-numeric: tabular-nums;
+  color: var(--content-fg);
+}
+
+.port-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa6ad;
+}
+
+.port-owner {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.port-others {
+  color: #9aa6ad;
+  font-size: 11px;
+}
+
+/* A port that just opened catches the eye once, then settles. */
+.port-row.fresh {
+  animation: port-fresh 1.6s ease-out;
+}
+
+@keyframes port-fresh {
+  0% {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .port-row.fresh {
+    animation: none;
+    border-color: var(--accent);
+  }
+}

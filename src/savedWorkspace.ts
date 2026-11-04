@@ -42,6 +42,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
   | { kind: 'search'; root: string; query: string; options: SearchOptions }
   /** The Containers pane saves no state; its containers come from the engines. */
   | { kind: 'containers' }
+  /** The Ports pane saves no state; its ports come from the OS. */
+  | { kind: 'ports' }
 );
 
 export type SavedTerminalPane = Extract<SavedPane, { kind: 'terminal' }>;
@@ -156,6 +158,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
     };
   },
   containers: (_raw, base) => ({ ...base, kind: 'containers' }),
+  ports: (_raw, base) => ({ ...base, kind: 'ports' }),
 };
 
 /** `kind` overrides the entry's own, for version 1 and 2 `terminals` entries, which have none. */

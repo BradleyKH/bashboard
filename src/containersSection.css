@@ -3,7 +3,7 @@
   display: none;
 }
 
-#dashboard .containers-open {
+#dashboard .section-open {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -11,7 +11,7 @@
   height: 18px;
 }
 
-.containers-open svg {
+.section-open svg {
   width: 13px;
   height: 13px;
   flex: none;

@@ -313,7 +313,7 @@ fn proc_names(sys: &mut System) -> ProcNames {
 
 /// The console host process serving `pid`'s console, which every process in one ConPTY shares.
 #[cfg(windows)]
-fn console_host(pid: u32) -> Option<usize> {
+pub(crate) fn console_host(pid: u32) -> Option<usize> {
     const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
     const PROCESS_CONSOLE_HOST_PROCESS: u32 = 49;
     #[link(name = "ntdll")]
@@ -338,7 +338,7 @@ fn console_host(pid: u32) -> Option<usize> {
 }
 
 #[cfg(not(windows))]
-fn console_host(_pid: u32) -> Option<usize> {
+pub(crate) fn console_host(_pid: u32) -> Option<usize> {
     None
 }
 

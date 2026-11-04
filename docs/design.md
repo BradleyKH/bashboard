@@ -1181,10 +1181,10 @@ which open the app dialog (4.18) on those tabs. The × that hides the
 panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
 parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
 
-**Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, External
-sessions, and System, in that default order; Clock and Launch start in the top slot and the rest
+**Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports,
+External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
-Favorites, Layouts, System, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
+Favorites, Layouts, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
 panel no row's menu claims and lists every element with a check on the shown ones; choosing one
 flips its toggle. A disabled element is gone from the panel, not collapsed, and its
@@ -1195,8 +1195,8 @@ Clicking a section's header collapses or expands it, and which sections are coll
 with the workspace (section 7). A thin rule separates each element from the one above it, and
 the top slot from Pins below it.
 
-**Order.** The elements reorder by drag: a section by its header, the clock by grabbing
-anywhere on it, with the same movement threshold as favorite rows, so a click on a header still
+**Order.** The elements reorder by drag: a section by its header, the clock and Wave by grabbing
+anywhere on them, with the same movement threshold as favorite rows, so a click on a header still
 collapses or expands it. While dragging, a line in the accent color shows where the element
 will land, at whichever gap is nearest the pointer; Pins and the footer offer no drop position.
 Any element can be dropped in the top slot above Pins or the lower list below it, and each slot
@@ -1216,6 +1216,17 @@ query unit on the clock element, so the grid and time stay on one line down to t
 minimum. Its accessible name is the full time with AM or PM. It updates on each second
 boundary only while the panel is on screen and the window is shown, catching up at once on
 show, and no timer runs while it is disabled.
+
+**Wave.** A looping line (a Lissajous figure) 56 px tall across the panel's width, with no
+header, no collapse, and no keyboard row. CPU load sets its horizontal frequency against a fixed
+vertical one, from a calm loop when idle to a tighter weave when busy; combined network traffic,
+on a log scale that tops out at 10 MB/s, speeds the slow turn of its phase and brightens the line.
+A faint copy a little behind the main line gives it depth. Both inputs ease toward each new
+reading over about 1.5 s, so the figure morphs rather than jumps. It samples `system_sample`
+every 2 s and draws at most 20 frames a second on a small 2D canvas, only while it is enabled,
+the panel is on screen, and the window is shown. With `backdrop.animate` off or reduced motion
+requested, it holds a still figure redrawn on each sample. Its tooltip and accessible name give
+the CPU and network readings.
 
 **Polling.** System, shown by `dashboard.sections.system`, polls the core on timers, and each
 timer runs only while the section is enabled, expanded, and on screen (the panel open or peeking) and the window is shown.
@@ -1290,10 +1301,11 @@ a git repo; "Explorer" is Open in File Explorer.
 | Layout | Open, Rename, Remove (asking inline, as its button does) |
 | Repo pin | Open, Explorer (a file pin's folder), Copy path, Rename, Remove pin |
 | Containers | Start when any container in the group is stopped, Stop when any runs, Open Containers |
+| Ports | Open localhost:&lt;port&gt;, Go to pane (when a pane started it), Show in Ports, Copy URL, Copy command line, Copy folder, Copy PID, Stop &lt;program&gt;... |
 | Claude | Focus, Copy path |
 
 A pin whose path is missing is dimmed, and its menu disables everything but Remove pin. A Containers row that only reports an engine not running has no menu.
-Section headers, tab group headers, the clock, the System section, the footer, gaps between
+Section headers, tab group headers, the clock, Wave, the System section, the footer, gaps between
 panes, and the backdrop have no menu.
 
 The Open menu button on those rows, and the Files row's menu button (4.12), open the same shared
@@ -1376,7 +1388,9 @@ Each card shows:
 
 - For a terminal, the status dot (4.8): `idle`, `working` (animated), `waiting` (pulsing,
   accent color), `done` (a still check mark), or `failed` (a still cross in the error color),
-  plus the attention pulse (4.7). Other kinds show their kind's icon.
+  plus the attention pulse (4.7). While a terminal is `waiting`, its whole card also breathes a
+  faint accent tint (2.4 s, phased off the wall clock so a rebuild of the card does not restart
+  it; a steady tint under reduced motion). Other kinds show their kind's icon.
 - The bound Claude session's name, or the working directory's last folder, with the full path
   beneath while the header's paths toggle (a `↳` button) is on. With it off (the default) the path line is
   absent and the full path joins the title's tooltip. While the terminal is `waiting`, the line
@@ -1400,6 +1414,20 @@ Each card shows:
 button (an arrow leaving a square) in the header. Shown while a container engine is available
 (3.10) and `dashboard.sections.containers` is on. The setting affects only the dashboard; the kind menu
 (4.11) offers a Containers pane whenever an engine is available.
+
+**Ports.** One row per listening TCP port (4.19) that looks like a dev server: one started from
+a pane, one with a shell or Claude Code among its live ancestors (`fromShell`), or one whose
+program is a known dev runtime (node, python, dotnet, java, postgres, and the like). Ports
+started from a pane come first, then the rest by port number. Other programs' ports (a music
+app, a sync client) are counted in one muted "+ N other programs" row that opens the Ports tab,
+and Windows services and Bashboard itself are left out. A row shows a dot (green for loopback only,
+amber when reachable from other machines), the port, the program, and, for a port traced to a
+pane, that pane's title in the accent color; its tooltip adds the command line, folder, pid, and
+uptime. Clicking a row goes to its pane, or opens the Ports tab on it when no pane started it. A
+port that opens while the section is shown flashes once in the accent color. The header's
+Manage button (the same arrow leaving a square as Containers) opens the Ports tab. The section
+polls only while enabled, expanded, and on screen with the window shown, and reads "Nothing
+listening" when the list is empty.
 
 **External sessions.** Claude Code sessions running outside this app (Windows Terminal, VS
 Code), sorted waiting, then busy, then idle, then by most recent change. Clicking a row shows
@@ -1594,8 +1622,9 @@ Every leaf of a tab's split tree is a pane of one kind:
 | `search` | Code search over a repo | 4.14 |
 | `scratch` | A plain text scratch pad | 4.15 |
 | `containers` | Docker and Podman containers grouped by Compose project | 4.16 |
+| `ports` | Listening TCP ports, their processes, and the panes that started them | 4.19 |
 
-Every kind but `scratch` and `containers` has a folder: a terminal's working directory, or the
+Every kind but `scratch`, `containers`, and `ports` has a folder: a terminal's working directory, or the
 folder another pane was opened for. A pane's repo is the repo (3.8) of its folder.
 
 - **Ids.** Pane ids come from a front-end counter: `p<n>` for terminals and `v<n>` for other
@@ -1616,7 +1645,7 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
 - **Common behavior.** Every kind has the title strip, focus border, docking, collapsing,
   and closing that terminals have. Status, attention, and the WebGL budget apply to terminals
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
-  which for other kinds is the folder's name, a scratch pad's first line, or "Containers".
+  which for other kinds is the folder's name, a scratch pad's first line, "Containers", or "Ports".
 - **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder,
   selected file, sort, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Search pane's
   repo, query, and options (rerun on restore), and a scratch pad's text. A pane whose folder no
@@ -2099,6 +2128,53 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
 - **About** (`aboutTab.ts`) shows the version, Check for updates (3.16), and links to this
   version's release notes on GitHub, the documentation, and the source.
 
+### 4.19 Ports
+
+Background dev servers are easy to lose track of, above all ones an agent started in a pane, so
+Bashboard lists every listening TCP port with the process behind it and, where it can tell, the
+pane that started it.
+
+**Source.** `ports_list()` (`ports.rs`) reads Windows' IPv4 and IPv6 listener tables
+(`GetExtendedTcpTable` with owning pids) and folds them into one row per port and process, its
+addresses IPv4 first. Each row joins the process's name, start time, command line, and working
+folder from `sysinfo`; command lines and folders are read once per process. A process in session
+0 (a Windows service), one whose session Windows will not report (a protected service), or pid
+4 and below (the kernel) is marked `system`, and Bashboard's own process `own`. `fromShell` is
+set when a live ancestor, the process included, is a shell (bash, sh, zsh, fish, cmd, pwsh,
+powershell, nu) or Claude Code, walked the same way as the owning pane below.
+
+**Owning pane.** A row's `ptyId` is the pane terminal (3.1) it came from. The core walks the
+process's parent chain up to a pane's shell, stopping at a parent that started after its child,
+which is a reused pid rather than the real parent. MSYS exec can leave a process parented to a
+fork stub that has already exited; such a process still shares its pane's ConPTY console host,
+which is checked next, as the activity sweep does (4.8). An attribution sticks to the process (its
+pid and start time) once found, so it survives the intermediate shells exiting, and lapses when
+the pane closes.
+
+**Polling.** `PortsStore` holds the latest list for the dashboard section and every Ports pane.
+It polls every 3 s while any of them wants it (the section shown and expanded on screen, or an
+expanded Ports pane), polls at once when the first one starts, and polls again right after a
+stop.
+
+**Stop.** A row's context menu offers Stop, never a button. It asks first, naming the program,
+pid, port, command line, and where it came from, then runs `taskkill /PID <pid> /T /F`, ending the
+process and everything it started. `ports_stop(pid, startedAt)` refuses when the pid now belongs
+to a process with another start time, refuses pid 4 and below and Bashboard itself, and a toast
+reports the result.
+
+**Ports tab.** The dashboard's Manage button and Show in Ports switch to the first Ports pane in
+tab order, expanding it if collapsed, or add a Ports tab holding one, then select the row asked
+for. A Ports pane is also in the kind menu (4.11).
+
+**Ports pane.** A filter field (matching the port, program, command line, folder, or owning
+pane's title; Escape clears it), a Windows services checkbox that also lists `system` rows,
+dimmed, and a count of the rows shown and hidden. Each row shows the dot, port, program, pid,
+address ("localhost", "all interfaces", or the address itself), the owning pane, and uptime, with
+the command line and folder in monospace beneath. Rows sort by port. A click selects a row, a
+double-click opens `http://localhost:<port>`, and the context menu is the dashboard's, less Show
+in Ports. When nothing on screen changed but the uptimes, a poll updates them in place rather than
+rebuilding the list. The pane saves no state.
+
 ## 5. Readability
 
 Bloom behind text is the main readability risk, so the whole backdrop is dimmed by `scrim.opacity`
@@ -2310,7 +2386,7 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
 
 - `setVisible(false)` on minimize, and when the window is fully covered (Tauri window events
   plus the page's `visibilitychange`), so it costs nothing while out of sight. The dashboard
-  clock and System section (4.6) pause on the same signal, and Matrix stops its loop on it too.
+  clock, Wave, and System section (4.6) pause on the same signal, and Matrix stops its loop on it too.
 - Ctrl+Shift+A pauses or resumes the mounted style and saves `backdrop.animate`; under None it
   does nothing and saves nothing.
 - None mounts nothing: no renderer, no frame loop, and no Three.js load.
@@ -2443,8 +2519,10 @@ it with no pins, and Automatic omits it.
       "layouts": false,
       "panes": true,
       "containers": true,
+      "ports": true,
       "external": true,
       "system": false,
+      "wave": false,
       "clock": false
     },
     "clockStyle": "both"

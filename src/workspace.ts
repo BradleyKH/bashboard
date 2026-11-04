@@ -8,6 +8,8 @@ import type { ConfirmOptions } from './confirmDialog';
 import { shellCommand, type Container } from './containers';
 import { ContainersPane } from './containersPane';
 import { ContainersStore } from './containersStore';
+import { PortsPane } from './portsPane';
+import { PortsStore } from './portsStore';
 import { boundSession, isBusy, lastFolder, type PaneCardInput } from './dashboardModel';
 import { DockOverlay } from './dockOverlay';
 import { openInEditor } from './editors';
@@ -180,6 +182,8 @@ export interface WorkspaceHooks {
   getRepoFolder?: () => string | null;
   /** The container snapshot every Containers pane shares (docs/design.md section 4.16). */
   containers?: ContainersStore;
+  /** The listener list every Ports pane and the dashboard share (docs/design.md section 4.19). */
+  ports?: PortsStore;
   /** A Git pane's worktree row opened its folder as another pane kind or in the editor. */
   onOpenIn?: OpenInHandler;
   /** Asks, then removes the worktree; resolves to a message to show inline, or null when removed or cancelled. */
@@ -231,7 +235,8 @@ export type PaneSpec =
   | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   | { kind: 'git'; root: string; tab?: GitTab }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
-  | { kind: 'containers' };
+  | { kind: 'containers' }
+  | { kind: 'ports' };
 
 /**
  * Owns the tabs, each with its own split tree, focus, and collapsed panes, plus every pane of
@@ -269,6 +274,7 @@ export class Workspace {
   /** Container shell pane ids to their container's name. */
   private readonly containerShells = new Map<string, string>();
   private emptyContainers: ContainersStore | undefined;
+  private emptyPorts: PortsStore | undefined;
   private readonly attention: PaneAttention;
   private readonly done = new DoneTracker();
   private readonly zoom = new PaneZoom();
@@ -838,6 +844,18 @@ export class Workspace {
     return null;
   }
 
+  /** The title of the terminal running pty `ptyId`, or null when no pane runs it. */
+  titleForPty(ptyId: number): string | null {
+    const id = this.terminalForPty(ptyId);
+    return id === null ? null : this.titleOf(id);
+  }
+
+  /** Brings forward the terminal running pty `ptyId`, in whatever tab holds it. */
+  revealPty(ptyId: number): void {
+    const id = this.terminalForPty(ptyId);
+    if (id !== null) this.revealPane(id);
+  }
+
   /**
    * Design 3.13: makes the pane's tab active and the source of the next split. A collapsed pane
    * has no place in the tree, so its tab's own focused pane is the source.
@@ -896,6 +914,7 @@ export class Workspace {
       if (pane instanceof GitPane) return { key: id, collapsed, kind: 'git', ...pane.saved() };
       if (pane instanceof SearchPane) return { key: id, collapsed, kind: 'search', ...pane.saved() };
       if (pane instanceof ContainersPane) return { key: id, collapsed, kind: 'containers' };
+      if (pane instanceof PortsPane) return { key: id, collapsed, kind: 'ports' };
       return null;
     });
   }
@@ -1071,6 +1090,33 @@ export class Workspace {
     }
     const pane = id ? this.paneViews.get(id) : undefined;
     if (pane instanceof ContainersPane) for (const key of groupKeys) pane.expandGroup(key);
+  }
+
+  /**
+   * Design 4.19: shows the first Ports pane in tab order, or appends a Ports tab, then selects
+   * the row with that `listenerKey`.
+   */
+  openPorts(key?: string): void {
+    const find = (tabs: TabState[]) =>
+      tabs.flatMap((t) => t.panes).find((id) => this.paneViews.get(id) instanceof PortsPane);
+    let id = find(this.store.state.tabs);
+    if (id) {
+      if (this.store.isCollapsed(id)) this.expandPane(id);
+      else this.focusPane(id);
+    } else {
+      this.openLayout(
+        {
+          name: 'Ports',
+          panes: [{ key: 'p', kind: 'ports', collapsed: false }],
+          layout: { kind: 'pane', paneId: 'p' },
+          focused: 'p',
+        },
+        'Ports',
+      );
+      id = find([this.store.active]);
+    }
+    const pane = id ? this.paneViews.get(id) : undefined;
+    if (pane instanceof PortsPane && key !== undefined) pane.highlight(key);
   }
 
   /** The repos' pins changed; Files panes refresh their pin buttons. */
@@ -1391,6 +1437,8 @@ export class Workspace {
         return { kind: 'search', root: p.root, query: p.query, options: p.options };
       case 'containers':
         return { kind: 'containers' };
+      case 'ports':
+        return { kind: 'ports' };
     }
   }
 
@@ -1413,6 +1461,8 @@ export class Workspace {
         return { kind: 'search', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'containers':
         return { kind: 'containers' };
+      case 'ports':
+        return { kind: 'ports' };
     }
   }
 
@@ -1459,6 +1509,9 @@ export class Workspace {
         break;
       case 'containers':
         pane = this.createContainers(id, host, expanded);
+        break;
+      case 'ports':
+        pane = this.createPorts(id, host, expanded);
         break;
     }
     this.paneViews.set(id, pane);
@@ -1602,6 +1655,23 @@ export class Workspace {
       // Without a store from the app (a browser-only run) the pane shows no engines.
       store: this.hooks.containers ?? (this.emptyContainers ??= new ContainersStore()),
       onShell: (c) => this.openContainerShell(id, c),
+      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
+    });
+  }
+
+  private createPorts(id: string, host: HTMLElement, expanded: boolean): PortsPane {
+    return new PortsPane({
+      host,
+      paneId: id,
+      settings: this.paneSettings(),
+      expanded,
+      keymap: () => this.config.keymap,
+      dispatch: (a) => this.dispatch(a),
+      onFocus: () => this.setFocused(id),
+      // Without a store from the app (a browser-only run) the pane lists nothing.
+      store: this.hooks.ports ?? (this.emptyPorts ??= new PortsStore()),
+      ownerTitle: (ptyId) => this.titleForPty(ptyId),
+      onGoToPane: (ptyId) => this.revealPty(ptyId),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
     });
   }
@@ -1952,6 +2022,9 @@ export class Workspace {
     if (pane instanceof ContainersPane) {
       return { ...common, kind: 'containers', title: pane.title(), folder: null, confirmClose: false };
     }
+    if (pane instanceof PortsPane) {
+      return { ...common, kind: 'ports', title: pane.title(), folder: null, confirmClose: false };
+    }
     return null;
   }
 
@@ -2023,7 +2096,8 @@ export class Workspace {
       pane instanceof FilesPane ||
       pane instanceof GitPane ||
       pane instanceof SearchPane ||
-      pane instanceof ContainersPane
+      pane instanceof ContainersPane ||
+      pane instanceof PortsPane
     ) {
       return pane.title();
     }

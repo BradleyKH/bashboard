@@ -358,6 +358,12 @@ network receive and send rates with a sparkline for each, and free space on each
 80% and red at 90%. CPU and network fill in on the second sample after the section starts. It
 samples only while it is expanded, the panel is on screen, and the window is shown.
 
+The **Wave**, also off by default, is a slowly turning looped line that reacts to your machine:
+it weaves tighter as CPU load rises and turns faster and brighter with network traffic. Hover it
+for the readings. Like the clock it has no header; drag it anywhere on the panel to move it. It
+holds still when the background animation is paused (Ctrl+Shift+A) or Windows asks apps to
+reduce motion.
+
 **Favorites** are folders you open terminals in often. By default they live behind the
 **Favorites** button in the panel's top bar, which drops a list that filters as you type;
 Ctrl+Shift+O opens the same list in the middle of the window. Enter or a click opens the selection
@@ -492,11 +498,38 @@ running container.
 Container shells are not restored on relaunch and are not saved in layouts. The Containers pane
 itself is.
 
+### Ports
+
+The **Ports** section of the dashboard lists what is listening for connections on your machine,
+so a dev server started in the background (by you or by Claude) never goes unnoticed. Each row
+shows the port, the program, and, when it was started from one of your panes, that pane's name.
+Ports started from panes come first. The dot is green for a port only this machine can reach and
+amber for one open to your network. Hover a row for its full command line, folder, process id,
+and how long it has been up. A port that opens while you are watching flashes once.
+
+Click a row to jump to the pane that started it, or, for one no pane started, to see it in the
+Ports tab. Right-click a row to open it in your browser, copy its URL, command line, folder, or
+process id, or **Stop** it. Stop asks first, then ends the program and everything it started.
+The section lists dev servers: anything started from a terminal or by a program like node,
+python, or dotnet. Other apps that listen, such as a music player or a sync client, are counted
+in a "+ N other programs" row that opens the Ports tab, and Windows services and Bashboard itself
+are left out. The Manage button (an arrow
+leaving a square) in the header opens the Ports tab.
+
+The **Ports pane** lists every listening port with its full command line and folder, sorted by
+port. Type in the filter to narrow it by port, program, command, folder, or pane name (Escape
+clears it), and tick **Windows services** to include the system's own ports, dimmed.
+Double-click a row to open it in your browser; right-click for the same menu as the dashboard.
+You can also turn any pane into a Ports pane from its kind menu.
+
 ## Attention and status
 
 When a terminal starts waiting or rings the bell, its pane border (or its card, if collapsed)
 pulses until you look at it, and the taskbar button flashes if the window is unfocused. A
 terminal you are already looking at (the focused pane in a focused window) is not marked.
+
+A waiting terminal's dashboard card glows faintly in the accent color for as long as it waits,
+whether or not you have looked at it.
 
 A waiting terminal shows why: the pane card, the status dot's tooltip on the title strip, the
 tab's tooltip, and an external session's row carry the message from Claude's notification (for

@@ -163,8 +163,10 @@ pub struct DashboardSections {
     pub layouts: bool,
     pub panes: bool,
     pub containers: bool,
+    pub ports: bool,
     pub external: bool,
     pub system: bool,
+    pub wave: bool,
     pub clock: bool,
 }
 
@@ -358,8 +360,10 @@ impl Default for Settings {
                     layouts: false,
                     panes: true,
                     containers: true,
+                    ports: true,
                     external: true,
                     system: false,
+                    wave: false,
                     clock: false,
                 },
                 clock_style: "both".into(),
@@ -803,8 +807,10 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             layouts: section(&mut w, "layouts", d.dashboard.sections.layouts),
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
             containers: section(&mut w, "containers", containers_default),
+            ports: section(&mut w, "ports", d.dashboard.sections.ports),
             external: section(&mut w, "external", d.dashboard.sections.external),
             system: section(&mut w, "system", d.dashboard.sections.system),
+            wave: section(&mut w, "wave", d.dashboard.sections.wave),
             clock: section(&mut w, "clock", d.dashboard.sections.clock),
         },
         clock_style: pick(
@@ -1354,8 +1360,10 @@ mod tests {
                 layouts: false,
                 panes: true,
                 containers: true,
+                ports: true,
                 external: true,
                 system: false,
+                wave: false,
                 clock: false
             }
         );

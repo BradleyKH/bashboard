@@ -18,7 +18,7 @@ describe('parseCollapsedSections', () => {
   });
 
   it('keeps every known name in order', () => {
-    const all = ['pins', 'favorites', 'layouts', 'panes', 'containers', 'external', 'system'];
+    const all = ['pins', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'external', 'system'];
     expect(parseCollapsedSections(all)).toEqual(all);
     expect(parseCollapsedSections(['panes', 'pins'])).toEqual(['panes', 'pins']);
   });
@@ -34,8 +34,8 @@ describe('parseCollapsedSections', () => {
     ]);
   });
 
-  it('drops the clock, which is never collapsible', () => {
-    expect(parseCollapsedSections(['clock'])).toEqual([]);
+  it('drops the clock and Wave, which are never collapsible', () => {
+    expect(parseCollapsedSections(['clock', 'wave'])).toEqual([]);
     expect(parseCollapsedSections(['panes', 'clock'])).toEqual(['panes']);
   });
 });
@@ -61,8 +61,10 @@ describe('DEFAULT_ELEMENT_ORDER', () => {
       'layouts',
       'panes',
       'containers',
+      'ports',
       'external',
       'system',
+      'wave',
     ]);
   });
 });
@@ -85,12 +87,14 @@ describe('parseSectionOrder', () => {
     expect(parseSectionOrder(raw)).toEqual([
       'external',
       'system',
+      'wave',
       'clock',
       'launch',
       'favorites',
       'layouts',
       'panes',
       'containers',
+      'ports',
     ]);
   });
 
@@ -104,8 +108,10 @@ describe('parseSectionOrder', () => {
     const custom: DashboardElement[] = [
       'clock',
       'launch',
+      'wave',
       'system',
       'external',
+      'ports',
       'containers',
       'panes',
       'layouts',
@@ -115,29 +121,20 @@ describe('parseSectionOrder', () => {
   });
 
   it('inserts one missing element after its nearest default predecessor', () => {
-    expect(parseSectionOrder(['clock', 'launch', 'favorites', 'layouts', 'containers', 'external', 'system'])).toEqual([
-      'clock',
-      'launch',
-      'favorites',
-      'layouts',
-      'panes',
-      'containers',
-      'external',
-      'system',
-    ]);
+    expect(
+      parseSectionOrder(['clock', 'launch', 'favorites', 'layouts', 'containers', 'ports', 'external', 'system', 'wave']),
+    ).toEqual(def);
   });
 
   it('puts a missing first element at index 0', () => {
-    expect(parseSectionOrder(['launch', 'favorites', 'layouts', 'panes', 'containers', 'external', 'system'])).toEqual(def);
-    expect(parseSectionOrder(['launch', 'layouts', 'favorites', 'panes', 'containers', 'external', 'system'])).toEqual([
+    const rest = ['panes', 'containers', 'ports', 'external', 'system', 'wave'];
+    expect(parseSectionOrder(['launch', 'favorites', 'layouts', ...rest])).toEqual(def);
+    expect(parseSectionOrder(['launch', 'layouts', 'favorites', ...rest])).toEqual([
       'clock',
       'launch',
       'layouts',
       'favorites',
-      'panes',
-      'containers',
-      'external',
-      'system',
+      ...rest,
     ]);
   });
 
@@ -148,9 +145,11 @@ describe('parseSectionOrder', () => {
       'favorites',
       'external',
       'system',
+      'wave',
       'layouts',
       'panes',
       'containers',
+      'ports',
     ]);
     expect(parseSectionOrder(['clock'])).toEqual(def);
   });
@@ -162,8 +161,10 @@ describe('parseSectionOrder', () => {
       'layouts',
       'panes',
       'containers',
+      'ports',
       'external',
       'system',
+      'wave',
       'clock',
       'launch',
     ]);

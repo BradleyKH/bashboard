@@ -12,19 +12,24 @@ export const DEFAULT_ELEMENT_ORDER = [
   'layouts',
   'panes',
   'containers',
+  'ports',
   'external',
   'system',
+  'wave',
 ] as const;
 
 export type DashboardElement = (typeof DEFAULT_ELEMENT_ORDER)[number];
 
-/** The collapsible sections: Pins and every element except the clock and Launch. */
-export type DashboardSection = 'pins' | Exclude<DashboardElement, 'clock' | 'launch'>;
+/** Elements with no header to collapse them by. */
+type Uncollapsible = 'clock' | 'launch' | 'wave';
+
+/** The collapsible sections: Pins and every element except the clock, Launch, and Wave. */
+export type DashboardSection = 'pins' | Exclude<DashboardElement, Uncollapsible>;
 
 const SECTIONS: readonly DashboardSection[] = [
   'pins',
   ...DEFAULT_ELEMENT_ORDER.filter(
-    (e): e is Exclude<DashboardElement, 'clock' | 'launch'> => e !== 'clock' && e !== 'launch',
+    (e): e is Exclude<DashboardElement, Uncollapsible> => e !== 'clock' && e !== 'launch' && e !== 'wave',
   ),
 ];
 
@@ -35,8 +40,10 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
   layouts: false,
   panes: true,
   containers: true,
+  ports: true,
   external: true,
   system: false,
+  wave: false,
   clock: false,
 };
 
@@ -47,8 +54,10 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
   layouts: 'Layouts',
   panes: 'Panes',
   containers: 'Containers',
+  ports: 'Ports',
   external: 'External sessions',
   system: 'System',
+  wave: 'Wave',
   clock: 'Clock',
 };
 

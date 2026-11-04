@@ -15,6 +15,8 @@ Windows terminal built around Claude Code: split terminal panes, a live status b
 - **Pick up where you left off.** Tabs, splits, and pads come back on relaunch; named layouts
   rebuild a whole workspace in one click. A command palette (Ctrl+Shift+P) reaches everything.
 - **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
+- **No forgotten servers.** The Ports list shows every dev server listening, which pane started
+  it, and stops it from a right-click.
 - **Drive it from the shell.** `bb edit src/main.ts:40`, `git diff | bb scratch`, `bb git`: the
   `bb` CLI opens panes from any prompt, so Claude can use it too.
 - **Draft prompts properly.** Scratch pads hold longer prompts and notes, then send them to the

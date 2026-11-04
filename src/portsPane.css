@@ -1,0 +1,152 @@
+.ports-body {
+  --ports-border: rgba(255, 255, 255, 0.1);
+  --ports-hover: rgba(255, 255, 255, 0.06);
+  --ports-selected: color-mix(in srgb, var(--accent) 18%, transparent);
+
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  outline: none;
+  font: 12px system-ui, sans-serif;
+  color: var(--content-fg);
+}
+
+.ports-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ports-border);
+}
+
+.ports-filter {
+  flex: 1 1 auto;
+  min-width: 80px;
+  padding: 3px 6px;
+  font: inherit;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--ports-border);
+  border-radius: 3px;
+  outline: none;
+}
+
+.ports-filter:focus {
+  border-color: var(--accent);
+}
+
+.ports-services {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--content-faint);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ports-count {
+  flex: none;
+  color: var(--content-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ports-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.ports-note {
+  padding: 10px 8px;
+  color: var(--content-faint);
+}
+
+.ports-row {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--ports-border);
+  border-left: 2px solid transparent;
+  cursor: default;
+}
+
+.ports-row:hover {
+  background: var(--ports-hover);
+}
+
+.ports-row.selected {
+  background: var(--ports-selected);
+  border-left-color: var(--accent);
+}
+
+.ports-row.system {
+  opacity: 0.65;
+}
+
+.ports-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.ports-port {
+  flex: none;
+  min-width: 5ch;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ports-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ports-pid,
+.ports-addr,
+.ports-up {
+  flex: none;
+  color: var(--content-faint);
+  font-size: 11px;
+}
+
+.ports-owner {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.ports-up {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.ports-detail,
+.ports-cwd {
+  display: block;
+  margin-top: 2px;
+  padding-left: calc(8px + 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--content-faint);
+}
+
+.ports-cwd {
+  margin-top: 0;
+  opacity: 0.8;
+}
