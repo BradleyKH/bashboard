@@ -21,7 +21,7 @@ export class AboutTab {
     name.className = 'about-tab-name';
     name.textContent = 'Bashboard';
     const tagline = document.createElement('p');
-    tagline.textContent = 'A terminal for Claude Code over a living backdrop.';
+    tagline.textContent = 'A multipurpose terminal built for Claude Code.';
     const version = document.createElement('p');
     version.className = 'app-dialog-note';
     version.textContent = 'Version unknown';

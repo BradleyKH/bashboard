@@ -593,6 +593,10 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     saveSetting(['dashboard', 'sections', el], shown).catch((err: unknown) =>
       showToast(`Could not save the setting: ${String(err)}`),
     ),
+  onSetClockStyle: (style) =>
+    saveSetting(['dashboard', 'clockStyle'], style).catch((err: unknown) =>
+      showToast(`Could not save the setting: ${String(err)}`),
+    ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   ports: {
     onOpenPorts: (key, showAll): void => workspace.openPorts(key, showAll),

@@ -69,7 +69,7 @@
     "copyright": "Copyright (c) 2026 Bradley Harris",
     "homepage": "https://github.com/BradleyKH/bashboard",
     "licenseFile": "../LICENSE",
-    "shortDescription": "A Windows terminal for Claude Code: Git Bash panes over a live colony simulation.",
+    "shortDescription": "A multipurpose terminal built for Claude Code.",
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",

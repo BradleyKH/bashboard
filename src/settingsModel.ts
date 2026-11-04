@@ -1,5 +1,6 @@
 import { ACCENT_PRESETS } from './accent';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
+import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { DEFAULT_ELEMENT_ORDER, ELEMENT_LABELS } from './dashboardSections';
 import type { Settings } from './settings';
@@ -37,6 +38,10 @@ export interface SettingsField {
   applies: AppliesWhen;
   /** A subheading shown above the first field of a run of fields sharing it. */
   group?: string;
+  /** Takes half the row, beside a neighboring half field when the dialog is wide enough. */
+  half?: boolean;
+  /** Puts the control right after its label instead of in the tab's right-hand control column. */
+  inline?: boolean;
   /** Shown only while every condition holds; for settings that do nothing otherwise. */
   shownWhen?: ShownWhen | ShownWhen[];
 }
@@ -65,8 +70,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Terminal',
     fields: [
-      { path: ['scrollback'], label: 'Scrollback', kind: 'number', min: 0, max: 1000000, step: 1000, unit: 'lines', integer: true, applies: 'live' },
-      { path: ['terminal', 'doneAfterSeconds'], label: 'Mark long commands done after', kind: 'number', min: 0, max: 86400, step: 1, unit: 's', integer: true, hint: '0 turns it off; Git Bash with the ~/.bashrc lines only', applies: 'live' },
       { path: ['terminal', 'notifyWhenWaiting'], label: 'Notify when a terminal needs you', kind: 'toggle', hint: 'Only while Bashboard is in the background', applies: 'live' },
       {
         path: ['shell', 'defaultProfile'],
@@ -91,13 +94,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         hint: 'Used when no folder is inherited; may contain %VARS%',
         applies: 'newPanes',
       },
+      { path: ['scrollback'], label: 'Scrollback', kind: 'number', min: 0, max: 1000000, step: 1000, unit: 'lines', integer: true, applies: 'live' },
+      { path: ['terminal', 'doneAfterSeconds'], label: 'Mark long commands done after', kind: 'number', min: 0, max: 86400, step: 1, unit: 's', integer: true, hint: '0 turns it off; Git Bash with the ~/.bashrc lines only', applies: 'live' },
     ],
   },
   {
     title: 'Dashboard',
     fields: [
-      { path: ['dashboard', 'visibleOnStart'], label: 'Show the dashboard at launch', kind: 'toggle', applies: 'nextLaunch' },
-      { path: ['dashboard', 'peekOnWaiting'], label: 'Peek when a terminal is waiting', kind: 'toggle', applies: 'live' },
+      { path: ['dashboard', 'visibleOnStart'], label: 'Show the dashboard at launch', kind: 'toggle', applies: 'nextLaunch', half: true },
+      { path: ['dashboard', 'peekOnWaiting'], label: 'Peek when a terminal is waiting', kind: 'toggle', applies: 'live', half: true },
       {
         path: ['dashboard', 'side'],
         label: 'Dashboard side',
@@ -107,6 +112,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'left', label: 'Left' },
         ],
         applies: 'live',
+        inline: true,
       },
       ...DEFAULT_ELEMENT_ORDER.map((id): SettingsField => ({
         path: ['dashboard', 'sections', id],
@@ -114,18 +120,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         kind: 'toggle',
         applies: 'live',
         group: 'Show on the dashboard',
+        half: true,
       })),
       {
         path: ['dashboard', 'clockStyle'],
         label: 'Clock style',
         kind: 'select',
-        options: [
-          { value: 'both', label: 'Binary and time' },
-          { value: 'time', label: 'Time only' },
-          { value: 'binary', label: 'Binary only' },
-        ],
+        options: [...CLOCK_STYLE_OPTIONS],
         applies: 'live',
         group: 'Show on the dashboard',
+        inline: true,
         shownWhen: { path: ['dashboard', 'sections', 'clock'], value: true },
       },
     ],
@@ -133,9 +137,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Appearance',
     fields: [
-      { path: ['font', 'family'], label: 'Font family', kind: 'text', suggestFrom: 'fonts', applies: 'live' },
-      { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live' },
-      { path: ['accentColor'], label: 'Accent color', kind: 'select', options: ACCENT_PRESETS, swatches: true, applies: 'live' },
+      { path: ['font', 'family'], label: 'Font family', kind: 'text', suggestFrom: 'fonts', applies: 'live', inline: true },
+      { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live', inline: true },
+      { path: ['accentColor'], label: 'Accent color', kind: 'select', options: ACCENT_PRESETS, swatches: true, applies: 'live', half: true },
       {
         path: ['contentTextColor'],
         label: 'Text color',
@@ -144,6 +148,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         swatches: true,
         swatchColor: (mode, s) => contentTextColor(mode, s.accentColor),
         applies: 'live',
+        half: true,
       },
     ],
   },
@@ -160,8 +165,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'matrix', label: 'Matrix' },
         ],
         applies: 'live',
+        half: true,
       },
-      { path: ['backdrop', 'animate'], label: 'Animate', kind: 'toggle', hint: 'Off freezes it on a still frame', applies: 'live', shownWhen: IS_DRAWN },
+      { path: ['backdrop', 'animate'], label: 'Animate', kind: 'toggle', hint: 'Off freezes it on a still frame', applies: 'live', shownWhen: IS_DRAWN, half: true },
       {
         path: ['backdrop', 'maxFps'],
         label: 'Frame rate cap',
@@ -290,15 +296,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         integer: true,
         hint: '0 turns background fetch off',
         applies: 'live',
+        inline: true,
       },
     ],
   },
   {
     title: 'Restore',
     fields: [
-      { path: ['restore', 'enabled'], label: 'Restore panes at launch', kind: 'toggle', applies: 'nextLaunch' },
-      { path: ['restore', 'resumeClaude'], label: 'Resume Claude Code sessions', kind: 'toggle', applies: 'nextLaunch' },
-      { path: ['restore', 'scrollback'], label: 'Restore terminal scrollback', kind: 'toggle', applies: 'nextLaunch' },
+      { path: ['restore', 'enabled'], label: 'Restore panes at launch', kind: 'toggle', applies: 'nextLaunch', half: true },
+      { path: ['restore', 'resumeClaude'], label: 'Resume Claude Code sessions', kind: 'toggle', applies: 'nextLaunch', half: true },
+      { path: ['restore', 'scrollback'], label: 'Restore terminal scrollback', kind: 'toggle', applies: 'nextLaunch', half: true },
     ],
   },
 ];

@@ -174,6 +174,9 @@ built app:
 - Ctrl+Shift+N jumps to the next waiting, done, or failed terminal
 - Ctrl+Shift+D toggles the dashboard, and Ctrl+Shift+A pauses or resumes the background
   animation; confirm WebView2 does not take Ctrl+Shift+A
+- F1 and Ctrl+, open the app dialog on Help and Settings, Ctrl+Tab and Ctrl+PageDown move
+  between its tabs, and F1 again closes it; confirm WebView2 does not take Ctrl+PageUp or
+  Ctrl+PageDown
 - a right-click in a terminal shows no browser menu
 
 ## Debugging input

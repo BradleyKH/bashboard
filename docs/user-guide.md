@@ -318,8 +318,9 @@ the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
 header, or the clock, to put the sections in a different order, in the top slot above Pins or
-the list at the bottom; that is remembered too. Settings
-shows or hides each one (see [Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
+the list at the bottom; that is remembered too. Right-click an empty spot or a section header
+for a menu that shows or hides each section, or use Settings (see
+[Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
 Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
 section appears only while there are some. Hover any favorite, recent folder, card, or session
 for a folder button that opens its folder in File Explorer, and an Open menu beside it that opens
@@ -348,8 +349,8 @@ fits.
 
 The **clock**, which is off by default, is one line at the top of the panel, above Launch: three
 rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
-`h:mm` beside them. Clock style in the Settings tab shows just the time or just the dots
-instead. Drag it down among the other sections to move it there, or back to the top.
+`h:mm` beside them. Right-click the clock to show just the time or just the dots instead,
+or to hide it; Clock style in the Settings tab does the same. Drag it down among the other sections to move it there, or back to the top.
 It ticks only while the panel is on screen.
 
 The **System** section is off by default; turn it on under "Show on the
@@ -517,23 +518,27 @@ are left out. The Manage button (an arrow
 leaving a square) in the header opens the Ports tab.
 
 The **Ports pane** lists every listening port in columns (port, program, the pane that started
-it, address, process id, and uptime), sorted by port. Each port's folder gets its own column
-when the pane is wide enough, and sits beneath the row otherwise. Tick **Command
-lines** to show each port's full command line under its folder. Click a column header to sort by it, and click it again to reverse the
-order. Each row has **Open**, **Go to pane**, and **Stop** buttons. The
-Pane column is left out when no listed port was started from a pane. Type in the
-filter to narrow it by port, program, command, folder, or pane name (Escape clears it). The pane
-opens with **Started from a pane** ticked, listing only ports your panes started; untick it to
-see everything else, and tick **Windows services** to include the system's own ports, dimmed.
-Opening the pane from the dashboard on a port no pane started unticks it for you. Double-click a row to open it in your browser;
-right-click for the same menu as the dashboard.
-You can also turn any pane into a Ports pane from its kind menu.
+it, address, process id, and uptime), sorted by port; click a column header to sort by it, and
+again to reverse. The Pane column is left out when no listed port was started from a pane. Each
+port's folder gets its own column when the pane is wide enough, and sits beneath the row
+otherwise; tick **Command lines** to show each full command line under its folder. Each row has
+**Open**, **Go to pane**, and **Stop** buttons, a double-click opens it in your browser, and a
+right-click gives the dashboard's menu.
+
+Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
+clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
+started; untick it to see everything else, and tick **Windows services** to include the system's
+own ports, dimmed. Opening the pane from the dashboard on a port no pane started unticks it for
+you. Any pane can also become a Ports pane from its kind menu.
 
 ## Attention and status
 
 When a terminal starts waiting or rings the bell, its pane border (or its card, if collapsed)
 pulses until you look at it, and the taskbar button flashes if the window is unfocused. A
 terminal you are already looking at (the focused pane in a focused window) is not marked.
+While Bashboard is in the background, a terminal that starts waiting also shows a Windows
+notification; click it to jump to that pane. Turn **Notify when a terminal needs you** off in
+Settings (`terminal.notifyWhenWaiting`) to stop them.
 
 A waiting terminal's dashboard card glows faintly in the accent color for as long as it waits,
 whether or not you have looked at it.

@@ -24,13 +24,13 @@ const TOUR: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Pane kinds',
     paragraphs: [
-      "Besides terminals, a pane can be a scratch pad ({newScratch}), a Files browser ({openFiles}), a Git pane ({openGit}), a code search ({openSearch}), or a containers view. The kind menu at the left of every title strip turns a pane into another kind in place, and Launch ({openLaunch}) opens any of them.",
+      "Besides terminals, a pane can be a scratch pad ({newScratch}), a Files browser ({openFiles}), a Git pane ({openGit}), a code search ({openSearch}), a Containers view, or a Ports list of listening dev servers. The kind menu at the left of every title strip turns a pane into another kind in place, and Launch ({openLaunch}) opens any of them.",
     ],
   },
   {
     title: 'Dashboard',
     paragraphs: [
-      '{toggleDashboard} shows or hides the dashboard. It lists every pane with its status, plus your favorite folders, layouts, the focused repo\'s pins, and containers. {focusDashboard} moves focus into it, where the arrow keys move between rows.',
+      '{toggleDashboard} shows or hides the dashboard. It lists every pane with its status, plus your favorite folders, layouts, the focused repo\'s pins, containers, and listening ports. Right-click an empty spot or a section header to choose which sections it shows. {focusDashboard} moves focus into it, where the arrow keys move between rows.',
       'Favorites ({openFavorite}) open a folder as a split; layouts ({openLayout}) restore a saved arrangement of panes.',
     ],
   },

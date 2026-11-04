@@ -16,7 +16,7 @@ const DEFAULT_EDITOR: Editor = { id: 'default', name: "The file's default app" }
 
 interface Control {
   field: SettingsField;
-  /** The label and control cells' wrapper, laid out on the parent grid via subgrid. */
+  /** The label and control cells' wrapper; full rows span both of the parent grid's columns, half rows one. */
   row: HTMLElement;
   sectionTitle: string;
   cell: HTMLElement;
@@ -239,6 +239,8 @@ export class SettingsTab {
 
     const row = document.createElement('div');
     row.className = 'settings-tab-row';
+    if (field.half) row.classList.add('settings-tab-row-half');
+    if (field.inline) row.classList.add('settings-tab-row-inline');
     row.append(labelCell, cell);
 
     const control: Control = { field, row, sectionTitle, cell, error, last: undefined, show: () => {} };

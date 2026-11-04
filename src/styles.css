@@ -1781,27 +1781,68 @@ body.dashboard-resizing {
 }
 
 .settings-tab-rows {
+  container-type: inline-size;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
   align-items: start;
 }
 
-/* Spans both columns so a hover band ties each label to its control; the negative margin keeps
-   the cells aligned with the headings while the band bleeds past them. */
+/* The negative margin keeps the cells aligned with the headings while the hover band bleeds past
+   them. Full rows keep one control column across the tab, so their controls line up. */
 .settings-tab-row {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: subgrid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+  column-gap: 16px;
   align-items: start;
   margin: 0 -6px;
   padding: 4px 6px;
   border-radius: 4px;
 }
 
+/* Half and inline rows put the control right after its label rather than at the column's edge. */
+.settings-tab-row-half {
+  grid-column: auto;
+}
+
+.settings-tab-row-half,
+.settings-tab-row-inline {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+}
+
+.settings-tab-row-half .settings-tab-control,
+.settings-tab-row-inline .settings-tab-control {
+  justify-content: flex-start;
+}
+
+/* A full-width select would mostly be empty space; text inputs still stretch. */
+.settings-tab-row-inline select.settings-tab-input {
+  flex: 0 1 auto;
+}
+
+/* Below this width two halves would crowd their labels, so each takes the full row. */
+@container (max-width: 480px) {
+  .settings-tab-row-half {
+    grid-column: 1 / -1;
+  }
+}
+
 .settings-tab-row:hover,
 .settings-tab-row:focus-within {
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* Toggles put the checkbox just left of its label, whatever the row's width. */
+.settings-tab-row-toggle {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+}
+
+.settings-tab-row-toggle .settings-tab-control {
+  order: -1;
+  justify-content: flex-start;
 }
 
 .settings-tab-row-toggle,

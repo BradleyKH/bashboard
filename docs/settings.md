@@ -32,7 +32,7 @@ in the file that is not a preset appears in the dialog as Custom.
 
 `contentTextColor` sets the color of text in scratch panes, the file preview and editor, search
 results and their preview, the Files list, the Git pane's file, commit, and branch lists and its
-diff, the Containers list and logs, and the dashboard's names, values, and clock. It is `accent`
+diff, the Containers list and logs, the Ports list, and the dashboard's names, values, and clock. It is `accent`
 (the default), a pale tint of the accent color that changes with it, or `white`. The tint stays
 softer than the accent, so links and highlights still stand out. Secondary text in those places,
 such as line numbers, quotes, sizes, and dates, takes a dimmer shade of it. Toolbars, buttons,
@@ -160,7 +160,7 @@ elements under "Show on the dashboard".
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
 the time, `"time"` for the time only, or `"binary"` for the dots only. An unknown value falls back
 to `both` with a notice. It applies on save and is the Clock style select under "Show on the
-dashboard", shown while the clock is on.
+dashboard", shown while the clock is on; right-clicking the clock sets it too.
 
 ```jsonc
 "dashboard": {
@@ -185,9 +185,16 @@ dashboard", shown while the clock is on.
 `done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
 the `~/.bashrc` lines only.
 
+`terminal.notifyWhenWaiting` (default `true`) shows a Windows notification when a terminal starts
+waiting while Bashboard is in the background; clicking it brings the window forward on that pane.
+
 ```jsonc
-"terminal": { "doneAfterSeconds": 30 }
+"terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true }
 ```
+
+`scrollback` (default 10000) is how many lines each terminal keeps. `shell.startingDirectory`
+(default `%USERPROFILE%`, and it may hold other `%VARS%`) is where a terminal starts when it has
+no folder to inherit. All of these are in the Terminal section of the Settings tab.
 
 `git.autoFetchMinutes` (default 5, 0 to 1440) is the number of minutes between background fetches
 of repos with an open Git pane; 0 turns them off. It applies on save and is also in the Git

@@ -1,6 +1,13 @@
 /** What the dashboard clock draws: the binary grid, `h:mm`, or both (`dashboard.clockStyle`). */
 export type ClockStyle = 'both' | 'time' | 'binary';
 
+/** Each style with its label, in the order the Settings tab and the clock's menu list them. */
+export const CLOCK_STYLE_OPTIONS: readonly { value: ClockStyle; label: string }[] = [
+  { value: 'both', label: 'Binary and time' },
+  { value: 'time', label: 'Time only' },
+  { value: 'binary', label: 'Binary only' },
+];
+
 /** Six bits of `n`, most significant first (index 0 is the leftmost dot). */
 export function sixBits(n: number): boolean[] {
   return Array.from({ length: 6 }, (_, i) => ((n >> (5 - i)) & 1) === 1)

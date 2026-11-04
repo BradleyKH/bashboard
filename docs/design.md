@@ -1212,7 +1212,9 @@ seconds, most significant bit on the left, lit dots in the accent color and unli
 The grid is as tall as the time's digits, so the digit height sets each dot's size. On the right is the time as
 `h:mm` in 12-hour time with no am/pm and no leading zero on the hour, in white with tabular
 numerals. `dashboard.clockStyle` (section 8) shows both, the time only (`time`), or the grid
-only (`binary`), applying live. The line is at most 60 px tall and shrinks with the panel's width through a container
+only (`binary`), applying live. Right-clicking the clock opens its own menu: the three styles
+as radio choices (Binary and time, Time only, Binary only), then Hide clock, each saving its
+setting. The line is at most 60 px tall and shrinks with the panel's width through a container
 query unit on the clock element, so the grid and time stay on one line down to the 280 px
 minimum. Its accessible name is the full time with AM or PM. It updates on each second
 boundary only while the panel is on screen and the window is shown, catching up at once on
@@ -1480,8 +1482,11 @@ existing `printf '\a'` hook):
 - A terminal being **looked at** (the focused, expanded pane of the active tab in a focused
   window) is not marked. Attention clears when the pane becomes the one looked at,
   including when switching to its tab or when the window regains focus with it focused.
-- If the window is unfocused, the taskbar button flashes. A toast is not sent, because the
-  existing `Notification` hook already raises one.
+- If the window is unfocused, the taskbar button flashes. For `waiting` (not the bell), and while
+  `terminal.notifyWhenWaiting` is on, a Windows notification (`toast.rs`) also shows the pane's
+  title and its waiting reason; clicking it brings the window forward and focuses that pane. A
+  debug build sends it under PowerShell's AppUserModelID, since Windows drops toasts from an id no
+  Start menu shortcut registers.
 
 `done` and `failed` (4.8) are quieter: they change the status dot on the title strip, card,
 tab, and group header, and nothing else. They raise no attention, so no pulse, taskbar flash, or
@@ -2488,7 +2493,7 @@ it with no pins, and Automatic omits it.
   "accentColor": "#4fb3c8",
   // accent or white: content text, read by CSS as --content-fg: scratch panes, the file preview, search
   // results and preview, the Files list, the Git file, commit, and branch lists and diff, the
-  // Containers list and logs, and the dashboard's names, values, and clock. Secondary text in those
+  // Containers list and logs, the Ports list, and the dashboard's names, values, and clock. Secondary text in those
   // places (line numbers, quotes, sizes, dates) takes dimmer shades of it; toolbars, buttons, and
   // the dashboard's gray labels stay UI gray. Terminals take it only for pure white: the default
   // foreground, bright white, and 256-color index 231 (plain white and truecolor white are
@@ -2519,8 +2524,9 @@ it with no pins, and Automatic omits it.
   },
   "scrollback": 10000,
   // A shell command that runs this many seconds and finishes unseen marks its terminal done or
-  // failed; 0 turns it off (4.8).
-  "terminal": { "doneAfterSeconds": 30 },
+  // failed; 0 turns it off (4.8). notifyWhenWaiting raises a Windows notification when a terminal
+  // starts waiting while the window is unfocused (4.7).
+  "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true },
   // side is right or left; an unknown value falls back to right. sections shows or hides each
   // dashboard element (4.6). An older file's containers.enabled is still read when
   // sections.containers is absent. clockStyle is both, time, or binary; an unknown value falls

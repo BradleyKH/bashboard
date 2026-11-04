@@ -73,7 +73,7 @@ from **Settings > Apps > Installed apps**.
 ## Documentation
 
 - [User guide](docs/user-guide.md): tabs, panes, the dashboard, Files, Git, code search,
-  attention, and the `bb` pane CLI.
+  containers, ports, attention, and the `bb` pane CLI.
 - [Shell and Claude Code setup](docs/setup.md): the `~/.bashrc` and PowerShell lines that let
   new panes open in the current folder, and the Claude Code hooks.
 - [Settings](docs/settings.md): the settings file and what each setting does.

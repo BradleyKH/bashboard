@@ -1,7 +1,7 @@
 [package]
 name = "bashboard"
 version = "0.2.10"
-description = "A terminal for Claude Code over a living backdrop"
+description = "A multipurpose terminal built for Claude Code"
 authors = ["Bradley Harris"]
 license = "MIT"
 edition = "2024"

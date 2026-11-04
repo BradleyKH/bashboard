@@ -1,5 +1,7 @@
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
 import { claudeLine } from './claudeModel';
+import { clockMenuItems } from './clockMenu';
+import type { ClockStyle } from './clockModel';
 import { ClaudeContexts } from './claudeContexts';
 import { attachContextMenu } from './contextMenu';
 import { DashboardClock } from './dashboardClock';
@@ -74,6 +76,8 @@ export interface DashboardCallbacks
   onOrderChange?: (order: DashboardElement[]) => void;
   /** The panel's own menu asked to show or hide an element; the setting's reload applies it. */
   onSetElementShown?: (element: DashboardElement, shown: boolean) => void;
+  /** The clock's menu picked a style; the setting's reload applies it. */
+  onSetClockStyle?: (style: ClockStyle) => void;
   /** Open menu on a folder row. */
   onOpenIn?: OpenInHandler;
   /** A Launch button: opens `kind` at the focused pane's repo root. */
@@ -141,6 +145,7 @@ export class DashboardPanel {
   private readonly elementList: HTMLElement;
   private readonly topSlot: HTMLElement;
   private readonly clock = new DashboardClock();
+  private clockStyle: ClockStyle = 'both';
   private readonly system = new DashboardSystem();
   private readonly wave = new DashboardWave();
   private readonly claude = new ClaudeContexts(() => this.render());
@@ -308,6 +313,13 @@ export class DashboardPanel {
     this.sessionList = this.section('external', 'External sessions');
     this.addSection('system', this.system.el, this.system.head);
     this.addElement('clock', this.clock.el, this.clock.el);
+    attachContextMenu(this.clock.el, () => ({
+      entries: clockMenuItems(
+        this.clockStyle,
+        (style) => this.callbacks.onSetClockStyle?.(style),
+        () => this.callbacks.onSetElementShown?.('clock', false),
+      ),
+    }));
     this.addElement('wave', this.wave.el, this.wave.el);
     this.installButton = document.createElement('button');
     this.installButton.type = 'button';
@@ -397,6 +409,7 @@ export class DashboardPanel {
   applyDashboardSettings(d: Settings['dashboard'], animate: boolean): void {
     this.shown = { ...d.sections };
     this.wave.setAnimate(animate);
+    this.clockStyle = d.clockStyle;
     this.clock.setStyle(d.clockStyle);
     this.setSide(d.side);
     this.layoutElements();

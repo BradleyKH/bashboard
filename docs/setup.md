@@ -8,7 +8,8 @@ lines to `~/.bashrc`, in a block
 marked `# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<` at the
 end of the file, below any prompt framework's init line. It backs the file up to
 `~/.bashrc.bashboard-backup` first, and creates `~/.bash_profile` when it is missing so login
-shells read `~/.bashrc`. To add them yourself, put these lines at the end of `~/.bashrc` (below
+shells read `~/.bashrc`. The Setup list in the Help tab (F1) shows whether each shell has the
+current lines, with an Install or Update button that does the same. To add them yourself, put these lines at the end of `~/.bashrc` (below
 a line such as `eval "$(starship init bash)"`):
 
 ```sh
@@ -100,8 +101,8 @@ and the hook script posts the event to the app with the pane id, which binds the
 pane. The script does nothing outside a Bashboard pane, so the same global hooks are harmless
 in Windows Terminal or VS Code.
 
-Open the dashboard and click **Install Claude Code hooks**, or use the Claude Code step of the
-setup wizard. The install needs `bash.exe` on `PATH`
+Open the dashboard and click **Install Claude Code hooks**, use the Claude Code step of the
+setup wizard, or click Install beside Claude Code hooks in the Setup list of the Help tab (F1). The install needs `bash.exe` on `PATH`
 (Git for Windows) and refuses with an explanation without it. It shows the JSON it will add and
 writes only after you confirm. It writes `~/.claude/hooks/bashboard-hook.sh` and appends one
 group per event to `~/.claude/settings.json`; your existing hooks are left untouched, and an
