@@ -61,6 +61,11 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
   clock: 'Clock',
 };
 
+/** Muted notes under the settings dialog's checkboxes, for elements whose name says little. */
+export const ELEMENT_HINTS: Partial<Record<DashboardElement, string>> = {
+  wave: 'A Lissajous figure that follows CPU and network load',
+};
+
 function isSection(v: unknown): v is DashboardSection {
   return typeof v === 'string' && (SECTIONS as readonly string[]).includes(v);
 }

@@ -2,7 +2,7 @@ import { ACCENT_PRESETS } from './accent';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
-import { DEFAULT_ELEMENT_ORDER, ELEMENT_LABELS } from './dashboardSections';
+import { DEFAULT_ELEMENT_ORDER, ELEMENT_HINTS, ELEMENT_LABELS } from './dashboardSections';
 import type { Settings } from './settings';
 
 export type FieldKind = 'toggle' | 'number' | 'slider' | 'text' | 'list' | 'select';
@@ -117,6 +117,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       ...DEFAULT_ELEMENT_ORDER.map((id): SettingsField => ({
         path: ['dashboard', 'sections', id],
         label: ELEMENT_LABELS[id],
+        hint: ELEMENT_HINTS[id],
         kind: 'toggle',
         applies: 'live',
         group: 'Show on the dashboard',
