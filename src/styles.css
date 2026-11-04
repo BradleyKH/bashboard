@@ -429,9 +429,12 @@ body.dashboard-left.dashboard-open #panes {
   right: 8px;
   width: var(--dashboard-width);
   z-index: 2;
+  /* The space on each side of every rule between elements, and between the top bar and the
+     first element, so an element sits centered wherever it is dragged. */
+  --element-space: 12px;
   box-sizing: border-box;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--element-space);
   padding: 10px;
   overflow-y: auto;
   border-radius: 6px;
@@ -477,12 +480,12 @@ body.dashboard-left.dashboard-peek:not(.dashboard-open) #dashboard {
   }
 }
 
-/* Pulled up into the panel's padding and over the column gap, so the row costs little height. */
+/* Pulled up into the panel's padding, so the row costs little height. */
 #dashboard .dashboard-top {
   display: flex;
   flex: 0 0 auto;
   justify-content: flex-end;
-  margin: -6px -4px -12px 0;
+  margin: -6px -4px 0 0;
   /* Stays at the panel's top edge so the close button survives scrolling; opaque so rows do not show through. The offset cancels the panel's 10px padding, which sticky positioning respects, so rows cannot scroll through a strip above the bar. */
   position: sticky;
   top: -10px;
@@ -552,6 +555,13 @@ body.dashboard-resizing {
   font-size: 14px;
 }
 
+/* Fonts center "+" on the math axis, below the cap-height glyphs beside it. The shorter line box
+   raises the glyph 1px; the extra bottom padding keeps the button the bar's height. */
+#dashboard .dashboard-top .dashboard-launch {
+  line-height: 16px;
+  padding-bottom: 4px;
+}
+
 #dashboard .dashboard-footer {
   display: flex;
   flex: 0 0 auto;
@@ -566,18 +576,18 @@ body.dashboard-resizing {
 #dashboard .dashboard-elements {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--element-space);
   margin-top: auto;
   position: relative;
 }
 
-/* The slot above Pins, ruled off from whatever follows it; the clock and Folder sit here by default. */
+/* The slot above Pins, ruled off from whatever follows it; the clock and Launch sit here by default. */
 #dashboard .dashboard-top-slot {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 10px;
+  gap: var(--element-space);
+  padding-bottom: var(--element-space);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -588,7 +598,7 @@ body.dashboard-resizing {
 
 /* Elements in the top slot are ruled off from a shown one above them, as in the lower list. */
 #dashboard .dashboard-top-slot > [data-element]:not([hidden]) ~ [data-element] {
-  padding-top: 10px;
+  padding-top: var(--element-space);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -603,7 +613,7 @@ body.dashboard-resizing {
 
 /* The top slot's own rule sits above Pins, so Pins has none; neither does the lower list's first element while Pins is hidden. */
 #dashboard .dashboard-elements > [data-element] {
-  padding-top: 10px;
+  padding-top: var(--element-space);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -958,6 +968,15 @@ body.dashboard-resizing {
 
 #dashboard .favorite-add {
   font-size: 14px;
+}
+
+#dashboard .panes-paths {
+  font-size: 14px;
+}
+
+#dashboard .panes-paths[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: #eef3f5;
 }
 
 #dashboard .favorite-add:disabled {

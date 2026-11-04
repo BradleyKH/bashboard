@@ -73,6 +73,8 @@ export interface SavedWorkspace {
   dashboardSectionOrder?: DashboardElement[];
   /** The elements in the dashboard's slot above Pins; absent means the clock and Folder. */
   dashboardTopElements?: DashboardElement[];
+  /** Whether the dashboard's Panes cards show folder paths; absent means hidden. */
+  showPanePaths?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
 }
@@ -269,17 +271,18 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (top) saved.dashboardTopElements = top;
   // Files saved before any element but the clock could sit in the top slot hold only this flag.
   else if (typeof raw.dashboardClockTop === 'boolean') saved.dashboardTopElements = raw.dashboardClockTop ? ['clock'] : [];
-  // Files saved before Folder was an element had its section fixed below the top slot, so it
-  // joins the top slot last, where it was.
+  // Files saved before Launch was an element had its section fixed below the top slot, so it
+  // joins the top slot last, where it was. `folder` and `repo` are its earlier names.
   const placed = [raw.dashboardSectionOrder, raw.dashboardTopElements].some(
-    (l) => Array.isArray(l) && l.includes('folder'),
+    (l) => Array.isArray(l) && ['launch', 'folder', 'repo'].some((name) => l.includes(name)),
   );
   if (!placed && saved.dashboardTopElements) {
     const order = saved.dashboardSectionOrder ?? [...DEFAULT_ELEMENT_ORDER];
-    const next = placeElement(order, saved.dashboardTopElements, 'folder', 'top', null);
+    const next = placeElement(order, saved.dashboardTopElements, 'launch', 'top', null);
     saved.dashboardSectionOrder = next.order;
     saved.dashboardTopElements = next.top;
   }
+  if (typeof raw.showPanePaths === 'boolean') saved.showPanePaths = raw.showPanePaths;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;
 }

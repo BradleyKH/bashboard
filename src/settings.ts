@@ -32,7 +32,7 @@ export interface Settings {
   };
   scrollback: number;
   /** Seconds a command runs before its finish is marked done; 0 turns command marks off. */
-  terminal: { doneAfterSeconds: number };
+  terminal: { doneAfterSeconds: number; notifyWhenWaiting: boolean };
   dashboard: {
     visibleOnStart: boolean;
     peekOnWaiting: boolean;
@@ -77,7 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
     matrix: { color: DEFAULT_MATRIX_COLOR_MODE, zoom: 1, speed: 10, density: 3 },
   },
   scrollback: 10000,
-  terminal: { doneAfterSeconds: 30 },
+  terminal: { doneAfterSeconds: 30, notifyWhenWaiting: true },
   dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both' },
   restore: { enabled: true, resumeClaude: true, scrollback: true },
   editor: { preferred: 'default', command: '' },

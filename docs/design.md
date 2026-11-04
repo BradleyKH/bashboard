@@ -1014,6 +1014,7 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+Z | Zoom or unzoom the focused pane (4.2) |
 | Ctrl+Shift+O | Open a favorite (picker; Enter opens it as a split, Ctrl+Enter opens it collapsed) |
 | Ctrl+Shift+R | Open a named layout (picker; opens it as a new tab, 4.6) |
+| Ctrl+Shift+L | Open the Launch menu over the focused pane (4.6) |
 | Ctrl+Shift+P | Open the command palette (below) |
 | Alt+Shift+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) |
 | Ctrl+Shift+T | New tab (4.10) |
@@ -1022,6 +1023,7 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+E | Files pane for the focused pane's repo (4.12) |
 | Ctrl+Shift+G | Git pane for the focused pane's repo (4.13) |
 | Ctrl+Shift+H | Search pane for the focused pane's repo (4.14) |
+| Ctrl+Shift+X | Open the focused pane's repo in the preferred editor, or its folder outside a repo (3.12) |
 | Ctrl+Tab, Ctrl+Shift+Tab | Next tab, previous tab (wrapping) |
 | Ctrl+Alt+1 to Ctrl+Alt+8 | Switch to that tab |
 | Ctrl+Alt+9 | Switch to the last tab |
@@ -1149,7 +1151,7 @@ toast naming the toggle's current keys and the edge handle. While the panel is n
 peeking, the edge handle, a pill in the 8 px gutter on the panel's side at mid-height that widens
 to a chevron on hover, opens it on click, so a user who never learned the shortcut is not stranded. Open, it narrows the panes
 from its side. Dragging its inner edge (its left edge when docked right, its right edge when
-docked left) resizes it, from 280 px (enough for the Folder section's row of buttons on
+docked left) resizes it, from 280 px (enough for the top bar and the Launch row each on
 one line) up to 60% of the window, and the width is saved with the workspace (section 7); it is
 the same width on either side. Its contents, top to bottom, are the top bar, the top slot, Pins,
 the lower list, and the footer. Pins, which follow the focused pane and appear and vanish with
@@ -1172,10 +1174,10 @@ and Keyboard shortcuts (?), which opens the help dialog, also bound to F1. The �
 panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
 parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
 
-**Elements.** The elements are Clock, Folder, Favorites, Layouts, Panes, Containers, External
-sessions, and System, in that default order; Clock and Folder start in the top slot and the rest
+**Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, External
+sessions, and System, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
-Favorites, Layouts, System, and Clock (Favorites and Layouts start as top bar menus), set from the settings
+Favorites, Layouts, System, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
 panel no row's menu claims and lists every element with a check on the shown ones; choosing one
 flips its toggle. A disabled element is gone from the panel, not collapsed, and its
@@ -1239,7 +1241,7 @@ the rows; the front end passes `includeDisks` on its 60 second beat.
 **Keyboard.** F6 moves focus into the panel, onto the row focused there last, else the focused
 pane's card, else the first row; F6 again, or Escape, returns focus to the focused pane. While the
 panel is hidden, F6 shows it as a peek that lasts until focus leaves it, instead of timing out.
-The rows are the top bar's buttons, every section header, the Folder section's
+The rows are the top bar's buttons, every section header, the Launch section's
 buttons, every favorite, recent folder, layout, pin, container, tab group header, pane card, and
 external session, and the footer's button, top to bottom, skipping collapsed and disabled
 sections:
@@ -1291,21 +1293,30 @@ The Open menu button on those rows, and the Files row's menu button (4.12), open
 menu below the button, toggling on a second press. The Git entry waits for the git probe, and the
 menu is dropped if another menu opened or closed meanwhile.
 
-**Folder.** The repo (3.8) of the focused pane's folder, or of the last focused pane that had
-one; a folder outside any repo counts as its own. A Files pane counts as the repo it was opened
-for, not the folder it is showing, so opening a pinned subfolder keeps the section on its repo.
-The header reads Folder with the folder's name right-aligned on the same line, cut with an
-ellipsis when long, and for a git repo the branch right-aligned on a line below it, so a collapsed
-section still shows both. While the panel is open the repo is re-read every 3 seconds, so a
-checkout in any shell shows up without a folder change. Under the header, a row of buttons opens a Terminal, Files, Git, or Search pane for the repo, or opens it
-in the editor (3.12). The Files, Git, and Search tooltips end with the keys of openFiles,
-openGit, and openSearch, which open the same pane at the same root, read on hover like the top
+**Launch.** Launch and Pins follow the repo (3.8) of the focused pane's folder, or of the last
+focused pane that had one; a folder outside any repo counts as its own. A Files pane counts as the
+repo it was opened for, not the folder it is showing, so opening a pinned subfolder keeps them on
+its repo. Under a **Launch** heading, which does not collapse, one row of equal icon buttons opens
+a Terminal, Files, Git (git repos only), Search, or Scratch pane, or opens the repo in the editor
+(3.12); the row fits on one line at the panel's minimum width. Each tooltip names the option, and
+those for Files, Git, Search, Scratch, and Editor end with the keys of openFiles, openGit,
+openSearch, newScratch, and openEditor, which open the same thing, read on hover like the top
 bar's; Terminal names none, since splitAuto opens at the focused pane's folder rather than the
 repo root. The section is hidden until some pane has a folder.
 
+While a button is hovered or focused, a preview over the panes shows where its pane will land: the
+focused pane outlined and the new pane's share of it shaded and labeled, the existing pane that
+Files or Git would bring forward, the whole pane area of an empty tab, or the focused pane with
+"opens collapsed: no room". The editor has no preview.
+
+The **Launch menu** lists the same options with their icons and a letter each (t, f, g, s, p,
+e); a letter chooses its entry, and the highlighted entry shows the same preview. While the
+Launch element is disabled, a **+** button in the top bar, left of **?**, drops it, its tooltip
+ending with the keys of openLaunch. openLaunch (Ctrl+Shift+L, 4.5) opens it over the focused pane
+whether or not the element is shown.
+
 **Pins.** The same repo's pins (4.12), under a **Pins** heading that collapses and expands them
-like any section; it is absent while the repo has no pins, and shows whether or not Folder does.
-Unless Folder is the last shown element right above it, the heading names the folder after the
+like any section; it is absent while the repo has no pins. The heading names the folder after the
 title ("Pins · bashboard"), dropping the name rather than wrapping when it does not fit. Each pin
 shows a file or folder icon and its label or path; clicking one opens it, and pins reorder by
 drag and can be renamed and removed.
@@ -1360,10 +1371,12 @@ Each card shows:
   accent color), `done` (a still check mark), or `failed` (a still cross in the error color),
   plus the attention pulse (4.7). Other kinds show their kind's icon.
 - The bound Claude session's name, or the working directory's last folder, with the full path
-  beneath. While the terminal is `waiting`, the line beneath is the waiting reason (3.3) in the
-  accent color in place of the folder, one line with an ellipsis, full text on hover. A
-  `waiting` with no message reads "Waiting for you". Other kinds show the pane's title (4.11)
-  and its folder, if any.
+  beneath while the header's paths toggle (a `↳` button) is on. With it off (the default) the path line is
+  absent and the full path joins the title's tooltip. While the terminal is `waiting`, the line
+  beneath is the waiting reason (3.3) in the accent color in place of the folder, whatever the
+  toggle, one line with an ellipsis, full text on hover. A `waiting` with no message reads
+  "Waiting for you". Other kinds show the pane's title (4.11) and, under the same toggle, its
+  folder, if any.
 - For a terminal bound to a Claude session (3.4), a dimmed line below that with the session's
   model and the tokens in its context, as "Opus 5.5 · 112k tokens", read from its transcript.
   Either half shows alone while the other is unknown, and the line is absent until the
@@ -1581,14 +1594,14 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   kinds. A terminal's pty id (3.1) is separate.
 - **Kind menu.** The first control in the title strip shows the pane's kind as an icon.
   Clicking it lists the kinds, and choosing one replaces the pane in place: same spot in the
-  tree, same folder. A pane with no folder passes on the Folder section's repo (4.6). Replacing a
+  tree, same folder. A pane with no folder passes on the Launch section's repo (4.6). Replacing a
   terminal with a running command or a live Claude session asks first, as closing it does, and
   so does replacing a scratch pad that is not empty. A terminal chosen from the menu runs the
   default profile. The menu lists Containers only while a container engine is available (3.10),
   whatever `dashboard.sections.containers` says. It is drawn by the shared context menu module (4.4)
   below the button, with the current kind checked; choosing the current kind does nothing. The
   title strip's right-click menu offers the same entries as its Change kind submenu.
-- **Opening.** Ctrl+Shift+S, E, G, and H (4.5), the Folder section, and the Open menu on dashboard
+- **Opening.** Ctrl+Shift+S, E, G, and H (4.5), Launch, and the Open menu on dashboard
   rows (4.6) open a pane as a split of the focused pane, the way a favorite does: when there is
   no room, a toast says so and the pane opens collapsed. A Git pane for a repo that already has
   one in the active tab focuses that one instead.
@@ -2291,10 +2304,14 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 - `dashboardWidth`: 300 px.
 - `dashboardSectionOrder`: the default order. Reading keeps known names once each, drops unknown
   names, and inserts a missing element at its default position relative to its neighbors.
-- `dashboardTopElements`: the clock and Folder. Reading keeps known names once each. A file without
+- `dashboardTopElements`: the clock and Launch. Reading keeps known names once each. A file without
   it but with the boolean `dashboardClockTop` gets the clock alone when that is true and an empty
-  slot when it is false. When neither list names `folder`, Folder joins the top slot last.
-- `collapsedSections`: none. Reading keeps known names once each and reads `repo` as `folder`.
+  slot when it is false. When neither list names Launch, it joins the top slot last.
+  `dashboardSectionOrder` and `dashboardTopElements` read `folder` and `repo`, Launch's names in
+  older files, as `launch`.
+- `collapsedSections`: none. Reading keeps known names once each; Launch and the clock never
+  collapse, so they are dropped.
+- `showPanePaths` (the Panes section's paths toggle, 4.6): false; a non-boolean reads as absent.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
@@ -2375,7 +2392,7 @@ it with no pins, and Automatic omits it.
     "peekOnWaiting": true,
     "side": "right",
     "sections": {
-      "folder": true,
+      "launch": true,
       "favorites": false,
       "layouts": false,
       "panes": true,

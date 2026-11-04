@@ -38,8 +38,9 @@ import type { LayoutsCallbacks } from './layoutsSection';
 import type { NamedLayout } from './layouts';
 import type { OpenInHandler } from './openMenu';
 import type { PinRowCallbacks } from './pinRow';
-import { RepoSection } from './repoSection';
-import type { RepoSectionState } from './repoSection';
+import { LaunchSection } from './launchSection';
+import type { LaunchKind } from './launchModel';
+import { PinsSection, type RepoState } from './pinsSection';
 import type { Session } from './sessions';
 import type { Settings } from './settings';
 import { renderSessionRow } from './sessionRow';
@@ -60,14 +61,22 @@ export interface DashboardCallbacks
   onSwitchTab?: (tabId: string) => void;
   /** The user collapsed or expanded a section; the argument is every collapsed section. */
   onSectionsChange?: (collapsed: DashboardSection[]) => void;
+  /** The user toggled the Panes section's folder paths. */
+  onPanePathsChange?: (shown: boolean) => void;
   /** The user finished dragging the panel's inner edge. */
   onWidthChange?: (width: number) => void;
   /** The user dragged an element to a new place; the argument is the whole element order. */
   onOrderChange?: (order: DashboardElement[]) => void;
   /** The panel's own menu asked to show or hide an element; the setting's reload applies it. */
   onSetElementShown?: (element: DashboardElement, shown: boolean) => void;
-  /** Open menu on a folder row or the Folder section's buttons. */
+  /** Open menu on a folder row. */
   onOpenIn?: OpenInHandler;
+  /** A Launch button: opens `kind` at the focused pane's repo root. */
+  onLaunch?: (kind: LaunchKind) => void;
+  /** The Launch option under the pointer or focus, or null when none is; drives the preview. */
+  onLaunchPreview?: (kind: LaunchKind | null) => void;
+  /** The top bar's + button, shown while Launch is hidden; the menu drops from `anchor`. */
+  onOpenLaunchMenu?: (anchor: HTMLElement) => void;
   /** The top bar's Favorites and Layouts buttons, shown while their section is hidden; the menu drops from `anchor`. */
   onOpenFavoritesMenu?: (anchor: HTMLElement) => void;
   onOpenLayoutsMenu?: (anchor: HTMLElement) => void;
@@ -131,6 +140,8 @@ export class DashboardPanel {
   private readonly claude = new ClaudeContexts(() => this.render());
   private panes: PaneCardInput[] = [];
   private collapsed: DashboardSection[] = [];
+  private showPanePaths = false;
+  private panePathsButton!: HTMLButtonElement;
   /** The width the user chose; what shows is clamped to the current window. */
   private preferredWidth = DEFAULT_DASHBOARD_WIDTH;
   private readonly sectionEls = new Map<DashboardSection, HTMLElement>();
@@ -142,7 +153,7 @@ export class DashboardPanel {
   private favoritesKey = '';
   private layouts: NamedLayout[] = [];
   private layoutsKey = '';
-  private repo: RepoSectionState = { repo: null, pins: [] };
+  private repo: RepoState = { repo: null, pins: [] };
   private wasShown = false;
   private repoKey = '';
   private timer: number | undefined;
@@ -156,7 +167,9 @@ export class DashboardPanel {
   private readonly installButton: HTMLButtonElement;
   private readonly favoritesMenuButton: HTMLButtonElement;
   private readonly layoutsMenuButton: HTMLButtonElement;
-  private readonly repoSection: RepoSection;
+  private readonly launchMenuButton: HTMLButtonElement;
+  private readonly launchSection: LaunchSection;
+  private readonly pinsSection: PinsSection;
   private readonly favoritesSection: FavoritesSection;
   private readonly layoutsSection: LayoutsSection;
   private readonly containersSection: ContainersSection;
@@ -169,8 +182,11 @@ export class DashboardPanel {
     root: HTMLElement,
     private readonly callbacks: DashboardCallbacks,
   ) {
-    this.repoSection = new RepoSection({
-      onOpenIn: (kind, root) => this.callbacks.onOpenIn?.(kind, root),
+    this.launchSection = new LaunchSection({
+      onLaunch: (kind) => this.callbacks.onLaunch?.(kind),
+      onPreview: (kind) => this.callbacks.onLaunchPreview?.(kind),
+    });
+    this.pinsSection = new PinsSection({
       onOpenPin: (pin) => this.callbacks.onOpenPin?.(pin),
       onRenamePin: (index, label) => this.callbacks.onRenamePin?.(index, label),
       onRemovePin: (index) => this.callbacks.onRemovePin?.(index),
@@ -205,6 +221,9 @@ export class DashboardPanel {
     );
     const spacer = document.createElement('span');
     spacer.className = 'dashboard-top-spacer';
+    this.launchMenuButton = topButton('dashboard-top-icon dashboard-launch', '+', 'Launch', keys('openLaunch'), (b) =>
+      this.callbacks.onOpenLaunchMenu?.(b),
+    );
     const helpButton = topButton('dashboard-top-icon', '?', 'Keyboard shortcuts', keys('showHelp'), () =>
       this.callbacks.onShowHelp(),
     );
@@ -242,7 +261,7 @@ export class DashboardPanel {
     this.applyWidth();
     const top = document.createElement('div');
     top.className = 'dashboard-top';
-    top.append(this.favoritesMenuButton, this.layoutsMenuButton, settingsButton, helpButton, spacer, hideButton);
+    top.append(this.favoritesMenuButton, this.layoutsMenuButton, settingsButton, this.launchMenuButton, helpButton, spacer, hideButton);
     // Pins follow the focused pane and appear or vanish with it, so they stay fixed between the
     // slots rather than among the elements, and the lower list sits at the bottom, where a focus
     // change that resizes Pins never shifts it.
@@ -251,12 +270,12 @@ export class DashboardPanel {
     this.topSlot = document.createElement('div');
     this.topSlot.className = 'dashboard-top-slot';
     this.topSlot.hidden = true;
-    root.append(resizeHandle, top, this.topSlot, this.repoSection.pins, this.elementList);
-    this.addSection('folder', this.repoSection.el, this.repoSection.head);
-    this.register('pins', this.repoSection.pins, this.repoSection.pinsHead);
+    root.append(resizeHandle, top, this.topSlot, this.pinsSection.el, this.elementList);
+    this.addElement('launch', this.launchSection.el, this.launchSection.head);
+    this.register('pins', this.pinsSection.el, this.pinsSection.head);
     this.addSection('favorites', this.favoritesSection.el, this.favoritesSection.head);
     this.addSection('layouts', this.layoutsSection.el, this.layoutsSection.head);
-    this.terminalList = this.section('panes', 'Panes');
+    this.terminalList = this.panesSection();
     this.containersSection = new ContainersSection({
       onOpenContainers: (keys) => this.callbacks.onOpenContainers?.(keys),
       onStart: (row) => this.callbacks.onStart?.(row),
@@ -329,15 +348,7 @@ export class DashboardPanel {
     const focus = this.nav.capture();
     this.containersSection.update(store.current());
     this.containersSection.setVisible(store.available);
-    this.syncPinsFolder();
     this.nav.restore(focus);
-  }
-
-  /** Pins name their folder unless the Folder section is the last thing shown above them. */
-  private syncPinsFolder(): void {
-    const shown = [...this.topSlot.children].filter((el) => !(el as HTMLElement).hidden);
-    const above = shown[shown.length - 1];
-    this.repoSection.setPinsFolderShown(above !== this.repoSection.el);
   }
 
   /** Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md section 4.6). */
@@ -411,6 +422,7 @@ export class DashboardPanel {
     // A hidden section's list stays reachable from the top bar (docs/design.md section 4.6).
     this.favoritesMenuButton.hidden = this.shown.favorites;
     this.layoutsMenuButton.hidden = this.shown.layouts;
+    this.launchMenuButton.hidden = this.shown.launch;
     const shownIn = (atTop: boolean): HTMLElement[] =>
       this.order
         .filter((id) => this.shown[id] && this.top.includes(id) === atTop)
@@ -424,7 +436,6 @@ export class DashboardPanel {
     this.topSlot.replaceChildren(...top);
     this.topSlot.hidden = top.length === 0;
     this.elementList.replaceChildren(...list);
-    this.syncPinsFolder();
     this.nav.restore(focus);
   }
 
@@ -554,7 +565,7 @@ export class DashboardPanel {
     if (this.open || this.peeking) this.render();
   }
 
-  setRepo(state: RepoSectionState): void {
+  setRepo(state: RepoState): void {
     this.repo = state;
     if (this.open || this.peeking) this.render();
   }
@@ -617,6 +628,49 @@ export class DashboardPanel {
     return list;
   }
 
+  private panesSection(): HTMLElement {
+    const section = document.createElement('section');
+    section.className = 'dashboard-section';
+    const head = document.createElement('div');
+    head.className = 'dashboard-section-head';
+    const h = document.createElement('h2');
+    h.textContent = 'Panes';
+    const paths = document.createElement('button');
+    paths.type = 'button';
+    paths.className = 'panes-paths';
+    paths.textContent = '↳';
+    paths.setAttribute('aria-label', 'Folder paths');
+    paths.addEventListener('click', () => {
+      this.setShowPanePaths(!this.showPanePaths);
+      this.callbacks.onPanePathsChange?.(this.showPanePaths);
+    });
+    this.panePathsButton = paths;
+    this.syncPanePathsButton();
+    head.append(h, paths);
+    const list = document.createElement('div');
+    list.className = 'dashboard-list';
+    section.append(head, list);
+    this.addSection('panes', section, head);
+    return list;
+  }
+
+  private syncPanePathsButton(): void {
+    this.panePathsButton.setAttribute('aria-pressed', String(this.showPanePaths));
+    this.panePathsButton.title = this.showPanePaths ? 'Hide folder paths' : 'Show folder paths';
+  }
+
+  /** Applies the saved Panes path toggle without firing `onPanePathsChange`. */
+  setShowPanePaths(shown: boolean): void {
+    if (shown === this.showPanePaths) return;
+    this.showPanePaths = shown;
+    this.syncPanePathsButton();
+    if (this.open || this.peeking) this.render();
+  }
+
+  panePathsShown(): boolean {
+    return this.showPanePaths;
+  }
+
   private addSection(id: DashboardSection & DashboardElement, section: HTMLElement, header: HTMLElement): void {
     this.register(id, section, header);
     this.addElement(id, section, header);
@@ -675,8 +729,8 @@ export class DashboardPanel {
     const repoKey = JSON.stringify(this.repo);
     if (repoKey !== this.repoKey) {
       this.repoKey = repoKey;
-      this.repoSection.update(this.repo);
-      this.syncPinsFolder();
+      this.launchSection.update(this.repo.repo ? this.repo.repo.isGit : null);
+      this.pinsSection.update(this.repo);
     }
 
     const layoutsKey = JSON.stringify(this.layouts.map((l) => [l.name, l.tab.panes.length]));
@@ -689,6 +743,7 @@ export class DashboardPanel {
     const cardOptions = (card: (typeof cards)[number]) => ({
       now,
       claudeLine: card.kind === 'terminal' && card.sessionId !== null ? claudeLine(this.claude.get(card.sessionId)) : null,
+      showPath: this.showPanePaths,
       confirming: this.confirming.has(card.paneId),
       onFocus: this.callbacks.onFocus,
       onToggleCollapse: this.callbacks.onToggleCollapse,

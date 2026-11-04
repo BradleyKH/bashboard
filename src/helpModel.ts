@@ -16,7 +16,7 @@ const CLAUDE_NEWLINE = '\u001b\r';
 export const HELP_SECTIONS: { title: string; actions: string[] }[] = [
   {
     title: 'Panes',
-    actions: ['splitRight', 'splitDown', 'splitAuto', 'closePane', 'newScratch', 'openFiles', 'openGit', 'openSearch', 'collapsePane', 'togglePaneZoom', 'moveFocus', 'resizePane'],
+    actions: ['splitRight', 'splitDown', 'splitAuto', 'closePane', 'newScratch', 'openFiles', 'openGit', 'openSearch', 'openEditor', 'collapsePane', 'togglePaneZoom', 'moveFocus', 'resizePane'],
   },
   {
     title: 'Tabs',
@@ -26,7 +26,7 @@ export const HELP_SECTIONS: { title: string; actions: string[] }[] = [
     title: 'Terminal',
     actions: ['copy', 'paste', 'find', 'sendInput', 'increaseFontSize', 'decreaseFontSize', 'resetFontSize'],
   },
-  { title: 'Workspace', actions: ['openPalette', 'nextAttention', 'toggleDashboard', 'focusDashboard', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
+  { title: 'Workspace', actions: ['openPalette', 'nextAttention', 'toggleDashboard', 'focusDashboard', 'openLaunch', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings'] },
 ];
 
 export const ACTION_LABELS: Record<string, string> = {
@@ -38,6 +38,7 @@ export const ACTION_LABELS: Record<string, string> = {
   openFiles: 'Open files for the repo',
   openGit: 'Git pane for this repo',
   openSearch: 'Search the repo\'s code',
+  openEditor: 'Open the repo in the editor',
   collapsePane: 'Collapse pane',
   togglePaneZoom: 'Zoom or unzoom pane',
   moveFocus: 'Move focus',
@@ -49,6 +50,7 @@ export const ACTION_LABELS: Record<string, string> = {
   focusDashboard: 'Move focus to the dashboard and back',
   openFavorite: 'Open a favorite folder',
   openLayout: 'Open a saved layout',
+  openLaunch: 'Launch a pane or the editor',
   openPalette: 'Command palette',
   nextAttention: 'Jump to the next terminal that needs you',
   splitWithProfile: 'Split with a chosen shell',

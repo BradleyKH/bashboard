@@ -9,6 +9,7 @@ import { ContainersPane } from './containersPane';
 import { ContainersStore } from './containersStore';
 import { boundSession, isBusy, lastFolder, type PaneCardInput } from './dashboardModel';
 import { DockOverlay } from './dockOverlay';
+import { openInEditor } from './editors';
 import { DoneTracker } from './doneStatus';
 import { samePath } from './favorites';
 import { FilesPane } from './filesPane';
@@ -147,6 +148,8 @@ export interface WorkspaceHooks {
   onFocusDashboard?: () => void;
   onOpenFavoritePicker?: () => void;
   onOpenLayoutPicker?: () => void;
+  /** Design 4.6 Launch: the launch menu at the focused pane. */
+  onOpenLaunchMenu?: () => void;
   onOpenPalette?: () => void;
   onOpenProfilePicker?: () => void;
   onShowHelp?: () => void;
@@ -183,6 +186,20 @@ export interface WorkspaceHooks {
   /** A Git pane's "Compare with" choice; null goes back to automatic. */
   onSetPrimaryBranch?: (root: string, branch: string | null) => void;
 }
+
+/**
+ * Where a launched pane would land (docs/design.md section 4.6): a split of the focused pane
+ * (`pane` is it now, `kept` and `added` its two halves after), an existing pane brought forward,
+ * the whole pane area of an empty tab, or collapsed for want of room.
+ */
+export type LaunchTarget =
+  | { kind: 'split'; pane: Rect; kept: Rect; added: Rect }
+  | { kind: 'reuse'; pane: Rect }
+  | { kind: 'fill'; area: Rect }
+  | { kind: 'collapsed'; pane: Rect };
+
+/** Stands in for the launched pane's id while previewing; never mounted. */
+const LAUNCH_PREVIEW_ID = '__launch-preview';
 
 export interface OpenPaneOptions {
   collapsed?: boolean;
@@ -499,8 +516,19 @@ export class Workspace {
       showToast('Nothing needs you');
       return;
     }
-    if (this.store.isCollapsed(target)) this.expandPane(target);
-    else this.focusPane(target);
+    this.revealPane(target);
+  }
+
+  /** Focuses the pane in whatever tab holds it, expanding it when collapsed. */
+  revealPane(paneId: string): void {
+    if (!this.paneViews.has(paneId)) return;
+    if (this.store.isCollapsed(paneId)) this.expandPane(paneId);
+    else this.focusPane(paneId);
+  }
+
+  /** A terminal's title and why it is waiting, for a notification (design 4.7). */
+  waitingNotice(paneId: string): { title: string; reason: string } {
+    return { title: this.titleOf(paneId), reason: this.waitingReasonOf(paneId) };
   }
 
   /** Closes every pane in the tab without asking; `requestCloseTab` asks first. */
@@ -923,6 +951,57 @@ export class Workspace {
     await Promise.all(panes.map((p) => p.flush()));
   }
 
+  /** The focused pane's box in window coordinates, or null when the tab has none on screen. */
+  focusedPaneRect(): DOMRect | null {
+    return this.paneRects().get(this.store.focusedId) ?? null;
+  }
+
+  /**
+   * Design 4.6 Launch: where launching `kind` at `root` would land, in window coordinates, for the
+   * preview. Files and Git reuse the tab's pane for the repo, as `showFiles` and `showGit` do.
+   * Null when there is nothing on screen to show, such as a reused pane that is collapsed.
+   */
+  launchTarget(kind: PaneKind, root: string): LaunchTarget | null {
+    const origin = this.root.getBoundingClientRect();
+    const toWindow = (r: Rect): Rect => ({ x: r.x + origin.x, y: r.y + origin.y, width: r.width, height: r.height });
+    const reuse =
+      kind === 'files'
+        ? routeFilesRequest(
+            this.store.active.panes.flatMap((id) => {
+              const pane = this.paneViews.get(id);
+              return pane instanceof FilesPane ? [{ paneId: id, root: pane.root(), folder: pane.folder }] : [];
+            }),
+            { root, folder: root },
+          )
+        : kind === 'git'
+          ? routeGitRequest(
+              this.store.active.panes.flatMap((id) => {
+                const pane = this.paneViews.get(id);
+                return pane instanceof GitPane ? [{ paneId: id, root: pane.root() }] : [];
+              }),
+              root,
+            )
+          : null;
+    if (reuse && 'reuse' in reuse) {
+      if (this.store.isCollapsed(reuse.reuse)) return null;
+      const rect = this.paneRects().get(reuse.reuse);
+      return rect ? { kind: 'reuse', pane: rect } : null;
+    }
+    const tree = this.store.tree;
+    if (!tree) return { kind: 'fill', area: origin };
+    const cell = this.layoutCell();
+    const focused = this.paneRects().get(this.store.focusedId);
+    if (!cell || !focused) return null;
+    const container = this.containerRect();
+    const next = expandInto(tree, this.store.focusedId, LAUNCH_PREVIEW_ID, container, cell);
+    if (!next) return { kind: 'collapsed', pane: focused };
+    const rects = computeRects(next, container);
+    const added = rects.get(LAUNCH_PREVIEW_ID);
+    const kept = rects.get(this.store.focusedId);
+    if (!added || !kept) return null;
+    return { kind: 'split', pane: focused, kept: toWindow(kept), added: toWindow(added) };
+  }
+
   /**
    * Design 4.12: shows the folder in the active tab's Files pane for that repo, or opens one as
    * a split of the focused pane.
@@ -1095,6 +1174,9 @@ export class Workspace {
       case 'openLayout':
         this.hooks.onOpenLayoutPicker?.();
         return true;
+      case 'openLaunch':
+        this.hooks.onOpenLaunchMenu?.();
+        return true;
       case 'openPalette':
         this.hooks.onOpenPalette?.();
         return true;
@@ -1133,6 +1215,9 @@ export class Workspace {
         queueMicrotask(() => void this.openSearchForFocused(query));
         return true;
       }
+      case 'openEditor':
+        void this.openEditorForFocused();
+        return true;
       case 'nextTab':
       case 'prevTab': {
         const id = nextTab(this.store.state, action.type === 'nextTab' ? 1 : -1).activeId;
@@ -1610,6 +1695,21 @@ export class Workspace {
     try {
       const { root } = await repoRoot(folder);
       this.showSearch(root, query);
+    } catch (err) {
+      showToast(`Could not open ${folder}: ${String(err)}`);
+    }
+  }
+
+  /** Ctrl+Shift+X: the focused pane's repo in the preferred editor, or its folder outside any repo (design 3.12). */
+  private async openEditorForFocused(): Promise<void> {
+    const folder = this.folderForNew() ?? this.hooks.getRepoFolder?.() ?? undefined;
+    if (!folder) {
+      showToast('No folder to open');
+      return;
+    }
+    try {
+      const { root } = await repoRoot(folder);
+      await openInEditor(root);
     } catch (err) {
       showToast(`Could not open ${folder}: ${String(err)}`);
     }

@@ -51,6 +51,7 @@ strip = true
 webview2-com = "0.39"
 windows-core = "0.62"
 windows = { version = "0.62", features = ["Win32_Graphics_DirectWrite"] }
+tauri-winrt-notification = "0.8.1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-process = "2.4.0"

@@ -8,6 +8,10 @@ export interface MenuItem {
   /** Set (true or false) to draw the item as a radio choice with a check-mark column. */
   checked?: boolean;
   icon?: string;
+  /** A letter that chooses the item while the menu has focus, shown at the right. */
+  key?: string;
+  /** Runs when the item takes the highlight, from the pointer or the keyboard. */
+  onHighlight?: () => void;
 }
 
 export interface MenuSeparator {
@@ -31,6 +35,8 @@ export interface MenuItemOptions {
   enabled?: boolean;
   checked?: boolean;
   icon?: string;
+  key?: string;
+  onHighlight?: () => void;
 }
 
 export function item(label: string, run: () => void, opts: MenuItemOptions = {}): MenuItem {

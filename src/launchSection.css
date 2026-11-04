@@ -1,0 +1,32 @@
+/* The dashboard's Launch section: one row of icon buttons that shares the row evenly, so all six
+   fit at the panel's minimum width. */
+.launch-section[hidden] {
+  display: none;
+}
+
+.launch-buttons {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+#dashboard .launch-button {
+  height: 34px;
+  padding: 0;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: 'Segoe UI Symbol', system-ui, sans-serif;
+  font-size: 18px;
+  line-height: 1;
+}
+
+#dashboard .launch-button:hover,
+#dashboard .launch-button:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#dashboard .dashboard-launch {
+  font-size: 15px;
+}

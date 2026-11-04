@@ -17,6 +17,7 @@ import { bindWindowVisibility } from './windowVisibility';
 import { gitFetchVisible } from './gitApi';
 import { syncGitFetchRoots } from './gitFetchRoots';
 import { onCliCommand } from './cli';
+import { onNotificationActivated, showNotification } from './notificationsApi';
 import { onSecondLaunch } from './secondLaunch';
 import { runCliCommand, type CliTarget } from './cliDispatch';
 import { ColonySync } from './colonySync';
@@ -76,7 +77,9 @@ import {
   type Pin,
   type ReposFile,
 } from './repos';
-import type { RepoPinState } from './repoSection';
+import type { RepoPinState } from './pinsSection';
+import { launchLabel, launchMenuItems, opensPane, type LaunchKind } from './launchModel';
+import { LaunchPreview } from './launchPreview';
 import { gitWorktrees, type Worktree } from './worktreeApi';
 import { deleteWorktree } from './worktreeDelete';
 import { parseSavedWorkspace } from './savedWorkspace';
@@ -91,7 +94,7 @@ import { Workspace } from './workspace';
 import { fontsReady } from './fontsReady';
 import { listenFileDrops } from './fileDrop';
 import { checkForUpdate } from './updater';
-import { closeContextMenu } from './contextMenu';
+import { closeContextMenu, openContextMenu } from './contextMenu';
 import { installTextFieldMenu } from './textFieldMenu';
 
 // The built-in menu's Refresh reloads the page, and a reload kills every pane's pty as an orphan.
@@ -299,7 +302,7 @@ function openLayout(name: string): void {
   workspace.openLayout(layout.tab, layout.name);
 }
 
-// Design 4.6 Folder: the repo of the focused pane's folder, or of the last focused pane that had one.
+// Design 4.6 Launch and Pins: the repo of the focused pane's folder, or of the last focused pane that had one.
 let currentRepo: RepoInfo | null = null;
 let repoFolder: string | null = null;
 let repoPins: RepoPinState[] = [];
@@ -397,7 +400,7 @@ function lookUpRepo(folder: string): void {
   p.then(
     (info) => {
       if (repoFolder !== folder) return;
-      const same = currentRepo !== null && pathKey(currentRepo.root) === pathKey(info.root) && currentRepo.branch === info.branch;
+      const same = currentRepo !== null && pathKey(currentRepo.root) === pathKey(info.root) && currentRepo.isGit === info.isGit;
       currentRepo = info;
       if (!same) void refreshPins();
     },
@@ -408,13 +411,6 @@ function lookUpRepo(folder: string): void {
   );
 }
 
-// A checkout in any shell moves the branch without a folder change, so re-read it while shown.
-const BRANCH_REFRESH_MS = 3000;
-window.setInterval(() => {
-  if (repoFolder && currentRepo?.isGit && panel.isOpen() && document.visibilityState === 'visible') {
-    lookUpRepo(repoFolder);
-  }
-}, BRANCH_REFRESH_MS);
 
 function pinnedFolders(root: string): string[] {
   if (!pinRootsChecked.has(pathKey(root))) {
@@ -455,7 +451,7 @@ function openPin(pin: Pin): void {
   workspace.showFiles({ root, folder: t.folder, select: t.select });
 }
 
-/** Design 4.6 Open menu and the Repo section's buttons: opens for the path's repo root. */
+/** Design 4.6 Open menu and Launch: opens for the path's repo root. */
 function openIn(kind: 'terminal' | 'files' | 'git' | 'search' | 'editor', path: string): void {
   cachedRepoRoot(path).then(
     ({ root, isGit }) => {
@@ -475,6 +471,48 @@ function openIn(kind: 'terminal' | 'files' | 'git' | 'search' | 'editor', path: 
     },
     (err: unknown) => showToast(`Could not open ${path}: ${String(err)}`),
   );
+}
+
+// Design 4.6 Launch: the section's buttons, the top bar's + menu, and the openLaunch menu.
+const launchPreview = new LaunchPreview();
+
+function launchRoot(): string | null {
+  return currentRepo?.root ?? focusedFolder();
+}
+
+function previewLaunch(kind: LaunchKind | null): void {
+  const root = launchRoot();
+  if (!kind || !root || !opensPane(kind)) {
+    launchPreview.hide();
+    return;
+  }
+  launchPreview.show(workspace.launchTarget(kind, root), launchLabel(kind));
+}
+
+function launch(kind: LaunchKind): void {
+  launchPreview.hide();
+  if (kind === 'scratch') {
+    workspace.openPane({ kind: 'scratch' });
+    return;
+  }
+  const root = launchRoot();
+  if (root) openIn(kind, root);
+  else showToast('No folder to open');
+}
+
+/**
+ * Drops from `anchor`, or opens at the focused pane's top-left corner for the keyboard, which
+ * keeps it clear of the preview's label in the middle of the new pane.
+ */
+function openLaunchMenu(anchor?: HTMLElement): void {
+  const items = launchMenuItems(currentRepo?.isGit ?? false, launch, previewLaunch);
+  const rect = anchor ? null : workspace.focusedPaneRect();
+  const at = anchor
+    ? { anchorEl: anchor, align: 'right' as const }
+    : rect
+      ? { x: rect.x + 12, y: rect.y + 32 }
+      : { x: window.innerWidth / 2, y: window.innerHeight / 3 };
+  openContextMenu(items, at, { focusFirst: true, onClose: () => launchPreview.hide() });
 }
 
 /** Design 4.10: lists the panes closing the tab would lose work in; resolves true to close it. */
@@ -538,6 +576,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onCardDragStart: (paneId, e) => workspace.startDrag({ kind: 'pane', paneId }, e),
   onSwitchTab: (tabId) => workspace.switchTab(tabId),
   onSectionsChange: () => saver.schedule(),
+  onPanePathsChange: () => saver.schedule(),
   onWidthChange: () => saver.schedule(),
   onOrderChange: () => saver.schedule(),
   onSetElementShown: (el, shown) =>
@@ -582,6 +621,9 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onRenameLayout: renameLayout,
   onRemoveLayout: (index) => updateLayouts(layouts.filter((_, i) => i !== index)),
   onOpenIn: openIn,
+  onLaunch: launch,
+  onLaunchPreview: previewLaunch,
+  onOpenLaunchMenu: (anchor) => openLaunchMenu(anchor),
   onOpenPin: openPin,
   onRenamePin: (index, label) => currentRepo && updateRepos(renamePin(repos, currentRepo.root, index, label)),
   onRemovePin: (index) => currentRepo && updateRepos(removePin(repos, currentRepo.root, index)),
@@ -784,16 +826,21 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenFavoritePicker: () => picker.open(favoriteItems(), 'Open a favorite folder'),
   onOpenProfilePicker: () => profilePicker.open(profileItems(), 'Split with a shell'),
   onOpenLayoutPicker: () => layoutPicker.open(layoutItems(), 'Open a layout'),
+  onOpenLaunchMenu: () => openLaunchMenu(),
   onOpenPalette: () => openPalette(),
   onShowHelp: showHelp,
   onOpenSettings: showSettings,
   onToggleBackdrop: toggleBackdrop,
   onToggleFullscreen: toggleFullscreen,
-  onAttention: (_paneId, cause) => {
+  onAttention: (paneId, cause) => {
     if (appWindow && !document.hasFocus()) {
       appWindow
         .requestUserAttention(UserAttentionType.Critical)
         .catch((e) => console.warn('taskbar flash failed:', e));
+      if (cause === 'waiting' && currentSettings.terminal.notifyWhenWaiting) {
+        const { title, reason } = workspace.waitingNotice(paneId);
+        showNotification(title, reason, paneId).catch((e) => console.warn('notification failed:', e));
+      }
     }
     if (cause === 'waiting' && currentSettings.dashboard.peekOnWaiting && !panel.isOpen()) panel.peek();
   },
@@ -840,6 +887,7 @@ const saver = new DebouncedSaver(
     dashboardWidth: panel.width(),
     dashboardSectionOrder: panel.sectionOrder(),
     dashboardTopElements: panel.topElements(),
+    showPanePaths: panel.panePathsShown(),
     textZoom: textZoomSnapshot(),
   }),
   workspaceSave,
@@ -883,6 +931,9 @@ onCliCommand((cmd) => runCliCommand(cmd, cliTarget)).catch((e) => console.warn('
 onSecondLaunch((folder) => {
   if (folder) workspace.newTab(folder);
 }).catch((e) => console.warn('second-launch handoff unavailable:', e));
+onNotificationActivated((paneId) => workspace.revealPane(paneId)).catch((e) =>
+  console.warn('notification clicks unavailable:', e),
+);
 onPtyActivity((list) => workspace.setActivity(list)).catch((e) => console.warn('activity sweep unavailable:', e));
 onFavoritesChanged((raw) => {
   favorites = parseFavorites(raw);
@@ -918,6 +969,7 @@ try {
   if (saved?.dashboardWidth !== undefined) panel.setWidth(saved.dashboardWidth);
   if (saved?.dashboardSectionOrder) panel.setSectionOrder(saved.dashboardSectionOrder);
   if (saved?.dashboardTopElements) panel.setTopElements(saved.dashboardTopElements);
+  if (saved?.showPanePaths) panel.setShowPanePaths(true);
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, {

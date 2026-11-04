@@ -3,11 +3,11 @@
 
 /**
  * The panel's draggable elements in default order (docs/design.md section 4.6). The clock and
- * Folder lead, so each sits at the top of the lower list whenever it is not in the top slot.
+ * Launch lead, so each sits at the top of the lower list whenever it is not in the top slot.
  */
 export const DEFAULT_ELEMENT_ORDER = [
   'clock',
-  'folder',
+  'launch',
   'favorites',
   'layouts',
   'panes',
@@ -18,17 +18,19 @@ export const DEFAULT_ELEMENT_ORDER = [
 
 export type DashboardElement = (typeof DEFAULT_ELEMENT_ORDER)[number];
 
-/** The collapsible sections: Pins and every element except the clock. */
-export type DashboardSection = 'pins' | Exclude<DashboardElement, 'clock'>;
+/** The collapsible sections: Pins and every element except the clock and Launch. */
+export type DashboardSection = 'pins' | Exclude<DashboardElement, 'clock' | 'launch'>;
 
 const SECTIONS: readonly DashboardSection[] = [
   'pins',
-  ...DEFAULT_ELEMENT_ORDER.filter((e): e is Exclude<DashboardElement, 'clock'> => e !== 'clock'),
+  ...DEFAULT_ELEMENT_ORDER.filter(
+    (e): e is Exclude<DashboardElement, 'clock' | 'launch'> => e !== 'clock' && e !== 'launch',
+  ),
 ];
 
 /** Whether each element is shown when the user has not said otherwise. */
 export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
-  folder: true,
+  launch: true,
   favorites: false,
   layouts: false,
   panes: true,
@@ -40,7 +42,7 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
 
 /** Display names, shared by the settings dialog's checkboxes. */
 export const ELEMENT_LABELS: Record<DashboardElement, string> = {
-  folder: 'Folder',
+  launch: 'Launch',
   favorites: 'Favorites',
   layouts: 'Layouts',
   panes: 'Panes',
@@ -58,17 +60,16 @@ function isElement(v: unknown): v is DashboardElement {
   return typeof v === 'string' && (DEFAULT_ELEMENT_ORDER as readonly string[]).includes(v);
 }
 
-/**
- * Keeps known names in order, once each, dropping anything else; a non-array gives []. `repo` is
- * the Folder section's name in files saved before it became an element.
- */
+/** Launch's element name in workspaces saved under its earlier names. */
+function savedElementName(v: unknown): unknown {
+  return v === 'folder' || v === 'repo' ? 'launch' : v;
+}
+
+/** Keeps known names in order, once each, dropping anything else; a non-array gives []. */
 export function parseCollapsedSections(raw: unknown): DashboardSection[] {
   if (!Array.isArray(raw)) return [];
   const out: DashboardSection[] = [];
-  for (const name of raw) {
-    const item = name === 'repo' ? 'folder' : name;
-    if (isSection(item) && !out.includes(item)) out.push(item);
-  }
+  for (const item of raw) if (isSection(item) && !out.includes(item)) out.push(item);
   return out;
 }
 
@@ -85,7 +86,10 @@ export function toggleSection(list: readonly DashboardSection[], s: DashboardSec
 export function parseSectionOrder(raw: unknown): DashboardElement[] {
   if (!Array.isArray(raw)) return [...DEFAULT_ELEMENT_ORDER];
   const out: DashboardElement[] = [];
-  for (const item of raw) if (isElement(item) && !out.includes(item)) out.push(item);
+  for (const name of raw) {
+    const item = savedElementName(name);
+    if (isElement(item) && !out.includes(item)) out.push(item);
+  }
   DEFAULT_ELEMENT_ORDER.forEach((el, i) => {
     if (out.includes(el)) return;
     let at = 0;
@@ -105,12 +109,15 @@ export function parseSectionOrder(raw: unknown): DashboardElement[] {
 export function parseTopElements(raw: unknown): DashboardElement[] | null {
   if (!Array.isArray(raw)) return null;
   const out: DashboardElement[] = [];
-  for (const item of raw) if (isElement(item) && !out.includes(item)) out.push(item);
+  for (const name of raw) {
+    const item = savedElementName(name);
+    if (isElement(item) && !out.includes(item)) out.push(item);
+  }
   return out;
 }
 
 /** The elements in the top slot when the user has not moved any. */
-export const DEFAULT_TOP_ELEMENTS: readonly DashboardElement[] = ['clock', 'folder'];
+export const DEFAULT_TOP_ELEMENTS: readonly DashboardElement[] = ['clock', 'launch'];
 
 /** The slot above Pins, or the list between Pins and the footer. */
 export type ElementZone = 'top' | 'list';

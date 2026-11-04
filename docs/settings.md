@@ -148,9 +148,11 @@ the scrollback already saved, at the next close:
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `folder`, `panes`, `containers`, and `external` default to `true`, and
+each dashboard element: `launch`, `panes`, `containers`, and `external` default to `true`, and
 `favorites`, `layouts`, `system`, and `clock` to `false`. While `favorites` or `layouts` is off,
-the panel's top bar has a button for it instead. A settings file that still has `containers.enabled` and no
+the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
+drops the Launch menu. A settings file that still has `sections.folder` and no `sections.launch`
+uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found. All of them apply on save and are in the Dashboard section of the settings dialog, the
 elements under "Show on the dashboard".
@@ -164,7 +166,7 @@ dashboard", shown while the clock is on.
 "dashboard": {
   "side": "right",
   "sections": {
-    "folder": true,
+    "launch": true,
     "favorites": false,
     "layouts": false,
     "panes": true,

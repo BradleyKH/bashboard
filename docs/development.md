@@ -162,6 +162,9 @@ built app:
   existing one for that repo
 - Ctrl+Shift+H opens a Search pane at the focused pane's repo root, and Enter in its query field
   runs the search
+- Ctrl+Shift+X opens the focused pane's repo root in the preferred editor
+- Ctrl+Shift+L opens the Launch menu over the focused pane, a letter chooses an entry, and the
+  highlighted entry previews where its pane will open; confirm WebView2 does not take Ctrl+Shift+L
 - Ctrl+Shift+Z zooms the focused pane, restores the layout on a second press, and does nothing
   in a tab with one pane
 - Ctrl+=, Ctrl+numpad +, Ctrl+-, and Ctrl+0 change the font size; confirm WebView2 does not take

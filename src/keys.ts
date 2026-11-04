@@ -61,6 +61,7 @@ function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
     case 'togglePaneZoom':
     case 'openFavorite':
     case 'openLayout':
+    case 'openLaunch':
     case 'openPalette':
     case 'nextAttention':
     case 'splitWithProfile':
@@ -72,6 +73,7 @@ function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
     case 'openFiles':
     case 'openGit':
     case 'openSearch':
+    case 'openEditor':
     case 'closeTab':
     case 'nextTab':
     case 'prevTab':

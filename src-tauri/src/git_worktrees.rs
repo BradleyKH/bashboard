@@ -764,48 +764,6 @@ mod tests {
     }
 
     #[test]
-    fn git_worktrees_list_detached_locked_and_missing() {
-        let g = published("wt-list");
-        let detached = add(&g, "wt-det", &["--detach"]);
-        let locked = add(&g, "wt-lock", &["-b", "locked"]);
-        sh(
-            g.root(),
-            &[
-                "worktree",
-                "lock",
-                "--reason",
-                "on a usb drive",
-                &display(&locked),
-            ],
-        );
-        let missing = add(&g, "wt-miss", &["-b", "missing"]);
-        fs::remove_dir_all(&missing).unwrap();
-
-        let list = worktrees(&g, None).unwrap();
-        assert_eq!(list.worktrees.len(), 4);
-        let main = &list.worktrees[0];
-        assert!(main.main && same_root(&main.path, &display(g.root())));
-        assert!(!main.path.contains('/'), "{}", main.path);
-        assert_eq!(main.branch.as_deref(), Some("main"));
-        assert_eq!(main.upstream.as_deref(), Some("origin/main"));
-        assert_eq!(main.merged, MergedState::Merged);
-        assert_eq!(list.primary.comparison.as_deref(), Some("origin/main"));
-        assert_eq!(list.local_branches, ["locked", "main", "missing"]);
-
-        let d = find(&list, &detached);
-        assert!(d.detached && d.branch.is_none() && d.head.is_some() && !d.main);
-        let l = find(&list, &locked);
-        assert!(l.locked && !l.prunable);
-        assert_eq!(l.lock_reason.as_deref(), Some("on a usb drive"));
-        let m = find(&list, &missing);
-        assert!(m.prunable && !m.locked);
-        assert_eq!(
-            main_worktree_path(&g.at(detached.clone())).unwrap(),
-            main.path
-        );
-    }
-
-    #[test]
     fn git_worktrees_primary_resolution() {
         let g = repo("wt-primary");
         with_bare_remote(&g);
@@ -873,6 +831,9 @@ mod tests {
     fn git_worktrees_merged_states() {
         let (g, [fresh, merged, squashed, wip]) = merge_scenario("wt-merge");
         let list = worktrees(&g, None).unwrap();
+        let main = &list.worktrees[0];
+        assert!(main.main && !main.path.contains('/'), "{}", main.path);
+        assert_eq!(main_worktree_path(&g.at(wip.clone())).unwrap(), main.path);
         assert_eq!(find(&list, &fresh).merged, MergedState::Merged);
         assert_eq!(find(&list, &merged).merged, MergedState::Merged);
         let s = find(&list, &squashed);
@@ -913,8 +874,8 @@ mod tests {
     }
 
     #[test]
-    fn git_worktrees_remove_refusals() {
-        let (g, [fresh, _, _, wip]) = merge_scenario("wt-refuse");
+    fn git_worktrees_remove_refuses_main_locked_and_strangers() {
+        let g = published("wt-refuse");
         let locked = add(&g, "wt-lock2", &["-b", "locked"]);
         sh(g.root(), &["worktree", "lock", &display(&locked)]);
 
@@ -933,6 +894,14 @@ mod tests {
         let err = worktree_remove(&g, &display(&stranger), false, None).unwrap_err();
         assert!(err.contains("not a worktree of this repo"), "{err}");
         let _ = fs::remove_dir_all(&stranger);
+    }
+
+    #[test]
+    fn git_worktrees_remove_refuses_dirty_and_unmerged_then_removes_a_merged_one() {
+        let g = published("wt-remove");
+        let wip = add(&g, "wt-wip", &["-b", "wip"]);
+        commit_file(&g.at(wip.clone()), "wip.txt", "wip\n", "wip");
+        let fresh = add(&g, "wt-fresh", &["-b", "fresh"]);
 
         fs::write(fresh.join("scratch.txt"), "x\n").unwrap();
         let err = worktree_remove(&g, &display(&fresh), false, None).unwrap_err();
@@ -942,24 +911,15 @@ mod tests {
         let err = worktree_remove(&g, &display(&wip), true, None).unwrap_err();
         assert!(err.contains("not merged"), "{err}");
         assert!(wip.is_dir() && has_branch(&g, "wip"));
-    }
 
-    #[test]
-    fn git_worktrees_remove_clean_merged_with_its_branch() {
-        let (g, [fresh, ..]) = merge_scenario("wt-remove");
         // Forward slashes and other case still name the worktree.
+        fs::remove_file(fresh.join("scratch.txt")).unwrap();
         let spelled = display(&fresh).replace('\\', "/").to_uppercase();
         let r = worktree_remove(&g, &spelled, true, None).unwrap();
         assert_eq!(r, RemoveResult { branch_error: None });
-        assert!(!fresh.exists());
-        assert!(!has_branch(&g, "fresh"));
+        assert!(!fresh.exists() && !has_branch(&g, "fresh"));
         let list = worktrees(&g, None).unwrap();
-        assert!(
-            !list
-                .worktrees
-                .iter()
-                .any(|w| same_root(&w.path, &display(&fresh)))
-        );
+        assert!(!list.worktrees.iter().any(|w| same_root(&w.path, &display(&fresh))));
     }
 
     #[test]

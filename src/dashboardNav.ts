@@ -17,12 +17,12 @@ export interface NavSnapshot {
 }
 
 // Section headers and every row a click acts on. Layout, pin, and container rows share
-// `.favorite-row`; the top bar's buttons, the Folder section's buttons, and the footer's button
+// `.favorite-row`; the top bar's buttons, the Launch section's buttons, and the footer's button
 // are rows of their own.
 const ITEM_SELECTOR = [
   '.dashboard-top button',
   '.collapsible-head',
-  '.repo-button',
+  '.launch-button',
   '.favorite-row',
   '.recent-row',
   '.terminal-group-header',

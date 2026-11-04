@@ -1,46 +1,4 @@
-/* The dashboard's Folder and Pins sections. Pin rows reuse the favorite row styles. */
-.repo-section[hidden] {
-  display: none;
-}
-
-/* Folder's header: the title and the folder name on one row, the branch under the name. */
-.dashboard-section-head.repo-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 8px;
-  align-items: baseline;
-}
-
-.repo-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.repo-branch {
-  grid-column: 2;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-  font-size: 10px;
-  color: var(--accent);
-}
-
-.repo-branch[hidden] {
-  display: none;
-}
-
-.repo-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
+/* The dashboard's Pins section. Pin rows reuse the favorite row styles. */
 
 /* One line tall and wrapping, so a folder name too long to fit beside "Pins" wraps out of sight
    instead of growing the heading. */
@@ -61,16 +19,6 @@
   letter-spacing: 0;
   text-transform: none;
   color: #9aa6ad;
-}
-
-.repo-pins-folder[hidden] {
-  display: none;
-}
-
-#dashboard .repo-button {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  font-size: 11px;
 }
 
 .pin-row .pin-icon {

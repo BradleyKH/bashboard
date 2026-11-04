@@ -239,7 +239,7 @@ function renderList(entries: MenuEntry[], className: string): MenuList {
     label.textContent = entry.label;
     const mark = document.createElement('span');
     mark.className = 'context-menu-mark';
-    mark.textContent = entry.kind === 'submenu' ? '▸' : checked ? '✓' : '';
+    mark.textContent = entry.kind === 'submenu' ? '▸' : checked ? '✓' : entry.kind === 'item' ? (entry.key ?? '') : '';
     button.append(icon, label, mark);
     el.append(button);
     return button;
@@ -307,6 +307,7 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
         e.stopPropagation();
         choose(list, index, isSub);
       });
+      if (entry.kind === 'item' && entry.onHighlight) button.addEventListener('focus', entry.onHighlight);
       button.addEventListener('mouseenter', () => {
         if (!isEnabled(entry)) return;
         button.focus();
@@ -351,8 +352,13 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
           break;
         case 'Tab':
           break;
-        default:
-          return;
+        default: {
+          if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1) return;
+          const pressed = e.key.toLowerCase();
+          const index = list.entries.findIndex((entry) => entry.kind === 'item' && entry.key === pressed);
+          if (index < 0) return;
+          choose(list, index, isSub);
+        }
       }
       e.preventDefault();
     });

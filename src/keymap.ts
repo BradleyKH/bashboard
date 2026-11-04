@@ -21,6 +21,7 @@ export type Action =
   | { type: 'togglePaneZoom' }
   | { type: 'openFavorite' }
   | { type: 'openLayout' }
+  | { type: 'openLaunch' }
   | { type: 'openPalette' }
   | { type: 'nextAttention' }
   | { type: 'splitWithProfile' }
@@ -32,6 +33,7 @@ export type Action =
   | { type: 'openFiles' }
   | { type: 'openGit' }
   | { type: 'openSearch' }
+  | { type: 'openEditor' }
   | { type: 'closeTab' }
   | { type: 'nextTab' }
   | { type: 'prevTab' }
@@ -78,6 +80,7 @@ export const SIMPLE_ACTIONS = [
   'togglePaneZoom',
   'openFavorite',
   'openLayout',
+  'openLaunch',
   'openPalette',
   'nextAttention',
   'splitWithProfile',
@@ -89,6 +92,7 @@ export const SIMPLE_ACTIONS = [
   'openFiles',
   'openGit',
   'openSearch',
+  'openEditor',
   'closeTab',
   'nextTab',
   'prevTab',
@@ -270,6 +274,7 @@ export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = [
   { keys: 'ctrl+shift+z', action: 'togglePaneZoom' },
   { keys: 'ctrl+shift+o', action: 'openFavorite' },
   { keys: 'ctrl+shift+r', action: 'openLayout' },
+  { keys: 'ctrl+shift+l', action: 'openLaunch' },
   { keys: 'ctrl+shift+p', action: 'openPalette' },
   { keys: 'alt+shift+t', action: 'splitWithProfile' },
   { keys: 'ctrl+shift+t', action: 'newTab' },
@@ -277,6 +282,7 @@ export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = [
   { keys: 'ctrl+shift+e', action: 'openFiles' },
   { keys: 'ctrl+shift+g', action: 'openGit' },
   { keys: 'ctrl+shift+h', action: 'openSearch' },
+  { keys: 'ctrl+shift+x', action: 'openEditor' },
   { keys: 'ctrl+shift+w', action: 'closeTab' },
   { keys: 'ctrl+tab', action: 'nextTab' },
   { keys: 'ctrl+shift+tab', action: 'prevTab' },

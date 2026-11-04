@@ -2,7 +2,8 @@
 #dashboard .dashboard-clock {
   container-type: inline-size;
   cursor: grab;
-  padding: 6px 10px;
+  /* No vertical padding: the containers space every element evenly (--element-space). */
+  padding-inline: 10px;
 }
 
 #dashboard .clock-line {
@@ -20,9 +21,12 @@
   display: none;
 }
 
+/* Trimmed to the digits (cap height to baseline) so the line box holds no ascender or descender
+   space; otherwise the empty descender area makes the clock sit high in its slot. */
 #dashboard .clock-time {
   color: var(--content-fg);
   font-variant-numeric: tabular-nums;
+  text-box: trim-both cap alphabetic;
 }
 
 /* Three rows (hours, minutes, seconds) of six square dots, as tall as the time's digits: `cap`

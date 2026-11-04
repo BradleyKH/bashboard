@@ -3,7 +3,7 @@
 export type DashboardSide = 'left' | 'right';
 
 export const DEFAULT_DASHBOARD_WIDTH = 300;
-/** Wide enough that the Repo section's Terminal, Files, Git, Search, and Editor buttons stay on one row. */
+/** Wide enough that the top bar and the Launch row each stay on one line. */
 export const MIN_DASHBOARD_WIDTH = 280;
 /** The panel never takes more than this share of the window. */
 const MAX_WINDOW_SHARE = 0.6;

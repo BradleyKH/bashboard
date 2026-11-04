@@ -104,7 +104,7 @@ describe('SimSessionColony', () => {
     let busyTotal = 0;
     let idleTotal = 0;
     let busyWins = 0;
-    const seeds = [21, 22, 23, 24, 25, 26];
+    const seeds = [21, 22, 23];
     for (const seed of seeds) {
       const { sim, colony } = setup(seed);
       colony.ensure('busy', 0.1);

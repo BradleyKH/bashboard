@@ -115,6 +115,9 @@ describe('default keybindings', () => {
     expect(lookup(keymap, ev({ key: 'R', code: 'KeyR', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'openLayout',
     });
+    expect(lookup(keymap, ev({ key: 'L', code: 'KeyL', ctrlKey: true, shiftKey: true }))).toEqual({
+      type: 'openLaunch',
+    });
     expect(lookup(keymap, ev({ key: 'T', code: 'KeyT', altKey: true, shiftKey: true }))).toEqual({
       type: 'splitWithProfile',
     });
@@ -167,6 +170,12 @@ describe('default keybindings', () => {
   it('maps openSearch to its chord', () => {
     expect(lookup(keymap, ev({ key: 'H', code: 'KeyH', ctrlKey: true, shiftKey: true }))).toEqual({
       type: 'openSearch',
+    });
+  });
+
+  it('maps openEditor to its chord', () => {
+    expect(lookup(keymap, ev({ key: 'X', code: 'KeyX', ctrlKey: true, shiftKey: true }))).toEqual({
+      type: 'openEditor',
     });
   });
 

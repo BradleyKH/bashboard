@@ -1,0 +1,49 @@
+/* The Launch preview: where a hovered Launch option would put its pane. */
+.launch-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+}
+
+.launch-preview[hidden] {
+  display: none;
+}
+
+.launch-preview-outline,
+.launch-preview-added {
+  position: fixed;
+  box-sizing: border-box;
+  border-radius: 4px;
+}
+
+.launch-preview-outline {
+  border: 1px dashed var(--accent);
+}
+
+.launch-preview-added {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* A reused pane or a collapsed open keeps the pane's own look, so only the note says what happens. */
+.launch-preview[data-kind='reuse'] .launch-preview-added,
+.launch-preview[data-kind='collapsed'] .launch-preview-added {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.launch-preview[data-kind='collapsed'] .launch-preview-added {
+  border-style: dashed;
+}
+
+.launch-preview-note {
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(10, 14, 18, 0.85);
+  color: #e6edf1;
+  font: 12px system-ui, sans-serif;
+  white-space: nowrap;
+}

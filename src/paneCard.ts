@@ -13,6 +13,8 @@ export interface PaneCardOptions {
   now: number;
   /** The bound Claude session's model and context size, shown under the path; null for none. */
   claudeLine: string | null;
+  /** Shows the folder path under the title; hidden, the path moves into the title's tooltip. */
+  showPath: boolean;
   /** True while the card shows its inline close confirmation. */
   confirming: boolean;
   onFocus: (paneId: string) => void;
@@ -126,7 +128,7 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
   const title = document.createElement('span');
   title.className = 'card-title';
   title.textContent = card.title;
-  title.title = card.title;
+  title.title = card.path && !opts.showPath ? `${card.title}\n${card.path}` : card.title;
 
   head.append(lead);
   if (card.kind === 'terminal' && card.hue !== null) {
@@ -178,7 +180,7 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     reason.textContent = card.reason;
     reason.title = card.reason;
     el.append(reason);
-  } else if (card.path) {
+  } else if (card.path && opts.showPath) {
     const path = document.createElement('div');
     path.className = 'card-path';
     setPathText(path, card.path);

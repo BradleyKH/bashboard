@@ -158,6 +158,7 @@ describe('handleKey', () => {
     { key: 'Z', code: 'KeyZ', type: 'togglePaneZoom' },
     { key: 'O', code: 'KeyO', type: 'openFavorite' },
     { key: 'R', code: 'KeyR', type: 'openLayout' },
+    { key: 'L', code: 'KeyL', type: 'openLaunch' },
     { key: 'P', code: 'KeyP', type: 'openPalette' },
     { key: 'N', code: 'KeyN', type: 'nextAttention' },
     { key: 'A', code: 'KeyA', type: 'toggleBackdrop' },
@@ -166,6 +167,7 @@ describe('handleKey', () => {
     { key: 'E', code: 'KeyE', type: 'openFiles' },
     { key: 'G', code: 'KeyG', type: 'openGit' },
     { key: 'H', code: 'KeyH', type: 'openSearch' },
+    { key: 'X', code: 'KeyX', type: 'openEditor' },
     { key: 'W', code: 'KeyW', type: 'closeTab' },
     { key: 'F', code: 'KeyF', type: 'find' },
   ])('dispatches $type on Ctrl+Shift+$key and swallows the rest of the key', ({ key, code, type }) => {

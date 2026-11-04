@@ -138,7 +138,7 @@ branches without leaving Bashboard. Ctrl+Shift+G (the `openGit` action) opens on
 repo, as a split of the focused pane. When the active tab already has a Git pane for that repo,
 Ctrl+Shift+G focuses it instead (expanding it if collapsed). In a folder outside a repo,
 Ctrl+Shift+G shows a toast and opens nothing. The kind menu on a title strip lists Git too, and so
-do the Folder section and the Open menu on dashboard rows, which offer Git only for a git repo (see
+do Launch and the Open menu on dashboard rows, which offer Git only for a git repo (see
 [Dashboard](#dashboard)). A Git pane comes back on relaunch on the same repo and tab, and layouts
 keep it.
 
@@ -252,7 +252,7 @@ terminal. Only open Git panes on repos you trust.
 
 A Search pane searches the files of a repo for a text or regex query and lists the matching lines.
 Ctrl+Shift+H (the `openSearch` action) opens one for the focused pane's repo, as a split of the
-focused pane. Outside a repo, it searches the folder itself. The Folder section's Search button, the
+focused pane. Outside a repo, it searches the folder itself. Launch's Search button, the
 Open menu on dashboard rows, and the kind menu on a title strip open one the same way. Each of them
 always adds another Search pane, even when the tab already has one. When the focused terminal has a
 selection that is a single line, that text becomes the starting query.
@@ -310,7 +310,9 @@ they were opened (with two or more tabs, grouped under a header for each tab sho
 pane count, and status; click a header to switch to that tab). A terminal's card shows its status (a green check mark when it is done),
 folder, and time since its status last changed, plus, while a Claude session runs in it, the model
 and the tokens in its context (as "Opus 5.5 · 112k tokens") on a line below the folder; a card for any other kind of pane shows the
-kind's icon and the pane's title. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
+kind's icon and the pane's title. Folder paths under the card titles are hidden by default; the
+**↳** button on the Panes header shows them, and the choice is saved with the workspace. While
+they're hidden, hover a card's title to see its full path. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
@@ -324,18 +326,26 @@ the row's repo root as a Terminal, as Files (see [Files panes](#files-panes)), a
 [Git pane](#git-pane), for a git repo only), as Search (see [Code search](#code-search)), or in
 your Editor.
 
-**Folder** sits at the top by default and appears while the focused pane is in a folder (a
-scratch pad keeps the last one shown). Its header shows the repo folder's name and, in a git
-repo, the current branch, which follows checkouts made in any shell while the dashboard is open.
-Its buttons open a Terminal, Files, Git (for a git repo only), Search (see
-[Code search](#code-search)), or your Editor at the repo root. Like the other sections it can be
-dragged elsewhere or turned off.
+**Launch** sits at the top by default and appears while the focused pane is in a folder (a
+scratch pad keeps the last one shown). Its row of icons opens a Terminal, Files, Git (for a git
+repo only), Search (see [Code search](#code-search)), or Scratch pane at the focused pane's repo
+root, or opens the repo in your Editor; hover one for its name and shortcut. While you hover, the
+panes show where the new one will open: the focused pane outlined and the new pane's share of it
+highlighted, or the Files or Git pane it would bring forward, or a note that it opens collapsed
+when there is no room. Like the other sections it can be dragged elsewhere or turned off; it does
+not collapse.
+
+Ctrl+Shift+L (the `openLaunch` action) opens the same choices as a menu over the focused pane:
+press a letter (**t** Terminal, **f** Files, **g** Git, **s** Search, **p** Scratch, **e**
+Editor), or use the arrows and Enter, with the same preview as you move. While Launch is turned
+off, a **+** button in the top bar, left of **?**, drops this menu. Ctrl+Shift+X (the `openEditor`
+action) opens the focused pane's repo in your editor directly, or its folder outside a repo.
 
 **Pins**, the repo's pinned files and folders (see [Pins](#pins)), stay put just below the top
-slot so the sections don't jump as pins come and go. When Folder isn't right above them, the
-heading names the folder too, if it fits.
+slot so the sections don't jump as pins come and go. The heading names the folder too, if it
+fits.
 
-The **clock**, which is off by default, is one line at the top of the panel, above Folder: three
+The **clock**, which is off by default, is one line at the top of the panel, above Launch: three
 rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
 `h:mm` beside them. Clock style in the settings dialog shows just the time or just the dots
 instead. Drag it down among the other sections to move it there, or back to the top.

@@ -1003,7 +1003,7 @@ mod tests {
             "outer-ready-42",
         );
         assert!(until(&mut probe, false), "shell never went idle");
-        ptys.write(run.id, b"sleep 3\r").unwrap();
+        ptys.write(run.id, b"sleep 2\r").unwrap();
         assert!(until(&mut probe, true), "never reported busy");
         assert!(until(&mut probe, false), "never returned to idle");
 
@@ -1015,7 +1015,7 @@ mod tests {
             assert_eq!(probe(), Some(false), "idle nested shell reported busy");
             thread::sleep(Duration::from_millis(100));
         }
-        ptys.write(run.id, b"sleep 3\r").unwrap();
+        ptys.write(run.id, b"sleep 2\r").unwrap();
         assert!(until(&mut probe, true), "job in nested shell never reported busy");
         assert!(until(&mut probe, false), "nested shell never returned to idle");
         ptys.kill(run.id).unwrap();

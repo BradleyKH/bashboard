@@ -158,7 +158,7 @@ pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DashboardSections {
-    pub folder: bool,
+    pub launch: bool,
     pub favorites: bool,
     pub layouts: bool,
     pub panes: bool,
@@ -188,6 +188,8 @@ pub struct GitSettings {
 pub struct Terminal {
     /// Shell commands running at least this many seconds mark the terminal done or failed; 0 turns it off.
     pub done_after_seconds: u32,
+    /// Shows a Windows notification when a terminal starts waiting while the window is unfocused.
+    pub notify_when_waiting: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -291,6 +293,7 @@ pub fn default_keybindings() -> Vec<Keybinding> {
         kb("ctrl+shift+z", "togglePaneZoom", None, None),
         kb("ctrl+shift+o", "openFavorite", None, None),
         kb("ctrl+shift+r", "openLayout", None, None),
+        kb("ctrl+shift+l", "openLaunch", None, None),
         kb("ctrl+shift+p", "openPalette", None, None),
         kb("alt+shift+t", "splitWithProfile", None, None),
         kb("ctrl+shift+t", "newTab", None, None),
@@ -298,6 +301,7 @@ pub fn default_keybindings() -> Vec<Keybinding> {
         kb("ctrl+shift+e", "openFiles", None, None),
         kb("ctrl+shift+g", "openGit", None, None),
         kb("ctrl+shift+h", "openSearch", None, None),
+        kb("ctrl+shift+x", "openEditor", None, None),
         kb("ctrl+shift+w", "closeTab", None, None),
         kb("ctrl+tab", "nextTab", None, None),
         kb("ctrl+shift+tab", "prevTab", None, None),
@@ -343,13 +347,13 @@ impl Default for Settings {
                 matrix: MatrixBackdrop { color: "green".into(), zoom: 1.0, speed: 10, density: 3.0 },
             },
             scrollback: 10000,
-            terminal: Terminal { done_after_seconds: 30 },
+            terminal: Terminal { done_after_seconds: 30, notify_when_waiting: true },
             dashboard: Dashboard {
                 visible_on_start: true,
                 peek_on_waiting: true,
                 side: "right".into(),
                 sections: DashboardSections {
-                    folder: true,
+                    launch: true,
                     favorites: false,
                     layouts: false,
                     panes: true,
@@ -754,6 +758,13 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             |v| v.as_u64().filter(|n| *n <= 86_400).and_then(|n| u32::try_from(n).ok()),
             d.terminal.done_after_seconds,
         ),
+        notify_when_waiting: pick(
+            &root,
+            &["terminal", "notifyWhenWaiting"],
+            &mut w,
+            boolean,
+            d.terminal.notify_when_waiting,
+        ),
     };
     // containers.enabled predates dashboard.sections.containers and still seeds it.
     let containers_default = get(&root, &["containers", "enabled"])
@@ -762,6 +773,8 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
     let section = |w: &mut Vec<String>, name: &str, default: bool| {
         pick(&root, &["dashboard", "sections", name], w, boolean, default)
     };
+    // `folder` is the Launch section's name in settings files written before it was Launch.
+    let launch_default = section(&mut w, "folder", d.dashboard.sections.launch);
     let dashboard = Dashboard {
         visible_on_start: pick(
             &root,
@@ -785,7 +798,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.dashboard.side,
         ),
         sections: DashboardSections {
-            folder: section(&mut w, "folder", d.dashboard.sections.folder),
+            launch: section(&mut w, "launch", launch_default),
             favorites: section(&mut w, "favorites", d.dashboard.sections.favorites),
             layouts: section(&mut w, "layouts", d.dashboard.sections.layouts),
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
@@ -874,7 +887,8 @@ fn default_file_text() -> String {
     .replace(
         "  \"terminal\": {",
         "  // Shell commands that run at least this many seconds mark the terminal done, or failed on a
-  // nonzero exit, when they finish unseen. 0 turns it off.
+  // nonzero exit, when they finish unseen. 0 turns it off. notifyWhenWaiting shows a Windows
+  // notification when a terminal starts waiting while the window is unfocused.
   \"terminal\": {",
     )
     .replace(
@@ -1335,7 +1349,7 @@ mod tests {
         assert_eq!(
             d.sections,
             DashboardSections {
-                folder: true,
+                launch: true,
                 favorites: false,
                 layouts: false,
                 panes: true,
@@ -1349,9 +1363,14 @@ mod tests {
         assert!(w.is_empty(), "{w:?}");
         assert!(s.dashboard.sections.clock && !s.dashboard.sections.panes);
         assert!(!s.dashboard.sections.favorites && s.dashboard.sections.external);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "launch": false } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!s.dashboard.sections.launch && s.dashboard.sections.panes);
         let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "folder": false } } }"#);
         assert!(w.is_empty(), "{w:?}");
-        assert!(!s.dashboard.sections.folder && s.dashboard.sections.panes);
+        assert!(!s.dashboard.sections.launch);
+        let (s, _) = parse_settings(r#"{ "dashboard": { "sections": { "folder": false, "launch": true } } }"#);
+        assert!(s.dashboard.sections.launch);
     }
 
     #[test]
@@ -1431,6 +1450,7 @@ mod tests {
     fn layout_and_profile_chords_are_bound_by_default() {
         let s = Settings::default();
         assert_eq!(find(&s, "ctrl+shift+r").map(|k| k.action.as_str()), Some("openLayout"));
+        assert_eq!(find(&s, "ctrl+shift+l").map(|k| k.action.as_str()), Some("openLaunch"));
         assert_eq!(find(&s, "ctrl+shift+p").map(|k| k.action.as_str()), Some("openPalette"));
         assert_eq!(find(&s, "alt+shift+t").map(|k| k.action.as_str()), Some("splitWithProfile"));
         assert_eq!(find(&s, "ctrl+shift+t").map(|k| k.action.as_str()), Some("newTab"));
@@ -1453,6 +1473,12 @@ mod tests {
     fn open_search_chord_is_bound_by_default() {
         let s = Settings::default();
         assert_eq!(find(&s, "ctrl+shift+h").map(|k| k.action.as_str()), Some("openSearch"));
+    }
+
+    #[test]
+    fn open_editor_chord_is_bound_by_default() {
+        let s = Settings::default();
+        assert_eq!(find(&s, "ctrl+shift+x").map(|k| k.action.as_str()), Some("openEditor"));
     }
 
     #[test]
@@ -1554,7 +1580,7 @@ mod tests {
 
     #[test]
     fn terminal_done_after_seconds_defaults_to_30() {
-        assert_eq!(Settings::default().terminal, Terminal { done_after_seconds: 30 });
+        assert_eq!(Settings::default().terminal, Terminal { done_after_seconds: 30, notify_when_waiting: true });
         let (s, w) = parse_settings("{}");
         assert_eq!(s.terminal.done_after_seconds, 30);
         assert!(w.is_empty());
@@ -1577,6 +1603,16 @@ mod tests {
             assert_eq!(w.len(), 1, "{bad}");
             assert!(w[0].starts_with("terminal.doneAfterSeconds"), "{bad}");
         }
+    }
+
+    #[test]
+    fn terminal_notify_when_waiting_parses_and_falls_back() {
+        let (s, w) = parse_settings(r#"{ "terminal": { "notifyWhenWaiting": false } }"#);
+        assert!(!s.terminal.notify_when_waiting);
+        assert!(w.is_empty());
+        let (s, w) = parse_settings(r#"{ "terminal": { "notifyWhenWaiting": "no" } }"#);
+        assert!(s.terminal.notify_when_waiting);
+        assert!(w.len() == 1 && w[0].starts_with("terminal.notifyWhenWaiting"), "{w:?}");
     }
 
     #[test]
