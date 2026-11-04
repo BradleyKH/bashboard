@@ -5,6 +5,8 @@ export type { Direction };
 export type Action =
   | { type: 'splitRight' }
   | { type: 'splitDown' }
+  | { type: 'splitLeft' }
+  | { type: 'splitUp' }
   | { type: 'splitAuto' }
   | { type: 'closePane' }
   | { type: 'moveFocus'; direction: Direction }
@@ -70,6 +72,8 @@ const DIRECTIONS: readonly string[] = ['left', 'right', 'up', 'down'];
 export const SIMPLE_ACTIONS = [
   'splitRight',
   'splitDown',
+  'splitLeft',
+  'splitUp',
   'splitAuto',
   'closePane',
   'copy',
@@ -253,8 +257,10 @@ export function lookup(keymap: Keymap, e: KeyboardEvent): Action | null {
 
 /** Mirrors default_keybindings() in src-tauri/src/settings.rs. */
 export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = [
-  { keys: 'ctrl+right', action: 'splitRight' },
-  { keys: 'ctrl+down', action: 'splitDown' },
+  { keys: 'ctrl+shift+right', action: 'splitRight' },
+  { keys: 'ctrl+shift+down', action: 'splitDown' },
+  { keys: 'ctrl+shift+left', action: 'splitLeft' },
+  { keys: 'ctrl+shift+up', action: 'splitUp' },
   { keys: 'alt+shift+d', action: 'splitAuto' },
   { keys: 'ctrl+w', action: 'closePane' },
   { keys: 'alt+left', action: 'moveFocus', direction: 'left' },

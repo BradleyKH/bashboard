@@ -118,7 +118,7 @@ describe('handleKey', () => {
   });
 
   it('dispatches a workspace action once per keydown and swallows the rest of the key', () => {
-    const init = { key: 'ArrowRight', code: 'ArrowRight', ctrlKey: true };
+    const init = { key: 'ArrowRight', code: 'ArrowRight', ctrlKey: true, shiftKey: true };
     expect(handleKey(ev('keydown', init), ctx)).toBe(false);
     expect(handleKey(ev('keypress', init), ctx)).toBe(false);
     expect(handleKey(ev('keyup', init), ctx)).toBe(false);

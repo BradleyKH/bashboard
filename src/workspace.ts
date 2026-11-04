@@ -43,17 +43,19 @@ import {
   close,
   computeRects,
   findPath,
+  insertAtEdge,
   leaves,
   neighbor,
   resizePane,
   setRatio,
-  split,
   type CellSize,
-  type Dir,
   type Direction,
+  type DockZone,
   type Layout,
   type Rect,
 } from './layout';
+
+type Edge = Exclude<DockZone, 'center'>;
 import { LayoutView } from './layoutView';
 import { LiveSettings } from './liveSettings';
 import { TerminalPane, type CommandEvent } from './pane';
@@ -422,20 +424,21 @@ export class Workspace {
     );
   }
 
-  split(dir: Dir | 'auto'): void {
+  /** Splits the focused pane, opening the new terminal on `side`. */
+  split(side: Edge | 'auto'): void {
     const cell = this.layoutCell();
     if (!this.store.tree || !this.paneViews.has(this.store.focusedId) || !cell) return;
     const container = this.containerRect();
-    let d: Dir;
-    if (dir === 'auto') {
+    let edge: Edge;
+    if (side === 'auto') {
       const rect = computeRects(this.store.tree, container).get(this.store.focusedId);
       if (!rect) return;
-      d = autoDir(rect);
+      edge = autoDir(rect) === 'row' ? 'right' : 'bottom';
     } else {
-      d = dir;
+      edge = side;
     }
     const id = `p${this.nextId}`;
-    const next = split(this.store.tree, this.store.focusedId, id, d, container, cell);
+    const next = insertAtEdge(this.store.tree, this.store.focusedId, id, edge, container, cell);
     if (next === this.store.tree) return;
     this.takeId();
     this.mount(id, next, { kind: 'terminal', cwd: this.folderForNew() });
@@ -1165,10 +1168,16 @@ export class Workspace {
   private dispatch(action: Action): boolean {
     switch (action.type) {
       case 'splitRight':
-        this.split('row');
+        this.split('right');
         return true;
       case 'splitDown':
-        this.split('column');
+        this.split('bottom');
+        return true;
+      case 'splitLeft':
+        this.split('left');
+        return true;
+      case 'splitUp':
+        this.split('top');
         return true;
       case 'splitAuto':
         this.split('auto');

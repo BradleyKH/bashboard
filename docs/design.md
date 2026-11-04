@@ -1011,8 +1011,10 @@ Defaults mirror the current Windows Terminal settings:
 
 | Keys | Action |
 | --- | --- |
-| Ctrl+Right | Split right (duplicate) |
-| Ctrl+Down | Split down (duplicate) |
+| Ctrl+Shift+Right | Split right (duplicate) |
+| Ctrl+Shift+Down | Split down (duplicate) |
+| Ctrl+Shift+Left | Split left (duplicate) |
+| Ctrl+Shift+Up | Split up (duplicate) |
 | Alt+Shift+D | Split auto (duplicate) |
 | Ctrl+W | Close pane |
 | Ctrl+Shift+M | Collapse pane |

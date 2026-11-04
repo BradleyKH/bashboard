@@ -16,7 +16,7 @@ const CLAUDE_NEWLINE = '\u001b\r';
 export const HELP_SECTIONS: { title: string; actions: string[] }[] = [
   {
     title: 'Panes',
-    actions: ['splitRight', 'splitDown', 'splitAuto', 'closePane', 'newScratch', 'openFiles', 'openGit', 'openSearch', 'openEditor', 'collapsePane', 'togglePaneZoom', 'moveFocus', 'resizePane'],
+    actions: ['splitRight', 'splitDown', 'splitLeft', 'splitUp', 'splitAuto', 'closePane', 'newScratch', 'openFiles', 'openGit', 'openSearch', 'openEditor', 'collapsePane', 'togglePaneZoom', 'moveFocus', 'resizePane'],
   },
   {
     title: 'Tabs',
@@ -32,6 +32,8 @@ export const HELP_SECTIONS: { title: string; actions: string[] }[] = [
 export const ACTION_LABELS: Record<string, string> = {
   splitRight: 'Split right',
   splitDown: 'Split down',
+  splitLeft: 'Split left',
+  splitUp: 'Split up',
   splitAuto: 'Split along the longer side',
   closePane: 'Close pane',
   newScratch: 'New scratch pad',

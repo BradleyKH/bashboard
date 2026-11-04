@@ -145,8 +145,8 @@ describe('checkChord', () => {
   });
 
   it('gives no note for the row reclaiming its own default', () => {
-    const live = applyOps(DEFAULTS, removeOps('ctrl+right'));
-    expect(checkChord(chord('ctrl+right'), row(live, 'splitRight'), live)).toEqual({ kind: 'free' });
+    const live = applyOps(DEFAULTS, removeOps('ctrl+w'));
+    expect(checkChord(chord('ctrl+w'), row(live, 'closePane'), live)).toEqual({ kind: 'free' });
   });
 
   it('detects conflicts with and without leavesEmpty', () => {
@@ -178,11 +178,10 @@ describe('shell notes', () => {
   });
 
   it('shows no note for a default shell key, but does once it moves', () => {
-    expect(row(DEFAULTS, 'splitRight').shellNotes).toEqual([]);
     expect(row(DEFAULTS, 'closePane').shellNotes).toEqual([]);
-    const moved = applyOps(DEFAULTS, addOps(row(DEFAULTS, 'splitDown'), chord('ctrl+right')));
-    expect(row(moved, 'splitDown').shellNotes).toEqual(["Ctrl+Right no longer reaches bash's word forward"]);
-    expect(row(moved, 'splitRight')).toMatchObject({ chords: [], shellNotes: [] });
+    const moved = applyOps(DEFAULTS, addOps(row(DEFAULTS, 'splitDown'), chord('ctrl+w')));
+    expect(row(moved, 'splitDown').shellNotes).toEqual(["Ctrl+W no longer reaches bash's delete previous word"]);
+    expect(row(moved, 'closePane')).toMatchObject({ chords: [], shellNotes: [] });
   });
 });
 

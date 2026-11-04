@@ -49,6 +49,8 @@ function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
       return true;
     case 'splitRight':
     case 'splitDown':
+    case 'splitLeft':
+    case 'splitUp':
     case 'splitAuto':
     case 'closePane':
     case 'moveFocus':

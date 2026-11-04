@@ -146,7 +146,8 @@ Before each release, run through this keyboard checklist in a `pnpm tauri dev` s
 built app:
 
 - Ctrl+F, Ctrl+R, and Ctrl+P reach the shell
-- Alt+B and Alt+F move by word
+- Alt+B and Alt+F, and Ctrl+Left and Ctrl+Right, move by word
+- Ctrl+Shift+Arrow splits the focused pane on that side
 - Shift+Enter sends a newline to Claude Code
 - Esc reaches the shell or a running program
 - copy (Ctrl+Shift+C, or Ctrl+C with a selection) and paste (Ctrl+V, Ctrl+Shift+V)

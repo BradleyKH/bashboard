@@ -268,8 +268,10 @@ fn kb_index(keys: &str, action: &str, index: u32) -> Keybinding {
 
 pub fn default_keybindings() -> Vec<Keybinding> {
     let mut v = vec![
-        kb("ctrl+right", "splitRight", None, None),
-        kb("ctrl+down", "splitDown", None, None),
+        kb("ctrl+shift+right", "splitRight", None, None),
+        kb("ctrl+shift+down", "splitDown", None, None),
+        kb("ctrl+shift+left", "splitLeft", None, None),
+        kb("ctrl+shift+up", "splitUp", None, None),
         kb("alt+shift+d", "splitAuto", None, None),
         kb("ctrl+w", "closePane", None, None),
     ];
@@ -1665,8 +1667,8 @@ mod tests {
     #[test]
     fn user_entry_overrides_default_chord() {
         let (s, _) =
-            parse_settings(r#"{ "keybindings": [ { "keys": "ctrl+right", "action": "splitAuto" } ] }"#);
-        let all: Vec<_> = s.keybindings.iter().filter(|k| k.keys == "ctrl+right").collect();
+            parse_settings(r#"{ "keybindings": [ { "keys": "ctrl+shift+right", "action": "splitAuto" } ] }"#);
+        let all: Vec<_> = s.keybindings.iter().filter(|k| k.keys == "ctrl+shift+right").collect();
         assert_eq!(all.len(), 1);
         assert_eq!(all[0].action, "splitAuto");
         assert_eq!(s.keybindings.len(), default_keybindings().len());
