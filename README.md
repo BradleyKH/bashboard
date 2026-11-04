@@ -1,8 +1,8 @@
 Bashboard
 =========
 
-**Stop jumping between apps while Claude works.** Bashboard is a
-Windows terminal built around Claude Code: split terminal panes, a live status board, and the Git, file, and search views you'd otherwise leave for an IDE.
+**A beautiful terminal that enhances productivity and reduces friction.** Bashboard is a
+Windows terminal built around Claude Code: split terminal panes, a live status board, and the Git, file, and search views you'd otherwise leave for an IDE, so you stop jumping between apps while Claude works.
 
 ## Why Bashboard
 
