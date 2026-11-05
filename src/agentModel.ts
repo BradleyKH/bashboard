@@ -1,11 +1,15 @@
-// The Claude line on a Panes card (docs/design.md section 4.6): token text and model display
+// The agent line on a Panes card (docs/design.md section 4.6): token text and model display
 // names. Pure, no DOM.
+import { agentName } from './agentNames';
+import type { AgentId } from './savedWorkspace';
 
-/** The newest model and context of one session's transcript; mirrors `ClaudeContext` in `transcript.rs`. */
-export interface ClaudeContext {
+/** The newest model and context of one session's transcript; mirrors `AgentContext` in the core. */
+export interface AgentContext {
   sessionId: string;
   model: string | null;
   contextTokens: number | null;
+  /** The model's context window, when the transcript reports one. */
+  contextWindow: number | null;
 }
 
 // Truncating rather than rounding keeps a count just under a boundary from printing as the next
@@ -41,11 +45,21 @@ export function modelDisplayName(id: string): string {
   return `${FAMILIES[family]} ${minor === undefined ? major : `${major}.${minor}`}`;
 }
 
-/** "Opus 5.5 · 112k tokens", either half alone, or null when the transcript has reported neither. */
-export function claudeLine(ctx: ClaudeContext | undefined): string | null {
+/**
+ * "Opus 5.5 · 112k tokens" for Claude; other agents lead with their name ("Codex · gpt-5.5 · 112k / 272k
+ * tokens"). Null when neither a model nor a count is known. `windowOverride` supplies a window the context
+ * lacks, such as a local server's loaded context length.
+ */
+export function agentLine(agent: AgentId, ctx: AgentContext | undefined, windowOverride?: number | null): string | null {
   if (!ctx) return null;
   const parts: string[] = [];
   if (ctx.model !== null) parts.push(modelDisplayName(ctx.model));
-  if (ctx.contextTokens !== null) parts.push(`${formatTokens(ctx.contextTokens)} tokens`);
-  return parts.length > 0 ? parts.join(' · ') : null;
+  if (ctx.contextTokens !== null) {
+    const window = ctx.contextWindow ?? windowOverride ?? null;
+    const count = window !== null ? `${formatTokens(ctx.contextTokens)} / ${formatTokens(window)}` : formatTokens(ctx.contextTokens);
+    parts.push(`${count} tokens`);
+  }
+  if (parts.length === 0) return null;
+  if (agent !== 'claude') parts.unshift(agentName(agent));
+  return parts.join(' · ');
 }

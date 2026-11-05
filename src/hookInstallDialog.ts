@@ -1,17 +1,19 @@
-import type { HookInstallPreview } from './hookInstall';
+import { agentName, isPreviewAgent } from './agentNames';
+import type { HookAgentId, HookInstallPreview } from './hookInstall';
 
 export interface HookInstallDialogCallbacks {
   /** Performs the install; a rejection is shown in the dialog and leaves it open. */
-  onConfirm(): Promise<void>;
+  onConfirm(agent: HookAgentId): Promise<void>;
   /** Dismissed, or closed after a successful install; the caller refocuses the terminal. */
   onClose(): void;
 }
 
-/** Modal confirmation for installing the Claude Code hooks (docs/design.md section 3.3). */
+/** Modal confirmation for installing one agent's hooks (docs/design.md section 3.3). */
 export class HookInstallDialog {
   private backdrop: HTMLElement | null = null;
   private busy = false;
   private bashFound = true;
+  private agent: HookAgentId = 'claude';
   private install!: HTMLButtonElement;
   private cancel!: HTMLButtonElement;
   private error!: HTMLElement;
@@ -31,6 +33,8 @@ export class HookInstallDialog {
     if (this.backdrop) this.close();
     this.busy = false;
     this.bashFound = preview.bashFound;
+    this.agent = preview.agent ?? 'claude';
+    const name = agentName(this.agent);
     this.onClosed = onClosed;
 
     const backdrop = document.createElement('div');
@@ -50,7 +54,7 @@ export class HookInstallDialog {
     box.addEventListener('keydown', (e) => this.onKey(e));
 
     const title = document.createElement('h2');
-    title.textContent = 'Install Claude Code hooks';
+    title.textContent = `Install ${name} hooks`;
 
     const script = this.line('Writes the hook script to', preview.scriptPath);
     const settings = this.line('Adds these hooks to', preview.settingsPath);
@@ -87,7 +91,14 @@ export class HookInstallDialog {
         'The hooks run through Git Bash, which was not found. Install Git for Windows, then open this dialog again.';
       box.append(warning);
     }
-    box.append(script, settings, pre, this.error, buttons);
+    box.append(script, settings, pre);
+    if (isPreviewAgent(this.agent)) {
+      box.append(this.note(`${name} support is a preview.`));
+    }
+    if (this.agent === 'codex') {
+      box.append(this.note('Codex will ask you to trust the hook the next time it starts.'));
+    }
+    box.append(this.error, buttons);
     backdrop.append(box);
     document.body.append(backdrop);
     this.backdrop = backdrop;
@@ -98,6 +109,13 @@ export class HookInstallDialog {
     this.backdrop?.remove();
     this.backdrop = null;
     this.onClosed = undefined;
+  }
+
+  private note(text: string): HTMLElement {
+    const p = document.createElement('p');
+    p.className = 'hook-dialog-line';
+    p.textContent = text;
+    return p;
   }
 
   private line(label: string, path: string): HTMLElement {
@@ -122,7 +140,7 @@ export class HookInstallDialog {
     this.setBusy(true);
     this.error.hidden = true;
     try {
-      await this.callbacks.onConfirm();
+      await this.callbacks.onConfirm(this.agent);
     } catch (e) {
       this.setBusy(false);
       this.error.textContent = e instanceof Error ? e.message : String(e);

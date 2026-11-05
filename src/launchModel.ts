@@ -1,8 +1,10 @@
 // The Launch options (docs/design.md section 4.6), shared by the Launch section, the top bar's
 // + menu, and the openLaunch menu. Pure, no DOM.
 
-import { item, type MenuItem } from './contextMenuModel';
+import { agentName } from './agentNames';
+import { item, submenu, type MenuEntry } from './contextMenuModel';
 import { paneKindInfo, type PaneKind } from './paneKinds';
+import { safeModel, type AgentId } from './savedWorkspace';
 
 export type LaunchKind = 'terminal' | 'files' | 'git' | 'search' | 'scratch' | 'editor';
 
@@ -43,13 +45,37 @@ export function launchLabel(kind: LaunchKind): string {
   return OPTIONS.find((o) => o.kind === kind)!.label;
 }
 
+/** What the local-model entries need: the installed models and the agents to offer them for. */
+export interface LocalLaunch {
+  agents: AgentId[];
+  models: string[];
+  /** Opens a terminal running the command at the launch root. */
+  onRun: (command: string) => void;
+}
+
+/** The command that starts `agent` on an Ollama model, or null when the name is unsafe to type. */
+export function ollamaLaunchCommand(agent: AgentId, model: string): string | null {
+  const safe = safeModel(model);
+  return safe ? `ollama launch ${agent} --model ${safe}` : null;
+}
+
 /** The launch menu's entries: each option with its icon and letter, previewed as it is highlighted. */
 export function launchMenuItems(
   isGit: boolean,
   onLaunch: (kind: LaunchKind) => void,
   onPreview: (kind: LaunchKind) => void,
-): MenuItem[] {
-  return launchOptions(isGit).map((o) =>
+  local?: LocalLaunch,
+): MenuEntry[] {
+  const entries: MenuEntry[] = launchOptions(isGit).map((o) =>
     item(o.label, () => onLaunch(o.kind), { icon: o.icon, key: o.key, onHighlight: () => onPreview(o.kind) }),
   );
+  if (!local || local.models.length === 0) return entries;
+  for (const agent of local.agents) {
+    const leaves = local.models.flatMap((model) => {
+      const command = ollamaLaunchCommand(agent, model);
+      return command ? [item(model, () => local.onRun(command))] : [];
+    });
+    if (leaves.length > 0) entries.push(submenu(`${agentName(agent)} on a local model`, leaves));
+  }
+  return entries;
 }

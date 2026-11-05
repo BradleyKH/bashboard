@@ -28,6 +28,7 @@ import { ContainersStore } from './containersStore';
 import { copyText } from './copyText';
 import { stopListener } from './portStop';
 import { PortsStore } from './portsStore';
+import { LocalModelsStore } from './localModelsStore';
 import { setKindMenuFilter } from './kindMenu';
 import { DashboardPanel } from './dashboardPanel';
 import { lastFolder, paneCards, type PaneCardInput } from './dashboardModel';
@@ -47,7 +48,10 @@ import { HelpTab } from './helpTab';
 import { SetupStatus } from './setupStatus';
 import { ShortcutsTab } from './shortcutsTab';
 import { gitInstall, gitInstallStatus, openGitDownload } from './gitInstall';
-import { hookInstall, hookInstallPreview } from './hookInstall';
+import { agentName } from './agentNames';
+import { agentsDetected, onAgentContext } from './agentApi';
+import { listOllamaModels, pollModelServers } from './modelServersApi';
+import { hookInstall, hookInstallPreview, type HookInstallPreview } from './hookInstall';
 import { shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
 import { SettingsTab } from './settingsTab';
 import { SetupWizard } from './setupWizard';
@@ -87,11 +91,12 @@ import {
   type ReposFile,
 } from './repos';
 import type { RepoPinState } from './pinsSection';
-import { launchLabel, launchMenuItems, opensPane, type LaunchKind } from './launchModel';
+import { launchLabel, launchMenuItems, opensPane, type LaunchKind, type LocalLaunch } from './launchModel';
 import { LaunchPreview } from './launchPreview';
 import { gitWorktrees, type Worktree } from './worktreeApi';
 import { deleteWorktree } from './worktreeDelete';
-import { parseSavedWorkspace } from './savedWorkspace';
+import { parseSavedWorkspace, type AgentId } from './savedWorkspace';
+import { agentHooksFrom } from './setupModel';
 import { loadSessions, onHookEvent, onSessionsChanged, type Session } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
 import { showToast } from './toast';
@@ -201,7 +206,7 @@ let sessions: Session[] = [];
 try {
   sessions = await loadSessions();
 } catch (err) {
-  showToast(`Could not load Claude sessions: ${String(err)}`);
+  showToast(`Could not load agent sessions: ${String(err)}`);
 }
 
 let favorites: Favorite[] = [];
@@ -509,12 +514,31 @@ function launch(kind: LaunchKind): void {
   else showToast('No folder to open');
 }
 
+/** The local-model entries, or undefined unless Ollama answers, is on PATH, and has models. */
+async function localLaunch(): Promise<LocalLaunch | undefined> {
+  try {
+    const [agents, snap, installed] = await Promise.all([agentsDetected(), pollModelServers(), listOllamaModels()]);
+    if (!snap.ollama || !snap.ollamaOnPath || agents.length === 0 || installed.length === 0) return undefined;
+    return {
+      agents,
+      models: installed.map((m) => m.name),
+      onRun: (command) => {
+        launchPreview.hide();
+        workspace.openTerminalWithCommand(launchRoot() ?? undefined, command);
+      },
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Drops from `anchor`, or opens at the focused pane's top-left corner for the keyboard, which
  * keeps it clear of the preview's label in the middle of the new pane.
  */
-function openLaunchMenu(anchor?: HTMLElement): void {
-  const items = launchMenuItems(currentRepo?.isGit ?? false, launch, previewLaunch);
+async function openLaunchMenu(anchor?: HTMLElement): Promise<void> {
+  const local = await localLaunch();
+  const items = launchMenuItems(currentRepo?.isGit ?? false, launch, previewLaunch, local);
   const rect = anchor ? null : workspace.focusedPaneRect();
   const at = anchor
     ? { anchorEl: anchor, align: 'right' as const }
@@ -549,6 +573,7 @@ function confirmReplace(paneId: string, kind: PaneKind): Promise<boolean> {
 
 const containers = new ContainersStore();
 const ports = new PortsStore();
+const localModels = new LocalModelsStore();
 setKindMenuFilter((kind) => kind !== 'containers' || containers.available);
 
 /** Start or stop every container of the row's member groups that is not already in that state, per engine. */
@@ -616,10 +641,10 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
       showToast(`Could not start ${engineLabel(engine)}: ${e instanceof Error ? e.message : String(e)}`),
     ),
   onOpen: openFolder,
-  onInstallHooks: () => {
-    hookInstallPreview()
+  onInstallHooks: (agent) => {
+    hookInstallPreview(agent)
       .then((preview) => {
-        if (preview.alreadyInstalled) showToast('Claude Code hooks are already installed.');
+        if (preview.alreadyInstalled) showToast(`${agentName(agent)} hooks are already installed.`);
         else hookDialog.open(preview);
       })
       .catch((err: unknown) => showToast(`Could not prepare the hook install: ${String(err)}`));
@@ -648,7 +673,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onOpenIn: openIn,
   onLaunch: launch,
   onLaunchPreview: previewLaunch,
-  onOpenLaunchMenu: (anchor) => openLaunchMenu(anchor),
+  onOpenLaunchMenu: (anchor) => void openLaunchMenu(anchor),
   onOpenPin: openPin,
   onRenamePin: (index, label) => currentRepo && updateRepos(renamePin(repos, currentRepo.root, index, label)),
   onRemovePin: (index) => currentRepo && updateRepos(removePin(repos, currentRepo.root, index)),
@@ -660,16 +685,36 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
 panel.setFavorites(favorites);
 panel.setLayouts(layouts);
 const hookDialog = new HookInstallDialog({
-  onConfirm: async () => {
-    await hookInstall();
-    panel.setHooksInstalled(true);
-    showToast('Claude Code hooks installed. Claude sessions started from now on report waiting.');
+  onConfirm: async (agent) => {
+    await hookInstall(agent);
+    void refreshHookOffer();
+    const name = agentName(agent);
+    showToast(
+      agent === 'codex'
+        ? 'Codex hooks installed. Codex will ask you to trust them on its next start.'
+        : `${name} hooks installed. ${name} sessions started from now on report waiting.`,
+    );
   },
   onClose: focusTerminal,
 });
-hookInstallPreview()
-  .then((p) => panel.setHooksInstalled(p.alreadyInstalled || !p.claudeDetected))
-  .catch((e) => console.warn('hook install state unavailable:', e));
+/** The hook preview of every agent that has run here; one that cannot be read is left out. */
+const detectedHookPreviews = async (): Promise<HookInstallPreview[]> => {
+  const agents = await agentsDetected();
+  const previews = await Promise.all(agents.map((a) => hookInstallPreview(a).catch(() => null)));
+  return previews.filter((p): p is HookInstallPreview => p !== null);
+};
+/** Offers an install button for each detected agent whose hooks are missing. */
+const refreshHookOffer = (): Promise<void> =>
+  detectedHookPreviews()
+    .then((previews) =>
+      panel.setMissingHooks(
+        agentHooksFrom(previews)
+          .filter((a) => !a.installed)
+          .map((a) => a.agent),
+      ),
+    )
+    .catch((e) => console.warn('hook install state unavailable:', e));
+void refreshHookOffer();
 const picker = new Picker(
   { onOpen: openFolder, onClose: focusTerminal },
   {
@@ -760,12 +805,12 @@ function openPalette(): void {
 const confirmDialog = new ConfirmDialog();
 const checkForUpdatesNow = (): void => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) });
 /** Shows the hook install preview unless the hooks are in; resolves to whether they are installed. */
-const installHooks = (): Promise<boolean> =>
-  hookInstallPreview().then(
+const installHooks = (agent: AgentId): Promise<boolean> =>
+  hookInstallPreview(agent).then(
     (preview) =>
       new Promise<boolean>((resolve) => {
         if (preview.alreadyInstalled) {
-          panel.setHooksInstalled(true);
+          void refreshHookOffer();
           resolve(true);
         } else {
           hookDialog.open(preview, resolve);
@@ -794,7 +839,7 @@ const helpTab = new HelpTab(
       openGitDownload().catch((e: unknown) => console.warn('open_url failed', e));
     },
     // The hook preview stacks over the dialog and hands focus back to it when it closes.
-    installHooks: () => installHooks().finally(() => appDialog.element?.focus()),
+    installHooks: (agent) => installHooks(agent).finally(() => appDialog.element?.focus()),
     onRunSetup: () => void showSetup(),
   }),
 );
@@ -844,8 +889,7 @@ const setupWizard = new SetupWizard({
     if (list.length > 0) updateFavorites([...favorites, ...list]);
   },
   installHooks,
-  getHookState: () =>
-    hookInstallPreview().then((p) => ({ claudeDetected: p.claudeDetected, hooksInstalled: p.alreadyInstalled })),
+  getHookState: () => detectedHookPreviews().then(agentHooksFrom),
   installGit: () => gitInstall().then(refreshProfiles),
   openGitDownload: () => {
     openGitDownload().catch((e: unknown) => console.warn('open_url failed', e));
@@ -855,10 +899,10 @@ const setupWizard = new SetupWizard({
 });
 const showSetup = async (): Promise<void> => {
   await refreshProfiles();
-  const [preview, git] = await Promise.all([
-    hookInstallPreview().catch((e: unknown) => {
+  const [previews, git] = await Promise.all([
+    detectedHookPreviews().catch((e: unknown) => {
       console.warn('hook install state unavailable:', e);
-      return null;
+      return [];
     }),
     gitInstallStatus().catch((e: unknown) => {
       console.warn('git install state unavailable:', e);
@@ -867,8 +911,7 @@ const showSetup = async (): Promise<void> => {
   ]);
   appDialog.close();
   setupWizard.open({
-    claudeDetected: preview?.claudeDetected ?? false,
-    hooksInstalled: preview?.alreadyInstalled ?? false,
+    agents: agentHooksFrom(previews),
     // An unknown Git state skips the Git step rather than offering an install that may not apply.
     gitBashFound: git?.gitBashFound ?? true,
     wingetFound: git?.wingetFound ?? false,
@@ -877,8 +920,9 @@ const showSetup = async (): Promise<void> => {
 // Opened before the first pane mounts so the pane fits the narrowed area and keeps focus.
 panel.setContainersStore(containers);
 panel.setPortsStore(ports);
+panel.setLocalModelsStore(localModels);
 void containers.start();
-panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop.animate);
+panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop.animate, payload.settings.localModels.minContext);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
 panel.setOpen(payload.settings.dashboard.visibleOnStart);
@@ -892,7 +936,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenFavoritePicker: () => picker.open(favoriteItems(), 'Open a favorite folder'),
   onOpenProfilePicker: () => profilePicker.open(profileItems(), 'Split with a shell'),
   onOpenLayoutPicker: () => layoutPicker.open(layoutItems(), 'Open a layout'),
-  onOpenLaunchMenu: () => openLaunchMenu(),
+  onOpenLaunchMenu: () => void openLaunchMenu(),
   onOpenPalette: () => openPalette(),
   onOpenDialog: (tab) => void openDialog(tab),
   onToggleBackdrop: toggleBackdrop,
@@ -976,6 +1020,11 @@ workspace.onChange(() => {
 });
 onTextZoomChange(() => saver.schedule());
 // listen() rejects outside Tauri (plain `pnpm dev`); live updates are simply unavailable there.
+// Listen only: AgentContexts owns the core's tracking flag, so with the Panes section hidden no
+// model arrives and a Copilot pane saves without resumeModel.
+onAgentContext((ctx) => workspace.setSessionModel(ctx.sessionId, ctx.model)).catch((e) =>
+  console.warn('agent context updates unavailable:', e),
+);
 onSessionsChanged((next) => {
   sessions = next;
   colonySync.update(next);
@@ -1039,7 +1088,7 @@ try {
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, {
-      resumeClaude: payload.settings.restore.resumeClaude,
+      resumeSessions: payload.settings.restore.resumeSessions,
       scrollback: payload.settings.restore.scrollback,
     });
     restored = true;
@@ -1062,6 +1111,6 @@ onSettingsChanged((p) => {
   shortcutsTab.update(p.settings.keybindings);
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
-  panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop.animate);
+  panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop.animate, p.settings.localModels.minContext);
   void refreshProfiles().then(() => settingsTab.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

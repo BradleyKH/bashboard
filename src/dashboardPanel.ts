@@ -1,8 +1,10 @@
+import { agentName, isPreviewAgent } from './agentNames';
+import type { AgentId } from './savedWorkspace';
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
-import { claudeLine } from './claudeModel';
+import { agentLine } from './agentModel';
 import { clockMenuItems } from './clockMenu';
 import type { ClockStyle } from './clockModel';
-import { ClaudeContexts } from './claudeContexts';
+import { AgentContexts } from './agentContexts';
 import { attachContextMenu } from './contextMenu';
 import { DashboardClock } from './dashboardClock';
 import { attachElementDrag } from './dashboardElementDrag';
@@ -36,6 +38,9 @@ import type { ContainersSectionCallbacks } from './containersSection';
 import type { ContainersStore } from './containersStore';
 import { PortsSection, type PortsSectionCallbacks } from './portsSection';
 import type { PortsStore } from './portsStore';
+import { LocalModelsSection } from './localModelsSection';
+import { findLoadedOllama } from './localModelsModel';
+import type { LocalModelsStore } from './localModelsStore';
 import { FavoritesSection } from './favoritesSection';
 import type { FavoritesCallbacks } from './favoritesSection';
 import { LayoutsSection } from './layoutsSection';
@@ -91,7 +96,7 @@ export interface DashboardCallbacks
   onOpenLayoutsMenu?: (anchor: HTMLElement) => void;
   /** The panel came on screen (open or peeking) or left it. */
   onShownChange?: (shown: boolean) => void;
-  onInstallHooks: () => void;
+  onInstallHooks: (agent: AgentId) => void;
   onShowHelp: () => void;
   onShowSettings: () => void;
   /** The hide button closed the panel. */
@@ -148,7 +153,7 @@ export class DashboardPanel {
   private clockStyle: ClockStyle = 'both';
   private readonly system = new DashboardSystem();
   private readonly wave = new DashboardWave();
-  private readonly claude = new ClaudeContexts(() => this.render());
+  private readonly agentContexts = new AgentContexts(() => this.render());
   private panes: PaneCardInput[] = [];
   private collapsed: DashboardSection[] = [];
   private showPanePaths = false;
@@ -175,7 +180,7 @@ export class DashboardPanel {
   private held = false;
   private hovered = false;
   private readonly nav: DashboardNav;
-  private readonly installButton: HTMLButtonElement;
+  private readonly hooksFooter: HTMLElement;
   private readonly favoritesMenuButton: HTMLButtonElement;
   private readonly layoutsMenuButton: HTMLButtonElement;
   private readonly launchMenuButton: HTMLButtonElement;
@@ -189,6 +194,10 @@ export class DashboardPanel {
   private readonly portsSection: PortsSection;
   private portsStore: PortsStore | null = null;
   private unsubscribePorts: (() => void) | null = null;
+  private readonly localModelsSection = new LocalModelsSection();
+  private localModelsStore: LocalModelsStore | null = null;
+  private unsubscribeLocalModels: (() => void) | null = null;
+  private minContext = 64000;
   private readonly terminalList: HTMLElement;
   private readonly sessionList: HTMLElement;
 
@@ -310,6 +319,7 @@ export class DashboardPanel {
       },
     );
     this.addSection('ports', this.portsSection.el, this.portsSection.head);
+    this.addSection('localModels', this.localModelsSection.el, this.localModelsSection.head);
     this.sessionList = this.section('external', 'External sessions');
     this.addSection('system', this.system.el, this.system.head);
     this.addElement('clock', this.clock.el, this.clock.el);
@@ -321,16 +331,10 @@ export class DashboardPanel {
       ),
     }));
     this.addElement('wave', this.wave.el, this.wave.el);
-    this.installButton = document.createElement('button');
-    this.installButton.type = 'button';
-    this.installButton.className = 'hooks-install';
-    this.installButton.textContent = 'Install Claude Code hooks';
-    this.installButton.hidden = true;
-    this.installButton.addEventListener('click', () => this.callbacks.onInstallHooks());
-    // Only the hooks offer lives here, and it hides once they are installed.
+    // Only the hooks offer lives here: one button per detected agent without them.
     const footer = document.createElement('div');
     footer.className = 'dashboard-footer';
-    footer.append(this.installButton);
+    this.hooksFooter = footer;
     root.append(footer);
     this.nav = new DashboardNav(root, {
       onLeave: () => this.leave(),
@@ -385,6 +389,30 @@ export class DashboardPanel {
     this.syncTimers();
   }
 
+  /** Follows the store; the section polls it only while on screen and expanded (`syncTimers`), and the Panes cards read it for a window. */
+  setLocalModelsStore(store: LocalModelsStore): void {
+    this.unsubscribeLocalModels?.();
+    this.localModelsStore = store;
+    this.unsubscribeLocalModels = store.subscribe(() => this.renderLocalModels());
+    this.renderLocalModels();
+    this.syncTimers();
+  }
+
+  private renderLocalModels(): void {
+    const store = this.localModelsStore;
+    if (!store) return;
+    const focus = this.nav.capture();
+    this.localModelsSection.update(store.current(), this.minContext);
+    this.nav.restore(focus);
+    if (this.open || this.peeking) this.render();
+  }
+
+  /** The context length of the loaded Ollama model this session runs, which fills the card's window. */
+  private loadedWindow(sessionId: string): number | null {
+    const model = this.agentContexts.get(sessionId)?.model;
+    return findLoadedOllama(this.localModelsStore?.current() ?? null, model)?.contextLength ?? null;
+  }
+
   private renderPorts(): void {
     const store = this.portsStore;
     if (!store) return;
@@ -406,8 +434,10 @@ export class DashboardPanel {
    * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md
    * section 4.6); `animate` is `backdrop.animate`, which also stills the Wave.
    */
-  applyDashboardSettings(d: Settings['dashboard'], animate: boolean): void {
+  applyDashboardSettings(d: Settings['dashboard'], animate: boolean, minContext: number): void {
     this.shown = { ...d.sections };
+    this.minContext = minContext;
+    this.localModelsSection.update(this.localModelsStore?.current() ?? null, minContext);
     this.wave.setAnimate(animate);
     this.clockStyle = d.clockStyle;
     this.clock.setStyle(d.clockStyle);
@@ -465,13 +495,17 @@ export class DashboardPanel {
       'dashboard',
       this.shown.ports && !this.collapsed.includes('ports') && onScreen && this.windowShown,
     );
+    this.localModelsStore?.setWanted(
+      'dashboard',
+      this.shown.localModels && !this.collapsed.includes('localModels') && onScreen && this.windowShown,
+    );
     this.system.setGate({
       enabled: this.shown.system,
       expanded: !this.collapsed.includes('system'),
       onScreen,
       windowShown: this.windowShown,
     });
-    this.claude.setEnabled(this.shown.panes);
+    this.agentContexts.setEnabled(this.shown.panes);
   }
 
   /**
@@ -585,8 +619,18 @@ export class DashboardPanel {
     this.setOpen(false);
   }
 
-  setHooksInstalled(installed: boolean): void {
-    this.installButton.hidden = installed;
+  /** Shows an install button for each of `agents`, the detected ones whose hooks are missing. */
+  setMissingHooks(agents: AgentId[]): void {
+    this.hooksFooter.replaceChildren(
+      ...agents.map((agent) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'hooks-install';
+        button.textContent = `Install ${agentName(agent)} hooks${isPreviewAgent(agent) ? ' (preview)' : ''}`;
+        button.addEventListener('click', () => this.callbacks.onInstallHooks(agent));
+        return button;
+      }),
+    );
   }
 
   /** Shows the panel over the panes for a moment without narrowing them. */
@@ -803,7 +847,14 @@ export class DashboardPanel {
     // Group headers appear only with two or more tabs (docs/design.md section 4.6).
     const cardOptions = (card: (typeof cards)[number]) => ({
       now,
-      claudeLine: card.kind === 'terminal' && card.sessionId !== null ? claudeLine(this.claude.get(card.sessionId)) : null,
+      agentLine:
+        card.kind === 'terminal' && card.sessionId !== null
+          ? agentLine(
+              this.sessions.find((s) => s.sessionId === card.sessionId)?.agent ?? 'claude',
+              this.agentContexts.get(card.sessionId),
+              this.loadedWindow(card.sessionId),
+            )
+          : null,
       showPath: this.showPanePaths,
       confirming: this.confirming.has(card.paneId),
       onFocus: this.callbacks.onFocus,

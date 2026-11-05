@@ -1,0 +1,49 @@
+/* The dashboard's Local models section. Rows reuse the favorite row styles. */
+.local-server-dot {
+  background: #5fbf7a;
+}
+
+.local-server-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--content-fg);
+}
+
+.local-server-version,
+.local-model-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #9aa6ad;
+}
+
+.favorite-row.local-model-row {
+  padding-left: 22px;
+}
+
+.local-model-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa6ad;
+}
+
+.local-model-context.low {
+  color: var(--accent);
+}
+
+/* Nothing here is clickable, so drop the favorite row's pointer and hover. */
+.favorite-row.local-server-row,
+.favorite-row.local-model-row {
+  cursor: default;
+}
+
+.favorite-row.local-server-row:hover,
+.favorite-row.local-model-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}

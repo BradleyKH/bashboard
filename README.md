@@ -14,6 +14,10 @@ Windows terminal built around Claude Code: split terminal panes, a live status b
   Long shell commands get the same done/failed marks.
 - **Pick up where you left off.** Tabs, splits, and pads come back on relaunch; named layouts
   rebuild a whole workspace in one click. A command palette (Ctrl+Shift+P) reaches everything.
+- **More than Claude Code.** Preview support for OpenAI Codex and GitHub Copilot CLI: the same
+  status, cards, notifications, and resume on relaunch. A Local models section shows what Ollama
+  and LM Studio have loaded, warns when a model's context is too small for an agent, and launches
+  an agent on a local model from the Launch menu.
 - **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
 - **No forgotten servers.** The Ports list shows every dev server listening, which pane started
   it, and stops it from a right-click.
@@ -52,7 +56,8 @@ Bashboard runs the tools you already use:
 
 2. **Claude Code**, for the session status, attention badges, and dashboard. Run `claude` once
    before starting Bashboard so the setup wizard offers to install the hooks
-   (see [Claude Code hooks](docs/setup.md#claude-code-hooks)).
+   (see [Claude Code hooks](docs/setup.md#claude-code-hooks)). OpenAI Codex and GitHub Copilot CLI
+   work the same way, as a preview (see [Agent hooks](docs/setup.md#agent-hooks)).
 
 3. **Optional:** Docker Desktop or Podman for the dashboard's containers list.
 
@@ -60,11 +65,11 @@ On first launch, a setup wizard walks through installing Git when it is missing,
 shell, adding the lines that let new panes open in the current folder to that shell's
 `~/.bashrc` or PowerShell profile (see
 [New panes in the current folder](docs/setup.md#new-panes-in-the-current-folder)), the editor,
-favorite repos, Claude Code hooks, and the look: the background, its brightness, and the accent
+favorite repos, coding agent hooks, and the look: the background, its brightness, and the accent
 and text colors. Each choice saves as soon as you make it, and **Run setup** in the Help tab
 (F1) reopens the wizard. The Git step appears only when Git Bash is missing, the shell
 integration step only when the default shell is Git Bash or PowerShell and its file does not
-already hold the current lines, and the Claude Code hooks step only when Claude Code is detected
+already hold the current lines, and the Coding agents step only when a coding agent is detected
 and the hooks are not yet installed.
 
 WebView2 comes with Windows 11; on a machine without it, the installer downloads it. Uninstall
@@ -74,8 +79,8 @@ from **Settings > Apps > Installed apps**.
 
 - [User guide](docs/user-guide.md): tabs, panes, the dashboard, Files, Git, code search,
   containers, ports, attention, and the `bb` pane CLI.
-- [Shell and Claude Code setup](docs/setup.md): the `~/.bashrc` and PowerShell lines that let
-  new panes open in the current folder, and the Claude Code hooks.
+- [Shell and coding agent setup](docs/setup.md): the `~/.bashrc` and PowerShell lines that let
+  new panes open in the current folder, and the hooks for Claude Code, Codex, and Copilot.
 - [Settings](docs/settings.md): the settings file and what each setting does.
 - [Development](docs/development.md): building from source, releasing, and debugging input.
 - [Design](docs/design.md): the spec, for anyone changing Bashboard itself.

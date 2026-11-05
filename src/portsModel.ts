@@ -14,6 +14,7 @@ const DEV_RUNTIMES = new Set([
   'node', 'bun', 'deno', 'python', 'pythonw', 'py', 'uvicorn', 'gunicorn', 'dotnet', 'iisexpress',
   'java', 'javaw', 'ruby', 'php', 'php-cgi', 'perl', 'go', 'cargo', 'esbuild', 'caddy', 'nginx',
   'httpd', 'hugo', 'postgres', 'mysqld', 'mariadbd', 'redis-server', 'mongod', 'ollama',
+  'ollama app', 'lm studio', 'lms', 'llama-server',
 ]);
 
 /** Whether a listener looks like something you started while developing, not a background app. */

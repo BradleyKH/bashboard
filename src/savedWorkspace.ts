@@ -15,6 +15,15 @@ import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
 import { type TextZoom, parseTextZoom } from './textZoomStore';
 
+/** A coding agent Bashboard can resume; absent or unknown in a saved pane reads as Claude. */
+export type AgentId = 'claude' | 'codex' | 'copilot';
+
+const AGENT_IDS: readonly AgentId[] = ['claude', 'codex', 'copilot'];
+
+function parseAgent(v: unknown): AgentId {
+  return AGENT_IDS.includes(v as AgentId) ? (v as AgentId) : 'claude';
+}
+
 /** One pane (docs/design.md sections 4.11 and 7). Pane ids do not survive a restart, so entries use saved keys. */
 export type SavedPane = { key: string; collapsed: boolean } & (
   | {
@@ -23,6 +32,10 @@ export type SavedPane = { key: string; collapsed: boolean } & (
       sessionId: string | null;
       /** The session's last reported permission mode, passed back to `--resume`; absent means default. */
       permissionMode?: string;
+      /** The agent that owns `sessionId`; absent means Claude. */
+      agent?: AgentId;
+      /** The model to pass back on resume, for agents that drop it otherwise; absent means none. */
+      resumeModel?: string;
       /** Shell profile id; absent means the default profile. */
       profile?: string;
       /** Names the file holding the terminal's scrollback as the window last closed; absent in layouts. */
@@ -102,12 +115,39 @@ function safeMode(v: unknown): string | undefined {
   return typeof v === 'string' && PERMISSION_MODE.test(v) ? v : undefined;
 }
 
-/** The command restore types to resume a session, in its saved permission mode unless that is the default. */
-export function resumeCommand(sessionId: string, permissionMode: string | undefined): string {
-  const mode = safeMode(permissionMode);
-  return mode && mode !== 'default'
-    ? `claude --resume ${sessionId} --permission-mode ${mode}`
-    : `claude --resume ${sessionId}`;
+// Typed into a shell like the session id, so it is held to what model names use.
+const RESUME_MODEL = /^[A-Za-z0-9._:/-]{1,100}$/;
+
+export function safeModel(v: unknown): string | undefined {
+  return typeof v === 'string' && RESUME_MODEL.test(v) ? v : undefined;
+}
+
+/**
+ * The command restore types to resume a session. Claude resumes in its saved permission mode
+ * unless that is the default; Copilot resumes in `model` when one was saved.
+ */
+export function resumeCommand(
+  sessionId: string,
+  permissionMode: string | undefined,
+  agent: AgentId = 'claude',
+  model?: string,
+): string {
+  switch (agent) {
+    case 'codex':
+      return `codex resume ${sessionId}`;
+    case 'copilot': {
+      // Space-separated because `--resume=<id>` exits at once on Windows (github/copilot-cli#3458);
+      // `--model` because a resumed session silently falls back to the default model (#4397).
+      const m = safeModel(model);
+      return m ? `copilot --resume ${sessionId} --model ${m}` : `copilot --resume ${sessionId}`;
+    }
+    default: {
+      const mode = safeMode(permissionMode);
+      return mode && mode !== 'default'
+        ? `claude --resume ${sessionId} --permission-mode ${mode}`
+        : `claude --resume ${sessionId}`;
+    }
+  }
 }
 
 type PaneBase = { key: string; collapsed: boolean };
@@ -120,12 +160,16 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
     const sessionId = safeId(raw.sessionId);
     const permissionMode = sessionId ? safeMode(raw.permissionMode) : undefined;
     const scrollbackId = safeId(raw.scrollbackId);
+    const agent = parseAgent(raw.agent);
+    const resumeModel = sessionId ? safeModel(raw.resumeModel) : undefined;
     return {
       ...base,
       kind: 'terminal',
       cwd: raw.cwd,
       sessionId,
       ...(permissionMode ? { permissionMode } : {}),
+      ...(agent !== 'claude' ? { agent } : {}),
+      ...(resumeModel ? { resumeModel } : {}),
       ...(profileId ? { profile: profileId } : {}),
       ...(scrollbackId ? { scrollbackId } : {}),
     };

@@ -20,6 +20,20 @@ function byPath(a: GitRow, b: GitRow): number {
   return a.entry.path < b.entry.path ? -1 : a.entry.path > b.entry.path ? 1 : 0;
 }
 
+/**
+ * The paths to stage or unstage for `rows`. Unstaging a rename takes its original path too, so
+ * both halves leave the index. Staging never does: once the index holds the rename, the original
+ * path exists nowhere, and `git add` fails on it.
+ */
+export function togglePaths(rows: readonly GitRow[], unstage: boolean): string[] {
+  const out: string[] = [];
+  for (const { entry } of rows) {
+    if (unstage && entry.origPath) out.push(entry.origPath);
+    out.push(entry.path);
+  }
+  return out;
+}
+
 export function stagedList(status: GitStatus): GitRow[] {
   return rowsOf('staged', status.staged).sort(byPath);
 }

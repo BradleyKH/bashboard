@@ -62,6 +62,7 @@ describe('DEFAULT_ELEMENT_ORDER', () => {
       'panes',
       'containers',
       'ports',
+      'localModels',
       'external',
       'system',
       'wave',
@@ -95,6 +96,7 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'ports',
+      'localModels',
     ]);
   });
 
@@ -112,6 +114,7 @@ describe('parseSectionOrder', () => {
       'system',
       'external',
       'ports',
+      'localModels',
       'containers',
       'panes',
       'layouts',
@@ -127,7 +130,7 @@ describe('parseSectionOrder', () => {
   });
 
   it('puts a missing first element at index 0', () => {
-    const rest = ['panes', 'containers', 'ports', 'external', 'system', 'wave'];
+    const rest = ['panes', 'containers', 'ports', 'localModels', 'external', 'system', 'wave'];
     expect(parseSectionOrder(['launch', 'favorites', 'layouts', ...rest])).toEqual(def);
     expect(parseSectionOrder(['launch', 'layouts', 'favorites', ...rest])).toEqual([
       'clock',
@@ -150,6 +153,7 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'ports',
+      'localModels',
     ]);
     expect(parseSectionOrder(['clock'])).toEqual(def);
   });
@@ -162,6 +166,7 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'ports',
+      'localModels',
       'external',
       'system',
       'wave',

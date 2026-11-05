@@ -14,6 +14,7 @@ function session(status: SessionStatus): Session {
     version: null,
     paneId: 1,
     waitingReason: null,
+    agent: 'claude',
   };
 }
 

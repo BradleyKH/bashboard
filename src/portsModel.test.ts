@@ -46,6 +46,18 @@ describe('dashboardListeners', () => {
     expect(rows.map((r) => r.port)).toEqual([8080, 3000, 9000]);
   });
 
+  it('lists local model servers as dev runtimes', () => {
+    const { rows, others } = dashboardListeners([
+      l({ port: 11434, name: 'ollama.exe' }),
+      l({ port: 11435, name: 'ollama app.exe' }),
+      l({ port: 1234, name: 'LM Studio.exe' }),
+      l({ port: 1235, name: 'lms.exe' }),
+      l({ port: 8080, name: 'llama-server.exe' }),
+    ]);
+    expect(rows.map((r) => r.port)).toEqual([1234, 1235, 8080, 11434, 11435]);
+    expect(others).toBe(0);
+  });
+
   it('lists dev programs and counts the other apps', () => {
     const { rows, others } = dashboardListeners([
       l({ port: 1, name: 'Spotify.exe' }),

@@ -14,6 +14,7 @@ function session(sessionId = 's1'): Session {
     version: null,
     paneId: 1,
     waitingReason: null,
+    agent: 'claude',
   };
 }
 

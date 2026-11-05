@@ -2,7 +2,7 @@
 
 A Windows desktop terminal dashboard, built with Tauri, that opens, collapses, and arranges Git
 Bash terminals over a live colony-simulation backdrop, launches them from favorite folders, and shows
-every local Claude Code session at a glance. The repo and binary are `bashboard`; the window
+every local coding agent session (Claude Code, and as a preview Codex and Copilot) at a glance. The repo and binary are `bashboard`; the window
 title is "Bashboard".
 
 ## 1. Goals
@@ -20,9 +20,11 @@ title is "Bashboard".
   since you last looked.
 - **Favorite folders.** One click opens a terminal in a favorite folder.
 - **Picks up where it left off.** On restart the app reopens the same terminals in the same
-  folders and layout, and resumes the Claude Code sessions that were running in them.
-- **Session awareness.** A roster of all local Claude Code sessions (in this app and elsewhere),
-  their status, and which ones need attention, also expressed as organisms in the simulation.
+  folders and layout, and resumes the agent sessions that were running in them.
+- **Session awareness.** A roster of all local agent sessions (Claude Code, Codex, and Copilot, in
+  this app and elsewhere), their status, and which ones need attention, also expressed as organisms
+  in the simulation. Claude Code is the tested path; Codex, Copilot, and the Local models section
+  are a preview.
 - **Repo companions.** What usually stays open beside Claude Code (a folder of plans, a to-do
   file, git status, a code search, a scratch pad, Docker and Podman containers) opens as panes next to the
   terminals, so a repo's working set lives in one tab and a saved layout reopens all of it.
@@ -143,10 +145,11 @@ Behavior:
 - **Environment.** Each shell gets `TERM=xterm-256color`, `COLORTERM=truecolor`,
   `TERM_PROGRAM=bashboard`, `BASHBOARD_PANE_ID=<id>`, and the hook endpoint variables (3.3),
   and `PATH` given to the shell starts with the folder holding `bb.exe` (3.13). The
-  per-session markers Claude Code sets in its own environment (`CLAUDECODE`,
-  `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, and the rest of that list) are removed,
-  so `claude` in a pane never mistakes itself for a child session when the app was launched
-  from one.
+  per-session markers a coding agent sets in its own environment are removed: Claude Code's
+  (`CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, and the rest of that
+  list), Codex's (`CODEX_CI`, `CODEX_SESSION_ID`, `CODEX_THREAD_ID`, `CODEX_TOOL_CALL_ID`), and
+  Copilot's (`COPILOT_CLI`, `COPILOT_AGENT_SESSION_ID`). An agent started in a pane never
+  mistakes itself for a child session when the app started from one.
 - **Shell activity.** A 2 second sweep (via `sysinfo`) emits `pty://activity` with a
   `{ id, busy }` entry for every live pty, whenever the list differs from the last emission. A
   pty is busy when its shell has a foreground job. Git's launcher `bash.exe` spawns the real
@@ -163,6 +166,19 @@ Behavior:
   they are killed; in release builds a reload does not happen in normal use.
 
 ### 3.2 SessionRoster (`src-tauri/src/roster.rs`)
+
+**Agents.** Each supported coding agent has a descriptor in `src-tauri/src/agents.rs`: an
+`AgentId` (`claude`, `codex`, or `copilot`, serialized in lowercase and parsed by
+`AgentId::parse`), a home folder
+(`~/.claude`; `~/.codex`, or `CODEX_HOME` when set; `~/.copilot`, or `COPILOT_HOME` when set; the
+user profile comes from `USERPROFILE`), the executable names that identify its process
+(`claude.exe`, `codex.exe`, `copilot.exe`; Copilot also runs as a `node.exe` whose command line
+holds `@github/copilot`), and `matches_process`. An agent counts as detected when its home folder
+exists (for Copilot, with a `session-state` folder inside, since VS Code's Copilot extension
+creates `~/.copilot` on its own), which is what `agents_detected()` reports; detection never consults `PATH`, since VS
+Code installs a `copilot-shim\copilot.exe` launcher there that is not the Copilot CLI. Every
+`Session` carries its `agent`. The display names ("Claude Code", "Codex", "Copilot") live in
+`src/agentNames.ts`.
 
 Claude Code writes one JSON file per running session to `~/.claude/sessions/<pid>.json`:
 
@@ -196,6 +212,16 @@ This format is internal to Claude Code and undocumented, so the roster treats it
   sweep re-checks liveness, since a killed process may never delete its file.
 - **Events.** The roster emits `sessions://changed` with the full list whenever anything
   differs. The list is small (tens of entries), so diffs are not worth the complexity.
+- **Hook-born sessions.** Codex and Copilot write no session files, so their sessions are built
+  from the hook overlay (3.3): one per overlay entry that carries a pane id, with the overlay's
+  newest `cwd`, its first event's time as `startedAt`, and its status and waiting reason. Codex
+  names come from its `session_index.jsonl` (`thread_name`, the last line for an id winning). The
+  10 second sweep binds each session to the newest process of its agent under its pane's shell
+  (`pid` is 0 until one is found); for Copilot's `node.exe` host it reads the command lines of
+  the `node.exe` processes under the pane only when needed. The session ends when that process
+  exits, its pane closes, or, with no process ever found, after 30 minutes without events; a
+  later event for the same id revives it, since resuming a thread reuses its id. Sessions of
+  these agents outside a pane have no hooks and so never appear.
 
 Never read or forward `messagingSocketPath`, messaging tokens, or bridge ids; the roster model
 (section 7) has no fields for them.
@@ -211,19 +237,34 @@ exact transitions as they happen.
 
   ```sh
   #!/usr/bin/env bash
-  # Forwards a Claude Code hook event to Bashboard. Silent no-op outside a Bashboard pane.
+  # Forwards an agent hook event to Bashboard. Silent no-op outside a Bashboard pane.
+  # Usage: bashboard-hook.sh [agent]   (agent defaults to claude)
   [ -n "$BASHBOARD_HOOK_URL" ] || exit 0
-  curl -s -m 1 -X POST \
+  agent="${1:-claude}"
+  payload=$(cat)
+  if [ -n "$BASHBOARD_HOOK_LOG" ]; then
+    printf -- '--- %s agent=%s\n%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$payload" \
+      >>"$BASHBOARD_HOOK_LOG" 2>/dev/null || true
+  fi
+  printf '%s' "$payload" | curl -s -m 1 -X POST \
     -H "X-Bashboard-Token: $BASHBOARD_HOOK_TOKEN" \
     -H "X-Bashboard-Pane: $BASHBOARD_PANE_ID" \
+    -H "X-Bashboard-Agent: $agent" \
     --data-binary @- "$BASHBOARD_HOOK_URL/hook" >/dev/null 2>&1 || true
   exit 0
   ```
 
+  The script never writes to stdout, because Codex and Copilot read a permission hook's stdout
+  as an allow or deny decision, and empty output leaves the normal prompt. When
+  `BASHBOARD_HOOK_LOG` names a file, each payload is appended to it with its time and agent, for
+  bug reports about an agent's payload shape. The same script serves every agent, installed
+  once per agent home (`~/.claude/hooks/`, `~/.codex/hooks/`, `~/.copilot/hooks/`) and told
+  which agent it forwards for by its argument.
+
   Because the variables exist only inside this app's panes, the same global hook config does
   nothing for sessions in Windows Terminal or VS Code.
-- Hook registration in `~/.claude/settings.json`, merged next to the existing `Notification`
-  hooks (the toast and bell stay):
+- Claude Code hook registration in `~/.claude/settings.json`, merged next to the existing
+  `Notification` hooks (the toast and bell stay):
 
   | Event | Meaning in the app |
   | --- | --- |
@@ -251,18 +292,64 @@ exact transitions as they happen.
   `settings.json` and merges the groups, through a temporary file and a rename. A missing
   `settings.json` is created. A `settings.json` that is not plain JSON (comments, trailing
   commas) is refused with an error naming the file, and nothing is written.
+- **Codex hooks** go in `hooks.json` under the Codex home, merged the same way (an event that
+  already holds Bashboard's hook is skipped, existing groups are never altered, a file that is not
+  plain JSON is refused) and registered as `bash ~/.codex/hooks/bashboard-hook.sh codex` (the full path of the script when `CODEX_HOME` relocates the home).
+  The Windows command (`commandWindows` for Codex, `powershell` for Copilot) names Git Bash by its
+  full path when one is found, since a bare `bash` there can resolve to WSL's
+  `System32\bash.exe`:
+
+  | Event | Meaning in the app |
+  | --- | --- |
+  | `SessionStart` | Session bound to its pane |
+  | `UserPromptSubmit` | `busy` |
+  | `PermissionRequest` | `waiting`, with the tool's `description`, else its `tool_name`, as the reason |
+  | `PostToolUse` | `busy`; Codex sends nothing when an approval is answered, so the approved tool finishing is what clears `waiting` |
+  | `Stop` | `idle`, shown as `done` until the pane is looked at (4.8) |
+  | `Interrupt` | `idle` |
+  | `SessionEnd` | Session unbound from its pane |
+
+  Codex runs a hook only once the user has trusted it. The install preview reports the trust
+  state, read from the `[hooks.state]` tables of the Codex home's `config.toml` (`trusted`,
+  `untrusted`, or `unknown` when the tables are in a form the reader does not parse), and an
+  installed but untrusted hook says Codex will ask to trust it on its next start. Bashboard never
+  edits `config.toml`.
+- **Copilot hooks** are written whole to `hooks/bashboard.json` under the Copilot home, a file
+  Bashboard owns (`{ "version": 1, "hooks": { ... } }`, each event holding one command entry with
+  `bash` and `powershell` commands and `timeoutSec` 5). The events use PascalCase names, which
+  select Copilot's VS Code compatible payload (snake_case fields and `hook_event_name`):
+
+  | Event | Meaning in the app |
+  | --- | --- |
+  | `SessionStart` | Session bound to its pane |
+  | `UserPromptSubmit` | `busy` |
+  | `Notification` | `waiting` for `permission_prompt` and `elicitation_dialog` only; other types, and a missing type, change nothing; carries `message` |
+  | `PostToolUse` | `busy`, which clears `waiting` as for Codex |
+  | `Stop` | `idle`, shown as `done` until the pane is looked at |
+  | `SessionEnd` | Session unbound from its pane |
+
+- The install is per agent: `hooks_install_preview(agent)` returns the file it will change, the
+  JSON it will add, whether the hooks are already in, whether the agent is detected, whether
+  whether `bash.exe` exists, and for Codex the trust state; `hooks_install(agent)` writes it. An absent
+  agent means Claude Code.
 - The receiver accepts `POST /hook` and `POST /cli` (3.13). For `/hook` it answers with these
   codes, checked in this order:
   404 for any other path or method, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a
   body over 64 KiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on
-  success. The receiver keeps only `session_id`, `hook_event_name`, `cwd`, `message`,
-  `transcript_path`, and `permission_mode`, and emits `sessions://hook` with the first four plus
-  the pane id from the header and the receive time. `transcript_path` is not forwarded; the
+  success. The `X-Bashboard-Agent` header names the sending agent; an absent header means Claude
+  Code (a script from before agents were tagged), and an unknown value is a 400. The receiver
+  keeps only `session_id`, `hook_event_name`, `cwd`, `message`, `transcript_path`,
+  `permission_mode`, and for Codex's waiting reason the tool's name and description, and emits
+  `sessions://hook` with the first four plus the pane id from the header, the agent, and the
+  receive time. Each event is mapped to a status by its agent's table above; an event that table
+  does not list leaves the status unchanged. `transcript_path` is not forwarded; the
   overlay entry keeps the latest one an event carried, for the transcript reads behind the Panes
-  cards' Claude line (3.4). It keeps the latest `permission_mode` the same way, and the roster
+  cards' agent line (3.4). The entry also keeps its agent, its newest `cwd`, and the time of its
+  first event, which hook-born sessions are built from (3.2). It keeps the latest `permission_mode` the same way, and the roster
   payload carries it as `permissionMode` so restore can resume in that mode (3.7).
-- The hook overlay keeps the `message` of the `Notification` that set `waiting`, trimmed and cut
-  at 200 characters, and clears it whenever the overlay's status leaves `waiting`. Held in the
+- The hook overlay keeps the reason for the event that set `waiting` (Claude Code's and
+  Copilot's `Notification` `message`, Codex's tool description), trimmed and cut at 200
+  characters, and clears it whenever the overlay's status leaves `waiting`. Held in the
   core, it survives a page reload and covers external sessions. The roster payload carries it as
   `waitingReason` (section 7).
 
@@ -272,26 +359,39 @@ A session is bound to a pane by, in order:
 
 1. The `X-Bashboard-Pane` header on its hook events.
 2. Process ancestry: walking parents from the session's `pid` (via `sysinfo`) until reaching a
-   pane's shell pid, for sessions started before hooks were installed.
+   pane's shell pid, for Claude Code sessions started before hooks were installed. Codex and
+   Copilot sessions are bound by hooks alone (3.2).
 
 Sessions that bind to no pane are external (Windows Terminal, VS Code) and appear in the
 roster without a pane link.
 
-**Transcripts.** Each pane-bound session's Panes card (4.6) shows its model and context, which `transcript.rs` reads from the session's transcript, the JSONL file
-Claude Code appends to under `~/.claude/projects/`. The format is internal and undocumented, so
-every field is optional and an unreadable line is skipped. The file is the hook overlay's
-`transcript_path` when there is one; for a session bound by ancestry, which sends no hooks, it is
-the first `~/.claude/projects/*/<sessionId>.jsonl`, searched again at most every 5 seconds until
-found. The reading is the newest line of `type` `assistant` that is not `isSidechain` and carries
-`message.usage` (a `<synthetic>` model is skipped): context is `input_tokens +
-cache_creation_input_tokens + cache_read_input_tokens`, and the model is `message.model`. The
-core reads only the file's last 64 KiB, widening to the whole file, streamed line by line, when
-the tail holds no such line. A `notify` change marks the session dirty, and a dirty session is
-re-read at most once per second. A changed model or context emits `claude://context` (section 7),
-and `claude_context()` returns every known entry so a page reload shows them at once. Nothing is
-tracked until the dashboard first calls `claude_context()`, which it does while the Panes section
-is enabled, and `claude_context_stop()` when it is turned off; entries are pruned with the hook
-overlay.
+**Transcripts.** Each pane-bound session's Panes card (4.6) shows its model and context, which
+`transcript.rs` reads from the session's transcript. The formats are internal to each tool and
+undocumented, so every field is optional and an unreadable line is skipped. A reading is the
+newest model, the context tokens, and the context window when the transcript reports one.
+
+- **Claude Code.** The JSONL file Claude Code appends to under `~/.claude/projects/`: the hook
+  overlay's `transcript_path` when there is one; for a session bound by ancestry, which sends no
+  hooks, the first `~/.claude/projects/*/<sessionId>.jsonl`, searched again at most every 5
+  seconds until found. The reading is the newest line of `type` `assistant` that is not
+  `isSidechain` and carries `message.usage` (a `<synthetic>` model is skipped): context is
+  `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, and the model is
+  `message.model`. The transcript does not name the context window.
+- **Codex** (`transcript/codex.rs`). The newest `sessions/YYYY/MM/DD/rollout-*-<id>.jsonl` under
+  the Codex home. The model is the newest `turn_context` line's `model`; context tokens are the
+  newest `token_count` event's `last_token_usage.total_tokens`, with its `model_context_window`
+  as the window.
+- **Copilot** (`transcript/copilot.rs`). `session-state/<id>/events.jsonl` under the Copilot
+  home. The model is the newest `session.model_change` event's `newModel`, else `session.start`'s
+  `selectedModel`. Copilot never writes token counts to disk, so there is no context reading.
+
+The core reads only a Claude file's last 64 KiB, widening to the whole file, streamed line by
+line, when the tail holds no qualifying line; the other formats are read whole in batches. A
+`notify` change marks the session dirty, and a dirty session is re-read at most once per second.
+A changed reading emits `agent://context` (section 7), and `agent_context()` returns every known
+entry so a page reload shows them at once. Nothing is tracked until the dashboard first calls
+`agent_context()`, which it does while the Panes section is enabled, and `agent_context_stop()`
+when it is turned off; entries are pruned with the hook overlay.
 
 ### 3.5 Platform glue
 
@@ -795,6 +895,30 @@ directory is empty, missing, the exe's own folder (where Start menu and taskbar 
 or the Windows folder or below. On a folder, the front end opens a new tab there (4.10). Debug
 builds skip the plugin, since they share the identifier and a dev run starts beside the
 installed app; their saved state is already separate (3.6).
+
+### 3.19 Local model servers (`src-tauri/src/model_servers.rs`)
+
+The Local models section (4.6) and the launcher's local-model entries need to know which model
+servers answer on this machine and what they have loaded. The core asks Ollama and LM Studio over
+loopback HTTP with an 800 ms timeout per request; a server that does not answer is absent from the
+result, never an error.
+
+- **Addresses.** Ollama's is `localModels.ollamaUrl`, else the `OLLAMA_HOST` environment variable
+  (a bare host or port, a scheme, and `0.0.0.0` or `[::]` read as loopback), else
+  `http://127.0.0.1:11434`. LM Studio's is `localModels.lmStudioUrl`, else
+  `http://127.0.0.1:1234`.
+- **`model_servers_poll()`** returns a snapshot: `ollama` and `lmStudio`, each present only when
+  the server answered, with its URL, version (Ollama's, from `/api/version`), and loaded models,
+  plus `ollamaOnPath`, whether an `ollama` executable sits in a `PATH` folder. A loaded model
+  carries its name, total size, bytes in GPU memory, context length, and the time Ollama will
+  unload it. Ollama's come from `/api/ps`; LM Studio's from `/api/v1/models`, whose models with
+  `loaded_instances` count as loaded, reporting each instance's configured context length and no
+  GPU placement.
+- **`model_servers_ollama_models()`** returns the installed Ollama models from `/api/tags`, for
+  the launcher's submenus; empty when the server does not answer.
+
+Both commands read the settings on every call, so a changed URL applies without a restart. Every
+field of every reply is optional on parse, since these APIs are not versioned contracts.
 
 ## 4. Front end
 
@@ -1396,23 +1520,26 @@ Each card shows:
   plus the attention pulse (4.7). While a terminal is `waiting`, its whole card also breathes a
   faint accent tint (2.4 s, phased off the wall clock so a rebuild of the card does not restart
   it; a steady tint under reduced motion). Other kinds show their kind's icon.
-- The bound Claude session's name, or the working directory's last folder, with the full path
+- The bound agent session's name, or the working directory's last folder, with the full path
   beneath while the header's paths toggle (a `↳` button) is on. With it off (the default) the path line is
   absent and the full path joins the title's tooltip. While the terminal is `waiting`, the line
   beneath is the waiting reason (3.3) in the accent color in place of the folder, whatever the
   toggle, one line with an ellipsis, full text on hover. A `waiting` with no message reads
   "Waiting for you". Other kinds show the pane's title (4.11) and, under the same toggle, its
   folder, if any.
-- For a terminal bound to a Claude session (3.4), a dimmed line below that with the session's
-  model and the tokens in its context, as "Opus 5.5 · 112k tokens", read from its transcript.
-  Either half shows alone while the other is unknown, and the line is absent until the
-  transcript has an assistant message. The count has no bar or percentage: neither the
-  transcript nor any hook payload names the context window, so a fraction of it would be a guess.
+- For a terminal bound to an agent session (3.4), a dimmed line below that with the session's
+  model and the tokens in its context, read from its transcript. Claude Code's reads
+  "Opus 5.5 · 112k tokens"; the other agents lead with their name, as "Codex · gpt-5.5 · 112k /
+  272k tokens". Either half shows alone while the other is unknown (Copilot reports no tokens),
+  and the line is absent until the transcript has a model or a count. The count is shown against a
+  window only when one is known: Codex's transcript reports it, and for a model loaded in Ollama
+  the window is the loaded context length from the Local models poll (3.19). Claude Code's
+  transcript does not name the window, so its count stands alone rather than guess a fraction.
 - For a terminal, time since the last status change.
 - A profile badge when the terminal's shell is not Git Bash.
 - Whether it is expanded or collapsed. Clicking an expanded card switches to its tab if needed
   and focuses its pane; clicking a collapsed one expands it (4.3).
-- A close button, which asks first if a command or Claude session is running, or if a scratch
+- A close button, which asks first if a command or agent session is running, or if a scratch
   pad is not empty.
 
 **Containers.** One row per container group (4.16) with its state dot, and a Manage
@@ -1421,7 +1548,8 @@ button (an arrow leaving a square) in the header. Shown while a container engine
 (4.11) offers a Containers pane whenever an engine is available.
 
 **Ports.** One row per listening TCP port (4.19) that looks like a dev server: one started from
-a pane, one with a shell or Claude Code among its live ancestors (`fromShell`), or one whose
+a pane, one with a shell or a coding agent (Claude Code, Codex, or Copilot) among its live
+ancestors (`fromShell`), or one whose
 program is a known dev runtime (node, python, dotnet, java, postgres, and the like). Ports
 started from a pane come first, then the rest by port number. Other programs' ports (a music
 app, a sync client) are counted in one muted "+ N other programs" row that opens the Ports tab,
@@ -1434,16 +1562,36 @@ Manage button (the same arrow leaving a square as Containers) opens the Ports ta
 polls only while enabled, expanded, and on screen with the window shown, and reads "Nothing
 listening" when the list is empty.
 
-**External sessions.** Claude Code sessions running outside this app (Windows Terminal, VS
-Code), sorted waiting, then busy, then idle, then by most recent change. Clicking a row shows
+**Local models.** Shown while `dashboard.sections.localModels` is on and at least one model
+server answers (3.19), and a preview. One header row per answering server (Ollama first, then LM
+Studio) shows its name and version, with the server's URL in the tooltip, and a row beneath it
+per loaded model shows the model's name, where it runs (`GPU`, `CPU`, or a GPU share, for Ollama
+only), its context length, and the time until Ollama unloads it (`never` for a model kept loaded).
+A server with nothing loaded reads "No model loaded". A context length under
+`localModels.minContext` tokens (default 64000; 0 turns the warning off) is shown in the warning
+color, with a tooltip explaining that agents need that much context and that Ollama's is raised
+with `OLLAMA_CONTEXT_LENGTH`. The section hides when no server answers. It polls
+`model_servers_poll` every 5 seconds only while it is enabled, expanded, and on screen with the
+window shown.
+
+**Launch menu.** For each detected agent (3.2) the Launch menu holds an "<agent name> on a local
+model" entry while Ollama answers and `ollama` is on `PATH`. The entry is a submenu of the
+installed Ollama models (`model_servers_ollama_models`); picking one opens a new terminal at the
+launch root and types `ollama launch <agent> --model <model>` into it. The session that starts
+is an ordinary agent session, so its card, status, and resume behave as any other.
+
+**External sessions.** Agent sessions running outside this app (Windows Terminal, VS
+Code), sorted waiting, then busy, then idle, then by most recent change. Only Claude Code sessions
+appear, since the others have no session files and bind to a pane by hooks alone (3.2). Clicking a row shows
 its cwd and session id with copy buttons. A `waiting` row shows the reason under the folder,
 the same as a card. The section is hidden while there are none.
 
-**Footer.** Install Claude Code hooks sits at the bottom of the panel while Claude Code is
-detected and the hooks are not installed (3.3); otherwise the footer takes no space.
+**Footer.** One install button sits at the bottom of the panel for each detected agent whose
+hooks are not installed (3.3): "Install Claude Code hooks", "Install Codex hooks (preview)", and
+"Install Copilot hooks (preview)". With every detected agent's hooks in, the footer takes no space.
 
 The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the
-sections Appearance, Backdrop, Terminal, Editor, Dashboard, and Restore. A filter field above them
+sections Appearance, Backdrop, Terminal, Editor, Dashboard, Local models, and Restore. A filter field above them
 shows only the fields whose label, hint, group, or section holds every word typed, and hides
 sections left empty. Dashboard holds the side choice, Left or Right, and a
 checkbox per element under "Show on the dashboard", followed by the Clock style select while the
@@ -1470,7 +1618,7 @@ A peek overlays the panes from the panel's side without narrowing them. It ends 
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends
 it too.
 
-Every row tied to a Claude session has a hue swatch matching that session's lineage color in
+Every row tied to an agent session has a hue swatch matching that session's lineage color in
 the backdrop (6.3), which is how the backdrop and the dashboard stay readable as one system.
 
 ### 4.7 Attention
@@ -1508,7 +1656,7 @@ target tab unzooms first. An empty list shows a toast, "Nothing needs you".
 
 Every terminal is `idle`, `working`, `waiting`, `done`, or `failed`, resolved in order:
 
-1. **Bound Claude session.** Its session status (section 7): `busy` shows as `working`, `idle`
+1. **Bound agent session.** Its session status (section 7): `busy` shows as `working`, `idle`
    as `idle` (or `done`, below), `waiting` as `waiting`, and `unknown` falls through to the
    shell.
 2. **Shell activity.** `working` while a foreground command runs, otherwise `idle`. OSC 133
@@ -1520,7 +1668,7 @@ Every terminal is `idle`, `working`, `waiting`, `done`, or `failed`, resolved in
 Plain shells have no `waiting` state; a program that needs the user rings the bell, which
 raises attention (4.7) without changing status.
 
-**Done.** When a bound session's `Stop` hook arrives while its terminal is not being looked
+**Done.** When a bound session's `Stop` hook arrives (any agent's) while its terminal is not being looked
 at (4.7), the terminal shows `done` instead of `idle` until it is. Any later status (a new
 prompt, `waiting`, the session ending) replaces it. A roster change to `idle` does not set it.
 
@@ -1532,7 +1680,7 @@ Bash with the `~/.bashrc` lines (4.2) qualifies; PowerShell and Command Prompt t
 get a command mark, and the activity sweep is not used, since it counts background jobs and
 reports up to 2 seconds late. `D` with a nonzero exit code marks `failed`, except 130
 (interrupted with Ctrl+C), which marks nothing; `D` with no exit code marks `done`. While a
-Claude session is bound, its status resolves first and command marks are not set; when `claude`
+agent session is bound, its status resolves first and command marks are not set; when the agent
 itself exits after a long run, its `D` is an ordinary long command. A mark clears when the
 terminal becomes the pane being looked at, and a command mark also clears on the next `C`; a
 newer mark replaces the old. `failed` is a still cross in the error color, where `done` is a
@@ -1552,13 +1700,23 @@ the window closes. On launch:
   folder is missing. Each tab's layout and collapsed terminals are rebuilt around the new
   pane ids, the tabs keep their order and names, the same tab is active, and each tab's focus
   returns to the same terminal.
-- A terminal that had a live Claude session bound when last saved gets
-  `claude --resume <sessionId>` typed into it once its shell is ready (the first OSC 133 `A`,
-  or the first output when the markers are absent), so the command shows in the terminal and
-  in history like any other. When the session's last saved permission mode is anything but
-  `default`, the command adds `--permission-mode <mode>`, so a session in bypass permissions
-  resumes in it. The mode is the one the session's newest hook event reported, so a change
-  made with Shift+Tab after that event is not saved.
+- A terminal that had a live agent session bound when last saved gets its agent's resume command
+  typed into it once its shell is ready (the first OSC 133 `A`, or the first output when the
+  markers are absent), so the command shows in the terminal and in history like any other. The
+  saved pane records the session's `agent`, and `resumeCommand` in `savedWorkspace.ts` builds
+  the command:
+
+  | Agent | Command |
+  | --- | --- |
+  | Claude Code | `claude --resume <sessionId>`, plus `--permission-mode <mode>` when the saved mode is anything but `default` |
+  | Codex | `codex resume <sessionId>` |
+  | Copilot | `copilot --resume <sessionId> --model <model>`, the `--model` part when a model is saved |
+
+  Claude's mode is the one the session's newest hook event reported, so a change made with
+  Shift+Tab after that event is not saved. Copilot's id and model are space-separated because
+  `--resume=<id>` exits at once on Windows, and the model is passed back because a resumed
+  Copilot session otherwise falls back to the default model. The session id and model are held to
+  a safe character set, since they are typed into a shell.
 - Each terminal's scrollback is saved as the window closes: xterm.js's serialize addon writes
   the normal buffer as escape sequences, leaving out terminal modes (so a replay cannot turn on
   mouse reporting or bracketed paste) and the alternate buffer. On launch the saved text is
@@ -1569,12 +1727,13 @@ the window closes. On launch:
 - A missing or empty workspace opens one tab with one terminal in `startingDirectory`. Closing
   the last tab saves an empty workspace, so the next launch starts fresh.
 
-`restore.enabled`, `restore.resumeClaude`, and `restore.scrollback` (section 8) turn each part
-off. With `restore.scrollback` off, closing saves no scrollback and deletes what was saved.
+`restore.enabled`, `restore.resumeSessions`, and `restore.scrollback` (section 8) turn each part
+off. `restore.resumeSessions` covers every agent; a settings file that holds the older
+`restore.resumeClaude` key and no `restore.resumeSessions` supplies the value from it. With `restore.scrollback` off, closing saves no scrollback and deletes what was saved.
 
 Opening a named layout (4.6) rebuilds one tab the same way, appended as a new tab with the
 layout's terminals in their saved directories and profiles. Session ids are always null in a
-layout, so no Claude session is resumed.
+layout, so no agent session is resumed.
 
 ### 4.10 Tabs
 
@@ -2087,8 +2246,10 @@ has Back, Next, and Skip setup.
    `setup_repo_candidates(dir?)` (`src-tauri/src/setup.rs`), which lists the direct subfolders
    holding `.git`, as a folder or as a worktree's file. Add appends the checked ones to
    favorites, skipping any already there.
-6. **Claude Code.** Shown while Claude Code is detected and the hooks are not installed;
-   explains the hooks and runs the install with its confirmation (3.3).
+6. **Agents.** Shown while a detected agent (3.2) lacks the hooks; lists each detected agent
+   with its hook state (Codex and Copilot marked as a preview), explains the hooks, and runs each
+   agent's install with its confirmation (3.3). An installed Codex hook that is not yet trusted
+   says Codex will ask to trust it on its next start.
 7. **Look.** Applied live, in the Settings tab's terms (6.2). Background (None, Swirling
    Lights, Matrix; `backdrop.style`). Animate the background (`backdrop.animate`) and Brightness
    (Low, Medium, High, the scrim presets of section 5 from darkest), both hidden under None. Accent
@@ -2123,9 +2284,11 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
   per area, whose `{action}` tokens render as the action's live keycaps, or "no key" when it is
   unbound, followed by a link to the full user guide. Below it, Setup (`setupStatus.ts`) checks Git
   Bash (3.15), the shell integration lines of each installed shell that takes them (3.14), and the
-  Claude Code hooks (3.3), each row reading ✓, !, or • with a short status and, where the app can
-  fix it, a button: Install Git (winget, or Download without it), Install or Update for the
-  shell lines, and Install for the hooks, which opens the hook preview (3.3) over the dialog.
+  hooks of each agent (3.3, one row per agent, "Codex hooks (preview)" and the like), each row
+  reading ✓, !, or • with a short status and, where the app can fix it, a button: Install Git
+  (winget, or Download without it), Install or Update for the shell lines, and Install for the
+  hooks, which opens that agent's hook preview (3.3) over the dialog. An agent that has not run
+  on this machine reads "<agent> has not run on this machine".
   Missing lines warn only for the default shell; other shells get the button without the warning.
   The checks rerun on each visit and after each fix. Run setup closes the dialog and opens the
   setup wizard (4.17).
@@ -2430,14 +2593,16 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 | `SearchOptions` | `src/searchOptions.ts` | An empty `include` glob searches every file |
 | `Container`, `EngineState`, `ContainersSnapshot`, `ContainerStats` | `src/containers.ts` | `containers_list` and `containers://changed` (3.10) |
 | `SystemSample`, `DiskRow` | `src/systemModel.ts` | `system_sample` (4.6); `disks` is null unless the call passed `includeDisks` |
-| `ClaudeContext` | `src/claudeModel.ts` | `claude_context` and `claude://context` (3.4) |
+| `AgentContext` | `src/agentModel.ts` | `agent_context` and `agent://context` (3.4) |
+| `ModelServersSnapshot`, `LoadedModel` | `src/modelServersApi.ts` | `model_servers_poll` (3.19) |
 | `ShellProfile` | `src/profiles.ts` | `shell_profiles` (3.1) |
 
 **Session status.** A hook event newer than the roster's `statusUpdatedAt` wins; otherwise the
 roster's value. `waiting` exists only from hooks, and clears on the next `UserPromptSubmit`,
 `Stop`, or roster change to `busy`. The roster payload carries `waitingReason: string | null`
-beside each session's status; it is the `Notification` message (3.3) and is present only while
-the merged status is `waiting`. A terminal's `done` is `idle` after a `Stop`, or a long command
+beside each session's status; it is the agent's waiting reason (3.3) and is present only while
+the merged status is `waiting`. Each session also carries `agent` (`claude`, `codex`, or
+`copilot`). A terminal's `done` is `idle` after a `Stop`, or a long command
 that finished, that the user has not looked at yet; `failed` is the same for a nonzero exit (4.8).
 
 **workspace.json.** Version 3, tabs in strip order. Pane ids do not survive a restart, so panes
@@ -2461,7 +2626,9 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
 - A terminal pane's `profile`: the default profile. Its `permissionMode` (letters only, kept
-  only beside a `sessionId`): the default mode. Its `scrollbackId` (the scratch id alphabet):
+  only beside a `sessionId`): the default mode. Its `agent` (`claude`, `codex`, or `copilot`):
+  Claude Code, which an unknown value also reads as. Its `resumeModel` (kept only beside a
+  `sessionId`): none. Its `scrollbackId` (the scratch id alphabet):
   none, so the terminal starts without saved scrollback. A Files pane's `root`: resolved from its
   `folder`. Its `expanded`: false.
 
@@ -2544,6 +2711,7 @@ it with no pins, and Automatic omits it.
       "panes": true,
       "containers": true,
       "ports": true,
+      "localModels": true,
       "external": true,
       "system": false,
       "wave": false,
@@ -2551,7 +2719,13 @@ it with no pins, and Automatic omits it.
     },
     "clockStyle": "both"
   },
-  "restore": { "enabled": true, "resumeClaude": true, "scrollback": true },
+  // resumeSessions types each agent's resume command into restored terminals (4.9). An older
+  // file's resumeClaude is still read when resumeSessions is absent.
+  "restore": { "enabled": true, "resumeSessions": true, "scrollback": true },
+  // Empty URLs use OLLAMA_HOST, then http://127.0.0.1:11434, for Ollama and
+  // http://127.0.0.1:1234 for LM Studio. minContext is the context length under which the Local
+  // models section warns (4.6); 0 turns the warning off.
+  "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
   // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in
@@ -2618,20 +2792,24 @@ check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS insta
 - **Undocumented session files.** If Claude Code changes `~/.claude/sessions`, the roster
   degrades to showing only hook-reported sessions in this app's panes. Parsing is lenient and
   failures are logged, never fatal.
+- **Codex and Copilot internals.** Their hook payloads, transcripts, and resume flags are
+  internal to each tool and can change. Every field is optional on parse, a payload the receiver
+  cannot read changes nothing, and `BASHBOARD_HOOK_LOG` captures payloads for reports. Support
+  for both is a preview.
 - **WebGL contexts.** Many panes plus the Swirling Lights backdrop approach Chromium's limit; the
   budget and DOM fallback in 4.4 cover it, at some cost in rendering speed for the extra panes.
   Disposing the backdrop releases its context at once (6.4), so switching styles does not leak one.
 - **GPU cost.** The Swirling Lights backdrop plus bloom behind several WebGL terminals is the
   heaviest part of the app. The visibility pausing in 6.4 means it costs nothing while hidden, and
   `backdrop.maxFps` trims it on weaker GPUs. Matrix is far lighter, and None costs nothing.
-- **Resume.** Restore types `claude --resume <sessionId>`; if that session's transcript is
+- **Resume.** Restore types the agent's resume command (4.9); if that session's transcript is
   gone, the command fails visibly in its terminal rather than silently.
 - **Off-screen output.** Collapsed terminals and those in background tabs keep parsing output
   into off-DOM xterm instances; a very chatty one costs parse time, though no rendering.
 - **Container CLI output.** The JSON from `docker ps` and `podman ps` is not a stable
   contract, and the two differ. Each engine's parser treats every field as optional, so a
   format change degrades a row rather than the list.
-- **Edits racing Claude.** A file can change between a Files pane's read and its save. The
+- **Edits racing an agent.** A file can change between a Files pane's read and its save. The
   modified-time check in `fs_write_text` turns that into the Reload or Keep mine choice (4.12)
   instead of a silent overwrite.
 - **Ctrl+W.** Bound to close pane (as in the current Windows Terminal setup), so bash's

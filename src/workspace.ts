@@ -76,7 +76,7 @@ import {
 } from './persistence';
 import { restoredTab, snapshotTabs } from './savedTabs';
 import { TabStore } from './tabStore';
-import { type SavedPane, type SavedTab, type SavedWorkspace, resumeCommand } from './savedWorkspace';
+import { type AgentId, type SavedPane, type SavedTab, type SavedWorkspace, resumeCommand } from './savedWorkspace';
 import { folderInclude, initialQuery } from './searchModel';
 import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from './searchOptions';
 import { SearchPane } from './searchPane';
@@ -226,6 +226,8 @@ export type PaneSpec =
       profile?: string;
       /** Runs in place of the profile's shell. */
       command?: string[];
+      /** Typed into the shell, with Enter, once it is ready for input. */
+      initialInput?: string;
       /** Marks a container shell (design 4.16), which is titled by it and never saved. */
       container?: { name: string };
       /** The saved terminal's scrollback id, kept so the next save reuses its file. */
@@ -251,6 +253,8 @@ export class Workspace {
   private readonly paneViews = new Map<string, PaneView>();
   private readonly hosts = new Map<string, HTMLElement>();
   private readonly strips = new Map<string, TitleStrip>();
+  /** What each terminal's strip last showed; a change in a background tab must still redraw the tab strip. */
+  private readonly stripShown = new Map<string, string>();
   /** Terminals take `p<n>`, every other kind `v<n>`, so saved keys never collide across kinds. */
   private nextId = 1;
   private nextViewId = 1;
@@ -272,7 +276,12 @@ export class Workspace {
   private sweeps = new Map<number, SweepState>();
   private sizer: HTMLElement | null = null;
   /** Sessions from the restored workspace, kept until a session binds to the pane. */
-  private readonly restoredSessions = new Map<string, { sessionId: string; permissionMode?: string }>();
+  private readonly restoredSessions = new Map<
+    string,
+    { sessionId: string; permissionMode?: string; agent?: AgentId; resumeModel?: string }
+  >();
+  /** Newest model per session id, fed from main.ts; only Copilot's resume needs it. */
+  private readonly sessionModels = new Map<string, string>();
   /** Container shell pane ids to their container's name. */
   private readonly containerShells = new Map<string, string>();
   private emptyContainers: ContainersStore | undefined;
@@ -602,7 +611,7 @@ export class Workspace {
     // Every expanded host must be attached and sized before its pane opens, since start() fits to it.
     for (const p of saved.panes) if (!p.collapsed) this.createHost(ids.get(p.key)!);
     this.render();
-    this.buildTab(saved, ids, true, { resumeClaude: false, loadScratch: false, loadScrollback: false });
+    this.buildTab(saved, ids, true, { resumeSessions: false, loadScratch: false, loadScrollback: false });
     // A layout of only collapsed panes would leave nothing to type into.
     if (!this.store.tree) {
       this.expandPane(tab.panes[0]);
@@ -830,13 +839,15 @@ export class Workspace {
 
   setSessions(sessions: Session[]): void {
     this.sessions = sessions;
-    let raised = false;
+    let changed = false;
     for (const id of this.paneViews.keys()) {
       const term = this.terminal(id);
       if (term && boundSession(term.ptyId, sessions)) this.restoredSessions.delete(id);
-      if (this.refreshStrip(id)) raised = true;
+      const before = this.stripShown.get(id);
+      if (this.refreshStrip(id)) changed = true;
+      if (this.stripShown.get(id) !== before) changed = true;
     }
-    if (raised) this.notify();
+    if (changed) this.notify();
   }
 
   /** Pane id of the terminal running the core's pty `ptyId` (`BASHBOARD_PANE_ID`), in any tab. */
@@ -889,11 +900,33 @@ export class Workspace {
   }
 
   /** The bound session, or the restored one while nothing has bound yet. */
-  private savedSession(id: string, ptyId: number | null): { sessionId: string | null; permissionMode?: string } {
+  private savedSession(
+    id: string,
+    ptyId: number | null,
+  ): { sessionId: string | null; permissionMode?: string; agent?: AgentId; resumeModel?: string } {
     const bound = boundSession(ptyId, this.sessions);
     const s = bound ?? this.restoredSessions.get(id);
     if (!s) return { sessionId: null };
-    return { sessionId: s.sessionId, ...(s.permissionMode !== undefined && { permissionMode: s.permissionMode }) };
+    const agent = s.agent ?? 'claude';
+    // Copilot drops the model on resume, so keep the newest one seen; a restored pane that has
+    // not heard a fresh model keeps the one it was saved with.
+    const model = agent === 'copilot' ? (this.sessionModels.get(s.sessionId) ?? ('resumeModel' in s ? s.resumeModel : undefined)) : undefined;
+    return {
+      sessionId: s.sessionId,
+      ...(s.permissionMode !== undefined && { permissionMode: s.permissionMode }),
+      ...(agent !== 'claude' && { agent }),
+      ...(model && { resumeModel: model }),
+    };
+  }
+
+  /** Records a session's newest model (from the agent context stream) for the next save. */
+  setSessionModel(sessionId: string, model: string | null): void {
+    if (model) this.sessionModels.set(sessionId, model);
+  }
+
+  /** Opens a terminal in `cwd` and types `command` once its shell is ready, as restore does for a resume. */
+  openTerminalWithCommand(cwd: string | undefined, command: string, opts: OpenTerminalOptions = {}): void {
+    this.openPane({ kind: 'terminal', cwd, profile: opts.profile, initialInput: command }, opts);
   }
 
   /** Design 4.9: layout leaves already hold pane ids, which double as saved keys. */
@@ -926,7 +959,7 @@ export class Workspace {
    * Design 4.9: a new shell per saved terminal and each pad with its saved text, tab by tab in
    * saved order. Expects an empty workspace and at least one saved tab.
    */
-  restore(saved: SavedWorkspace, opts: { resumeClaude: boolean; scrollback: boolean }): void {
+  restore(saved: SavedWorkspace, opts: { resumeSessions: boolean; scrollback: boolean }): void {
     if (saved.tabs.length === 0) return;
     const built = saved.tabs.map((t) => ({
       saved: t,
@@ -939,7 +972,7 @@ export class Workspace {
     this.render();
     for (const b of built) {
       this.buildTab(b.saved, b.ids, b === active, {
-        resumeClaude: opts.resumeClaude,
+        resumeSessions: opts.resumeSessions,
         loadScratch: true,
         loadScrollback: opts.scrollback,
       });
@@ -1393,16 +1426,21 @@ export class Workspace {
     saved: SavedTab,
     ids: Map<string, string>,
     visible: boolean,
-    opts: { resumeClaude: boolean; loadScratch: boolean; loadScrollback: boolean },
+    opts: { resumeSessions: boolean; loadScratch: boolean; loadScrollback: boolean },
   ): void {
     for (const p of saved.panes) {
       const id = ids.get(p.key)!;
       let onReady: (() => void) | undefined;
       if (p.kind === 'terminal' && p.sessionId) {
-        const { sessionId, permissionMode } = p;
-        this.restoredSessions.set(id, { sessionId, ...(permissionMode !== undefined && { permissionMode }) });
-        if (opts.resumeClaude) {
-          const command = resumeCommand(sessionId, permissionMode);
+        const { sessionId, permissionMode, agent, resumeModel } = p;
+        this.restoredSessions.set(id, {
+          sessionId,
+          ...(permissionMode !== undefined && { permissionMode }),
+          ...(agent !== undefined && { agent }),
+          ...(resumeModel !== undefined && { resumeModel }),
+        });
+        if (opts.resumeSessions) {
+          const command = resumeCommand(sessionId, permissionMode, agent, resumeModel);
           onReady = () => this.terminal(id)?.typeText(`${command}\r`);
         }
       }
@@ -1564,7 +1602,11 @@ export class Workspace {
       onBell: () => {
         if (this.attention.bell(id)) this.notify();
       },
-      onReady,
+      onReady:
+        onReady ??
+        (spec.initialInput !== undefined
+          ? () => this.terminal(id)?.typeText(`${spec.initialInput}\r`)
+          : undefined),
     });
   }
 
@@ -2129,12 +2171,14 @@ export class Workspace {
       return false;
     }
     const status = this.statusOf(id);
+    const reason = status === 'waiting' ? this.waitingReasonOf(id) : '';
     strip.update({
       title: this.titleOf(id),
       path: this.containerShells.get(id) ?? pane.cwd ?? '',
       status,
-      ...(status === 'waiting' && { reason: this.waitingReasonOf(id) }),
+      ...(status === 'waiting' && { reason }),
     });
+    this.stripShown.set(id, `${status}|${reason}`);
     return this.attention.observe(id, status);
   }
 
@@ -2310,6 +2354,7 @@ export class Workspace {
     this.containerShells.delete(id);
     this.hosts.delete(id);
     this.strips.delete(id);
+    this.stripShown.delete(id);
     this.openedAt.delete(id);
     this.attention.forget(id);
     this.done.forget(id);

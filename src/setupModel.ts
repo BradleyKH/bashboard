@@ -2,17 +2,19 @@
 
 import { ACCENT_PRESETS, DEFAULT_ACCENT } from './accent';
 import { lastFolder } from './dashboardModel';
+import type { CodexTrust, HookInstallPreview } from './hookInstall';
+import type { AgentId } from './savedWorkspace';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
 import { SCRIM_PRESETS } from './scrim';
 import type { BackdropStyle } from './settings';
 import { isIntegrationShell, type ShellIntegrationStatus } from './shellIntegration';
 
-export type SetupStep = 'git' | 'shell' | 'shellIntegration' | 'editor' | 'favorites' | 'claude' | 'look';
+export type SetupStep = 'git' | 'shell' | 'shellIntegration' | 'editor' | 'favorites' | 'agents' | 'look';
 
 export interface SetupStepOptions {
-  claudeDetected: boolean;
-  hooksInstalled: boolean;
+  /** The agents that have run on this machine, each with its hook state. */
+  agents: AgentHooks[];
   /** Whether Git Bash was found when the wizard opened. */
   gitBashFound: boolean;
   /** Set once Git is installed from the wizard, which keeps the Git step listed. */
@@ -24,6 +26,23 @@ export interface SetupStepOptions {
    * which hides the step.
    */
   shellIntegrationStatus: ShellIntegrationStatus | 'loading' | null;
+}
+
+/** One detected agent's hook state. */
+export interface AgentHooks {
+  agent: AgentId;
+  installed: boolean;
+  /** Codex only, once installed; null or absent otherwise. */
+  trust?: CodexTrust | null;
+}
+
+/** The detected agents among `previews`, in order, with whether Bashboard's hooks are in. */
+export function agentHooksFrom(previews: HookInstallPreview[]): AgentHooks[] {
+  return previews.flatMap((p) => {
+    const agent = p.agent ?? 'claude';
+    if (!(p.detected ?? p.claudeDetected)) return [];
+    return [{ agent, installed: p.alreadyInstalled, trust: p.trust ?? null }];
+  });
 }
 
 /** The wizard's element builders, shared with the step renderers in their own files. */
@@ -41,8 +60,8 @@ const DEFAULT_EDITOR: Choice = { value: 'default', label: "The file's default ap
 
 /**
  * The steps to show, in order: Git only when Git Bash was missing, shell integration only when
- * the default shell takes the lines (not cmd) and they are not current, Claude Code only when
- * detected without the hooks.
+ * the default shell takes the lines (not cmd) and they are not current, the agents step only when
+ * a detected agent lacks the hooks.
  */
 export function setupSteps(opts: SetupStepOptions): SetupStep[] {
   const steps: SetupStep[] = [];
@@ -60,7 +79,7 @@ export function setupSteps(opts: SetupStepOptions): SetupStep[] {
     steps.push('shellIntegration');
   }
   steps.push('editor', 'favorites');
-  if (opts.claudeDetected && !opts.hooksInstalled) steps.push('claude');
+  if (opts.agents.some((a) => !a.installed)) steps.push('agents');
   steps.push('look');
   return steps;
 }

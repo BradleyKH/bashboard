@@ -33,6 +33,12 @@ const INHERITED_SESSION_VARS: &[&str] = &[
     "CLAUDE_CODE_SESSION_ID",
     "CLAUDE_EFFORT",
     "CLAUDE_PID",
+    "CODEX_CI",
+    "CODEX_SESSION_ID",
+    "CODEX_THREAD_ID",
+    "CODEX_TOOL_CALL_ID",
+    "COPILOT_AGENT_SESSION_ID",
+    "COPILOT_CLI",
 ];
 
 /// Point the shipped hook script at the receiver (design section 3.3).
@@ -773,6 +779,9 @@ mod tests {
     fn strips_inherited_session_vars() {
         let cmd = build_command(&spec("bash", &[], None), 1);
         assert!(cmd.get_env("CLAUDECODE").is_none());
+        for var in ["CODEX_THREAD_ID", "CODEX_SESSION_ID", "CODEX_TOOL_CALL_ID", "CODEX_CI", "COPILOT_CLI", "COPILOT_AGENT_SESSION_ID"] {
+            assert!(cmd.get_env(var).is_none(), "{var} should be stripped");
+        }
         assert!(cmd.get_env("ORIGINAL_PATH").is_none());
         assert_eq!(cmd.get_env("BASHBOARD_PANE_ID").and_then(|v| v.to_str()), Some("1"));
     }

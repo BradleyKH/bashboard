@@ -69,8 +69,33 @@ describe('shellRow', () => {
 
 describe('hooksRow', () => {
   it('offers the install only when Claude Code has run', () => {
-    expect(hooksRow(hooks({})).fix?.kind).toBe('hooks');
-    expect(hooksRow(hooks({ claudeDetected: false })).fix).toBeUndefined();
-    expect(hooksRow(hooks({ alreadyInstalled: true })).level).toBe('ok');
+    expect(hooksRow('claude', hooks({}))).toMatchObject({ id: 'hooks:claude', label: 'Claude Code hooks' });
+    expect(hooksRow('claude', hooks({})).fix).toEqual({ kind: 'hooks', agent: 'claude', label: 'Install' });
+    expect(hooksRow('claude', hooks({ claudeDetected: false })).fix).toBeUndefined();
+    expect(hooksRow('claude', hooks({ alreadyInstalled: true })).level).toBe('ok');
+    expect(hooksRow('claude', null).level).toBe('info');
+  });
+
+  it('names the agent and marks Codex as a preview', () => {
+    const row = hooksRow('codex', hooks({ agent: 'codex', detected: true, claudeDetected: false }));
+    expect(row).toMatchObject({ id: 'hooks:codex', label: 'Codex hooks (preview)', level: 'missing' });
+    expect(row.fix).toEqual({ kind: 'hooks', agent: 'codex', label: 'Install' });
+    expect(row.text).toContain('Codex');
+  });
+
+  it('has no install when the agent has not run', () => {
+    const row = hooksRow('copilot', hooks({ agent: 'copilot', detected: false, claudeDetected: false }));
+    expect(row.fix).toBeUndefined();
+    expect(row.text).toBe('Copilot has not run on this machine');
+  });
+
+  it('reports Codex hooks installed but not yet trusted', () => {
+    const base = { agent: 'codex' as const, detected: true, alreadyInstalled: true };
+    const row = hooksRow('codex', hooks({ ...base, trust: 'untrusted' }));
+    expect(row).toMatchObject({ level: 'info' });
+    expect(row.text).toContain('not yet trusted');
+    expect(row.fix).toBeUndefined();
+    expect(hooksRow('codex', hooks({ ...base, trust: 'trusted' }))).toMatchObject({ level: 'ok', text: 'Installed' });
+    expect(hooksRow('codex', hooks({ ...base, trust: 'unknown' })).level).toBe('info');
   });
 });

@@ -26,6 +26,7 @@ function session(over: Partial<Session> = {}): Session {
     version: null,
     paneId: null,
     waitingReason: null,
+    agent: 'claude',
     ...over,
   };
 }

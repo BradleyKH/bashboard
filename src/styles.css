@@ -827,7 +827,7 @@ body.dashboard-resizing {
   font-size: 11px;
 }
 
-.card-claude {
+.card-agent {
   margin: 1px 0 0 14px;
   overflow: hidden;
   text-overflow: ellipsis;

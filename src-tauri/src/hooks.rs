@@ -1,5 +1,7 @@
-//! Loopback hook receiver (design sections 3.3 and 3.4): Claude Code hooks post their JSON
-//! payload here, and the latest status per session is kept as an overlay on the roster. The
+//! Loopback hook receiver (design sections 3.3 and 3.4): hooks from every supported agent
+//! (Claude Code, Codex, Copilot) post their JSON payload here, tagged by the
+//! `X-Bashboard-Agent` header, and the latest status per session is kept as an overlay on the
+//! roster. Each agent's events map to a status through its own table in `status_for`. The
 //! same receiver takes `POST /cli` from the `bb` pane CLI (design section 3.13) and emits the
 //! resolved command as `cli://command`. The overlay also keeps each session's `transcript_path`,
 //! which the transcript reader uses to find the session's JSONL file.
@@ -16,7 +18,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
-use crate::{cli, pty::Ptys, roster};
+use crate::{agents::AgentId, cli, pty::Ptys, roster};
 
 const MAX_BODY: usize = 64 * 1024;
 const MAX_CLI_BODY: usize = 1024 * 1024;
@@ -43,11 +45,18 @@ pub struct HookOverlay {
     pub transcript_path: Option<String>,
     /// The newest `permission_mode` any event carried, which restore passes back to `--resume`.
     pub permission_mode: Option<String>,
+    /// The agent the newest event came from.
+    pub agent: AgentId,
+    /// The newest `cwd` any event carried. With `first_at`, enough for the roster to build a
+    /// session for an agent that writes no session file.
+    pub cwd: Option<String>,
+    /// Receive time of the entry's first event.
+    pub first_at: u64,
 }
 
 /// One accepted hook post, as emitted on `sessions://hook`. `transcript_path` and
 /// `permission_mode` are kept on the overlay but not serialized; the front end reads the mode from
-/// the roster instead.
+/// the roster instead. The tool fields only feed a Codex waiting reason.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookEvent {
@@ -58,10 +67,16 @@ pub struct HookEvent {
     pub notification_type: Option<String>,
     pub pane_id: Option<u32>,
     pub at: u64,
+    pub agent: AgentId,
     #[serde(skip_serializing)]
     pub transcript_path: Option<String>,
     #[serde(skip_serializing)]
     pub permission_mode: Option<String>,
+    #[serde(skip_serializing)]
+    pub tool_name: Option<String>,
+    /// `tool_input.description`.
+    #[serde(skip_serializing)]
+    pub tool_description: Option<String>,
 }
 
 #[derive(Default)]
@@ -202,6 +217,7 @@ fn serve(
             req.url(),
             header(req.headers(), "X-Bashboard-Token"),
             header(req.headers(), "X-Bashboard-Pane"),
+            header(req.headers(), "X-Bashboard-Agent"),
             &body,
             content_length,
             now_ms(),
@@ -226,6 +242,7 @@ fn handle(
     url: &str,
     token_header: Option<&str>,
     pane_header: Option<&str>,
+    agent_header: Option<&str>,
     body: &[u8],
     content_length: Option<usize>,
     now: u64,
@@ -240,6 +257,14 @@ fn handle(
     if content_length.is_some_and(|n| n > MAX_BODY) || body.len() > MAX_BODY {
         return (413, None);
     }
+    // An absent header is a hook script from before agents were tagged, which only Claude ran.
+    let agent = match agent_header {
+        None => AgentId::Claude,
+        Some(a) => match AgentId::parse(a.trim()) {
+            Some(a) => a,
+            None => return (400, None),
+        },
+    };
     let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) else {
         return (400, None);
     };
@@ -255,8 +280,15 @@ fn handle(
         notification_type: field("notification_type"),
         pane_id: pane_header.and_then(|p| p.trim().parse().ok()),
         at: now,
+        agent,
         transcript_path: field("transcript_path"),
         permission_mode: field("permission_mode"),
+        tool_name: field("tool_name"),
+        tool_description: json
+            .get("tool_input")
+            .and_then(|t| t.get("description"))
+            .and_then(|v| v.as_str())
+            .map(str::to_owned),
     };
     (204, Some(ev))
 }
@@ -297,17 +329,17 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
         overlay.remove(&ev.session_id);
         return;
     }
-    let entry = overlay.entry(ev.session_id.clone()).or_default();
+    let entry = overlay
+        .entry(ev.session_id.clone())
+        .or_insert_with(|| HookOverlay { first_at: ev.at, ..Default::default() });
     entry.last_at = ev.at;
-    let status = match ev.hook_event_name.as_str() {
-        "UserPromptSubmit" => Some(HookStatus::Busy),
-        "Notification" if needs_input(ev.notification_type.as_deref()) => Some(HookStatus::Waiting),
-        "Stop" => Some(HookStatus::Idle),
-        _ => None,
-    };
-    if let Some(s) = status {
+    entry.agent = ev.agent;
+    if let Some(s) = status_for(ev) {
         entry.status = Some((s, ev.at));
-        entry.waiting_message = if s == HookStatus::Waiting { waiting_message(ev.message.as_deref()) } else { None };
+        entry.waiting_message = if s == HookStatus::Waiting { waiting_reason(ev) } else { None };
+    }
+    if let Some(cwd) = &ev.cwd {
+        entry.cwd = Some(cwd.clone());
     }
     if let Some(p) = ev.pane_id {
         entry.pane_id = Some(p);
@@ -317,6 +349,31 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
     }
     if let Some(mode) = &ev.permission_mode {
         entry.permission_mode = Some(mode.clone());
+    }
+}
+
+/// The status an event sets, per its agent's event table; `None` leaves the status as it was.
+fn status_for(ev: &HookEvent) -> Option<HookStatus> {
+    let kind = ev.notification_type.as_deref();
+    match (ev.agent, ev.hook_event_name.as_str()) {
+        (_, "UserPromptSubmit") => Some(HookStatus::Busy),
+        (AgentId::Claude, "Notification") if needs_input(kind) => Some(HookStatus::Waiting),
+        (AgentId::Copilot, "Notification") if copilot_needs_input(kind) => Some(HookStatus::Waiting),
+        (AgentId::Codex, "PermissionRequest") => Some(HookStatus::Waiting),
+        // Codex sends nothing when an approval is answered, so the approved tool finishing is
+        // what clears `Waiting`; Copilot is treated the same way.
+        (AgentId::Codex | AgentId::Copilot, "PostToolUse") => Some(HookStatus::Busy),
+        (_, "Stop") => Some(HookStatus::Idle),
+        (AgentId::Codex, "Interrupt") => Some(HookStatus::Idle),
+        _ => None,
+    }
+}
+
+fn waiting_reason(ev: &HookEvent) -> Option<String> {
+    match ev.agent {
+        AgentId::Codex => waiting_message(ev.tool_description.as_deref())
+            .or_else(|| waiting_message(ev.tool_name.as_deref())),
+        AgentId::Claude | AgentId::Copilot => waiting_message(ev.message.as_deref()),
     }
 }
 
@@ -345,6 +402,11 @@ fn needs_input(notification_type: Option<&str>) -> bool {
     )
 }
 
+/// Copilot's blocking notification types. Unlike Claude Code, a missing type is not a prompt.
+fn copilot_needs_input(notification_type: Option<&str>) -> bool {
+    matches!(notification_type, Some("permission_prompt" | "elicitation_dialog"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,7 +416,11 @@ mod tests {
     const TOKEN: &str = "abc123";
 
     fn post(token: Option<&str>, pane: Option<&str>, body: &str) -> (u16, Option<HookEvent>) {
-        handle(TOKEN, &Method::Post, "/hook", token, pane, body.as_bytes(), Some(body.len()), 42)
+        handle(TOKEN, &Method::Post, "/hook", token, pane, None, body.as_bytes(), Some(body.len()), 42)
+    }
+
+    fn post_as(agent: Option<&str>, body: &str) -> (u16, Option<HookEvent>) {
+        handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, agent, body.as_bytes(), Some(body.len()), 42)
     }
 
     fn event(name: &str, pane_id: Option<u32>, at: u64) -> HookEvent {
@@ -366,9 +432,16 @@ mod tests {
             notification_type: None,
             pane_id,
             at,
+            agent: AgentId::Claude,
             transcript_path: None,
             permission_mode: None,
+            tool_name: None,
+            tool_description: None,
         }
+    }
+
+    fn agent_event(agent: AgentId, name: &str, at: u64) -> HookEvent {
+        HookEvent { agent, ..event(name, None, at) }
     }
 
     #[test]
@@ -384,10 +457,10 @@ mod tests {
     fn oversized_bodies_are_rejected() {
         let small = br#"{"session_id":"s1"}"#;
         let by_header =
-            handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, small, Some(MAX_BODY + 1), 0);
+            handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, small, Some(MAX_BODY + 1), 0);
         assert_eq!(by_header.0, 413);
         let big = vec![b' '; MAX_BODY + 1];
-        let by_length = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, &big, None, 0);
+        let by_length = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, &big, None, 0);
         assert_eq!(by_length.0, 413);
     }
 
@@ -401,9 +474,9 @@ mod tests {
     #[test]
     fn other_paths_and_methods_are_404() {
         let body = br#"{"session_id":"s1"}"#;
-        let get = handle(TOKEN, &Method::Get, "/hook", Some(TOKEN), None, body, None, 0);
+        let get = handle(TOKEN, &Method::Get, "/hook", Some(TOKEN), None, None, body, None, 0);
         assert_eq!(get.0, 404);
-        let other = handle(TOKEN, &Method::Post, "/other", Some(TOKEN), None, body, None, 0);
+        let other = handle(TOKEN, &Method::Post, "/other", Some(TOKEN), None, None, body, None, 0);
         assert_eq!(other.0, 404);
     }
 
@@ -425,13 +498,42 @@ mod tests {
                 notification_type: Some("permission_prompt".into()),
                 pane_id: Some(7),
                 at: 42,
+                agent: AgentId::Claude,
                 transcript_path: Some("C:\\t.jsonl".into()),
                 permission_mode: Some("bypassPermissions".into()),
+                tool_name: None,
+                tool_description: None,
             }
         );
         let json = serde_json::to_value(&ev).unwrap();
         let keys: Vec<&str> = json.as_object().unwrap().keys().map(String::as_str).collect();
-        assert_eq!(keys, ["sessionId", "hookEventName", "cwd", "message", "notificationType", "paneId", "at"]);
+        assert_eq!(
+            keys,
+            ["sessionId", "hookEventName", "cwd", "message", "notificationType", "paneId", "at", "agent"]
+        );
+        assert_eq!(json["agent"], "claude");
+    }
+
+    #[test]
+    fn agent_header_is_parsed() {
+        let body = r#"{"session_id":"s1"}"#;
+        assert_eq!(post_as(None, body).1.unwrap().agent, AgentId::Claude);
+        assert_eq!(post_as(Some("claude"), body).1.unwrap().agent, AgentId::Claude);
+        assert_eq!(post_as(Some("codex"), body).1.unwrap().agent, AgentId::Codex);
+        assert_eq!(post_as(Some(" copilot "), body).1.unwrap().agent, AgentId::Copilot);
+        assert_eq!(post_as(Some("gemini"), body), (400, None));
+        assert_eq!(post_as(Some(""), body), (400, None));
+    }
+
+    #[test]
+    fn tool_fields_are_parsed() {
+        let body = r#"{"session_id":"s1","hook_event_name":"PermissionRequest","tool_name":"Bash",
+            "tool_input":{"command":"rm x","description":"Remove x"}}"#;
+        let ev = post_as(Some("codex"), body).1.unwrap();
+        assert_eq!(ev.tool_name.as_deref(), Some("Bash"));
+        assert_eq!(ev.tool_description.as_deref(), Some("Remove x"));
+        let ev = post_as(Some("codex"), r#"{"session_id":"s1","tool_input":{"description":3}}"#).1.unwrap();
+        assert_eq!(ev.tool_description, None);
     }
 
     #[test]
@@ -446,7 +548,7 @@ mod tests {
     fn event_mapping() {
         let mut o = HashMap::new();
         apply(&mut o, &event("SessionStart", Some(3), 1));
-        assert_eq!(o["s1"], HookOverlay { status: None, pane_id: Some(3), last_at: 1, ..Default::default() });
+        assert_eq!(o["s1"], HookOverlay { status: None, pane_id: Some(3), last_at: 1, first_at: 1, ..Default::default() });
         apply(&mut o, &event("UserPromptSubmit", None, 2));
         assert_eq!(
             o["s1"],
@@ -454,6 +556,7 @@ mod tests {
                 status: Some((HookStatus::Busy, 2)),
                 pane_id: Some(3),
                 last_at: 2,
+                first_at: 1,
                 ..Default::default()
             }
         );
@@ -464,6 +567,7 @@ mod tests {
                 status: Some((HookStatus::Waiting, 3)),
                 pane_id: Some(4),
                 last_at: 3,
+                first_at: 1,
                 ..Default::default()
             }
         );
@@ -571,6 +675,105 @@ mod tests {
         let kept = o["s1"].waiting_message.as_deref().unwrap();
         assert_eq!(kept.chars().count(), MAX_WAITING_MESSAGE);
         assert!(kept.chars().all(|c| c == '\u{e9}'));
+    }
+
+    #[test]
+    fn overlay_keeps_agent_cwd_and_first_at() {
+        let mut o = HashMap::new();
+        let start = HookEvent { cwd: Some("C:\\a".into()), ..agent_event(AgentId::Codex, "SessionStart", 5) };
+        apply(&mut o, &start);
+        assert_eq!(o["s1"].agent, AgentId::Codex);
+        assert_eq!((o["s1"].first_at, o["s1"].last_at), (5, 5));
+        assert_eq!(o["s1"].cwd.as_deref(), Some("C:\\a"));
+        apply(&mut o, &agent_event(AgentId::Codex, "UserPromptSubmit", 8));
+        assert_eq!((o["s1"].first_at, o["s1"].last_at), (5, 8));
+        assert_eq!(o["s1"].cwd.as_deref(), Some("C:\\a"));
+        apply(&mut o, &HookEvent { cwd: Some("C:\\b".into()), ..agent_event(AgentId::Codex, "Stop", 9) });
+        assert_eq!(o["s1"].cwd.as_deref(), Some("C:\\b"));
+    }
+
+    #[test]
+    fn codex_event_table() {
+        let mut o = HashMap::new();
+        let codex = |name: &str, at| agent_event(AgentId::Codex, name, at);
+        apply(&mut o, &HookEvent { pane_id: Some(2), ..codex("SessionStart", 1) });
+        assert_eq!(o["s1"].status, None);
+        assert_eq!(o["s1"].pane_id, Some(2));
+        apply(&mut o, &codex("UserPromptSubmit", 2));
+        assert_eq!(o["s1"].status, Some((HookStatus::Busy, 2)));
+        let ask = |tool_name: Option<&str>, description: Option<&str>, at| HookEvent {
+            tool_name: tool_name.map(Into::into),
+            tool_description: description.map(Into::into),
+            ..codex("PermissionRequest", at)
+        };
+        apply(&mut o, &ask(Some("Bash"), Some(" Remove the build folder "), 3));
+        assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 3)));
+        assert_eq!(o["s1"].waiting_message.as_deref(), Some("Remove the build folder"));
+        apply(&mut o, &codex("PostToolUse", 4));
+        assert_eq!(o["s1"].status, Some((HookStatus::Busy, 4)));
+        assert_eq!(o["s1"].waiting_message, None);
+        apply(&mut o, &ask(Some("apply_patch"), None, 5));
+        assert_eq!(o["s1"].waiting_message.as_deref(), Some("apply_patch"));
+        apply(&mut o, &ask(Some("Bash"), Some("  "), 6));
+        assert_eq!(o["s1"].waiting_message.as_deref(), Some("Bash"));
+        apply(&mut o, &codex("Stop", 7));
+        assert_eq!(o["s1"].status, Some((HookStatus::Idle, 7)));
+        apply(&mut o, &codex("UserPromptSubmit", 8));
+        apply(&mut o, &codex("Interrupt", 9));
+        assert_eq!(o["s1"].status, Some((HookStatus::Idle, 9)));
+        let notice = HookEvent { notification_type: Some("permission_prompt".into()), ..codex("Notification", 10) };
+        apply(&mut o, &notice);
+        assert_eq!(o["s1"].status, Some((HookStatus::Idle, 9)));
+        apply(&mut o, &codex("SessionEnd", 11));
+        assert!(o.is_empty());
+    }
+
+    #[test]
+    fn copilot_event_table() {
+        let mut o = HashMap::new();
+        let copilot = |name: &str, at| agent_event(AgentId::Copilot, name, at);
+        let notify = |kind: Option<&str>, at| HookEvent {
+            notification_type: kind.map(Into::into),
+            message: Some("Allow shell?".into()),
+            ..copilot("Notification", at)
+        };
+        apply(&mut o, &HookEvent { pane_id: Some(4), ..copilot("SessionStart", 1) });
+        assert_eq!((o["s1"].status, o["s1"].pane_id, o["s1"].agent), (None, Some(4), AgentId::Copilot));
+        apply(&mut o, &copilot("UserPromptSubmit", 2));
+        assert_eq!(o["s1"].status, Some((HookStatus::Busy, 2)));
+        let ignored = ["agent_idle", "shell_completed", "agent_completed", "worker_permission_prompt"];
+        for (i, kind) in ignored.iter().enumerate() {
+            apply(&mut o, &notify(Some(kind), 3 + i as u64));
+            assert_eq!(o["s1"].status, Some((HookStatus::Busy, 2)), "{kind}");
+        }
+        apply(&mut o, &notify(None, 10));
+        assert_eq!(o["s1"].status, Some((HookStatus::Busy, 2)));
+        apply(&mut o, &notify(Some("permission_prompt"), 11));
+        assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 11)));
+        assert_eq!(o["s1"].waiting_message.as_deref(), Some("Allow shell?"));
+        apply(&mut o, &copilot("PostToolUse", 12));
+        assert_eq!(o["s1"].status, Some((HookStatus::Busy, 12)));
+        assert_eq!(o["s1"].waiting_message, None);
+        apply(&mut o, &notify(Some("elicitation_dialog"), 13));
+        assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 13)));
+        apply(&mut o, &copilot("Stop", 14));
+        assert_eq!(o["s1"].status, Some((HookStatus::Idle, 14)));
+        apply(&mut o, &copilot("Interrupt", 15));
+        assert_eq!(o["s1"].status, Some((HookStatus::Idle, 14)));
+        apply(&mut o, &copilot("SessionEnd", 16));
+        assert!(o.is_empty());
+    }
+
+    #[test]
+    fn claude_ignores_other_agents_events() {
+        let mut o = HashMap::new();
+        apply(&mut o, &event("UserPromptSubmit", None, 1));
+        for (i, name) in ["PostToolUse", "PermissionRequest", "Interrupt"].iter().enumerate() {
+            apply(&mut o, &event(name, None, 2 + i as u64));
+            assert_eq!(o["s1"].status, Some((HookStatus::Busy, 1)), "{name}");
+        }
+        apply(&mut o, &event("Notification", None, 9));
+        assert_eq!(o["s1"].status, Some((HookStatus::Waiting, 9)));
     }
 
     #[test]
@@ -691,7 +894,7 @@ mod tests {
     #[test]
     fn hook_stays_capped_at_64_kib() {
         let big = vec![b' '; MAX_BODY + 1];
-        let r = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, &big, Some(big.len()), 0);
+        let r = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, &big, Some(big.len()), 0);
         assert_eq!(r.0, 413);
     }
 

@@ -1,5 +1,7 @@
+import { agentsDetected } from './agentApi';
 import { gitInstallStatus, type GitInstallStatus } from './gitInstall';
 import { hookInstallPreview, type HookInstallPreview } from './hookInstall';
+import type { AgentId } from './savedWorkspace';
 import { profileName, type ShellProfile } from './profiles';
 import { isIntegrationShell, shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
 import { gitRow, hooksRow, shellRow, type StatusFix, type StatusRow } from './setupStatusModel';
@@ -12,7 +14,7 @@ export interface SetupStatusCallbacks {
   installGit(): Promise<void>;
   openGitDownload(): void;
   /** Shows the hook install preview; resolves to whether the hooks were installed. */
-  installHooks(): Promise<boolean>;
+  installHooks(agent: AgentId): Promise<boolean>;
   /** Run setup was clicked; the dialog closes first. */
   onRunSetup(): void;
 }
@@ -58,16 +60,28 @@ export class SetupStatus {
       .sort((a, b) => Number(b === preferred) - Number(a === preferred));
     const [git, hooks, shellPreviews] = await Promise.all([
       gitInstallStatus().catch((): GitInstallStatus | null => null),
-      hookInstallPreview().catch((): HookInstallPreview | null => null),
+      this.hookPreviews(),
       Promise.all(shells.map((shell) => shellIntegrationPreview(shell).catch((e: unknown) => String(e)))),
     ]);
     if (generation !== this.generation) return;
     const rows: StatusRow[] = [
       gitRow(git),
       ...shells.map((shell, i) => shellRow(shell, profileName(shell, profiles), shellPreviews[i], shell === preferred)),
-      hooksRow(hooks),
+      ...hooks.map(([agent, preview]) => hooksRow(agent, preview)),
     ];
     this.rows.replaceChildren(...rows.map((r) => this.rowElement(r)));
+  }
+
+  /** Claude Code is always listed; the other agents appear once they have run here. */
+  private async hookPreviews(): Promise<[AgentId, HookInstallPreview | null][]> {
+    const detected = await agentsDetected().catch((): AgentId[] => []);
+    const agents: AgentId[] = ['claude', ...detected.filter((a) => a !== 'claude')];
+    return Promise.all(
+      agents.map(async (a): Promise<[AgentId, HookInstallPreview | null]> => [
+        a,
+        await hookInstallPreview(a).catch((): HookInstallPreview | null => null),
+      ]),
+    );
   }
 
   private rowElement(row: StatusRow): HTMLElement {
@@ -110,7 +124,7 @@ export class SetupStatus {
     try {
       if (fix.kind === 'gitInstall') await this.callbacks.installGit();
       else if (fix.kind === 'shell') await shellIntegrationInstall(fix.shell);
-      else await this.callbacks.installHooks();
+      else await this.callbacks.installHooks(fix.agent);
     } catch (err) {
       this.error.textContent = err instanceof Error ? err.message : String(err);
       this.error.hidden = false;

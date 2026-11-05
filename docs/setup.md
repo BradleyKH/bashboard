@@ -1,4 +1,4 @@
-# Shell and Claude Code setup
+# Shell and coding agent setup
 
 ## New panes in the current folder
 
@@ -84,6 +84,11 @@ check of the shell's processes every 2 seconds.
 
 ## Claude Code hooks
 
+Hooks install per agent: each detected coding agent gets its own button in the dashboard footer
+("Install <agent> hooks") and its own entry in the setup wizard's Coding agents step and the Setup
+list. [Codex](#codex-hooks-preview) and [Copilot](#copilot-hooks-preview) are a preview; the rest
+of this section describes Claude Code.
+
 Without hooks, Bashboard learns a Claude session's state from its session file. Hooks add what
 the file cannot: a `waiting` status when Claude needs you, and exact transitions as they
 happen. They map to status like this:
@@ -101,7 +106,7 @@ and the hook script posts the event to the app with the pane id, which binds the
 pane. The script does nothing outside a Bashboard pane, so the same global hooks are harmless
 in Windows Terminal or VS Code.
 
-Open the dashboard and click **Install Claude Code hooks**, use the Claude Code step of the
+Open the dashboard and click **Install Claude Code hooks**, use the Coding agents step of the
 setup wizard, or click Install beside Claude Code hooks in the Setup list of the Help tab (F1). The install needs `bash.exe` on `PATH`
 (Git for Windows) and refuses with an explanation without it. It shows the JSON it will add and
 writes only after you confirm. It writes `~/.claude/hooks/bashboard-hook.sh` and appends one
@@ -118,3 +123,36 @@ the `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, and `SessionEnd`
 ```json
 { "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/bashboard-hook.sh", "timeout": 5 } ] }
 ```
+
+## Agent hooks
+
+Claude Code's hooks are described [above](#claude-code-hooks). Codex and Copilot use the same
+hook script, `bashboard-hook.sh`, which takes the agent's name as its argument and does nothing
+outside a Bashboard pane. Each install shows what it will write, and writes only after you confirm.
+It needs `bash.exe` on `PATH` (Git for Windows). An agent's button appears only when its home
+folder exists when Bashboard starts (for Copilot, once the CLI has run a session and created
+`~/.copilot/session-state`), and is hidden once everything is installed.
+
+### Codex hooks (preview)
+
+The install writes the script to `~/.codex/hooks/bashboard-hook.sh` and merges one group per
+event (`SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PostToolUse`, `Stop`,
+`SessionEnd`, and `Interrupt`) into `~/.codex/hooks.json`, leaving your existing hooks untouched.
+When `CODEX_HOME` is set, that folder is used instead of `~/.codex`.
+
+Codex asks you to trust new hooks the next time it starts, and runs them only after you do. Until
+then the Setup list shows "Installed, not yet trusted".
+
+### Copilot hooks (preview)
+
+The install writes the script to `~/.copilot/hooks/bashboard-hook.sh` and the whole of
+`~/.copilot/hooks/bashboard.json`, a file Bashboard owns, for the events `SessionStart`,
+`UserPromptSubmit`, `Notification`, `PostToolUse`, `Stop`, and `SessionEnd`. When `COPILOT_HOME` is
+set, that folder is used instead of `~/.copilot`.
+
+### Reporting a problem with an agent
+
+Set `BASHBOARD_HOOK_LOG` to a file path in the environment Bashboard starts from, and the hook
+script appends every raw payload it receives to that file, each under a line with a timestamp and
+the agent's name. Attach a few of those entries, the agent's version, and a few lines of its
+transcript (with anything private redacted) to an issue from the agent report template.

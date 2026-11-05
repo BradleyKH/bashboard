@@ -1,7 +1,9 @@
 import './setupWizard.css';
+import { agentName, isPreviewAgent } from './agentNames';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
 import type { ShellProfile } from './profiles';
+import type { AgentId } from './savedWorkspace';
 import { repoCandidates } from './repoCandidates';
 import type { Settings } from './settings';
 import { renderGitStep } from './setupGitStep';
@@ -11,6 +13,7 @@ import {
   effectiveProfile,
   favoritesToAdd,
   setupSteps,
+  type AgentHooks,
   type AutoColors,
   type Choice,
   type SetupStep,
@@ -33,10 +36,10 @@ export interface SetupWizardCallbacks {
   getEditors(): Promise<Editor[]>;
   getFavorites(): Favorite[];
   addFavorites(list: Favorite[]): void;
-  /** Runs the install with its confirmation; resolves when that closes, true if installed. */
-  installHooks(): Promise<boolean>;
+  /** Runs the agent's install with its confirmation; resolves when that closes, true if installed. */
+  installHooks(agent: AgentId): Promise<boolean>;
   /** Re-read after Git installs, since the hook install's contents depend on Git Bash. */
-  getHookState(): Promise<{ claudeDetected: boolean; hooksInstalled: boolean }>;
+  getHookState(): Promise<AgentHooks[]>;
   /** Installs Git and refreshes the shell profiles; rejects with the installer's error. */
   installGit(): Promise<void>;
   openGitDownload(): void;
@@ -45,8 +48,7 @@ export interface SetupWizardCallbacks {
 }
 
 export interface SetupWizardOpenOptions {
-  claudeDetected: boolean;
-  hooksInstalled: boolean;
+  agents: AgentHooks[];
   gitBashFound: boolean;
   wingetFound: boolean;
 }
@@ -64,7 +66,7 @@ const STEP_TEXT: Record<SetupStep, { title: string; intro: string }> = {
   shellIntegration: { title: 'Shell integration', intro: "A few lines in your shell's startup file that report each prompt to the app." },
   editor: { title: 'Editor', intro: 'Where files and folders open from the Files pane, the Git pane, and search.' },
   favorites: { title: 'Favorites', intro: 'Pin the repos you work in, so they are one click away in the dashboard.' },
-  claude: { title: 'Claude Code', intro: 'Let the dashboard follow your Claude Code sessions.' },
+  agents: { title: 'Coding agents', intro: 'Let the dashboard follow your coding agent sessions.' },
   look: { title: 'Look', intro: 'The background behind the panes, and the colors the app draws with.' },
 };
 
@@ -98,8 +100,9 @@ export class SetupWizard {
   private checked = new Set<string>();
   private added: string[] = [];
 
-  private hooksDone = false;
-  private installing = false;
+  private hooksDone = new Set<AgentId>();
+  /** The agent whose install is running. */
+  private installing: AgentId | null = null;
 
   private base!: BaseStepOptions;
   private wingetFound = false;
@@ -127,8 +130,7 @@ export class SetupWizard {
   open(opts: SetupWizardOpenOptions): void {
     if (this.backdrop) this.close();
     this.base = {
-      claudeDetected: opts.claudeDetected,
-      hooksInstalled: opts.hooksInstalled,
+      agents: opts.agents,
       gitBashFound: opts.gitBashFound,
     };
     this.wingetFound = opts.wingetFound;
@@ -149,8 +151,8 @@ export class SetupWizard {
     this.listedFolder = null;
     this.checked = new Set();
     this.added = [];
-    this.hooksDone = false;
-    this.installing = false;
+    this.hooksDone = new Set();
+    this.installing = null;
 
     const backdrop = document.createElement('div');
     backdrop.className = 'setup-wizard-backdrop';
@@ -281,7 +283,7 @@ export class SetupWizard {
     else if (step === 'shellIntegration') this.renderShellIntegration();
     else if (step === 'editor') this.renderEditor();
     else if (step === 'favorites') this.renderFavorites();
-    else if (step === 'claude') this.renderClaude();
+    else if (step === 'agents') this.renderAgents();
     else this.renderLook();
     if (moved) this.box.focus();
   }
@@ -357,9 +359,9 @@ export class SetupWizard {
       failure = errorText(err);
     }
     let preview: ShellIntegrationPreview | null = null;
-    let hooks: { claudeDetected: boolean; hooksInstalled: boolean } | null = null;
+    let agents: AgentHooks[] | null = null;
     if (!failure) {
-      [preview, hooks] = await Promise.all([
+      [preview, agents] = await Promise.all([
         this.callbacks.getShellIntegrationPreview('gitBash').catch(() => null),
         this.callbacks.getHookState().catch(() => null),
       ]);
@@ -372,7 +374,7 @@ export class SetupWizard {
     } else {
       this.gitDone = true;
       this.previews.set('gitBash', preview);
-      this.base = { ...this.base, ...(hooks ?? {}), gitInstalled: true };
+      this.base = { ...this.base, ...(agents ? { agents } : {}), gitInstalled: true };
       this.syncSteps();
       this.rerender('git');
     }
@@ -622,48 +624,58 @@ export class SetupWizard {
     this.rerender('favorites');
   }
 
-  private renderClaude(): void {
+  private renderAgents(): void {
     this.content.append(
       this.note(
-        'Claude Code is installed. Its hooks tell this app when a session is working, waiting for you, or done, so the dashboard and the pane borders can show it.',
+        "Each agent's hooks tell this app when a session is working, waiting for you, or done, so the dashboard and the pane borders can show it.",
       ),
       this.note(
-        "The install adds a hook script and entries in Claude Code's settings.json, and shows them for confirmation first. Sessions outside this app's panes are not affected.",
+        "The install adds a hook script and entries in the agent's hook config, and shows them for confirmation first. Sessions outside this app's panes are not affected.",
       ),
     );
-    const actions = document.createElement('div');
-    actions.className = 'setup-wizard-actions';
-    if (this.hooksDone) {
-      const done = document.createElement('span');
-      done.className = 'setup-wizard-done';
-      done.textContent = 'Hooks installed';
-      actions.append(done);
-    } else {
-      const install = this.button('Install hooks', () => void this.install());
-      install.classList.add('setup-wizard-primary');
-      install.disabled = this.installing;
-      actions.append(install);
+    for (const { agent, installed, trust } of this.base.agents) {
+      const name = agentName(agent);
+      const row = document.createElement('div');
+      row.className = 'setup-wizard-actions';
+      const label = document.createElement('span');
+      label.textContent = isPreviewAgent(agent) ? `${name} (preview)` : name;
+      row.append(label);
+      const done = this.hooksDone.has(agent);
+      if (installed || done) {
+        const status = document.createElement('span');
+        status.className = 'setup-wizard-done';
+        status.textContent =
+          agent === 'codex' && (done || trust === 'untrusted')
+            ? 'Hooks installed; Codex will ask you to trust them on its next start'
+            : 'Hooks installed';
+        row.append(status);
+      } else {
+        const install = this.button(`Install ${name} hooks`, () => void this.install(agent));
+        install.classList.add('setup-wizard-primary');
+        install.disabled = this.installing !== null;
+        row.append(install);
+      }
+      this.content.append(row);
     }
-    this.content.append(actions);
   }
 
-  private async install(): Promise<void> {
-    if (this.installing) return;
+  private async install(agent: AgentId): Promise<void> {
+    if (this.installing !== null) return;
     const owner = this.backdrop;
-    this.installing = true;
-    this.rerender('claude');
+    this.installing = agent;
+    this.rerender('agents');
     let installed = false;
     let failure = '';
     try {
-      installed = await this.callbacks.installHooks();
+      installed = await this.callbacks.installHooks(agent);
     } catch (err) {
       failure = errorText(err);
     }
-    this.installing = false;
+    this.installing = null;
     if (this.backdrop !== owner) return;
-    if (installed) this.hooksDone = true;
-    this.rerender('claude');
-    if (failure && this.steps[this.index] === 'claude') this.setError(failure);
+    if (installed) this.hooksDone.add(agent);
+    this.rerender('agents');
+    if (failure && this.steps[this.index] === 'agents') this.setError(failure);
     // The hook dialog's own close path is replaced by the caller's callback, so nothing else
     // takes focus back.
     this.box.focus();

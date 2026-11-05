@@ -64,7 +64,7 @@ struct Proc {
 }
 
 /// Programs whose descendants count as started from a terminal: shells and Claude Code.
-const SHELLS: &[&str] = &["bash.exe", "sh.exe", "zsh.exe", "fish.exe", "cmd.exe", "pwsh.exe", "powershell.exe", "nu.exe", "claude.exe"];
+const SHELLS: &[&str] = &["bash.exe", "sh.exe", "zsh.exe", "fish.exe", "cmd.exe", "pwsh.exe", "powershell.exe", "nu.exe", "claude.exe", "codex.exe", "copilot.exe"];
 
 fn is_shell(name: &str) -> bool {
     SHELLS.iter().any(|s| name.eq_ignore_ascii_case(s))
@@ -431,6 +431,7 @@ mod tests {
     #[test]
     fn recognizes_shells_in_any_case() {
         assert!(is_shell("bash.exe") && is_shell("PowerShell.exe") && is_shell("claude.exe"));
+        assert!(is_shell("codex.exe") && is_shell("Copilot.exe"));
         assert!(!is_shell("node.exe") && !is_shell("explorer.exe"));
     }
 

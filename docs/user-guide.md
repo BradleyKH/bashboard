@@ -309,8 +309,9 @@ F2 renames the focused favorite, layout, or pin, and F6 or Escape returns to the
 edge to make it wider or narrower; the width is saved with the workspace. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab). A terminal's card shows its status (a green check mark when it is done),
-folder, and time since its status last changed, plus, while a Claude session runs in it, the model
-and the tokens in its context (as "Opus 5.5 · 112k tokens") on a line below the folder; a card for any other kind of pane shows the
+folder, and time since its status last changed, plus, while a coding agent session runs in it, the model
+and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k tokens" for Claude Code, and
+"Codex · gpt-5.5 · 112k / 272k tokens" for the others, which lead with the agent's name); a card for any other kind of pane shows the
 kind's icon and the pane's title. Folder paths under the card titles are hidden by default; the
 **↳** button on the Panes header shows them, and the choice is saved with the workspace. While
 they're hidden, hover a card's title to see its full path. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
@@ -430,7 +431,10 @@ size). A drop that would leave a pane below the minimum size is refused with a t
 dropped on a band opens a terminal docked on that edge.
 
 On relaunch, Bashboard reopens your tabs and the active tab, with the terminals you had in the same
-folders, layout, and collapsed state, and types `claude --resume <session id>` into each one that was running a Claude session.
+folders, layout, and collapsed state, and types the agent's resume command into each one that was running a coding agent session:
+`claude --resume <session id>` for Claude Code, `codex resume <session id>` for Codex, and
+`copilot --resume <session id> --model <model>` for Copilot, which otherwise falls back to its default model.
+Turn off **Resume agent sessions** in Settings (`restore.resumeSessions`) to restore terminals without resuming.
 A session that was in a permission mode other than the default, such as bypass permissions,
 resumes in that mode. The mode saved is the one Claude Code last reported through its hooks, so a
 Shift+Tab change made just before closing, with no prompt after it, may not be saved.
@@ -450,9 +454,11 @@ to turn the peek off. It comes in from the dashboard's side:
 
 Sessions come from the files Claude Code keeps in `~/.claude/sessions`. A session belongs to a
 pane when its process descends from that pane's shell, so running `claude` in a pane names the
-card after the session and shows when it is working, usually within about 10 seconds.
+card after the session and shows when it is working, usually within about 10 seconds. Codex and
+Copilot keep no such file, so their sessions come from their hooks and appear in the pane where
+the agent sent its first hook.
 
-With the Swirling Lights background, each live Claude session also appears in the backdrop as its
+With the Swirling Lights background, each live agent session also appears in the backdrop as its
 own colored lineage. It blooms while the session is busy and thins while it is idle; set
 `backdrop.waitingPulse` to `true` to also make it pulse while it waits for you. The color
 matches the swatch beside the session in the dashboard. The Matrix and None backgrounds show no
@@ -531,6 +537,38 @@ started; untick it to see everything else, and tick **Windows services** to incl
 own ports, dimmed. Opening the pane from the dashboard on a port no pane started unticks it for
 you. Any pane can also become a Ports pane from its kind menu.
 
+## Codex, Copilot, and local models (preview)
+
+Besides Claude Code, Bashboard follows OpenAI Codex and GitHub Copilot CLI sessions. Their status
+dots, waiting and done markers, pane borders, notifications, Panes cards, and resume on relaunch
+work the way they do for Claude Code once that agent's hooks are installed (see
+[Agent hooks](setup.md#agent-hooks)). A card leads its model line with the agent's name, for
+example "Codex · gpt-5.5 · 112k / 272k tokens". Install each agent's hooks from the footer button
+in the dashboard ("Install Codex hooks", "Install Copilot hooks") or the setup wizard's Coding
+agents step. Codex asks you to trust the hooks the next time it starts.
+
+Codex, Copilot, and Local models are a preview, built without a Codex or Copilot setup to test
+against, so reports are welcome. Open an issue from the agent report template on GitHub with the
+agent's version, a sample of its hook payloads, and a few transcript lines (see
+[Reporting a problem with an agent](setup.md#reporting-a-problem-with-an-agent)).
+
+### Local models
+
+The **Local models** section of the dashboard lists the model servers that answer on this machine,
+Ollama and LM Studio, and the models each has loaded: its name, where it runs, its context length,
+and the time until it unloads. It appears only while a server answers, and says "No model loaded"
+for a server with nothing in memory. A context length under `localModels.minContext` (64000 by
+default) is shown in a warning color, since coding agents need about that much; hover it for the
+fix, which is to raise Ollama's `OLLAMA_CONTEXT_LENGTH` environment variable and restart Ollama.
+Set `localModels.minContext` to 0 to turn the warning off, and `localModels.ollamaUrl` or
+`localModels.lmStudioUrl` to look for a server at another address (see
+[Settings](settings.md#settings)). Hide the section with `dashboard.sections.localModels`.
+
+While Ollama answers and `ollama` is on your `PATH`, the Launch menu gains an entry for each
+detected agent, such as "Claude Code on a local model". Each is a submenu of your installed Ollama
+models; picking one opens a new terminal and types
+`ollama launch <agent> --model <model>`, so the agent runs against that model.
+
 ## Attention and status
 
 When a terminal starts waiting or rings the bell, its pane border (or its card, if collapsed)
@@ -544,7 +582,7 @@ A waiting terminal's dashboard card glows faintly in the accent color for as lon
 whether or not you have looked at it.
 
 A waiting terminal shows why: the pane card, the status dot's tooltip on the title strip, the
-tab's tooltip, and an external session's row carry the message from Claude's notification (for
+tab's tooltip, and an external session's row carry the message the agent sent with its hook (for
 example that it needs your permission to use a tool), or "Waiting for you" when there is none.
 
 Ctrl+Shift+N jumps to the next terminal that needs you, across all tabs: waiting ones first,
@@ -552,17 +590,17 @@ oldest first, then done and failed ones. It switches to the pane's tab, expands 
 and ends a zoom in the way. Repeated presses walk the list, and a toast says "Nothing needs you"
 when it is empty.
 
-When a Claude session's turn ends, its `Stop` hook marks the terminal `done` unless you are
+When an agent session's turn ends, its `Stop` hook marks the terminal `done` unless you are
 looking at it. The status dot becomes a still green check mark on the terminal's title strip,
 card, and tab. It clears when you focus that pane (typing in it focuses it), or
 as soon as the session starts working or waits. `done` applies to terminals only, raises no
 pulse, taskbar flash, or peek, and is not saved, so restored terminals start without it.
 
-A long shell command marks its terminal the same way, with no Claude session needed. A command that
+A long shell command marks its terminal the same way, with no agent session needed. A command that
 runs at least `terminal.doneAfterSeconds` and finishes while you are not looking at the terminal
 marks it `done`, or `failed` (a still red cross) when it exited nonzero; Ctrl+C is not a failure.
 Only Git Bash with the `~/.bashrc` lines from [New panes in the current folder](setup.md#new-panes-in-the-current-folder)
-reports commands, and a bound Claude session's own status takes precedence.
+reports commands, and a bound agent session's own status takes precedence.
 
 ## Command palette
 
@@ -598,7 +636,7 @@ again closes the dialog, and Escape or a click outside closes it too.
 
 - **Help** is a short tour of the main features with your current keys, and a Setup list that
   checks Git Bash, each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),
-  and the Claude Code hooks. Anything missing has an Install button, and **Run setup** reopens the
+  and the hooks of each coding agent that has run here. Anything missing has an Install button, and **Run setup** reopens the
   setup wizard.
 - **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the
   list. The window behind it stays undimmed, so color and brightness changes show as they will look.

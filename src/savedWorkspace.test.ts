@@ -352,6 +352,38 @@ describe('resumeCommand', () => {
     expect(resumeCommand('s1', undefined)).toBe('claude --resume s1');
     expect(resumeCommand('s1', 'x && y')).toBe('claude --resume s1');
   });
+
+  it('builds the command for each agent', () => {
+    expect(resumeCommand('s1', 'acceptEdits', 'claude')).toBe('claude --resume s1 --permission-mode acceptEdits');
+    expect(resumeCommand('s1', 'acceptEdits', 'codex')).toBe('codex resume s1');
+    expect(resumeCommand('s1', undefined, 'copilot')).toBe('copilot --resume s1');
+    expect(resumeCommand('s1', undefined, 'copilot', 'gpt-5.1:high/x_y')).toBe(
+      'copilot --resume s1 --model gpt-5.1:high/x_y',
+    );
+  });
+
+  it('drops an unsafe Copilot model', () => {
+    expect(resumeCommand('s1', undefined, 'copilot', 'x; rm -rf /')).toBe('copilot --resume s1');
+    expect(resumeCommand('s1', undefined, 'copilot', 'a'.repeat(101))).toBe('copilot --resume s1');
+  });
+});
+
+describe('terminal pane agent', () => {
+  const parse = (extra: object) =>
+    parseSavedTab({ panes: [{ key: 'a', kind: 'terminal', cwd: '/c', collapsed: false, sessionId: 's1', ...extra }] })
+      ?.panes[0] as { agent?: string; resumeModel?: string };
+
+  it('reads a missing or unknown agent as Claude and keeps the others', () => {
+    expect(parse({}).agent).toBeUndefined();
+    expect(parse({ agent: 'gemini' }).agent).toBeUndefined();
+    expect(parse({ agent: 'codex' }).agent).toBe('codex');
+    expect(parse({ agent: 'copilot', resumeModel: 'gpt-5' })).toMatchObject({ agent: 'copilot', resumeModel: 'gpt-5' });
+  });
+
+  it('rejects an unsafe resume model', () => {
+    expect(parse({ agent: 'copilot', resumeModel: 'a b' }).resumeModel).toBeUndefined();
+    expect(parse({ agent: 'copilot', resumeModel: '$(x)' }).resumeModel).toBeUndefined();
+  });
 });
 
 describe('remapLayout', () => {
@@ -527,7 +559,7 @@ describe('parseSavedWorkspace', () => {
   });
 
   it('keeps a saved element order and cleans it', () => {
-    const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports'];
+    const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'localModels'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);
     const messy = ['panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock', 'folder', 'launch'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: messy })?.dashboardSectionOrder).toEqual([
@@ -536,6 +568,7 @@ describe('parseSavedWorkspace', () => {
       'layouts',
       'containers',
       'ports',
+      'localModels',
       'external',
       'system',
       'wave',
@@ -554,6 +587,7 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'ports',
+      'localModels',
       'external',
       'system',
       'wave',
@@ -570,6 +604,7 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'ports',
+      'localModels',
       'external',
       'system',
       'wave',

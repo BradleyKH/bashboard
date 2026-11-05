@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ACCENT } from './accent';
+import type { HookInstallPreview } from './hookInstall';
 import {
   backgroundColorSaves,
   editorChoices,
@@ -7,26 +8,40 @@ import {
   favoritesToAdd,
   MATRIX_ACCENT,
   scrimPresetFor,
+  agentHooksFrom,
   setupSteps,
 } from './setupModel';
 
 describe('setupSteps', () => {
   const base = { gitBashFound: true, defaultShell: 'gitBash', shellIntegrationStatus: 'installed' as const };
 
-  it('includes claude only when detected and not installed', () => {
-    expect(setupSteps({ ...base, claudeDetected: true, hooksInstalled: false })).toEqual([
-      'shell', 'editor', 'favorites', 'claude', 'look',
-    ]);
-    for (const opts of [
-      { claudeDetected: true, hooksInstalled: true },
-      { claudeDetected: false, hooksInstalled: false },
-      { claudeDetected: false, hooksInstalled: true },
-    ]) {
-      expect(setupSteps({ ...base, ...opts })).toEqual(['shell', 'editor', 'favorites', 'look']);
-    }
+  const noHooks = { agents: [] };
+  const claudeMissing = { agent: 'claude' as const, installed: false };
+  const claudeIn = { agent: 'claude' as const, installed: true };
+  const codexMissing = { agent: 'codex' as const, installed: false };
+  const codexUntrusted = { agent: 'codex' as const, installed: true, trust: 'untrusted' as const };
+  const withAgents = ['shell', 'editor', 'favorites', 'agents', 'look'];
+  const without = ['shell', 'editor', 'favorites', 'look'];
+
+  it('shows the agents step for Claude Code only when its hooks are missing', () => {
+    expect(setupSteps({ ...base, agents: [claudeMissing] })).toEqual(withAgents);
+    expect(setupSteps({ ...base, agents: [claudeIn] })).toEqual(without);
   });
 
-  const hooks = { claudeDetected: false, hooksInstalled: false };
+  it('shows the agents step when any detected agent lacks hooks', () => {
+    expect(setupSteps({ ...base, agents: [claudeIn, codexMissing] })).toEqual(withAgents);
+    expect(setupSteps({ ...base, agents: [claudeMissing, codexMissing] })).toEqual(withAgents);
+  });
+
+  it('skips the step when Codex is installed but not yet trusted, since an install cannot fix that', () => {
+    expect(setupSteps({ ...base, agents: [claudeIn, codexUntrusted] })).toEqual(without);
+  });
+
+  it('skips the step when no agent is detected', () => {
+    expect(setupSteps({ ...base, ...noHooks })).toEqual(without);
+  });
+
+  const hooks = noHooks;
   const bash = { ...hooks, gitBashFound: true, defaultShell: 'gitBash' };
 
   it('puts git first only when Git Bash is not found', () => {
@@ -82,6 +97,35 @@ describe('setupSteps', () => {
         shellIntegrationStatus: 'missing',
       }),
     ).toEqual(['git', 'shell', 'shellIntegration', 'editor', 'favorites', 'look']);
+  });
+});
+
+describe('agentHooksFrom', () => {
+  const preview = (over: Partial<HookInstallPreview>): HookInstallPreview => ({
+    settingsPath: '',
+    scriptPath: '',
+    additions: {},
+    alreadyInstalled: false,
+    claudeDetected: false,
+    bashFound: true,
+    ...over,
+  });
+
+  it('keeps only detected agents, reading Claude Code from claudeDetected', () => {
+    expect(
+      agentHooksFrom([
+        preview({ claudeDetected: true }),
+        preview({ agent: 'codex', detected: true, alreadyInstalled: true, trust: 'untrusted' }),
+        preview({ agent: 'copilot', detected: false }),
+      ]),
+    ).toEqual([
+      { agent: 'claude', installed: false, trust: null },
+      { agent: 'codex', installed: true, trust: 'untrusted' },
+    ]);
+  });
+
+  it('returns nothing when no agent has run', () => {
+    expect(agentHooksFrom([preview({}), preview({ agent: 'codex', detected: false })])).toEqual([]);
   });
 });
 

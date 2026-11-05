@@ -37,7 +37,7 @@ const TOUR: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Attention',
     paragraphs: [
-      'A terminal that is waiting for you, or whose Claude session finished, pulses or shows a green check mark on its pane, card, and tab. {nextAttention} jumps to the next one that needs you, across all tabs.',
+      'A terminal that is waiting for you, or whose agent session finished, pulses or shows a green check mark on its pane, card, and tab. {nextAttention} jumps to the next one that needs you, across all tabs.',
     ],
   },
   {

@@ -40,10 +40,11 @@ export interface Settings {
     sections: Record<DashboardElement, boolean>;
     clockStyle: ClockStyle;
   };
-  restore: { enabled: boolean; resumeClaude: boolean; scrollback: boolean };
+  restore: { enabled: boolean; resumeSessions: boolean; scrollback: boolean };
   editor: { preferred: string; command: string };
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
   git: { autoFetchMinutes: number };
+  localModels: { ollamaUrl: string; lmStudioUrl: string; minContext: number };
   keybindings: KeybindingEntry[];
 }
 
@@ -79,9 +80,10 @@ export const DEFAULT_SETTINGS: Settings = {
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30, notifyWhenWaiting: true },
   dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both' },
-  restore: { enabled: true, resumeClaude: true, scrollback: true },
+  restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5 },
+  localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

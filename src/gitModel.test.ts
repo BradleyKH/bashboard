@@ -14,6 +14,7 @@ import {
   routeGitRequest,
   shortHash,
   stagedList,
+  togglePaths,
   undoTarget,
 } from './gitModel';
 
@@ -79,6 +80,23 @@ describe('changesList', () => {
     const keys = [...stagedList(s), ...changesList(s)].map((r) => r.key);
     expect(keys).toEqual(['staged:a.ts', 'unstaged:a.ts']);
     expect(new Set(keys).size).toBe(2);
+  });
+});
+
+describe('togglePaths', () => {
+  // A rename staged with `git mv` and then edited: both lists carry the original path.
+  const s = status({
+    staged: [{ path: 'new.ts', origPath: 'old.ts', status: 'R' }],
+    unstaged: [
+      { path: 'new.ts', origPath: 'old.ts', status: 'M' },
+      { path: 'b.ts', status: 'M' },
+    ],
+  });
+  it('stages only the current path of a renamed file', () => {
+    expect(togglePaths(changesList(s), false)).toEqual(['b.ts', 'new.ts']);
+  });
+  it('unstages both halves of a rename', () => {
+    expect(togglePaths(stagedList(s), true)).toEqual(['old.ts', 'new.ts']);
   });
 });
 

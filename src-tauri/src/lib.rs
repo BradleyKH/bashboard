@@ -1,3 +1,4 @@
+mod agents;
 mod cli;
 mod clipboard;
 mod config_dir;
@@ -14,6 +15,7 @@ mod git_worktrees;
 mod hook_install;
 mod hooks;
 mod links;
+mod model_servers;
 mod ports;
 mod profiles;
 mod pty;
@@ -164,6 +166,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            agents::agents_detected,
             clipboard::clipboard_read_text,
             pty::pty_spawn,
             pty::pty_write,
@@ -250,9 +253,11 @@ pub fn run() {
             setup::setup_repo_candidates,
             system::system_sample,
             ports::ports_list,
+            model_servers::model_servers_poll,
+            model_servers::model_servers_ollama_models,
             ports::ports_stop,
-            transcript::claude_context,
-            transcript::claude_context_stop,
+            transcript::agent_context,
+            transcript::agent_context_stop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

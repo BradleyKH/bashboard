@@ -164,6 +164,7 @@ pub struct DashboardSections {
     pub panes: bool,
     pub containers: bool,
     pub ports: bool,
+    pub local_models: bool,
     pub external: bool,
     pub system: bool,
     pub wave: bool,
@@ -174,8 +175,19 @@ pub struct DashboardSections {
 #[serde(rename_all = "camelCase")]
 pub struct Restore {
     pub enabled: bool,
-    pub resume_claude: bool,
+    pub resume_sessions: bool,
     pub scrollback: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModels {
+    /// Empty means the default `http://localhost:11434`.
+    pub ollama_url: String,
+    /// Empty means the default `http://localhost:1234`.
+    pub lm_studio_url: String,
+    /// Context length below which a loaded model is flagged; 0 turns the warning off.
+    pub min_context: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -240,6 +252,7 @@ pub struct Settings {
     pub restore: Restore,
     pub editor: Editor,
     pub git: GitSettings,
+    pub local_models: LocalModels,
     pub keybindings: Vec<Keybinding>,
 }
 
@@ -363,6 +376,7 @@ impl Default for Settings {
                     panes: true,
                     containers: true,
                     ports: true,
+                    local_models: true,
                     external: true,
                     system: false,
                     wave: false,
@@ -370,9 +384,10 @@ impl Default for Settings {
                 },
                 clock_style: "both".into(),
             },
-            restore: Restore { enabled: true, resume_claude: true, scrollback: true },
+            restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5 },
+            local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
             keybindings: default_keybindings(),
         }
     }
@@ -810,6 +825,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
             containers: section(&mut w, "containers", containers_default),
             ports: section(&mut w, "ports", d.dashboard.sections.ports),
+            local_models: section(&mut w, "localModels", d.dashboard.sections.local_models),
             external: section(&mut w, "external", d.dashboard.sections.external),
             system: section(&mut w, "system", d.dashboard.sections.system),
             wave: section(&mut w, "wave", d.dashboard.sections.wave),
@@ -825,7 +841,12 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
     };
     let restore = Restore {
         enabled: pick(&root, &["restore", "enabled"], &mut w, boolean, d.restore.enabled),
-        resume_claude: pick(&root, &["restore", "resumeClaude"], &mut w, boolean, d.restore.resume_claude),
+        // The older `resumeClaude` key supplies the value when `resumeSessions` is absent.
+        resume_sessions: if get(&root, &["restore", "resumeSessions"]).is_none() {
+            pick(&root, &["restore", "resumeClaude"], &mut w, boolean, d.restore.resume_sessions)
+        } else {
+            pick(&root, &["restore", "resumeSessions"], &mut w, boolean, d.restore.resume_sessions)
+        },
         scrollback: pick(&root, &["restore", "scrollback"], &mut w, boolean, d.restore.scrollback),
     };
     let editor = Editor {
@@ -847,6 +868,17 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.git.auto_fetch_minutes,
         ),
     };
+    let local_models = LocalModels {
+        ollama_url: pick(&root, &["localModels", "ollamaUrl"], &mut w, string, d.local_models.ollama_url.clone()),
+        lm_studio_url: pick(&root, &["localModels", "lmStudioUrl"], &mut w, string, d.local_models.lm_studio_url.clone()),
+        min_context: pick(
+            &root,
+            &["localModels", "minContext"],
+            &mut w,
+            |v| v.as_u64().and_then(|n| u32::try_from(n).ok()),
+            d.local_models.min_context,
+        ),
+    };
     let keybindings = parse_keybindings(&root, &mut w);
 
     Ok((
@@ -863,6 +895,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             restore,
             editor,
             git,
+            local_models,
             keybindings,
         },
         w,
@@ -1289,12 +1322,35 @@ mod tests {
 
     #[test]
     fn restore_values_parse_and_invalid_ones_fall_back() {
-        let (s, w) = parse_settings(r#"{ "restore": { "enabled": false, "resumeClaude": false, "scrollback": false } }"#);
-        assert_eq!(s.restore, Restore { enabled: false, resume_claude: false, scrollback: false });
+        let (s, w) = parse_settings(r#"{ "restore": { "enabled": false, "resumeSessions": false, "scrollback": false } }"#);
+        assert_eq!(s.restore, Restore { enabled: false, resume_sessions: false, scrollback: false });
         assert!(w.is_empty());
-        let (s, w) = parse_settings(r#"{ "restore": { "enabled": "no", "resumeClaude": 0, "scrollback": [] } }"#);
+        let (s, w) = parse_settings(r#"{ "restore": { "enabled": "no", "resumeSessions": 0, "scrollback": [] } }"#);
         assert_eq!(s.restore, Settings::default().restore);
-        for field in ["restore.enabled", "restore.resumeClaude", "restore.scrollback"] {
+        for field in ["restore.enabled", "restore.resumeSessions", "restore.scrollback"] {
+            assert!(w.iter().any(|m| m.starts_with(field)), "missing warning for {field}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn restore_reads_the_older_resume_claude_key_when_resume_sessions_is_absent() {
+        let (s, w) = parse_settings(r#"{ "restore": { "resumeClaude": false } }"#);
+        assert!(!s.restore.resume_sessions);
+        assert!(w.is_empty());
+        let (s, _) = parse_settings(r#"{ "restore": { "resumeClaude": false, "resumeSessions": true } }"#);
+        assert!(s.restore.resume_sessions);
+    }
+
+    #[test]
+    fn local_models_defaults_parse_and_invalid_values_fall_back() {
+        let d = Settings::default().local_models;
+        assert_eq!((d.ollama_url.as_str(), d.lm_studio_url.as_str(), d.min_context), ("", "", 64000));
+        let (s, w) = parse_settings(r#"{ "localModels": { "ollamaUrl": "http://box:11434", "lmStudioUrl": "http://box:1234", "minContext": 0 } }"#);
+        assert_eq!(s.local_models, LocalModels { ollama_url: "http://box:11434".into(), lm_studio_url: "http://box:1234".into(), min_context: 0 });
+        assert!(w.is_empty());
+        let (s, w) = parse_settings(r#"{ "localModels": { "ollamaUrl": 1, "lmStudioUrl": [], "minContext": -5 } }"#);
+        assert_eq!(s.local_models, d);
+        for field in ["localModels.ollamaUrl", "localModels.lmStudioUrl", "localModels.minContext"] {
             assert!(w.iter().any(|m| m.starts_with(field)), "missing warning for {field}: {w:?}");
         }
     }
@@ -1302,9 +1358,9 @@ mod tests {
     #[test]
     fn restore_defaults_to_enabled_and_is_in_default_file() {
         let d = Settings::default();
-        assert_eq!(d.restore, Restore { enabled: true, resume_claude: true, scrollback: true });
+        assert_eq!(d.restore, Restore { enabled: true, resume_sessions: true, scrollback: true });
         let text = default_file_text();
-        assert!(text.contains("\"restore\"") && text.contains("\"resumeClaude\""));
+        assert!(text.contains("\"restore\"") && text.contains("\"resumeSessions\""));
     }
 
     #[test]
@@ -1363,6 +1419,7 @@ mod tests {
                 panes: true,
                 containers: true,
                 ports: true,
+                local_models: true,
                 external: true,
                 system: false,
                 wave: false,

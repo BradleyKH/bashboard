@@ -302,10 +302,18 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    title: 'Local models',
+    fields: [
+      { path: ['localModels', 'ollamaUrl'], label: 'Ollama URL', kind: 'text', allowEmpty: true, hint: 'Empty uses http://localhost:11434', applies: 'live' },
+      { path: ['localModels', 'lmStudioUrl'], label: 'LM Studio URL', kind: 'text', allowEmpty: true, hint: 'Empty uses http://localhost:1234', applies: 'live' },
+      { path: ['localModels', 'minContext'], label: 'Minimum context length', kind: 'number', min: 0, max: 10000000, step: 1000, unit: 'tokens', integer: true, hint: '0 turns the warning off', applies: 'live' },
+    ],
+  },
+  {
     title: 'Restore',
     fields: [
       { path: ['restore', 'enabled'], label: 'Restore panes at launch', kind: 'toggle', applies: 'nextLaunch', half: true },
-      { path: ['restore', 'resumeClaude'], label: 'Resume Claude Code sessions', kind: 'toggle', applies: 'nextLaunch', half: true },
+      { path: ['restore', 'resumeSessions'], label: 'Resume agent sessions', kind: 'toggle', applies: 'nextLaunch', half: true },
       { path: ['restore', 'scrollback'], label: 'Restore terminal scrollback', kind: 'toggle', applies: 'nextLaunch', half: true },
     ],
   },

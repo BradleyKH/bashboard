@@ -63,7 +63,7 @@ export class UpdateNotice {
       const ok = await this.confirm({
         title: `Install Bashboard ${this.update.version}?`,
         body: [
-          'Bashboard will restart, which ends every running shell and any command or Claude session in it.',
+          'Bashboard will restart, which ends every running shell and any command or agent session in it.',
           'If workspace restore is enabled in settings, the layout reopens on the next launch.',
         ],
         confirmLabel: 'Install and restart',

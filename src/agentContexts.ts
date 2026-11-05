@@ -1,13 +1,13 @@
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { claudeContext, claudeContextStop, onClaudeContext } from './claudeApi';
-import type { ClaudeContext } from './claudeModel';
+import { agentContext, agentContextStop, onAgentContext } from './agentApi';
+import type { AgentContext } from './agentModel';
 
 /**
- * Each Claude session's newest model and context, tracked from the core while enabled (docs/design.md
+ * Each agent session's newest model and context, tracked from the core while enabled (docs/design.md
  * section 4.6). `onChange` fires after any context arrives or the set is cleared.
  */
-export class ClaudeContexts {
-  private readonly contexts = new Map<string, ClaudeContext>();
+export class AgentContexts {
+  private readonly contexts = new Map<string, AgentContext>();
   private enabled = false;
   private unlisten: UnlistenFn | undefined;
   // Bumped on every stop so a late listen or snapshot from the old subscription is dropped.
@@ -15,7 +15,7 @@ export class ClaudeContexts {
 
   constructor(private readonly onChange: () => void) {}
 
-  get(sessionId: string): ClaudeContext | undefined {
+  get(sessionId: string): AgentContext | undefined {
     return this.contexts.get(sessionId);
   }
 
@@ -28,7 +28,7 @@ export class ClaudeContexts {
 
   private start(): void {
     const epoch = this.epoch;
-    void onClaudeContext((ctx) => {
+    void onAgentContext((ctx) => {
       this.contexts.set(ctx.sessionId, ctx);
       this.onChange();
     })
@@ -38,7 +38,7 @@ export class ClaudeContexts {
       })
       .catch(() => {});
     // An event can land before the snapshot resolves; the snapshot must not overwrite it.
-    void claudeContext()
+    void agentContext()
       .then((all) => {
         if (epoch !== this.epoch) return;
         for (const ctx of all) if (!this.contexts.has(ctx.sessionId)) this.contexts.set(ctx.sessionId, ctx);
@@ -54,6 +54,6 @@ export class ClaudeContexts {
     this.unlisten = undefined;
     this.contexts.clear();
     this.onChange();
-    void claudeContextStop().catch(() => {});
+    void agentContextStop().catch(() => {});
   }
 }

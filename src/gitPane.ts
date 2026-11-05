@@ -49,6 +49,7 @@ import {
   remoteButtons,
   shortHash,
   stagedList,
+  togglePaths,
   undoTarget,
   type GitRow,
   type RemoteOp,
@@ -123,16 +124,6 @@ function repoPath(root: string, rel: string): string {
   const sep = root.includes('\\') ? '\\' : '/';
   const tail = sep === '\\' ? rel.replace(/\//g, '\\') : rel;
   return /[\\/]$/.test(root) ? `${root}${tail}` : `${root}${sep}${tail}`;
-}
-
-/** A renamed row's original path goes with it, so unstaging a rename unstages both halves. */
-function pathsOf(rows: readonly GitRow[]): string[] {
-  const out: string[] = [];
-  for (const { entry } of rows) {
-    if (entry.origPath) out.push(entry.origPath);
-    out.push(entry.path);
-  }
-  return out;
 }
 
 /** A repo's changes, staging, commits, and diffs (docs/design.md section 4.13). */
@@ -718,7 +709,7 @@ export class GitPane implements PaneView {
 
   private async toggle(rows: readonly GitRow[], staged: boolean): Promise<void> {
     if (rows.length === 0) return;
-    const paths = pathsOf(rows);
+    const paths = togglePaths(rows, staged);
     try {
       if (staged) await gitUnstage(this.rootPath, paths);
       else await gitStage(this.rootPath, paths);

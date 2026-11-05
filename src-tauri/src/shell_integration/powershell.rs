@@ -9,7 +9,7 @@ use std::{
 };
 
 use super::{
-    Flavor, Preview, Status, apply, backup_path, block, read_optional, status, write_atomic,
+    Flavor, Preview, apply, backup_path, block, read_optional, status, write_atomic,
 };
 use crate::profiles::{self, POWERSHELL, PWSH};
 
@@ -209,6 +209,7 @@ pub(super) fn install(shell: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::Status;
     use super::super::tests::temp_dir;
     use super::*;
 

@@ -136,25 +136,25 @@ Default shell select in the Terminal section of the Settings tab sets it too (se
 ```
 
 Restore on relaunch is controlled by `restore.enabled` (reopen the saved terminals),
-`restore.resumeClaude` (type `claude --resume` into terminals that had a Claude session), and
+`restore.resumeSessions` (type the agent's resume command into terminals that had an agent session; an older `resumeClaude` key is still read), and
 `restore.scrollback` (save each terminal's scrollback when the window closes and show it again
 above the new prompt); all three default to `true`. Turning `restore.scrollback` off also deletes
 the scrollback already saved, at the next close:
 
 ```jsonc
-"restore": { "enabled": true, "resumeClaude": true, "scrollback": true }
+"restore": { "enabled": true, "resumeSessions": true, "scrollback": true }
 ```
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `launch`, `panes`, `containers`, `ports`, and `external` default to
+each dashboard element: `launch`, `panes`, `containers`, `ports`, `localModels`, and `external` default to
 `true`, and `favorites`, `layouts`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
 the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
 drops the Launch menu. A settings file that still has `sections.folder` and no `sections.launch`
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Local models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -172,6 +172,7 @@ dashboard", shown while the clock is on; right-clicking the clock sets it too.
     "panes": true,
     "containers": true,
     "ports": true,
+    "localModels": true,
     "external": true,
     "system": false,
     "wave": false,
@@ -202,6 +203,17 @@ section of the Settings tab.
 
 ```jsonc
 "git": { "autoFetchMinutes": 5 }
+```
+
+`localModels.ollamaUrl` and `localModels.lmStudioUrl` (both default empty) set the address Bashboard
+asks for local models. An empty Ollama URL uses `OLLAMA_HOST` when it is set (a bind address such as
+`0.0.0.0` maps to `127.0.0.1`), else `http://127.0.0.1:11434`; an empty LM Studio URL uses
+`http://127.0.0.1:1234`. `localModels.minContext` (default 64000) is the context length below which a loaded
+model is flagged; 0 turns the warning off. All three are in the Local models section of the
+Settings tab.
+
+```jsonc
+"localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 }
 ```
 
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to

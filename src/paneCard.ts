@@ -12,7 +12,7 @@ import { hueCss } from './sessionHue';
 export interface PaneCardOptions {
   now: number;
   /** The bound Claude session's model and context size, shown under the path; null for none. */
-  claudeLine: string | null;
+  agentLine: string | null;
   /** Shows the folder path under the title; hidden, the path moves into the title's tooltip. */
   showPath: boolean;
   /** True while the card shows its inline close confirmation. */
@@ -193,12 +193,12 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     setPathText(path, card.path);
     el.append(path);
   }
-  if (opts.claudeLine !== null) {
-    const claude = document.createElement('div');
-    claude.className = 'card-claude';
-    claude.textContent = opts.claudeLine;
-    claude.title = opts.claudeLine;
-    el.append(claude);
+  if (opts.agentLine !== null) {
+    const line = document.createElement('div');
+    line.className = 'card-agent';
+    line.textContent = opts.agentLine;
+    line.title = opts.agentLine;
+    el.append(line);
   }
   return el;
 }

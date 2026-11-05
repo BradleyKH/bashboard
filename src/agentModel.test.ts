@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claudeLine, formatTokens, modelDisplayName } from './claudeModel';
+import { agentLine, formatTokens, modelDisplayName } from './agentModel';
 
 describe('formatTokens', () => {
   it('prints each tier at its boundaries', () => {
@@ -42,20 +42,40 @@ describe('modelDisplayName', () => {
   });
 });
 
-describe('claudeLine', () => {
-  const ctx = (model: string | null, contextTokens: number | null) => ({ sessionId: 's', model, contextTokens });
+describe('agentLine', () => {
+  const ctx = (model: string | null, contextTokens: number | null, contextWindow: number | null = null) => ({
+    sessionId: 's',
+    model,
+    contextTokens,
+    contextWindow,
+  });
 
   it('joins the model name and token count', () => {
-    expect(claudeLine(ctx('claude-opus-5-5', 112_400))).toBe('Opus 5.5 · 112k tokens');
+    expect(agentLine('claude', ctx('claude-opus-5-5', 112_400))).toBe('Opus 5.5 · 112k tokens');
   });
 
   it('shows whichever half is known', () => {
-    expect(claudeLine(ctx(null, 1_200_000))).toBe('1.2M tokens');
-    expect(claudeLine(ctx('claude-sonnet-5-5', null))).toBe('Sonnet 5.5');
+    expect(agentLine('claude', ctx(null, 1_200_000))).toBe('1.2M tokens');
+    expect(agentLine('claude', ctx('claude-sonnet-5-5', null))).toBe('Sonnet 5.5');
   });
 
   it('is null without a context or with neither half', () => {
-    expect(claudeLine(undefined)).toBeNull();
-    expect(claudeLine(ctx(null, null))).toBeNull();
+    expect(agentLine('claude', undefined)).toBeNull();
+    expect(agentLine('claude', ctx(null, null))).toBeNull();
+    expect(agentLine('codex', ctx(null, null))).toBeNull();
+  });
+
+  it('leads a Codex line with the agent name and shows the window when known', () => {
+    expect(agentLine('codex', ctx('gpt-5.5', 112_400))).toBe('Codex · gpt-5.5 · 112k tokens');
+    expect(agentLine('codex', ctx('gpt-5.5', 112_400, 272_000))).toBe('Codex · gpt-5.5 · 112k / 272k tokens');
+  });
+
+  it('shows only the model for Copilot', () => {
+    expect(agentLine('copilot', ctx('gpt-5.5', null))).toBe('Copilot · gpt-5.5');
+  });
+
+  it('uses the window override only when the context has none', () => {
+    expect(agentLine('codex', ctx('qwen3-coder:30b', 8000), 32_768)).toBe('Codex · qwen3-coder:30b · 8.0k / 32k tokens');
+    expect(agentLine('codex', ctx('gpt-5.5', 8000, 272_000), 32_768)).toBe('Codex · gpt-5.5 · 8.0k / 272k tokens');
   });
 });
