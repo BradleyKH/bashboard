@@ -144,8 +144,8 @@ body.resizing.column {
   border-color: var(--accent);
 }
 
-/* Title strip (docs/design.md section 4.4): in the flow with two or more panes, otherwise an
-   overlay shown on hover so it never reflows a lone terminal. */
+/* Title strip (docs/design.md section 4.4): always in the flow, even for a lone pane. Never make
+   it a hover overlay; it would sit over the buttons and first row at the top of the pane. */
 .pane-strip {
   position: relative;
   z-index: 2;
@@ -163,35 +163,6 @@ body.resizing.column {
   user-select: none;
   cursor: grab;
   touch-action: none;
-}
-
-#panes:not(.multi) .pane-strip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: rgba(6, 12, 18, 0.85);
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-
-/* Revealed by hovering its own (invisible) band, so the pointer resting anywhere else in the
-   terminal never covers the first row. */
-#panes:not(.multi) .pane-strip:hover {
-  opacity: 1;
-}
-
-/* Ctrl+click opens links, so a held Ctrl lets the pointer through to the first row. */
-.ctrl-held #panes:not(.multi) .pane-strip {
-  pointer-events: none;
-}
-
-/* These panes have buttons in their top row, which the hover overlay would sit on. */
-#panes:not(.multi) .pane:has(> .ports-body, > .ctr-body) > .pane-strip {
-  position: relative;
-  background: rgba(0, 0, 0, 0.3);
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .pane.focused .strip-title {

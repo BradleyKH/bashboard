@@ -1051,12 +1051,14 @@ commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shape
   `HALTED` states are `waiting`, and `STOPPED` is `cancelled`. Re-run starts a new pipeline on the
   same target (branch or pull request, selector, and commit); custom pipeline variables are not
   kept. There is no failed-only re-run (`rerunFailed` is false), and cancel is `stopPipeline`. A
-  step that has not started has an empty log. Pull requests are listed with their participants and
-  reviewers, and the page's `size` is the open count; the viewer's uuid comes from `/user` once per token, and a token without
+  step that has not started has an empty log. Pull requests are listed with a `fields` selection of
+  only what the row shows, including participants, and the page's `size` is the matching count; the viewer's uuid comes from `/user` once per token, and a token without
   `read:user:bitbucket` still lists pull requests, with none marked as yours or awaiting your
   review. A pull request's checks are the worst of its commit's build statuses, fetched once per
   pull request and kept until its `updated_on` changes, which keeps polling inside Bitbucket's
-  limit of 1,000 requests an hour per user. The pipelines list carries a commit's hash but not its
+  limit of 1,000 requests an hour per user. Merged and declined pull requests show no checks. The
+  list returns at once with the cached rollups and marks the open ones still missing `checksPending`; the front end then asks `forge_pull_checks` for those, which
+  fetches them eight at a time, and merges the answers into the rows. The pipelines list carries a commit's hash but not its
   message, so a pipeline titled by neither a commit message nor a pull request takes its commit's
   first line from `/commit/{hash}`, fetched once per hash for the session.
 - **Capabilities.** GitHub: re-run, re-run failed, cancel, logs, drafts, accounts; nouns "pull
@@ -1171,11 +1173,9 @@ Files pane's, 4.12), then a collapse button, a zoom button (with two or more exp
 panes in the tab, 4.2), and a close button that acts as Ctrl+W (`requestClosePane`); the rest of
 the strip is the drag handle for docking. The status dot's tooltip shows the waiting reason
 (3.3) while the terminal is `waiting`; the strip's text is unchanged. Every pane kind
-has the same strip, with its own title and no status dot. With two or more panes in the tab the strip
-sits in the layout above each terminal. A lone pane's strip is an overlay, so it never reflows
-the terminal; it is invisible until the pointer enters its own top band, so the pointer resting
-elsewhere in the terminal never covers the first row. Ports and Containers panes keep the strip
-in the layout even when alone, since an overlay would sit over the buttons in their top row. The title is cut short with an ellipsis
+has the same strip, with its own title and no status dot. The strip always sits in the layout
+above the pane's body, for every pane kind and even when the pane is alone in its tab; it is
+never a hover overlay, which would sit over the buttons and first row at the top of the pane. The title is cut short with an ellipsis
 before the pane's own buttons give up any room.
 
 **Title strip menu.** A right-click on a title strip of any pane kind opens Change kind (a
@@ -1407,9 +1407,12 @@ Ctrl+Enter opens a favorite or worktree collapsed. Pins whose path is missing ar
 Actions left out are `copy`, `paste`, `sendInput` (Claude Code's newline), `switchToTab` (tabs are
 items instead), and `openPalette` itself. Labels come from `helpModel.ts`, so the palette and the
 Shortcuts tab agree, and each action's hint lists its chords from the live keymap, so overrides show.
-`moveFocus` and `resizePane` get one row per direction. Check for updates (3.16) is an action
-row with no keymap action behind it (`PALETTE_COMMANDS` in `paletteModel.ts`), so it never
-appears in the Shortcuts tab or takes a key.
+`moveFocus` and `resizePane` get one row per direction. Open the Containers tab (4.16), Open the
+Ports tab (4.19), Open the Forge tab (4.20), and Check for updates (3.16) are action rows with no
+keymap action behind them (`PALETTE_COMMANDS` in `paletteModel.ts`), so they never appear in the
+Shortcuts tab or take a key. Open the Forge tab shows the Forge pane on the focused repo, adding a
+Forge tab for it when there is none; outside a git repo it shows the first Forge pane on any repo,
+or a toast when there is none.
 
 Matching is fuzzy over the label, then the detail (a pane's tab name, a favorite's path), and a
 detail-only match ranks after every label match. Consecutive characters and matches at word starts
@@ -1590,20 +1593,20 @@ menu is dropped if another menu opened or closed meanwhile.
 focused pane that had one; a folder outside any repo counts as its own. A Files pane counts as the
 repo it was opened for, not the folder it is showing, so opening a pinned subfolder keeps them on
 its repo. Under a **Launch** heading, which does not collapse, one row of equal icon buttons opens
-a Terminal, Files, Git (git repos only), Search, or Scratch pane, or opens the repo in the editor
-(3.12); the row fits on one line at the panel's minimum width. Each tooltip names the option, and
-those for Files, Git, Search, Scratch, and Editor end with the keys of openFiles, openGit,
-openSearch, newScratch, and openEditor, which open the same thing, read on hover like the top
-bar's; Terminal names none, since splitAuto opens at the focused pane's folder rather than the
-repo root. The section is hidden until some pane has a folder.
+a Terminal, Git, Files, Forge, Search, or Scratch pane, in that order, with Git and Forge for git
+repos only; the row fits on one line at the panel's minimum width. Each tooltip names the option,
+and those for Git, Files, Search, and Scratch end with the keys of openGit, openFiles, openSearch,
+and newScratch, which open the same thing, read on hover like the top bar's; Terminal names none,
+since splitAuto opens at the focused pane's folder rather than the repo root, and Forge has no
+action. The section is hidden until some pane has a folder.
 
 While a button is hovered or focused, a preview over the panes shows where its pane will land: the
 focused pane outlined and the new pane's share of it shaded and labeled, the existing pane that
 Files or Git would bring forward, the whole pane area of an empty tab, or the focused pane with
-"opens collapsed: no room". The editor has no preview.
+"opens collapsed: no room".
 
-The **Launch menu** lists the same options with their icons and a letter each (t, f, g, s, p,
-e); a letter chooses its entry, and the highlighted entry shows the same preview. While the
+The **Launch menu** lists the same options with their icons and a letter each (t, g, f, o, s,
+p); a letter chooses its entry, and the highlighted entry shows the same preview. While the
 Launch element is disabled, a **+** button in the top bar, left of **?**, drops it, its tooltip
 ending with the keys of openLaunch. openLaunch (Ctrl+Shift+L, 4.5) opens it over the focused pane
 whether or not the element is shown.
@@ -2351,7 +2354,10 @@ groups expand to their containers. Each container row shows its state dot,
 service or container name, image, status text ("Up 3 hours"), published ports as links to
 `http://localhost:<port>` (through `open_url`), and CPU and memory, refreshed every 5 seconds
 while the pane is on screen. Groups and containers have Start, Stop, and Restart; containers also
-have:
+have Logs and Shell. The buttons are always shown at the row's right edge, disabled while the
+state rules one out (Start on a running container, Shell on a stopped one, Start, Stop, and
+Restart while an action on it runs), so they line up down the list; a group heading holds blank space where a
+container row has Logs and Shell, so its three buttons sit over its containers' own.
 
 - **Logs**, which follow the container's output in a panel beside the list. Scrolling up stops
   following; scrolling to the end resumes it. The panel's header has − and + zoom buttons before
@@ -2512,21 +2518,25 @@ rebuilding the list. The pane saves no state.
 
 ### 4.20 Forge pane
 
-A Forge pane shows the CI runs and open pull requests of its folder's repo, from the repo's code
+A Forge pane shows the CI runs and pull requests of its folder's repo, from the repo's code
 host (3.20), as two tabs, **Pipelines** and **Pull requests** (the second reads "Merge requests"
-on a host whose `prNoun` says so). It opens only from the kind menu (4.11), keeps the pane's
-folder, and resolves the repo's root as the Git pane does (4.13); a folder outside a repo shows a
+on a host whose `prNoun` says so). It opens from the kind menu (4.11), which keeps the pane's
+folder, and from Launch (4.6), which opens it at the repo root; and resolves the repo's root as the Git pane does (4.13); a folder outside a repo shows a
 notice. Its title is the repo folder's name, or "Forge" when it has no folder. The pane saves its
-folder and its tab, the tab omitted when it is Pipelines (section 7), and layouts keep it.
+folder, its tab, whether This branch is checked (`thisBranch`), and whether Open is cleared
+(`allPulls`), each default omitted (section 7), and layouts keep it.
 
 **Store.** `ForgeStore` (`src/forgeStore.ts`) holds one repo's repo info, runs, and pull
 requests, shared by every Forge pane on that root and reference counted, so two panes on a repo
 make one set of requests. A pane wants its store only while expanded.
 
-**Bar.** From the left: the two tabs; a **This branch** checkbox, checked by default and shown on
-the Pipelines tab only; the repo's `owner/name`, linking to its `webUrl`, once the repo has
-resolved; the account chip; and **Refresh**, which polls at once. Clearing the checkbox lists runs
-on every branch, and the choice is shared by the panes on one repo. This branch follows the
+**Bar.** From the left: the two tabs; a **This branch** checkbox, clear by default and shown on
+the Pipelines tab only; an **Open** checkbox, checked by default and shown on the Pull requests
+tab only; the repo's `owner/name`, linking to its `webUrl`, once the repo has
+resolved; the account chip; and **Refresh**, which polls at once. Checking the box limits the list
+to runs on one branch, and the choice is shared by the panes on one repo: a pane that opens on
+a repo another pane already shows takes that pane's choice, and the first pane to open a repo
+applies its own saved one. Open is shared the same way. This branch follows the
 repo's current local branch, resolved again on every poll, so a checkout empties the list and
 loads the new branch's runs; a detached HEAD has no branch and lists every branch. The chip reads
 "as @name" and appears only when the host holds several accounts (`capabilities.accounts` and
@@ -2553,6 +2563,13 @@ jobs. The list is the latest 20 runs, and an empty list says so.
   carriage returns are removed, a log cut to its last 1 MiB says so, and the view starts scrolled
   to the end, where the failure is. An expanded run's jobs reload when a poll changes its status or
   while it is still moving, and a job's open log is kept across reloads.
+- **Run buttons.** At each row's right edge: **Open** (in the browser), **Re-run**, **Re-run
+  failed**, and **Cancel**, enabled as the menu's entries of the same names are, with Cancel
+  disabled rather than absent on a run that is not live. Every row carries the same buttons, and
+  one the host cannot do is hidden on every row alike, so they line up down the list. Clicking one
+  acts without expanding the row. Below 420 px of pane width the buttons are hidden, leaving the
+  title its room; the menu still holds every action. `runActionStates` in `src/forgeMenus.ts`
+  decides both the buttons and the menu.
 - **Run menu.** Right-click a row: **Open in browser**; **Re-run** (greyed while the run is
   active); **Re-run failed jobs**, only on a host that has it (GitHub), enabled for a failed run;
   **Cancel**, only for a queued or running run on a host that can; and **Copy link**. Cancel opens
@@ -2561,18 +2578,23 @@ jobs. The list is the latest 20 runs, and an empty list says so.
   polls again after 3 s, and a failure of either shows as a toast, since the list stays as it was.
   Entries a host cannot do are left out rather than greyed.
 
-**Pull requests.** Open pull requests, at most 50, under group headers with counts: **Review
+**Pull requests.** The 50 most recently updated pull requests: open ones while **Open** is
+checked, else those in every state (open, merged, and closed, with Bitbucket's declined and
+superseded counted as closed), under group headers with counts: **Review
 requested** (the viewer is a requested reviewer who has not reviewed; a request wins over
-ownership), **Yours**, and **Others**; empty groups are left out. Within a group, drafts come
-last, then the most recently updated first. A row shows `#<number>`, the title, a Draft badge, the
+ownership), **Yours**, and **Others**; empty groups are left out. Within a group, open ones come
+first, then open drafts, then merged and closed ones, each most recently updated first. A row
+shows `#<number>`, the title, a Draft badge on an open draft or a Merged or Closed badge, with the
+title dimmed, on one that is not open, the
 author and source and target branches, the review state (Approved, Changes requested, or Review
-pending), the checks status icon, and the age of the last update. Clicking a row opens the pull
+pending), the checks status icon (a faint pulsing dot while it loads), and the age of the last update. Clicking a row opens the pull
 request in the browser. The menu holds **Open in browser**, **Copy link**, and **Copy branch
 name**. A Bitbucket token without `read:user:bitbucket` still lists pull requests, but every one
-falls under Others, since none can be marked as the viewer's. When the host counts more open
-pull requests than the 50 listed, a note after the groups reads "Showing the first 50 of 60 open
-pull requests." (with "merge requests" on a host that uses that noun); `src/forgeModel.ts` builds
-the text.
+falls under Others, since none can be marked as the viewer's. When the host counts more matching
+pull requests than the 50 listed, a note after the groups reads "Showing the latest 50 of 60 open
+pull requests.", leaving out "open" while Open is cleared (with "merge requests" on a host that
+uses that noun); `src/forgeModel.ts` builds the text. Changing Open empties the list and asks
+again, dropping any reply to the other question still in flight.
 
 **Polling.** Runs poll while any expanded pane is on the store: every 15 s while a run is queued
 or running, else every 60 s, never faster than the host's `minPollSecs`. Pull requests poll only
@@ -2794,8 +2816,10 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
 - `maxFps` is 0 (uncapped) or 20 to 240. The loop clamps each frame's delta to 1/20 s, so a cap
   below 20 would slow the simulation itself.
 - `backdrop.animate: false` stops the frame loop and leaves the backdrop on a still frame, redrawn only
-  when the window resizes. If it is off from launch, the opening dolly plays out first so the
-  still shows a grown colony, not the lone founding spore. It hot-reloads; turning it back on
+  when the window resizes. Either way, the backdrop pre-warms at mount, simulating up to 16
+  seconds headless before its first frame, so it opens at the configured zoom on a grown colony,
+  not the lone founding spore. The pre-warm stops after 500 ms of wall-clock time, so a large
+  `capacity` opens on a younger colony rather than delaying the first paint. It hot-reloads; turning it back on
   resumes from the still.
 - The renderer is created with `preserveDrawingBuffer: false` and alpha disabled; the
   terminals composite over it through normal CSS stacking, with no readback. Disposing it forces
@@ -2891,7 +2915,7 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 - `PullRequest`: `id`, `number`, `title`, `author`, `draft`, `sourceBranch`, `targetBranch`,
   `createdAt`, `updatedAt`, `webUrl`, `reviewDecision` (null when the host has no verdict yet),
   `reviewers` (each a `Reviewer` with `login` and `state`), `checks` (null when it has none),
-  `isMine`, and `reviewRequested` (the viewer is a requested reviewer who has not reviewed). Both
+  `checksPending` (checks not fetched yet; only Bitbucket sets it), `isMine`, and `reviewRequested` (the viewer is a requested reviewer who has not reviewed). Both
   flags are false when the viewer cannot be identified.
 - `ForgeError`: `kind` (`notARepo`, `noRemote`, `unsupportedHost`, `notInstalled`, `signedOut`,
   `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, or `other`), `message` (plain
@@ -2932,7 +2956,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   `sessionId`): none. Its `scrollbackId` (the scratch id alphabet):
   none, so the terminal starts without saved scrollback. A Files pane's `root`: resolved from its
   `folder`. Its `expanded`: false. A Forge pane's `tab`: `pipelines`, the other being `pulls`;
-  it is omitted from the file when it is `pipelines`.
+  it is omitted from the file when it is `pipelines`. Its `thisBranch` and `allPulls`: false, and
+  each omitted when false; any value but `true` reads as false.
 
 **layouts.json.** Names are unique without regard to case. A layout holds one tab whose
 terminals carry no session ids, permission modes, or scrollback ids and whose scratch pads have a null

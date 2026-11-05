@@ -15,7 +15,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { finishingShader } from './shaders/finishing';
 
-/** Camera distance the opening shot settles at. */
+/** Camera distance at zoom 1. */
 export const HOME_DISTANCE = 125;
 
 export class Viewport {

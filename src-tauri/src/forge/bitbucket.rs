@@ -4,7 +4,9 @@
 
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex};
+use std::thread;
 
 use serde_json::{Map, Value, json};
 
@@ -12,7 +14,7 @@ use super::auth::TokenSource;
 use super::remote::percent_encode;
 use super::types::{
     Capabilities, ForgeError, ForgeErrorKind, Job, JobLog, ProviderKind, PullList, PullRequest,
-    RepoRef, ReviewState, Reviewer, Run, RunStatus,
+    PullChecks, PullChecksQuery, PullState, RepoRef, ReviewState, Reviewer, Run, RunStatus,
 };
 use super::{Cx, ForgeProvider};
 
@@ -31,6 +33,14 @@ static VIEWERS: LazyLock<Mutex<HashMap<u64, Option<String>>>> = LazyLock::new(De
 /// which keeps polling inside Bitbucket's 1,000 requests an hour.
 type ChecksCache = HashMap<(String, u64), (String, Option<RunStatus>)>;
 static CHECKS: LazyLock<Mutex<ChecksCache>> = LazyLock::new(Default::default);
+/// Past this many entries the checks cache starts over. It holds merged and declined pull
+/// requests too, so toggling Open does not refetch them.
+const CHECKS_MAX: usize = 2000;
+/// The pull request fields `map_pull` reads, plus the page's `size`. The default listing is
+/// many times larger (links, summaries, full user and repo objects) and takes seconds longer.
+const PULL_FIELDS: &str = "size,values.id,values.title,values.state,values.draft,values.created_on,values.updated_on,values.author.uuid,values.author.display_name,values.author.nickname,values.source.branch.name,values.destination.branch.name,values.links.html.href,values.participants.role,values.participants.approved,values.participants.state,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.nickname";
+/// Concurrent `/statuses` requests while filling in a list's checks.
+const CHECKS_WORKERS: usize = 8;
 
 /// A commit's first message line by (repo, hash). The pipelines list carries only the hash, and
 /// a commit never changes, so each one is fetched once per session.
@@ -235,7 +245,7 @@ fn page_size(page: &Value) -> Option<u64> {
     page.get("size").and_then(Value::as_u64)
 }
 
-/// One open pull request, as listed with `participants` and `reviewers` added by `fields`.
+/// One pull request, as listed with the `PULL_FIELDS` selection.
 pub fn map_pull(v: &Value, viewer: Option<&str>, checks: Option<RunStatus>) -> Option<PullRequest> {
     let number = v.get("id").and_then(Value::as_u64)?;
     let participants: Vec<&Value> = v
@@ -281,6 +291,11 @@ pub fn map_pull(v: &Value, viewer: Option<&str>, checks: Option<RunStatus>) -> O
                 && *state == ReviewState::Pending
         })
     });
+    let state = match str_at(v, "/state") {
+        Some("MERGED") => PullState::Merged,
+        Some("DECLINED" | "SUPERSEDED") => PullState::Closed,
+        _ => PullState::Open,
+    };
     Some(PullRequest {
         id: number.to_string(),
         number,
@@ -289,6 +304,7 @@ pub fn map_pull(v: &Value, viewer: Option<&str>, checks: Option<RunStatus>) -> O
             .or_else(|| string_at(v, "/author/nickname"))
             .unwrap_or_default(),
         draft: v.get("draft").and_then(Value::as_bool).unwrap_or(false),
+        state,
         source_branch: string_at(v, "/source/branch/name").unwrap_or_default(),
         target_branch: string_at(v, "/destination/branch/name").unwrap_or_default(),
         created_at: string_at(v, "/created_on").unwrap_or_default(),
@@ -297,6 +313,7 @@ pub fn map_pull(v: &Value, viewer: Option<&str>, checks: Option<RunStatus>) -> O
         review_decision,
         reviewers,
         checks,
+        checks_pending: false,
         is_mine,
         review_requested,
     })
@@ -411,39 +428,35 @@ impl Bitbucket {
         out
     }
 
-    fn checks(&self, cx: &Cx, base: &str, pulls: &[Value]) -> HashMap<u64, Option<RunStatus>> {
-        let mut out = HashMap::new();
-        for pr in pulls {
-            let Some(id) = pr.get("id").and_then(Value::as_u64) else {
-                continue;
-            };
-            let updated = string_at(pr, "/updated_on").unwrap_or_default();
-            let key = (base.to_string(), id);
-            if let Some((at, checks)) = CHECKS.lock().unwrap().get(&key) {
-                if *at == updated {
-                    out.insert(id, *checks);
-                    continue;
+    /// Cached checks for the listed pull requests whose `updated_on` has not moved. Those
+    /// missing are fetched later by `pull_checks`, so the list shows without waiting on them.
+    fn cached_checks(base: &str, pulls: &[Value]) -> HashMap<u64, Option<RunStatus>> {
+        let cache = CHECKS.lock().unwrap();
+        pulls
+            .iter()
+            .filter_map(|pr| {
+                let id = pr.get("id").and_then(Value::as_u64)?;
+                let updated = str_at(pr, "/updated_on").unwrap_or_default();
+                match cache.get(&(base.to_string(), id)) {
+                    Some((at, checks)) if at == updated => Some((id, *checks)),
+                    _ => None,
                 }
-            }
-            let url = format!("{base}/pullrequests/{id}/statuses");
-            match cx.http.get_json::<Value>(&url, Some(&auth(cx)), ACCEPT) {
-                Ok(statuses) => {
-                    let checks = checks_rollup(&statuses);
-                    CHECKS.lock().unwrap().insert(key, (updated, checks));
-                    out.insert(id, checks);
-                }
-                // The list still shows without its check column.
-                Err(_) => {
-                    out.insert(id, None);
-                }
-            }
+            })
+            .collect()
+    }
+
+    /// One pull request's checks from `/statuses`, cached against `updated`. A failed request
+    /// answers `None` and stays uncached, so the next list asks again.
+    fn fetch_checks(cx: &Cx, base: &str, id: u64, updated: &str) -> Option<RunStatus> {
+        let url = format!("{base}/pullrequests/{id}/statuses");
+        let statuses = cx.http.get_json::<Value>(&url, Some(&auth(cx)), ACCEPT).ok()?;
+        let checks = checks_rollup(&statuses);
+        let mut cache = CHECKS.lock().unwrap();
+        if cache.len() >= CHECKS_MAX {
+            cache.clear();
         }
-        // Closed pull requests leave the cache.
-        CHECKS
-            .lock()
-            .unwrap()
-            .retain(|(b, id), _| b != base || out.contains_key(id));
-        out
+        cache.insert((base.to_string(), id), (updated.to_string(), checks));
+        checks
     }
 }
 
@@ -573,11 +586,15 @@ impl ForgeProvider for Bitbucket {
         Ok(())
     }
 
-    fn pulls(&self, cx: &Cx, repo: &RepoRef) -> Result<PullList, ForgeError> {
+    fn pulls(&self, cx: &Cx, repo: &RepoRef, open_only: bool) -> Result<PullList, ForgeError> {
         let base = repo_base(repo)?;
-        // The list leaves out participants and reviewers unless `fields` adds them.
+        let states = if open_only {
+            "state=OPEN"
+        } else {
+            "state=OPEN&state=MERGED&state=DECLINED&state=SUPERSEDED"
+        };
         let url = format!(
-            "{base}/pullrequests?state=OPEN&pagelen=50&fields=%2Bvalues.participants,%2Bvalues.reviewers"
+            "{base}/pullrequests?{states}&sort=-updated_on&pagelen=50&fields={PULL_FIELDS}"
         );
         let page: Value = cx
             .http
@@ -589,18 +606,48 @@ impl ForgeProvider for Bitbucket {
             .cloned()
             .unwrap_or_default();
         let viewer = self.viewer(cx);
-        let checks = self.checks(cx, &base, &values);
+        let cached = Self::cached_checks(&base, &values);
         let items = values
             .iter()
             .filter_map(|v| {
                 let id = v.get("id").and_then(Value::as_u64)?;
-                map_pull(v, viewer.as_deref(), checks.get(&id).copied().flatten())
+                let mut pull = map_pull(v, viewer.as_deref(), cached.get(&id).copied().flatten())?;
+                // A merged or declined pull request's build is history, not worth a request each.
+                pull.checks_pending = pull.state == PullState::Open && !cached.contains_key(&id);
+                Some(pull)
             })
             .collect();
         Ok(PullList {
             items,
             total: page_size(&page),
         })
+    }
+
+    fn pull_checks(
+        &self,
+        cx: &Cx,
+        repo: &RepoRef,
+        pulls: &[PullChecksQuery],
+    ) -> Result<Vec<PullChecks>, ForgeError> {
+        let base = repo_base(repo)?;
+        // One request per pull request, so they run a few at a time rather than in series.
+        let next = AtomicUsize::new(0);
+        let found = Mutex::new(Vec::with_capacity(pulls.len()));
+        thread::scope(|scope| {
+            for _ in 0..CHECKS_WORKERS.min(pulls.len()) {
+                scope.spawn(|| {
+                    while let Some(q) = pulls.get(next.fetch_add(1, Ordering::Relaxed)) {
+                        let Ok(id) = q.id.parse::<u64>() else { continue };
+                        let checks = Self::fetch_checks(cx, &base, id, &q.updated_at);
+                        found.lock().unwrap().push(PullChecks {
+                            id: q.id.clone(),
+                            checks,
+                        });
+                    }
+                });
+            }
+        });
+        Ok(found.into_inner().unwrap())
     }
 }
 
@@ -1102,11 +1149,65 @@ mod tests {
         );
         let jobs = Bitbucket.jobs(&cx, &repo, &runs[0].id).unwrap();
         assert!(!jobs.is_empty());
-        let pulls = Bitbucket.pulls(&cx, &repo).unwrap();
+        let pulls = Bitbucket.pulls(&cx, &repo, true).unwrap();
         assert!(
             pulls.total.is_some_and(|t| t >= pulls.items.len() as u64),
             "the list reports a total at least as large as the page"
         );
+        // Every state, timing the list apart from the checks it leaves pending.
+        let started = std::time::Instant::now();
+        let all = Bitbucket.pulls(&cx, &repo, false).unwrap();
+        let listed = started.elapsed();
+        assert!(
+            all.items
+                .iter()
+                .all(|p| !p.author.is_empty() && !p.web_url.is_empty() && !p.updated_at.is_empty()),
+            "PULL_FIELDS keeps what the row shows"
+        );
+        assert!(
+            all.items
+                .iter()
+                .all(|p| p.state == PullState::Open || !p.checks_pending),
+            "only open pull requests wait on checks"
+        );
+        let queries: Vec<PullChecksQuery> = all
+            .items
+            .iter()
+            .filter(|p| p.checks_pending)
+            .map(|p| PullChecksQuery {
+                id: p.id.clone(),
+                updated_at: p.updated_at.clone(),
+            })
+            .collect();
+        let started = std::time::Instant::now();
+        let found = Bitbucket.pull_checks(&cx, &repo, &queries).unwrap();
+        let checked = started.elapsed();
+        assert_eq!(found.len(), queries.len(), "one answer per pending pull request");
+        eprintln!(
+            "{} pull requests listed in {listed:?}, {} pending checks fetched in {checked:?}",
+            all.items.len(),
+            queries.len()
+        );
+        let again = Bitbucket.pulls(&cx, &repo, false).unwrap();
+        assert!(
+            again.items.iter().all(|p| !p.checks_pending),
+            "a second list finds every rollup cached"
+        );
+    }
+
+    #[test]
+    fn maps_each_pull_state() {
+        let cases = [
+            ("OPEN", PullState::Open),
+            ("MERGED", PullState::Merged),
+            ("DECLINED", PullState::Closed),
+            ("SUPERSEDED", PullState::Closed),
+        ];
+        for (state, want) in cases {
+            let mut v = pull(vec![]);
+            v["state"] = json!(state);
+            assert_eq!(map_pull(&v, None, None).unwrap().state, want, "{state}");
+        }
     }
 
     #[test]

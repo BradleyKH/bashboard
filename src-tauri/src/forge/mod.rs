@@ -26,7 +26,7 @@ use auth::{TokenCache, TokenSource};
 use http::Http;
 use types::{
     AccountSource, Capabilities, ForgeError, ForgeErrorKind, ForgeRepo, Job, JobLog, ProviderKind,
-    PullList, RepoRef, Run, Token,
+    PullChecks, PullChecksQuery, PullList, RepoRef, Run, Token,
 };
 
 const REPO_TTL: Duration = Duration::from_secs(15);
@@ -62,7 +62,18 @@ pub trait ForgeProvider: Send + Sync {
         failed_only: bool,
     ) -> Result<(), ForgeError>;
     fn cancel(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<(), ForgeError>;
-    fn pulls(&self, cx: &Cx, repo: &RepoRef) -> Result<PullList, ForgeError>;
+    /// The most recently updated pull requests: open ones only, or those in any state.
+    fn pulls(&self, cx: &Cx, repo: &RepoRef, open_only: bool) -> Result<PullList, ForgeError>;
+    /// Checks for the pull requests `pulls` left marked `checks_pending`. A host whose list
+    /// already carries them never marks one, so the default answers nothing.
+    fn pull_checks(
+        &self,
+        _cx: &Cx,
+        _repo: &RepoRef,
+        _pulls: &[PullChecksQuery],
+    ) -> Result<Vec<PullChecks>, ForgeError> {
+        Ok(Vec::new())
+    }
 }
 
 static GITHUB: github::GitHub = github::GitHub;
@@ -528,15 +539,32 @@ pub async fn forge_cancel(app: AppHandle, root: String, run_id: String) -> Resul
     blocking(move || with_provider(&app, &root, |p, cx, repo| p.cancel(cx, repo, &run_id))).await
 }
 
-/// Open pull requests, at most 50, with the host's count of all open ones.
+/// Pull requests, at most 50, with the host's count of all that match: open ones unless
+/// `open_only` is false, which takes every state.
 #[tauri::command]
-pub async fn forge_pulls(app: AppHandle, root: String) -> Result<PullList, ForgeError> {
+pub async fn forge_pulls(
+    app: AppHandle,
+    root: String,
+    open_only: Option<bool>,
+) -> Result<PullList, ForgeError> {
+    let open_only = open_only.unwrap_or(true);
     blocking(move || {
-        let mut pulls = with_provider(&app, &root, |p, cx, repo| p.pulls(cx, repo))?;
+        let mut pulls = with_provider(&app, &root, |p, cx, repo| p.pulls(cx, repo, open_only))?;
         pulls.items.truncate(MAX_PULLS);
         Ok(pulls)
     })
     .await
+}
+
+/// Checks for the pull requests a `forge_pulls` reply marked `checksPending`, at most 50.
+#[tauri::command]
+pub async fn forge_pull_checks(
+    app: AppHandle,
+    root: String,
+    mut pulls: Vec<PullChecksQuery>,
+) -> Result<Vec<PullChecks>, ForgeError> {
+    pulls.truncate(MAX_PULLS);
+    blocking(move || with_provider(&app, &root, |p, cx, repo| p.pull_checks(cx, repo, &pulls))).await
 }
 
 /// Sets the repo's `credential.username`, which picks both the token the pane uses and the

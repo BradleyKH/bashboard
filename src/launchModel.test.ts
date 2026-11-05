@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { MenuItem } from './contextMenuModel';
-import { launchMenuItems, launchOptions, ollamaLaunchCommand, opensPane } from './launchModel';
+import { launchMenuItems, launchOptions, ollamaLaunchCommand } from './launchModel';
 
 describe('launchOptions', () => {
-  it('lists every option in a git repo, editor last', () => {
-    expect(launchOptions(true).map((o) => o.kind)).toEqual(['terminal', 'files', 'git', 'search', 'scratch', 'editor']);
+  it('lists every option in a git repo, in display order', () => {
+    expect(launchOptions(true).map((o) => o.kind)).toEqual(['terminal', 'git', 'files', 'forge', 'search', 'scratch']);
   });
 
-  it('drops Git outside a git repo', () => {
-    expect(launchOptions(false).map((o) => o.kind)).not.toContain('git');
+  it('drops Git and Forge outside a git repo', () => {
+    expect(launchOptions(false).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'scratch']);
   });
 
   it('gives each option its own menu letter', () => {
@@ -68,11 +68,5 @@ describe('launchMenuItems local models', () => {
     const first = codex.items[0];
     if (first.kind === 'item') first.run();
     expect(ran).toEqual(['ollama launch codex --model a:1']);
-  });
-});
-
-describe('opensPane', () => {
-  it('is false only for the editor', () => {
-    expect(launchOptions(true).filter((o) => !opensPane(o.kind)).map((o) => o.kind)).toEqual(['editor']);
   });
 });

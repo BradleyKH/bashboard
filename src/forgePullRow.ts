@@ -26,6 +26,8 @@ export class ForgePullRow {
   private readonly number: HTMLElement;
   private readonly title: HTMLElement;
   private readonly draft: HTMLElement;
+  /** Merged or Closed; hidden on an open one. */
+  private readonly stateBadge: HTMLElement;
   private readonly meta: HTMLElement;
   private readonly review: HTMLElement;
   private readonly checks: HTMLElement;
@@ -49,7 +51,8 @@ export class ForgePullRow {
     this.draft = document.createElement('span');
     this.draft.className = 'forge-badge';
     this.draft.textContent = 'Draft';
-    head.append(this.number, this.title, this.draft);
+    this.stateBadge = document.createElement('span');
+    head.append(this.number, this.title, this.draft, this.stateBadge);
     this.meta = document.createElement('div');
     this.meta.className = 'forge-pull-meta';
     main.append(head, this.meta);
@@ -85,7 +88,12 @@ export class ForgePullRow {
     setText(this.number, `#${pull.number}`);
     setText(this.title, pull.title);
     if (this.title.title !== pull.title) this.title.title = pull.title;
-    this.draft.hidden = !pull.draft;
+    this.draft.hidden = !pull.draft || pull.state !== 'open';
+    this.stateBadge.hidden = pull.state === 'open';
+    const stateClass = `forge-badge forge-badge--${pull.state}`;
+    if (this.stateBadge.className !== stateClass) this.stateBadge.className = stateClass;
+    setText(this.stateBadge, pull.state === 'merged' ? 'Merged' : pull.state === 'closed' ? 'Closed' : '');
+    this.el.classList.toggle('done', pull.state !== 'open');
     setText(this.meta, `${pull.author}  ·  ${pull.sourceBranch} → ${pull.targetBranch}`);
 
     const review = pull.reviewDecision;
@@ -94,9 +102,9 @@ export class ForgePullRow {
     setText(this.review, review ? REVIEW_LABELS[review] : '');
 
     const checks = pull.checks;
-    this.checks.hidden = checks === null;
-    if (checks !== null) {
-      const info = statusInfo(checks);
+    this.checks.hidden = checks === null && !pull.checksPending;
+    if (checks !== null || pull.checksPending) {
+      const info = checks !== null ? statusInfo(checks) : { modifier: 'pending', label: 'loading' };
       const cls = `forge-status forge-status--${info.modifier}`;
       if (this.checks.className !== cls) this.checks.className = cls;
       const tip = `Checks: ${info.label}`;

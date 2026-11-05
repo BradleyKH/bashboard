@@ -252,8 +252,8 @@ terminal. Only open Git panes on repos you trust.
 
 A Forge pane shows a repo's CI runs and open pull requests from its code host, so you can watch a
 build or see what awaits review without leaving Bashboard. It supports GitHub (github.com and
-GitHub Enterprise Server) and Bitbucket Cloud. Choose **Forge** in a pane's kind menu: the pane
-keeps its folder and shows the repo of that folder, found from the repo's remote, and it comes back
+GitHub Enterprise Server) and Bitbucket Cloud. Choose **Forge** in a pane's kind menu, which keeps
+the pane's folder, or click Forge in Launch: the pane shows the repo of that folder, found from the repo's remote, and it comes back
 on relaunch on the same repo and tab, and layouts keep it. Its title is the repo folder's name, or
 "Forge" when the pane has no folder. In a folder outside a repo, or in a repo with no remote, it
 shows a notice.
@@ -268,24 +268,29 @@ pane looks again on its own, unless the error is a rate limit. The full steps ar
 [Code hosts](setup.md#code-hosts).
 
 Across the top, the bar holds the **Pipelines** and **Pull requests** tabs, a **This branch**
-checkbox (on the Pipelines tab only), the repo's `owner/name`, which opens it on the host when
-clicked, the account button, and **Refresh**. This branch is checked by default and follows the
-branch you have checked out; clear it to list runs on every branch.
+checkbox (on the Pipelines tab only), an **Open** checkbox (on the Pull requests tab only), the
+repo's `owner/name`, which opens it on the host when
+clicked, the account button, and **Refresh**. This branch is clear by default, listing runs on
+every branch; check it to list only runs on the branch you have checked out. Open is checked by
+default, listing only open pull requests; clear it to list the latest ones in every state, with
+merged and closed ones marked. The pane remembers both choices across restarts.
 
 - **Pipelines** lists the latest 20 runs, newest first: a status icon, the commit message or run
   title, the workflow or pipeline name, number, branch, and who started it, then how long ago and
   how long it took, which redraw every second. Click a run to expand its jobs, each with its duration and, on GitHub, its steps
   with failed ones marked. **Show log** loads a job's log (the last 1 MiB of it), scrolled to the
-  end, where a failure usually is. Right-click a run to open it in the browser, **Re-run** it,
-  **Re-run failed jobs** (GitHub only), **Cancel** it, or copy its link. Cancel asks first, with a
+  end, where a failure usually is. The buttons at the right of each run open it in the browser,
+  **Re-run** it, **Re-run failed** jobs (GitHub only), or **Cancel** it; one that does not apply
+  to the run right now is greyed. Right-click a run for the same actions plus copying its link.
+  In a narrow pane the buttons are hidden and the right-click menu has them all. Cancel asks first, with a
   button that reads "Cancel workflow run" or "Cancel pipeline"; Re-run does not ask. A Bitbucket
   pipeline's jobs are its steps and have no per-command list. Re-run and Cancel on Bitbucket need
   the optional `write:pipeline:bitbucket` scope.
-- **Pull requests** lists open pull requests in groups: **Review requested** (you are a requested
+- **Pull requests** lists pull requests in groups: **Review requested** (you are a requested
   reviewer who has not reviewed), **Yours**, and **Others**, each row with its author, branches,
   review state, checks, and last update. Click one to open it in the browser, or right-click to
-  copy its link or branch name. The list holds at most 50, and a note below the groups, such as
-  "Showing the first 50 of 60 open pull requests.", says when the repo has more. Without the
+  copy its link or branch name. The list holds the 50 most recently updated, and a note below the
+  groups, such as "Showing the latest 50 of 60 open pull requests.", says when the repo has more. Without the
   `read:user:bitbucket` scope, Bitbucket pull requests load without the Yours and Review requested
   groups.
 
@@ -388,17 +393,18 @@ the row's repo root as a Terminal, as Files (see [Files panes](#files-panes)), a
 your Editor.
 
 **Launch** sits at the top by default and appears while the focused pane is in a folder (a
-scratch pad keeps the last one shown). Its row of icons opens a Terminal, Files, Git (for a git
-repo only), Search (see [Code search](#code-search)), or Scratch pane at the focused pane's repo
-root, or opens the repo in your Editor; hover one for its name and shortcut. While you hover, the
+scratch pad keeps the last one shown). Its row of icons opens a Terminal, Git, Files, Forge (see
+[Forge pane](#forge-pane)), Search (see [Code search](#code-search)), or Scratch pane at the
+focused pane's repo root, with Git and Forge for a git repo only; hover one for its name and
+shortcut. While you hover, the
 panes show where the new one will open: the focused pane outlined and the new pane's share of it
 highlighted, or the Files or Git pane it would bring forward, or a note that it opens collapsed
 when there is no room. Like the other sections it can be dragged elsewhere or turned off; it does
 not collapse.
 
 Ctrl+Shift+L (the `openLaunch` action) opens the same choices as a menu over the focused pane:
-press a letter (**t** Terminal, **f** Files, **g** Git, **s** Search, **p** Scratch, **e**
-Editor), or use the arrows and Enter, with the same preview as you move. While Launch is turned
+press a letter (**t** Terminal, **g** Git, **f** Files, **o** Forge, **s** Search, **p**
+Scratch), or use the arrows and Enter, with the same preview as you move. While Launch is turned
 off, a **+** button in the top bar, left of **?**, drops this menu. Ctrl+Shift+X (the `openEditor`
 action) opens the focused pane's repo in your editor directly, or its folder outside a repo.
 
@@ -553,7 +559,8 @@ versions before 4.37) and Podman with `podman machine start`. Other setups, such
 inside WSL, get no buttons. A container row shows its service or container name,
 image, status text, and published ports, which open `http://localhost:<port>` when clicked, and its
 CPU and memory, refreshed every 5 seconds while the pane is on screen. Start, Stop, and Restart act
-on a container or on a whole project. Logs opens a panel beside the list that follows the output,
+on a container or on a whole project; every row shows its buttons, greyed when they do not apply,
+such as Start on a running container. Logs opens a panel beside the list that follows the output,
 starting with the last 500 lines and keeping the most recent 5000; scrolling up pauses following
 until you scroll back to the end. The − and + buttons in its header, or Ctrl+wheel over it, zoom
 the log text, and the next logs panel starts at the zoom you last chose. Shell opens a terminal split beside the pane, running `bash` in
@@ -663,7 +670,9 @@ reports commands, and a bound agent session's own status takes precedence.
 ## Command palette
 
 Ctrl+Shift+P opens one list over your panes, tabs, favorites, layouts, the focused repo's pins and
-worktrees, and the actions, each with its keys. Typing filters the list fuzzily, and a leading `>`
+worktrees, and the actions, each with its keys. The actions include Open the Containers tab, Open
+the Ports tab, and Open the Forge tab (for the focused repo), which switch to that pane or add a
+tab holding one. Typing filters the list fuzzily, and a leading `>`
 shows only actions. Enter focuses a pane, switches to a tab, opens a favorite, layout, pin, or
 worktree, or runs an action; a favorite or worktree opens as a split, or collapsed with Ctrl+Enter.
 With an empty box, your recent picks come first.

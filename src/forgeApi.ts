@@ -96,12 +96,15 @@ export interface Reviewer {
   state: ReviewState;
 }
 
+export type PullState = 'open' | 'merged' | 'closed';
+
 export interface PullRequest {
   id: string;
   number: number;
   title: string;
   author: string;
   draft: boolean;
+  state: PullState;
   sourceBranch: string;
   targetBranch: string;
   createdAt: string;
@@ -110,15 +113,17 @@ export interface PullRequest {
   reviewDecision: ReviewState | null;
   reviewers: Reviewer[];
   checks: RunStatus | null;
+  /** `checks` is not known yet; `forgePullChecks` fills it in after the list shows. */
+  checksPending: boolean;
   isMine: boolean;
   /** The viewer is a requested reviewer who has not reviewed. */
   reviewRequested: boolean;
 }
 
-/** One page of open pull requests plus the host's count of all of them. */
+/** One page of pull requests (open ones, or every state) plus the host's count of all that match. */
 export interface PullList {
   items: PullRequest[];
-  /** The host's count of open pull requests; null when the host does not say. */
+  /** The host's count of the pull requests asked for; null when the host does not say. */
   total: number | null;
 }
 
@@ -203,9 +208,23 @@ export function forgeCancel(root: string, runId: string): Promise<void> {
   return invoke<void>('forge_cancel', { root, runId });
 }
 
-/** Open pull requests, at most 50, with the host's count of all open ones. */
-export function forgePulls(root: string): Promise<PullList> {
-  return invoke<PullList>('forge_pulls', { root });
+/** The latest 50 pull requests: open ones only, or with `openOnly` false, every state. */
+export function forgePulls(root: string, openOnly: boolean): Promise<PullList> {
+  return invoke<PullList>('forge_pulls', { root, openOnly });
+}
+
+/** One pull request's checks, answering a `forgePullChecks` call. */
+export interface PullChecks {
+  id: string;
+  checks: RunStatus | null;
+}
+
+/** Checks for the pull requests a `forgePulls` reply marked `checksPending`. */
+export function forgePullChecks(root: string, pulls: readonly PullRequest[]): Promise<PullChecks[]> {
+  return invoke<PullChecks[]>('forge_pull_checks', {
+    root,
+    pulls: pulls.map((p) => ({ id: p.id, updatedAt: p.updatedAt })),
+  });
 }
 
 /** Sets the repo's `credential.username` to one of `accounts` and returns the re-resolved repo. */

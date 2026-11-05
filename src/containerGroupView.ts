@@ -30,6 +30,15 @@ function button(label: string, title: string, disabled: boolean, onClick: () => 
   return b;
 }
 
+/** An invisible stand-in the width of a container row's button of the same label. */
+function spacer(label: string): HTMLElement {
+  const s = document.createElement('span');
+  s.className = 'ctr-btn ctr-spacer';
+  s.textContent = label;
+  s.setAttribute('aria-hidden', 'true');
+  return s;
+}
+
 /** A group header plus, when expanded, its containers (docs/design.md section 4.16). */
 export function renderContainerGroup(g: ContainerGroup, opts: ContainerGroupViewOptions): HTMLElement {
   const el = document.createElement('div');
@@ -67,6 +76,8 @@ export function renderContainerGroup(g: ContainerGroup, opts: ContainerGroupView
     button('Start', `Start ${g.name}`, opts.busy || g.state === 'running', () => opts.onAction('start')),
     button('Stop', `Stop ${g.name}`, opts.busy || g.state === 'stopped', () => opts.onAction('stop')),
     button('Restart', `Restart ${g.name}`, opts.busy, () => opts.onAction('restart')),
+    spacer('Logs'),
+    spacer('Shell'),
   );
 
   head.append(toggle, dot, name, count, actions);

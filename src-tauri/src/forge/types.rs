@@ -4,7 +4,7 @@
 use std::fmt;
 use std::time::Instant;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::auth::TokenSource;
 
@@ -59,6 +59,15 @@ pub enum ReviewState {
     Approved,
     ChangesRequested,
     Pending,
+}
+
+/// Where a pull request stands. Bitbucket's declined and superseded both read as closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PullState {
+    Open,
+    Merged,
+    Closed,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -175,6 +184,7 @@ pub struct PullRequest {
     pub title: String,
     pub author: String,
     pub draft: bool,
+    pub state: PullState,
     pub source_branch: String,
     pub target_branch: String,
     pub created_at: String,
@@ -183,17 +193,35 @@ pub struct PullRequest {
     pub review_decision: Option<ReviewState>,
     pub reviewers: Vec<Reviewer>,
     pub checks: Option<RunStatus>,
+    /// `checks` is not known yet; `forge_pull_checks` fills it in after the list shows.
+    pub checks_pending: bool,
     pub is_mine: bool,
     /// The viewer is a requested reviewer who has not reviewed yet.
     pub review_requested: bool,
 }
 
-/// One page of open pull requests plus the host's count of all of them.
+/// A pull request whose checks the front end wants, with the `updated_at` the list gave it.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullChecksQuery {
+    pub id: String,
+    pub updated_at: String,
+}
+
+/// One pull request's checks, answering a `PullChecksQuery`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullChecks {
+    pub id: String,
+    pub checks: Option<RunStatus>,
+}
+
+/// One page of pull requests (open ones, or every state) plus the host's count of all that match.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PullList {
     pub items: Vec<PullRequest>,
-    /// The host's count of open pull requests; `None` when the host does not say.
+    /// The host's count of the pull requests the query matched; `None` when the host does not say.
     pub total: Option<u64>,
 }
 

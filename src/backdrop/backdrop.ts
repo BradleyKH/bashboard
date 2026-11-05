@@ -17,7 +17,12 @@ import { Stage } from './sim/stages';
 /** Generations simulated per frame at most, so a slow frame never snowballs. */
 const MAX_TICKS_PER_FRAME = 3;
 const GENS_PER_SECOND = 12;
-const OPENING_SECONDS = 16;
+/** Sim time run before the first frame, so the backdrop opens on a grown colony, not the lone founding spore. */
+const PREWARM_SECONDS = 16;
+/** Coarser than a frame: motion cost scales with steps, and each step still runs the full 3 generations. */
+const PREWARM_STEP = 1 / 4;
+/** Wall-clock cap on the pre-warm, which blocks the window's first paint; a large capacity opens on a younger colony. */
+const PREWARM_BUDGET_MS = 500;
 
 export interface BackdropOptions {
   capacity: number;
@@ -71,8 +76,7 @@ class BackdropLoop implements BackdropHandle {
   private time = 0;
   private homeDistance = HOME_DISTANCE;
   private waitingPulse = false;
-  /** Seconds into the opening dolly-out; null once finished. */
-  private opening: number | null = 0;
+  private warmed = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.viewport = new Viewport(canvas);
@@ -116,8 +120,13 @@ class BackdropLoop implements BackdropHandle {
     this.waitingPulse = options.waitingPulse;
     const { minDistance, maxDistance } = this.viewport.controls;
     this.homeDistance = Math.min(Math.max(HOME_DISTANCE / options.zoom, minDistance), maxDistance);
+    // The host passes options before the first frame, so the pre-warm grows the colony at the configured capacity.
+    if (!this.warmed) {
+      this.prewarm();
+      return;
+    }
     // A frozen backdrop has no loop to ease toward the new distance, so jump there and redraw.
-    if (!this.running && this.opening === null) {
+    if (!this.running) {
       this.setDistance(this.homeDistance);
       if (this.visible) this.viewport.render(this.time);
     }
@@ -146,24 +155,35 @@ class BackdropLoop implements BackdropHandle {
   }
 
   private sync(): void {
-    // The opening always plays out, so a still never shows just the lone founding spore.
-    const run = this.visible && (this.animated || this.opening !== null);
+    const run = this.visible && this.animated;
     if (run !== this.running) {
       this.running = run;
       this.pacer.reset();
       // A long pause yields one large delta on resume, which the 1/20 s clamp in frame() absorbs.
       this.viewport.renderer.setAnimationLoop(run ? (t) => this.frame(t) : null);
     }
-    if (this.visible && !run) this.viewport.render(this.time);
+    if (this.visible && !run) {
+      this.prewarm();
+      this.viewport.render(this.time);
+    }
+  }
+
+  /** Runs the sim and every layer headless at a fixed step, with the camera already at its home distance. */
+  private prewarm(): void {
+    if (this.warmed) return;
+    this.warmed = true;
+    this.setDistance(this.homeDistance);
+    const deadline = performance.now() + PREWARM_BUDGET_MS;
+    for (let t = 0; t < PREWARM_SECONDS && performance.now() < deadline; t += PREWARM_STEP) this.step(PREWARM_STEP);
   }
 
   private frame(timestamp: number): void {
     if (!this.pacer.shouldRender(timestamp)) return;
+    this.prewarm();
     this.timer.update(timestamp);
     // Clamped at both ends: long stalls (tab switches, resuming from hidden) and out-of-order timestamps would otherwise destabilize motion.
     this.step(Math.min(Math.max(this.timer.getDelta(), 0), 1 / 20));
     this.viewport.render(this.time);
-    if (!this.animated && this.opening === null) this.sync();
   }
 
   private step(dt: number): void {
@@ -187,7 +207,6 @@ class BackdropLoop implements BackdropHandle {
     this.skyDome.mesh.position.copy(this.viewport.camera.position);
 
     this.followColony(dt);
-    this.updateOpening(dt);
     this.easeZoom(dt);
     this.viewport.controls.update(dt);
   }
@@ -221,19 +240,8 @@ class BackdropLoop implements BackdropHandle {
     this.viewport.camera.position.add(target.clone().sub(before));
   }
 
-  /** Opens close on the lone founding spore, then pulls back as the colony grows. */
-  private updateOpening(dt: number): void {
-    if (this.opening === null) return;
-    this.opening += dt;
-    const t = Math.min(1, this.opening / OPENING_SECONDS);
-    const eased = t * t * (3 - 2 * t);
-    this.setDistance(24 + (this.homeDistance - 24) * eased);
-    if (t >= 1) this.opening = null;
-  }
-
-  /** Glides to a changed zoom once the opening has settled. */
+  /** Glides to a changed zoom. */
   private easeZoom(dt: number): void {
-    if (this.opening !== null) return;
     const distance = this.viewport.camera.position.distanceTo(this.viewport.controls.target);
     if (Math.abs(distance - this.homeDistance) < 0.01) return;
     this.setDistance(distance + (this.homeDistance - distance) * (1 - Math.exp(-dt * 2)));

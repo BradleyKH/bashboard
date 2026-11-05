@@ -10,7 +10,7 @@ export interface LaunchSectionCallbacks {
 
 /**
  * The dashboard's Launch section (docs/design.md section 4.6): one row of icon buttons that open a
- * pane of each kind, or the editor, at the focused pane's repo root. It does not collapse, since
+ * pane of each kind at the focused pane's repo root. It does not collapse, since
  * its heading would then stand for nothing.
  */
 export class LaunchSection {

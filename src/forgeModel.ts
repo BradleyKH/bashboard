@@ -5,6 +5,7 @@ import type {
   ForgeError,
   ForgeRepo,
   ProviderKind,
+  PullChecks,
   PullRequest,
   Run,
   RunStatus,
@@ -42,6 +43,17 @@ export function isActive(runs: readonly Run[]): boolean {
 /** Seconds between run polls: faster while something is moving, never under the host's floor. */
 export function pollSecs(caps: Capabilities, runs: readonly Run[]): number {
   return Math.max(caps.minPollSecs, isActive(runs) ? 15 : 60);
+}
+
+/**
+ * `pulls` with `found` merged in by id. Every pending one is settled, found or not, so a failed
+ * or partial answer leaves no row waiting forever.
+ */
+export function withPullChecks(pulls: readonly PullRequest[], found: readonly PullChecks[]): PullRequest[] {
+  const byId = new Map(found.map((f) => [f.id, f.checks]));
+  return pulls.map((p) =>
+    p.checksPending ? { ...p, checks: byId.get(p.id) ?? p.checks, checksPending: false } : p,
+  );
 }
 
 /** Seconds between pull request polls; they change slowly and cost more on some hosts. */
@@ -135,8 +147,10 @@ export function groupPulls(pulls: readonly PullRequest[]): PullGroup[] {
   for (const p of pulls) {
     buckets[p.reviewRequested ? 'reviewRequested' : p.isMine ? 'yours' : 'others'].push(p);
   }
+  // Open before merged or closed, and drafts after the rest of the open ones.
+  const rank = (p: PullRequest) => (p.state !== 'open' ? 2 : p.draft ? 1 : 0);
   const order = (a: PullRequest, b: PullRequest) =>
-    Number(a.draft) - Number(b.draft) ||
+    rank(a) - rank(b) ||
     (parseTime(b.updatedAt) ?? 0) - (parseTime(a.updatedAt) ?? 0) ||
     b.number - a.number;
   const keys: PullGroupKey[] = ['reviewRequested', 'yours', 'others'];
@@ -145,10 +159,13 @@ export function groupPulls(pulls: readonly PullRequest[]): PullGroup[] {
     .map((key) => ({ key, title: GROUP_TITLES[key], pulls: buckets[key].sort(order) }));
 }
 
-/** The note under the pull request groups when the host has more open than the list shows, else null. */
-export function pullLimitNote(shown: number, total: number | null, noun: string): string | null {
+/**
+ * The note under the pull request groups when the host has more than the list shows, else null.
+ * `openOnly` says whether the list holds open ones only or every state.
+ */
+export function pullLimitNote(shown: number, total: number | null, noun: string, openOnly = true): string | null {
   if (total === null || total <= shown) return null;
-  return `Showing the first ${shown} of ${total} open ${noun}s.`;
+  return `Showing the latest ${shown} of ${total}${openOnly ? ' open' : ''} ${noun}s.`;
 }
 
 // CSI sequences (colors, cursor moves) and OSC sequences (titles, hyperlinks).

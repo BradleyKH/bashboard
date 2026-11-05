@@ -38,9 +38,12 @@ export interface PaletteInput {
 }
 
 /** Palette entries with no keybinding action, so they stay out of the F1 guide and its editor. */
-export type PaletteCommand = 'checkForUpdates';
+export type PaletteCommand = 'checkForUpdates' | 'openContainers' | 'openPorts' | 'openForge';
 
 export const PALETTE_COMMANDS: readonly { command: PaletteCommand; label: string }[] = [
+  { command: 'openContainers', label: 'Open the Containers tab' },
+  { command: 'openPorts', label: 'Open the Ports tab' },
+  { command: 'openForge', label: 'Open the Forge tab' },
   { command: 'checkForUpdates', label: 'Check for updates' },
 ];
 

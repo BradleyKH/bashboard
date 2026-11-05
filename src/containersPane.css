@@ -218,16 +218,25 @@
   font-family: ui-monospace, Consolas, monospace;
 }
 
+/* Always shown, disabled where the state rules one out, so every row's buttons line up. */
 .ctr-actions {
   flex: none;
-  display: none;
+  display: flex;
   gap: 2px;
 }
 
-.ctr-group-head:hover .ctr-actions,
-.ctr-row:hover .ctr-actions,
-.ctr-row.logs-open .ctr-actions {
-  display: flex;
+.ctr-actions .ctr-btn {
+  border: 1px solid var(--ctr-border);
+  font-size: 11px;
+}
+
+.ctr-actions .ctr-btn:hover:not(:disabled) {
+  border-color: var(--ctr-accent);
+}
+
+/* Holds the place of a container row's Logs and Shell, so a group's buttons sit over its rows'. */
+.ctr-btn.ctr-spacer {
+  visibility: hidden;
 }
 
 .ctr-btn {

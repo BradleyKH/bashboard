@@ -139,6 +139,13 @@ describe('parseSavedTab', () => {
     expect(parse(forge('bogus'))).toEqual(forge());
     // Pipelines is the default, so it saves as no tab.
     expect(parse(forge('pipelines'))).toEqual(forge());
+    // Every branch is the default, so only a true thisBranch survives.
+    expect(parse({ ...forge(), thisBranch: true })).toEqual({ ...forge(), thisBranch: true });
+    expect(parse({ ...forge(), thisBranch: false })).toEqual(forge());
+    expect(parse({ ...forge(), thisBranch: 'yes' })).toEqual(forge());
+    // Open only is the default, so only a true allPulls survives.
+    expect(parse({ ...forge(), allPulls: true })).toEqual({ ...forge(), allPulls: true });
+    expect(parse({ ...forge(), allPulls: false })).toEqual(forge());
 
     const { root: _r, ...noRoot } = forge();
     const r = parseSavedTab({ panes: [term('b'), noRoot], layout: row(pane('b'), pane('a')), focused: 'b' });

@@ -7,12 +7,12 @@ import { copyText } from './copyText';
 import { samePath } from './favorites';
 import { ForgeAccountChip } from './forgeAccountChip';
 import { asForgeError, type ForgeError, type PullRequest, type Run } from './forgeApi';
-import { accountMenuItems, pullMenuItems, runMenuItems } from './forgeMenus';
+import { accountMenuItems, pullMenuItems, runMenuItems, type RunActionKey } from './forgeMenus';
 import { finishToast, noticeFor, pullLimitNote, type ForgeTab } from './forgeModel';
 import { ForgeNotice } from './forgeNotice';
 import { ForgePullList } from './forgePullList';
 import { ForgeRunList } from './forgeRunList';
-import { ForgeStore } from './forgeStore';
+import { ForgeStore, type BranchScope } from './forgeStore';
 import { ForgeTabStrip } from './forgeTabStrip';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
@@ -34,7 +34,7 @@ export interface ForgePaneOptions {
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
-  /** The root or tab changed (title and saved state follow). */
+  /** The root, tab, branch scope, or pull request filter changed (title and saved state follow). */
   onChange: () => void;
   /** Asks before cancelling a run; resolves true to go ahead. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
@@ -42,6 +42,10 @@ export interface ForgePaneOptions {
   onRunTerminal: (argv: string[], cwd: string) => void;
   /** The tab the pane opens on; absent means Pipelines. */
   tab?: ForgeTab;
+  /** Whether Pipelines lists only the checked-out branch; absent means every branch. */
+  thisBranch?: boolean;
+  /** Whether Pull requests lists every state rather than open ones only; absent means open only. */
+  allPulls?: boolean;
 }
 
 const TICK_MS = 1000;
@@ -71,6 +75,8 @@ export class ForgePane implements PaneView {
   private readonly tabStrip: ForgeTabStrip;
   private readonly scopeBox: HTMLInputElement;
   private readonly scopeLabel: HTMLElement;
+  private readonly openBox: HTMLInputElement;
+  private readonly openLabel: HTMLElement;
   private readonly repoLink: HTMLButtonElement;
   private readonly chip: ForgeAccountChip;
   private readonly refreshBtn: HTMLButtonElement;
@@ -83,6 +89,10 @@ export class ForgePane implements PaneView {
   private settings: Settings;
   private rootPath: string;
   private tab: ForgeTab;
+  /** Follows the store's scope once there is one, so saved state tracks another pane's change. */
+  private scope: BranchScope;
+  /** Follows the store's filter the same way as `scope`. */
+  private openOnly: boolean;
   private expanded: boolean;
   /** Set once the root resolves to a repo; null while resolving or when it is not one. */
   private store: ForgeStore | null = null;
@@ -102,6 +112,8 @@ export class ForgePane implements PaneView {
     this.settings = opts.settings;
     this.rootPath = opts.root;
     this.tab = opts.tab ?? 'pipelines';
+    this.scope = opts.thisBranch ? 'branch' : 'all';
+    this.openOnly = !opts.allPulls;
     this.expanded = opts.expanded;
 
     this.host.style.display = 'flex';
@@ -115,10 +127,15 @@ export class ForgePane implements PaneView {
     this.tabStrip = new ForgeTabStrip(this.tab, (tab) => this.setTab(tab));
     this.scopeBox = document.createElement('input');
     this.scopeBox.type = 'checkbox';
-    this.scopeBox.checked = true;
     this.scopeLabel = document.createElement('label');
     this.scopeLabel.className = 'forge-check';
     this.scopeLabel.append(this.scopeBox, document.createTextNode('This branch'));
+    this.openBox = document.createElement('input');
+    this.openBox.type = 'checkbox';
+    this.openLabel = document.createElement('label');
+    this.openLabel.className = 'forge-check';
+    this.openLabel.title = 'Only open ones; clear to show the latest in every state';
+    this.openLabel.append(this.openBox, document.createTextNode('Open'));
     const spacer = document.createElement('span');
     spacer.className = 'forge-bar-spacer';
     this.repoLink = document.createElement('button');
@@ -131,7 +148,7 @@ export class ForgePane implements PaneView {
     this.refreshBtn.className = 'forge-button';
     this.refreshBtn.textContent = 'Refresh';
     this.refreshBtn.title = 'Look again now';
-    bar.append(this.tabStrip.el, this.scopeLabel, spacer, this.repoLink, this.chip.el, this.refreshBtn);
+    bar.append(this.tabStrip.el, this.scopeLabel, this.openLabel, spacer, this.repoLink, this.chip.el, this.refreshBtn);
 
     this.notice = new ForgeNotice({
       onRunTerminal: (argv) => this.opts.onRunTerminal(argv, this.rootPath),
@@ -150,6 +167,9 @@ export class ForgePane implements PaneView {
       loadLog: (runId, jobId) => this.store?.log(runId, jobId) ?? Promise.reject(NOT_LOADED),
       logs: () => this.store?.repo?.capabilities.jobLogs ?? false,
       menuItems: (run) => this.runMenu(run),
+      caps: () => this.store?.repo?.capabilities ?? null,
+      onOpen: (run) => this.openUrl(run.webUrl),
+      onAction: (run, action) => this.runAction(run, action),
     });
     this.pullList = new ForgePullList({
       onOpen: (pull) => this.openUrl(pull.webUrl),
@@ -162,7 +182,12 @@ export class ForgePane implements PaneView {
     this.host.appendChild(this.body);
 
     this.listen(this.scopeBox, 'change', () => {
-      void this.store?.setBranchScope(this.scopeBox.checked ? 'branch' : 'all');
+      this.setScope(this.scopeBox.checked ? 'branch' : 'all');
+      void this.store?.setBranchScope(this.scope);
+    });
+    this.listen(this.openBox, 'change', () => {
+      this.setOpenOnly(this.openBox.checked);
+      void this.store?.setPullsOpenOnly(this.openOnly);
     });
     this.listen(this.repoLink, 'click', () => {
       const url = this.store?.repo?.webUrl;
@@ -193,9 +218,14 @@ export class ForgePane implements PaneView {
     return baseName(this.rootPath) || 'Forge';
   }
 
-  /** The `forge` saved-pane fields; `tab` only when it is not the default. */
-  saved(): { root: string; tab?: ForgeTab } {
-    return this.tab === 'pipelines' ? { root: this.rootPath } : { root: this.rootPath, tab: this.tab };
+  /** The `forge` saved-pane fields; `tab`, `thisBranch`, and `allPulls` only when not the default. */
+  saved(): { root: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean } {
+    return {
+      root: this.rootPath,
+      ...(this.tab !== 'pipelines' && { tab: this.tab }),
+      ...(this.scope === 'branch' && { thisBranch: true }),
+      ...(!this.openOnly && { allPulls: true }),
+    };
   }
 
   focus(): void {
@@ -277,9 +307,25 @@ export class ForgePane implements PaneView {
       this.rootPath = info.root;
       this.opts.onChange();
     }
+    // A store another pane already holds keeps that pane's filters; a new one takes this pane's.
+    const fresh = !ForgeStore.has(this.rootPath);
     const store = ForgeStore.for(this.rootPath);
     this.store = store;
-    this.storeOff = [store.subscribe(() => this.render()), store.onFinished((runs) => this.announce(runs))];
+    if (fresh) {
+      void store.setBranchScope(this.scope);
+      void store.setPullsOpenOnly(this.openOnly);
+    } else {
+      this.setScope(store.branchScope);
+      this.setOpenOnly(store.pullsOpenOnly);
+    }
+    this.storeOff = [
+      store.subscribe(() => {
+        this.setScope(store.branchScope);
+        this.setOpenOnly(store.pullsOpenOnly);
+        this.render();
+      }),
+      store.onFinished((runs) => this.announce(runs)),
+    ];
     this.updateWanted();
     this.render();
   }
@@ -315,6 +361,18 @@ export class ForgePane implements PaneView {
     }
   }
 
+  private setScope(scope: BranchScope): void {
+    if (scope === this.scope) return;
+    this.scope = scope;
+    this.opts.onChange();
+  }
+
+  private setOpenOnly(on: boolean): void {
+    if (on === this.openOnly) return;
+    this.openOnly = on;
+    this.opts.onChange();
+  }
+
   private setTab(tab: ForgeTab): void {
     if (tab === this.tab) return;
     this.tab = tab;
@@ -343,7 +401,9 @@ export class ForgePane implements PaneView {
     const repo = store?.repo ?? null;
 
     this.scopeLabel.hidden = this.tab !== 'pipelines';
-    this.scopeBox.checked = (store?.branchScope ?? 'branch') === 'branch';
+    this.scopeBox.checked = this.scope === 'branch';
+    this.openLabel.hidden = this.tab !== 'pulls';
+    this.openBox.checked = this.openOnly;
     this.scopeLabel.title = repo?.branch
       ? `Only runs on ${repo.branch}; clear to show every branch`
       : 'Only runs on the checked-out branch; clear to show every branch';
@@ -395,13 +455,15 @@ export class ForgePane implements PaneView {
   private pullsLimitText(): string | null {
     const store = this.store;
     if (!store) return null;
-    return pullLimitNote(store.pulls.length, store.pullsTotal, store.repo?.capabilities.prNoun ?? 'pull request');
+    const noun = store.repo?.capabilities.prNoun ?? 'pull request';
+    return pullLimitNote(store.pulls.length, store.pullsTotal, noun, this.openOnly);
   }
 
   private pullsEmptyText(): string {
     const store = this.store;
     if (!store || !store.pullsReady) return 'Loading…';
-    return `No open ${store.repo?.capabilities.prNoun ?? 'pull request'}s.`;
+    const noun = store.repo?.capabilities.prNoun ?? 'pull request';
+    return this.openOnly ? `No open ${noun}s.` : `No ${noun}s yet.`;
   }
 
   private announce(runs: Run[]): void {
@@ -413,14 +475,19 @@ export class ForgePane implements PaneView {
     }
   }
 
+  private runAction(run: Run, action: RunActionKey): void {
+    if (action === 'cancel') void this.cancel(run);
+    else void this.act(this.store?.rerun(run.id, action === 'rerunFailed'));
+  }
+
   private runMenu(run: Run): MenuEntry[] {
     const caps = this.store?.repo?.capabilities;
     if (!caps) return [];
     return runMenuItems(run, caps, {
       onOpen: () => this.openUrl(run.webUrl),
-      onRerun: () => void this.act(this.store?.rerun(run.id, false)),
-      onRerunFailed: () => void this.act(this.store?.rerun(run.id, true)),
-      onCancel: () => void this.cancel(run),
+      onRerun: () => this.runAction(run, 'rerun'),
+      onRerunFailed: () => this.runAction(run, 'rerunFailed'),
+      onCancel: () => this.runAction(run, 'cancel'),
       onCopyLink: () => void copyText(run.webUrl, 'link'),
     });
   }

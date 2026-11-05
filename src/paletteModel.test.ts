@@ -54,6 +54,17 @@ describe('buildPaletteItems', () => {
     expect(actionOrder()).not.toContain('checkForUpdates');
   });
 
+  it('lists the Containers, Ports, and Forge tabs as commands', () => {
+    const items = buildPaletteItems(input());
+    for (const [label, command] of [
+      ['Open the Containers tab', 'openContainers'],
+      ['Open the Ports tab', 'openPorts'],
+      ['Open the Forge tab', 'openForge'],
+    ]) {
+      expect(byLabel(items, label)).toMatchObject({ category: 'Action', choice: { kind: 'command', command } });
+    }
+  });
+
   const items = buildPaletteItems(input());
 
   it('lists one item per pane with its tab title as detail', () => {

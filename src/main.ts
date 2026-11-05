@@ -91,7 +91,7 @@ import {
   type ReposFile,
 } from './repos';
 import type { RepoPinState } from './pinsSection';
-import { launchLabel, launchMenuItems, opensPane, type LaunchKind, type LocalLaunch } from './launchModel';
+import { launchLabel, launchMenuItems, type LaunchKind, type LocalLaunch } from './launchModel';
 import { LaunchPreview } from './launchPreview';
 import { gitWorktrees, type Worktree } from './worktreeApi';
 import { deleteWorktree } from './worktreeDelete';
@@ -100,7 +100,6 @@ import { agentHooksFrom } from './setupModel';
 import { loadSessions, onHookEvent, onSessionsChanged, type Session } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
 import { showToast } from './toast';
-import { trackCtrlHeld } from './ctrlHeld';
 import { TabStrip } from './tabStrip';
 import { closePadConfirm, closeTabConfirm, replaceConfirm } from './paneConfirm';
 import type { PaneKind } from './paneKinds';
@@ -114,8 +113,6 @@ import { installTextFieldMenu } from './textFieldMenu';
 // The built-in menu's Refresh reloads the page, and a reload kills every pane's pty as an orphan.
 window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
 installTextFieldMenu();
-
-trackCtrlHeld();
 
 const backdrop = new BackdropHost(document.getElementById('backdrop') as HTMLCanvasElement);
 const colonySync = new ColonySync(backdrop.colony);
@@ -466,12 +463,13 @@ function openPin(pin: Pin): void {
 }
 
 /** Design 4.6 Open menu and Launch: opens for the path's repo root. */
-function openIn(kind: 'terminal' | 'files' | 'git' | 'search' | 'editor', path: string): void {
+function openIn(kind: Exclude<LaunchKind, 'scratch'> | 'editor', path: string): void {
   cachedRepoRoot(path).then(
     ({ root, isGit }) => {
-      if (kind === 'git') {
-        if (isGit) workspace.showGit(root);
-        else showToast(`${path} is not in a git repo`);
+      if (kind === 'git' || kind === 'forge') {
+        if (!isGit) showToast(`${path} is not in a git repo`);
+        else if (kind === 'git') workspace.showGit(root);
+        else workspace.openPane({ kind: 'forge', root });
       } else if (kind === 'search') {
         workspace.showSearch(root);
       } else if (kind === 'terminal') {
@@ -496,7 +494,7 @@ function launchRoot(): string | null {
 
 function previewLaunch(kind: LaunchKind | null): void {
   const root = launchRoot();
-  if (!kind || !root || !opensPane(kind)) {
+  if (!kind || !root) {
     launchPreview.hide();
     return;
   }
@@ -785,6 +783,12 @@ const palette = new CommandPalette({
   runAction: (a) => workspace.runAction(a),
   runCommand: (command) => {
     if (command === 'checkForUpdates') checkForUpdatesNow();
+    else if (command === 'openContainers') workspace.openContainers();
+    else if (command === 'openPorts') workspace.openPorts();
+    else if (command === 'openForge') {
+      const root = currentRepo?.isGit ? currentRepo.root : null;
+      if (!workspace.openForge(root)) showToast('Focus a pane in a git repo to open its Forge tab');
+    }
   },
 });
 /** The palette opens at once; its worktree items arrive when the load finishes. */

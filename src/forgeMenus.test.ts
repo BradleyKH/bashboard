@@ -5,6 +5,7 @@ import {
   ACCOUNT_NOTE,
   accountMenuItems,
   pullMenuItems,
+  runActionStates,
   runMenuItems,
   signInAnotherArgv,
   type AccountMenuHandlers,
@@ -51,6 +52,26 @@ function handlers(): RunMenuHandlers {
 const items = (entries: MenuEntry[]) => entries.filter((e): e is MenuItem => e.kind === 'item');
 const labels = (entries: MenuEntry[]) => items(entries).map((e) => e.label);
 const find = (entries: MenuEntry[], label: string) => items(entries).find((e) => e.label === label);
+
+describe('runActionStates', () => {
+  it('enables re-run for a finished run, re-run failed for a failure, and cancel for a live one', () => {
+    expect(runActionStates(run('failure'), GITHUB)).toEqual({
+      rerun: { offered: true, enabled: true },
+      rerunFailed: { offered: true, enabled: true },
+      cancel: { offered: true, enabled: false },
+    });
+    expect(runActionStates(run('running'), GITHUB)).toEqual({
+      rerun: { offered: true, enabled: false },
+      rerunFailed: { offered: true, enabled: false },
+      cancel: { offered: true, enabled: true },
+    });
+  });
+
+  it('marks what the host cannot do as not offered', () => {
+    const states = runActionStates(run('success'), BITBUCKET);
+    expect([states.rerun.offered, states.rerunFailed.offered, states.cancel.offered]).toEqual([false, false, true]);
+  });
+});
 
 describe('runMenuItems', () => {
   it('offers re-run for a failed run, with Cancel left out', () => {

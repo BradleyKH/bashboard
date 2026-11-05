@@ -8,20 +8,20 @@ use serde_json::{Value, json};
 use super::remote::percent_encode;
 use super::types::{
     Capabilities, ForgeError, ForgeErrorKind, Job, JobLog, ProviderKind, PullList, PullRequest,
-    RepoRef, ReviewState, Reviewer, Run, RunStatus, Step,
+    PullState, RepoRef, ReviewState, Reviewer, Run, RunStatus, Step,
 };
 use super::{Cx, ForgeProvider};
 
 const LOG_TAIL_BYTES: usize = 1024 * 1024;
 const ACCEPT: (&str, &str) = ("Accept", "application/vnd.github+json");
 
-const PULLS_QUERY: &str = "query($owner: String!, $name: String!) {
+const PULLS_QUERY: &str = "query($owner: String!, $name: String!, $states: [PullRequestState!]) {
   viewer { login }
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
+    pullRequests(states: $states, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       totalCount
       nodes {
-        id number title isDraft url createdAt updatedAt headRefName baseRefName reviewDecision
+        id number title state isDraft url createdAt updatedAt headRefName baseRefName reviewDecision
         author { login }
         reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } } } }
         latestReviews(first: 20) { nodes { author { login } state } }
@@ -247,6 +247,14 @@ fn rollup_status(v: Option<&str>) -> Option<RunStatus> {
     }
 }
 
+fn pull_state(v: Option<&str>) -> PullState {
+    match v {
+        Some("MERGED") => PullState::Merged,
+        Some("CLOSED") => PullState::Closed,
+        _ => PullState::Open,
+    }
+}
+
 fn map_pull(v: &Value, viewer: Option<&str>) -> PullRequest {
     let is_viewer = |login: &str| viewer.is_some_and(|me| me.eq_ignore_ascii_case(login));
     // Team requests come back as empty objects, since the query only asks for users.
@@ -292,6 +300,7 @@ fn map_pull(v: &Value, viewer: Option<&str>) -> PullRequest {
         is_mine: is_viewer(&author),
         author,
         draft: v.get("isDraft").and_then(Value::as_bool).unwrap_or(false),
+        state: pull_state(str_at(v, &["state"])),
         source_branch: owned_at(v, &["headRefName"]).unwrap_or_default(),
         target_branch: owned_at(v, &["baseRefName"]).unwrap_or_default(),
         created_at: owned_at(v, &["createdAt"]).unwrap_or_default(),
@@ -300,6 +309,8 @@ fn map_pull(v: &Value, viewer: Option<&str>) -> PullRequest {
         review_decision: review_decision(str_at(v, &["reviewDecision"])),
         reviewers,
         checks,
+        // The GraphQL query carries the rollup, so nothing is left to fetch.
+        checks_pending: false,
         review_requested: requested.iter().any(|l| is_viewer(l)),
     }
 }
@@ -408,11 +419,16 @@ impl ForgeProvider for GitHub {
         Ok(())
     }
 
-    fn pulls(&self, cx: &Cx, repo: &RepoRef) -> Result<PullList, ForgeError> {
+    fn pulls(&self, cx: &Cx, repo: &RepoRef, open_only: bool) -> Result<PullList, ForgeError> {
         let (owner, name) = owner_name(repo)?;
+        let states = if open_only {
+            json!(["OPEN"])
+        } else {
+            json!(["OPEN", "CLOSED", "MERGED"])
+        };
         let body = json!({
             "query": PULLS_QUERY,
-            "variables": { "owner": owner, "name": name },
+            "variables": { "owner": owner, "name": name, "states": states },
         });
         let v = cx.http.post_json(
             &graphql_url(repo),
@@ -676,6 +692,22 @@ mod tests {
     }
 
     #[test]
+    fn maps_each_pull_state() {
+        let cases = [
+            ("OPEN", PullState::Open),
+            ("MERGED", PullState::Merged),
+            ("CLOSED", PullState::Closed),
+        ];
+        for (state, want) in cases {
+            let v = reply("bob", vec![pull(json!({ "state": state }))]);
+            assert_eq!(map_pulls(&v).unwrap().items[0].state, want, "{state}");
+        }
+        // An older server or a trimmed reply without the field reads as open.
+        let v = reply("bob", vec![pull(json!({}))]);
+        assert_eq!(map_pulls(&v).unwrap().items[0].state, PullState::Open);
+    }
+
+    #[test]
     fn total_is_the_connections_total_count() {
         let v = reply("bob", vec![pull(json!({}))]);
         let list = map_pulls(&v).unwrap();
@@ -825,7 +857,7 @@ mod tests {
             runs.iter()
                 .all(|r| !r.id.is_empty() && !r.web_url.is_empty())
         );
-        let pulls = GitHub.pulls(&cx, &r).unwrap();
+        let pulls = GitHub.pulls(&cx, &r, true).unwrap();
         assert!(
             pulls.total.is_some_and(|t| t >= pulls.items.len() as u64),
             "the list reports a total at least as large as the page"

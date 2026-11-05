@@ -1,5 +1,6 @@
 import type { MenuEntry } from './contextMenuModel';
-import type { JobLog, Job, Run } from './forgeApi';
+import type { Capabilities, JobLog, Job, Run } from './forgeApi';
+import type { RunActionKey } from './forgeMenus';
 import { statusInfo } from './forgeModel';
 import { ForgeJobsView } from './forgeJobsView';
 import { ForgeRunRow } from './forgeRunRow';
@@ -10,6 +11,9 @@ export interface ForgeRunListOptions {
   /** Whether the host serves job logs. */
   logs: () => boolean;
   menuItems: (run: Run) => MenuEntry[];
+  caps: () => Capabilities | null;
+  onOpen: (run: Run) => void;
+  onAction: (run: Run, action: RunActionKey) => void;
 }
 
 interface Slot {
@@ -42,7 +46,14 @@ export class ForgeRunList {
       seen.add(run.id);
       let slot = this.slots.get(run.id);
       if (!slot) {
-        slot = { row: new ForgeRunRow(run, { onToggle: (r) => this.toggle(r.id), menuItems: this.opts.menuItems }), jobs: null };
+        const row = new ForgeRunRow(run, {
+          onToggle: (r) => this.toggle(r.id),
+          menuItems: this.opts.menuItems,
+          caps: this.opts.caps,
+          onOpen: this.opts.onOpen,
+          onAction: this.opts.onAction,
+        });
+        slot = { row, jobs: null };
         this.slots.set(run.id, slot);
       } else {
         const previous = slot.row.run;

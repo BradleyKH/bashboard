@@ -267,6 +267,7 @@ pub fn run() {
             forge::forge_rerun,
             forge::forge_cancel,
             forge::forge_pulls,
+            forge::forge_pull_checks,
             forge::forge_set_account,
         ])
         .build(tauri::generate_context!())

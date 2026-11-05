@@ -168,6 +168,13 @@
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4 6.8 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
+/* A pull request's checks still loading: a faint dot that settles into the real icon. */
+.forge-status--pending {
+  background: color-mix(in srgb, var(--forge-idle) 50%, transparent);
+  transform: scale(0.5);
+  animation: forge-pulse 1.2s ease-in-out infinite;
+}
+
 @keyframes forge-spin {
   to {
     transform: rotate(360deg);
@@ -182,7 +189,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .forge-status--running,
-  .forge-status--waiting {
+  .forge-status--waiting,
+  .forge-status--pending {
     animation: none;
   }
 }
@@ -190,7 +198,7 @@
 /* Pipelines. */
 .forge-run-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: 10px;
   padding: 5px 8px;
@@ -235,6 +243,50 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* The same buttons on every row at the right edge, so each lines up with the one above it. */
+.forge-run-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.forge-run-btn {
+  padding: 0 6px;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--content-muted);
+  font: 11px system-ui, sans-serif;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.forge-run-btn:hover:not(:disabled) {
+  background: var(--forge-hover);
+  border-color: var(--forge-accent);
+  color: var(--forge-fg);
+}
+
+.forge-run-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.forge-run-btn[hidden] {
+  display: none;
+}
+
+/* A narrow pane keeps the title readable; the row's menu still has every action. */
+.forge-runs {
+  container-type: inline-size;
+}
+
+@container (max-width: 420px) {
+  .forge-run-actions {
+    display: none;
+  }
 }
 
 .forge-run-detail {
@@ -423,6 +475,16 @@
   border-radius: 3px;
   color: var(--forge-muted);
   font-size: 10px;
+}
+
+.forge-badge--merged {
+  border-color: color-mix(in srgb, #a371f7 60%, transparent);
+  color: #b392f0;
+}
+
+/* A merged or closed one reads as history beside the open ones. */
+.forge-pull.done .forge-pull-title {
+  color: var(--forge-muted);
 }
 
 .forge-review {

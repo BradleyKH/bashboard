@@ -10,19 +10,38 @@ export interface RunMenuHandlers {
   onCopyLink: () => void;
 }
 
+export type RunActionKey = 'rerun' | 'rerunFailed' | 'cancel';
+
+export interface RunActionState {
+  /** The host can do it at all. */
+  offered: boolean;
+  /** The run's status allows it right now. */
+  enabled: boolean;
+}
+
+/** Which run actions the host offers and which the run's status allows, for the row buttons and the menu. */
+export function runActionStates(run: Run, caps: Capabilities): Record<RunActionKey, RunActionState> {
+  const active = statusInfo(run.status).active;
+  return {
+    rerun: { offered: caps.rerun, enabled: !active },
+    rerunFailed: { offered: caps.rerunFailed, enabled: run.status === 'failure' },
+    cancel: { offered: caps.cancel, enabled: active },
+  };
+}
+
 /**
  * The menu on a run row (docs/design.md section 4.20). What the host cannot do is left out;
  * what the run's status rules out right now is greyed, except Cancel, which only a live run has.
  */
 export function runMenuItems(run: Run, caps: Capabilities, handlers: RunMenuHandlers): MenuEntry[] {
-  const active = statusInfo(run.status).active;
+  const states = runActionStates(run, caps);
   const entries: MenuEntry[] = [item('Open in browser', handlers.onOpen)];
   const actions: MenuEntry[] = [];
-  if (caps.rerun) actions.push(item('Re-run', handlers.onRerun, { enabled: !active }));
-  if (caps.rerunFailed) {
-    actions.push(item('Re-run failed jobs', handlers.onRerunFailed, { enabled: run.status === 'failure' }));
+  if (states.rerun.offered) actions.push(item('Re-run', handlers.onRerun, { enabled: states.rerun.enabled }));
+  if (states.rerunFailed.offered) {
+    actions.push(item('Re-run failed jobs', handlers.onRerunFailed, { enabled: states.rerunFailed.enabled }));
   }
-  if (caps.cancel && active) actions.push(item('Cancel', handlers.onCancel));
+  if (states.cancel.offered && states.cancel.enabled) actions.push(item('Cancel', handlers.onCancel));
   if (actions.length > 0) entries.push(separator(), ...actions);
   entries.push(separator(), item('Copy link', handlers.onCopyLink));
   return entries;

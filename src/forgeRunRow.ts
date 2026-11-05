@@ -1,13 +1,24 @@
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
-import type { Run } from './forgeApi';
+import type { Capabilities, Run } from './forgeApi';
+import { runActionStates, type RunActionKey } from './forgeMenus';
 import { duration, relativeTime, statusInfo } from './forgeModel';
 
 export interface RunRowHandlers {
   /** Expands or collapses the jobs under the row. */
   onToggle: (run: Run) => void;
   menuItems: (run: Run) => MenuEntry[];
+  /** The host's capabilities, or null before the repo resolves; read on every update. */
+  caps: () => Capabilities | null;
+  onOpen: (run: Run) => void;
+  onAction: (run: Run, action: RunActionKey) => void;
 }
+
+const ACTION_LABELS: Record<RunActionKey, [label: string, title: string]> = {
+  rerun: ['Re-run', 'Run every job again'],
+  rerunFailed: ['Re-run failed', 'Run only the failed jobs again'],
+  cancel: ['Cancel', 'Stop this run'],
+};
 
 /** Sets text only when it changed, so a poll that changed nothing touches no DOM. */
 function setText(el: HTMLElement, text: string): void {
@@ -25,6 +36,7 @@ export class ForgeRunRow {
   readonly detail: HTMLElement;
   private current: Run;
   private expanded = false;
+  private readonly caps: () => Capabilities | null;
 
   private readonly row: HTMLElement;
   private readonly icon: HTMLElement;
@@ -32,6 +44,7 @@ export class ForgeRunRow {
   private readonly meta: HTMLElement;
   private readonly when: HTMLElement;
   private readonly took: HTMLElement;
+  private readonly actionButtons: Record<RunActionKey, HTMLButtonElement>;
 
   constructor(run: Run, handlers: RunRowHandlers) {
     this.current = run;
@@ -63,7 +76,34 @@ export class ForgeRunRow {
     this.took.className = 'forge-run-took';
     side.append(this.when, this.took);
 
-    this.row.append(this.icon, main, side);
+    // Every row carries the same buttons, disabled where the run's status rules one out, so they
+    // line up down the list; what the host cannot do at all is hidden on every row alike.
+    const actions = document.createElement('div');
+    actions.className = 'forge-run-actions';
+    const makeButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'forge-run-btn';
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+      });
+      return b;
+    };
+    const open = makeButton('Open', 'Open in browser', () => handlers.onOpen(this.current));
+    const keys: RunActionKey[] = ['rerun', 'rerunFailed', 'cancel'];
+    this.actionButtons = Object.fromEntries(
+      keys.map((key) => {
+        const [label, title] = ACTION_LABELS[key];
+        return [key, makeButton(label, title, () => handlers.onAction(this.current, key))];
+      }),
+    ) as Record<RunActionKey, HTMLButtonElement>;
+    actions.append(open, ...keys.map((k) => this.actionButtons[k]));
+    this.caps = handlers.caps;
+
+    this.row.append(this.icon, main, side, actions);
 
     this.detail = document.createElement('div');
     this.detail.className = 'forge-run-detail';
@@ -116,5 +156,15 @@ export class ForgeRunRow {
 
     setText(this.when, relativeTime(run.createdAt, nowMs));
     setText(this.took, duration(run, nowMs));
+
+    const caps = this.caps();
+    const states = caps ? runActionStates(run, caps) : null;
+    for (const [key, button] of Object.entries(this.actionButtons) as [RunActionKey, HTMLButtonElement][]) {
+      const state = states?.[key];
+      const hidden = !state?.offered;
+      const disabled = !state?.enabled;
+      if (button.hidden !== hidden) button.hidden = hidden;
+      if (button.disabled !== disabled) button.disabled = disabled;
+    }
   }
 }

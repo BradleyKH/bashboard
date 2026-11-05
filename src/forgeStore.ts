@@ -3,6 +3,7 @@ import {
   forgeCancel,
   forgeJobs,
   forgeLog,
+  forgePullChecks,
   forgePulls,
   forgeRepo,
   forgeRerun,
@@ -15,7 +16,7 @@ import {
   type PullRequest,
   type Run,
 } from './forgeApi';
-import { finishedSince, pollSecs, pullPollSecs, type ForgeTab } from './forgeModel';
+import { finishedSince, pollSecs, pullPollSecs, withPullChecks, type ForgeTab } from './forgeModel';
 import { isWindowVisible } from './windowVisibility';
 
 export type BranchScope = 'branch' | 'all';
@@ -51,6 +52,11 @@ export class ForgeStore {
     return entry.store;
   }
 
+  /** Whether some pane already holds the store for `root`. */
+  static has(root: string): boolean {
+    return ForgeStore.registry.has(root);
+  }
+
   /** Drops one reference; the last one stops polling and forgets the store. */
   release(): void {
     const entry = ForgeStore.registry.get(this.root);
@@ -67,7 +73,11 @@ export class ForgeStore {
   private pullList: PullRequest[] = [];
   private pullTotal: number | null = null;
   private pullsLoaded = false;
-  private scope: BranchScope = 'branch';
+  private openOnly = true;
+  // Bumped when the open-only filter changes, so a reply to the other question is dropped.
+  private pullsEpoch = 0;
+  private pullsStale = false;
+  private scope: BranchScope = 'all';
   private readonly errors: Record<'repo' | Stream, ForgeError | null> = { repo: null, runs: null, pulls: null };
 
   private readonly subscribers = new Set<() => void>();
@@ -111,7 +121,7 @@ export class ForgeStore {
     return this.pullList;
   }
 
-  /** The host's count of open pull requests, or null when it does not say. */
+  /** The host's count of the pull requests asked for, or null when it does not say. */
   get pullsTotal(): number | null {
     return this.pullTotal;
   }
@@ -123,6 +133,11 @@ export class ForgeStore {
 
   get branchScope(): BranchScope {
     return this.scope;
+  }
+
+  /** Whether Pull requests lists open ones only, rather than the latest in every state. */
+  get pullsOpenOnly(): boolean {
+    return this.openOnly;
   }
 
   /** The error that stops `tab` from showing anything: the repo's own, else that tab's last one. */
@@ -177,6 +192,14 @@ export class ForgeStore {
     await this.poll('runs');
   }
 
+  async setPullsOpenOnly(on: boolean): Promise<void> {
+    if (on === this.openOnly) return;
+    this.openOnly = on;
+    this.resetPulls();
+    this.emit();
+    await this.poll('pulls');
+  }
+
   /** Sets the repo's account, then reloads everything under it. */
   async setAccount(user: string): Promise<void> {
     this.repoValue = await forgeSetAccount(this.root, user);
@@ -184,9 +207,7 @@ export class ForgeStore {
     this.errors.runs = null;
     this.errors.pulls = null;
     this.resetRuns();
-    this.pullList = [];
-    this.pullTotal = null;
-    this.pullsLoaded = false;
+    this.resetPulls();
     this.emit();
     await this.refresh();
   }
@@ -238,6 +259,14 @@ export class ForgeStore {
     this.runsLoaded = false;
   }
 
+  private resetPulls(): void {
+    this.pullsEpoch += 1;
+    this.pullsStale = this.inFlight.pulls;
+    this.pullList = [];
+    this.pullTotal = null;
+    this.pullsLoaded = false;
+  }
+
   private dispose(): void {
     this.disposed = true;
     document.removeEventListener('visibilitychange', this.onVisibility);
@@ -276,6 +305,7 @@ export class ForgeStore {
     this.inFlight[stream] = true;
     this.cancelTimer(stream);
     if (stream === 'runs') this.runsStale = false;
+    else this.pullsStale = false;
     let err: ForgeError | null = null;
     try {
       if (stream === 'runs') await this.pollRuns();
@@ -288,8 +318,8 @@ export class ForgeStore {
       this.inFlight[stream] = false;
     }
     if (this.disposed) return;
-    if (stream === 'runs' && this.runsStale) {
-      void this.poll('runs');
+    if (stream === 'runs' ? this.runsStale : this.pullsStale) {
+      void this.poll(stream);
       return;
     }
     this.schedule(stream, this.nextDelayMs(stream, err));
@@ -331,12 +361,32 @@ export class ForgeStore {
 
   private async pollPulls(): Promise<void> {
     if (!this.repoValue) this.repoValue = await this.loadRepo();
-    const next = await forgePulls(this.root);
-    if (this.disposed) return;
+    const epoch = this.pullsEpoch;
+    const next = await forgePulls(this.root, this.openOnly);
+    if (epoch !== this.pullsEpoch || this.disposed) return;
     this.pullList = next.items;
     this.pullTotal = next.total;
     this.pullsLoaded = true;
     this.errors.pulls = null;
+    this.emit();
+    await this.fillPullChecks(epoch);
+  }
+
+  /**
+   * Fetches the checks the list left pending and merges them in, so the rows show first and
+   * their status icons arrive after. Still inside the poll, so the next one waits for it.
+   */
+  private async fillPullChecks(epoch: number): Promise<void> {
+    const pending = this.pullList.filter((p) => p.checksPending);
+    if (pending.length === 0) return;
+    let found: Awaited<ReturnType<typeof forgePullChecks>> = [];
+    try {
+      found = await forgePullChecks(this.root, pending);
+    } catch {
+      // The rows keep showing; they lose only the pending mark, and the next poll asks again.
+    }
+    if (epoch !== this.pullsEpoch || this.disposed) return;
+    this.pullList = withPullChecks(this.pullList, found);
     this.emit();
   }
 }

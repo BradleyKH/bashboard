@@ -240,7 +240,7 @@ export type PaneSpec =
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
   | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   | { kind: 'git'; root: string; tab?: GitTab }
-  | { kind: 'forge'; root: string; tab?: ForgeTab }
+  | { kind: 'forge'; root: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' }
   | { kind: 'ports' };
@@ -1106,30 +1106,48 @@ export class Workspace {
   }
 
   /**
+   * Shows the first pane in tab order that `matches`, expanding it if collapsed, or appends a tab
+   * named `name` holding one `pane`. Returns the pane's id, or undefined if none could be shown.
+   */
+  private showOrAppendTab(
+    matches: (view: PaneView | undefined) => boolean,
+    name: string,
+    pane: SavedPane,
+  ): string | undefined {
+    const find = (tabs: TabState[]) => tabs.flatMap((t) => t.panes).find((id) => matches(this.paneViews.get(id)));
+    const id = find(this.store.state.tabs);
+    if (id) {
+      if (this.store.isCollapsed(id)) this.expandPane(id);
+      else this.focusPane(id);
+      return id;
+    }
+    this.openLayout({ name, panes: [pane], layout: { kind: 'pane', paneId: pane.key }, focused: pane.key }, name);
+    return find([this.store.active]);
+  }
+
+  /**
    * Design 4.16: shows the first Containers pane in tab order, or appends a Containers tab, then
    * expands the groups with those `ContainerGroup` keys.
    */
   openContainers(groupKeys: string[] = []): void {
-    const find = (tabs: TabState[]) =>
-      tabs.flatMap((t) => t.panes).find((id) => this.paneViews.get(id) instanceof ContainersPane);
-    let id = find(this.store.state.tabs);
-    if (id) {
-      if (this.store.isCollapsed(id)) this.expandPane(id);
-      else this.focusPane(id);
-    } else {
-      this.openLayout(
-        {
-          name: 'Containers',
-          panes: [{ key: 'c', kind: 'containers', collapsed: false }],
-          layout: { kind: 'pane', paneId: 'c' },
-          focused: 'c',
-        },
-        'Containers',
-      );
-      id = find([this.store.active]);
-    }
+    const id = this.showOrAppendTab((v) => v instanceof ContainersPane, 'Containers', {
+      key: 'c',
+      kind: 'containers',
+      collapsed: false,
+    });
     const pane = id ? this.paneViews.get(id) : undefined;
     if (pane instanceof ContainersPane) for (const key of groupKeys) pane.expandGroup(key);
+  }
+
+  /**
+   * Design 4.20: shows the first Forge pane on `root` in tab order, or appends a Forge tab on it.
+   * With no root, shows the first Forge pane on any repo; false when there is none to show.
+   */
+  openForge(root: string | null): boolean {
+    const matches = (v: PaneView | undefined) => v instanceof ForgePane && (root === null || v.root() === root);
+    if (root === null && ![...this.paneViews.values()].some(matches)) return false;
+    this.showOrAppendTab(matches, 'Forge', { key: 'f', kind: 'forge', root: root ?? '', collapsed: false });
+    return true;
   }
 
   /**
@@ -1137,24 +1155,11 @@ export class Workspace {
    * the row with that `listenerKey`, or, with `showAll`, clears its Started from a pane filter.
    */
   openPorts(key?: string, showAll = false): void {
-    const find = (tabs: TabState[]) =>
-      tabs.flatMap((t) => t.panes).find((id) => this.paneViews.get(id) instanceof PortsPane);
-    let id = find(this.store.state.tabs);
-    if (id) {
-      if (this.store.isCollapsed(id)) this.expandPane(id);
-      else this.focusPane(id);
-    } else {
-      this.openLayout(
-        {
-          name: 'Ports',
-          panes: [{ key: 'p', kind: 'ports', collapsed: false }],
-          layout: { kind: 'pane', paneId: 'p' },
-          focused: 'p',
-        },
-        'Ports',
-      );
-      id = find([this.store.active]);
-    }
+    const id = this.showOrAppendTab((v) => v instanceof PortsPane, 'Ports', {
+      key: 'p',
+      kind: 'ports',
+      collapsed: false,
+    });
     const pane = id ? this.paneViews.get(id) : undefined;
     if (!(pane instanceof PortsPane)) return;
     if (showAll) pane.showAll();
@@ -1487,7 +1492,7 @@ export class Workspace {
       case 'git':
         return { kind: 'git', root: p.root, tab: p.tab };
       case 'forge':
-        return { kind: 'forge', root: p.root, tab: p.tab };
+        return { kind: 'forge', root: p.root, tab: p.tab, thisBranch: p.thisBranch, allPulls: p.allPulls };
       case 'search':
         return { kind: 'search', root: p.root, query: p.query, options: p.options };
       case 'containers':
@@ -1712,6 +1717,8 @@ export class Workspace {
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
       onRunTerminal: (argv, cwd) => this.openForgeCommand(id, argv, cwd),
       tab: spec.tab,
+      thisBranch: spec.thisBranch,
+      allPulls: spec.allPulls,
     });
   }
 
@@ -2228,18 +2235,9 @@ export class Workspace {
     return this.attention.observe(id, status);
   }
 
-  /**
-   * The focused pane's cell size for layout checks. A lone pane's strip overlays its body, but
-   * any change that leaves two panes puts strips in the flow, so their height is counted.
-   */
+  /** The focused pane's cell size for layout checks; its padY already holds the in-flow strip. */
   private layoutCell(): CellSize | null {
-    const pane = this.paneViews.get(this.store.focusedId);
-    if (!pane) return null;
-    const cell = pane.cellSize();
-    if (!this.root.classList.contains('multi')) {
-      cell.padY = (cell.padY ?? 0) + (this.strips.get(this.store.focusedId)?.el.offsetHeight ?? 0);
-    }
-    return cell;
+    return this.paneViews.get(this.store.focusedId)?.cellSize() ?? null;
   }
 
   private paneRects(): Map<string, DOMRect> {
@@ -2298,9 +2296,6 @@ export class Workspace {
   private render(): void {
     const tree = this.store.tree;
     const tabId = this.store.activeId;
-    // Keyed on the real tree, so a zoomed pane keeps its strip in the flow and layoutCell counts it.
-    // Toggled before the hosts move so panes refit once, against the final strip placement.
-    this.root.classList.toggle('multi', tree !== null && tree.kind === 'split');
     this.syncFindBar();
     const zoomed = this.zoom.zoomed(tabId, tree, this.store.focusedId);
     this.zoomedId = zoomed;

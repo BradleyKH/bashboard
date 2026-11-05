@@ -15,6 +15,7 @@ import {
   pullPollSecs,
   relativeTime,
   statusInfo,
+  withPullChecks,
   type NoticeAction,
 } from './forgeModel';
 
@@ -64,6 +65,7 @@ function pr(over: Partial<PullRequest> = {}): PullRequest {
     title: 'T',
     author: 'a',
     draft: false,
+    state: 'open',
     sourceBranch: 'f',
     targetBranch: 'main',
     createdAt: '2026-11-01T00:00:00Z',
@@ -72,6 +74,7 @@ function pr(over: Partial<PullRequest> = {}): PullRequest {
     reviewDecision: null,
     reviewers: [],
     checks: null,
+    checksPending: false,
     isMine: false,
     reviewRequested: false,
     ...over,
@@ -226,8 +229,9 @@ describe('relativeTime', () => {
 
 describe('pullLimitNote', () => {
   it('says the list is partial only when the host counts more than were shown', () => {
-    expect(pullLimitNote(50, 60, 'pull request')).toBe('Showing the first 50 of 60 open pull requests.');
-    expect(pullLimitNote(50, 61, 'merge request')).toBe('Showing the first 50 of 61 open merge requests.');
+    expect(pullLimitNote(50, 60, 'pull request')).toBe('Showing the latest 50 of 60 open pull requests.');
+    expect(pullLimitNote(50, 61, 'merge request')).toBe('Showing the latest 50 of 61 open merge requests.');
+    expect(pullLimitNote(50, 200, 'pull request', false)).toBe('Showing the latest 50 of 200 pull requests.');
     expect(pullLimitNote(50, 50, 'pull request')).toBeNull();
     expect(pullLimitNote(3, 3, 'pull request')).toBeNull();
     expect(pullLimitNote(50, null, 'pull request')).toBeNull();
@@ -261,10 +265,35 @@ describe('groupPulls', () => {
     expect(groups[0].pulls.map((p) => p.number)).toEqual([1, 3, 2, 4]);
   });
 
+  it('puts merged and closed ones after every open one, drafts included', () => {
+    const groups = groupPulls([
+      pr({ number: 1, updatedAt: '2026-11-05T00:00:00Z', state: 'merged' }),
+      pr({ number: 2, updatedAt: '2026-11-01T00:00:00Z', draft: true }),
+      pr({ number: 3, updatedAt: '2026-11-02T00:00:00Z' }),
+      pr({ number: 4, updatedAt: '2026-11-04T00:00:00Z', state: 'closed' }),
+    ]);
+    expect(groups[0].pulls.map((p) => p.number)).toEqual([3, 2, 1, 4]);
+  });
+
   it('does not reorder the caller\'s array', () => {
     const input = [pr({ number: 1, updatedAt: '2026-11-01T00:00:00Z' }), pr({ number: 2, updatedAt: '2026-11-04T00:00:00Z' })];
     groupPulls(input);
     expect(input.map((p) => p.number)).toEqual([1, 2]);
+  });
+});
+
+describe('withPullChecks', () => {
+  it('fills pending checks by id and leaves settled rows alone', () => {
+    const settled = pr({ id: 'a', checks: 'success' });
+    const pending = pr({ id: 'b', checksPending: true });
+    const out = withPullChecks([settled, pending], [{ id: 'b', checks: 'failure' }]);
+    expect(out[0]).toBe(settled);
+    expect(out[1]).toMatchObject({ checks: 'failure', checksPending: false });
+  });
+
+  it('settles a pending row the answer left out, so it stops waiting', () => {
+    const out = withPullChecks([pr({ id: 'b', checksPending: true })], []);
+    expect(out[0]).toMatchObject({ checks: null, checksPending: false });
   });
 });
 
