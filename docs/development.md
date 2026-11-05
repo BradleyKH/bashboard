@@ -96,9 +96,15 @@ processes with different browser arguments.
 `--remote-debugging-port=<port>` for the run, so Chrome DevTools (`chrome://inspect`, configured
 for `localhost:<port>`) or Playwright's `chromium.connectOverCDP('http://127.0.0.1:<port>')` can
 attach to the window, read the console, and drive the real app with the real core behind it.
-It works beside the installed app. Like `pnpm tauri dev`, it starts Vite on port 1420, so when
-another Vite server already holds that port, run `src-tauri\target\debug\bashboard.exe` with the
-same variable set instead; it loads from whatever is serving port 1420.
+It works beside the installed app. Like `pnpm tauri dev`, it starts Vite on port 1420; when
+another server already holds that port, it exits without starting anything and prints the command
+to run instead: `src-tauri\target\debug\bashboard.exe` with the same variable set, which loads
+from whatever is serving port 1420.
+
+A script driving the window should click with a trusted input event (CDP
+`Input.dispatchMouseEvent`) rather than `element.click()` from `Runtime.evaluate`. A scripted
+click carries no user activation, so a button that copies to the clipboard fails with "Document
+is not focused", or, with focus emulated, raises WebView2's clipboard permission prompt and hangs.
 
 Release builds allow one running instance; debug builds don't enforce it, so a dev run starts
 beside the installed app and several dev runs can start at once. Testing the second-launch

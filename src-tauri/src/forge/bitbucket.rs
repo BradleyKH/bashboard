@@ -32,6 +32,13 @@ static VIEWERS: LazyLock<Mutex<HashMap<u64, Option<String>>>> = LazyLock::new(De
 type ChecksCache = HashMap<(String, u64), (String, Option<RunStatus>)>;
 static CHECKS: LazyLock<Mutex<ChecksCache>> = LazyLock::new(Default::default);
 
+/// A commit's first message line by (repo, hash). The pipelines list carries only the hash, and
+/// a commit never changes, so each one is fetched once per session.
+static COMMITS: LazyLock<Mutex<HashMap<(String, String), String>>> =
+    LazyLock::new(Default::default);
+/// Past this many entries the commit cache starts over rather than growing for the session.
+const COMMITS_MAX: usize = 2000;
+
 pub struct Bitbucket;
 
 fn str_at<'a>(v: &'a Value, ptr: &str) -> Option<&'a str> {
@@ -143,7 +150,8 @@ pub fn map_run(v: &Value, web_url: &str) -> Option<Run> {
             None => "Pipeline".into(),
         }),
     };
-    // The pipelines list carries the commit's hash but not its message.
+    // The pipelines list carries the commit's hash but not its message; `runs` fills the title
+    // from the commit (see `untitled_hash`).
     let title = str_at(target, "/commit/message")
         .and_then(first_line)
         .or_else(|| string_at(target, "/pullrequest/title"))
@@ -306,6 +314,17 @@ fn strip_links(v: &Value) -> Value {
     }
 }
 
+/// The commit hash whose message would title `run`: a pipeline with no commit message and no pull
+/// request title, which `map_run` would otherwise title with its branch name.
+pub fn untitled_hash(run: &Value) -> Option<&str> {
+    let target = run.get("target")?;
+    if str_at(target, "/commit/message").is_some() || str_at(target, "/pullrequest/title").is_some()
+    {
+        return None;
+    }
+    str_at(target, "/commit/hash")
+}
+
 /// The body that starts a pipeline like `run`: its target (branch or pull request, selector,
 /// and commit) without the response-only links. Custom pipeline variables are not kept.
 pub fn rerun_body(run: &Value) -> Option<Value> {
@@ -360,6 +379,36 @@ impl Bitbucket {
             }
             Err(_) => None,
         }
+    }
+
+    /// First message lines for the commits that title `runs`, from the cache or one request per
+    /// hash not yet seen. A failed request leaves its runs titled by branch until the next poll.
+    fn commit_titles(&self, cx: &Cx, base: &str, runs: &[Value]) -> HashMap<String, String> {
+        let mut out = HashMap::new();
+        for hash in runs.iter().filter_map(untitled_hash) {
+            if out.contains_key(hash) {
+                continue;
+            }
+            let key = (base.to_string(), hash.to_string());
+            if let Some(title) = COMMITS.lock().unwrap().get(&key) {
+                out.insert(hash.to_string(), title.clone());
+                continue;
+            }
+            let url = format!("{base}/commit/{}?fields=message", percent_encode(hash));
+            let Ok(commit) = cx.http.get_json::<Value>(&url, Some(&auth(cx)), ACCEPT) else {
+                continue;
+            };
+            let Some(title) = str_at(&commit, "/message").and_then(first_line) else {
+                continue;
+            };
+            let mut cache = COMMITS.lock().unwrap();
+            if cache.len() >= COMMITS_MAX {
+                cache.clear();
+            }
+            cache.insert(key, title.clone());
+            out.insert(hash.to_string(), title);
+        }
+        out
     }
 
     fn checks(&self, cx: &Cx, base: &str, pulls: &[Value]) -> HashMap<u64, Option<RunStatus>> {
@@ -427,12 +476,20 @@ impl ForgeProvider for Bitbucket {
             .http
             .get_json(&url, Some(&auth(cx)), ACCEPT)
             .map_err(|e| reword(e, &cx.token.source))?;
-        Ok(page
+        let values: &[Value] = page
             .get("values")
             .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|v| map_run(v, &repo.web_url))
+            .map_or(&[], Vec::as_slice);
+        let titles = self.commit_titles(cx, &base, values);
+        Ok(values
+            .iter()
+            .filter_map(|v| {
+                let mut run = map_run(v, &repo.web_url)?;
+                if let Some(title) = untitled_hash(v).and_then(|h| titles.get(h)) {
+                    run.title = title.clone();
+                }
+                Some(run)
+            })
             .collect())
     }
 
@@ -733,6 +790,21 @@ mod tests {
             ("Pull request #122", "Dev")
         );
         assert!(map_run(&json!({ "build_number": 1 }), WEB).is_none());
+    }
+
+    #[test]
+    fn only_a_run_titled_by_its_branch_needs_its_commit() {
+        assert_eq!(untitled_hash(&pipeline()), None);
+        let branch = json!({ "target": { "ref_name": "dev", "commit": { "hash": "abc" } } });
+        assert_eq!(untitled_hash(&branch), Some("abc"));
+        let pull = json!({
+            "target": { "commit": { "hash": "abc" }, "pullrequest": { "id": 1, "title": "Dev" } }
+        });
+        assert_eq!(untitled_hash(&pull), None);
+        assert_eq!(
+            untitled_hash(&json!({ "target": { "ref_name": "dev" } })),
+            None
+        );
     }
 
     #[test]

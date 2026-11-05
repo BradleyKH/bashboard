@@ -191,7 +191,9 @@ host that `gh` is not signed in to needs an entry in `forge.hosts` (see
 `git config credential.username <user>` in the repo, which is what the pick does. The same setting
 stops Git Credential Manager asking which account to use on every push, so one choice serves both.
 Without it the repo follows whichever account `gh auth switch` last chose, and the button is shown
-in a warning color to say so.
+in a warning color to say so. With `GH_TOKEN` set in the environment, `gh auth status` and `gh`
+in a pane act as that token's account, but the Forge pane still follows the account
+`gh auth switch` chose; it falls back to `GH_TOKEN` only when gh has no signed-in account.
 
 **Troubleshooting.**
 

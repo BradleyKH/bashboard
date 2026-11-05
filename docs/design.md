@@ -1056,7 +1056,9 @@ commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shape
   `read:user:bitbucket` still lists pull requests, with none marked as yours or awaiting your
   review. A pull request's checks are the worst of its commit's build statuses, fetched once per
   pull request and kept until its `updated_on` changes, which keeps polling inside Bitbucket's
-  limit of 1,000 requests an hour per user.
+  limit of 1,000 requests an hour per user. The pipelines list carries a commit's hash but not its
+  message, so a pipeline titled by neither a commit message nor a pull request takes its commit's
+  first line from `/commit/{hash}`, fetched once per hash for the session.
 - **Capabilities.** GitHub: re-run, re-run failed, cancel, logs, drafts, accounts; nouns "pull
   request" and "workflow run"; minimum poll 10 s. Bitbucket: re-run, cancel, logs, drafts, no
   failed-only re-run, no accounts; nouns "pull request" and "pipeline"; minimum poll 30 s.
