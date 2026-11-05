@@ -66,7 +66,7 @@ adds or removes a row, Shift+click (or Shift+Up and Down) selects a range, and C
 every row, as in File Explorer. Up and Down move the selection, Backspace goes up a folder, typing filters the list by name (Backspace edits
 the filter, Esc clears it), and the list refreshes when files change on disk. F2 renames the
 selected file or folder in place: Enter saves, and Escape or clicking away cancels. The divider between
-the list and the preview can be dragged.
+the list and the preview can be dragged; until a file is selected, the list fills the pane.
 
 The preview depends on the file:
 
@@ -402,9 +402,11 @@ highlighted, or the Files or Git pane it would bring forward, or a note that it 
 when there is no room. Like the other sections it can be dragged elsewhere or turned off; it does
 not collapse.
 
-Ctrl+Shift+L (the `openLaunch` action) opens the same choices as a menu over the focused pane:
-press a letter (**t** Terminal, **g** Git, **f** Files, **o** Forge, **s** Search, **p**
-Scratch), or use the arrows and Enter, with the same preview as you move. While Launch is turned
+Ctrl+Shift+L (the `openLaunch` action) opens the same choices, plus Containers and Ports, as a
+menu over the focused pane, outlined in your accent color with the rest of the window dimmed:
+press a letter (**t** Terminal, **g** Git, **f** Files, **o** Forge, **s** Search, **c**
+Containers, **r** Ports, **p** Scratch), or use the arrows and Enter, with the same preview as you
+move. Containers appears once Docker or Podman is installed. While Launch is turned
 off, a **+** button in the top bar, left of **?**, drops this menu. Ctrl+Shift+X (the `openEditor`
 action) opens the focused pane's repo in your editor directly, or its folder outside a repo.
 

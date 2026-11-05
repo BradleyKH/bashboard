@@ -85,3 +85,19 @@
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
+
+/* A spotlit menu (the Launch menu): the window dims behind it, under the Launch preview (900) so
+   the preview still shows where the pane will land. */
+.context-menu-dim {
+  position: fixed;
+  inset: 0;
+  z-index: 899;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.context-menu-spotlight {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 8px 32px rgba(0, 0, 0, 0.6);
+}

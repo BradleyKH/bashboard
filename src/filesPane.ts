@@ -223,6 +223,7 @@ export class FilesPane implements PaneView {
 
     this.body.append(this.left, this.divider, this.right);
     this.host.appendChild(this.body);
+    this.setPreviewShown(this.selectedName !== null);
     this.applySplit();
     // Restored expanded before the first listing, so the list does not flash; the navigation
     // rules show it again if the file is missing or not previewable.
@@ -469,6 +470,8 @@ export class FilesPane implements PaneView {
     this.list.setFolder();
     this.renderCrumb();
     if (changed) this.opts.onChange();
+    // A named selection keeps the preview's space while the listing loads, so it does not flash.
+    this.setPreviewShown(this.selectedName !== null);
     await this.preview.show(null);
     if (gen !== this.generation) return;
 
@@ -494,9 +497,12 @@ export class FilesPane implements PaneView {
     if (entry) {
       this.list.select(entry.name);
       this.selectEntry(entry);
-    } else if (this.selectedName !== null) {
-      this.selectedName = null;
-      this.opts.onChange();
+    } else {
+      this.setPreviewShown(false);
+      if (this.selectedName !== null) {
+        this.selectedName = null;
+        this.opts.onChange();
+      }
     }
   }
 
@@ -537,6 +543,7 @@ export class FilesPane implements PaneView {
       this.selectedName = null;
       this.selectedModified = null;
       this.list.select(null);
+      this.setPreviewShown(false);
       void this.preview.show(null);
       this.opts.onChange();
     } else if (!entry.isDir && this.selectedModified !== null && entry.modified !== this.selectedModified) {
@@ -551,8 +558,10 @@ export class FilesPane implements PaneView {
     if (entry.isDir) {
       if (this.previewExpanded) this.showList(this.hasFocus());
       this.selectedModified = null;
+      this.setPreviewShown(false);
       void this.preview.show(null);
     } else if (changed || this.preview.path === null) {
+      this.setPreviewShown(true);
       this.selectedModified = entry.modified;
       void this.preview.show(childPath(this.currentPath, entry.name), entry.size);
     }
@@ -732,6 +741,11 @@ export class FilesPane implements PaneView {
     // Re-selecting scrolls the row into view, which did nothing while the list was hidden.
     this.list.select(this.selectedName);
     if (focus) this.list.focus();
+  }
+
+  /** The preview and divider show only while a file is selected; otherwise the list fills the pane. */
+  private setPreviewShown(shown: boolean): void {
+    this.body.classList.toggle('no-preview', !shown);
   }
 
   private applySplit(): void {

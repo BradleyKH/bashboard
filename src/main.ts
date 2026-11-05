@@ -91,7 +91,7 @@ import {
   type ReposFile,
 } from './repos';
 import type { RepoPinState } from './pinsSection';
-import { launchLabel, launchMenuItems, type LaunchKind, type LocalLaunch } from './launchModel';
+import { isFolderless, launchLabel, launchMenuItems, type FolderlessLaunchKind, type LaunchKind, type LocalLaunch } from './launchModel';
 import { LaunchPreview } from './launchPreview';
 import { gitWorktrees, type Worktree } from './worktreeApi';
 import { deleteWorktree } from './worktreeDelete';
@@ -463,7 +463,7 @@ function openPin(pin: Pin): void {
 }
 
 /** Design 4.6 Open menu and Launch: opens for the path's repo root. */
-function openIn(kind: Exclude<LaunchKind, 'scratch'> | 'editor', path: string): void {
+function openIn(kind: Exclude<LaunchKind, FolderlessLaunchKind> | 'editor', path: string): void {
   cachedRepoRoot(path).then(
     ({ root, isGit }) => {
       if (kind === 'git' || kind === 'forge') {
@@ -493,8 +493,10 @@ function launchRoot(): string | null {
 }
 
 function previewLaunch(kind: LaunchKind | null): void {
-  const root = launchRoot();
-  if (!kind || !root) {
+  // A folderless kind lands the same way wherever it would open; launchTarget reads the root only
+  // to find a Files or Git pane to reuse.
+  const root = kind && isFolderless(kind) ? (launchRoot() ?? '') : launchRoot();
+  if (!kind || root === null) {
     launchPreview.hide();
     return;
   }
@@ -503,8 +505,8 @@ function previewLaunch(kind: LaunchKind | null): void {
 
 function launch(kind: LaunchKind): void {
   launchPreview.hide();
-  if (kind === 'scratch') {
-    workspace.openPane({ kind: 'scratch' });
+  if (isFolderless(kind)) {
+    workspace.openPane({ kind });
     return;
   }
   const root = launchRoot();
@@ -536,14 +538,19 @@ async function localLaunch(): Promise<LocalLaunch | undefined> {
  */
 async function openLaunchMenu(anchor?: HTMLElement): Promise<void> {
   const local = await localLaunch();
-  const items = launchMenuItems(currentRepo?.isGit ?? false, launch, previewLaunch, local);
+  const items = launchMenuItems(
+    { isGit: currentRepo?.isGit ?? false, containers: containers.available },
+    launch,
+    previewLaunch,
+    local,
+  );
   const rect = anchor ? null : workspace.focusedPaneRect();
   const at = anchor
     ? { anchorEl: anchor, align: 'right' as const }
     : rect
       ? { x: rect.x + 12, y: rect.y + 32 }
       : { x: window.innerWidth / 2, y: window.innerHeight / 3 };
-  openContextMenu(items, at, { focusFirst: true, onClose: () => launchPreview.hide() });
+  openContextMenu(items, at, { focusFirst: true, spotlight: true, onClose: () => launchPreview.hide() });
 }
 
 /** Design 4.10: lists the panes closing the tab would lose work in; resolves true to close it. */

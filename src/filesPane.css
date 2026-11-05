@@ -37,8 +37,14 @@
   min-height: 0;
 }
 
-.files-body.missing .files-left {
+.files-body.missing .files-left,
+.files-body.no-preview .files-left {
   flex: 1 1 auto;
+}
+
+.files-body.no-preview .files-divider,
+.files-body.no-preview .files-right {
+  display: none;
 }
 
 .files-body.missing .files-list,

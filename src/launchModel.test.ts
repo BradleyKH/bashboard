@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { MenuItem } from './contextMenuModel';
-import { launchMenuItems, launchOptions, ollamaLaunchCommand } from './launchModel';
+import { launchMenuItems, launchMenuOptions, launchOptions, ollamaLaunchCommand } from './launchModel';
+
+const GIT = { isGit: true, containers: true };
+const NO_GIT = { isGit: false, containers: true };
 
 describe('launchOptions', () => {
   it('lists every option in a git repo, in display order', () => {
@@ -11,8 +14,25 @@ describe('launchOptions', () => {
     expect(launchOptions(false).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'scratch']);
   });
 
+});
+
+describe('launchMenuOptions', () => {
+  it('adds Containers and Ports to the row options, in kind menu order', () => {
+    expect(launchMenuOptions(GIT).map((o) => o.kind)).toEqual([
+      'terminal', 'git', 'files', 'forge', 'search', 'containers', 'ports', 'scratch',
+    ]);
+  });
+
+  it('keeps Containers and Ports outside a git repo', () => {
+    expect(launchMenuOptions(NO_GIT).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'containers', 'ports', 'scratch']);
+  });
+
+  it('drops Containers while no container engine is installed', () => {
+    expect(launchMenuOptions({ isGit: true, containers: false }).map((o) => o.kind)).not.toContain('containers');
+  });
+
   it('gives each option its own menu letter', () => {
-    const keys = launchOptions(true).map((o) => o.key);
+    const keys = launchMenuOptions(GIT).map((o) => o.key);
     expect(new Set(keys).size).toBe(keys.length);
   });
 });
@@ -21,7 +41,7 @@ describe('launchMenuItems', () => {
   it('launches and previews the kind of the item, with its letter', () => {
     const launched: string[] = [];
     const previewed: string[] = [];
-    const items = launchMenuItems(false, (k) => launched.push(k), (k) => previewed.push(k));
+    const items = launchMenuItems(NO_GIT, (k) => launched.push(k), (k) => previewed.push(k));
     const files = items.find((i): i is MenuItem => i.kind === 'item' && i.label === 'Files')!;
     expect(files.key).toBe('f');
     files.onHighlight?.();
@@ -49,14 +69,14 @@ describe('launchMenuItems local models', () => {
   const labels = (e: ReturnType<typeof launchMenuItems>) => e.map((x) => ('label' in x ? x.label : ''));
 
   it('adds nothing without local state or without models', () => {
-    expect(launchMenuItems(true, noop, noop)).toHaveLength(6);
-    expect(launchMenuItems(true, noop, noop, { agents: ['claude'], models: [], onRun: noop })).toHaveLength(6);
-    expect(launchMenuItems(true, noop, noop, { agents: [], models: ['m'], onRun: noop })).toHaveLength(6);
+    expect(launchMenuItems(GIT, noop, noop)).toHaveLength(8);
+    expect(launchMenuItems(GIT, noop, noop, { agents: ['claude'], models: [], onRun: noop })).toHaveLength(8);
+    expect(launchMenuItems(GIT, noop, noop, { agents: [], models: ['m'], onRun: noop })).toHaveLength(8);
   });
 
   it('adds one submenu per agent listing the models, running the command', () => {
     const ran: string[] = [];
-    const entries = launchMenuItems(false, noop, noop, {
+    const entries = launchMenuItems(NO_GIT, noop, noop, {
       agents: ['claude', 'codex', 'copilot'],
       models: ['a:1', 'bad name'],
       onRun: (c) => ran.push(c),

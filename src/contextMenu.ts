@@ -23,6 +23,11 @@ export interface ContextMenuOptions {
   onClose?: () => void;
   /** Focus the first enabled item of a pointer-placed menu, for one opened from the keyboard. */
   focusFirst?: boolean;
+  /**
+   * Dims the window behind the menu and borders it in the accent, for a menu summoned by a chord
+   * that has to stand out over busy panes.
+   */
+  spotlight?: boolean;
 }
 
 /** What an owner's build returns to open a menu; `target` is outlined and anchors a keyboard open. */
@@ -256,6 +261,8 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
   let previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   let target = opts.target ?? null;
   const root = renderList(entries, 'context-menu');
+  // Takes the outside press itself, so a click that dismisses a spotlit menu does nothing else.
+  const dim = opts.spotlight ? Object.assign(document.createElement('div'), { className: 'context-menu-dim' }) : null;
   let sub: (MenuList & { parentIndex: number }) | null = null;
 
   const inside = (node: Node): boolean => root.el.contains(node) || (sub?.el.contains(node) ?? false);
@@ -391,6 +398,7 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
     window.removeEventListener('blur', close);
     closeSubmenu(false);
     root.el.remove();
+    dim?.remove();
     target?.classList.remove('menu-target');
     opts.anchorEl?.classList.remove('open');
     if (previousFocus?.isConnected) previousFocus.focus();
@@ -402,7 +410,8 @@ function show(raw: MenuEntry[], place: Place, opts: ShowOptions): void {
   window.addEventListener('blur', close);
   current = self;
 
-  document.body.append(root.el);
+  if (opts.spotlight) root.el.classList.add('context-menu-spotlight');
+  document.body.append(...(dim ? [dim] : []), root.el);
   position(root.el, place(measure(root.el), viewport()));
   target?.classList.add('menu-target');
   opts.anchorEl?.classList.add('open');

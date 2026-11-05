@@ -1605,8 +1605,12 @@ focused pane outlined and the new pane's share of it shaded and labeled, the exi
 Files or Git would bring forward, the whole pane area of an empty tab, or the focused pane with
 "opens collapsed: no room".
 
-The **Launch menu** lists the same options with their icons and a letter each (t, g, f, o, s,
-p); a letter chooses its entry, and the highlighted entry shows the same preview. While the
+The **Launch menu** lists the same options plus Containers and Ports, which open as they are
+rather than at the repo root, in kind menu order (4.11), with their icons and a letter each (t, g,
+f, o, s, c, r, p); Containers is left out while no container engine is installed, as in the kind
+menu. A letter chooses its entry, and the highlighted entry shows the same preview. The menu has
+an accent border and dims the window behind it, under the preview; a click on the dimmed area
+only closes the menu. While the
 Launch element is disabled, a **+** button in the top bar, left of **?**, drops it, its tooltip
 ending with the keys of openLaunch. openLaunch (Ctrl+Shift+L, 4.5) opens it over the focused pane
 whether or not the element is shown.
@@ -1975,7 +1979,8 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
 
 A Files pane shows one folder: on the left, a list with folders first and then files, under a
 breadcrumb that leads up to the repo root; on the right, a preview of the selected file. The
-divider between them drags. The list follows the folder on disk (`fs_watch`, 3.8).
+divider between them drags. With no file selected (nothing, or a folder), the preview and
+divider hide and the list fills the pane. The list follows the folder on disk (`fs_watch`, 3.8).
 
 **Sort.** A button in the breadcrumb, left of the list's zoom buttons, shows the order (such as
 "Modified ↓") and opens a menu of Name, Type, and Modified, the current one checked
