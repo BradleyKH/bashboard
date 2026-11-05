@@ -131,6 +131,21 @@ describe('parseSavedTab', () => {
     expect(parse(git())).toEqual(git());
   });
 
+  it('round-trips a Forge pane with and without its tab, and drops one with no root', () => {
+    const forge = (tab?: unknown) => ({ key: 'a', kind: 'forge', collapsed: false, root: '/c/a', ...(tab !== undefined && { tab }) });
+    const parse = (p: object) => parseSavedTab({ panes: [p], layout: pane('a'), focused: 'a' })?.panes[0];
+    expect(parse(forge())).toEqual(forge());
+    expect(parse(forge('pulls'))).toEqual(forge('pulls'));
+    expect(parse(forge('bogus'))).toEqual(forge());
+    // Pipelines is the default, so it saves as no tab.
+    expect(parse(forge('pipelines'))).toEqual(forge());
+
+    const { root: _r, ...noRoot } = forge();
+    const r = parseSavedTab({ panes: [term('b'), noRoot], layout: row(pane('b'), pane('a')), focused: 'b' });
+    expect(r?.panes).toEqual([term('b')]);
+    expect(r?.layout).toEqual(pane('b'));
+  });
+
   it('round-trips a Search pane, defaulting bad options and a missing query, and drops one with no root', () => {
     const search = {
       key: 'a',

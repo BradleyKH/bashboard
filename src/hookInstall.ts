@@ -5,12 +5,20 @@ export type HookAgentId = 'claude' | 'codex' | 'copilot';
 /** Whether Codex will run the installed hooks; `unknown` when its config could not be read. */
 export type CodexTrust = 'trusted' | 'untrusted' | 'unknown';
 
+/**
+ * The installed hook script against the bundled one, by its version marker: `outdated` covers
+ * a lower version or none, `current` the same version (hand edits included), and `newer` a
+ * script from a newer Bashboard, which counts as installed and is never overwritten.
+ */
+export type HookScriptState = 'missing' | 'outdated' | 'current' | 'newer';
+
 export interface HookInstallPreview {
   /** The agent's hook config file: `settings.json`, `hooks.json`, or `hooks/bashboard.json`. */
   settingsPath: string;
   scriptPath: string;
   additions: Record<string, unknown[]>;
   alreadyInstalled: boolean;
+  scriptState: HookScriptState;
   /** `detected` for Claude Code, false for other agents. */
   claudeDetected: boolean;
   /** Whether bash is reachable; the hook command runs through it. */

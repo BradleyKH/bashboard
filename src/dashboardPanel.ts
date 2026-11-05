@@ -619,14 +619,17 @@ export class DashboardPanel {
     this.setOpen(false);
   }
 
-  /** Shows an install button for each of `agents`, the detected ones whose hooks are missing. */
-  setMissingHooks(agents: AgentId[]): void {
+  /**
+   * Shows an install button for each of `agents`, the detected ones whose hooks are missing;
+   * `update` labels it Update when only the hook script needs refreshing.
+   */
+  setMissingHooks(agents: { agent: AgentId; update: boolean }[]): void {
     this.hooksFooter.replaceChildren(
-      ...agents.map((agent) => {
+      ...agents.map(({ agent, update }) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'hooks-install';
-        button.textContent = `Install ${agentName(agent)} hooks${isPreviewAgent(agent) ? ' (preview)' : ''}`;
+        button.textContent = `${update ? 'Update' : 'Install'} ${agentName(agent)} hooks${isPreviewAgent(agent) ? ' (preview)' : ''}`;
         button.addEventListener('click', () => this.callbacks.onInstallHooks(agent));
         return button;
       }),

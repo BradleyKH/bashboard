@@ -53,6 +53,16 @@ describe('parseLayouts', () => {
     expect(parseLayouts([{ name: 'Dev', tab: t }])).toEqual([{ name: 'Dev', tab: t }]);
   });
 
+  it('keeps a Forge pane root and tab', () => {
+    const t: SavedTab = {
+      name: null,
+      panes: [{ key: 'a', kind: 'forge', collapsed: false, root: '/c/a', tab: 'pulls' }],
+      layout: { kind: 'pane', paneId: 'a' },
+      focused: 'a',
+    };
+    expect(parseLayouts([{ name: 'Dev', tab: t }])).toEqual([{ name: 'Dev', tab: t }]);
+  });
+
   it('keeps a Search pane root, query, and options', () => {
     const t: SavedTab = {
       name: null,

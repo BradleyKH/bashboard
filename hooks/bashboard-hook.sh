@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# bashboard-hook-version: 1
+# Bump the version above, and HOOK_VERSION in src-tauri/src/hook_install.rs, on every change:
+# an app only replaces a script whose version is lower than its own.
 # Forwards an agent hook event to Bashboard. Silent no-op outside a Bashboard pane.
 # Usage: bashboard-hook.sh [agent]   (agent defaults to claude)
 # Nothing may reach stdout: Codex's PermissionRequest and Copilot's permissionRequest

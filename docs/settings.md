@@ -216,6 +216,21 @@ Settings tab.
 "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 }
 ```
 
+`forge.hosts` (default `{}`) tells Bashboard which kind of forge a self-hosted host runs. It maps a
+host name, such as `ghe.example.com`, to `github`, `gitlab`, `bitbucket`, or `azureDevOps`. Use it
+for a self-hosted GitHub Enterprise Server host the GitHub CLI (`gh`) is not signed in to; a host
+you are signed in to with `gh` is found without an entry. Of the four kinds, only `github` is served
+for a self-hosted host. GitLab and Azure DevOps hosts are recognized and report "not yet supported",
+and the Bitbucket provider speaks only Bitbucket Cloud (bitbucket.org), so any other Bitbucket host
+is refused with "Bitbucket Data Center isn't supported yet" before a request is sent. Host names are
+lowercased when the file loads, so their case does not matter. An entry with any other kind is
+dropped with a notice, and the other entries still apply. The map has no field in the Settings tab;
+edit it in the file. See [Code hosts](setup.md#code-hosts) for what the Forge pane needs.
+
+```jsonc
+"forge": { "hosts": { "ghe.example.com": "github" } }
+```
+
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to
 `settings.json`. Bashboard rewrites `workspace.json` itself (version 3, holding every tab);
 `favorites.json`, `layouts.json`, and `repos.json` are plain JSON you can edit by hand, and the

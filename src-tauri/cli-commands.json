@@ -37,6 +37,13 @@
       "examples": ["bb scratch \"remember to rebase\"", "git diff | bb scratch", "ls -la | bb scratch --collapsed"]
     },
     {
+      "name": "auth",
+      "usage": "bb auth bitbucket",
+      "summary": "Store a Bitbucket API token for the Forge pane",
+      "details": "Prompts for the token with echo off, or reads it from standard input, and saves it in Windows Credential Manager. --clear removes it. Works outside Bashboard too.",
+      "examples": ["bb auth bitbucket", "bb auth bitbucket --clear"]
+    },
+    {
       "name": "help",
       "usage": "bb help",
       "summary": "List the commands",

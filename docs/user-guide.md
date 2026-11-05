@@ -248,6 +248,64 @@ Opening a Git pane runs `git status` and `git diff` in the repo, and a repo's ow
 make those run programs (`core.fsmonitor`, diff and textconv drivers), as it can for `git` in a
 terminal. Only open Git panes on repos you trust.
 
+## Forge pane
+
+A Forge pane shows a repo's CI runs and open pull requests from its code host, so you can watch a
+build or see what awaits review without leaving Bashboard. It supports GitHub (github.com and
+GitHub Enterprise Server) and Bitbucket Cloud. Choose **Forge** in a pane's kind menu: the pane
+keeps its folder and shows the repo of that folder, found from the repo's remote, and it comes back
+on relaunch on the same repo and tab, and layouts keep it. Its title is the repo folder's name, or
+"Forge" when the pane has no folder. In a folder outside a repo, or in a repo with no remote, it
+shows a notice.
+
+It reads the host with a sign-in you already have: the GitHub CLI (`gh`) for GitHub, and a Bitbucket
+API token you store once with `bb auth bitbucket`. When one is missing, the pane says so and its
+buttons do the next step (install, sign in, open the token page, copy the scopes), with the notice
+in place of the list it could not fill. Install and sign-in commands run in a terminal split off the
+pane, in the repo folder; the split closes when the command exits cleanly, and one still open when
+you quit comes back as a plain shell. When you return to the window after fixing the problem, the
+pane looks again on its own, unless the error is a rate limit. The full steps are in
+[Code hosts](setup.md#code-hosts).
+
+Across the top, the bar holds the **Pipelines** and **Pull requests** tabs, a **This branch**
+checkbox (on the Pipelines tab only), the repo's `owner/name`, which opens it on the host when
+clicked, the account button, and **Refresh**. This branch is checked by default and follows the
+branch you have checked out; clear it to list runs on every branch.
+
+- **Pipelines** lists the latest 20 runs, newest first: a status icon, the commit message or run
+  title, the workflow or pipeline name, number, branch, and who started it, then how long ago and
+  how long it took, which redraw every second. Click a run to expand its jobs, each with its duration and, on GitHub, its steps
+  with failed ones marked. **Show log** loads a job's log (the last 1 MiB of it), scrolled to the
+  end, where a failure usually is. Right-click a run to open it in the browser, **Re-run** it,
+  **Re-run failed jobs** (GitHub only), **Cancel** it, or copy its link. Cancel asks first, with a
+  button that reads "Cancel workflow run" or "Cancel pipeline"; Re-run does not ask. A Bitbucket
+  pipeline's jobs are its steps and have no per-command list. Re-run and Cancel on Bitbucket need
+  the optional `write:pipeline:bitbucket` scope.
+- **Pull requests** lists open pull requests in groups: **Review requested** (you are a requested
+  reviewer who has not reviewed), **Yours**, and **Others**, each row with its author, branches,
+  review state, checks, and last update. Click one to open it in the browser, or right-click to
+  copy its link or branch name. The list holds at most 50, and a note below the groups, such as
+  "Showing the first 50 of 60 open pull requests.", says when the repo has more. Without the
+  `read:user:bitbucket` scope, Bitbucket pull requests load without the Yours and Review requested
+  groups.
+
+A finished run raises a toast, such as "Workflow run passed: CI on main", whose **Open** action
+opens the run. Several Forge panes on one repo share their requests and each finished run toasts
+once. The pane polls only while it is expanded: runs every 15 seconds while one is queued or
+running and every minute otherwise, and pull requests only while their tab is showing. Bitbucket is
+polled more slowly, since it allows 1,000 requests an hour per user. Polling pauses while the
+window is hidden.
+
+**Accounts.** When you are signed in to several GitHub accounts on one host, the bar shows
+"as @name". Click it to pick the account this repo uses, or to sign in another one. Picking sets the
+repo's `credential.username`, which Git Credential Manager also uses for push and pull, so the pane
+and your pushes agree. When the repo has no account of its own, the button is shown in a warning
+color: the pane is following whichever account `gh auth switch` last chose.
+
+A host Bashboard does not recognize shows a notice; for a self-hosted GitHub Enterprise Server host
+that `gh` is not signed in to, add it to `forge.hosts` (see [Settings](settings.md#settings)).
+GitLab and Azure DevOps remotes are recognized and report that they are not supported yet.
+
 ## Code search
 
 A Search pane searches the files of a repo for a text or regex query and lists the matching lines.
@@ -650,14 +708,15 @@ again closes the dialog, and Escape or a click outside closes it too.
 CLI tab lists the same commands, with examples to copy. Each command that
 opens a pane splits the pane that ran it, in that pane's tab, and focus moves to the new pane.
 
-| Command                   | What it does                                                                |
-| ------------------------- | --------------------------------------------------------------------------- |
-| `bb open <path>`          | Shows a folder in a Files pane, or a file's folder with the file selected   |
-| `bb edit <path>[:<line>]` | Opens the file or folder in your preferred editor, at the line when given   |
-| `bb git`                  | Opens the Git pane for the current folder's repo                            |
-| `bb search [<query>]`     | Opens a Search pane for the current folder's repo, with the query filled in |
-| `bb scratch [<text>]`     | Opens a scratch pad holding the text, or the piped standard input           |
-| `bb help`                 | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)            |
+| Command                       | What it does                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `bb open <path>`              | Shows a folder in a Files pane, or a file's folder with the file selected     |
+| `bb edit <path>[:<line>]`     | Opens the file or folder in your preferred editor, at the line when given     |
+| `bb git`                      | Opens the Git pane for the current folder's repo                              |
+| `bb search [<query>]`         | Opens a Search pane for the current folder's repo, with the query filled in   |
+| `bb scratch [<text>]`         | Opens a scratch pad holding the text, or the piped standard input             |
+| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Forge pane, or removes it with `--clear` |
+| `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
 
 Add `--collapsed` anywhere in a command to open the pane collapsed. Relative paths resolve
 against the folder `bb` runs in, and `open` and `edit` need the path to exist. `bb edit
@@ -665,6 +724,10 @@ src/main.ts:40` splits a trailing `:<digits>` off as the line number, which must
 `bb git` reports "not a git repository" outside a repo, while `bb search` outside a repo searches
 the current folder. `bb scratch` uses its arguments as the text when it has any and otherwise
 reads standard input, up to 1 MiB.
+
+`bb auth bitbucket` never talks to Bashboard, so it works in any terminal. It asks for the token with the input hidden (or reads it from standard
+input), saves it in Windows Credential Manager, and does not open a pane. `bb auth bitbucket
+--clear` removes it. See [Code hosts](setup.md#bitbucket-cloud).
 
 ```sh
 bb open docs
@@ -675,7 +738,8 @@ bb git --collapsed
 ```
 
 `bb` works in all four shells because Bashboard puts the folder holding `bb.exe` first on every
-pane's `PATH`. `bb help` works anywhere; outside a Bashboard pane every other command prints
+pane's `PATH`. `bb help` and `bb auth` work anywhere; outside a Bashboard pane every other command prints
 `bb: only works inside a Bashboard pane` and exits 1. Any failure, such as a missing path, an
 unknown option, or an app that cannot be reached, prints a `bb: ` message to standard error and
-exits 1. A successful command prints nothing and exits 0.
+exits 1. A successful command prints nothing, apart from `bb auth` saying what it stored or removed, and
+exits 0.

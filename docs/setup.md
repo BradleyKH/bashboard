@@ -116,6 +116,13 @@ non-JSON syntax, the install refuses and changes nothing. The button appears onl
 has run on this machine (`~/.claude` exists when Bashboard starts) and is hidden once everything
 is installed. Claude sessions started after the install report `waiting`.
 
+The hook script carries a version line (`# bashboard-hook-version: N`). When the hooks are
+registered but the installed script is older than the app's, or has no version line, the button
+reads **Update Claude Code hooks** and the Setup list shows "Hook script out of date"; updating
+rewrites only the script. A script from a newer Bashboard counts as installed and is never
+replaced by an older one, and a hand-edited script at the app's version is left alone. The same
+applies to the Codex and Copilot hooks below.
+
 To add them by hand, copy `hooks/bashboard-hook.sh` to `~/.claude/hooks/` and add this group to
 the `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, and `SessionEnd` arrays under
 `hooks` in `~/.claude/settings.json`:
@@ -156,3 +163,87 @@ Set `BASHBOARD_HOOK_LOG` to a file path in the environment Bashboard starts from
 script appends every raw payload it receives to that file, each under a line with a timestamp and
 the agent's name. Attach a few of those entries, the agent's version, and a few lines of its
 transcript (with anything private redacted) to an issue from the agent report template.
+
+## Code hosts
+
+The Forge pane shows a repo's pipeline runs, job logs, and open pull requests. It reads them from
+the code host's API with a sign-in you already have, so each host needs a one-time setup. Bashboard
+never runs a sign-in flow of its own, never writes your token to disk, and keeps it in memory only.
+Open the pane from any pane's kind menu (see the [user guide](user-guide.md#forge-pane)); when
+something is missing, the pane shows the same steps with buttons that do them.
+
+### GitHub
+
+Bashboard reads GitHub through the GitHub CLI, then falls back to Git Credential Manager's token.
+
+1. Install the GitHub CLI: `winget install --id GitHub.cli -e`, or the installer from
+   [cli.github.com](https://cli.github.com). Restart any terminals that were open, so they see it.
+2. Run `gh auth login`, choose GitHub.com (or GitHub Enterprise Server), HTTPS, and sign in with a
+   browser. For an Enterprise Server host, run `gh auth login --hostname <host>` instead.
+3. Check with `gh auth status`.
+
+A host you are signed in to with `gh` is recognized without any setting. A GitHub Enterprise Server
+host that `gh` is not signed in to needs an entry in `forge.hosts` (see
+[Settings](settings.md#settings)).
+
+**Several accounts.** Run `gh auth login` again for each account. The pane's bar then shows
+"as @name", and you pick the account a repo uses from that button. Or run
+`git config credential.username <user>` in the repo, which is what the pick does. The same setting
+stops Git Credential Manager asking which account to use on every push, so one choice serves both.
+Without it the repo follows whichever account `gh auth switch` last chose, and the button is shown
+in a warning color to say so.
+
+**Troubleshooting.**
+
+- **"Single sign-on needs authorizing."** The organization requires SSO. Use **Authorize** in the
+  pane, which opens GitHub's page for authorizing the token for that organization, then retry.
+- **A repo shows "not found".** Under the wrong account, GitHub answers "not found" for a private
+  repo. Pick the account that has access from the pane's account button.
+- **"GitHub CLI isn't installed" right after installing it.** Bashboard looks in the CLI's install
+  folders too, so the pane finds it, but a terminal that was open before the install does not have
+  it on its `PATH`. Open a new pane.
+
+### Bitbucket Cloud
+
+Bitbucket has no official command line tool, and Git Credential Manager's Bitbucket sign-in cannot
+read pipelines or pull requests, so Bashboard uses a Bitbucket API token. Only Bitbucket Cloud
+(bitbucket.org) is supported; Bitbucket Data Center is not.
+
+1. Open [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens).
+   You can also get there from Bitbucket: your profile picture, **Account settings**, the
+   **Security** tab, then **Create and manage API tokens**.
+2. Choose **Create API token with scopes**.
+3. Name it "Bashboard" and set an expiry. Note the date, since the token stops working then. Choose
+   **Next**.
+4. Choose **Bitbucket** as the app, then **Next**.
+5. Tick each scope in the table below, then **Next**.
+6. Choose **Create token** and copy the token. It is shown once and cannot be read again.
+7. In a Bashboard terminal pane, run `bb auth bitbucket` and paste the token when asked. The input
+   is hidden.
+
+| Scope | What it is for |
+| --- | --- |
+| `read:repository:bitbucket` | Find the repository |
+| `read:pullrequest:bitbucket` | List pull requests |
+| `read:pipeline:bitbucket` | List pipeline runs, steps, and logs |
+| `write:pipeline:bitbucket` | Optional: re-run and stop pipelines |
+| `read:user:bitbucket` | Tell which pull requests are yours or await your review |
+
+Without `read:user:bitbucket`, pull requests still load, but without the Yours and Review requested
+groups. Without `write:pipeline:bitbucket`, Re-run and Cancel report that the token is missing it.
+When a request needs a scope the token lacks, the pane's message names it: "This token is missing
+the `<scope>` scope." Scopes cannot be added to an existing token, so make a new one with the full
+list and store it with `bb auth bitbucket`. A running Bashboard picks the replacement up on the next
+refresh or retry; no restart is needed.
+
+**Where it goes.** `bb auth bitbucket` saves the token in Windows Credential Manager as the generic
+credential `bashboard:bitbucket.org`, for this machine only. Check it with
+`cmdkey /list:bashboard:bitbucket.org`, and remove it with `bb auth bitbucket --clear`. The command
+works in any terminal, not only a Bashboard pane. Bashboard reads the token from there and sends it
+to Bitbucket only.
+
+**Renewing.** When the token expires, the pane says Bitbucket rejected it. Make a new one with the
+steps above and run `bb auth bitbucket` again; it replaces the stored one.
+
+**Rate limits.** Bitbucket allows 1,000 requests an hour per user, so Bashboard polls Bitbucket more
+slowly than GitHub, and pull request checks are fetched again only when a pull request changes.

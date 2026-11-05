@@ -1,0 +1,558 @@
+/* The Forge pane: pipelines and pull requests (docs/design.md section 4.20). */
+.forge-body {
+  --forge-border: rgba(255, 255, 255, 0.1);
+  --forge-hover: rgba(255, 255, 255, 0.06);
+  --forge-fg: var(--content-fg);
+  --forge-muted: var(--content-faint);
+  --forge-accent: var(--accent);
+  --forge-ok: #6fcf7f;
+  --forge-bad: #e8716f;
+  --forge-warn: #e6c15a;
+  --forge-idle: #7d8a91;
+
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  outline: none;
+  font: 12px system-ui, sans-serif;
+  color: var(--forge-fg);
+}
+
+/* The bar: tabs at the left, then whatever the pane adds (scope toggle, account chip). */
+.forge-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--forge-border);
+}
+
+.forge-tabs {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.forge-tab {
+  padding: 6px 10px 4px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--forge-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.forge-tab:hover {
+  color: var(--forge-fg);
+}
+
+.forge-tab.active {
+  border-bottom-color: var(--forge-accent);
+  color: var(--forge-fg);
+}
+
+.forge-check {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--content-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.forge-check input {
+  margin: 0;
+}
+
+/* Pushes the chip and anything after it to the bar's right edge. */
+.forge-bar-spacer {
+  flex: 1 1 auto;
+}
+
+.forge-chip {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--forge-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--forge-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.forge-chip:hover {
+  color: var(--forge-fg);
+  border-color: var(--forge-accent);
+}
+
+.forge-chip.warn {
+  border-color: var(--forge-warn);
+  color: var(--forge-warn);
+}
+
+.forge-chip[hidden] {
+  display: none;
+}
+
+.forge-content {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.forge-note {
+  padding: 10px 8px;
+  color: var(--forge-muted);
+}
+
+.forge-jobs-error {
+  color: var(--forge-bad);
+}
+
+/* Status icons: one 12 px footprint, a ring or a mask cut from a solid fill. */
+.forge-status {
+  flex: none;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--forge-idle);
+}
+
+.forge-status--queued {
+  background: transparent;
+  border: 2px solid var(--forge-idle);
+}
+
+.forge-status--running {
+  background: transparent;
+  border: 2px solid color-mix(in srgb, var(--forge-warn) 30%, transparent);
+  border-top-color: var(--forge-warn);
+  animation: forge-spin 0.9s linear infinite;
+}
+
+.forge-status--waiting {
+  background: var(--forge-warn);
+  animation: forge-pulse 1.2s ease-in-out infinite;
+}
+
+.forge-status--success {
+  border-radius: 0;
+  background: var(--forge-ok);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+.forge-status--failure {
+  border-radius: 0;
+  background: var(--forge-bad);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+.forge-status--cancelled,
+.forge-status--skipped {
+  border-radius: 0;
+  background: var(--forge-idle);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4 6.8 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4 6.8 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+
+@keyframes forge-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes forge-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-status--running,
+  .forge-status--waiting {
+    animation: none;
+  }
+}
+
+/* Pipelines. */
+.forge-run-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--forge-border);
+  cursor: pointer;
+  outline: none;
+}
+
+.forge-run-row:hover,
+.forge-run-row:focus-visible {
+  background: var(--forge-hover);
+}
+
+.forge-run.expanded > .forge-run-row {
+  background: var(--forge-hover);
+}
+
+.forge-run-main {
+  min-width: 0;
+}
+
+.forge-run-title,
+.forge-run-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forge-run-meta,
+.forge-pull-meta {
+  margin-top: 1px;
+  color: var(--forge-muted);
+  font-size: 11px;
+}
+
+.forge-run-side,
+.forge-pull-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--forge-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.forge-run-detail {
+  padding: 4px 8px 8px 30px;
+  border-bottom: 1px solid var(--forge-border);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.forge-run-detail[hidden],
+.forge-log-wrap[hidden],
+.forge-badge[hidden],
+.forge-review[hidden] {
+  display: none;
+}
+
+/* Jobs, steps, and logs. */
+.forge-job {
+  padding: 4px 0;
+}
+
+.forge-job-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.forge-job-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.forge-job-took {
+  color: var(--forge-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.forge-steps {
+  margin: 2px 0 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+
+.forge-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 0;
+  color: var(--forge-muted);
+}
+
+.forge-step .forge-status {
+  width: 10px;
+  height: 10px;
+}
+
+.forge-step.failed {
+  color: var(--forge-bad);
+}
+
+.forge-step-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forge-step-mark {
+  flex: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.forge-log-toggle {
+  margin: 4px 0 0 20px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--forge-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.forge-log-toggle:hover {
+  text-decoration: underline;
+}
+
+.forge-log-wrap {
+  margin: 4px 0 0 20px;
+}
+
+.forge-log-trunc {
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.forge-log {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--forge-fg);
+  font: 11px/1.4 'Cascadia Mono', Consolas, monospace;
+  white-space: pre;
+  user-select: text;
+}
+
+/* Pull requests. */
+.forge-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--forge-border);
+  background: rgba(10, 16, 22, 0.85);
+  backdrop-filter: blur(6px);
+  color: var(--forge-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.forge-pull {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--forge-border);
+  cursor: pointer;
+  outline: none;
+}
+
+.forge-pull:hover,
+.forge-pull:focus-visible {
+  background: var(--forge-hover);
+}
+
+.forge-pull-main {
+  min-width: 0;
+}
+
+.forge-pull-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.forge-pull-number {
+  flex: none;
+  color: var(--forge-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.forge-pull-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forge-pull-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forge-pull-side {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.forge-badge {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+  color: var(--forge-muted);
+  font-size: 10px;
+}
+
+.forge-review {
+  color: var(--forge-muted);
+}
+
+/* In a narrow pane the review text would take the whole row and squeeze the title out. */
+.forge-pulls {
+  container-type: inline-size;
+}
+
+@container (max-width: 320px) {
+  .forge-review {
+    display: none;
+  }
+}
+
+.forge-review--approved {
+  color: var(--forge-ok);
+}
+
+.forge-review--changesRequested {
+  color: var(--forge-bad);
+}
+
+/* The setup notice. */
+.forge-notice {
+  max-width: 62ch;
+  padding: 14px 16px;
+}
+
+.forge-notice-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.forge-notice-text {
+  margin: 0 0 8px;
+  line-height: 1.45;
+  user-select: text;
+}
+
+.forge-notice-code {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  font: 11px/1.4 'Cascadia Mono', Consolas, monospace;
+  user-select: text;
+}
+
+.forge-notice-more {
+  margin: 0 0 8px;
+}
+
+.forge-notice-more > summary {
+  color: var(--forge-accent);
+  cursor: pointer;
+}
+
+.forge-notice-steps,
+.forge-notice-scopes {
+  margin: 6px 0 8px;
+  padding-left: 20px;
+  line-height: 1.5;
+}
+
+.forge-notice-scopes {
+  list-style: none;
+  padding-left: 4px;
+}
+
+.forge-notice code {
+  font: 11px 'Cascadia Mono', Consolas, monospace;
+  user-select: text;
+}
+
+.forge-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.forge-button {
+  padding: 3px 10px;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--forge-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.forge-button:hover {
+  border-color: var(--forge-accent);
+}
+
+.forge-button.primary {
+  border-color: var(--forge-accent);
+  background: color-mix(in srgb, var(--forge-accent) 22%, transparent);
+}
+
+/* The repo name in the bar, a link to the repo on its host. */
+.forge-repo {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--forge-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.forge-repo:hover {
+  color: var(--forge-fg);
+  text-decoration: underline;
+}
+
+.forge-repo[hidden],
+.forge-check[hidden],
+.forge-content[hidden],
+.forge-runs[hidden],
+.forge-pulls[hidden] {
+  display: none;
+}

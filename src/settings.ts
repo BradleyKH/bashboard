@@ -10,6 +10,8 @@ import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './key
 
 export type BackdropStyle = 'none' | 'lights' | 'matrix';
 
+export type ForgeKind = 'github' | 'gitlab' | 'bitbucket' | 'azureDevOps';
+
 export interface Settings {
   shell: { path: string; args: string[]; startingDirectory: string; defaultProfile: string };
   font: { family: string; size: number };
@@ -45,6 +47,8 @@ export interface Settings {
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
   git: { autoFetchMinutes: number };
   localModels: { ollamaUrl: string; lmStudioUrl: string; minContext: number };
+  /** Lowercased host name to its forge kind, for self-hosted hosts (docs/settings.md). */
+  forge: { hosts: Record<string, ForgeKind> };
   keybindings: KeybindingEntry[];
 }
 
@@ -84,6 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5 },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
+  forge: { hosts: {} },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

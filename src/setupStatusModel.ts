@@ -1,6 +1,7 @@
 import type { GitInstallStatus } from './gitInstall';
 import { agentName, isPreviewAgent } from './agentNames';
 import type { HookInstallPreview } from './hookInstall';
+import { hookAction } from './hookInstallModel';
 import type { AgentId } from './savedWorkspace';
 import type { IntegrationShell, ShellIntegrationPreview } from './shellIntegration';
 
@@ -89,6 +90,14 @@ export function hooksRow(agent: AgentId, preview: HookInstallPreview | null): St
   }
   if (!(preview.detected ?? preview.claudeDetected)) {
     return { ...base, level: 'info', text: `${name} has not run on this machine` };
+  }
+  if (hookAction(preview) === 'update') {
+    return {
+      ...base,
+      level: 'missing',
+      text: 'Hook script out of date; the hooks are registered, but the script needs updating',
+      fix: { kind: 'hooks', agent, label: 'Update' },
+    };
   }
   return {
     ...base,

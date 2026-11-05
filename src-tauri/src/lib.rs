@@ -6,6 +6,7 @@ mod containers;
 mod editors;
 mod files;
 mod fonts;
+mod forge;
 mod git;
 mod git_branches;
 mod git_fetch;
@@ -149,6 +150,7 @@ pub fn run() {
         .manage(system::SystemState::default())
         .manage(ports::PortsState::default())
         .manage(transcript::Transcripts::default())
+        .manage(forge::ForgeState::default())
         .setup(|app| {
             let window = create_main_window(app.handle())?;
             settings::init(app.handle());
@@ -258,6 +260,14 @@ pub fn run() {
             ports::ports_stop,
             transcript::agent_context,
             transcript::agent_context_stop,
+            forge::forge_repo,
+            forge::forge_runs,
+            forge::forge_jobs,
+            forge::forge_log,
+            forge::forge_rerun,
+            forge::forge_cancel,
+            forge::forge_pulls,
+            forge::forge_set_account,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

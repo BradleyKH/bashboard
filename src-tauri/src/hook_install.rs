@@ -16,6 +16,9 @@ use crate::settings::SettingsState;
 
 const SCRIPT: &str = include_str!("../../hooks/bashboard-hook.sh");
 const SCRIPT_NAME: &str = "bashboard-hook.sh";
+/// Must match the `# bashboard-hook-version:` line in `SCRIPT`; a test holds them together.
+const HOOK_VERSION: u32 = 1;
+const VERSION_MARKER: &str = "# bashboard-hook-version:";
 const COMMAND: &str = "bash ~/.claude/hooks/bashboard-hook.sh";
 const EVENTS: [&str; 5] = [
     "SessionStart",
@@ -55,6 +58,27 @@ pub enum CodexTrust {
     Unknown,
 }
 
+/// The installed hook script against the bundled one, by version marker. Comparing versions
+/// rather than bytes keeps an older app from overwriting a newer app's script, which would leave
+/// two installed builds swapping it back and forth.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ScriptState {
+    Missing,
+    /// No readable marker (scripts from before versioning) or a lower version.
+    Outdated,
+    /// The same version, even when the bytes differ, so hand edits survive.
+    Current,
+    /// Written by a newer Bashboard; never replaced.
+    Newer,
+}
+
+impl ScriptState {
+    fn installed(self) -> bool {
+        matches!(self, ScriptState::Current | ScriptState::Newer)
+    }
+}
+
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
@@ -64,6 +88,7 @@ pub struct Preview {
     pub script_path: String,
     pub additions: Map<String, Value>,
     pub already_installed: bool,
+    pub script_state: ScriptState,
     /// Whether the agent's home folder exists, i.e. the agent has run on this machine.
     pub detected: bool,
     /// `detected` for Claude, false for other agents; kept for callers that predate `detected`.
@@ -323,22 +348,47 @@ fn require_bash(bash_found: bool) -> Result<(), String> {
     }
 }
 
-fn script_current(path: &Path) -> bool {
-    std::fs::read_to_string(path).is_ok_and(|s| s == SCRIPT)
+/// The version on the marker line near the top of a hook script, if it has one.
+fn script_version(text: &str) -> Option<u32> {
+    text.lines()
+        .take(10)
+        .find_map(|l| l.trim().strip_prefix(VERSION_MARKER))
+        .and_then(|v| v.trim().parse().ok())
+}
+
+fn script_state(path: &Path) -> ScriptState {
+    let Ok(bytes) = std::fs::read(path) else {
+        return ScriptState::Missing;
+    };
+    match script_version(&String::from_utf8_lossy(&bytes)) {
+        Some(v) if v > HOOK_VERSION => ScriptState::Newer,
+        Some(v) if v == HOOK_VERSION => ScriptState::Current,
+        _ => ScriptState::Outdated,
+    }
+}
+
+/// Writes the bundled script unless the installed one is current or newer, so an install
+/// started from an older app never downgrades it.
+fn write_script(path: &Path) -> Result<(), String> {
+    if script_state(path).installed() {
+        return Ok(());
+    }
+    write_atomic(path, SCRIPT)
 }
 
 fn preview_in(claude_dir: &Path, bash_found: bool) -> Result<Preview, String> {
     let settings_path = settings_path(claude_dir);
     let script_path = script_path(claude_dir);
     let additions = additions(&read_settings(&settings_path)?)?;
-    let script_current = script_current(&script_path);
+    let script_state = script_state(&script_path);
     // Claude Code creates `~/.claude` on first run; without it there is nothing to hook.
     let detected = agents::CLAUDE.detected_at(Some(claude_dir));
     Ok(Preview {
         agent: AgentId::Claude,
         settings_path: settings_path.to_string_lossy().into_owned(),
         script_path: script_path.to_string_lossy().into_owned(),
-        already_installed: additions.is_empty() && script_current,
+        already_installed: additions.is_empty() && script_state.installed(),
+        script_state,
         detected,
         claude_detected: detected,
         bash_found,
@@ -354,7 +404,7 @@ fn install_in(claude_dir: &Path, bash_found: bool) -> Result<(), String> {
     let mut settings = read_settings(&settings_path)?;
     let additions = additions(&settings)?;
 
-    write_atomic(&script_path(claude_dir), SCRIPT)?;
+    write_script(&script_path(claude_dir))?;
 
     if additions.is_empty() {
         return Ok(());
@@ -493,11 +543,13 @@ fn codex_preview(t: &Target, bash_found: bool) -> Result<Preview, String> {
     let hooks = read_settings(&hooks_path)?;
     let additions = additions_for(&hooks, &CODEX_EVENTS, &codex_group(t), "hooks.json")?;
     let config = std::fs::read_to_string(t.home.join("config.toml")).ok();
+    let script_state = script_state(&script_path);
     Ok(Preview {
         agent: AgentId::Codex,
         settings_path: hooks_path.to_string_lossy().into_owned(),
         script_path: script_path.to_string_lossy().into_owned(),
-        already_installed: additions.is_empty() && script_current(&script_path),
+        already_installed: additions.is_empty() && script_state.installed(),
+        script_state,
         detected: t.agent.agent().detected_at(Some(&t.home)),
         claude_detected: false,
         bash_found,
@@ -512,7 +564,7 @@ fn codex_install(t: &Target, bash_found: bool) -> Result<(), String> {
     let mut hooks = read_settings(&hooks_path)?;
     let additions = additions_for(&hooks, &CODEX_EVENTS, &codex_group(t), "hooks.json")?;
 
-    write_atomic(&script_path(&t.home), SCRIPT)?;
+    write_script(&script_path(&t.home))?;
 
     if additions.is_empty() {
         return Ok(());
@@ -551,6 +603,7 @@ fn copilot_preview(t: &Target, bash_found: bool) -> Result<Preview, String> {
         .ok()
         .and_then(|s| serde_json::from_str::<Value>(&s).ok());
     let file_current = current.as_ref() == Some(&expected);
+    let script_state = script_state(&script_path);
     let additions = if file_current {
         Map::new()
     } else {
@@ -560,7 +613,8 @@ fn copilot_preview(t: &Target, bash_found: bool) -> Result<Preview, String> {
         agent: AgentId::Copilot,
         settings_path: file_path.to_string_lossy().into_owned(),
         script_path: script_path.to_string_lossy().into_owned(),
-        already_installed: file_current && script_current(&script_path),
+        already_installed: file_current && script_state.installed(),
+        script_state,
         detected: t.agent.agent().detected_at(Some(&t.home)),
         claude_detected: false,
         bash_found,
@@ -572,7 +626,7 @@ fn copilot_preview(t: &Target, bash_found: bool) -> Result<Preview, String> {
 /// Bashboard owns `hooks/bashboard.json`, so it is written whole rather than merged.
 fn copilot_install(t: &Target, bash_found: bool) -> Result<(), String> {
     require_bash(bash_found)?;
-    write_atomic(&script_path(&t.home), SCRIPT)?;
+    write_script(&script_path(&t.home))?;
     write_atomic(&copilot_file_path(&t.home), pretty(&copilot_file(t))?)
 }
 
@@ -723,6 +777,122 @@ mod tests {
         assert!(!preview_in(&dir, true).unwrap().already_installed);
         install_in(&dir, true).unwrap();
         assert_eq!(std::fs::read_to_string(script_path(&dir)).unwrap(), SCRIPT);
+    }
+
+    fn versioned(v: u32) -> String {
+        format!("#!/usr/bin/env bash\n{VERSION_MARKER} {v}\necho hand edit\n")
+    }
+
+    #[test]
+    fn bundled_script_carries_hook_version() {
+        assert_eq!(script_version(SCRIPT), Some(HOOK_VERSION));
+    }
+
+    #[test]
+    fn script_version_reads_the_marker_near_the_top() {
+        assert_eq!(script_version(&versioned(7)), Some(7));
+        assert_eq!(
+            script_version("#!/bin/sh\n# bashboard-hook-version: x\n"),
+            None
+        );
+        assert_eq!(script_version("#!/bin/sh\necho hi\n"), None);
+    }
+
+    #[test]
+    fn missing_script_with_hooks_in_settings_offers_the_script_only() {
+        let dir = temp_dir("script-missing");
+        install_in(&dir, true).unwrap();
+        std::fs::remove_file(script_path(&dir)).unwrap();
+        let p = preview_in(&dir, true).unwrap();
+        assert_eq!(p.script_state, ScriptState::Missing);
+        assert!(p.additions.is_empty() && !p.already_installed);
+        install_in(&dir, true).unwrap();
+        assert_eq!(std::fs::read_to_string(script_path(&dir)).unwrap(), SCRIPT);
+    }
+
+    #[test]
+    fn unversioned_script_is_outdated_and_is_replaced() {
+        let dir = temp_dir("script-unversioned");
+        install_in(&dir, true).unwrap();
+        std::fs::write(script_path(&dir), "#!/usr/bin/env bash\nexit 0\n").unwrap();
+        let p = preview_in(&dir, true).unwrap();
+        assert_eq!(p.script_state, ScriptState::Outdated);
+        assert!(p.additions.is_empty() && !p.already_installed);
+        let v = serde_json::to_value(&p).unwrap();
+        assert_eq!(v["scriptState"], "outdated");
+        install_in(&dir, true).unwrap();
+        assert_eq!(std::fs::read_to_string(script_path(&dir)).unwrap(), SCRIPT);
+    }
+
+    #[test]
+    fn older_script_is_outdated_and_is_replaced() {
+        let dir = temp_dir("script-older");
+        install_in(&dir, true).unwrap();
+        std::fs::write(script_path(&dir), versioned(HOOK_VERSION - 1)).unwrap();
+        assert_eq!(
+            preview_in(&dir, true).unwrap().script_state,
+            ScriptState::Outdated
+        );
+        install_in(&dir, true).unwrap();
+        assert_eq!(std::fs::read_to_string(script_path(&dir)).unwrap(), SCRIPT);
+    }
+
+    #[test]
+    fn same_version_with_other_bytes_is_current_and_kept() {
+        let dir = temp_dir("script-equal");
+        install_in(&dir, true).unwrap();
+        let edited = versioned(HOOK_VERSION);
+        std::fs::write(script_path(&dir), &edited).unwrap();
+        let p = preview_in(&dir, true).unwrap();
+        assert_eq!(p.script_state, ScriptState::Current);
+        assert!(p.already_installed);
+        install_in(&dir, true).unwrap();
+        assert_eq!(std::fs::read_to_string(script_path(&dir)).unwrap(), edited);
+    }
+
+    #[test]
+    fn newer_script_counts_as_installed_and_is_never_downgraded() {
+        let dir = temp_dir("script-newer");
+        let newer = versioned(HOOK_VERSION + 1);
+        std::fs::create_dir_all(dir.join("hooks")).unwrap();
+        std::fs::write(script_path(&dir), &newer).unwrap();
+        // Settings still lack entries: install adds them but leaves the script alone.
+        let p = preview_in(&dir, true).unwrap();
+        assert_eq!(p.script_state, ScriptState::Newer);
+        assert!(!p.additions.is_empty() && !p.already_installed);
+        install_in(&dir, true).unwrap();
+        assert_eq!(std::fs::read_to_string(script_path(&dir)).unwrap(), newer);
+        assert!(preview_in(&dir, true).unwrap().already_installed);
+
+        for agent in [AgentId::Codex, AgentId::Copilot] {
+            let home = temp_dir(&format!("script-newer-{agent:?}"));
+            std::fs::create_dir_all(home.join("hooks")).unwrap();
+            std::fs::write(script_path(&home), &newer).unwrap();
+            let t = target_in(agent, &home);
+            assert_eq!(
+                preview_for(&t, true).unwrap().script_state,
+                ScriptState::Newer
+            );
+            install_for(&t, true).unwrap();
+            assert_eq!(std::fs::read_to_string(script_path(&home)).unwrap(), newer);
+            let p = preview_for(&t, true).unwrap();
+            assert!(p.already_installed && p.additions.is_empty(), "{agent:?}");
+        }
+    }
+
+    #[test]
+    fn other_agents_report_an_outdated_script() {
+        for agent in [AgentId::Codex, AgentId::Copilot] {
+            let home = temp_dir(&format!("script-outdated-{agent:?}"));
+            let t = target_in(agent, &home);
+            install_for(&t, true).unwrap();
+            std::fs::write(script_path(&home), "old").unwrap();
+            let p = preview_for(&t, true).unwrap();
+            assert_eq!(p.script_state, ScriptState::Outdated, "{agent:?}");
+            assert!(p.additions.is_empty() && !p.already_installed, "{agent:?}");
+            install_for(&t, true).unwrap();
+            assert_eq!(std::fs::read_to_string(script_path(&home)).unwrap(), SCRIPT);
+        }
     }
 
     #[test]

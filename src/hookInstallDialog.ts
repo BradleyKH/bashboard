@@ -1,5 +1,6 @@
 import { agentName, isPreviewAgent } from './agentNames';
 import type { HookAgentId, HookInstallPreview } from './hookInstall';
+import { hookAction, hookActionVerb, scriptLineLabel } from './hookInstallModel';
 
 export interface HookInstallDialogCallbacks {
   /** Performs the install; a rejection is shown in the dialog and leaves it open. */
@@ -53,15 +54,24 @@ export class HookInstallDialog {
     box.setAttribute('aria-modal', 'true');
     box.addEventListener('keydown', (e) => this.onKey(e));
 
+    const verb = hookActionVerb(hookAction(preview));
     const title = document.createElement('h2');
-    title.textContent = `Install ${name} hooks`;
+    title.textContent = `${verb} ${name} hooks`;
 
-    const script = this.line('Writes the hook script to', preview.scriptPath);
-    const settings = this.line('Adds these hooks to', preview.settingsPath);
-
-    const pre = document.createElement('pre');
-    pre.className = 'hook-dialog-json';
-    pre.textContent = JSON.stringify(preview.additions, null, 2);
+    const details: HTMLElement[] = [];
+    const scriptLabel = scriptLineLabel(preview.scriptState);
+    if (scriptLabel) details.push(this.line(scriptLabel, preview.scriptPath));
+    if (Object.keys(preview.additions).length > 0) {
+      const pre = document.createElement('pre');
+      pre.className = 'hook-dialog-json';
+      pre.textContent = JSON.stringify(preview.additions, null, 2);
+      details.push(this.line('Adds these hooks to', preview.settingsPath), pre);
+    } else {
+      const change = preview.scriptState === 'missing' ? 'written' : 'updated';
+      details.push(
+        this.line('The hooks in', preview.settingsPath, ` are already in place; only the hook script will be ${change}.`),
+      );
+    }
 
     this.error = document.createElement('div');
     this.error.className = 'hook-dialog-error';
@@ -70,7 +80,7 @@ export class HookInstallDialog {
     this.install = document.createElement('button');
     this.install.type = 'button';
     this.install.className = 'hook-dialog-install';
-    this.install.textContent = 'Install';
+    this.install.textContent = verb;
     this.install.disabled = !preview.bashFound;
     this.install.addEventListener('click', () => void this.confirm());
 
@@ -91,7 +101,7 @@ export class HookInstallDialog {
         'The hooks run through Git Bash, which was not found. Install Git for Windows, then open this dialog again.';
       box.append(warning);
     }
-    box.append(script, settings, pre);
+    box.append(...details);
     if (isPreviewAgent(this.agent)) {
       box.append(this.note(`${name} support is a preview.`));
     }
@@ -118,12 +128,12 @@ export class HookInstallDialog {
     return p;
   }
 
-  private line(label: string, path: string): HTMLElement {
+  private line(label: string, path: string, after = ''): HTMLElement {
     const p = document.createElement('p');
     p.className = 'hook-dialog-line';
     const code = document.createElement('code');
     code.textContent = path;
-    p.append(`${label} `, code);
+    p.append(`${label} `, code, after);
     return p;
   }
 

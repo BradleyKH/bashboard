@@ -28,6 +28,8 @@ import {
   type DropTarget,
 } from './docking';
 import { FindBar } from './findBar';
+import type { ForgeTab } from './forgeModel';
+import { ForgePane } from './forgePane';
 import { GitPane } from './gitPane';
 import type { OpenInHandler } from './openMenu';
 import type { Worktree } from './worktreeApi';
@@ -238,6 +240,7 @@ export type PaneSpec =
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
   | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   | { kind: 'git'; root: string; tab?: GitTab }
+  | { kind: 'forge'; root: string; tab?: ForgeTab }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' }
   | { kind: 'ports' };
@@ -948,6 +951,7 @@ export class Workspace {
       if (pane instanceof ScratchPane) return { key: id, collapsed, kind: 'scratch', scratchId: pane.scratchId };
       if (pane instanceof FilesPane) return { key: id, collapsed, kind: 'files', ...pane.saved() };
       if (pane instanceof GitPane) return { key: id, collapsed, kind: 'git', ...pane.saved() };
+      if (pane instanceof ForgePane) return { key: id, collapsed, kind: 'forge', ...pane.saved() };
       if (pane instanceof SearchPane) return { key: id, collapsed, kind: 'search', ...pane.saved() };
       if (pane instanceof ContainersPane) return { key: id, collapsed, kind: 'containers' };
       if (pane instanceof PortsPane) return { key: id, collapsed, kind: 'ports' };
@@ -1482,6 +1486,8 @@ export class Workspace {
         };
       case 'git':
         return { kind: 'git', root: p.root, tab: p.tab };
+      case 'forge':
+        return { kind: 'forge', root: p.root, tab: p.tab };
       case 'search':
         return { kind: 'search', root: p.root, query: p.query, options: p.options };
       case 'containers':
@@ -1506,6 +1512,8 @@ export class Workspace {
         return { kind: 'files', folder: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'git':
         return { kind: 'git', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
+      case 'forge':
+        return { kind: 'forge', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'search':
         return { kind: 'search', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'containers':
@@ -1552,6 +1560,9 @@ export class Workspace {
         break;
       case 'git':
         pane = this.createGit(id, host, spec, expanded);
+        break;
+      case 'forge':
+        pane = this.createForge(id, host, spec, expanded);
         break;
       case 'search':
         pane = this.createSearch(id, host, spec, expanded);
@@ -1680,6 +1691,37 @@ export class Workspace {
       onSetPrimaryBranch: (root, branch) => this.hooks.onSetPrimaryBranch?.(root, branch),
       tab: spec.tab,
     });
+  }
+
+  private createForge(
+    id: string,
+    host: HTMLElement,
+    spec: Extract<PaneSpec, { kind: 'forge' }>,
+    expanded: boolean,
+  ): ForgePane {
+    return new ForgePane({
+      host,
+      paneId: id,
+      settings: this.paneSettings(),
+      root: spec.root,
+      expanded,
+      keymap: () => this.config.keymap,
+      dispatch: (a) => this.dispatch(a),
+      onFocus: () => this.setFocused(id),
+      onChange: () => this.paneChanged(id),
+      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
+      onRunTerminal: (argv, cwd) => this.openForgeCommand(id, argv, cwd),
+      tab: spec.tab,
+    });
+  }
+
+  /**
+   * A Forge pane's sign-in or install command, in a terminal split off it. A clean exit closes
+   * that terminal; one still open at quit is saved, and restored, as a plain shell in `cwd`.
+   */
+  private openForgeCommand(forgePaneId: string, argv: string[], cwd: string): void {
+    if (!this.store.isCollapsed(forgePaneId)) this.focusPane(forgePaneId);
+    this.openPane({ kind: 'terminal', cwd: cwd || undefined, command: argv });
   }
 
   /** Insert name from a Git pane's branch row: as typed, into the tab's most recently focused terminal. */
@@ -2069,6 +2111,9 @@ export class Workspace {
     if (pane instanceof GitPane) {
       return { ...common, kind: 'git', title: pane.title(), folder: pane.root(), confirmClose: false };
     }
+    if (pane instanceof ForgePane) {
+      return { ...common, kind: 'forge', title: pane.title(), folder: pane.root(), confirmClose: false };
+    }
     if (pane instanceof SearchPane) {
       return { ...common, kind: 'search', title: pane.title(), folder: pane.root(), confirmClose: false };
     }
@@ -2148,6 +2193,7 @@ export class Workspace {
       pane instanceof ScratchPane ||
       pane instanceof FilesPane ||
       pane instanceof GitPane ||
+      pane instanceof ForgePane ||
       pane instanceof SearchPane ||
       pane instanceof ContainersPane ||
       pane instanceof PortsPane

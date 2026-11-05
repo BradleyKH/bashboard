@@ -60,7 +60,7 @@ title is "Bashboard".
 ```
 
 The Rust core owns everything that touches the OS: ptys, the clipboard, file watching, the
-hook endpoint, process inspection, repo files, git, containers, and code search. The front end owns layout, rendering, and input
+hook endpoint, process inspection, repo files, git, containers, code search, and code host APIs. The front end owns layout, rendering, and input
 mapping. They talk through Tauri commands (request/response) and Tauri channels and events
 (streams).
 
@@ -237,6 +237,7 @@ exact transitions as they happen.
 
   ```sh
   #!/usr/bin/env bash
+  # bashboard-hook-version: 1
   # Forwards an agent hook event to Bashboard. Silent no-op outside a Bashboard pane.
   # Usage: bashboard-hook.sh [agent]   (agent defaults to claude)
   [ -n "$BASHBOARD_HOOK_URL" ] || exit 0
@@ -260,6 +261,16 @@ exact transitions as they happen.
   bug reports about an agent's payload shape. The same script serves every agent, installed
   once per agent home (`~/.claude/hooks/`, `~/.codex/hooks/`, `~/.copilot/hooks/`) and told
   which agent it forwards for by its argument.
+
+  The `# bashboard-hook-version: N` line near the top versions the script, and
+  `HOOK_VERSION` in `hook_install.rs` must match it (a test checks); any change to the script
+  bumps both. The installed copy is compared by version, not by bytes, as the preview's
+  `scriptState`: `missing`; `outdated` when its version is lower or it has no readable marker
+  (scripts written before versioning); `current` at the same version, even when its bytes differ,
+  so hand edits survive; and `newer` when a newer Bashboard wrote it. `current` and `newer`
+  count as installed, and the install writes the script only when it is missing or outdated, so
+  an older build never downgrades a newer build's script and two installed builds never swap it
+  back and forth.
 
   Because the variables exist only inside this app's panes, the same global hook config does
   nothing for sessions in Windows Terminal or VS Code.
@@ -287,8 +298,12 @@ exact transitions as they happen.
   Installing hooks requires bash, which comes with Git for Windows; without it the install is
   refused with an explanation. The dashboard panel has an "Install Claude Code hooks" button, shown while Claude Code is
   detected (`~/.claude` exists, checked at startup) and the hooks are not fully installed. It shows the exact JSON it will merge and writes it only after
-  confirmation; it never edits `settings.json` silently. The install writes the script to
-  `~/.claude/hooks/bashboard-hook.sh` (home is `USERPROFILE`, else `HOME`), then re-reads
+  confirmation; it never edits `settings.json` silently. When every group is already registered
+  and only the script is outdated, the button, the dialog title, and its confirm button say
+  "Update" instead of "Install", and the dialog says the hooks in settings are already in place
+  and only the hook script will be updated, with no JSON. The install writes the script to
+  `~/.claude/hooks/bashboard-hook.sh` (home is `USERPROFILE`, else `HOME`) when it is missing or
+  outdated, then re-reads
   `settings.json` and merges the groups, through a temporary file and a rename. A missing
   `settings.json` is created. A `settings.json` that is not plain JSON (comments, trailing
   commas) is refused with an error naming the file, and nothing is written.
@@ -727,6 +742,7 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb git` | The Git pane for the working directory's repo, focusing an existing one (4.11) |
 | `bb search [<query>]` | A Search pane for the working directory's repo, starting with the query |
 | `bb scratch [<text>]` | A new scratch pad (4.15) holding the text, or standard input when it is not a terminal (`git diff \| bb scratch`) |
+| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Forge pane (3.20), or removes it with `--clear` |
 | `bb help` | Lists the commands |
 
 `src-tauri/cli-commands.json` holds each command's usage, summary, details, and examples. `bb help`
@@ -746,7 +762,14 @@ tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
   exits 0. Success means the core accepted the command, not that the front end carried it out:
   a pane whose pty is alive but which is mid-close drops the command with a console warning.
 - **Outside the app** (no `BASHBOARD_HOOK_URL`), `bb` prints that it only works inside a
-  Bashboard pane and exits 1.
+  Bashboard pane and exits 1, except `bb auth`.
+- **`bb auth bitbucket`** talks only to Windows Credential Manager, never to the app, so it works in
+  any terminal. It reads the token from a hidden prompt (console echo off), or from standard input
+  when that is not a terminal (up to 1 MiB, first line used), and stores it as the generic
+  credential `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, persisted
+  for the local machine. A token that is empty or over 2,560 bytes (the Credential Manager blob
+  limit) is refused. `--clear` deletes the credential and says when none was stored. The Forge
+  pane's Bitbucket token source (3.20) reads that credential, and nothing else writes it.
 - The core emits `cli://command` with the pane id and the resolved request; the front end's
   `Workspace` carries it out exactly as the matching dashboard or keyboard action would, so `bb`
   can do nothing the UI cannot.
@@ -919,6 +942,126 @@ result, never an error.
 
 Both commands read the settings on every call, so a changed URL applies without a restart. Every
 field of every reply is optional on parse, since these APIs are not versioned contracts.
+
+### 3.20 Forge (`src-tauri/src/forge/`)
+
+The Forge pane (4.20) shows a repo's CI runs and open pull requests. The core talks to the code
+host's REST API, and every host returns the same normalized shapes (section 7), so the front end
+knows a host only through a few capability flags. The module is split by concern: `mod.rs` (the
+commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shapes), `remote.rs`
+(remote URLs), `auth.rs` (tokens and accounts), `http.rs` (the client), and one file per provider,
+`github.rs` and `bitbucket.rs`.
+
+- **Provider trait.** `ForgeProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
+  `jobs`, `log`, `rerun`, `cancel`, and `pulls`, each taking a `Cx` (the shared `Http` and the
+  resolved `Token`) and a `RepoRef`. The commands already run on `spawn_blocking`, so the methods
+  are blocking, which keeps the trait object safe with no async trait crate. `provider(kind)`
+  returns the GitHub and Bitbucket providers, and `None` for GitLab and Azure DevOps, which the
+  remote parser and the `forge.hosts` setting already know. `forge_repo` reports those as
+  `unsupportedHost` with "GitLab isn't supported yet" or "Azure DevOps isn't supported yet".
+  `RepoRef` carries the provider, host, a path (GitHub `[owner, repo]`, Bitbucket `[workspace,
+  slug]`, GitLab the full group path, Azure DevOps `[org, project, repo]`), and the repo's web URL.
+- **Commands.** All are async, run their work on a blocking thread, and return a `ForgeError` on
+  failure: `forge_repo(root)`, `forge_runs(root, branch)` (newest first, at most 20; a null branch
+  means every branch), `forge_jobs(root, runId)`, `forge_log(root, runId, jobId)`,
+  `forge_rerun(root, runId, failedOnly)`, `forge_cancel(root, runId)`, `forge_pulls(root)` (open
+  ones, at most 50, with the host's count of all open ones), and `forge_set_account(root, user)`. `root` is the pane's folder; a folder that
+  is not a directory or not inside a repo is `notARepo`.
+- **Remote.** The remote is the current branch's upstream remote (`branch.<name>.remote`, ignoring
+  `.`), else the one Publish uses (3.9): `origin`, else the only remote. A repo with no remote is
+  `noRemote`. `parse_remote` reads `https://`, `ssh://`, and scp-form URLs, keeping an https
+  remote's port (the web and API URLs use it too) and its `user@`, and dropping any password
+  unread. Every Azure DevOps form (`dev.azure.com`, `ssh.dev.azure.com`, `vs-ssh.visualstudio.com`,
+  and `<org>.visualstudio.com`) normalizes to host `dev.azure.com` and `[org, project, repo]`.
+  `ssh.github.com` is `github.com`. Remote URLs never appear in messages, since an https remote
+  can carry a password.
+- **Host classification.** `classify` picks the provider from the `forge.hosts` setting (section
+  8) first, then the well-known hosts (`github.com`, `bitbucket.org`, `gitlab.com`,
+  `dev.azure.com`), then treats any host the GitHub CLI is signed in to (a top-level key in its
+  `hosts.yml`) as GitHub Enterprise Server. Anything else is `unsupportedHost`. The Bitbucket
+  provider speaks only Bitbucket Cloud (`api.bitbucket.org`): for another host it answers
+  `unsupportedHost` with "Bitbucket Data Center isn't supported yet" before sending a request, so a
+  self-hosted host's Git Credential Manager token never goes to Bitbucket Cloud. `forge.hosts` is
+  therefore for GitHub Enterprise Server hosts the CLI is not signed in to, and for GitLab and
+  Azure DevOps hosts once those are served.
+- **Tokens.** Bashboard never runs an OAuth flow and never writes a secret itself. Each provider
+  lists sources in order, and the first that yields a token wins. GitHub: `gh auth token
+  --hostname <host>` (with `--user <account>` when an account is chosen), found on `PATH` or in
+  GitHub CLI's install folders, since a `gh` installed while Bashboard runs is not on the `PATH` it
+  inherited; then `git credential fill`, which reaches Git Credential Manager. Bitbucket: the
+  generic Windows credential `bashboard:bitbucket.org`, which `bb auth bitbucket` writes (3.13);
+  then Git Credential Manager as a fallback. `git credential fill` runs with `GCM_INTERACTIVE=never`
+  and `GIT_TERMINAL_PROMPT=0`, so it never opens a sign-in window, passes the account as the
+  `username` when one is chosen, and its reported expiry is honored. Bashboard never calls
+  `approve` or `reject`, since the credential belongs to the user's helper. Tokens are cached in
+  memory by provider, host, and account. A call that answers 401 drops its cached token, resolves
+  one fresh, and retries once before the error stands.
+- **Accounts.** GitHub is the only host with several signed-in accounts. They come from GitHub
+  CLI's `hosts.yml` (the host's `users` names and its active `user`); only those keys are read,
+  never an `oauth_token`. The account a repo uses is, in order: `credential.username` from the
+  repo's git config (local, or `credential.<url>.username` for `https://<host>/`), the `user@` of
+  an https remote, the host's only account, or the CLI's active account when there are several.
+  `ForgeRepo.accountSource` names which (`repoConfig`, `remoteUrl`, `only`, `cliActive`, or
+  `none`). `forge_set_account` refuses a user not among the host's accounts, runs `git config
+  --local credential.username <user>`, drops that root's repo and token caches, and returns the
+  re-resolved repo. That setting is the one that also stops Git Credential Manager asking which
+  account to use on every push.
+- **Errors.** Providers and the HTTP layer return `ForgeError { kind, message, url, signIn,
+  retryAfterSecs }`. `message` is plain text and never holds a token or a header; the HTTP layer
+  builds messages from status codes and host names only. A 401 is `signedOut`; a 403 with GitHub's
+  `X-GitHub-SSO` header is `ssoRequired`, carrying the authorize URL; a 429, or a 403 with
+  `Retry-After` or an exhausted `X-RateLimit-Remaining`, is `rateLimited` with the seconds to wait;
+  any other 403 is `forbidden`, and a 404 is `notFound`. A Bitbucket 403 body names the scopes the
+  token lacks (`error.detail.required`), and the message is "This token is missing the X
+  scope." in place of the generic "The code host refused access to this repo." Only scope-shaped
+  strings are echoed. A `forbidden` result drops the cached token for that provider, host, and
+  account and resolves it again; the call repeats once only when the resolved token's value differs
+  from the one that failed (compared in memory), so a token stored after a missing-scope 403 takes
+  effect without a restart, while an ordinary 403 costs no extra request and a mutating call
+  (re-run, cancel) never repeats with the same token. `signedOut` is finished in `mod.rs` into the next
+  step. For GitHub with `gh` installed, `signIn` is `gh auth login --hostname <host> --web`; with
+  `gh` missing, the kind becomes `notInstalled`, `url` is cli.github.com, and `signIn` is `winget
+  install --id GitHub.cli -e`. For Bitbucket the message says whether no token is stored or the
+  stored token was rejected (it may have expired or lack a scope), `url` is the Atlassian token
+  page, and `signIn` is `bb auth bitbucket`. A GitHub `notFound` on a host with several accounts
+  points at the account menu. A Git Credential Manager token that Bitbucket refuses gets a message
+  saying that its sign-in cannot read pipelines or pull requests.
+- **HTTP.** One `ureq` agent with a 15 second timeout, the system proxy, and the Windows
+  certificate store as its roots, so a corporate TLS inspection root is trusted. Redirects are
+  followed by hand. A request follows one redirect to the same host with the same credentials
+  (GitHub answers a renamed repo's API URL with a 301); a job log's redirect, which leads to
+  another host's signed URL, is followed without the `Authorization` header or any header the
+  caller set. GETs go through an ETag cache of 256 entries, least recently used out, keyed by
+  method, URL, and a hash of the token, so a 304 reuses the cached body. A log is read to its end
+  and only the last 1 MiB is kept, cut after a newline, with `truncated` set.
+- **GitHub.** github.com uses `api.github.com`; an Enterprise Server host uses
+  `https://<host>/api/v3` and `/api/graphql`. Runs, jobs, logs, re-run, re-run failed jobs, and
+  cancel use the REST Actions API. Open pull requests come from one GraphQL query, since REST would
+  need a request per pull request for reviews and checks, and its `totalCount` is the open count;
+  a GraphQL failure arrives as HTTP 200
+  with an `errors` array, which is mapped to the same error kinds. A run's status comes from its
+  `status`, or its `conclusion` once completed: `action_required` is `waiting`; `queued`,
+  `requested`, `pending`, and `waiting` are `queued`; `failure`, `timed_out`, and `startup_failure`
+  are `failure`. A run's finish time is its last update, since it has no completion time of its
+  own. A pull request's reviewers are its requested users (pending, even when they reviewed
+  before) and the authors of the latest reviews. Team review requests are not listed. A pull
+  request whose author was deleted shows as "ghost".
+- **Bitbucket.** `api.bitbucket.org/2.0` with a Bearer token. A pipeline is a run, and its steps
+  are its jobs, with no per-command step list, so `steps` is empty. A pipeline's `PAUSED` and
+  `HALTED` states are `waiting`, and `STOPPED` is `cancelled`. Re-run starts a new pipeline on the
+  same target (branch or pull request, selector, and commit); custom pipeline variables are not
+  kept. There is no failed-only re-run (`rerunFailed` is false), and cancel is `stopPipeline`. A
+  step that has not started has an empty log. Pull requests are listed with their participants and
+  reviewers, and the page's `size` is the open count; the viewer's uuid comes from `/user` once per token, and a token without
+  `read:user:bitbucket` still lists pull requests, with none marked as yours or awaiting your
+  review. A pull request's checks are the worst of its commit's build statuses, fetched once per
+  pull request and kept until its `updated_on` changes, which keeps polling inside Bitbucket's
+  limit of 1,000 requests an hour per user.
+- **Capabilities.** GitHub: re-run, re-run failed, cancel, logs, drafts, accounts; nouns "pull
+  request" and "workflow run"; minimum poll 10 s. Bitbucket: re-run, cancel, logs, drafts, no
+  failed-only re-run, no accounts; nouns "pull request" and "pipeline"; minimum poll 30 s.
+- **Caching.** The resolved repo (remote, branch, and account) is cached per root for 15 s. Tokens
+  are cached as above, and the ETag, viewer, and checks caches live as long as the app.
 
 ## 4. Front end
 
@@ -1588,7 +1731,9 @@ the same as a card. The section is hidden while there are none.
 
 **Footer.** One install button sits at the bottom of the panel for each detected agent whose
 hooks are not installed (3.3): "Install Claude Code hooks", "Install Codex hooks (preview)", and
-"Install Copilot hooks (preview)". With every detected agent's hooks in, the footer takes no space.
+"Install Copilot hooks (preview)". A button reads "Update <agent> hooks" instead when the
+agent's hook config is complete and only the hook script is out of date. With every detected
+agent's hooks in, the footer takes no space.
 
 The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the
 sections Appearance, Backdrop, Terminal, Editor, Dashboard, Local models, and Restore. A filter field above them
@@ -1786,6 +1931,7 @@ Every leaf of a tab's split tree is a pane of one kind:
 | `terminal` | A shell | 4.4 |
 | `files` | A folder's files beside a preview of the selected one | 4.12 |
 | `git` | A repo's changes, staging, commits, and diffs | 4.13 |
+| `forge` | A repo's CI runs and open pull requests from its code host | 4.20 |
 | `search` | Code search over a repo | 4.14 |
 | `scratch` | A plain text scratch pad | 4.15 |
 | `containers` | Docker and Podman containers grouped by Compose project | 4.16 |
@@ -1814,7 +1960,7 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
   which for other kinds is the folder's name, a scratch pad's first line, "Containers", or "Ports".
 - **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder,
-  selected file, sort, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Search pane's
+  selected file, sort, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Forge pane's repo and tab, a Search pane's
   repo, query, and options (rerun on restore), and a scratch pad's text. A pane whose folder no
   longer exists opens on a notice naming the path, with the kind menu still available. A Files
   pane restored expanded over a file that is missing or cannot be previewed as text shows its list.
@@ -2361,6 +2507,119 @@ last when sorting by Pane in either direction. The sort is not saved. A click se
 `http://localhost:<port>`, and the context menu is the dashboard's, less Show in Ports. When nothing on screen changed but the uptimes, a poll updates them in place rather than
 rebuilding the list. The pane saves no state.
 
+
+### 4.20 Forge pane
+
+A Forge pane shows the CI runs and open pull requests of its folder's repo, from the repo's code
+host (3.20), as two tabs, **Pipelines** and **Pull requests** (the second reads "Merge requests"
+on a host whose `prNoun` says so). It opens only from the kind menu (4.11), keeps the pane's
+folder, and resolves the repo's root as the Git pane does (4.13); a folder outside a repo shows a
+notice. Its title is the repo folder's name, or "Forge" when it has no folder. The pane saves its
+folder and its tab, the tab omitted when it is Pipelines (section 7), and layouts keep it.
+
+**Store.** `ForgeStore` (`src/forgeStore.ts`) holds one repo's repo info, runs, and pull
+requests, shared by every Forge pane on that root and reference counted, so two panes on a repo
+make one set of requests. A pane wants its store only while expanded.
+
+**Bar.** From the left: the two tabs; a **This branch** checkbox, checked by default and shown on
+the Pipelines tab only; the repo's `owner/name`, linking to its `webUrl`, once the repo has
+resolved; the account chip; and **Refresh**, which polls at once. Clearing the checkbox lists runs
+on every branch, and the choice is shared by the panes on one repo. This branch follows the
+repo's current local branch, resolved again on every poll, so a checkout empties the list and
+loads the new branch's runs; a detached HEAD has no branch and lists every branch. The chip reads
+"as @name" and appears only when the host holds several accounts (`capabilities.accounts` and
+more than one in `accounts`). It is styled as a warning when the account came from
+`cliActive`, since the repo then follows whichever account `gh auth switch` last chose, and
+its tooltip says so. Clicking it opens the account menu: one radio entry per signed-in account, a
+disabled note that picking sets the repo's `credential.username`, which Git Credential Manager
+also uses for push and pull, and **Sign in another account**, which runs `gh auth login
+--hostname <host> --web` in a terminal split. Picking an account calls `forge_set_account`,
+replaces the store's repo, and reloads everything.
+
+**Pipelines.** Each run is a row: a status icon, the run's title (the commit's first line, or the
+host's display title), a line beneath it with the workflow or pipeline name when it differs from
+the title, `#<number>`, the branch, and the actor, and on the right the age ("5m ago") and the
+duration, which runs live for a running run. Ages and durations redraw every second while the
+pane is expanded and the window is visible. The status label (tooltip) is Queued, Running,
+Waiting for approval, Passed, Failed, Cancelled, Skipped, or Unknown. Clicking a row expands its
+jobs. The list is the latest 20 runs, and an empty list says so.
+
+- **Jobs.** Each job shows its status, name, and duration, then its steps when the host reports
+  them (GitHub does; a Bitbucket step carries no per-command list), with a failed step marked.
+  GitHub's jobs are its workflow jobs and Bitbucket's are the pipeline's steps. **Show log** loads
+  the job's log on demand: ANSI escapes, GitHub's per-line timestamps, a byte order mark, and
+  carriage returns are removed, a log cut to its last 1 MiB says so, and the view starts scrolled
+  to the end, where the failure is. An expanded run's jobs reload when a poll changes its status or
+  while it is still moving, and a job's open log is kept across reloads.
+- **Run menu.** Right-click a row: **Open in browser**; **Re-run** (greyed while the run is
+  active); **Re-run failed jobs**, only on a host that has it (GitHub), enabled for a failed run;
+  **Cancel**, only for a queued or running run on a host that can; and **Copy link**. Cancel opens
+  a confirmation naming the run and its branch, whose button reads "Cancel <run noun>" ("Cancel
+  workflow run", "Cancel pipeline"); Re-run and Re-run failed jobs do not ask. A re-run or cancel
+  polls again after 3 s, and a failure of either shows as a toast, since the list stays as it was.
+  Entries a host cannot do are left out rather than greyed.
+
+**Pull requests.** Open pull requests, at most 50, under group headers with counts: **Review
+requested** (the viewer is a requested reviewer who has not reviewed; a request wins over
+ownership), **Yours**, and **Others**; empty groups are left out. Within a group, drafts come
+last, then the most recently updated first. A row shows `#<number>`, the title, a Draft badge, the
+author and source and target branches, the review state (Approved, Changes requested, or Review
+pending), the checks status icon, and the age of the last update. Clicking a row opens the pull
+request in the browser. The menu holds **Open in browser**, **Copy link**, and **Copy branch
+name**. A Bitbucket token without `read:user:bitbucket` still lists pull requests, but every one
+falls under Others, since none can be marked as the viewer's. When the host counts more open
+pull requests than the 50 listed, a note after the groups reads "Showing the first 50 of 60 open
+pull requests." (with "merge requests" on a host that uses that noun); `src/forgeModel.ts` builds
+the text.
+
+**Polling.** Runs poll while any expanded pane is on the store: every 15 s while a run is queued
+or running, else every 60 s, never faster than the host's `minPollSecs`. Pull requests poll only
+while some expanded pane on the store is on the Pull requests tab, every `max(4 * minPollSecs, 60)`
+s, since they change slowly and cost more on some hosts. Polling pauses while the window is hidden
+or minimized and polls at once on return, as the Git pane's fetch does (4.13). A rate-limited
+answer delays the next poll by the seconds the host asked for, and any other failure retries after
+60 s; the notice's **Retry** and **Refresh** poll at once. When the window regains focus and the
+pane's tab shows an error other than rate limiting, the pane polls again, so a sign-in or a new
+token made outside the app takes effect without waiting out the retry. A reply to a question the
+pane has since changed (another scope, branch, or account) is dropped.
+
+**Toasts.** When a run that was queued or running in one poll is done in the next, a toast says so,
+for example "Workflow run passed: CI on main", with an **Open** action that opens the run. A first
+load announces nothing, and a run that moved to waiting has not finished. Panes sharing a store
+receive the same finished runs and only the first announces them, so each finished run toasts once.
+
+**Notices.** An error that stops a tab from showing anything replaces that tab's list with a setup
+notice: what happened, and buttons that do the next step. An error from resolving the repo shows on
+both tabs; one from polling runs or pull requests, only on its own tab. `src/forgeModel.ts` builds
+the notices from the error and the repo, and `ForgeNotice` draws them. The buttons run a command in
+a terminal split of this pane, open a URL, copy text (with a "Copied" toast), open the account
+menu, or retry.
+
+**Terminal splits.** A command from a notice or the account menu (sign in, install) runs in a
+terminal split off the pane, in the repo folder, after focusing the Forge pane when it is expanded.
+The terminal runs the command in place of a shell, as a container shell does (4.16), so a clean exit
+closes it and a nonzero exit leaves it readable. Restore brings back one still open at quit as a
+plain shell in that folder, since the command is not saved.
+
+| Error | Notice and its buttons |
+| --- | --- |
+| `notInstalled` | "Bashboard reads GitHub through the GitHub CLI." **Install with winget**, **Open cli.github.com**, **Retry** |
+| `signedOut`, GitHub | "Sign in to `<host>` with the GitHub CLI." **Sign in** (`gh auth login --hostname <host> --web`), **Retry** |
+| `signedOut`, Bitbucket, no token | "Bitbucket needs an API token." The reason, the numbered steps, and the scope list; **Open the API token page**, **Copy scopes**, **Run bb auth bitbucket**, **Retry** |
+| `signedOut`, Bitbucket, token refused | "Bitbucket rejected the stored API token." Steps and scopes folded under "How to make a new one"; the same buttons |
+| `forbidden`, Bitbucket | "Bitbucket denied the request", with the message naming the missing scope; the same steps, scopes, and buttons |
+| `notFound`, GitHub, several accounts | "`<owner>/<name>` wasn't found as @`<account>`." **Use another account** (opens the account menu), **Retry** |
+| `ssoRequired` | "Single sign-on needs authorizing", **Authorize** (the host's URL), **Retry** |
+| `rateLimited` | "Rate limit reached", with when polling resumes |
+| `unsupportedHost` | "`<host>` isn't supported", the message, and, for a GitHub Enterprise Server host the CLI is not signed in to, the `forge.hosts` setting to copy; **Copy setting**, **Retry** |
+| `notARepo` | "Not a git repository" |
+| `noRemote`, `network`, `other`, other `forbidden` and `notFound` | A titled notice holding the error's message, with **Retry** |
+
+The Bitbucket scope list comes from `BITBUCKET_SCOPE_INFO` and is shown as a table in
+[setup.md](setup.md#bitbucket-cloud): `read:repository:bitbucket`, `read:pullrequest:bitbucket`,
+`read:pipeline:bitbucket`, `write:pipeline:bitbucket` (optional, for re-run and stop), and
+`read:user:bitbucket`. **Copy scopes** copies them space separated.
+
 ## 5. Readability
 
 Bloom behind text is the main readability risk, so the whole backdrop is dimmed by `scrim.opacity`
@@ -2512,7 +2771,12 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
   dashboard panel.
 - **Persistence.** A session lineage is protected from blights and is re-founded if its last
   organism dies while the session lives.
-- **Changes to the copied code:** per-lineage fertility multipliers and blight immunity in
+- **Background floor.** Since session lineages keep the colony from ever emptying, the
+  background (non-session) colony is tended on its own: when its living count falls below 15
+  percent of capacity, a founder spore is planted near the colony's center every 120 generations
+  until it recovers, and 6 generations after it dies out entirely.
+- **Changes to the copied code:** per-lineage fertility multipliers, blight immunity, and the
+  background floor in
   `src/backdrop/sim/simulation.ts`, a per-lineage pulse attribute in the organism shader, and the
   `SessionColony` bookkeeping. All of it stays render-free in `src/backdrop/sim` except the pulse.
 
@@ -2595,7 +2859,42 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 | `SystemSample`, `DiskRow` | `src/systemModel.ts` | `system_sample` (4.6); `disks` is null unless the call passed `includeDisks` |
 | `AgentContext` | `src/agentModel.ts` | `agent_context` and `agent://context` (3.4) |
 | `ModelServersSnapshot`, `LoadedModel` | `src/modelServersApi.ts` | `model_servers_poll` (3.19) |
+| `ForgeRepo`, `Capabilities`, `Run`, `Job`, `Step`, `JobLog`, `PullList`, `PullRequest`, `Reviewer`, `ForgeError` | `src/forgeApi.ts` | The `forge_*` commands (3.20); the rules are under Forge payloads |
 | `ShellProfile` | `src/profiles.ts` | `shell_profiles` (3.1) |
+
+**Forge payloads.** The Rust types (`forge/types.rs`) serialize camelCase, with `Option` as null, and
+`src/forgeApi.ts` mirrors them field for field. Times are ISO 8601 strings.
+
+- `ProviderKind`: `github`, `bitbucket`, `gitlab`, or `azureDevOps`. `RunStatus`: `queued`,
+  `running`, `waiting`, `success`, `failure`, `cancelled`, `skipped`, or `other`; `waiting` means a
+  person must act (GitHub `action_required`, Bitbucket `PAUSED` or `HALTED`). `ReviewState`:
+  `approved`, `changesRequested`, or `pending`. `AccountSource`: `repoConfig`, `remoteUrl`,
+  `cliActive`, `only`, or `none`.
+- `Capabilities`: `rerun`, `rerunFailed`, `cancel`, `jobLogs`, and `drafts` (booleans); `prNoun`
+  ("pull request" or "merge request"); `runNoun` ("workflow run", "pipeline", or "build");
+  `minPollSecs`, the least spacing between polls; and `accounts`, whether the host can hold several
+  signed-in accounts the user picks between.
+- `ForgeRepo`: `provider`, `host`, `owner`, `name`, `webUrl`, `branch` (the current local branch,
+  null when detached), `capabilities`, `account` (null when none was chosen), `accountSource`, and
+  `accounts` (every account signed in to the host, from GitHub CLI's `hosts.yml`; empty when the
+  host has no such notion). For GitLab, `owner` is the group path joined with `/`.
+- `Run`: `id`, `number`, `name` (the workflow or pipeline), `title` (the commit message's first
+  line, or the display title), `branch`, `sha`, `event`, `status`, `rawStatus` (the host's own
+  word), `actor`, `createdAt`, `startedAt`, `finishedAt`, and `webUrl`.
+- `Job`: `id`, `name`, `status`, `startedAt`, `finishedAt`, `webUrl`, and `steps`, each a `Step`
+  with `number`, `name`, and `status`. A host with no per-command step list returns `steps` empty.
+  `JobLog`: `text` and `truncated`, the text being the last 1 MiB when the log is longer.
+- `PullList`: `items` (the `PullRequest` rows, at most 50) and `total`, the host's count of open
+  pull requests, null when the host does not say.
+- `PullRequest`: `id`, `number`, `title`, `author`, `draft`, `sourceBranch`, `targetBranch`,
+  `createdAt`, `updatedAt`, `webUrl`, `reviewDecision` (null when the host has no verdict yet),
+  `reviewers` (each a `Reviewer` with `login` and `state`), `checks` (null when it has none),
+  `isMine`, and `reviewRequested` (the viewer is a requested reviewer who has not reviewed). Both
+  flags are false when the viewer cannot be identified.
+- `ForgeError`: `kind` (`notARepo`, `noRemote`, `unsupportedHost`, `notInstalled`, `signedOut`,
+  `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, or `other`), `message` (plain
+  text, never a token or an `Authorization` header), `url` (a page to open), `signIn` (the argv to
+  run in a new terminal pane), and `retryAfterSecs`.
 
 **Session status.** A hook event newer than the roster's `statusUpdatedAt` wins; otherwise the
 roster's value. `waiting` exists only from hooks, and clears on the next `UserPromptSubmit`,
@@ -2630,7 +2929,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   Claude Code, which an unknown value also reads as. Its `resumeModel` (kept only beside a
   `sessionId`): none. Its `scrollbackId` (the scratch id alphabet):
   none, so the terminal starts without saved scrollback. A Files pane's `root`: resolved from its
-  `folder`. Its `expanded`: false.
+  `folder`. Its `expanded`: false. A Forge pane's `tab`: `pipelines`, the other being `pulls`;
+  it is omitted from the file when it is `pipelines`.
 
 **layouts.json.** Names are unique without regard to case. A layout holds one tab whose
 terminals carry no session ids, permission modes, or scrollback ids and whose scratch pads have a null
@@ -2726,6 +3026,12 @@ it with no pins, and Automatic omits it.
   // http://127.0.0.1:1234 for LM Studio. minContext is the context length under which the Local
   // models section warns (4.6); 0 turns the warning off.
   "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 },
+  // Host name to forge kind (github, gitlab, bitbucket, or azureDevOps) for a self-hosted host,
+  // matched without regard to case (3.20). Only a GitHub Enterprise Server host is served today; a
+  // GitLab or Azure DevOps host reports "not yet supported", and the Bitbucket provider refuses
+  // any host but bitbucket.org. Hosts the GitHub CLI is signed in to need no entry. An entry with
+  // another kind is dropped with a warning. No Settings tab field; edit the file.
+  "forge": { "hosts": {} },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
   // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in
@@ -2771,6 +3077,13 @@ toast, until the file is fixed.
   `DOMPurify`, with no remote images and links opened only through `open_url` (4.12).
 - The file commands (3.8) normalize every path, write only to existing files, and create or
   delete only the app's own scratch files.
+- Forge tokens (3.20) stay in the core's memory. They are read only from `gh auth token`, Git
+  Credential Manager (`git credential fill`, never `approve` or `reject`, never interactive), or
+  the `bashboard:bitbucket.org` credential that only `bb auth` writes. They never reach the page, a
+  log, or an error message, and `Token`'s `Debug` output hides the value. A redirect to another
+  host drops the `Authorization` header, and the Bitbucket provider refuses any host but
+  bitbucket.org before it sends anything, so a self-hosted host's token is never sent to Bitbucket
+  Cloud. `bb auth` hides its input and never prints the token.
 - `git`, `docker`, and `podman` run with argument lists, never through a shell, and paths come
   after `--` where the CLI accepts it. `open_in_editor` runs only a detected editor or the
   user's own `editor.command`.
@@ -2782,6 +3095,15 @@ module (`src/**/*.test.ts`); the Rust core's tests sit in each module and run ag
 folders, temp repos, captured CLI output, and a spawned pty. Keys are the exception: what
 reaches the shell through WebView2 and xterm.js can only be checked by hand, with the keyboard
 checklist in [development.md](development.md#releasing) before each release.
+
+The Forge module's providers map captured JSON to the normalized shapes in pure functions, so the
+GitHub and Bitbucket mappings, remote parsing and host classification, status-code mapping, the ETag
+cache, account choice, and token-source order are all tested without a network, and `bb auth`'s
+argument and token handling the same. The notices and menus, polling intervals, grouping, and log
+cleanup are Vitest cases in `forgeModel.test.ts` and `forgeMenus.test.ts`. Live checks against a
+real repo are `#[ignore]` tests, run by hand with `cargo test forge::github -- --ignored` (it uses
+`gh auth token`), `cargo test forge::bitbucket -- --ignored` (it uses the token stored by `bb auth
+bitbucket`), and `cargo test forge::http -- --ignored` (TLS through the Windows certificate store).
 
 CI: a GitHub Actions workflow (`.github/workflows/ci.yml`) on `windows-latest` runs the type
 check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS installer as the

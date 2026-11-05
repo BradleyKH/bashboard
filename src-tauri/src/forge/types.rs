@@ -1,0 +1,321 @@
+//! The normalized shapes every forge provider returns (docs/design.md section 3.20). They
+//! serialize camelCase and `src/forgeApi.ts` mirrors them field for field.
+
+use std::fmt;
+use std::time::Instant;
+
+use serde::Serialize;
+
+use super::auth::TokenSource;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProviderKind {
+    Github,
+    Bitbucket,
+    Gitlab,
+    AzureDevOps,
+}
+
+impl ProviderKind {
+    /// A `forge.hosts` value; the settings loader has already dropped unknown ones.
+    pub fn from_setting(s: &str) -> Option<Self> {
+        match s {
+            "github" => Some(Self::Github),
+            "bitbucket" => Some(Self::Bitbucket),
+            "gitlab" => Some(Self::Gitlab),
+            "azureDevOps" => Some(Self::AzureDevOps),
+            _ => None,
+        }
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Github => "GitHub",
+            Self::Bitbucket => "Bitbucket",
+            Self::Gitlab => "GitLab",
+            Self::AzureDevOps => "Azure DevOps",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RunStatus {
+    Queued,
+    Running,
+    /// A person must act: GitHub `action_required`, Bitbucket `PAUSED` or `HALTED`.
+    Waiting,
+    Success,
+    Failure,
+    Cancelled,
+    Skipped,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewState {
+    Approved,
+    ChangesRequested,
+    Pending,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Capabilities {
+    pub rerun: bool,
+    pub rerun_failed: bool,
+    pub cancel: bool,
+    pub job_logs: bool,
+    pub drafts: bool,
+    /// "pull request" or "merge request".
+    pub pr_noun: String,
+    /// "workflow run", "pipeline", or "build".
+    pub run_noun: String,
+    pub min_poll_secs: u32,
+    /// The host can hold several signed-in accounts the user picks between.
+    pub accounts: bool,
+}
+
+/// How `ForgeRepo::account` was chosen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountSource {
+    /// The repo's `credential.username` (local, or `credential.<url>.username`).
+    RepoConfig,
+    /// A `user@` in the remote URL.
+    RemoteUrl,
+    /// `gh`'s active account for the host, when several are signed in.
+    CliActive,
+    /// The only account signed in to the host.
+    Only,
+    None,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForgeRepo {
+    pub provider: ProviderKind,
+    pub host: String,
+    pub owner: String,
+    pub name: String,
+    pub web_url: String,
+    /// The current local branch; `None` when HEAD is detached.
+    pub branch: Option<String>,
+    pub capabilities: Capabilities,
+    pub account: Option<String>,
+    pub account_source: AccountSource,
+    /// Every account signed in to this host, from gh's `hosts.yml`; empty when not applicable.
+    pub accounts: Vec<String>,
+}
+
+/// Times are ISO 8601.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Run {
+    pub id: String,
+    pub number: Option<u64>,
+    /// The workflow or pipeline name.
+    pub name: String,
+    /// The commit message's first line, or the host's display title.
+    pub title: String,
+    pub branch: Option<String>,
+    pub sha: Option<String>,
+    pub event: Option<String>,
+    pub status: RunStatus,
+    pub raw_status: String,
+    pub actor: Option<String>,
+    pub created_at: String,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub web_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Step {
+    pub number: u32,
+    pub name: String,
+    pub status: RunStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Job {
+    pub id: String,
+    pub name: String,
+    pub status: RunStatus,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub web_url: Option<String>,
+    pub steps: Vec<Step>,
+}
+
+/// The last 1 MiB of a job's log when it is longer, with `truncated` set.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobLog {
+    pub text: String,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Reviewer {
+    pub login: String,
+    pub state: ReviewState,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullRequest {
+    pub id: String,
+    pub number: u64,
+    pub title: String,
+    pub author: String,
+    pub draft: bool,
+    pub source_branch: String,
+    pub target_branch: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub web_url: String,
+    pub review_decision: Option<ReviewState>,
+    pub reviewers: Vec<Reviewer>,
+    pub checks: Option<RunStatus>,
+    pub is_mine: bool,
+    /// The viewer is a requested reviewer who has not reviewed yet.
+    pub review_requested: bool,
+}
+
+/// One page of open pull requests plus the host's count of all of them.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PullList {
+    pub items: Vec<PullRequest>,
+    /// The host's count of open pull requests; `None` when the host does not say.
+    pub total: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ForgeErrorKind {
+    NotARepo,
+    NoRemote,
+    UnsupportedHost,
+    NotInstalled,
+    SignedOut,
+    SsoRequired,
+    Forbidden,
+    NotFound,
+    RateLimited,
+    Network,
+    Other,
+}
+
+/// `message` is plain user-facing text and never holds a token or an Authorization header.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForgeError {
+    pub kind: ForgeErrorKind,
+    pub message: String,
+    pub url: Option<String>,
+    /// The argv to run in a new terminal pane to sign in.
+    pub sign_in: Option<Vec<String>>,
+    pub retry_after_secs: Option<u64>,
+}
+
+impl ForgeError {
+    pub fn new(kind: ForgeErrorKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+            url: None,
+            sign_in: None,
+            retry_after_secs: None,
+        }
+    }
+
+    pub fn other(message: impl Into<String>) -> Self {
+        Self::new(ForgeErrorKind::Other, message)
+    }
+
+    pub fn not_implemented() -> Self {
+        Self::other("not implemented")
+    }
+}
+
+/// A repo on a code host, as the providers address it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepoRef {
+    pub provider: ProviderKind,
+    /// The host name, plus `:port` when an https remote named a non-default port.
+    pub host: String,
+    /// GitHub `[owner, repo]`; Bitbucket `[workspace, slug]`; GitLab the full group path;
+    /// Azure DevOps `[org, project, repo]`.
+    pub path: Vec<String>,
+    pub web_url: String,
+}
+
+#[derive(Clone)]
+pub struct Token {
+    pub value: String,
+    pub source: TokenSource,
+    pub expires: Option<Instant>,
+}
+
+impl Token {
+    pub fn is_expired(&self) -> bool {
+        self.expires.is_some_and(|e| Instant::now() >= e)
+    }
+}
+
+// Hand-written so a `{:?}` anywhere can never print the secret.
+impl fmt::Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Token")
+            .field("value", &"<redacted>")
+            .field("source", &self.source)
+            .field("expires", &self.expires)
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s<T: Serialize>(v: &T) -> String {
+        serde_json::to_string(v).unwrap()
+    }
+
+    #[test]
+    fn enums_serialize_as_contract_strings() {
+        assert_eq!(s(&ProviderKind::AzureDevOps), "\"azureDevOps\"");
+        assert_eq!(s(&ProviderKind::Github), "\"github\"");
+        assert_eq!(s(&ReviewState::ChangesRequested), "\"changesRequested\"");
+        assert_eq!(s(&AccountSource::CliActive), "\"cliActive\"");
+        assert_eq!(s(&AccountSource::None), "\"none\"");
+        assert_eq!(s(&ForgeErrorKind::NotARepo), "\"notARepo\"");
+        assert_eq!(s(&ForgeErrorKind::SsoRequired), "\"ssoRequired\"");
+        assert_eq!(s(&RunStatus::Cancelled), "\"cancelled\"");
+    }
+
+    #[test]
+    fn structs_serialize_camel_case() {
+        let e = ForgeError::new(ForgeErrorKind::RateLimited, "slow down");
+        let v = serde_json::to_value(&e).unwrap();
+        assert!(v.get("retryAfterSecs").is_some());
+        assert!(v.get("signIn").is_some());
+    }
+
+    #[test]
+    fn token_debug_hides_the_value() {
+        let t = Token {
+            value: "fake-secret-value".into(),
+            source: TokenSource::CredentialManager { target: "t".into() },
+            expires: None,
+        };
+        assert!(!format!("{t:?}").contains("fake-secret-value"));
+    }
+}

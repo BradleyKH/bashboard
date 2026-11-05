@@ -69,6 +69,14 @@ const CROWD_RADIUS = 4.5;
 const LOCAL_CAPACITY = 22;
 /** Generations of darkness between an extinction and the next founding spore. */
 const REFOUND_DELAY = 6;
+/**
+ * Below this share of capacity the background (untraited) colony counts as sparse, and a new
+ * founder spore is planted every SPARSE_RESEED_DELAY generations until it recovers.
+ */
+const SPARSE_FLOOR = 0.15;
+const SPARSE_RESEED_DELAY = 120;
+/** Distance from the living colony's center at which a reseeded spore is planted. */
+const RESEED_SPREAD = 6;
 const HISTORY_LENGTH = 360;
 /** Generations per full tide cycle; capacity swells and recedes over it. */
 const TIDE_PERIOD = 260;
@@ -90,6 +98,8 @@ export class Simulation {
   private nextId = 1;
   private nextLineage = 1;
   private extinctFor = -1;
+  /** Generations the background (untraited) colony has been below its sparse floor. */
+  private sparseFor = 0;
   private readonly rng: Rng;
   private readonly hash = new SpatialHash<Organism>(CROWD_RADIUS);
 
@@ -131,6 +141,7 @@ export class Simulation {
     this.epoch = 1;
     this.peak = 0;
     this.extinctFor = -1;
+    this.sparseFor = 0;
     this.nextLineage = 1;
     this.found(0, 0, 0);
     this.record();
@@ -230,8 +241,11 @@ export class Simulation {
         this.generation = 0;
         this.history.length = 0;
         this.found(0, 0, 0);
+        this.sparseFor = 0;
         result.newEpoch = true;
       }
+    } else {
+      this.tendBackground();
     }
 
     this.peak = Math.max(this.peak, this.livingCount());
@@ -268,6 +282,39 @@ export class Simulation {
     let max = 0;
     for (const o of this.organisms) if (o.stage !== Stage.Husk && o.depth > max) max = o.depth;
     return max;
+  }
+
+  /**
+   * Session lineages are immune to blights and re-founded when they die, so while any session
+   * lives the total never reaches zero and the extinction path above never refounds. This keeps
+   * the background colony from dwindling to nothing beside a few idle session lineages: once it
+   * is gone, a spore is planted after REFOUND_DELAY; while it is merely sparse, one every
+   * SPARSE_RESEED_DELAY, so it regrows rather than popping back in.
+   */
+  private tendBackground(): void {
+    let background = 0;
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    let living = 0;
+    for (const o of this.organisms) {
+      if (o.stage === Stage.Husk) continue;
+      x += o.x;
+      y += o.y;
+      z += o.z;
+      living++;
+      if (!this.lineageTraits.has(o.lineage)) background++;
+    }
+    if (background >= this.settings.capacity * SPARSE_FLOOR) {
+      this.sparseFor = 0;
+      return;
+    }
+    this.sparseFor++;
+    const delay = background === 0 ? REFOUND_DELAY : SPARSE_RESEED_DELAY;
+    if (this.sparseFor < delay) return;
+    this.sparseFor = 0;
+    const [dx, dy, dz] = randomUnitVector(this.rng);
+    this.found(x / living + dx * RESEED_SPREAD, y / living + dy * RESEED_SPREAD, z / living + dz * RESEED_SPREAD);
   }
 
   private pickBlightSite(): Blight | null {

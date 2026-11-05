@@ -3,6 +3,7 @@
 import { ACCENT_PRESETS, DEFAULT_ACCENT } from './accent';
 import { lastFolder } from './dashboardModel';
 import type { CodexTrust, HookInstallPreview } from './hookInstall';
+import { hookAction } from './hookInstallModel';
 import type { AgentId } from './savedWorkspace';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
@@ -32,6 +33,8 @@ export interface SetupStepOptions {
 export interface AgentHooks {
   agent: AgentId;
   installed: boolean;
+  /** Not installed, and only the hook script needs refreshing; buttons say Update. */
+  update?: boolean;
   /** Codex only, once installed; null or absent otherwise. */
   trust?: CodexTrust | null;
 }
@@ -41,7 +44,8 @@ export function agentHooksFrom(previews: HookInstallPreview[]): AgentHooks[] {
   return previews.flatMap((p) => {
     const agent = p.agent ?? 'claude';
     if (!(p.detected ?? p.claudeDetected)) return [];
-    return [{ agent, installed: p.alreadyInstalled, trust: p.trust ?? null }];
+    const update = !p.alreadyInstalled && hookAction(p) === 'update';
+    return [{ agent, installed: p.alreadyInstalled, update, trust: p.trust ?? null }];
   });
 }
 

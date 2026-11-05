@@ -429,6 +429,22 @@ impl Git {
         self.exec(self.command(false, args), None, None)
     }
 
+    /// A read that feeds `stdin` to git and adds `envs`, for `git credential fill`.
+    pub(crate) fn read_input<I, S>(
+        &self,
+        args: I,
+        stdin: &[u8],
+        envs: &[(&str, &str)],
+    ) -> Result<Output, String>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let mut cmd = self.command(true, args);
+        cmd.envs(envs.iter().copied());
+        self.exec(cmd, Some(stdin), None)
+    }
+
     /// Succeeds only when git does, giving its trimmed stdout.
     pub(crate) fn ok(out: Output) -> Result<String, String> {
         if out.ok {

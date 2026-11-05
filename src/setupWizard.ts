@@ -633,7 +633,7 @@ export class SetupWizard {
         "The install adds a hook script and entries in the agent's hook config, and shows them for confirmation first. Sessions outside this app's panes are not affected.",
       ),
     );
-    for (const { agent, installed, trust } of this.base.agents) {
+    for (const { agent, installed, update, trust } of this.base.agents) {
       const name = agentName(agent);
       const row = document.createElement('div');
       row.className = 'setup-wizard-actions';
@@ -650,7 +650,12 @@ export class SetupWizard {
             : 'Hooks installed';
         row.append(status);
       } else {
-        const install = this.button(`Install ${name} hooks`, () => void this.install(agent));
+        if (update) {
+          const status = document.createElement('span');
+          status.textContent = 'Hook script out of date';
+          row.append(status);
+        }
+        const install = this.button(`${update ? 'Update' : 'Install'} ${name} hooks`, () => void this.install(agent));
         install.classList.add('setup-wizard-primary');
         install.disabled = this.installing !== null;
         row.append(install);

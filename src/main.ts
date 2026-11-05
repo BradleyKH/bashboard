@@ -710,7 +710,7 @@ const refreshHookOffer = (): Promise<void> =>
       panel.setMissingHooks(
         agentHooksFrom(previews)
           .filter((a) => !a.installed)
-          .map((a) => a.agent),
+          .map(({ agent, update }) => ({ agent, update: update ?? false })),
       ),
     )
     .catch((e) => console.warn('hook install state unavailable:', e));

@@ -115,15 +115,20 @@ fn resolve_lm_studio_url(setting: &str) -> String {
     }
 }
 
+/// The body of a 2xx reply; any other status, or no answer, is `None`.
 fn get(url: &str) -> Option<String> {
-    ureq::AgentBuilder::new()
-        .timeout(TIMEOUT)
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(TIMEOUT))
+        // Loopback servers never sit behind a proxy, so an `HTTPS_PROXY` must not reroute them.
+        .proxy(None)
+        .http_status_as_error(false)
         .build()
-        .get(url)
-        .call()
-        .ok()?
-        .into_string()
-        .ok()
+        .into();
+    let resp = agent.get(url).call().ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    resp.into_body().read_to_string().ok()
 }
 
 #[derive(Deserialize)]

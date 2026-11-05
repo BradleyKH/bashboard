@@ -2,6 +2,7 @@
 // sections 4.10, 4.11, 4.15). Pure, no DOM.
 import type { ConfirmOptions } from './confirmDialog';
 import type { PaneCard } from './dashboardModel';
+import type { Run } from './forgeApi';
 import { paneKindInfo, type PaneKind } from './paneKinds';
 
 function describePane(card: PaneCard): string {
@@ -31,6 +32,7 @@ const REPLACE_LOSES: Record<PaneKind, string> = {
   scratch: 'deletes its text',
   files: 'closes it',
   git: 'closes it',
+  forge: 'closes it',
   search: 'closes it',
   containers: 'closes it',
   ports: 'closes it',
@@ -53,6 +55,16 @@ export function replaceConfirm(card: PaneCard, kind: PaneKind): ConfirmOptions {
     title: 'Change pane kind',
     body: [`Replacing ${describePane(card)} with a ${paneKindInfo(kind).label.toLowerCase()} pane ${loses}.`],
     confirmLabel: 'Replace',
+  };
+}
+
+/** A Forge pane's Cancel on a run (docs/design.md section 4.20); Re-run does not ask. */
+export function cancelRunConfirm(run: Run, runNoun: string): ConfirmOptions {
+  const what = run.name || run.title;
+  return {
+    title: `Cancel ${runNoun}`,
+    body: [`Cancel ${what}${run.branch ? ` on ${run.branch}` : ''}? Jobs still running stop where they are.`],
+    confirmLabel: `Cancel ${runNoun}`,
   };
 }
 

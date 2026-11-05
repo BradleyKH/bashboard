@@ -2,6 +2,7 @@
 //! layered under the user's entries, and a hot-reload watcher.
 
 use std::{
+    collections::HashMap,
     io::Read,
     path::{Path, PathBuf},
     sync::{
@@ -197,6 +198,16 @@ pub struct GitSettings {
     pub auto_fetch_minutes: u32,
 }
 
+/// Forge kinds `forge.hosts` accepts.
+pub const FORGE_KINDS: [&str; 4] = ["github", "gitlab", "bitbucket", "azureDevOps"];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Forge {
+    /// Lowercased host name to one of `FORGE_KINDS`; see `parse_forge_hosts`.
+    pub hosts: HashMap<String, String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Terminal {
@@ -253,7 +264,15 @@ pub struct Settings {
     pub editor: Editor,
     pub git: GitSettings,
     pub local_models: LocalModels,
+    pub forge: Forge,
     pub keybindings: Vec<Keybinding>,
+}
+
+impl Settings {
+    /// Host names lowercased, so a lookup by a remote's host matches however the file cased it.
+    pub(crate) fn forge_hosts(&self) -> HashMap<String, String> {
+        self.forge.hosts.iter().map(|(host, kind)| (host.to_lowercase(), kind.clone())).collect()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -388,6 +407,7 @@ impl Default for Settings {
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5 },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
+            forge: Forge { hosts: HashMap::new() },
             keybindings: default_keybindings(),
         }
     }
@@ -468,6 +488,28 @@ fn pick<T>(
             default
         }),
     }
+}
+
+/// Each bad entry is dropped with a warning and the rest kept. Keys are lowercased, so a later
+/// entry that differs only in case replaces an earlier one.
+fn parse_forge_hosts(root: &Value, warnings: &mut Vec<String>) -> HashMap<String, String> {
+    let mut hosts = HashMap::new();
+    let Some(v) = get(root, &["forge", "hosts"]) else {
+        return hosts;
+    };
+    let Some(map) = v.as_object() else {
+        warnings.push("forge.hosts: invalid value, using default".into());
+        return hosts;
+    };
+    for (host, kind) in map {
+        match kind.as_str().filter(|k| FORGE_KINDS.contains(k)) {
+            Some(kind) if !host.is_empty() => {
+                hosts.insert(host.to_lowercase(), kind.to_string());
+            }
+            _ => warnings.push(format!("forge.hosts.{host}: invalid entry, dropped")),
+        }
+    }
+    hosts
 }
 
 fn parse_keybindings(root: &Value, warnings: &mut Vec<String>) -> Vec<Keybinding> {
@@ -879,6 +921,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.local_models.min_context,
         ),
     };
+    let forge = Forge { hosts: parse_forge_hosts(&root, &mut w) };
     let keybindings = parse_keybindings(&root, &mut w);
 
     Ok((
@@ -896,6 +939,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             editor,
             git,
             local_models,
+            forge,
             keybindings,
         },
         w,
@@ -1473,6 +1517,52 @@ mod tests {
     fn default_file_lists_dashboard_side_and_sections() {
         let text = default_file_text();
         assert!(text.contains("\"sections\"") && text.contains("\"side\""));
+    }
+
+    #[test]
+    fn forge_hosts_default_to_empty_and_are_in_default_file() {
+        assert!(Settings::default().forge.hosts.is_empty());
+        assert!(Settings::default().forge_hosts().is_empty());
+        assert!(default_file_text().contains("\"forge\""));
+    }
+
+    #[test]
+    fn forge_hosts_parse_a_valid_map() {
+        let (s, w) = parse_settings(
+            r#"{ "forge": { "hosts": { "ghe.example.com": "github", "git.example.com": "gitlab", "bb.example.com": "bitbucket", "ado.example.com": "azureDevOps" } } }"#,
+        );
+        assert!(w.is_empty(), "{w:?}");
+        let hosts = s.forge_hosts();
+        assert_eq!(hosts.len(), 4);
+        assert_eq!(hosts["ghe.example.com"], "github");
+        assert_eq!(hosts["git.example.com"], "gitlab");
+        assert_eq!(hosts["bb.example.com"], "bitbucket");
+        assert_eq!(hosts["ado.example.com"], "azureDevOps");
+    }
+
+    #[test]
+    fn forge_hosts_drop_an_unknown_kind_with_a_warning_and_keep_the_rest() {
+        let (s, w) = parse_settings(
+            r#"{ "forge": { "hosts": { "ghe.example.com": "github", "odd.example.com": "gitea", "num.example.com": 3 } } }"#,
+        );
+        assert_eq!(s.forge_hosts().len(), 1);
+        assert_eq!(s.forge_hosts()["ghe.example.com"], "github");
+        assert_eq!(w.len(), 2, "{w:?}");
+        assert!(w.iter().any(|m| m.starts_with("forge.hosts.odd.example.com")), "{w:?}");
+        assert!(w.iter().any(|m| m.starts_with("forge.hosts.num.example.com")), "{w:?}");
+    }
+
+    #[test]
+    fn forge_hosts_lowercase_keys_and_reject_a_non_object() {
+        let (s, w) = parse_settings(r#"{ "forge": { "hosts": { "GHE.Example.COM": "github" } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.forge.hosts.get("ghe.example.com").map(String::as_str), Some("github"));
+        assert!(!s.forge.hosts.contains_key("GHE.Example.COM"));
+
+        let (s, w) = parse_settings(r#"{ "forge": { "hosts": ["github.com"] } }"#);
+        assert!(s.forge.hosts.is_empty());
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].starts_with("forge.hosts"), "{w:?}");
     }
 
     #[test]

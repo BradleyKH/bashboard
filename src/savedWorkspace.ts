@@ -8,6 +8,7 @@ import {
   placeElement,
 } from './dashboardSections';
 import { type Layout, close, leaves } from './layout';
+import type { ForgeTab } from './forgeModel';
 import type { GitTab } from './gitBranchModel';
 import type { PaneKind } from './paneKinds';
 import { parseFilesSort, type FilesSort } from './filesModel';
@@ -51,6 +52,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
   | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Changes. */
   | { kind: 'git'; root: string; tab?: GitTab }
+  /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Pipelines. */
+  | { kind: 'forge'; root: string; tab?: ForgeTab }
   /** `root` is the repo root the pane searches. */
   | { kind: 'search'; root: string; query: string; options: SearchOptions }
   /** The Containers pane saves no state; its containers come from the engines. */
@@ -190,6 +193,10 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
   git: (raw, base) => {
     if (typeof raw.root !== 'string') return null;
     return { ...base, kind: 'git', root: raw.root, ...(raw.tab === 'branches' && { tab: 'branches' as const }) };
+  },
+  forge: (raw, base) => {
+    if (typeof raw.root !== 'string') return null;
+    return { ...base, kind: 'forge', root: raw.root, ...(raw.tab === 'pulls' && { tab: 'pulls' as const }) };
   },
   search: (raw, base) => {
     if (typeof raw.root !== 'string') return null;
