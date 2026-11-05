@@ -14,7 +14,7 @@ export class ForgePinButton {
   constructor() {
     this.el = document.createElement('button');
     this.el.type = 'button';
-    this.el.className = 'forge-chip forge-pin';
+    this.el.className = 'forge-quiet-btn';
     this.el.hidden = true;
     this.el.addEventListener('click', () => void this.toggle());
     this.unsubscribe = forgeOverviewStore.subscribe(() => this.render());
@@ -35,9 +35,9 @@ export class ForgePinButton {
     this.el.hidden = repo === null;
     if (!repo) return;
     const pinned = forgeOverviewStore.isPinned(repoId(repo));
-    const text = pinned ? 'Unpin from Overview' : 'Pin to Overview';
+    const text = pinned ? 'Unpin' : 'Pin to Overview';
     if (this.el.textContent !== text) this.el.textContent = text;
-    this.el.classList.toggle('pinned', pinned);
+    this.el.title = pinned ? 'Unpin from Overview' : 'Show this repo on the Overview';
     this.el.setAttribute('aria-pressed', String(pinned));
   }
 

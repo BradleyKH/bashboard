@@ -2583,7 +2583,7 @@ left.
 set, is a local clone, which gives the repo its local account and an Open terminal here entry;
 `branches` adds health branches. Every forge command is addressed by the pin's target, which is its
 `root` when set and `remote:<repo>` otherwise (3.20). The drilled view has a **Pin to Overview**
-toggle (**Unpin from Overview** while pinned) in its bar, which records the repo's local clone, if
+toggle in its bar, a quiet text button like the Git pane's Fetch that reads **Unpin** while pinned, which records the repo's local clone, if
 any, as the pin's `root`. Pinning and unpinning rewrite the setting in place through the app, so
 the file's comments survive, and an edit made in the file applies on save.
 
@@ -2594,7 +2594,8 @@ poll is more than 30 s old. With no pins, a note says to pin a repo from its For
 there. Each row holds:
 
 - A provider badge (GH for GitHub, BB for Bitbucket), the repo's `owner/name` (the full
-  `<host>/<path>` in its tooltip), and a pull request summary: "3 open, 1 needs you", "3 open", or
+  `<host>/<path>` in its tooltip), with the health branches under it, and beside them a pull
+  request summary: "3 open, 1 needs you", "3 open", or
   "No open pull requests" (with the host's noun), highlighted while a review is awaited.
 - The **health branches**: the repo's default branch (3.20), then the distinct target branches of
   its open pull requests (a deploy branch is usually one), then the pin's own `branches`. Each shows
@@ -2614,12 +2615,19 @@ among themselves. A pin that has not loaded follows the loaded rows, in pin orde
 **Row actions.** Clicking a row drills into its Pipelines; its pull request summary drills into
 its Pull requests. The row menu holds **Open Pipelines**, **Open Pull requests**, **Open in
 browser** and **Copy link** (both disabled until the repo has resolved), **Open terminal here**
-(only for a pin with a `root`), and **Unpin from Overview**. A drilled view with no clone has no
+(only for a pin with a `root`), and **Unpin from Overview**. The rows share columns (a subgrid):
+the repo and its health branches, then the pull request summary, each as wide as its widest row
+and both at the left, then at the right edge the buttons **Pipelines**, **Pull requests**,
+**Open**, **Terminal**, and **Copy link**, matching the menu's entries without Unpin. Open and Copy
+link are disabled until the repo resolves, and a pin without a `root` keeps an invisible Terminal
+in its place, so the buttons line up down the list. Below 560 px of pane width the buttons are
+hidden; the menu still holds every action. A drilled view with no clone has no
 checked-out branch, so its This branch checkbox is disabled, and its account chip is hidden, since
 the account is the host's default one.
 
 **Add repo.** A box at the bottom of the Overview, with a **Pin to Overview** button and Enter,
-takes a repo as `owner/name`, `host/owner/name`, or a link: an https, ssh, or scp remote URL, or a
+has a **?** button whose tooltip, also shown under the box on click, explains the forms with
+examples, and takes a repo as `owner/name`, `host/owner/name`, or a link: an https, ssh, or scp remote URL, or a
 web URL into the repo. A bare `owner/name` is taken as github.com, or as bitbucket.org when every
 pin is on Bitbucket. The box resolves the address through `forge_repo` (3.20) and pins the
 resolved identity, never the typed text, which can carry credentials or a page suffix; a failure,
@@ -2686,7 +2694,7 @@ jobs. The list is the latest 20 runs, and an empty list says so.
   to the end, where the failure is. An expanded run's jobs reload when a poll changes its status or
   while it is still moving, and a job's open log is kept across reloads.
 - **Run buttons.** At each row's right edge: **Open** (in the browser), **Re-run**, **Re-run
-  failed**, and **Cancel**, enabled as the menu's entries of the same names are, with Cancel
+  failed**, **Cancel**, and **Copy link**, enabled as the menu's entries of the same names are, with Cancel
   disabled rather than absent on a run that is not live. Every row carries the same buttons, and
   one the host cannot do is hidden on every row alike, so they line up down the list. Clicking one
   acts without expanding the row. Below 420 px of pane width the buttons are hidden, leaving the

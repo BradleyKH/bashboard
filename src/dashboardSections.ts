@@ -70,7 +70,7 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
 /** Muted notes under the settings dialog's checkboxes, for elements whose name says little. */
 export const ELEMENT_HINTS: Partial<Record<DashboardElement, string>> = {
   wave: 'A Lissajous figure that follows CPU and network load',
-  forge: 'Shows only while repos are pinned to the Forge Overview',
+  forge: 'Manage pipelines and PRs for selected repos',
 };
 
 function isSection(v: unknown): v is DashboardSection {

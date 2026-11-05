@@ -9,6 +9,12 @@ import { parseRepos } from './repos';
 /** How many folders resolve at once; each one runs git and may ask the host who is signed in. */
 const RESOLVE_PARALLEL = 4;
 
+const ADD_REPO_HELP =
+  'Name the repo the way its address does, as owner/name: for github.com/octocat/hello-world, ' +
+  'type octocat/hello-world. That means GitHub, or Bitbucket when every pinned repo is on Bitbucket. ' +
+  'To name the host yourself, type bitbucket.org/keysys/kweb, or paste any link into the repo: ' +
+  'its web page, or the https or ssh address you clone it with.';
+
 interface Suggestion {
   /** The pin identity, `host/owner/name`. */
   id: string;
@@ -44,7 +50,15 @@ export class ForgeAddRepo {
     this.addButton.type = 'button';
     this.addButton.className = 'forge-button';
     this.addButton.textContent = 'Pin to Overview';
-    row.append(this.input, this.addButton);
+    const help = document.createElement('button');
+    help.type = 'button';
+    help.className = 'forge-add-help';
+    help.textContent = '?';
+    help.title = ADD_REPO_HELP;
+    help.setAttribute('aria-label', 'How to name a repo');
+    // A tooltip is slow to appear, so a click puts the same text under the box.
+    help.addEventListener('click', () => this.showMessage(ADD_REPO_HELP, false));
+    row.append(this.input, help, this.addButton);
 
     this.message = document.createElement('div');
     this.message.className = 'forge-add-message';

@@ -28,6 +28,9 @@ export class ForgeOverviewRow {
   private readonly pulls: HTMLButtonElement;
   private readonly health: HTMLElement;
   private readonly error: HTMLElement;
+  private readonly openButton: HTMLButtonElement;
+  private readonly terminalButton: HTMLButtonElement;
+  private readonly copyButton: HTMLButtonElement;
   // What the health and error areas last drew, so an update that changed nothing touches no DOM.
   private healthKey = '';
   private errorKey = '';
@@ -42,12 +45,19 @@ export class ForgeOverviewRow {
     this.el.tabIndex = 0;
     this.el.setAttribute('role', 'button');
 
+    const info = document.createElement('div');
+    info.className = 'forge-ov-info';
     const head = document.createElement('div');
     head.className = 'forge-ov-head';
     this.badge = document.createElement('span');
     this.badge.className = 'forge-ov-provider';
     this.name = document.createElement('span');
     this.name.className = 'forge-ov-name';
+    head.append(this.badge, this.name);
+    this.health = document.createElement('div');
+    this.health.className = 'forge-ov-health';
+    info.append(head, this.health);
+
     this.pulls = document.createElement('button');
     this.pulls.type = 'button';
     this.pulls.className = 'forge-ov-pulls';
@@ -55,13 +65,37 @@ export class ForgeOverviewRow {
       e.stopPropagation();
       this.drill('pulls');
     });
-    head.append(this.badge, this.name, this.pulls);
 
-    this.health = document.createElement('div');
-    this.health.className = 'forge-ov-health';
     this.error = document.createElement('div');
     this.error.className = 'forge-ov-error';
-    this.el.append(head, this.health, this.error);
+
+    // The menu's actions as buttons, the same set on every row so they line up down the list.
+    // Unpin stays in the menu only, since it is rarely wanted.
+    const actions = document.createElement('div');
+    actions.className = 'forge-run-actions forge-ov-actions';
+    const makeButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'forge-run-btn';
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+      });
+      return b;
+    };
+    this.openButton = makeButton('Open', 'Open in browser', () => this.openInBrowser());
+    this.terminalButton = makeButton('Terminal', 'Open a terminal in the local clone', () => this.openTerminal());
+    this.copyButton = makeButton('Copy link', 'Copy the link to this repo', () => this.copyLink());
+    actions.append(
+      makeButton('Pipelines', 'Open Pipelines', () => this.drill('pipelines')),
+      makeButton('Pull requests', 'Open Pull requests', () => this.drill('pulls')),
+      this.openButton,
+      this.terminalButton,
+      this.copyButton,
+    );
+    this.el.append(info, this.pulls, actions, this.error);
 
     this.el.addEventListener('click', () => this.drill('pipelines'));
     this.el.addEventListener('keydown', (e) => {
@@ -98,6 +132,13 @@ export class ForgeOverviewRow {
     } else {
       this.pulls.hidden = true;
     }
+
+    const unresolved = this.webUrl() === null;
+    if (this.openButton.disabled !== unresolved) this.openButton.disabled = unresolved;
+    if (this.copyButton.disabled !== unresolved) this.copyButton.disabled = unresolved;
+    // Hidden by visibility rather than removed, so the buttons after it line up with other rows'.
+    this.terminalButton.classList.toggle('forge-ov-absent', !pin.root);
+    this.terminalButton.disabled = !pin.root;
 
     this.renderHealth(entry, nowMs);
     this.renderError(entry);
@@ -179,26 +220,39 @@ export class ForgeOverviewRow {
     this.handlers.onDrill(targetKey(this.current.pin), tab);
   }
 
+  /** The resolved repo's link, which a row still loading or failed on its first poll lacks. */
+  private webUrl(): string | null {
+    return this.current.row?.overview.repo.webUrl ?? null;
+  }
+
+  private openInBrowser(): void {
+    const url = this.webUrl();
+    if (url) this.handlers.onOpenUrl(url);
+  }
+
+  private copyLink(): void {
+    const url = this.webUrl();
+    if (url) this.handlers.onCopy(url);
+  }
+
+  private openTerminal(): void {
+    const root = this.current.pin.root;
+    if (root) this.handlers.onOpenTerminal(root);
+  }
+
   private menu(): MenuEntry[] {
-    const { pin, row } = this.current;
-    // Both need the resolved repo's link, which a row still loading or failed on its first poll lacks.
-    const webUrl = row?.overview.repo.webUrl ?? null;
+    const { pin } = this.current;
+    const resolved = this.webUrl() !== null;
     const entries: MenuEntry[] = [
       { kind: 'item', label: 'Open Pipelines', run: () => this.drill('pipelines') },
       { kind: 'item', label: 'Open Pull requests', run: () => this.drill('pulls') },
-      {
-        kind: 'item',
-        label: 'Open in browser',
-        enabled: webUrl !== null,
-        run: () => webUrl && this.handlers.onOpenUrl(webUrl),
-      },
+      { kind: 'item', label: 'Open in browser', enabled: resolved, run: () => this.openInBrowser() },
     ];
     if (pin.root) {
-      const root = pin.root;
-      entries.push({ kind: 'item', label: 'Open terminal here', run: () => this.handlers.onOpenTerminal(root) });
+      entries.push({ kind: 'item', label: 'Open terminal here', run: () => this.openTerminal() });
     }
     entries.push(
-      { kind: 'item', label: 'Copy link', enabled: webUrl !== null, run: () => webUrl && this.handlers.onCopy(webUrl) },
+      { kind: 'item', label: 'Copy link', enabled: resolved, run: () => this.copyLink() },
       { kind: 'separator' },
       { kind: 'item', label: 'Unpin from Overview', run: () => void forgeOverviewStore.unpin(pin.repo) },
     );

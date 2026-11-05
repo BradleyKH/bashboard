@@ -236,7 +236,7 @@ edit it in the file. See [Code hosts](setup.md#code-hosts) for what the Forge pa
 entry's `repo` is `<host>/<path segments>`, such as `bitbucket.org/keysys/kweb`, and is the pin's
 identity. `root` (optional) is a local clone of the repo. `branches` (optional) adds branches to the
 row's health strip beyond the automatic ones. Pin and unpin from the Forge pane ("Pin to Overview"
-and "Unpin from Overview"); the file is also yours to edit, and it applies on save. An entry whose
+and "Unpin"); the file is also yours to edit, and it applies on save. An entry whose
 `repo` is missing or empty, or whose `root` or `branches` has the wrong type, is dropped with a
 notice naming its position in the list, and the other entries still apply. The list has no field in
 the Settings tab.

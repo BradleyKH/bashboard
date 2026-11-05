@@ -12,6 +12,7 @@ export interface RunRowHandlers {
   caps: () => Capabilities | null;
   onOpen: (run: Run) => void;
   onAction: (run: Run, action: RunActionKey) => void;
+  onCopyLink: (run: Run) => void;
 }
 
 const ACTION_LABELS: Record<RunActionKey, [label: string, title: string]> = {
@@ -42,6 +43,7 @@ export class ForgeRunRow {
   private readonly icon: HTMLElement;
   private readonly title: HTMLElement;
   private readonly meta: HTMLElement;
+  private readonly side: HTMLElement;
   private readonly when: HTMLElement;
   private readonly took: HTMLElement;
   private readonly actionButtons: Record<RunActionKey, HTMLButtonElement>;
@@ -68,13 +70,13 @@ export class ForgeRunRow {
     this.meta.className = 'forge-run-meta';
     main.append(this.title, this.meta);
 
-    const side = document.createElement('div');
-    side.className = 'forge-run-side';
+    this.side = document.createElement('div');
+    this.side.className = 'forge-run-side';
     this.when = document.createElement('span');
     this.when.className = 'forge-run-when';
     this.took = document.createElement('span');
     this.took.className = 'forge-run-took';
-    side.append(this.when, this.took);
+    this.side.append(this.when, this.took);
 
     // Every row carries the same buttons, disabled where the run's status rules one out, so they
     // line up down the list; what the host cannot do at all is hidden on every row alike.
@@ -100,10 +102,11 @@ export class ForgeRunRow {
         return [key, makeButton(label, title, () => handlers.onAction(this.current, key))];
       }),
     ) as Record<RunActionKey, HTMLButtonElement>;
-    actions.append(open, ...keys.map((k) => this.actionButtons[k]));
+    const copy = makeButton('Copy link', 'Copy the link to this run', () => handlers.onCopyLink(this.current));
+    actions.append(open, ...keys.map((k) => this.actionButtons[k]), copy);
     this.caps = handlers.caps;
 
-    this.row.append(this.icon, main, side, actions);
+    this.row.append(this.icon, main, this.side, actions);
 
     this.detail = document.createElement('div');
     this.detail.className = 'forge-run-detail';
@@ -154,8 +157,16 @@ export class ForgeRunRow {
     if (run.actor) parts.push(run.actor);
     setText(this.meta, parts.join('  ·  '));
 
-    setText(this.when, relativeTime(run.createdAt, nowMs));
-    setText(this.took, duration(run, nowMs));
+    const when = relativeTime(run.createdAt, nowMs);
+    const took = duration(run, nowMs);
+    setText(this.when, when);
+    setText(this.took, took);
+    const queued = Date.parse(run.createdAt);
+    const sideLines: string[] = [];
+    if (when) sideLines.push(`Queued: ${when}${Number.isNaN(queued) ? '' : ` (${new Date(queued).toLocaleString()})`}`);
+    if (took) sideLines.push(`Duration: ${took}`);
+    const sideTitle = sideLines.join('\n');
+    if (this.side.title !== sideTitle) this.side.title = sideTitle;
 
     const caps = this.caps();
     const states = caps ? runActionStates(run, caps) : null;

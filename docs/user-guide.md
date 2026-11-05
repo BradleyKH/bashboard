@@ -289,7 +289,8 @@ first four keep the order of your pins.
 
 Click a row to see its Pipelines, or its pull request summary to see its Pull requests. Right-click
 a row for **Open Pipelines**, **Open Pull requests**, **Open in browser**, **Open terminal here**
-(when the pin has a local clone), **Copy link**, and **Unpin from Overview**. In a repo's own view,
+(when the pin has a local clone), **Copy link**, and **Unpin from Overview**; when the pane is wide enough, the same actions
+(except Unpin) are buttons at the right of each row. In a repo's own view,
 the **Overview** link at the start of the tabs goes back. A repo you pinned without a local clone
 has no checked-out branch, so its This branch checkbox is disabled and it has no account button; it
 uses the host's default account.
@@ -302,8 +303,9 @@ the window is visible. Bitbucket allows 1,000 requests an hour per user and a re
 3 per repo, so with more than three Bitbucket repos pinned they refresh less often (every 3 minutes
 for ten, even while running), and the bar shows the pace, such as "Bitbucket every 3 min".
 
-**Pinning.** A repo's own view has a **Pin to Overview** button (**Unpin from Overview** while it is
-pinned). The box under the rows adds a repo without opening it: type `owner/name` (github.com, or
+**Pinning.** A repo's own view has a **Pin to Overview** button (**Unpin** while it is
+pinned). The box under the rows adds a repo without opening it (its **?** button explains the
+forms with examples): type `owner/name` (github.com, or
 bitbucket.org when every pin is on Bitbucket), `host/owner/name`, or paste a link, which can be an
 https or ssh remote URL or the address of a page in the repo, and press Enter or **Pin to
 Overview**. Below the box, the folders in your repos list and favorites that are on GitHub or
@@ -333,8 +335,8 @@ merged and closed ones marked. The pane remembers both choices across restarts.
   how long it took, which redraw every second. Click a run to expand its jobs, each with its duration and, on GitHub, its steps
   with failed ones marked. **Show log** loads a job's log (the last 1 MiB of it), scrolled to the
   end, where a failure usually is. The buttons at the right of each run open it in the browser,
-  **Re-run** it, **Re-run failed** jobs (GitHub only), or **Cancel** it; one that does not apply
-  to the run right now is greyed. Right-click a run for the same actions plus copying its link.
+  **Re-run** it, **Re-run failed** jobs (GitHub only), **Cancel** it, or **Copy link**; one that
+  does not apply to the run right now is greyed. Right-click a run for the same actions.
   In a narrow pane the buttons are hidden and the right-click menu has them all. Cancel asks first, with a
   button that reads "Cancel workflow run" or "Cancel pipeline"; Re-run does not ask. A Bitbucket
   pipeline's jobs are its steps and have no per-command list. Re-run and Cancel on Bitbucket need

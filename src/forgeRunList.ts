@@ -14,6 +14,7 @@ export interface ForgeRunListOptions {
   caps: () => Capabilities | null;
   onOpen: (run: Run) => void;
   onAction: (run: Run, action: RunActionKey) => void;
+  onCopyLink: (run: Run) => void;
 }
 
 interface Slot {
@@ -52,6 +53,7 @@ export class ForgeRunList {
           caps: this.opts.caps,
           onOpen: this.opts.onOpen,
           onAction: this.opts.onAction,
+          onCopyLink: this.opts.onCopyLink,
         });
         slot = { row, jobs: null };
         this.slots.set(run.id, slot);

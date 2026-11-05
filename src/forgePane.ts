@@ -211,6 +211,7 @@ export class ForgePane implements PaneView {
       caps: () => this.store?.repo?.capabilities ?? null,
       onOpen: (run) => this.openUrl(run.webUrl),
       onAction: (run, action) => this.runAction(run, action),
+      onCopyLink: (run) => void copyText(run.webUrl, 'link'),
     });
     this.pullList = new ForgePullList({
       onOpen: (pull) => this.openUrl(pull.webUrl),
