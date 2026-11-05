@@ -57,6 +57,7 @@ import { SettingsTab } from './settingsTab';
 import { SetupWizard } from './setupWizard';
 import { HookInstallDialog } from './hookInstallDialog';
 import { moveItem, parseFavorites, samePath, type Favorite } from './favorites';
+import { forgeOverviewStore } from './forgeOverviewStore';
 import { pinTarget } from './filesRouting';
 import { layoutFromSnapshot, parseLayouts, upsertLayout, type NamedLayout } from './layouts';
 import { BackdropHost } from './backdrop/backdropHost';
@@ -628,6 +629,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
       showToast(`Could not save the setting: ${String(err)}`),
     ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
+  onOpenForge: (target, tab) => workspace.openForge(target, tab),
   ports: {
     onOpenPorts: (key, showAll): void => workspace.openPorts(key, showAll),
     ownerTitle: (ptyId): string | null => workspace.titleForPty(ptyId),
@@ -792,10 +794,7 @@ const palette = new CommandPalette({
     if (command === 'checkForUpdates') checkForUpdatesNow();
     else if (command === 'openContainers') workspace.openContainers();
     else if (command === 'openPorts') workspace.openPorts();
-    else if (command === 'openForge') {
-      const root = currentRepo?.isGit ? currentRepo.root : null;
-      if (!workspace.openForge(root)) showToast('Focus a pane in a git repo to open its Forge tab');
-    }
+    else if (command === 'openForge') workspace.openForge(null);
   },
 });
 /** The palette opens at once; its worktree items arrive when the load finishes. */
@@ -934,6 +933,7 @@ panel.setPortsStore(ports);
 panel.setLocalModelsStore(localModels);
 void containers.start();
 panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop.animate, payload.settings.localModels.minContext);
+forgeOverviewStore.applySettings(payload.settings);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
 panel.setOpen(payload.settings.dashboard.visibleOnStart);
@@ -1122,6 +1122,7 @@ onSettingsChanged((p) => {
   shortcutsTab.update(p.settings.keybindings);
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
+  forgeOverviewStore.applySettings(p.settings);
   panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop.animate, p.settings.localModels.minContext);
   void refreshProfiles().then(() => settingsTab.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

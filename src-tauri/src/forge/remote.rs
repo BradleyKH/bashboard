@@ -190,21 +190,21 @@ fn builtin_kind(host: &str) -> Option<ProviderKind> {
     }
 }
 
-/// Picks the provider: the `forge.hosts` setting (keys already lowercased) wins, then the
-/// well-known hosts, then a host GitHub CLI is signed in to is GitHub Enterprise Server.
-/// `None` when the host is unknown or the path does not fit the provider.
-pub fn classify(
-    parsed: &ParsedRemote,
-    hosts: &HashMap<String, ProviderKind>,
-    gh_hosts: &[String],
-) -> Option<RepoRef> {
-    // GitHub's ssh-over-443 endpoint is github.com itself.
-    let host = if parsed.host == "ssh.github.com" {
+/// GitHub's ssh-over-443 endpoint is github.com itself.
+fn web_host(host: &str) -> &str {
+    if host == "ssh.github.com" {
         "github.com"
     } else {
-        parsed.host.as_str()
-    };
-    let kind = hosts
+        host
+    }
+}
+
+fn kind_of(
+    host: &str,
+    hosts: &HashMap<String, ProviderKind>,
+    gh_hosts: &[String],
+) -> Option<ProviderKind> {
+    hosts
         .get(host)
         .copied()
         .or_else(|| builtin_kind(host))
@@ -213,7 +213,19 @@ pub fn classify(
                 .iter()
                 .any(|h| h.eq_ignore_ascii_case(host))
                 .then_some(ProviderKind::Github)
-        })?;
+        })
+}
+
+/// Picks the provider: the `forge.hosts` setting (keys already lowercased) wins, then the
+/// well-known hosts, then a host GitHub CLI is signed in to is GitHub Enterprise Server.
+/// `None` when the host is unknown or the path does not fit the provider.
+pub fn classify(
+    parsed: &ParsedRemote,
+    hosts: &HashMap<String, ProviderKind>,
+    gh_hosts: &[String],
+) -> Option<RepoRef> {
+    let host = web_host(&parsed.host);
+    let kind = kind_of(host, hosts, gh_hosts)?;
     let authority = match parsed.port {
         Some(p) => format!("{host}:{p}"),
         None => host.to_string(),
@@ -254,6 +266,50 @@ pub fn classify(
         path: path.clone(),
         web_url,
     })
+}
+
+/// A pinned repo's `<host>/<path...>`, or what someone pastes into the Add-repo box: that form,
+/// an https, ssh, or scp remote URL, or a web URL into the repo (a pull request, a pipeline, a
+/// file). A web URL's trailing page is dropped by the provider's path shape.
+pub fn parse_repo_input(
+    input: &str,
+    hosts: &HashMap<String, ProviderKind>,
+    gh_hosts: &[String],
+) -> Option<RepoRef> {
+    let input = input.trim();
+    let input = input.split(['?', '#']).next().unwrap_or(input);
+    let input = input
+        .strip_prefix("http://")
+        .map(|rest| format!("https://{rest}"))
+        .unwrap_or_else(|| input.to_string());
+    let mut parsed = if input.contains("://") || is_scp_form(&input) {
+        parse_remote(&input)?
+    } else {
+        parse_remote(&format!("https://{input}"))?
+    };
+    match kind_of(web_host(&parsed.host), hosts, gh_hosts)? {
+        ProviderKind::Github | ProviderKind::Bitbucket => parsed.path.truncate(2),
+        // GitLab puts every repo page under a `-` segment.
+        ProviderKind::Gitlab => {
+            if let Some(dash) = parsed.path.iter().position(|s| s == "-") {
+                parsed.path.truncate(dash);
+            }
+        }
+        ProviderKind::AzureDevOps => {}
+    }
+    classify(&parsed, hosts, gh_hosts)
+}
+
+/// `host:path` rather than `host:port/path`: the text after the first colon is not a port.
+fn is_scp_form(s: &str) -> bool {
+    let Some((auth, rest)) = s.split_once(':') else {
+        return false;
+    };
+    if auth.contains('/') {
+        return false;
+    }
+    let port = rest.split('/').next().unwrap_or("");
+    port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// The top-level keys of a `hosts.yml`, lowercased: every host GitHub CLI is signed in to.
@@ -467,6 +523,117 @@ mod tests {
         assert_eq!(r.web_url, "https://code.corp.example/g/s/p");
         let r = classify(&p("https://github.com/a/b").unwrap(), &hosts, &[]).unwrap();
         assert_eq!(r.provider, ProviderKind::Bitbucket);
+    }
+
+    /// A pin's identity: the host (with any port) and path, joined by `/`.
+    fn repo_key(repo: &RepoRef) -> String {
+        format!("{}/{}", repo.host, repo.path.join("/"))
+    }
+
+    fn input(s: &str) -> Option<RepoRef> {
+        parse_repo_input(s, &none(), &[])
+    }
+
+    #[test]
+    fn repo_input_bare_and_remote_forms() {
+        let want = |s: &str, kind: ProviderKind, key: &str| {
+            let r = input(s).unwrap_or_else(|| panic!("{s} did not parse"));
+            assert_eq!((r.provider, repo_key(&r).as_str()), (kind, key), "{s}");
+        };
+        use ProviderKind::{Bitbucket, Github};
+        for s in [
+            "bitbucket.org/keysys/kweb",
+            "  Bitbucket.org/keysys/kweb/  ",
+            "https://bitbucket.org/keysys/kweb.git",
+            "https://me@bitbucket.org/keysys/kweb.git",
+            "git@bitbucket.org:keysys/kweb.git",
+            "ssh://git@bitbucket.org/keysys/kweb.git",
+        ] {
+            want(s, Bitbucket, "bitbucket.org/keysys/kweb");
+        }
+        for s in [
+            "github.com/a/b",
+            "github.com:a/b",
+            "git@github.com:a/b.git",
+            "ssh://git@ssh.github.com:443/a/b.git",
+            "http://github.com/a/b",
+        ] {
+            want(s, Github, "github.com/a/b");
+        }
+        // A pin's key parses back to itself.
+        let r = input("bitbucket.org/keysys/kweb").unwrap();
+        assert_eq!(input(&repo_key(&r)), Some(r));
+    }
+
+    #[test]
+    fn repo_input_web_urls_drop_the_page() {
+        for s in [
+            "https://github.com/a/b/pull/12",
+            "https://github.com/a/b/actions/runs/99?query=x",
+            "https://github.com/a/b#readme",
+            "github.com/a/b/tree/main/src",
+        ] {
+            assert_eq!(repo_key(&input(s).unwrap()), "github.com/a/b", "{s}");
+        }
+        for s in [
+            "https://bitbucket.org/keysys/kweb/pipelines/results/512",
+            "https://bitbucket.org/keysys/kweb/pull-requests/7/overview",
+            "https://bitbucket.org/keysys/kweb/src/main/",
+        ] {
+            assert_eq!(
+                repo_key(&input(s).unwrap()),
+                "bitbucket.org/keysys/kweb",
+                "{s}"
+            );
+        }
+    }
+
+    #[test]
+    fn repo_input_ports_and_gitlab_paths() {
+        let gh = vec!["ghe.example.com".to_string()];
+        for s in [
+            "ghe.example.com:8443/team/app",
+            "https://ghe.example.com:8443/team/app/pulls",
+        ] {
+            let r = parse_repo_input(s, &none(), &gh).unwrap_or_else(|| panic!("{s}"));
+            assert_eq!(r.provider, ProviderKind::Github);
+            assert_eq!(r.host, "ghe.example.com:8443");
+            assert_eq!(r.path, v(&["team", "app"]));
+            assert_eq!(r.web_url, "https://ghe.example.com:8443/team/app");
+            assert_eq!(repo_key(&r), "ghe.example.com:8443/team/app");
+        }
+        for s in [
+            "gitlab.com/group/sub/proj",
+            "git@gitlab.com:group/sub/proj.git",
+            "https://gitlab.com/group/sub/proj/-/merge_requests/3",
+        ] {
+            let r = input(s).unwrap_or_else(|| panic!("{s}"));
+            assert_eq!(r.provider, ProviderKind::Gitlab, "{s}");
+            assert_eq!(r.path, v(&["group", "sub", "proj"]), "{s}");
+        }
+        let mut hosts = HashMap::new();
+        hosts.insert("code.corp.example".to_string(), ProviderKind::Bitbucket);
+        let r = parse_repo_input("code.corp.example/ws/slug/browse", &hosts, &[]).unwrap();
+        assert_eq!(
+            (r.provider, r.path.clone()),
+            (ProviderKind::Bitbucket, v(&["ws", "slug"]))
+        );
+    }
+
+    #[test]
+    fn repo_input_junk_is_none() {
+        for s in [
+            "",
+            "github.com",
+            "github.com/",
+            "github.com/a",
+            "unknown.example.com/a/b",
+            "C:/repos/thing",
+            "not a repo",
+            "ftp://github.com/a/b",
+        ] {
+            assert_eq!(input(s), None, "{s:?}");
+        }
     }
 
     #[test]

@@ -618,3 +618,249 @@
 .forge-pulls[hidden] {
   display: none;
 }
+
+/* The Overview view: one row per pinned repo, then the Add repo box. */
+.forge-overview {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.forge-ov-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.forge-ov-slowed {
+  font-style: italic;
+}
+
+.forge-ov-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--forge-border);
+  color: var(--forge-muted);
+}
+
+.forge-ov-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--forge-border);
+  cursor: pointer;
+  outline: none;
+}
+
+.forge-ov-row:hover,
+.forge-ov-row:focus-visible {
+  background: var(--forge-hover);
+}
+
+.forge-ov-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.forge-ov-provider {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+  color: var(--forge-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.forge-ov-provider[hidden] {
+  display: none;
+}
+
+.forge-ov-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.forge-ov-pulls {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--forge-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.forge-ov-pulls:hover {
+  color: var(--forge-fg);
+  text-decoration: underline;
+}
+
+.forge-ov-pulls.needs-you {
+  color: var(--forge-warn);
+}
+
+.forge-ov-pulls[hidden],
+.forge-ov-health[hidden],
+.forge-ov-error[hidden],
+.forge-add-message[hidden],
+.forge-add-list[hidden],
+.forge-overview .forge-note[hidden] {
+  display: none;
+}
+
+.forge-ov-health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+
+.forge-ov-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.forge-ov-branch-name {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forge-ov-age {
+  color: var(--forge-muted);
+  font-size: 11px;
+}
+
+.forge-ov-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--forge-bad);
+}
+
+.forge-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px;
+}
+
+.forge-add-row {
+  display: flex;
+  gap: 6px;
+}
+
+.forge-add-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--forge-fg);
+  font: inherit;
+}
+
+.forge-add-input:focus {
+  border-color: var(--forge-accent);
+  outline: none;
+}
+
+.forge-add-message {
+  color: var(--forge-muted);
+  user-select: text;
+}
+
+.forge-add-message.error {
+  color: var(--forge-bad);
+}
+
+.forge-add-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--forge-border);
+  border-radius: 3px;
+}
+
+.forge-add-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--forge-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.forge-add-item:hover,
+.forge-add-item:focus-visible {
+  background: var(--forge-hover);
+  outline: none;
+}
+
+.forge-add-item-name {
+  flex: none;
+}
+
+.forge-add-item .forge-ov-age {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forge-bar[hidden] {
+  display: none;
+}
+
+/* The drilled view's way back to the Overview, ahead of the tabs. */
+.forge-crumb {
+  padding: 6px 10px 4px 2px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--forge-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.forge-crumb::before {
+  content: '\2039\00a0';
+}
+
+.forge-crumb:hover {
+  color: var(--forge-fg);
+}
+
+.forge-pin.pinned {
+  border-color: var(--forge-accent);
+  background: color-mix(in srgb, var(--forge-accent) 22%, transparent);
+  color: var(--forge-fg);
+}
+
+.forge-check.disabled {
+  opacity: 0.5;
+  cursor: default;
+}

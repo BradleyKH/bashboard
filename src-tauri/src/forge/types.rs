@@ -110,7 +110,7 @@ pub struct ForgeRepo {
     pub owner: String,
     pub name: String,
     pub web_url: String,
-    /// The current local branch; `None` when HEAD is detached.
+    /// The current local branch; `None` when HEAD is detached or the repo has no local clone.
     pub branch: Option<String>,
     pub capabilities: Capabilities,
     pub account: Option<String>,
@@ -223,6 +223,18 @@ pub struct PullList {
     pub items: Vec<PullRequest>,
     /// The host's count of the pull requests the query matched; `None` when the host does not say.
     pub total: Option<u64>,
+}
+
+/// One row of the Overview tab: the repo, its default branch, its newest runs on every branch,
+/// and its open pull requests.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverviewRepo {
+    pub repo: ForgeRepo,
+    /// `None` when the host does not say or the lookup failed.
+    pub default_branch: Option<String>,
+    pub runs: Vec<Run>,
+    pub pulls: PullList,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

@@ -165,6 +165,7 @@ pub struct DashboardSections {
     pub panes: bool,
     pub containers: bool,
     pub ports: bool,
+    pub forge: bool,
     pub local_models: bool,
     pub external: bool,
     pub system: bool,
@@ -206,6 +207,23 @@ pub const FORGE_KINDS: [&str; 4] = ["github", "gitlab", "bitbucket", "azureDevOp
 pub struct Forge {
     /// Lowercased host name to one of `FORGE_KINDS`; see `parse_forge_hosts`.
     pub hosts: HashMap<String, String>,
+    /// Minutes between Overview refreshes; 0 turns the heartbeat off.
+    pub overview_refresh_minutes: u32,
+    /// Repos pinned to the Forge Overview, in file order.
+    pub pinned_repos: Vec<PinnedRepo>,
+}
+
+/// `repo` (`<host>/<path segments>`) is the pin's identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PinnedRepo {
+    pub repo: String,
+    /// A local clone of the repo.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root: Option<String>,
+    /// Branches shown in the health row beyond the automatic ones.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branches: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -395,6 +413,7 @@ impl Default for Settings {
                     panes: true,
                     containers: true,
                     ports: true,
+                    forge: true,
                     local_models: true,
                     external: true,
                     system: false,
@@ -407,7 +426,7 @@ impl Default for Settings {
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5 },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
-            forge: Forge { hosts: HashMap::new() },
+            forge: Forge { hosts: HashMap::new(), overview_refresh_minutes: 5, pinned_repos: Vec::new() },
             keybindings: default_keybindings(),
         }
     }
@@ -510,6 +529,38 @@ fn parse_forge_hosts(root: &Value, warnings: &mut Vec<String>) -> HashMap<String
         }
     }
     hosts
+}
+
+/// Each bad entry is dropped with a warning naming its index and the rest kept.
+fn parse_pinned_repos(root: &Value, warnings: &mut Vec<String>) -> Vec<PinnedRepo> {
+    let Some(v) = get(root, &["forge", "pinnedRepos"]) else {
+        return Vec::new();
+    };
+    let Some(items) = v.as_array() else {
+        warnings.push("forge.pinnedRepos: invalid value, using default".into());
+        return Vec::new();
+    };
+    let nonempty = |v: &Value| v.as_str().filter(|s| !s.is_empty()).map(String::from);
+    let mut pins = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        let repo = item.get("repo").and_then(nonempty);
+        let clone = match item.get("root") {
+            None => Some(None),
+            Some(v) => v.as_str().map(|s| Some(s.to_string())),
+        };
+        let branches = match item.get("branches") {
+            None => Some(None),
+            Some(v) => v
+                .as_array()
+                .and_then(|a| a.iter().map(nonempty).collect::<Option<Vec<_>>>())
+                .map(Some),
+        };
+        match (repo, clone, branches) {
+            (Some(repo), Some(root), Some(branches)) => pins.push(PinnedRepo { repo, root, branches }),
+            _ => warnings.push(format!("forge.pinnedRepos[{i}]: invalid entry, dropped")),
+        }
+    }
+    pins
 }
 
 fn parse_keybindings(root: &Value, warnings: &mut Vec<String>) -> Vec<Keybinding> {
@@ -867,6 +918,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
             containers: section(&mut w, "containers", containers_default),
             ports: section(&mut w, "ports", d.dashboard.sections.ports),
+            forge: section(&mut w, "forge", d.dashboard.sections.forge),
             local_models: section(&mut w, "localModels", d.dashboard.sections.local_models),
             external: section(&mut w, "external", d.dashboard.sections.external),
             system: section(&mut w, "system", d.dashboard.sections.system),
@@ -921,7 +973,17 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.local_models.min_context,
         ),
     };
-    let forge = Forge { hosts: parse_forge_hosts(&root, &mut w) };
+    let forge = Forge {
+        hosts: parse_forge_hosts(&root, &mut w),
+        overview_refresh_minutes: pick(
+            &root,
+            &["forge", "overviewRefreshMinutes"],
+            &mut w,
+            |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n <= 1440),
+            d.forge.overview_refresh_minutes,
+        ),
+        pinned_repos: parse_pinned_repos(&root, &mut w),
+    };
     let keybindings = parse_keybindings(&root, &mut w);
 
     Ok((
@@ -1463,6 +1525,7 @@ mod tests {
                 panes: true,
                 containers: true,
                 ports: true,
+                forge: true,
                 local_models: true,
                 external: true,
                 system: false,
@@ -1563,6 +1626,82 @@ mod tests {
         assert!(s.forge.hosts.is_empty());
         assert_eq!(w.len(), 1, "{w:?}");
         assert!(w[0].starts_with("forge.hosts"), "{w:?}");
+    }
+
+    #[test]
+    fn forge_overview_settings_default_and_are_in_default_file() {
+        let f = Settings::default().forge;
+        assert_eq!(f.overview_refresh_minutes, 5);
+        assert!(f.pinned_repos.is_empty());
+        let text = default_file_text();
+        assert!(text.contains("\"overviewRefreshMinutes\": 5") && text.contains("\"pinnedRepos\": []"));
+    }
+
+    #[test]
+    fn forge_pinned_repos_parse_valid_entries() {
+        let (s, w) = parse_settings(
+            r#"{ "forge": { "overviewRefreshMinutes": 0, "pinnedRepos": [
+                { "repo": "bitbucket.org/keysys/kweb", "root": "C:/src/kweb", "branches": ["uat", "prod"] },
+                { "repo": "github.com/acme/tool" }
+            ] } }"#,
+        );
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.forge.overview_refresh_minutes, 0);
+        assert_eq!(
+            s.forge.pinned_repos,
+            vec![
+                PinnedRepo {
+                    repo: "bitbucket.org/keysys/kweb".into(),
+                    root: Some("C:/src/kweb".into()),
+                    branches: Some(vec!["uat".into(), "prod".into()]),
+                },
+                PinnedRepo { repo: "github.com/acme/tool".into(), root: None, branches: None },
+            ]
+        );
+    }
+
+    #[test]
+    fn forge_pinned_repos_drop_bad_entries_with_their_index_and_keep_the_rest() {
+        let (s, w) = parse_settings(
+            r#"{ "forge": { "pinnedRepos": [
+                { "repo": "github.com/a/b" },
+                { "repo": "" },
+                "github.com/c/d",
+                { "repo": "github.com/e/f", "branches": ["uat", ""] },
+                { "repo": "github.com/g/h", "root": 3 },
+                { "repo": "github.com/i/j", "branches": "uat" },
+                { "repo": "github.com/k/l", "root": "C:/k" }
+            ] } }"#,
+        );
+        let repos: Vec<&str> = s.forge.pinned_repos.iter().map(|p| p.repo.as_str()).collect();
+        assert_eq!(repos, ["github.com/a/b", "github.com/k/l"]);
+        assert_eq!(w.len(), 5, "{w:?}");
+        for i in [1, 2, 3, 4, 5] {
+            assert!(w.iter().any(|m| m.starts_with(&format!("forge.pinnedRepos[{i}]"))), "{i}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn forge_pinned_repos_reject_a_non_array() {
+        let (s, w) = parse_settings(r#"{ "forge": { "pinnedRepos": { "repo": "github.com/a/b" } } }"#);
+        assert!(s.forge.pinned_repos.is_empty());
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].starts_with("forge.pinnedRepos"), "{w:?}");
+    }
+
+    #[test]
+    fn forge_overview_refresh_minutes_parses_bounds_and_rejects_out_of_range() {
+        for n in [0u32, 1, 1440] {
+            let (s, w) = parse_settings(&format!(r#"{{ "forge": {{ "overviewRefreshMinutes": {n} }} }}"#));
+            assert_eq!(s.forge.overview_refresh_minutes, n);
+            assert!(w.is_empty(), "{w:?}");
+        }
+        for bad in ["-1", "1.5", "\"5\"", "1441"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "forge": {{ "overviewRefreshMinutes": {bad} }} }}"#));
+            assert_eq!(s.forge.overview_refresh_minutes, 5, "{bad}");
+            assert_eq!(w.len(), 1, "{bad}: {w:?}");
+            assert!(w[0].starts_with("forge.overviewRefreshMinutes"), "{bad}: {w:?}");
+        }
     }
 
     #[test]

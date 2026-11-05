@@ -231,3 +231,27 @@ export function forgePullChecks(root: string, pulls: readonly PullRequest[]): Pr
 export function forgeSetAccount(root: string, user: string): Promise<ForgeRepo> {
   return invoke<ForgeRepo>('forge_set_account', { root, user });
 }
+
+/** A repo pinned to the Forge Overview; `repo` (`<host>/<path>`) is its identity, `root` an optional local clone. */
+export interface PinnedRepo {
+  repo: string;
+  root?: string;
+  /** Extra branches to watch beyond the default and the open pull requests' targets. */
+  branches?: string[];
+}
+
+/** One pinned repo's Overview data, fetched in a single call. */
+export interface OverviewRepo {
+  /** As `forgeRepo` returns it; `branch` is null for a remote target. */
+  repo: ForgeRepo;
+  defaultBranch: string | null;
+  /** Newest 20, all branches. */
+  runs: Run[];
+  /** Open only; checks may still be pending. */
+  pulls: PullList;
+}
+
+/** `target` is a clone's path or `remote:<repo>`. */
+export function forgeOverviewRepo(target: string): Promise<OverviewRepo> {
+  return invoke<OverviewRepo>('forge_overview_repo', { target });
+}

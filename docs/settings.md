@@ -147,14 +147,14 @@ the scrollback already saved, at the next close:
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `launch`, `panes`, `containers`, `ports`, `localModels`, and `external` default to
+each dashboard element: `launch`, `panes`, `containers`, `ports`, `forge`, `localModels`, and `external` default to
 `true`, and `favorites`, `layouts`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
 the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
 drops the Launch menu. A settings file that still has `sections.folder` and no `sections.launch`
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Local models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Forge section lists only what needs you across the repos pinned to the Forge Overview (a red health branch, a pull request awaiting your review, or your own pull request with changes requested or failing checks), shows "All clear" when nothing does, and hides itself while no repo is pinned. The Local models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -172,6 +172,7 @@ dashboard", shown while the clock is on; right-clicking the clock sets it too.
     "panes": true,
     "containers": true,
     "ports": true,
+    "forge": true,
     "localModels": true,
     "external": true,
     "system": false,
@@ -229,6 +230,33 @@ edit it in the file. See [Code hosts](setup.md#code-hosts) for what the Forge pa
 
 ```jsonc
 "forge": { "hosts": { "ghe.example.com": "github" } }
+```
+
+`forge.pinnedRepos` (default `[]`) lists the repos on the Forge pane's Overview tab, one row each. An
+entry's `repo` is `<host>/<path segments>`, such as `bitbucket.org/keysys/kweb`, and is the pin's
+identity. `root` (optional) is a local clone of the repo. `branches` (optional) adds branches to the
+row's health strip beyond the automatic ones. Pin and unpin from the Forge pane ("Pin to Overview"
+and "Unpin from Overview"); the file is also yours to edit, and it applies on save. An entry whose
+`repo` is missing or empty, or whose `root` or `branches` has the wrong type, is dropped with a
+notice naming its position in the list, and the other entries still apply. The list has no field in
+the Settings tab.
+
+`forge.overviewRefreshMinutes` (default 5, 0 to 1440) is the number of minutes between background
+refreshes of the Overview; 0 turns them off, leaving the Refresh button. A repo with a pipeline
+running on one of its health branches is refreshed every 60 seconds whatever the interval. Each
+refresh costs about 3 requests (its runs, its open pull requests, and the statuses of open pull
+requests that changed), and Bitbucket allows 1,000 requests an hour per user, so Bitbucket repos
+stay within 600 an hour between them: with more than three pinned, each is refreshed no more often
+than every 18 seconds times the number pinned (every 3 minutes for ten), even when this interval
+is shorter. It applies on save and is also in the Forge section of the Settings tab.
+
+```jsonc
+"forge": {
+  "overviewRefreshMinutes": 5,
+  "pinnedRepos": [
+    { "repo": "bitbucket.org/keysys/kweb", "root": "C:/Users/me/source/repos/kweb", "branches": ["uat"] }
+  ]
+}
 ```
 
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to

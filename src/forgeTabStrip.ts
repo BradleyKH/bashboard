@@ -11,15 +11,25 @@ export function pullsTabLabel(prNoun: string): string {
   return `${capitalize(prNoun)}s`;
 }
 
-/** The Forge pane's Pipelines and Pull requests tabs (docs/design.md section 4.20). */
+/**
+ * The Forge pane's Pipelines and Pull requests tabs, after an "Overview" crumb back to the
+ * pinned repos (docs/design.md section 4.20).
+ */
 export class ForgeTabStrip {
   readonly el: HTMLElement;
   private readonly buttons = new Map<ForgeTab, HTMLButtonElement>();
 
-  constructor(tab: ForgeTab, onPick: (tab: ForgeTab) => void) {
+  constructor(tab: ForgeTab, onPick: (tab: ForgeTab) => void, onBack: () => void) {
     this.el = document.createElement('div');
     this.el.className = 'forge-tabs';
     this.el.setAttribute('role', 'tablist');
+    const crumb = document.createElement('button');
+    crumb.type = 'button';
+    crumb.className = 'forge-crumb';
+    crumb.textContent = 'Overview';
+    crumb.title = 'Back to the Overview';
+    crumb.addEventListener('click', onBack);
+    this.el.append(crumb);
     const labels: ReadonlyArray<{ tab: ForgeTab; label: string }> = [
       { tab: 'pipelines', label: 'Pipelines' },
       { tab: 'pulls', label: pullsTabLabel(DEFAULT_PR_NOUN) },

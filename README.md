@@ -18,8 +18,10 @@ Windows terminal built around Claude Code: split terminal panes, a live status b
   status, cards, notifications, and resume on relaunch. A Local models section shows what Ollama
   and LM Studio have loaded, warns when a model's context is too small for an agent, and launches
   an agent on a local model from the Launch menu.
-- **CI and reviews beside the code.** The Forge pane shows a repo's pipeline runs, job logs, and
-  open pull requests from GitHub or Bitbucket, using the sign-in your terminal already has.
+- **CI and reviews beside the code.** The Forge pane's Overview ranks your pinned repos by what
+  needs you: a failed deploy branch, a review waiting, a pull request to fix. Click in for a repo's
+  pipeline runs, job logs, and open pull requests from GitHub or Bitbucket, using the sign-in your
+  terminal already has.
 - **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
 - **No forgotten servers.** The Ports list shows every dev server listening, which pane started
   it, and stops it from a right-click.

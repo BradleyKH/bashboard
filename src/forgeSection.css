@@ -1,0 +1,32 @@
+/* The dashboard's Forge section. Rows reuse the favorite row styles and the Forge pane's status icons. */
+
+/* The status icons read these from the Forge pane's body, which the dashboard is not inside. */
+.forge-section {
+  --forge-ok: #6fcf7f;
+  --forge-bad: #e8716f;
+  --forge-warn: #e6c15a;
+  --forge-idle: #7d8a91;
+}
+
+.favorite-row.forge-item-row {
+  padding-left: 8px;
+}
+
+.forge-item-repo {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--content-fg);
+}
+
+.forge-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa6ad;
+}

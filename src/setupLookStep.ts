@@ -28,9 +28,9 @@ const BACKGROUNDS: { value: BackdropStyle; label: string }[] = [
 // Named for how bright the background shows through, matching the settings dialog's Brightness
 // slider, which is 1 minus the scrim's opacity. Darkest first, as the slider runs.
 const BRIGHTNESS: { preset: keyof typeof SCRIM_PRESETS; label: string }[] = [
-  { preset: 'medium', label: 'Low' },
-  { preset: 'light', label: 'Medium' },
-  { preset: 'none', label: 'High' },
+  { preset: 'heavy', label: 'Low' },
+  { preset: 'medium', label: 'Medium' },
+  { preset: 'light', label: 'High' },
 ];
 
 /**

@@ -47,8 +47,16 @@ export interface Settings {
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
   git: { autoFetchMinutes: number };
   localModels: { ollamaUrl: string; lmStudioUrl: string; minContext: number };
-  /** Lowercased host name to its forge kind, for self-hosted hosts (docs/settings.md). */
-  forge: { hosts: Record<string, ForgeKind> };
+  /**
+   * `hosts` maps a lowercased host name to its forge kind, for self-hosted hosts. The Overview tab
+   * reads `pinnedRepos` (identity is `repo`, `<host>/<path>`) and refreshes every
+   * `overviewRefreshMinutes`, 0 meaning manual only (docs/settings.md).
+   */
+  forge: {
+    hosts: Record<string, ForgeKind>;
+    overviewRefreshMinutes: number;
+    pinnedRepos: { repo: string; root?: string; branches?: string[] }[];
+  };
   keybindings: KeybindingEntry[];
 }
 
@@ -88,7 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5 },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
-  forge: { hosts: {} },
+  forge: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [] },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

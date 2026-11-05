@@ -10,6 +10,9 @@ import { asForgeError, type ForgeError, type PullRequest, type Run } from './for
 import { accountMenuItems, pullMenuItems, runMenuItems, type RunActionKey } from './forgeMenus';
 import { finishToast, noticeFor, pullLimitNote, type ForgeTab } from './forgeModel';
 import { ForgeNotice } from './forgeNotice';
+import { ForgeOverview } from './forgeOverview';
+import { forgeOverviewStore } from './forgeOverviewStore';
+import { ForgePinButton } from './forgePinButton';
 import { ForgePullList } from './forgePullList';
 import { ForgeRunList } from './forgeRunList';
 import { ForgeStore, type BranchScope } from './forgeStore';
@@ -27,8 +30,11 @@ export interface ForgePaneOptions {
   host: HTMLElement;
   paneId: string;
   settings: Settings;
-  /** The repo root, or a folder inside it (the pane adopts the resolved root). */
-  root: string;
+  /**
+   * The repo root or a folder inside it (the pane adopts the resolved root), or `remote:<repo>`
+   * for a pinned repo with no clone; null opens on the Overview.
+   */
+  root: string | null;
   /** Whether the pane starts on screen; the store is polled only while it is. */
   expanded: boolean;
   keymap: () => Keymap;
@@ -38,8 +44,10 @@ export interface ForgePaneOptions {
   onChange: () => void;
   /** Asks before cancelling a run; resolves true to go ahead. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
-  /** Runs `argv` (a sign-in or install command) in a terminal split off this pane, in `cwd`. */
+  /** Runs `argv` (a sign-in or install command) in a terminal split off this pane, in `cwd` ('' for none). */
   onRunTerminal: (argv: string[], cwd: string) => void;
+  /** Opens a terminal in a pinned repo's clone, from the Overview. */
+  onOpenTerminal: (root: string) => void;
   /** The tab the pane opens on; absent means Pipelines. */
   tab?: ForgeTab;
   /** Whether Pipelines lists only the checked-out branch; absent means every branch. */
@@ -49,6 +57,9 @@ export interface ForgePaneOptions {
 }
 
 const TICK_MS = 1000;
+/** Focusing the Overview refreshes it when its newest poll is older than this. */
+const STALE_ON_FOCUS_MS = 30_000;
+const REMOTE_PREFIX = 'remote:';
 
 // Several panes on one root share a store, which hands each subscriber the same array per poll;
 // remembering it lets only the first pane toast a finish.
@@ -59,20 +70,29 @@ function baseName(p: string): string {
   return parts.length > 0 ? parts[parts.length - 1] : p;
 }
 
+function isRemote(target: string): boolean {
+  return target.startsWith(REMOTE_PREFIX);
+}
+
 function localError(message: string, kind: ForgeError['kind'] = 'other'): ForgeError {
   return { kind, message, url: null, signIn: null, retryAfterSecs: null };
 }
 
 const NOT_LOADED = localError('The repo is not loaded yet.');
 
-/** A repo's CI runs and open pull requests, on two tabs (docs/design.md section 4.20). */
+/**
+ * The Forge pane (docs/design.md section 4.20): the Overview of pinned repos when it has no
+ * target, else one repo's CI runs and pull requests on two tabs, with a crumb back.
+ */
 export class ForgePane implements PaneView {
   readonly kind = 'forge' as const;
   readonly paneId: string;
   private readonly opts: ForgePaneOptions;
   private readonly host: HTMLElement;
   private readonly body: HTMLElement;
+  private readonly bar: HTMLElement;
   private readonly tabStrip: ForgeTabStrip;
+  private readonly pinButton: ForgePinButton;
   private readonly scopeBox: HTMLInputElement;
   private readonly scopeLabel: HTMLElement;
   private readonly openBox: HTMLInputElement;
@@ -87,7 +107,10 @@ export class ForgePane implements PaneView {
   private readonly runList: ForgeRunList;
   private readonly pullList: ForgePullList;
   private settings: Settings;
-  private rootPath: string;
+  /** A local repo root or `remote:<repo>`; null on the Overview. */
+  private target: string | null;
+  /** Mounted while on the Overview. */
+  private overview: ForgeOverview | null = null;
   private tab: ForgeTab;
   /** Follows the store's scope once there is one, so saved state tracks another pane's change. */
   private scope: BranchScope;
@@ -99,7 +122,10 @@ export class ForgePane implements PaneView {
   /** An error from resolving the folder, before there is a store to hold one. */
   private initError: ForgeError | null = null;
   private shownNotice: string | null = null;
-  private resolving = false;
+  /** Bumped on every drill, so a resolve for an earlier target lands nowhere. */
+  private epoch = 0;
+  /** The epoch a resolve is running for, or null when none is. */
+  private resolving: number | null = null;
   private storeOff: Array<() => void> = [];
   private tick: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
@@ -110,7 +136,7 @@ export class ForgePane implements PaneView {
     this.host = opts.host;
     this.paneId = opts.paneId;
     this.settings = opts.settings;
-    this.rootPath = opts.root;
+    this.target = opts.root || null;
     this.tab = opts.tab ?? 'pipelines';
     this.scope = opts.thisBranch ? 'branch' : 'all';
     this.openOnly = !opts.allPulls;
@@ -124,7 +150,13 @@ export class ForgePane implements PaneView {
 
     const bar = document.createElement('div');
     bar.className = 'forge-bar';
-    this.tabStrip = new ForgeTabStrip(this.tab, (tab) => this.setTab(tab));
+    this.bar = bar;
+    this.tabStrip = new ForgeTabStrip(
+      this.tab,
+      (tab) => this.setTab(tab),
+      () => this.drill(null),
+    );
+    this.pinButton = new ForgePinButton();
     this.scopeBox = document.createElement('input');
     this.scopeBox.type = 'checkbox';
     this.scopeLabel = document.createElement('label');
@@ -148,10 +180,19 @@ export class ForgePane implements PaneView {
     this.refreshBtn.className = 'forge-button';
     this.refreshBtn.textContent = 'Refresh';
     this.refreshBtn.title = 'Look again now';
-    bar.append(this.tabStrip.el, this.scopeLabel, this.openLabel, spacer, this.repoLink, this.chip.el, this.refreshBtn);
+    bar.append(
+      this.tabStrip.el,
+      this.scopeLabel,
+      this.openLabel,
+      spacer,
+      this.repoLink,
+      this.chip.el,
+      this.pinButton.el,
+      this.refreshBtn,
+    );
 
     this.notice = new ForgeNotice({
-      onRunTerminal: (argv) => this.opts.onRunTerminal(argv, this.rootPath),
+      onRunTerminal: (argv) => this.opts.onRunTerminal(argv, this.localRoot() ?? ''),
       onOpenUrl: (url) => this.openUrl(url),
       onCopy: (text, label) => void copyText(text, label.replace(/^Copy\s+/i, '')),
       onPickAccount: (anchor) => this.openAccountMenu(anchor),
@@ -194,34 +235,41 @@ export class ForgePane implements PaneView {
       if (url) this.openUrl(url);
     });
     this.listen(this.refreshBtn, 'click', () => this.retry());
-    this.listen(this.host, 'focusin', () => opts.onFocus());
+    this.listen(this.host, 'focusin', () => {
+      opts.onFocus();
+      this.refreshOverviewIfStale();
+    });
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
     // Back from a browser sign-in or token page: look again rather than waiting out the poll.
     this.listen(window, 'focus', () => this.refreshIfStuck());
 
+    if (this.target === null) this.mountOverview();
     this.render();
     this.updateTick();
     void this.init();
   }
 
-  /** The repo root, which is the pane's folder. */
-  get folder(): string {
-    return this.rootPath;
+  /** The local repo root; null on the Overview or a remote-only repo, which have no folder. */
+  get folder(): string | null {
+    return this.localRoot();
   }
 
-  root(): string {
-    return this.rootPath;
+  /** The drilled target (a local root or `remote:<repo>`); null on the Overview. */
+  root(): string | null {
+    return this.target;
   }
 
-  /** The repo folder's name, for the title strip; the kind's name while there is no folder. */
+  /** The repo's name for the title strip; "Forge" on the Overview. */
   title(): string {
-    return baseName(this.rootPath) || 'Forge';
+    const t = this.target;
+    if (t === null) return 'Forge';
+    return baseName(isRemote(t) ? t.slice(REMOTE_PREFIX.length) : t) || 'Forge';
   }
 
-  /** The `forge` saved-pane fields; `tab`, `thisBranch`, and `allPulls` only when not the default. */
-  saved(): { root: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean } {
+  /** The `forge` saved-pane fields; `root` only when drilled, the rest only when not the default. */
+  saved(): { root?: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean } {
     return {
-      root: this.rootPath,
+      ...(this.target !== null && { root: this.target }),
       ...(this.tab !== 'pipelines' && { tab: this.tab }),
       ...(this.scope === 'branch' && { thisBranch: true }),
       ...(!this.openOnly && { allPulls: true }),
@@ -230,6 +278,32 @@ export class ForgePane implements PaneView {
 
   focus(): void {
     this.body.focus();
+  }
+
+  /**
+   * Drills into `target` (a folder in a repo or `remote:<repo>`) on `tab`, or returns to the
+   * Overview for null. The same target only switches the tab.
+   */
+  drill(target: string | null, tab?: ForgeTab): void {
+    if (this.disposed) return;
+    const same = target === null || this.target === null ? target === this.target : samePath(target, this.target);
+    if (!same) {
+      this.epoch++;
+      this.releaseStore();
+      this.initError = null;
+      this.shownNotice = null;
+      this.target = target;
+      if (target === null) this.mountOverview();
+      else this.unmountOverview();
+    }
+    if (tab !== undefined && tab !== this.tab) {
+      this.tab = tab;
+      this.tabStrip.set(tab);
+    }
+    this.updateWanted();
+    this.render();
+    if (!same) void this.init();
+    this.opts.onChange();
   }
 
   setExpanded(expanded: boolean): void {
@@ -269,6 +343,8 @@ export class ForgePane implements PaneView {
     this.disposed = true;
     this.updateTick();
     this.releaseStore();
+    this.unmountOverview();
+    this.pinButton.dispose();
     for (const off of this.listeners) off();
     this.listeners.length = 0;
     this.body.remove();
@@ -276,43 +352,50 @@ export class ForgePane implements PaneView {
 
   private async init(): Promise<void> {
     // A Retry while the folder is still resolving would take a second store reference.
-    if (this.resolving || this.store) return;
-    this.resolving = true;
+    if (this.target === null || this.resolving === this.epoch || this.store) return;
+    const epoch = this.epoch;
+    this.resolving = epoch;
     try {
-      await this.resolve();
+      await this.resolve(epoch);
     } finally {
-      this.resolving = false;
+      if (this.resolving === epoch) this.resolving = null;
     }
   }
 
-  private async resolve(): Promise<void> {
-    const asked = this.rootPath;
+  private async resolve(epoch: number): Promise<void> {
+    const asked = this.target;
+    if (asked === null) return;
     this.initError = null;
-    let info: RepoInfo;
-    try {
-      info = await repoRoot(asked);
-    } catch (e) {
-      if (this.disposed) return;
-      this.initError = asForgeError(e);
-      this.render();
-      return;
+    // A remote-only target has no folder to resolve; the store looks the repo up by its key.
+    if (!isRemote(asked)) {
+      let info: RepoInfo;
+      try {
+        info = await repoRoot(asked);
+      } catch (e) {
+        if (this.disposed || epoch !== this.epoch) return;
+        this.initError = asForgeError(e);
+        this.render();
+        return;
+      }
+      if (this.disposed || epoch !== this.epoch) return;
+      if (!info.isGit) {
+        this.initError = localError(`${asked} is not a git repo.`, 'notARepo');
+        this.render();
+        return;
+      }
+      if (!samePath(info.root, asked)) {
+        this.target = info.root;
+        this.opts.onChange();
+      }
     }
-    if (this.disposed) return;
-    if (!info.isGit) {
-      this.initError = localError(`${asked || 'This folder'} is not a git repo.`, 'notARepo');
-      this.render();
-      return;
-    }
-    if (!samePath(info.root, asked)) {
-      this.rootPath = info.root;
-      this.opts.onChange();
-    }
+    const key = this.target ?? asked;
     // A store another pane already holds keeps that pane's filters; a new one takes this pane's.
-    const fresh = !ForgeStore.has(this.rootPath);
-    const store = ForgeStore.for(this.rootPath);
+    const fresh = !ForgeStore.has(key);
+    const store = ForgeStore.for(key);
     this.store = store;
     if (fresh) {
-      void store.setBranchScope(this.scope);
+      // A remote-only repo has no checked-out branch to scope to.
+      void store.setBranchScope(isRemote(key) ? 'all' : this.scope);
       void store.setPullsOpenOnly(this.openOnly);
     } else {
       this.setScope(store.branchScope);
@@ -345,7 +428,42 @@ export class ForgePane implements PaneView {
   }
 
   private updateWanted(): void {
-    this.store?.setWanted(this.wantedKey(), this.expanded && !this.disposed, this.tab);
+    const on = this.expanded && !this.disposed;
+    this.store?.setWanted(this.wantedKey(), on, this.tab);
+    this.overview?.setWanted(on);
+  }
+
+  private mountOverview(): void {
+    if (this.overview) return;
+    this.overview = new ForgeOverview({
+      onDrill: (target, tab) => this.drill(target, tab),
+      onRunTerminal: (argv) => this.opts.onRunTerminal(argv, ''),
+      onOpenTerminal: (root) => this.opts.onOpenTerminal(root),
+      onOpenUrl: (url) => this.openUrl(url),
+      onCopy: (text) => void copyText(text, 'link'),
+    });
+    this.body.append(this.overview.el);
+  }
+
+  private unmountOverview(): void {
+    const overview = this.overview;
+    if (!overview) return;
+    this.overview = null;
+    overview.dispose();
+    overview.el.remove();
+  }
+
+  /** The drilled target when it is a local clone; null on the Overview or a remote-only repo. */
+  private localRoot(): string | null {
+    const t = this.target;
+    return t === null || isRemote(t) ? null : t;
+  }
+
+  /** Back from elsewhere to a stale Overview: poll now rather than waiting out the heartbeat. */
+  private refreshOverviewIfStale(): void {
+    if (!this.overview || !this.expanded || this.disposed) return;
+    const last = forgeOverviewStore.lastUpdated();
+    if (last !== null && Date.now() - last > STALE_ON_FOCUS_MS) void forgeOverviewStore.refresh();
   }
 
   /** Keeps relative times and durations current while the pane is on screen. */
@@ -384,29 +502,42 @@ export class ForgePane implements PaneView {
 
   /** Retry and Refresh: resolve the folder again when that is what failed, else poll now. */
   private retry(): void {
+    if (this.target === null) return;
     if (this.store) void this.store.refresh();
     else void this.init();
   }
 
   /** Refreshes after a likely fix outside the app (sign-in, a new token), never against a rate limit. */
   private refreshIfStuck(): void {
-    if (!this.expanded || this.disposed) return;
+    if (!this.expanded || this.disposed || this.target === null) return;
     const err = this.store ? this.store.errorFor(this.tab) : this.initError;
     if (err && err.kind !== 'rateLimited') this.retry();
   }
 
   private render(): void {
     if (this.disposed) return;
+    const onOverview = this.target === null;
+    this.bar.hidden = onOverview;
+    if (onOverview) {
+      this.noticeBox.hidden = true;
+      this.content.hidden = true;
+      return;
+    }
     const store = this.store;
     const repo = store?.repo ?? null;
+    const remote = this.localRoot() === null;
 
     this.scopeLabel.hidden = this.tab !== 'pipelines';
+    this.scopeBox.disabled = remote;
+    this.scopeLabel.classList.toggle('disabled', remote);
     this.scopeBox.checked = this.scope === 'branch';
     this.openLabel.hidden = this.tab !== 'pulls';
     this.openBox.checked = this.openOnly;
-    this.scopeLabel.title = repo?.branch
-      ? `Only runs on ${repo.branch}; clear to show every branch`
-      : 'Only runs on the checked-out branch; clear to show every branch';
+    this.scopeLabel.title = remote
+      ? 'This repo has no clone here, so there is no checked-out branch'
+      : repo?.branch
+        ? `Only runs on ${repo.branch}; clear to show every branch`
+        : 'Only runs on the checked-out branch; clear to show every branch';
     if (repo) {
       this.tabStrip.setPrNoun(repo.capabilities.prNoun);
       const name = `${repo.owner}/${repo.name}`;
@@ -414,7 +545,8 @@ export class ForgePane implements PaneView {
       this.repoLink.title = `Open ${repo.webUrl}`;
     }
     this.repoLink.hidden = repo === null;
-    this.chip.update(repo);
+    this.chip.update(remote ? null : repo);
+    this.pinButton.update(repo, this.localRoot());
 
     const err = store ? store.errorFor(this.tab) : this.initError;
     if (err) {
@@ -527,7 +659,7 @@ export class ForgePane implements PaneView {
         onPick: (user) => {
           if (user !== repo.account) void this.act(store.setAccount(user));
         },
-        onSignIn: (argv) => this.opts.onRunTerminal(argv, this.rootPath),
+        onSignIn: (argv) => this.opts.onRunTerminal(argv, this.localRoot() ?? ''),
       }),
       { anchorEl: anchor },
     );

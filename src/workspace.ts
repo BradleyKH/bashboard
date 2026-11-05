@@ -240,7 +240,8 @@ export type PaneSpec =
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
   | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   | { kind: 'git'; root: string; tab?: GitTab }
-  | { kind: 'forge'; root: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean }
+  /** No `root` opens on the Overview. */
+  | { kind: 'forge'; root?: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' }
   | { kind: 'ports' };
@@ -1140,14 +1141,29 @@ export class Workspace {
   }
 
   /**
-   * Design 4.20: shows the first Forge pane on `root` in tab order, or appends a Forge tab on it.
-   * With no root, shows the first Forge pane on any repo; false when there is none to show.
+   * Design 4.20: shows a Forge pane already drilled into `target` (a repo root or
+   * `remote:<repo>`), else the first Forge pane in tab order drilled into it, else appends a
+   * Forge tab on it. A null target shows the first Forge pane as it is, or a new one on the
+   * Overview.
    */
-  openForge(root: string | null): boolean {
-    const matches = (v: PaneView | undefined) => v instanceof ForgePane && (root === null || v.root() === root);
-    if (root === null && ![...this.paneViews.values()].some(matches)) return false;
-    this.showOrAppendTab(matches, 'Forge', { key: 'f', kind: 'forge', root: root ?? '', collapsed: false });
-    return true;
+  openForge(target: string | null, tab?: ForgeTab): void {
+    // samePath because a pane rewrites a folder inside the repo to the repo's root.
+    const drilledTo = (v: PaneView | undefined) => {
+      const root = v instanceof ForgePane ? v.root() : null;
+      return target !== null && root !== null && samePath(root, target);
+    };
+    const anyForge = (v: PaneView | undefined) => v instanceof ForgePane;
+    const matches = [...this.paneViews.values()].some(drilledTo) ? drilledTo : anyForge;
+    const id = this.showOrAppendTab(matches, 'Forge', {
+      key: 'f',
+      kind: 'forge',
+      ...(target !== null && { root: target }),
+      ...(tab !== undefined && { tab }),
+      collapsed: false,
+    });
+    const pane = id ? this.paneViews.get(id) : undefined;
+    // A null target means the Overview, so an existing pane drilled into a repo backs out to it.
+    if (pane instanceof ForgePane) pane.drill(target, tab);
   }
 
   /**
@@ -1505,7 +1521,8 @@ export class Workspace {
   /**
    * Design 4.11 Kind menu: a pane with no folder becoming a terminal opens where the tab's most
    * recent terminal is, else in the core's startingDirectory, with the default profile; becoming
-   * a Files or Git pane, it falls back last to the Repo section's repo.
+   * a Files or Git pane, it falls back last to the Repo section's repo. A Forge pane opens drilled
+   * into `folder` when one is given, else on the Overview.
    */
   private specForKind(kind: PaneKind, folder: string | null, tab: TabState): PaneSpec {
     switch (kind) {
@@ -1518,7 +1535,7 @@ export class Workspace {
       case 'git':
         return { kind: 'git', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'forge':
-        return { kind: 'forge', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
+        return folder ? { kind: 'forge', root: folder } : { kind: 'forge' };
       case 'search':
         return { kind: 'search', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'containers':
@@ -1708,7 +1725,7 @@ export class Workspace {
       host,
       paneId: id,
       settings: this.paneSettings(),
-      root: spec.root,
+      root: spec.root ?? null,
       expanded,
       keymap: () => this.config.keymap,
       dispatch: (a) => this.dispatch(a),
@@ -1716,6 +1733,7 @@ export class Workspace {
       onChange: () => this.paneChanged(id),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
       onRunTerminal: (argv, cwd) => this.openForgeCommand(id, argv, cwd),
+      onOpenTerminal: (root) => this.openTerminal(root),
       tab: spec.tab,
       thisBranch: spec.thisBranch,
       allPulls: spec.allPulls,
@@ -2119,7 +2137,7 @@ export class Workspace {
       return { ...common, kind: 'git', title: pane.title(), folder: pane.root(), confirmClose: false };
     }
     if (pane instanceof ForgePane) {
-      return { ...common, kind: 'forge', title: pane.title(), folder: pane.root(), confirmClose: false };
+      return { ...common, kind: 'forge', title: pane.title(), folder: pane.folder, confirmClose: false };
     }
     if (pane instanceof SearchPane) {
       return { ...common, kind: 'search', title: pane.title(), folder: pane.root(), confirmClose: false };

@@ -209,6 +209,7 @@ describe('scrimPresetFor', () => {
     expect(scrimPresetFor(0)).toBe('none');
     expect(scrimPresetFor(0.25)).toBe('light');
     expect(scrimPresetFor(0.5)).toBe('medium');
+    expect(scrimPresetFor(0.75)).toBe('heavy');
   });
 
   it('gives null between presets', () => {

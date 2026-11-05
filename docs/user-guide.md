@@ -250,13 +250,16 @@ terminal. Only open Git panes on repos you trust.
 
 ## Forge pane
 
-A Forge pane shows a repo's CI runs and open pull requests from its code host, so you can watch a
-build or see what awaits review without leaving Bashboard. It supports GitHub (github.com and
-GitHub Enterprise Server) and Bitbucket Cloud. Choose **Forge** in a pane's kind menu, which keeps
-the pane's folder, or click Forge in Launch: the pane shows the repo of that folder, found from the repo's remote, and it comes back
-on relaunch on the same repo and tab, and layouts keep it. Its title is the repo folder's name, or
-"Forge" when the pane has no folder. In a folder outside a repo, or in a repo with no remote, it
-shows a notice.
+A Forge pane shows how your repos' CI and pull requests are doing, from their code hosts, so you
+can watch a build or see what awaits review without leaving Bashboard. It opens on an
+[Overview](#overview) of the repos you have pinned, and a click on one shows that repo's own CI runs
+and open pull requests. It supports GitHub (github.com and GitHub Enterprise Server) and Bitbucket
+Cloud. The command palette's Open the Forge tab, the Forge section's button on the dashboard, and
+**Forge** in the kind menu of a pane with no folder show the Overview. Click Forge in Launch, or
+choose **Forge** in the kind menu of a pane with a folder, and the pane opens on the repo of that
+folder, found from the repo's remote. A Forge pane comes back on relaunch where you left it, and
+layouts keep it. Its title is the repo's name while it shows a repo, and "Forge" on the Overview.
+In a folder outside a repo, or in a repo with no remote, it shows a notice.
 
 It reads the host with a sign-in you already have: the GitHub CLI (`gh`) for GitHub, and a Bitbucket
 API token you store once with `bb auth bitbucket`. When one is missing, the pane says so and its
@@ -267,10 +270,59 @@ you quit comes back as a plain shell. When you return to the window after fixing
 pane looks again on its own, unless the error is a rate limit. The full steps are in
 [Code hosts](setup.md#code-hosts).
 
-Across the top, the bar holds the **Pipelines** and **Pull requests** tabs, a **This branch**
-checkbox (on the Pipelines tab only), an **Open** checkbox (on the Pull requests tab only), the
-repo's `owner/name`, which opens it on the host when
-clicked, the account button, and **Refresh**. This branch is clear by default, listing runs on
+### Overview
+
+The Overview has one row per pinned repo, across GitHub and Bitbucket, ordered by what needs you
+first. A row shows the repo's `owner/name` with a GH or BB badge, a summary of its open pull
+requests ("3 open, 1 needs you", highlighted while a review is waiting on you), and a status icon
+for each of its **health branches**: the repo's default branch, the branches its open pull requests
+target (usually the deploy branches), and any you list for the pin. Each shows how its newest run
+ended and how long ago, or "No recent run" when none of the repo's latest 20 runs was on it. When a
+repo cannot be read, its row says why, beside the last good data, with a button for a sign-in or
+install command where one applies.
+
+Rows are ordered by the first of these that applies: a health branch whose latest run failed, a pull
+request awaiting your review, your own pull request with changes requested or failing checks, a
+health branch that is running, and then the rest by most recent activity. Rows tied on one of the
+first four keep the order of your pins.
+
+Click a row to see its Pipelines, or its pull request summary to see its Pull requests. Right-click
+a row for **Open Pipelines**, **Open Pull requests**, **Open in browser**, **Open terminal here**
+(when the pin has a local clone), **Copy link**, and **Unpin from Overview**. In a repo's own view,
+the **Overview** link at the start of the tabs goes back. A repo you pinned without a local clone
+has no checked-out branch, so its This branch checkbox is disabled and it has no account button; it
+uses the host's default account.
+
+The Overview shows when it was last updated and has its own **Refresh** button. It refreshes by
+itself every 5 minutes (`forge.overviewRefreshMinutes`; 0 turns this off),
+every minute while a health branch is running, and when you focus the pane after more than 30
+seconds away. It polls only while the Overview or the dashboard's Forge section is on screen and
+the window is visible. Bitbucket allows 1,000 requests an hour per user and a refresh costs about
+3 per repo, so with more than three Bitbucket repos pinned they refresh less often (every 3 minutes
+for ten, even while running), and the bar shows the pace, such as "Bitbucket every 3 min".
+
+**Pinning.** A repo's own view has a **Pin to Overview** button (**Unpin from Overview** while it is
+pinned). The box under the rows adds a repo without opening it: type `owner/name` (github.com, or
+bitbucket.org when every pin is on Bitbucket), `host/owner/name`, or paste a link, which can be an
+https or ssh remote URL or the address of a page in the repo, and press Enter or **Pin to
+Overview**. Below the box, the folders in your repos list and favorites that are on GitHub or
+Bitbucket are offered as one-click pins, and pinning one records the folder as the repo's local
+clone. Pins are saved as `forge.pinnedRepos` in `settings.json`, where you can also list extra
+`branches` for the health row (see [Settings](settings.md#settings)).
+
+**Dashboard.** The dashboard's Forge section, after Ports, lists only what needs you across the
+pinned repos: a health branch that failed, a pull request awaiting your review, and your own pull
+request with changes requested or failing checks. It reads "All clear" when nothing does, and it is
+hidden while no repo is pinned. Click a row to open that repo's Pipelines (for a branch) or Pull
+requests (for a pull request); the button in the section's header opens the Overview. Turn the
+section off with `dashboard.sections.forge`.
+
+### A repo's view
+
+Across the top, the bar holds the **Overview** link, the **Pipelines** and **Pull requests** tabs,
+a **This branch** checkbox (on the Pipelines tab only), an **Open** checkbox (on the Pull requests
+tab only), the repo's `owner/name`, which opens it on the host when clicked, the account button,
+**Pin to Overview**, and **Refresh**. This branch is clear by default, listing runs on
 every branch; check it to list only runs on the branch you have checked out. Open is checked by
 default, listing only open pull requests; clear it to list the latest ones in every state, with
 merged and closed ones marked. The pane remembers both choices across restarts.
@@ -296,8 +348,8 @@ merged and closed ones marked. The pane remembers both choices across restarts.
 
 A finished run raises a toast, such as "Workflow run passed: CI on main", whose **Open** action
 opens the run. Several Forge panes on one repo share their requests and each finished run toasts
-once. The pane polls only while it is expanded: runs every 15 seconds while one is queued or
-running and every minute otherwise, and pull requests only while their tab is showing. Bitbucket is
+once. A pane showing a repo polls only while it is expanded: runs every 15 seconds while one is
+queued or running and every minute otherwise, and pull requests only while their tab is showing. Bitbucket is
 polled more slowly, since it allows 1,000 requests an hour per user. Polling pauses while the
 window is hidden.
 
@@ -395,8 +447,8 @@ your Editor.
 **Launch** sits at the top by default and appears while the focused pane is in a folder (a
 scratch pad keeps the last one shown). Its row of icons opens a Terminal, Git, Files, Forge (see
 [Forge pane](#forge-pane)), Search (see [Code search](#code-search)), or Scratch pane at the
-focused pane's repo root, with Git and Forge for a git repo only; hover one for its name and
-shortcut. While you hover, the
+focused pane's repo root, with Git and Forge for a git repo only (Forge opens on that repo, not the
+Overview); hover one for its name and shortcut. While you hover, the
 panes show where the new one will open: the focused pane outlined and the new pane's share of it
 highlighted, or the Files or Git pane it would bring forward, or a note that it opens collapsed
 when there is no room. Like the other sections it can be dragged elsewhere or turned off; it does
@@ -531,7 +583,7 @@ matches the swatch beside the session in the dashboard. The Matrix and None back
 lineages; switching back to Swirling Lights brings each live session's lineage back as a fresh
 founder. The Background choice in the Settings tab picks the style (see
 [Settings](settings.md#settings)), and Ctrl+Shift+A pauses or resumes it. Ctrl+Shift+B cycles
-the background's brightness through full, three quarters, and half, and saves the choice as
+the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
 Brightness in the Settings tab; the blur stays as set there.
 
 ### Containers
@@ -673,8 +725,8 @@ reports commands, and a bound agent session's own status takes precedence.
 
 Ctrl+Shift+P opens one list over your panes, tabs, favorites, layouts, the focused repo's pins and
 worktrees, and the actions, each with its keys. The actions include Open the Containers tab, Open
-the Ports tab, and Open the Forge tab (for the focused repo), which switch to that pane or add a
-tab holding one. Typing filters the list fuzzily, and a leading `>`
+the Ports tab, and Open the Forge tab (the Forge [Overview](#overview)), which switch to that pane or
+add a tab holding one. Typing filters the list fuzzily, and a leading `>`
 shows only actions. Enter focuses a pane, switches to a tab, opens a favorite, layout, pin, or
 worktree, or runs an action; a favorite or worktree opens as a split, or collapsed with Ctrl+Enter.
 With an empty box, your recent picks come first.

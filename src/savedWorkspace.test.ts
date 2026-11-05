@@ -147,10 +147,31 @@ describe('parseSavedTab', () => {
     expect(parse({ ...forge(), allPulls: true })).toEqual({ ...forge(), allPulls: true });
     expect(parse({ ...forge(), allPulls: false })).toEqual(forge());
 
-    const { root: _r, ...noRoot } = forge();
-    const r = parseSavedTab({ panes: [term('b'), noRoot], layout: row(pane('b'), pane('a')), focused: 'b' });
-    expect(r?.panes).toEqual([term('b')]);
-    expect(r?.layout).toEqual(pane('b'));
+  });
+
+  it('loads a rootless Forge pane as Overview, and an empty root as Overview too', () => {
+    const overview = { key: 'a', kind: 'forge', collapsed: false };
+    const parse = (p: object) => parseSavedTab({ panes: [p], layout: pane('a'), focused: 'a' })?.panes[0];
+    expect(parse(overview)).toEqual(overview);
+    expect(parse({ ...overview, root: '' })).toEqual(overview);
+    expect(parse({ ...overview, root: 7 })).toEqual(overview);
+    // The drilldown fields load unchanged, so a pane that drills in again keeps its last tab.
+    const kept = { ...overview, tab: 'pulls', thisBranch: true, allPulls: true };
+    expect(parse(kept)).toEqual(kept);
+    expect(parseSavedTab({ panes: [{ ...overview, collapsed: 'no' }], layout: null, focused: null })?.panes).toEqual([]);
+  });
+
+  it('loads an old Forge pane with a root as drilled in, and a remote target key as its root', () => {
+    const old = { key: 'a', kind: 'forge', collapsed: false, root: '/c/a', tab: 'pulls', allPulls: true };
+    expect(parseSavedTab({ panes: [old], layout: pane('a'), focused: 'a' })?.panes[0]).toEqual(old);
+    const remote = {
+      key: 'a',
+      kind: 'forge',
+      collapsed: false,
+      root: 'remote:bitbucket.org/keysys/kweb',
+      thisBranch: true,
+    };
+    expect(parseSavedTab({ panes: [remote], layout: pane('a'), focused: 'a' })?.panes[0]).toEqual(remote);
   });
 
   it('round-trips a Search pane, defaulting bad options and a missing query, and drops one with no root', () => {
@@ -581,7 +602,7 @@ describe('parseSavedWorkspace', () => {
   });
 
   it('keeps a saved element order and cleans it', () => {
-    const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'localModels'];
+    const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'forge', 'localModels'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);
     const messy = ['panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock', 'folder', 'launch'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: messy })?.dashboardSectionOrder).toEqual([
@@ -590,6 +611,7 @@ describe('parseSavedWorkspace', () => {
       'layouts',
       'containers',
       'ports',
+      'forge',
       'localModels',
       'external',
       'system',
@@ -609,6 +631,7 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'ports',
+      'forge',
       'localModels',
       'external',
       'system',
@@ -626,6 +649,7 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'ports',
+      'forge',
       'localModels',
       'external',
       'system',

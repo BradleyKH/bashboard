@@ -25,11 +25,14 @@ use crate::settings::SettingsState;
 use auth::{TokenCache, TokenSource};
 use http::Http;
 use types::{
-    AccountSource, Capabilities, ForgeError, ForgeErrorKind, ForgeRepo, Job, JobLog, ProviderKind,
-    PullChecks, PullChecksQuery, PullList, RepoRef, Run, Token,
+    AccountSource, Capabilities, ForgeError, ForgeErrorKind, ForgeRepo, Job, JobLog, OverviewRepo,
+    ProviderKind, PullChecks, PullChecksQuery, PullList, RepoRef, Run, Token,
 };
 
 const REPO_TTL: Duration = Duration::from_secs(15);
+const DEFAULT_BRANCH_TTL: Duration = Duration::from_secs(60 * 60);
+/// A target key naming a repo by `<host>/<path>` rather than by a local clone's folder.
+const REMOTE_PREFIX: &str = "remote:";
 const MAX_RUNS: usize = 20;
 const MAX_PULLS: usize = 50;
 const GH_INSTALL_URL: &str = "https://cli.github.com";
@@ -73,6 +76,10 @@ pub trait ForgeProvider: Send + Sync {
         _pulls: &[PullChecksQuery],
     ) -> Result<Vec<PullChecks>, ForgeError> {
         Ok(Vec::new())
+    }
+    /// The branch the host treats as the repo's default; `None` when it does not say.
+    fn default_branch(&self, _cx: &Cx, _repo: &RepoRef) -> Result<Option<String>, ForgeError> {
+        Ok(None)
     }
 }
 
@@ -133,11 +140,15 @@ struct Resolved {
     accounts: Vec<String>,
 }
 
+type RepoKey = (ProviderKind, String, Vec<String>);
+
 #[derive(Default)]
 pub struct ForgeState {
     http: Http,
     tokens: TokenCache,
+    /// By target key: a local folder, or `remote:<host>/<path>`.
     repos: Mutex<HashMap<String, (Instant, Resolved)>>,
+    default_branches: Mutex<HashMap<RepoKey, (Instant, Option<String>)>>,
 }
 
 fn not_a_repo() -> ForgeError {
@@ -209,30 +220,9 @@ fn resolve_repo(git: &Git, hosts: &HashMap<String, ProviderKind>) -> Result<Reso
     })?;
     let hosts_yml = remote::read_gh_hosts_yml().unwrap_or_default();
     let gh_hosts = remote::parse_gh_hosts(&hosts_yml);
-    // The repo never resolves for these, so `url` is how the notice learns the host to name.
-    let unsupported = |host: &str, message: String| ForgeError {
-        url: Some(format!("https://{host}")),
-        ..ForgeError::new(ForgeErrorKind::UnsupportedHost, message)
-    };
-    let repo = remote::classify(&parsed, hosts, &gh_hosts).ok_or_else(|| {
-        unsupported(
-            &parsed.host,
-            format!(
-                "{} isn't a code host Bashboard recognizes. Name its provider in the forge.hosts setting.",
-                parsed.host
-            ),
-        )
-    })?;
-    if provider(repo.provider).is_none() {
-        return Err(unsupported(
-            &repo.host,
-            format!("{} isn't supported yet", repo.provider.display_name()),
-        ));
-    }
-    let (accounts, active) = match repo.provider {
-        ProviderKind::Github => auth::gh_accounts(&hosts_yml, bare_host(&repo.host)),
-        _ => (Vec::new(), None),
-    };
+    let repo =
+        remote::classify(&parsed, hosts, &gh_hosts).ok_or_else(|| unknown_host(&parsed.host))?;
+    let (accounts, active) = served_accounts(&repo, &hosts_yml)?;
     let repo_user = git_value(git, &["config", "--get", "credential.username"]).or_else(|| {
         git_value(
             git,
@@ -259,6 +249,77 @@ fn resolve_repo(git: &Git, hosts: &HashMap<String, ProviderKind>) -> Result<Reso
     })
 }
 
+/// The repo never resolves for these, so `url` is how the notice learns the host to name.
+fn unsupported(host: &str, message: String) -> ForgeError {
+    ForgeError {
+        url: Some(format!("https://{host}")),
+        ..ForgeError::new(ForgeErrorKind::UnsupportedHost, message)
+    }
+}
+
+fn unknown_host(host: &str) -> ForgeError {
+    unsupported(
+        host,
+        format!(
+            "{host} isn't a code host Bashboard recognizes. Name its provider in the forge.hosts setting."
+        ),
+    )
+}
+
+/// Refuses a provider nobody serves yet, then lists the host's GitHub CLI accounts and the
+/// active one.
+fn served_accounts(
+    repo: &RepoRef,
+    hosts_yml: &str,
+) -> Result<(Vec<String>, Option<String>), ForgeError> {
+    if provider(repo.provider).is_none() {
+        return Err(unsupported(
+            &repo.host,
+            format!("{} isn't supported yet", repo.provider.display_name()),
+        ));
+    }
+    Ok(match repo.provider {
+        ProviderKind::Github => auth::gh_accounts(hosts_yml, bare_host(&repo.host)),
+        _ => (Vec::new(), None),
+    })
+}
+
+/// A repo named by a `remote:` target key. With no clone there is no branch and no repo
+/// config, so the account is the one a fresh clone would get: the host's only or active
+/// GitHub CLI account.
+fn resolve_remote(
+    spec: &str,
+    hosts: &HashMap<String, ProviderKind>,
+    hosts_yml: &str,
+) -> Result<Resolved, ForgeError> {
+    let gh_hosts = remote::parse_gh_hosts(hosts_yml);
+    let repo = remote::parse_repo_input(spec, hosts, &gh_hosts).ok_or_else(|| {
+        // The spec stays out of the message, as a remote URL does: a pasted one can carry a
+        // password.
+        ForgeError::new(
+            ForgeErrorKind::UnsupportedHost,
+            "This repo address isn't one Bashboard can read. Use host/owner/name, or name a self-hosted host's provider in the forge.hosts setting.",
+        )
+    })?;
+    let (accounts, active) = served_accounts(&repo, hosts_yml)?;
+    let (account, account_source) = auth::choose_account(None, None, &accounts, active.as_deref());
+    Ok(Resolved {
+        repo,
+        branch: None,
+        account,
+        account_source,
+        accounts,
+    })
+}
+
+/// Git Bash's rule: `HOME`, falling back to `USERPROFILE`.
+fn home_dir() -> Option<String> {
+    ["HOME", "USERPROFILE"]
+        .into_iter()
+        .filter_map(|v| std::env::var(v).ok())
+        .find(|h| !h.is_empty())
+}
+
 fn forge_hosts(settings: &SettingsState) -> HashMap<String, ProviderKind> {
     settings
         .current()
@@ -274,23 +335,67 @@ fn forge_hosts(settings: &SettingsState) -> HashMap<String, ProviderKind> {
 }
 
 impl ForgeState {
-    fn resolved(
+    fn cached(
         &self,
-        git: &Git,
-        settings: &SettingsState,
-        root: &str,
+        key: &str,
+        resolve: impl FnOnce() -> Result<Resolved, ForgeError>,
     ) -> Result<Resolved, ForgeError> {
-        if let Some((at, r)) = self.repos.lock().unwrap().get(root) {
+        if let Some((at, r)) = self.repos.lock().unwrap().get(key) {
             if at.elapsed() < REPO_TTL {
                 return Ok(r.clone());
             }
         }
-        let r = resolve_repo(git, &forge_hosts(settings))?;
+        let r = resolve()?;
         self.repos
             .lock()
             .unwrap()
-            .insert(root.to_string(), (Instant::now(), r.clone()));
+            .insert(key.to_string(), (Instant::now(), r.clone()));
         Ok(r)
+    }
+
+    /// The repo a target key names, with the `Git` its token is resolved through. A local
+    /// target's `Git` runs in its clone. A `remote:` target has no clone, so its `Git` runs in
+    /// the home folder only for `git credential fill`, which then reads the credential helpers
+    /// from global and system config. No token source reads a repo's own config (`gh` and
+    /// Windows Credential Manager run no git at all), so this finds what a clone would.
+    fn target(
+        &self,
+        settings: &SettingsState,
+        target: &str,
+    ) -> Result<(Git, Resolved), ForgeError> {
+        match target.strip_prefix(REMOTE_PREFIX) {
+            Some(spec) => {
+                let home = home_dir()
+                    .ok_or_else(|| ForgeError::other("Could not find the home folder."))?;
+                let git = Git::open(settings, &home).map_err(ForgeError::other)?;
+                let r = self.cached(target, || {
+                    let hosts_yml = remote::read_gh_hosts_yml().unwrap_or_default();
+                    resolve_remote(spec, &forge_hosts(settings), &hosts_yml)
+                })?;
+                Ok((git, r))
+            }
+            None => {
+                let git = open_git(settings, target)?;
+                let r = self.cached(target, || resolve_repo(&git, &forge_hosts(settings)))?;
+                Ok((git, r))
+            }
+        }
+    }
+
+    /// The host's default branch, cached for an hour. A failed lookup caches nothing.
+    fn default_branch(&self, git: &Git, r: &Resolved) -> Option<String> {
+        let key = (r.repo.provider, r.repo.host.clone(), r.repo.path.clone());
+        if let Some((at, b)) = self.default_branches.lock().unwrap().get(&key) {
+            if at.elapsed() < DEFAULT_BRANCH_TTL {
+                return b.clone();
+            }
+        }
+        let b = with_provider_in(self, git, r, |p, cx, repo| p.default_branch(cx, repo)).ok()?;
+        self.default_branches
+            .lock()
+            .unwrap()
+            .insert(key, (Instant::now(), b.clone()));
+        b
     }
 
     fn token(&self, git: &Git, r: &Resolved, fresh: bool) -> Result<Token, ForgeError> {
@@ -384,22 +489,29 @@ fn retry_after_refresh(kind: ForgeErrorKind, failed: &Token, resolved: &Token) -
 /// `forbidden` is dropped too, but the call repeats only if the re-resolved token differs.
 fn with_provider<T>(
     app: &AppHandle,
-    root: &str,
+    target: &str,
     call: impl Fn(&dyn ForgeProvider, &Cx, &RepoRef) -> Result<T, ForgeError>,
 ) -> Result<T, ForgeError> {
-    let settings = app.state::<SettingsState>();
     let state = app.state::<ForgeState>();
-    let git = open_git(&settings, root)?;
-    let r = state.resolved(&git, &settings, root)?;
+    let (git, r) = state.target(&app.state::<SettingsState>(), target)?;
+    with_provider_in(&state, &git, &r, call)
+}
+
+fn with_provider_in<T>(
+    state: &ForgeState,
+    git: &Git,
+    r: &Resolved,
+    call: impl Fn(&dyn ForgeProvider, &Cx, &RepoRef) -> Result<T, ForgeError>,
+) -> Result<T, ForgeError> {
     let p = provider(r.repo.provider).ok_or_else(|| ForgeError::other("no provider"))?;
     let mut fresh = false;
     let mut refreshed: Option<Token> = None;
     loop {
         let token = match refreshed.take() {
             Some(t) => t,
-            None => match state.token(&git, &r, fresh) {
+            None => match state.token(git, r, fresh) {
                 Ok(t) => t,
-                Err(e) => return Err(decorate(e, &r, None)),
+                Err(e) => return Err(decorate(e, r, None)),
             },
         };
         match call(
@@ -416,7 +528,7 @@ fn with_provider<T>(
                     .tokens
                     .drop_one(r.repo.provider, host, r.account.as_deref());
                 if fresh {
-                    return Err(decorate(e, &r, Some(&token)));
+                    return Err(decorate(e, r, Some(&token)));
                 }
                 fresh = true;
             }
@@ -426,15 +538,15 @@ fn with_provider<T>(
                     .tokens
                     .drop_one(r.repo.provider, host, r.account.as_deref());
                 // A failed re-resolve leaves the original 403 as the answer.
-                match state.token(&git, &r, true) {
+                match state.token(git, r, true) {
                     Ok(next) if retry_after_refresh(e.kind, &token, &next) => {
                         refreshed = Some(next);
                         fresh = true;
                     }
-                    _ => return Err(decorate(e, &r, Some(&token))),
+                    _ => return Err(decorate(e, r, Some(&token))),
                 }
             }
-            Err(e) => return Err(decorate(e, &r, Some(&token))),
+            Err(e) => return Err(decorate(e, r, Some(&token))),
             Ok(v) => return Ok(v),
         }
     }
@@ -471,13 +583,54 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| ForgeError::other(e.to_string()))?
 }
 
+/// `root` here and in every command below is a target key: a local folder, or
+/// `remote:<host>/<path>` for a repo with no clone.
 #[tauri::command]
 pub async fn forge_repo(app: AppHandle, root: String) -> Result<ForgeRepo, ForgeError> {
     blocking(move || {
-        let settings = app.state::<SettingsState>();
-        let git = open_git(&settings, &root)?;
-        let r = app.state::<ForgeState>().resolved(&git, &settings, &root)?;
+        let (_, r) = app
+            .state::<ForgeState>()
+            .target(&app.state::<SettingsState>(), &root)?;
         Ok(forge_repo_of(&r))
+    })
+    .await
+}
+
+/// Runs, open pull requests, and the default branch at once. An error from runs or pull
+/// requests stands; a failed default-branch lookup only leaves it `None`.
+fn overview(state: &ForgeState, git: &Git, r: &Resolved) -> Result<OverviewRepo, ForgeError> {
+    // One token lookup up front, so the three requests below share it rather than each
+    // running the token sources on a cold cache.
+    let _ = state.token(git, r, false);
+    std::thread::scope(|s| {
+        let pulls =
+            s.spawn(|| with_provider_in(state, git, r, |p, cx, repo| p.pulls(cx, repo, true)));
+        let default_branch = s.spawn(|| state.default_branch(git, r));
+        let mut runs = with_provider_in(state, git, r, |p, cx, repo| p.runs(cx, repo, None))?;
+        runs.truncate(MAX_RUNS);
+        let mut pulls = pulls
+            .join()
+            .map_err(|_| ForgeError::other("Listing pull requests failed."))??;
+        pulls.items.truncate(MAX_PULLS);
+        Ok(OverviewRepo {
+            repo: forge_repo_of(r),
+            default_branch: default_branch.join().ok().flatten(),
+            runs,
+            pulls,
+        })
+    })
+}
+
+/// One Overview row for a target key.
+#[tauri::command]
+pub async fn forge_overview_repo(
+    app: AppHandle,
+    target: String,
+) -> Result<OverviewRepo, ForgeError> {
+    blocking(move || {
+        let state = app.state::<ForgeState>();
+        let (git, r) = state.target(&app.state::<SettingsState>(), &target)?;
+        overview(&state, &git, &r)
     })
     .await
 }
@@ -576,10 +729,14 @@ pub async fn forge_set_account(
     user: String,
 ) -> Result<ForgeRepo, ForgeError> {
     blocking(move || {
+        if root.starts_with(REMOTE_PREFIX) {
+            return Err(ForgeError::other(
+                "This repo has no local clone, so there is no repo config to store an account in.",
+            ));
+        }
         let settings = app.state::<SettingsState>();
         let state = app.state::<ForgeState>();
-        let git = open_git(&settings, &root)?;
-        let r = state.resolved(&git, &settings, &root)?;
+        let (git, r) = state.target(&settings, &root)?;
         if !r.accounts.iter().any(|a| a == &user) {
             return Err(ForgeError::other(format!(
                 "{user} isn't signed in to GitHub CLI for {}.",
@@ -594,7 +751,7 @@ pub async fn forge_set_account(
         state
             .tokens
             .drop_host(r.repo.provider, bare_host(&r.repo.host));
-        let r = state.resolved(&git, &settings, &root)?;
+        let (_, r) = state.target(&settings, &root)?;
         Ok(forge_repo_of(&r))
     })
     .await
@@ -824,6 +981,56 @@ mod tests {
         .unwrap();
         assert!(!token.value.is_empty());
         assert!(matches!(token.source, TokenSource::Cli { .. }));
+    }
+
+    #[test]
+    fn remote_targets_resolve_without_a_clone() {
+        let yml = auth::tests::SAMPLE_HOSTS_YML;
+        let none = HashMap::new();
+        let r = resolve_remote("github.com/a/b", &none, yml).unwrap();
+        assert_eq!(
+            (
+                r.repo.provider,
+                r.branch.as_deref(),
+                r.account.as_deref(),
+                r.account_source
+            ),
+            (
+                ProviderKind::Github,
+                None,
+                Some("alice"),
+                AccountSource::CliActive
+            )
+        );
+        assert_eq!(r.accounts, vec!["alice", "bob"]);
+        let r = resolve_remote("bitbucket.org/keysys/kweb", &none, yml).unwrap();
+        assert_eq!(
+            (r.repo.provider, r.account.as_deref(), r.account_source),
+            (ProviderKind::Bitbucket, None, AccountSource::None)
+        );
+        assert!(r.accounts.is_empty());
+        let f = forge_repo_of(&r);
+        assert_eq!(
+            (f.owner.as_str(), f.name.as_str(), f.branch.as_deref()),
+            ("keysys", "kweb", None)
+        );
+        // GitHub Enterprise from hosts.yml, port kept.
+        let r = resolve_remote("ghe.example.com:8443/team/app", &none, yml).unwrap();
+        assert_eq!(
+            (r.repo.host.as_str(), r.account.as_deref(), r.account_source),
+            ("ghe.example.com:8443", Some("carol"), AccountSource::Only)
+        );
+        let e = resolve_remote("gitlab.com/g/s/p", &none, yml).unwrap_err();
+        assert_eq!(
+            (e.kind, e.message.as_str()),
+            (
+                ForgeErrorKind::UnsupportedHost,
+                "GitLab isn't supported yet"
+            )
+        );
+        let e = resolve_remote("https://user:secret@unknown.example/a/b", &none, yml).unwrap_err();
+        assert_eq!(e.kind, ForgeErrorKind::UnsupportedHost);
+        assert!(!e.message.contains("secret"));
     }
 
     #[test]

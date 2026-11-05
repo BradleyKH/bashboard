@@ -114,6 +114,11 @@ pub fn reword(e: ForgeError, source: &TokenSource) -> ForgeError {
     e
 }
 
+/// `?fields=mainbranch.name` of the repo endpoint.
+pub fn map_default_branch(v: &Value) -> Option<String> {
+    string_at(v, "/mainbranch/name")
+}
+
 /// `state` of a pipeline or a step, as a status and the raw name shown beside it.
 pub fn map_state(state: &Value) -> (RunStatus, String) {
     let name = str_at(state, "/name").unwrap_or("");
@@ -649,6 +654,15 @@ impl ForgeProvider for Bitbucket {
         });
         Ok(found.into_inner().unwrap())
     }
+
+    fn default_branch(&self, cx: &Cx, repo: &RepoRef) -> Result<Option<String>, ForgeError> {
+        let url = format!("{}?fields=mainbranch.name", repo_base(repo)?);
+        let v: Value = cx
+            .http
+            .get_json(&url, Some(&auth(cx)), ACCEPT)
+            .map_err(|e| reword(e, &cx.token.source))?;
+        Ok(map_default_branch(&v))
+    }
 }
 
 #[cfg(test)]
@@ -1122,6 +1136,16 @@ mod tests {
     /// stored by `bb auth bitbucket`; prints neither the token nor its length.
     /// `cargo test forge::bitbucket -- --ignored`.
     #[test]
+    fn default_branch_from_mainbranch() {
+        assert_eq!(
+            map_default_branch(&json!({"mainbranch": {"name": "develop"}})).as_deref(),
+            Some("develop")
+        );
+        assert_eq!(map_default_branch(&json!({"mainbranch": null})), None);
+        assert_eq!(map_default_branch(&json!({})), None);
+    }
+
+    #[test]
     #[ignore]
     fn live_runs_and_pulls() {
         let g = crate::git::test_support::repo("bitbucket-live");
@@ -1192,6 +1216,39 @@ mod tests {
         assert!(
             again.items.iter().all(|p| !p.checks_pending),
             "a second list finds every rollup cached"
+        );
+        // The overview through a remote target, as the Overview tab asks for it.
+        let home = std::env::var("USERPROFILE").expect("USERPROFILE");
+        let git = g.at(home.into());
+        let state = super::super::ForgeState::default();
+        let target = "remote:bitbucket.org/keysys/cacu-investment-reporting-platform";
+        let r = state
+            .cached(target, || {
+                super::super::resolve_remote(
+                    target.trim_start_matches(super::super::REMOTE_PREFIX),
+                    &Default::default(),
+                    "",
+                )
+            })
+            .unwrap();
+        let started = std::time::Instant::now();
+        let o = super::super::overview(&state, &git, &r).unwrap();
+        let cold = started.elapsed();
+        assert_eq!(o.repo.branch, None);
+        assert!(o.default_branch.is_some(), "the host names a main branch");
+        assert!(!o.runs.is_empty() && o.runs.len() <= 20);
+        assert!(
+            o.pulls
+                .total
+                .is_some_and(|t| t >= o.pulls.items.len() as u64)
+        );
+        let started = std::time::Instant::now();
+        super::super::overview(&state, &git, &r).unwrap();
+        eprintln!(
+            "overview: {} runs, {} open pull requests, default branch found, {cold:?} cold, {:?} warm",
+            o.runs.len(),
+            o.pulls.items.len(),
+            started.elapsed()
         );
     }
 

@@ -302,6 +302,24 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    title: 'Forge',
+    fields: [
+      {
+        path: ['forge', 'overviewRefreshMinutes'],
+        label: 'Overview refresh interval',
+        kind: 'number',
+        min: 0,
+        max: 1440,
+        step: 1,
+        unit: 'min',
+        integer: true,
+        hint: '0 refreshes only when you click Refresh',
+        applies: 'live',
+        inline: true,
+      },
+    ],
+  },
+  {
     title: 'Local models',
     fields: [
       { path: ['localModels', 'ollamaUrl'], label: 'Ollama URL', kind: 'text', allowEmpty: true, hint: 'Empty uses http://localhost:11434', applies: 'live' },

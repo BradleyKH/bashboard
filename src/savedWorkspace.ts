@@ -53,11 +53,13 @@ export type SavedPane = { key: string; collapsed: boolean } & (
   /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Changes. */
   | { kind: 'git'; root: string; tab?: GitTab }
   /**
-   * `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Pipelines;
+   * `root` is the drilled-in target, a local repo root or a `remote:<host>/<owner>/<name>` key;
+   * absent means the pane is on Overview. `tab` is the open tab, absent meaning Pipelines;
    * `thisBranch` is whether Pipelines lists only the checked-out branch, absent meaning false;
-   * `allPulls` is whether Pull requests lists every state, absent meaning open ones only.
+   * `allPulls` is whether Pull requests lists every state, absent meaning open ones only. The
+   * last three mean nothing on Overview.
    */
-  | { kind: 'forge'; root: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean }
+  | { kind: 'forge'; root?: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean }
   /** `root` is the repo root the pane searches. */
   | { kind: 'search'; root: string; query: string; options: SearchOptions }
   /** The Containers pane saves no state; its containers come from the engines. */
@@ -199,11 +201,12 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
     return { ...base, kind: 'git', root: raw.root, ...(raw.tab === 'branches' && { tab: 'branches' as const }) };
   },
   forge: (raw, base) => {
-    if (typeof raw.root !== 'string') return null;
+    // An empty root is how a pane with no target was once saved, so it reads as Overview too.
+    const root = typeof raw.root === 'string' && raw.root !== '' ? raw.root : undefined;
     return {
       ...base,
       kind: 'forge',
-      root: raw.root,
+      ...(root !== undefined && { root }),
       ...(raw.tab === 'pulls' && { tab: 'pulls' as const }),
       ...(raw.thisBranch === true && { thisBranch: true }),
       ...(raw.allPulls === true && { allPulls: true }),

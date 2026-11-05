@@ -62,6 +62,7 @@ describe('DEFAULT_ELEMENT_ORDER', () => {
       'panes',
       'containers',
       'ports',
+      'forge',
       'localModels',
       'external',
       'system',
@@ -96,6 +97,7 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'ports',
+      'forge',
       'localModels',
     ]);
   });
@@ -114,6 +116,7 @@ describe('parseSectionOrder', () => {
       'system',
       'external',
       'ports',
+      'forge',
       'localModels',
       'containers',
       'panes',
@@ -130,7 +133,7 @@ describe('parseSectionOrder', () => {
   });
 
   it('puts a missing first element at index 0', () => {
-    const rest = ['panes', 'containers', 'ports', 'localModels', 'external', 'system', 'wave'];
+    const rest = ['panes', 'containers', 'ports', 'forge', 'localModels', 'external', 'system', 'wave'];
     expect(parseSectionOrder(['launch', 'favorites', 'layouts', ...rest])).toEqual(def);
     expect(parseSectionOrder(['launch', 'layouts', 'favorites', ...rest])).toEqual([
       'clock',
@@ -153,6 +156,7 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'ports',
+      'forge',
       'localModels',
     ]);
     expect(parseSectionOrder(['clock'])).toEqual(def);
@@ -166,6 +170,7 @@ describe('parseSectionOrder', () => {
       'panes',
       'containers',
       'ports',
+      'forge',
       'localModels',
       'external',
       'system',

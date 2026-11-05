@@ -316,6 +316,11 @@ fn map_pull(v: &Value, viewer: Option<&str>) -> PullRequest {
 }
 
 /// The GraphQL reply's pull requests and total open count, or the error it carries.
+/// The repo endpoint's `default_branch`.
+pub fn map_default_branch(v: &Value) -> Option<String> {
+    owned_at(v, &["default_branch"]).filter(|b| !b.is_empty())
+}
+
 pub fn map_pulls(v: &Value) -> Result<PullList, ForgeError> {
     if let Some(e) = graphql_error(v) {
         return Err(e);
@@ -437,6 +442,13 @@ impl ForgeProvider for GitHub {
             Some(&body),
         )?;
         map_pulls(&v)
+    }
+
+    fn default_branch(&self, cx: &Cx, repo: &RepoRef) -> Result<Option<String>, ForgeError> {
+        let v: Value = cx
+            .http
+            .get_json(&repo_url(repo, "")?, Some(&bearer(cx)), &[ACCEPT])?;
+        Ok(map_default_branch(&v))
     }
 }
 
@@ -822,6 +834,16 @@ mod tests {
     /// Live: runs and pull requests for this repo with `gh auth token`, printing counts only.
     /// `cargo test forge::github -- --ignored --nocapture`.
     #[test]
+    fn default_branch_from_the_repo_endpoint() {
+        assert_eq!(
+            map_default_branch(&json!({"name": "b", "default_branch": "main"})).as_deref(),
+            Some("main")
+        );
+        assert_eq!(map_default_branch(&json!({"default_branch": ""})), None);
+        assert_eq!(map_default_branch(&json!({})), None);
+    }
+
+    #[test]
     #[ignore]
     fn live_runs_and_pulls() {
         use super::super::auth::TokenSource;
@@ -867,6 +889,36 @@ mod tests {
             runs.len(),
             pulls.items.len(),
             pulls.total
+        );
+        // The overview through a remote target, as the Overview tab asks for it.
+        let g = crate::git::test_support::repo("github-live-overview");
+        let home = std::env::var("USERPROFILE").expect("USERPROFILE");
+        let git = g.at(home.into());
+        let hosts_yml = super::super::remote::read_gh_hosts_yml().unwrap_or_default();
+        let state = super::super::ForgeState::default();
+        let target = "remote:github.com/BradleyKH/bashboard";
+        let r = state
+            .cached(target, || {
+                super::super::resolve_remote(
+                    target.trim_start_matches(super::super::REMOTE_PREFIX),
+                    &Default::default(),
+                    &hosts_yml,
+                )
+            })
+            .unwrap();
+        let started = std::time::Instant::now();
+        let o = super::super::overview(&state, &git, &r).unwrap();
+        let took = started.elapsed();
+        assert_eq!(o.repo.branch, None);
+        assert_eq!(o.default_branch.as_deref(), Some("main"));
+        assert!(!o.runs.is_empty() && o.runs.len() <= 20);
+        let started = std::time::Instant::now();
+        super::super::overview(&state, &git, &r).unwrap();
+        println!(
+            "live overview: {} runs, {} open pull requests, default branch found, {took:?} cold, {:?} warm",
+            o.runs.len(),
+            o.pulls.items.len(),
+            started.elapsed()
         );
     }
 }
