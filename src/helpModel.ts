@@ -26,7 +26,7 @@ export const HELP_SECTIONS: { title: string; actions: string[] }[] = [
     title: 'Terminal',
     actions: ['copy', 'paste', 'find', 'sendInput', 'increaseFontSize', 'decreaseFontSize', 'resetFontSize'],
   },
-  { title: 'Workspace', actions: ['openPalette', 'nextAttention', 'toggleDashboard', 'focusDashboard', 'openLaunch', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings', 'showShortcuts', 'showCli', 'showAbout'] },
+  { title: 'Workspace', actions: ['openPalette', 'nextAttention', 'toggleDashboard', 'focusDashboard', 'openLaunch', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings', 'showAccounts', 'showShortcuts', 'showCli', 'showAbout'] },
 ];
 
 export const ACTION_LABELS: Record<string, string> = {
@@ -60,6 +60,7 @@ export const ACTION_LABELS: Record<string, string> = {
   toggleBackdrop: 'Pause or resume the background animation',
   showHelp: 'Help',
   openSettings: 'Settings',
+  showAccounts: 'Manage code host accounts',
   showShortcuts: 'Keyboard shortcuts',
   showCli: 'Pane CLI reference',
   showAbout: 'About Bashboard',

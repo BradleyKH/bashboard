@@ -106,7 +106,7 @@ export class DashboardWave {
     this.targetNet = netLevel(s.netRxPerSec, s.netTxPerSec);
     this.color = getComputedStyle(this.el).getPropertyValue('--accent').trim() || DEFAULT_ACCENT;
     const label = `CPU ${formatPercent(s.cpuPercent)}, network ${formatNetwork(s.netRxPerSec, s.netTxPerSec)}`;
-    this.el.title = label;
+    this.el.title = `Lissajous! ${label}`;
     this.el.setAttribute('aria-label', `Wave: ${label}`);
     if (!this.moving()) {
       this.cpu = this.targetCpu;

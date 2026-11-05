@@ -42,7 +42,13 @@ export class ForgeOverview {
     this.refreshButton.className = 'forge-chip';
     this.refreshButton.textContent = 'Refresh';
     this.refreshButton.addEventListener('click', () => void this.refresh());
-    bar.append(status, this.refreshButton);
+    const accountsButton = document.createElement('button');
+    accountsButton.type = 'button';
+    accountsButton.className = 'forge-chip';
+    accountsButton.textContent = 'Accounts';
+    accountsButton.title = 'Manage code host accounts';
+    accountsButton.addEventListener('click', () => this.handlers.onOpenAccounts(null));
+    bar.append(status, accountsButton, this.refreshButton);
 
     this.list = document.createElement('div');
     this.list.className = 'forge-ov-list';

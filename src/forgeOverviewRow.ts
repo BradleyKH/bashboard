@@ -12,6 +12,8 @@ export interface OverviewRowHandlers {
   onOpenTerminal: (root: string) => void;
   onOpenUrl: (url: string) => void;
   onCopy: (text: string) => void;
+  /** Opens the Accounts tab on `host`; null leaves the choice of host to the tab. */
+  onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
 }
 
 function setText(el: HTMLElement, text: string): void {
@@ -189,7 +191,7 @@ export class ForgeOverviewRow {
   private renderError(entry: OverviewEntry): void {
     const { error, row } = entry;
     const notice = error ? noticeFor(error, row?.overview.repo ?? null) : null;
-    const key = JSON.stringify([notice?.title ?? null, notice?.actions.map((a) => a.label) ?? []]);
+    const key = JSON.stringify([notice?.title ?? null, notice?.actions.map((a) => (a.kind === 'openAccounts' ? [a.label, a.host] : a.label)) ?? []]);
     if (key === this.errorKey) return;
     this.errorKey = key;
     this.error.hidden = notice === null;
@@ -202,14 +204,15 @@ export class ForgeOverviewRow {
     text.textContent = notice.title;
     const nodes: HTMLElement[] = [text];
     for (const action of notice.actions) {
-      if (action.kind !== 'runTerminal') continue;
+      if (action.kind !== 'runTerminal' && action.kind !== 'openAccounts') continue;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'forge-run-btn';
       button.textContent = action.label;
       button.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.handlers.onRunTerminal(action.argv);
+        if (action.kind === 'runTerminal') this.handlers.onRunTerminal(action.argv);
+        else this.handlers.onOpenAccounts(action.host, { openTokenForm: action.openTokenForm });
       });
       nodes.push(button);
     }

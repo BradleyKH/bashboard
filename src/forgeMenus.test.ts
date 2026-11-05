@@ -171,12 +171,12 @@ describe('accountMenuItems', () => {
     };
   }
   function acct(): AccountMenuHandlers {
-    return { onPick: vi.fn(), onSignIn: vi.fn() };
+    return { onPick: vi.fn(), onSignIn: vi.fn(), onManage: vi.fn() };
   }
 
   it('checks the current account among several and notes what picking does', () => {
     const entries = accountMenuItems(repo(['alice', 'bob'], 'bob'), acct());
-    expect(labels(entries)).toEqual(['@alice', '@bob', ACCOUNT_NOTE, 'Sign in another account']);
+    expect(labels(entries)).toEqual(['@alice', '@bob', ACCOUNT_NOTE, 'Sign in another account', 'Manage accounts']);
     expect(find(entries, '@alice')!.checked).toBe(false);
     expect(find(entries, '@bob')!.checked).toBe(true);
     expect(isEnabled(find(entries, ACCOUNT_NOTE)!)).toBe(false);
@@ -184,7 +184,7 @@ describe('accountMenuItems', () => {
 
   it('lists a single account, checked', () => {
     const entries = accountMenuItems(repo(['alice'], 'alice'), acct());
-    expect(labels(entries)).toEqual(['@alice', ACCOUNT_NOTE, 'Sign in another account']);
+    expect(labels(entries)).toEqual(['@alice', ACCOUNT_NOTE, 'Sign in another account', 'Manage accounts']);
     expect(find(entries, '@alice')!.checked).toBe(true);
   });
 
@@ -195,7 +195,7 @@ describe('accountMenuItems', () => {
 
   it('offers only sign-in for zero accounts, with no note', () => {
     const entries = accountMenuItems(repo([], null), acct());
-    expect(labels(entries)).toEqual(['No accounts signed in to github.com', 'Sign in another account']);
+    expect(labels(entries)).toEqual(['No accounts signed in to github.com', 'Sign in another account', 'Manage accounts']);
     expect(isEnabled(entries[0])).toBe(false);
   });
 
@@ -206,6 +206,8 @@ describe('accountMenuItems', () => {
     expect(h.onPick).toHaveBeenCalledWith('alice');
     find(entries, 'Sign in another account')!.run();
     expect(h.onSignIn).toHaveBeenCalledWith(['gh', 'auth', 'login', '--hostname', 'github.com', '--web']);
+    find(entries, 'Manage accounts')!.run();
+    expect(h.onManage).toHaveBeenCalledTimes(1);
     expect(signInAnotherArgv('ghe.example.com')).toContain('ghe.example.com');
   });
 });

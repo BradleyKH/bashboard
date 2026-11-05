@@ -346,3 +346,152 @@
   flex-wrap: wrap;
   gap: 16px;
 }
+
+/* Accounts */
+
+.accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.accounts-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+.accounts-card h3 {
+  margin: 0;
+}
+
+.accounts-status {
+  overflow-wrap: anywhere;
+}
+
+.accounts-status::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.accounts-ok {
+  color: #6fcf8f;
+}
+
+.accounts-warn {
+  color: #e0b050;
+}
+
+.accounts-missing {
+  color: #7f8c94;
+}
+
+.accounts-status.accounts-ok,
+.accounts-status.accounts-warn,
+.accounts-status.accounts-missing {
+  color: #eef3f5;
+}
+
+.accounts-status.accounts-ok::before {
+  background: #6fcf8f;
+}
+
+.accounts-status.accounts-warn::before {
+  background: #e0b050;
+}
+
+.accounts-status.accounts-missing::before {
+  background: #7f8c94;
+}
+
+.accounts-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.accounts-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accounts-user {
+  color: #eef3f5;
+}
+
+.accounts-badge {
+  padding: 0 6px;
+  border: 1px solid #6fcf8f;
+  border-radius: 8px;
+  color: #6fcf8f;
+  font-size: 11px;
+}
+
+.accounts-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.accounts-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.accounts-scopes ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+
+.accounts-token-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.accounts-token-row {
+  display: flex;
+  gap: 8px;
+}
+
+.accounts-token-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #eef3f5;
+  font: inherit;
+}
+
+.accounts-token-input:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
+.accounts-test {
+  overflow-wrap: anywhere;
+}
+
+.accounts-test-failed,
+.accounts-error {
+  color: #e87878;
+  overflow-wrap: anywhere;
+}
+
+.accounts-error[hidden],
+.accounts-test[hidden] {
+  display: none;
+}

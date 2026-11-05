@@ -1,7 +1,10 @@
 //! Finding a token for a code host (docs/design.md section 3.20). Bashboard never runs an
-//! OAuth flow or writes a secret itself: it asks GitHub CLI, Git Credential Manager, or a
-//! credential `bb auth bitbucket` stored in Windows Credential Manager. Tokens stay in this
-//! process's memory, are never serialized or logged, and never reach the page.
+//! OAuth flow: it asks GitHub CLI, Git Credential Manager, or the Bitbucket credential in
+//! Windows Credential Manager that `bb auth bitbucket` or the Accounts tab stores
+//! (`crate::credential_store`). Tokens stay in this process's memory, are never serialized or
+//! logged, and never reach the page. The one inbound path is the Accounts tab's Bitbucket token
+//! field: that token arrives as one command argument, goes only to Credential Manager, and the
+//! core's copy is overwritten after the write (best effort).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -130,53 +133,6 @@ fn git_credential(
     Some((password, expiry.map(expiry_instant)))
 }
 
-/// A credential blob as UTF-8, or as UTF-16LE (what `cmdkey` and most Windows tools write).
-pub fn decode_blob(bytes: &[u8]) -> Option<String> {
-    if bytes.is_empty() {
-        return None;
-    }
-    let text = if bytes.len() % 2 == 0 && bytes.iter().skip(1).step_by(2).any(|&b| b == 0) {
-        let units: Vec<u16> = bytes
-            .chunks_exact(2)
-            .map(|c| u16::from_le_bytes([c[0], c[1]]))
-            .collect();
-        String::from_utf16(&units).ok()?
-    } else {
-        String::from_utf8(bytes.to_vec()).ok()?
-    };
-    let text = text.trim_end_matches('\0').trim().to_string();
-    (!text.is_empty()).then_some(text)
-}
-
-#[cfg(windows)]
-fn credential_manager(target: &str) -> Option<String> {
-    use windows::Win32::Security::Credentials::{
-        CRED_TYPE_GENERIC, CREDENTIALW, CredFree, CredReadW,
-    };
-    use windows::core::PCWSTR;
-
-    let wide: Vec<u16> = target.encode_utf16().chain(std::iter::once(0)).collect();
-    let mut cred: *mut CREDENTIALW = std::ptr::null_mut();
-    // SAFETY: `wide` is NUL-terminated and outlives the call; on success `cred` points to a
-    // CREDENTIALW that CredFree releases below, after the blob is copied out.
-    unsafe {
-        CredReadW(PCWSTR(wide.as_ptr()), CRED_TYPE_GENERIC, None, &mut cred).ok()?;
-        let c = &*cred;
-        let blob = if c.CredentialBlob.is_null() {
-            Vec::new()
-        } else {
-            std::slice::from_raw_parts(c.CredentialBlob, c.CredentialBlobSize as usize).to_vec()
-        };
-        CredFree(cred as *const _);
-        decode_blob(&blob)
-    }
-}
-
-#[cfg(not(windows))]
-fn credential_manager(_target: &str) -> Option<String> {
-    None
-}
-
 /// Tries each source in order and returns the first token found.
 pub fn resolve(git: &Git, sources: &[TokenSource]) -> Result<Token, ForgeError> {
     for source in sources {
@@ -186,7 +142,7 @@ pub fn resolve(git: &Git, sources: &[TokenSource]) -> Result<Token, ForgeError> 
                 git_credential(git, host, username.as_deref())
             }
             TokenSource::CredentialManager { target } => {
-                credential_manager(target).map(|t| (t, None))
+                crate::credential_store::read(target).map(|t| (t, None))
             }
         };
         if let Some((value, expires)) = found {
@@ -445,17 +401,6 @@ ghe.example.com:
         );
         assert_eq!(parse_credential_output("protocol=https\n"), None);
         assert_eq!(parse_credential_output("password=\n"), None);
-    }
-
-    #[test]
-    fn blobs_decode_either_encoding() {
-        assert_eq!(decode_blob(b"fake-token"), Some("fake-token".into()));
-        let utf16: Vec<u8> = "fake-token"
-            .encode_utf16()
-            .flat_map(|u| u.to_le_bytes())
-            .collect();
-        assert_eq!(decode_blob(&utf16), Some("fake-token".into()));
-        assert_eq!(decode_blob(b""), None);
     }
 
     #[test]

@@ -6,6 +6,13 @@ use std::net::TcpStream;
 use std::process::ExitCode;
 use std::time::Duration;
 
+// The reader and `exists` serve the app only.
+#[allow(dead_code, unused_imports)]
+#[path = "../credential_store.rs"]
+mod credential_store;
+
+use credential_store::{BITBUCKET_TARGET, BITBUCKET_USER, clean_token};
+
 /// The command reference, shared with the app dialog's CLI tab.
 const REFERENCE: &str = include_str!("../../cli-commands.json");
 
@@ -104,13 +111,6 @@ fn read_stdin() -> Result<String, String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// Credential Manager target that the app's Bitbucket token lookup reads.
-const BITBUCKET_TARGET: &str = "bashboard:bitbucket.org";
-/// The user name is informational; the reader ignores it.
-const BITBUCKET_USER: &str = "x-bitbucket-api-token-auth";
-/// Credential Manager rejects a blob over `CRED_MAX_CREDENTIAL_BLOB_SIZE`.
-const MAX_TOKEN_BYTES: usize = 2560;
-
 #[derive(Debug, PartialEq)]
 enum AuthAction {
     Store,
@@ -132,22 +132,10 @@ fn parse_auth(rest: &[String]) -> Result<AuthAction, String> {
     }
 }
 
-/// The first line of the input, trimmed; rejects an empty or oversized token.
-fn clean_token(raw: &str) -> Result<String, String> {
-    let token = raw.lines().next().unwrap_or("").trim();
-    if token.is_empty() {
-        return Err("the token is empty".into());
-    }
-    if token.len() > MAX_TOKEN_BYTES {
-        return Err(format!("the token is over {MAX_TOKEN_BYTES} bytes"));
-    }
-    Ok(token.to_string())
-}
-
 fn auth(rest: &[String]) -> Result<(), String> {
     match parse_auth(rest)? {
         AuthAction::Clear => {
-            if credential::delete(BITBUCKET_TARGET)? {
+            if credential_store::delete(BITBUCKET_TARGET)? {
                 println!("Removed the stored Bitbucket token.");
             } else {
                 println!("No Bitbucket token was stored.");
@@ -155,7 +143,7 @@ fn auth(rest: &[String]) -> Result<(), String> {
         }
         AuthAction::Store => {
             let token = clean_token(&read_secret("Bitbucket API token: ")?)?;
-            credential::write(BITBUCKET_TARGET, BITBUCKET_USER, token.as_bytes())?;
+            credential_store::write(BITBUCKET_TARGET, BITBUCKET_USER, token.as_bytes())?;
             println!("Stored the Bitbucket token in Windows Credential Manager.");
         }
     }
@@ -168,7 +156,7 @@ fn read_secret(prompt: &str) -> Result<String, String> {
     if io::stdin().is_terminal() {
         eprint!("{prompt}");
         let _ = io::stderr().flush();
-        let guard = credential::EchoOff::new();
+        let guard = console::EchoOff::new();
         let read = io::stdin().read_line(&mut input);
         drop(guard);
         eprintln!();
@@ -186,51 +174,12 @@ fn read_secret(prompt: &str) -> Result<String, String> {
 }
 
 #[cfg(windows)]
-mod credential {
-    use windows::Win32::Foundation::{ERROR_NOT_FOUND, HANDLE};
-    use windows::Win32::Security::Credentials::{
-        CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC, CREDENTIALW, CredDeleteW, CredWriteW,
-    };
+mod console {
+    use windows::Win32::Foundation::HANDLE;
     use windows::Win32::System::Console::{
         CONSOLE_MODE, ENABLE_ECHO_INPUT, GetConsoleMode, GetStdHandle, STD_INPUT_HANDLE,
         SetConsoleMode,
     };
-    use windows::core::{PCWSTR, PWSTR};
-
-    fn wide(text: &str) -> Vec<u16> {
-        text.encode_utf16().chain(std::iter::once(0)).collect()
-    }
-
-    pub fn write(target: &str, user: &str, blob: &[u8]) -> Result<(), String> {
-        let mut target = wide(target);
-        let mut user = wide(user);
-        let mut blob = blob.to_vec();
-        let cred = CREDENTIALW {
-            Type: CRED_TYPE_GENERIC,
-            TargetName: PWSTR(target.as_mut_ptr()),
-            UserName: PWSTR(user.as_mut_ptr()),
-            CredentialBlobSize: blob.len() as u32,
-            CredentialBlob: blob.as_mut_ptr(),
-            Persist: CRED_PERSIST_LOCAL_MACHINE,
-            ..Default::default()
-        };
-        // SAFETY: the strings are NUL-terminated and the blob has the stated size; all three
-        // outlive the call, and CredWriteW copies them.
-        let result = unsafe { CredWriteW(&cred, 0) };
-        blob.fill(0);
-        result.map_err(|e| format!("could not store the credential: {e}"))
-    }
-
-    /// Returns false when no credential was stored under the target.
-    pub fn delete(target: &str) -> Result<bool, String> {
-        let target = wide(target);
-        // SAFETY: `target` is NUL-terminated and outlives the call.
-        match unsafe { CredDeleteW(PCWSTR(target.as_ptr()), CRED_TYPE_GENERIC, None) } {
-            Ok(()) => Ok(true),
-            Err(e) if e.code() == ERROR_NOT_FOUND.to_hresult() => Ok(false),
-            Err(e) => Err(format!("could not remove the credential: {e}")),
-        }
-    }
 
     /// Turns console echo off for standard input and restores the old mode on drop, so an
     /// early return never leaves the terminal silent.
@@ -271,15 +220,7 @@ mod credential {
 }
 
 #[cfg(not(windows))]
-mod credential {
-    pub fn write(_target: &str, _user: &str, _blob: &[u8]) -> Result<(), String> {
-        Err("bb auth needs Windows Credential Manager".into())
-    }
-
-    pub fn delete(_target: &str) -> Result<bool, String> {
-        Err("bb auth needs Windows Credential Manager".into())
-    }
-
+mod console {
     pub struct EchoOff;
 
     impl EchoOff {
@@ -415,16 +356,6 @@ mod tests {
         );
         assert!(parse_auth(&strings(&["bitbucket", "--wat"])).is_err());
         assert!(parse_auth(&strings(&["bitbucket", "--clear", "x"])).is_err());
-    }
-
-    #[test]
-    fn token_cleaning() {
-        assert_eq!(clean_token("abc\r\n").unwrap(), "abc");
-        assert_eq!(clean_token("  abc  \nignored").unwrap(), "abc");
-        assert!(clean_token("").is_err());
-        assert!(clean_token("  \r\n").is_err());
-        assert!(clean_token(&"a".repeat(MAX_TOKEN_BYTES)).is_ok());
-        assert!(clean_token(&"a".repeat(MAX_TOKEN_BYTES + 1)).is_err());
     }
 
     #[test]

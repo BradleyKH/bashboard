@@ -5,7 +5,9 @@ import { ACTION_NAMES } from './keymap';
 describe('stepTab', () => {
   it('moves to the neighboring tab', () => {
     expect(stepTab('help', 1)).toBe('settings');
-    expect(stepTab('settings', -1)).toBe('help');
+    expect(stepTab('settings', 1)).toBe('accounts');
+    expect(stepTab('accounts', 1)).toBe('shortcuts');
+    expect(stepTab('accounts', -1)).toBe('settings');
   });
 
   it('wraps at both ends', () => {

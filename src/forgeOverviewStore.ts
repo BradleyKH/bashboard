@@ -2,6 +2,7 @@ import {
   asForgeError,
   forgeOverviewRepo,
   forgePullChecks,
+  onForgeAuthChanged,
   type ForgeError,
   type OverviewRepo,
   type PinnedRepo,
@@ -77,6 +78,22 @@ export class ForgeOverviewStore {
 
   constructor() {
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
+    // The store lives for the whole session, so the subscription is never released.
+    try {
+      void Promise.resolve(onForgeAuthChanged(({ host }) => void this.refreshHost(host))).catch(() => {});
+    } catch {
+      // No Tauri runtime (a plain browser or a test): nothing emits, so there is nothing to follow.
+    }
+  }
+
+  /** Polls the pins on `host` after its credentials changed; an empty host means any of them may have. */
+  async refreshHost(host: string): Promise<void> {
+    const want = host.toLowerCase();
+    const due = [...this.entries.values()].filter((e) => {
+      const pinHost = e.pin.repo.split('/')[0].toLowerCase();
+      return want === '' || pinHost === '' || pinHost === want;
+    });
+    await Promise.all(due.map((e) => this.poll(e)));
   }
 
   /** One entry per pin: loaded rows by attention, then the rest in pin order. */

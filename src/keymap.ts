@@ -30,6 +30,7 @@ export type Action =
   | { type: 'showHelp' }
   | { type: 'openSettings' }
   | { type: 'showShortcuts' }
+  | { type: 'showAccounts' }
   | { type: 'showCli' }
   | { type: 'showAbout' }
   | { type: 'toggleFullscreen' }
@@ -94,6 +95,7 @@ export const SIMPLE_ACTIONS = [
   'showHelp',
   'openSettings',
   'showShortcuts',
+  'showAccounts',
   'showCli',
   'showAbout',
   'toggleFullscreen',

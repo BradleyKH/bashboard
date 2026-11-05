@@ -358,14 +358,15 @@ describe('noticeFor', () => {
     const n = noticeFor(err('notInstalled', { url: 'https://cli.github.com', signIn: winget }), null);
     expect(n.title).toBe('Bashboard reads GitHub through the GitHub CLI.');
     expect(n.body.join(' ')).toContain('gh auth login');
-    expect(labels(n.actions)).toEqual(['Install with winget', 'Open cli.github.com', 'Retry']);
+    expect(labels(n.actions)).toEqual(['Install with winget', 'Open cli.github.com', 'Manage accounts', 'Retry']);
+    expect(n.actions[2]).toEqual({ kind: 'openAccounts', label: 'Manage accounts', host: 'github.com' });
     expect(n.actions[0]).toEqual({ kind: 'runTerminal', label: 'Install with winget', argv: winget });
     expect(n.actions[1]).toMatchObject({ kind: 'openUrl', url: 'https://cli.github.com' });
   });
 
   it('GitHub notInstalled without a winget argv still links to the site', () => {
     const n = noticeFor(err('notInstalled'), repo());
-    expect(labels(n.actions)).toEqual(['Open cli.github.com', 'Retry']);
+    expect(labels(n.actions)).toEqual(['Open cli.github.com', 'Manage accounts', 'Retry']);
     expect(n.actions[0]).toMatchObject({ kind: 'openUrl', url: 'https://cli.github.com' });
   });
 
@@ -374,7 +375,8 @@ describe('noticeFor', () => {
     const n = noticeFor(err('signedOut', { signIn: argv }), repo({ host: 'ghe.corp.com' }));
     expect(n.title).toBe('Sign in to ghe.corp.com with the GitHub CLI.');
     expect(n.actions[0]).toEqual({ kind: 'runTerminal', label: 'Sign in', argv });
-    expect(kinds(n.actions)).toEqual(['runTerminal', 'retry']);
+    expect(kinds(n.actions)).toEqual(['runTerminal', 'openAccounts', 'retry']);
+    expect(n.actions[1]).toEqual({ kind: 'openAccounts', label: 'Manage accounts', host: 'ghe.corp.com' });
   });
 
   it('GitHub signedOut builds the command itself when the error carries none', () => {
@@ -409,19 +411,20 @@ describe('noticeFor', () => {
   describe('Bitbucket', () => {
     const bb = repo({ provider: 'bitbucket', host: 'bitbucket.org', capabilities: BITBUCKET_CAPS, accounts: [] });
 
-    it('signedOut with no token stored gives the four steps, the scopes, and four actions', () => {
+    it('signedOut with no token stored gives the four steps, the scopes, and the actions led by Add token', () => {
       const n = noticeFor(err('signedOut', { message: 'No Bitbucket API token is stored.' }), bb);
       expect(n.steps).toHaveLength(4);
       expect(n.steps[0]).toContain('Create API token with scopes');
       expect(n.steps[1]).toContain('"Bashboard"');
+      expect(n.steps[3]).toContain('choose Add token');
       expect(n.steps[3]).toContain('bb auth bitbucket');
       expect(n.scopes.map((s) => s.scope)).toEqual([...BITBUCKET_SCOPES]);
       expect(n.scopes.find((s) => s.scope === 'write:pipeline:bitbucket')?.purpose).toContain('optional');
       expect(n.collapsedLabel).toBeNull();
       expect(n.actions).toEqual([
+        { kind: 'openAccounts', label: 'Add token', host: 'bitbucket.org', openTokenForm: true },
         { kind: 'openUrl', label: 'Open the API token page', url: 'https://id.atlassian.com/manage-profile/security/api-tokens' },
         { kind: 'copyText', label: 'Copy scopes', text: BITBUCKET_SCOPES.join(' ') },
-        { kind: 'runTerminal', label: 'Run bb auth bitbucket', argv: ['bb', 'auth', 'bitbucket'] },
         { kind: 'retry', label: 'Retry' },
       ]);
     });
@@ -433,7 +436,8 @@ describe('noticeFor', () => {
       expect(n.body.join(' ')).toContain('missing a scope');
       expect(n.collapsedLabel).toBe('How to make a new one');
       expect(n.steps).toHaveLength(4);
-      expect(labels(n.actions)).toEqual(['Open the API token page', 'Copy scopes', 'Run bb auth bitbucket', 'Retry']);
+      expect(labels(n.actions)).toEqual(['Replace token', 'Open the API token page', 'Copy scopes', 'Retry']);
+      expect(n.actions[0]).toMatchObject({ kind: 'openAccounts', host: 'bitbucket.org', openTokenForm: true });
     });
 
     it('treats the Git Credential Manager case as no token stored', () => {
@@ -449,6 +453,12 @@ describe('noticeFor', () => {
       const n = noticeFor(err('forbidden'), bb);
       expect(n.body.join(' ')).toContain('missing a scope');
       expect(labels(n.actions)).toContain('Copy scopes');
+      expect(labels(n.actions)[0]).toBe('Replace token');
+    });
+
+    it('keeps the Bitbucket host when no repo has resolved yet', () => {
+      const n = noticeFor(err('signedOut', { message: 'No Bitbucket API token is stored.', signIn: ['bb', 'auth', 'bitbucket'] }), null);
+      expect(n.actions[0]).toMatchObject({ kind: 'openAccounts', host: 'bitbucket.org' });
     });
   });
 

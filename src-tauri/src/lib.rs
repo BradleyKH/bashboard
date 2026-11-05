@@ -3,6 +3,7 @@ mod cli;
 mod clipboard;
 mod config_dir;
 mod containers;
+mod credential_store;
 mod editors;
 mod files;
 mod fonts;
@@ -270,6 +271,12 @@ pub fn run() {
             forge::forge_pull_checks,
             forge::forge_overview_repo,
             forge::forge_set_account,
+            forge::accounts::forge_auth_status,
+            forge::accounts::forge_auth_test,
+            forge::accounts::forge_bitbucket_set_token,
+            forge::accounts::forge_bitbucket_clear_token,
+            forge::accounts::forge_gh_switch,
+            forge::accounts::forge_gh_logout,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

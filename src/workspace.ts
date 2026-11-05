@@ -159,8 +159,10 @@ export interface WorkspaceHooks {
   onOpenLaunchMenu?: () => void;
   onOpenPalette?: () => void;
   onOpenProfilePicker?: () => void;
-  /** Opens the Help, Settings, Shortcuts, CLI, and About dialog on the given tab. */
+  /** Opens the Help, Settings, Accounts, Shortcuts, CLI, and About dialog on the given tab. */
   onOpenDialog?: (tab: DialogTab) => void;
+  /** Opens the dialog's Accounts tab, on `host`'s card when given, optionally with its token form open. */
+  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
   onToggleBackdrop?: () => void;
   onToggleFullscreen?: () => void;
   /** Called whenever a pane's attention is newly raised (docs/design.md section 4.7). */
@@ -1305,6 +1307,9 @@ export class Workspace {
       case 'openSettings':
         this.hooks.onOpenDialog?.('settings');
         return true;
+      case 'showAccounts':
+        this.hooks.onOpenDialog?.('accounts');
+        return true;
       case 'showShortcuts':
         this.hooks.onOpenDialog?.('shortcuts');
         return true;
@@ -1733,6 +1738,7 @@ export class Workspace {
       onChange: () => this.paneChanged(id),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
       onRunTerminal: (argv, cwd) => this.openForgeCommand(id, argv, cwd),
+      onOpenAccounts: (host, opts) => this.hooks.onOpenAccounts?.(host, opts),
       onOpenTerminal: (root) => this.openTerminal(root),
       tab: spec.tab,
       thisBranch: spec.thisBranch,

@@ -329,6 +329,20 @@ impl Http {
         Self::parse(&body)
     }
 
+    /// A GET that bypasses the ETag cache and also returns the response headers, for a
+    /// sign-in check that must reach the host and read `X-OAuth-Scopes`.
+    pub fn get_json_with_headers<T: DeserializeOwned>(
+        &self,
+        url: &str,
+        auth: Option<&str>,
+        headers: &[(&str, &str)],
+    ) -> Result<(T, Headers), ForgeError> {
+        let reply = self.send_following("GET", url, auth, headers, None)?;
+        let reply_headers = reply.headers.clone();
+        let body = Self::read_body(reply, url)?;
+        Ok((Self::parse(&body)?, reply_headers))
+    }
+
     /// A POST with a JSON body (or none); an empty reply is `Value::Null`. Never cached.
     pub fn post_json(
         &self,

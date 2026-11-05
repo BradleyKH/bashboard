@@ -48,6 +48,8 @@ export interface ForgePaneOptions {
   onRunTerminal: (argv: string[], cwd: string) => void;
   /** Opens a terminal in a pinned repo's clone, from the Overview. */
   onOpenTerminal: (root: string) => void;
+  /** Opens the Accounts tab on `host` (null leaves the choice to the tab), with the token form open when asked. */
+  onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
   /** The tab the pane opens on; absent means Pipelines. */
   tab?: ForgeTab;
   /** Whether Pipelines lists only the checked-out branch; absent means every branch. */
@@ -99,6 +101,7 @@ export class ForgePane implements PaneView {
   private readonly openLabel: HTMLElement;
   private readonly repoLink: HTMLButtonElement;
   private readonly chip: ForgeAccountChip;
+  private readonly accountsBtn: HTMLButtonElement;
   private readonly refreshBtn: HTMLButtonElement;
   private readonly notice: ForgeNotice;
   /** Scrolls a long notice, in place of the list it stands in for. */
@@ -175,6 +178,11 @@ export class ForgePane implements PaneView {
     this.repoLink.className = 'forge-repo';
     this.repoLink.hidden = true;
     this.chip = new ForgeAccountChip((anchor) => this.openAccountMenu(anchor));
+    this.accountsBtn = document.createElement('button');
+    this.accountsBtn.type = 'button';
+    this.accountsBtn.className = 'forge-button';
+    this.accountsBtn.textContent = 'Accounts';
+    this.accountsBtn.title = 'Manage code host accounts';
     this.refreshBtn = document.createElement('button');
     this.refreshBtn.type = 'button';
     this.refreshBtn.className = 'forge-button';
@@ -188,6 +196,7 @@ export class ForgePane implements PaneView {
       this.repoLink,
       this.chip.el,
       this.pinButton.el,
+      this.accountsBtn,
       this.refreshBtn,
     );
 
@@ -196,6 +205,7 @@ export class ForgePane implements PaneView {
       onOpenUrl: (url) => this.openUrl(url),
       onCopy: (text, label) => void copyText(text, label.replace(/^Copy\s+/i, '')),
       onPickAccount: (anchor) => this.openAccountMenu(anchor),
+      onOpenAccounts: (host, o) => this.opts.onOpenAccounts(host, o),
       onRetry: () => this.retry(),
     });
     this.noticeBox = document.createElement('div');
@@ -235,6 +245,7 @@ export class ForgePane implements PaneView {
       const url = this.store?.repo?.webUrl;
       if (url) this.openUrl(url);
     });
+    this.listen(this.accountsBtn, 'click', () => this.opts.onOpenAccounts(this.store?.repo?.host ?? null));
     this.listen(this.refreshBtn, 'click', () => this.retry());
     this.listen(this.host, 'focusin', () => {
       opts.onFocus();
@@ -442,6 +453,7 @@ export class ForgePane implements PaneView {
       onOpenTerminal: (root) => this.opts.onOpenTerminal(root),
       onOpenUrl: (url) => this.openUrl(url),
       onCopy: (text) => void copyText(text, 'link'),
+      onOpenAccounts: (host, o) => this.opts.onOpenAccounts(host, o),
     });
     this.body.append(this.overview.el);
   }
@@ -661,6 +673,7 @@ export class ForgePane implements PaneView {
           if (user !== repo.account) void this.act(store.setAccount(user));
         },
         onSignIn: (argv) => this.opts.onRunTerminal(argv, this.localRoot() ?? ''),
+        onManage: () => this.opts.onOpenAccounts(repo.host),
       }),
       { anchorEl: anchor },
     );

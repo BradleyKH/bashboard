@@ -168,32 +168,54 @@ transcript (with anything private redacted) to an issue from the agent report te
 
 The Forge pane shows a repo's pipeline runs, job logs, and open pull requests. It reads them from
 the code host's API with a sign-in you already have, so each host needs a one-time setup. Bashboard
-never runs a sign-in flow of its own, never writes your token to disk, and keeps it in memory only.
-Open the pane from any pane's kind menu (see the [user guide](user-guide.md#forge-pane)); when
-something is missing, the pane shows the same steps with buttons that do them.
+never runs a sign-in flow of its own and keeps tokens in memory only; the one thing it stores is a
+Bitbucket API token, in Windows Credential Manager. Open the pane from any pane's kind menu (see
+the [user guide](user-guide.md#forge-pane)); when something is missing, the pane shows the same
+steps with buttons that do them.
+
+The dialog's **Accounts** tab is the place to do the setup below. It has a card for each code
+host showing where its token comes from (never the token itself), and buttons for signing in,
+switching or removing an account, and adding, replacing, or removing a Bitbucket token. Open it
+from the **Accounts** button in the Forge pane's bar, from a Forge notice's buttons, or from the
+command palette ("Manage code host accounts"). Each step below also has a command that does the
+same from a terminal.
 
 ### GitHub
 
 Bashboard reads GitHub through the GitHub CLI, then falls back to Git Credential Manager's token.
 
-1. Install the GitHub CLI: `winget install --id GitHub.cli -e`, or the installer from
-   [cli.github.com](https://cli.github.com). Restart any terminals that were open, so they see it.
-2. Run `gh auth login`, choose GitHub.com (or GitHub Enterprise Server), HTTPS, and sign in with a
-   browser. For an Enterprise Server host, run `gh auth login --hostname <host>` instead.
-3. Check with `gh auth status`.
+1. Install the GitHub CLI. In the Accounts tab, the GitHub card's **Install GitHub CLI** runs
+   `winget install --id GitHub.cli -e` in a terminal pane. You can run that command yourself, or use
+   the installer from [cli.github.com](https://cli.github.com). Restart any terminals that were
+   open, so they see it.
+2. Sign in. In the Accounts tab, choose **Sign in** on the GitHub card; it closes the dialog and
+   runs `gh auth login --hostname github.com --web` in a terminal pane, where you follow the
+   prompts in your browser. From a terminal, run `gh auth login`, choose GitHub.com (or GitHub
+   Enterprise Server), HTTPS, and sign in with a browser; for an Enterprise Server host, run
+   `gh auth login --hostname <host>` instead.
+3. Check. The card lists the signed-in accounts and the active one, and **Test** asks GitHub who
+   the token belongs to and which scopes it has. From a terminal, run `gh auth status`.
 
-A host you are signed in to with `gh` is recognized without any setting. A GitHub Enterprise Server
-host that `gh` is not signed in to needs an entry in `forge.hosts` (see
-[Settings](settings.md#settings)).
+A host you are signed in to with `gh` is recognized without any setting, and gets its own card in
+the Accounts tab. A GitHub Enterprise Server host that `gh` is not signed in to needs an entry in
+`forge.hosts` (see [Settings](settings.md#settings)); it then gets a card too.
 
-**Several accounts.** Run `gh auth login` again for each account. The pane's bar then shows
-"as @name", and you pick the account a repo uses from that button. Or run
+**Several accounts.** Choose **Sign in another account** on the card, or run `gh auth login` again
+for each account. **Make active** on an account's row does what `gh auth switch --hostname <host>
+--user <user>` does, and **Sign out** (after a confirmation) does what `gh auth logout --hostname
+<host> --user <user>` does; signing out removes the account from the GitHub CLI for every app that
+uses it. The pane's bar then shows "as @name", and you pick the account a repo uses from that
+button, whose menu also has **Manage accounts**. Or run
 `git config credential.username <user>` in the repo, which is what the pick does. The same setting
 stops Git Credential Manager asking which account to use on every push, so one choice serves both.
 Without it the repo follows whichever account `gh auth switch` last chose, and the button is shown
-in a warning color to say so. With `GH_TOKEN` set in the environment, `gh auth status` and `gh`
-in a pane act as that token's account, but the Forge pane still follows the account
-`gh auth switch` chose; it falls back to `GH_TOKEN` only when gh has no signed-in account.
+in a warning color to say so.
+
+**Environment tokens.** If `GH_TOKEN` or `GITHUB_TOKEN` is set in the environment Bashboard was
+launched from (for an Enterprise Server host, `GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN`),
+`gh auth status` and `gh` in a terminal act as that token's account. The Forge pane still uses the
+account **Make active** or `gh auth switch` chose, and **Make active** and **Sign out** on the
+Accounts tab work as usual; the GitHub card notes which variable is set.
 
 **Troubleshooting.**
 
@@ -220,8 +242,11 @@ read pipelines or pull requests, so Bashboard uses a Bitbucket API token. Only B
 4. Choose **Bitbucket** as the app, then **Next**.
 5. Tick each scope in the table below, then **Next**.
 6. Choose **Create token** and copy the token. It is shown once and cannot be read again.
-7. In a Bashboard terminal pane, run `bb auth bitbucket` and paste the token when asked. The input
-   is hidden.
+7. In the Accounts tab, choose **Add token** on the Bitbucket card, paste the token into the
+   field, and choose **Save**. The field hides what you type. Or, in a terminal, run
+   `bb auth bitbucket` and paste the token when asked; the input is hidden there too.
+8. Choose **Test** on the card to confirm Bitbucket accepts it; the result names the login, or the
+   scope the token lacks.
 
 | Scope | What it is for |
 | --- | --- |
@@ -235,17 +260,21 @@ Every scope but `write:pipeline:bitbucket` is required: without `read:user:bitbu
 the pull request list reports the missing scope instead of loading. Without `write:pipeline:bitbucket`, Re-run and Cancel report that the token is missing it.
 When a request needs a scope the token lacks, the pane's message names it: "This token is missing
 the `<scope>` scope." Scopes cannot be added to an existing token, so make a new one with the full
-list and store it with `bb auth bitbucket`. A running Bashboard picks the replacement up on the next
-refresh or retry; no restart is needed.
+list and store it with **Replace token** on the Bitbucket card (or `bb auth bitbucket`). A running
+Bashboard picks the replacement up at once; no restart is needed.
 
-**Where it goes.** `bb auth bitbucket` saves the token in Windows Credential Manager as the generic
-credential `bashboard:bitbucket.org`, for this machine only. Check it with
-`cmdkey /list:bashboard:bitbucket.org`, and remove it with `bb auth bitbucket --clear`. The command
-works in any terminal, not only a Bashboard pane. Bashboard reads the token from there and sends it
-to Bitbucket only.
+**Where it goes.** The Accounts tab and `bb auth bitbucket` save the token in Windows Credential
+Manager as the generic credential `bashboard:bitbucket.org`, for this machine only. Check it with
+`cmdkey /list:bashboard:bitbucket.org`, and remove it with **Remove token** (after a confirmation)
+or `bb auth bitbucket --clear`. The command works in any terminal, not only a Bashboard pane.
+Bashboard reads the token from there and sends it to Bitbucket only. The Accounts tab never shows
+the token again after you save it, and Bashboard writes it nowhere else; the field in the tab is
+the one place a token is typed into the app, and it is emptied when you save, cancel, or close the
+dialog.
 
 **Renewing.** When the token expires, the pane says Bitbucket rejected it. Make a new one with the
-steps above and run `bb auth bitbucket` again; it replaces the stored one.
+steps above and choose **Replace token** on the card, or run `bb auth bitbucket` again; either
+replaces the stored one.
 
 **Rate limits.** Bitbucket allows 1,000 requests an hour per user, so Bashboard polls Bitbucket more
 slowly than GitHub, and pull request checks are fetched again only when a pull request changes.

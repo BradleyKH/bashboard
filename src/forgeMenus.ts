@@ -74,6 +74,8 @@ export interface AccountMenuHandlers {
   onPick: (user: string) => void;
   /** Runs `argv` in a new terminal pane. */
   onSignIn: (argv: string[]) => void;
+  /** Opens the Accounts tab on the repo's host. */
+  onManage: () => void;
 }
 
 /** The account chip's menu: one radio entry per signed-in account, a note on what picking does, and sign-in. */
@@ -90,6 +92,7 @@ export function accountMenuItems(repo: ForgeRepo, handlers: AccountMenuHandlers)
   entries.push(
     separator(),
     item('Sign in another account', () => handlers.onSignIn(signInAnotherArgv(repo.host))),
+    item('Manage accounts', () => handlers.onManage()),
   );
   return entries;
 }

@@ -5,12 +5,15 @@ const api = vi.hoisted(() => ({
   forgeOverviewRepo: vi.fn(),
   forgePullChecks: vi.fn(),
   saveSetting: vi.fn(),
+  authChanged: null as null | ((e: { provider: string; host: string }) => void),
+  onForgeAuthChanged: vi.fn(),
 }));
 
 vi.mock('./forgeApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./forgeApi')>()),
   forgeOverviewRepo: api.forgeOverviewRepo,
   forgePullChecks: api.forgePullChecks,
+  onForgeAuthChanged: api.onForgeAuthChanged,
 }));
 vi.mock('./settings', () => ({ saveSetting: api.saveSetting }));
 
@@ -76,6 +79,11 @@ beforeEach(() => {
   api.forgeOverviewRepo.mockReset().mockResolvedValue(overview([run('main', 'success')]));
   api.forgePullChecks.mockReset().mockResolvedValue([]);
   api.saveSetting.mockReset().mockResolvedValue(undefined);
+  api.authChanged = null;
+  api.onForgeAuthChanged.mockReset().mockImplementation(async (cb) => {
+    api.authChanged = cb;
+    return () => {};
+  });
 });
 
 afterEach(() => {
@@ -277,5 +285,40 @@ describe('ForgeOverviewStore', () => {
     expect(store.isPinned('a')).toBe(false);
     await store.unpin('zzz');
     expect(api.saveSetting).toHaveBeenCalledTimes(3);
+  });
+
+  it('refreshes the pins on a host whose credentials changed, or all of them for an empty host', async () => {
+    const store = new ForgeOverviewStore();
+    await Promise.resolve();
+    expect(api.authChanged).not.toBeNull();
+    store.applySettings(
+      settings([{ repo: 'github.com/acme/api' }, { repo: 'bitbucket.org/k/r' }, { repo: 'ghe.corp.com/o/n' }], 0),
+    );
+    store.setWanted('a', true);
+    await vi.advanceTimersByTimeAsync(4000);
+    api.forgeOverviewRepo.mockClear();
+
+    api.authChanged?.({ provider: 'bitbucket', host: 'bitbucket.org' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls()).toEqual(['remote:bitbucket.org/k/r']);
+
+    api.forgeOverviewRepo.mockClear();
+    api.authChanged?.({ provider: 'github', host: '' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls().sort()).toEqual([
+      'remote:bitbucket.org/k/r',
+      'remote:ghe.corp.com/o/n',
+      'remote:github.com/acme/api',
+    ]);
+  });
+
+  it('survives a runtime with no auth event', async () => {
+    api.onForgeAuthChanged.mockImplementation(() => Promise.reject(new Error('no tauri')));
+    expect(() => new ForgeOverviewStore()).not.toThrow();
+    api.onForgeAuthChanged.mockImplementation(() => {
+      throw new Error('missing');
+    });
+    expect(() => new ForgeOverviewStore()).not.toThrow();
+    await Promise.resolve();
   });
 });

@@ -7,6 +7,8 @@ export interface ForgeNoticeHandlers {
   onCopy: (text: string, label: string) => void;
   /** Opens the account menu under `anchor`. */
   onPickAccount: (anchor: HTMLElement) => void;
+  /** Opens the Accounts tab on `host`, with the token form open when asked. */
+  onOpenAccounts: (host: string, opts?: { openTokenForm?: boolean }) => void;
   onRetry: () => void;
 }
 
@@ -112,6 +114,9 @@ export class ForgeNotice {
           break;
         case 'pickAccount':
           this.handlers.onPickAccount(btn);
+          break;
+        case 'openAccounts':
+          this.handlers.onOpenAccounts(action.host, { openTokenForm: action.openTokenForm });
           break;
         case 'retry':
           this.handlers.onRetry();

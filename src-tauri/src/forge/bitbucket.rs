@@ -107,7 +107,7 @@ pub fn reword(e: ForgeError, source: &TokenSource) -> ForgeError {
         return ForgeError::new(
             ForgeErrorKind::SignedOut,
             "Git Credential Manager's Bitbucket sign-in can't read pipelines or pull requests. \
-             Bashboard needs a Bitbucket API token; run bb auth bitbucket to add one.",
+             Bashboard needs a Bitbucket API token; add one in the Accounts tab, or run bb auth bitbucket.",
         );
     }
     e
@@ -1081,6 +1081,7 @@ mod tests {
         assert_eq!(e.kind, ForgeErrorKind::SignedOut);
         assert!(e.message.contains("Git Credential Manager"));
         assert!(e.message.contains("API token"));
+        assert!(e.message.contains("Accounts tab"));
         // The front end reads this word as "the stored token was refused".
         assert!(!e.message.to_ascii_lowercase().contains("rejected"));
         // A 401 from GCM's token gets the same wording.

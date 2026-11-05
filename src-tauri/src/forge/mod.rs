@@ -7,6 +7,7 @@
 //! methods are blocking for that reason, which also keeps it object safe without an async
 //! trait crate.
 
+pub mod accounts;
 pub mod auth;
 pub mod bitbucket;
 pub mod github;
@@ -37,7 +38,7 @@ const MAX_RUNS: usize = 20;
 const MAX_PULLS: usize = 50;
 const GH_INSTALL_URL: &str = "https://cli.github.com";
 const BITBUCKET_TOKEN_URL: &str = "https://id.atlassian.com/manage-profile/security/api-tokens";
-pub const BITBUCKET_CREDENTIAL: &str = "bashboard:bitbucket.org";
+pub const BITBUCKET_CREDENTIAL: &str = crate::credential_store::BITBUCKET_TARGET;
 
 /// What a provider call gets besides the repo: the shared client and the resolved token.
 pub struct Cx<'a> {
@@ -320,6 +321,13 @@ fn home_dir() -> Option<String> {
         .find(|h| !h.is_empty())
 }
 
+/// A `Git` with no repo, run in the home folder so `git credential fill` reads only the global
+/// and system credential helpers.
+fn home_git(settings: &SettingsState) -> Result<Git, ForgeError> {
+    let home = home_dir().ok_or_else(|| ForgeError::other("Could not find the home folder."))?;
+    Git::open(settings, &home).map_err(ForgeError::other)
+}
+
 fn forge_hosts(settings: &SettingsState) -> HashMap<String, ProviderKind> {
     settings
         .current()
@@ -365,9 +373,7 @@ impl ForgeState {
     ) -> Result<(Git, Resolved), ForgeError> {
         match target.strip_prefix(REMOTE_PREFIX) {
             Some(spec) => {
-                let home = home_dir()
-                    .ok_or_else(|| ForgeError::other("Could not find the home folder."))?;
-                let git = Git::open(settings, &home).map_err(ForgeError::other)?;
+                let git = home_git(settings)?;
                 let r = self.cached(target, || {
                     let hosts_yml = remote::read_gh_hosts_yml().unwrap_or_default();
                     resolve_remote(spec, &forge_hosts(settings), &hosts_yml)
@@ -454,10 +460,10 @@ fn decorate(mut e: ForgeError, r: &Resolved, token: Option<&Token>) -> ForgeErro
         (ForgeErrorKind::SignedOut, ProviderKind::Bitbucket) => {
             match token.map(|t| &t.source) {
                 None => {
-                    e.message = "No Bitbucket API token is stored. Run bb auth bitbucket to add one.".into()
+                    e.message = "No Bitbucket API token is stored. Add one in the Accounts tab, or run bb auth bitbucket.".into()
                 }
                 Some(TokenSource::CredentialManager { .. }) => {
-                    e.message = "The stored Bitbucket API token was rejected (it may have expired or lack a scope). Run bb auth bitbucket to replace it.".into()
+                    e.message = "The stored Bitbucket API token was rejected (it may have expired or lack a scope). Replace it in the Accounts tab, or run bb auth bitbucket.".into()
                 }
                 // A Git Credential Manager token's message comes from the provider.
                 Some(_) => {}
@@ -854,6 +860,7 @@ mod tests {
         let r = resolved(ProviderKind::Bitbucket, &[]);
         let e = decorate(ForgeError::new(ForgeErrorKind::SignedOut, "x"), &r, None);
         assert!(e.message.contains("No Bitbucket API token is stored"));
+        assert!(e.message.contains("Accounts tab"));
         assert_eq!(
             e.sign_in,
             Some(vec!["bb".into(), "auth".into(), "bitbucket".into()])
@@ -871,6 +878,7 @@ mod tests {
             Some(&stored),
         );
         assert!(e.message.contains("was rejected"));
+        assert!(e.message.contains("Accounts tab"));
         assert_eq!(e.url.as_deref(), Some(BITBUCKET_TOKEN_URL));
     }
 

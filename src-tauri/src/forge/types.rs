@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::auth::TokenSource;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ProviderKind {
     Github,
@@ -283,6 +283,54 @@ impl ForgeError {
     pub fn not_implemented() -> Self {
         Self::other("not implemented")
     }
+}
+
+/// Where the token the Forge pane would use for a host comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TokenSourceKind {
+    GhCli,
+    GitCredentialManager,
+    /// The `bashboard:bitbucket.org` credential in Windows Credential Manager.
+    BashboardCredential,
+}
+
+/// One host's sign-in state for the Accounts tab. Never carries a token.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostAuth {
+    pub provider: ProviderKind,
+    pub host: String,
+    pub gh_installed: bool,
+    /// GitHub CLI's accounts for the host, from `hosts.yml`; empty for Bitbucket.
+    pub accounts: Vec<String>,
+    pub active_account: Option<String>,
+    /// `None` when no source has a token.
+    pub token_source: Option<TokenSourceKind>,
+    /// Whether the Bitbucket credential exists; false for GitHub hosts.
+    pub bitbucket_token_stored: bool,
+    /// Name (never the value) of the environment variable GitHub CLI would use for the host
+    /// instead of its saved accounts; `None` for Bitbucket and when none is set.
+    pub gh_env_token: Option<String>,
+}
+
+/// Who the host says a token belongs to.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthCheck {
+    pub ok: bool,
+    pub login: Option<String>,
+    /// The granted scopes when the host reports them (GitHub's `X-OAuth-Scopes`).
+    pub scopes: Option<Vec<String>>,
+    pub message: Option<String>,
+}
+
+/// The `forge://auth-changed` payload.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthChanged {
+    pub provider: ProviderKind,
+    pub host: String,
 }
 
 /// A repo on a code host, as the providers address it.

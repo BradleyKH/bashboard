@@ -263,10 +263,11 @@ layouts keep it. Its title is the repo's name while it shows a repo, and "Forge"
 In a folder outside a repo, or in a repo with no remote, it shows a notice.
 
 It reads the host with a sign-in you already have: the GitHub CLI (`gh`) for GitHub, and a Bitbucket
-API token you store once with `bb auth bitbucket`. When one is missing, the pane says so and its
-buttons do the next step (install, sign in, open the token page, copy the scopes), with the notice
-in place of the list it could not fill. Install and sign-in commands run in a terminal split off the
-pane, in the repo folder; the split closes when the command exits cleanly, and one still open when
+API token you add once in the dialog's [Accounts tab](#help-settings-and-shortcuts) (or with
+`bb auth bitbucket` in a terminal). When one is missing, the pane says so and its buttons do the
+next step (install, sign in, add a token, open the token page, copy the scopes, or manage accounts),
+with the notice in place of the list it could not fill. Install and sign-in commands run in a
+terminal split off the pane, in the repo folder; the split closes when the command exits cleanly, and one still open when
 you quit comes back as a plain shell. When you return to the window after fixing the problem, the
 pane looks again on its own, unless the error is a rate limit. The full steps are in
 [Code hosts](setup.md#code-hosts).
@@ -280,7 +281,8 @@ for each of its **health branches**: the repo's default branch, the branches its
 target (usually the deploy branches), and any you list for the pin. Each shows how its newest run
 ended and how long ago, or "No recent run" when none of the repo's latest 20 runs was on it. When a
 repo cannot be read, its row says why, beside the last good data, with a button for a sign-in or
-install command where one applies.
+install command where one applies, or one that opens the Accounts tab (**Manage accounts**, **Add
+token**, or **Replace token**).
 
 Rows are ordered by the first of these that applies: a health branch whose latest run failed, a pull
 request awaiting your review, your own pull request with changes requested or failing checks, a
@@ -295,7 +297,8 @@ the **Overview** link at the start of the tabs goes back. A repo you pinned with
 has no checked-out branch, so its This branch checkbox is disabled and it has no account button; it
 uses the host's default account.
 
-The Overview shows when it was last updated and has its own **Refresh** button. It refreshes by
+The Overview shows when it was last updated and has its own **Accounts** button, which opens the
+Accounts tab, and a **Refresh** button. It refreshes by
 itself every 5 minutes (`forge.overviewRefreshMinutes`; 0 turns this off),
 every minute while a health branch is running, and when you focus the pane after more than 30
 seconds away. It polls only while the Overview or the dashboard's Forge section is on screen and
@@ -325,7 +328,8 @@ section off with `dashboard.sections.forge`.
 Across the top, the bar holds the **Overview** link, the **Pipelines** and **Pull requests** tabs,
 a **This branch** checkbox (on the Pipelines tab only), an **Open** checkbox (on the Pull requests
 tab only), the repo's `owner/name`, which opens it on the host when clicked, the account button,
-**Pin to Overview**, and **Refresh**. This branch is clear by default, listing runs on
+**Pin to Overview**, **Accounts** (which opens the Accounts tab on this repo's host), and
+**Refresh**. This branch is clear by default, listing runs on
 every branch; check it to list only runs on the branch you have checked out. Open is checked by
 default, listing only open pull requests; clear it to list the latest ones in every state, with
 merged and closed ones marked. The pane remembers both choices across restarts.
@@ -356,7 +360,9 @@ polled more slowly, since it allows 1,000 requests an hour per user. Polling pau
 window is hidden.
 
 **Accounts.** When you are signed in to several GitHub accounts on one host, the bar shows
-"as @name". Click it to pick the account this repo uses, or to sign in another one. Picking sets the
+"as @name". Click it to pick the account this repo uses, to sign in another one, or to open
+**Manage accounts**, which is the dialog's Accounts tab (the **Accounts** button in the bar opens
+it too, whatever the account count). Picking sets the
 repo's `credential.username`, which Git Credential Manager also uses for push and pull, so the pane
 and your pushes agree. When the repo has no account of its own, the button is shown in a warning
 color: the pane is following whichever account `gh auth switch` last chose.
@@ -751,9 +757,10 @@ to 14. Each step is 1 px, from 6 to 48, applies to every terminal, and is saved 
 
 ## Help, settings, and shortcuts
 
-One dialog holds five tabs: **Help**, **Settings**, **Shortcuts**, **CLI**, and **About**. F1 or the
-dashboard's **?** opens it on Help, and Ctrl+, or **⚙** opens it on Settings. The command palette
-lists all five, and Shortcuts, CLI, and About can be given keys of their own. Ctrl+Tab and
+One dialog holds six tabs: **Help**, **Settings**, **Accounts**, **Shortcuts**, **CLI**, and
+**About**. F1 or the dashboard's **?** opens it on Help, and Ctrl+, or **⚙** opens it on Settings.
+The command palette lists all six, and Accounts, Shortcuts, CLI, and About can be given keys of
+their own. Ctrl+Tab and
 Ctrl+Shift+Tab (or Ctrl+PageDown and Ctrl+PageUp) move between tabs, pressing a tab's own key
 again closes the dialog, and Escape or a click outside closes it too.
 
@@ -763,6 +770,22 @@ again closes the dialog, and Escape or a click outside closes it too.
   setup wizard.
 - **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the
   list. The window behind it stays undimmed, so color and brightness changes show as they will look.
+- **Accounts** shows, for each code host, where the Forge pane gets its token, and manages it. It
+  has a card for GitHub (and each GitHub Enterprise Server host you use) and one for Bitbucket. A
+  card shows status only, never a token. A GitHub card says whether the GitHub CLI is installed
+  and lists its signed-in accounts, with the active one marked. **Sign in** (or **Sign in another
+  account**) runs `gh auth login` in a new terminal pane and closes the dialog so you can see it,
+  **Install GitHub CLI** runs `winget` the same way, **Make active** switches accounts, and
+  **Sign out** asks first and then signs that account out of the GitHub CLI for every app that
+  uses it. The Bitbucket card says whether an API token is stored; **Add token** (or **Replace
+  token**) opens a password field, **Save** stores the token in Windows Credential Manager, and
+  **Remove token** asks first and deletes it. It also lists the scopes the token needs, with
+  **Open the API token page** and **Copy scopes**. **Test** asks the host who the credential
+  belongs to and shows the login, the granted scopes on GitHub, or the error, which for Bitbucket
+  names a missing scope. On GitHub it tests each account in turn. The tab refreshes when you
+  return to the window, so a sign-in finished in a terminal shows up. Open it from the Forge pane's
+  **Accounts** button, the account menu's **Manage accounts**, a Forge notice, or the command
+  palette ("Manage code host accounts").
 - **Shortcuts** lists every key and is where keys are changed (see [Settings](settings.md)).
 - **CLI** lists the `bb` commands below, with examples to copy.
 - **About** shows the version, **Check for updates**, and links to the release notes and docs.
@@ -780,7 +803,7 @@ opens a pane splits the pane that ran it, in that pane's tab, and focus moves to
 | `bb git`                      | Opens the Git pane for the current folder's repo                              |
 | `bb search [<query>]`         | Opens a Search pane for the current folder's repo, with the query filled in   |
 | `bb scratch [<text>]`         | Opens a scratch pad holding the text, or the piped standard input             |
-| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Forge pane, or removes it with `--clear` |
+| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Forge pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
 
 Add `--collapsed` anywhere in a command to open the pane collapsed. Relative paths resolve
@@ -791,7 +814,7 @@ the current folder. `bb scratch` uses its arguments as the text when it has any 
 reads standard input, up to 1 MiB.
 
 `bb auth bitbucket` never talks to Bashboard, so it works in any terminal. It asks for the token with the input hidden (or reads it from standard
-input), saves it in Windows Credential Manager, and does not open a pane. `bb auth bitbucket
+input), saves it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and does not open a pane. `bb auth bitbucket
 --clear` removes it. See [Code hosts](setup.md#bitbucket-cloud).
 
 ```sh

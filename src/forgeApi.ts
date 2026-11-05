@@ -1,6 +1,7 @@
 // Front-end side of the Forge pane's Tauri commands (docs/design.md section 4.20; the Rust side is
 // section 3.20). The types mirror the Rust DTOs, which serialize camelCase with `Option` as null.
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export type ProviderKind = 'github' | 'bitbucket' | 'gitlab' | 'azureDevOps';
 
@@ -254,4 +255,68 @@ export interface OverviewRepo {
 /** `target` is a clone's path or `remote:<repo>`. */
 export function forgeOverviewRepo(target: string): Promise<OverviewRepo> {
   return invoke<OverviewRepo>('forge_overview_repo', { target });
+}
+
+// Accounts tab: the credentials behind the pane.
+
+/** The providers that have credentials to manage. */
+export type AuthProvider = Extract<ProviderKind, 'github' | 'bitbucket'>;
+
+/** Where the token the pane would use comes from. */
+export type TokenSourceKind = 'ghCli' | 'gitCredentialManager' | 'bashboardCredential';
+
+/** One host's sign-in state. Ordered github.com, other GitHub hosts, then bitbucket.org. */
+export interface HostAuth {
+  provider: AuthProvider;
+  host: string;
+  /** Whether `gh` was found, on PATH or in its install folders; meaningful for GitHub hosts only. */
+  ghInstalled: boolean;
+  /** Accounts GitHub CLI holds for this host; empty for Bitbucket. */
+  accounts: string[];
+  activeAccount: string | null;
+  /** The source that would supply the token, null when there is none. */
+  tokenSource: TokenSourceKind | null;
+  /** Whether the `bashboard:bitbucket.org` credential exists; false for GitHub hosts. */
+  bitbucketTokenStored: boolean;
+  /** Name (never the value) of the environment variable `gh` would use for this host; null when none is set. */
+  ghEnvToken: string | null;
+}
+
+/** The result of asking the host who the stored token belongs to. */
+export interface AuthCheck {
+  ok: boolean;
+  login: string | null;
+  /** Granted scopes when the host reports them, else null. */
+  scopes: string[] | null;
+  message: string | null;
+}
+
+export function forgeAuthStatus(): Promise<HostAuth[]> {
+  return invoke<HostAuth[]>('forge_auth_status');
+}
+
+export function forgeAuthTest(provider: AuthProvider, host: string, account?: string): Promise<AuthCheck> {
+  return invoke<AuthCheck>('forge_auth_test', { provider, host, account });
+}
+
+export function forgeBitbucketSetToken(token: string): Promise<void> {
+  return invoke<void>('forge_bitbucket_set_token', { token });
+}
+
+/** False when nothing was stored. */
+export function forgeBitbucketClearToken(): Promise<boolean> {
+  return invoke<boolean>('forge_bitbucket_clear_token');
+}
+
+export function forgeGhSwitch(host: string, user: string): Promise<void> {
+  return invoke<void>('forge_gh_switch', { host, user });
+}
+
+export function forgeGhLogout(host: string, user: string): Promise<void> {
+  return invoke<void>('forge_gh_logout', { host, user });
+}
+
+/** Fires when a credential for `host` changed, from here or from outside the app. */
+export function onForgeAuthChanged(cb: (e: { provider: AuthProvider; host: string }) => void): Promise<UnlistenFn> {
+  return listen<{ provider: AuthProvider; host: string }>('forge://auth-changed', (e) => cb(e.payload));
 }

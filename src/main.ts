@@ -41,6 +41,7 @@ import { ConfirmDialog } from './confirmDialog';
 import { Picker, type PickerItem } from './picker';
 import { CommandPalette } from './commandPalette';
 import { AboutTab } from './aboutTab';
+import { AccountsTab } from './accountsTab';
 import { AppDialog } from './appDialog';
 import { DIALOG_TAB_FOR_ACTION, type DialogTab } from './appDialogModel';
 import { CliTab } from './cliTab';
@@ -856,6 +857,15 @@ const helpTab = new HelpTab(
 );
 const cliTab = new CliTab();
 const aboutTab = new AboutTab({ onCheckForUpdates: checkForUpdatesNow });
+const accountsTab = new AccountsTab({
+  // The dialog is modal, so close it first or the sign-in device code opens hidden behind it.
+  onRunTerminal: (argv) => {
+    appDialog.close();
+    workspace.openPane({ kind: 'terminal', command: argv });
+  },
+  onOpenUrl: (url) => void invoke('open_url', { url }).catch((e: unknown) => console.warn('open_url failed', e)),
+  confirm: (o) => confirmDialog.open(o),
+});
 const appDialog: AppDialog = new AppDialog(
   {
     help: {
@@ -873,6 +883,7 @@ const appDialog: AppDialog = new AppDialog(
       hide: () => shortcutsTab.hide(),
       onKey: (e) => shortcutsTab.onKey(e),
     },
+    accounts: accountsTab,
     cli: cliTab,
     about: aboutTab,
   },
@@ -951,6 +962,10 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenLaunchMenu: () => void openLaunchMenu(),
   onOpenPalette: () => openPalette(),
   onOpenDialog: (tab) => void openDialog(tab),
+  onOpenAccounts: (host, opts) =>
+    void openDialog('accounts').then(() => {
+      if (host) accountsTab.focusHost(host, opts);
+    }),
   onToggleBackdrop: toggleBackdrop,
   onToggleFullscreen: toggleFullscreen,
   onAttention: (paneId, cause) => {

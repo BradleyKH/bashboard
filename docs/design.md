@@ -769,7 +769,10 @@ tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
   credential `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, persisted
   for the local machine. A token that is empty or over 2,560 bytes (the Credential Manager blob
   limit) is refused. `--clear` deletes the credential and says when none was stored. The Forge
-  pane's Bitbucket token source (3.20) reads that credential, and nothing else writes it.
+  pane's Bitbucket token source (3.20) reads that credential. The command and the app dialog's
+  Accounts tab (4.20) share one store, `credential_store.rs`, which both `bb.exe` and the app
+  compile, so they agree on the target, the user name, the size limit, and how a token is
+  cleaned; nothing else writes it.
 - The core emits `cli://command` with the pane id and the resolved request; the front end's
   `Workspace` carries it out exactly as the matching dashboard or keyboard action would, so `bb`
   can do nothing the UI cannot.
@@ -949,8 +952,10 @@ The Forge pane (4.20) shows a repo's CI runs and open pull requests, and an Over
 pinned repo. The core talks to the code host's REST API, and every host returns the same normalized shapes (section 7), so the front end
 knows a host only through a few capability flags. The module is split by concern: `mod.rs` (the
 commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shapes), `remote.rs`
-(remote URLs), `auth.rs` (tokens and accounts), `http.rs` (the client), and one file per provider,
-`github.rs` and `bitbucket.rs`.
+(remote URLs), `auth.rs` (token sources and accounts), `accounts.rs` (the Accounts tab's commands,
+below), `http.rs` (the client), and one file per provider, `github.rs` and `bitbucket.rs`. The
+Windows Credential Manager access sits in `src-tauri/src/credential_store.rs`, outside the module,
+because `bb.exe` compiles it too.
 
 - **Provider trait.** `ForgeProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
   `jobs`, `log`, `rerun`, `cancel`, `pulls`, and `default_branch`, each taking a `Cx` (the shared `Http` and the
@@ -1001,13 +1006,14 @@ commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shape
   self-hosted host's Git Credential Manager token never goes to Bitbucket Cloud. `forge.hosts` is
   therefore for GitHub Enterprise Server hosts the CLI is not signed in to, and for GitLab and
   Azure DevOps hosts once those are served.
-- **Tokens.** Bashboard never runs an OAuth flow and never writes a secret itself. Each provider
+- **Tokens.** Bashboard never runs an OAuth flow, and the one secret it writes is a Bitbucket API
+  token, into Windows Credential Manager (below). Each provider
   lists sources in order, and the first that yields a token wins. GitHub: `gh auth token
   --hostname <host>` (with `--user <account>` when an account is chosen), found on `PATH` or in
   GitHub CLI's install folders, since a `gh` installed while Bashboard runs is not on the `PATH` it
   inherited; then `git credential fill`, which reaches Git Credential Manager. Bitbucket: the
-  generic Windows credential `bashboard:bitbucket.org`, which `bb auth bitbucket` writes (3.13);
-  then Git Credential Manager as a fallback. `git credential fill` runs with `GCM_INTERACTIVE=never`
+  generic Windows credential `bashboard:bitbucket.org`, which the Accounts tab and `bb auth
+  bitbucket` write (3.13); then Git Credential Manager as a fallback. `git credential fill` runs with `GCM_INTERACTIVE=never`
   and `GIT_TERMINAL_PROMPT=0`, so it never opens a sign-in window, passes the account as the
   `username` when one is chosen, and its reported expiry is honored. Bashboard never calls
   `approve` or `reject`, since the credential belongs to the user's helper. Tokens are cached in
@@ -1023,6 +1029,45 @@ commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shape
   --local credential.username <user>`, drops that root's repo and token caches, and returns the
   re-resolved repo. That setting is the one that also stops Git Credential Manager asking which
   account to use on every push.
+- **Accounts commands** (`forge/accounts.rs`) serve the Accounts tab (4.20), and none returns a
+  token. `forge_auth_status()` returns one `HostAuth` per host: `github.com` always, every host in
+  GitHub CLI's `hosts.yml`, and every `forge.hosts` entry mapped to `github` (a `hosts.yml` host
+  that `forge.hosts` maps to another provider is left out, since the pane would not treat it as
+  GitHub), then `bitbucket.org` always; lowercased and deduplicated, `github.com` first, the other
+  GitHub hosts alphabetically, then Bitbucket. Each carries whether `gh` is installed (on the
+  `PATH` or in its install folders), the host's `hosts.yml` accounts and active account, the kind
+  of source the Forge pane would take its token from (`TokenSourceKind`: `ghCli`,
+  `gitCredentialManager`, or `bashboardCredential`; null when none yields one), and whether the
+  Bitbucket credential exists. Hosts are inspected side by side, and only the source's kind leaves
+  the lookup. `ghEnvToken` is the name of the environment variable that `gh` in a terminal would use
+  for the host instead of its saved accounts, or null (always null for Bitbucket, and for a GitHub
+  host with none set); only the name leaves the core, never the value. The app's own lookup passes
+  `--user`, so it reads the saved account whatever the variable says. GitHub CLI's rules: for `github.com` and `*.ghe.com` hosts, `GH_TOKEN` then
+  `GITHUB_TOKEN`; for other hosts, `GH_ENTERPRISE_TOKEN` then `GITHUB_ENTERPRISE_TOKEN`. An empty
+  value counts as unset. `forge_auth_test(provider, host, account)` resolves that token and asks the host who
+  it belongs to, bypassing the ETag cache: GitHub `GET /user`, reading the login and the
+  `X-OAuth-Scopes` header (sent only for classic tokens and OAuth apps), and Bitbucket `GET
+  /2.0/user`. It returns an `AuthCheck` (`ok`, `login`, `scopes`, `message`), and an error comes
+  back as `ok: false` with its message, so a Bitbucket 403 names the missing scope.
+  `forge_bitbucket_set_token(token)` stores the credential and `forge_bitbucket_clear_token()`
+  deletes it (false when none was stored). `forge_gh_switch(host, user)` and
+  `forge_gh_logout(host, user)` run `gh auth switch` and `gh auth logout` with `--hostname` and
+  `--user`; they refuse a user who is not among that host's `hosts.yml` accounts, run with a hidden
+  console, `GH_PROMPT_DISABLED=1`, and no standard input, so `gh` never prompts, and report its
+  standard error on failure. Both remove `GH_TOKEN`, `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN`, and
+  `GITHUB_ENTERPRISE_TOKEN` from `gh`'s environment, since `gh` refuses to switch or log out while
+  one applies to the host. Every successful change drops the host's cached tokens and resolved
+  repos and emits `forge://auth-changed` with `{ provider, host }`; Forge panes (`ForgeStore`),
+  the Overview store, and an open Accounts tab refresh on it. A sign-in finished in a terminal
+  pane changes `hosts.yml` without passing through the core, so the tab also reloads when it is
+  shown and when the window regains focus.
+- **Token handling.** A Bitbucket token enters the core only from the Accounts tab's password
+  field, as the one argument of `forge_bitbucket_set_token`, or from `bb auth bitbucket` in a
+  separate process. It is never sent from the core to the page, never logged, never put in an
+  error message, and never written anywhere but Windows Credential Manager. The core overwrites
+  its copies after the write; that is best effort, since the buffers the IPC layer fills while
+  deserializing the argument are outside the app's control, so the app does not claim the token is
+  wiped from memory.
 - **Errors.** Providers and the HTTP layer return `ForgeError { kind, message, url, signIn,
   retryAfterSecs }`. `message` is plain text and never holds a token or a header; the HTTP layer
   builds messages from status codes and host names only. A 401 is `signedOut`; a 403 with GitHub's
@@ -1040,7 +1085,7 @@ commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shape
   `gh` missing, the kind becomes `notInstalled`, `url` is cli.github.com, and `signIn` is `winget
   install --id GitHub.cli -e`. For Bitbucket the message says whether no token is stored or the
   stored token was rejected (it may have expired or lack a scope), `url` is the Atlassian token
-  page, and `signIn` is `bb auth bitbucket`. A GitHub `notFound` on a host with several accounts
+  page, and `signIn` is `bb auth bitbucket`, and the message names the Accounts tab first. A GitHub `notFound` on a host with several accounts
   points at the account menu. A Git Credential Manager token that Bitbucket refuses gets a message
   saying that its sign-in cannot read pipelines or pull requests.
 - **HTTP.** One `ureq` agent with a 15 second timeout, the system proxy, and the Windows
@@ -1082,7 +1127,8 @@ commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shape
   request" and "workflow run"; minimum poll 10 s. Bitbucket: re-run, cancel, logs, drafts, no
   failed-only re-run, no accounts; nouns "pull request" and "pipeline"; minimum poll 30 s.
 - **Caching.** The resolved repo (remote, branch, and account) is cached per root for 15 s. Tokens
-  are cached as above, and the ETag, viewer, and checks caches live as long as the app.
+  are cached as above, and the ETag, viewer, and checks caches live as long as the app. A change
+  made through an Accounts command drops that host's cached tokens and resolved repos at once.
 
 ## 4. Front end
 
@@ -1339,8 +1385,8 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+, | Open the app dialog on its Settings tab |
 | F11 | Toggle full screen |
 
-Three more actions have no default key: `showShortcuts`, `showCli`, and `showAbout` open the app
-dialog on its Shortcuts, CLI, and About tabs.
+Four more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
+open the app dialog on its Accounts, Shortcuts, CLI, and About tabs.
 
 These are built-in defaults. Entries in the settings file (section 8) layer on top, as in
 Windows Terminal: an entry for a chord that has a default replaces it, a new chord adds a
@@ -2454,10 +2500,11 @@ has Back, Next, and Skip setup.
 
 ### 4.18 App dialog
 
-One modal (`appDialog.ts`) holds the tabs Help, Settings, Shortcuts, CLI, and About, in that order
+One modal (`appDialog.ts`) holds the tabs Help, Settings, Accounts, Shortcuts, CLI, and About, in that order
 (`appDialogModel.ts`). Each entry point opens its own tab: the dashboard's ? button and F1
-(`showHelp`) open Help, ⚙ and Ctrl+, (`openSettings`) open Settings, and `showShortcuts`,
-`showCli`, and `showAbout` (no default keys; all five are in the command palette) open the rest.
+(`showHelp`) open Help, ⚙ and Ctrl+, (`openSettings`) open Settings, and `showAccounts`,
+`showShortcuts`, `showCli`, and `showAbout` (no default keys; all six are in the command palette,
+the first as "Manage code host accounts") open the rest.
 Opening it while it is open switches tabs. The dialog has one fixed size, so switching tabs never
 moves its edges, and each tab scrolls inside it.
 
@@ -2469,7 +2516,7 @@ a click on it closes the dialog either way.
 
 Keys: Escape closes. Ctrl+Tab and Ctrl+PageDown move one tab right, Ctrl+Shift+Tab and Ctrl+PageUp
 left, wrapping, and Left and Right do the same while a tab button has focus. A chord or function
-key bound to one of the five actions above switches to its tab, or closes the dialog when that tab
+key bound to one of the six actions above switches to its tab, or closes the dialog when that tab
 already shows, so F1 toggles Help. Plain keys never switch, since they may be typing into a field.
 The Shortcuts tab's recorder sees keys first while it records (4.5).
 
@@ -2486,6 +2533,8 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
   The checks rerun on each visit and after each fix. Run setup closes the dialog and opens the
   setup wizard (4.17).
 - **Settings** is the settings editor (4.6).
+- **Accounts** (`accountsTab.ts`) shows where each code host's token comes from and manages it,
+  with one card per host (4.20).
 - **Shortcuts** is the shortcut guide and keybinding editor (4.5).
 - **CLI** (`cliTab.ts`) lists each `bb` command and option from `cli-commands.json` (3.13) with
   its usage, what it does, and examples, each with a Copy button.
@@ -2588,8 +2637,8 @@ any, as the pin's `root`. Pinning and unpinning rewrite the setting in place thr
 the file's comments survive, and an edit made in the file applies on save.
 
 **Overview.** The pane's own bar (This branch, Open, the account chip) is hidden on the Overview,
-which has its own line, "Updated 2m ago" (or "Not updated yet"), and a **Refresh** button that
-polls every pin at once. The Overview also refreshes when the pane takes focus while its newest
+which has its own line, "Updated 2m ago" (or "Not updated yet"), an **Accounts** button that opens
+the Accounts tab (below), and a **Refresh** button that polls every pin at once. The Overview also refreshes when the pane takes focus while its newest
 poll is more than 30 s old. With no pins, a note says to pin a repo from its Forge view or add one
 there. Each row holds:
 
@@ -2602,7 +2651,9 @@ there. Each row holds:
   the status icon of its newest run among the repo's latest 20 and the age of that run, with the
   status and the run's title in its tooltip; a branch with none among them reads "No recent run".
 - A line with the error's title when the last poll failed, beside the last good data, and a button
-  for a sign-in or install command, which runs in a terminal split (see Terminal splits below).
+  for each sign-in or install command, which runs in a terminal split (see Terminal splits below),
+  and for each Accounts action (**Manage accounts**, **Add token**, **Replace token**), which opens
+  the Accounts tab on that host.
   Before its first poll lands a row reads "Loading".
 
 **Attention order.** Rows are ordered by the first of these that applies to a repo: a health branch
@@ -2663,7 +2714,8 @@ make one set of requests. A pane wants its store only while expanded.
 **Bar.** On a drilled repo, from the left: the **Overview** crumb and the two tabs; a **This branch** checkbox, clear by default and shown on
 the Pipelines tab only; an **Open** checkbox, checked by default and shown on the Pull requests
 tab only; the repo's `owner/name`, linking to its `webUrl`, once the repo has
-resolved; the account chip; the pin toggle; and **Refresh**, which polls at once. Checking the box limits the list
+resolved; the account chip; the pin toggle; **Accounts**, which opens the Accounts tab (below) on the repo's
+host; and **Refresh**, which polls at once. Checking the box limits the list
 to runs on one branch, and the choice is shared by the panes on one repo: a pane that opens on
 a repo another pane already shows takes that pane's choice, and the first pane to open a repo
 applies its own saved one. Open is shared the same way. This branch follows the
@@ -2674,8 +2726,9 @@ more than one in `accounts`). It is styled as a warning when the account came fr
 `cliActive`, since the repo then follows whichever account `gh auth switch` last chose, and
 its tooltip says so. Clicking it opens the account menu: one radio entry per signed-in account, a
 disabled note that picking sets the repo's `credential.username`, which Git Credential Manager
-also uses for push and pull, and **Sign in another account**, which runs `gh auth login
---hostname <host> --web` in a terminal split. Picking an account calls `forge_set_account`,
+also uses for push and pull, **Sign in another account**, which runs `gh auth login
+--hostname <host> --web` in a terminal split, and a final **Manage accounts**, which opens the
+Accounts tab on the repo's host. Picking an account calls `forge_set_account`,
 replaces the store's repo, and reloads everything.
 
 **Pipelines.** Each run is a row: a status icon, the run's title (the commit's first line, or the
@@ -2746,7 +2799,7 @@ notice: what happened, and buttons that do the next step. An error from resolvin
 both tabs; one from polling runs or pull requests, only on its own tab. `src/forgeModel.ts` builds
 the notices from the error and the repo, and `ForgeNotice` draws them. The buttons run a command in
 a terminal split of this pane, open a URL, copy text (with a "Copied" toast), open the account
-menu, or retry.
+menu, open the Accounts tab, or retry.
 
 **Terminal splits.** A command from a notice or the account menu (sign in, install) runs in a
 terminal split off the pane, in the repo folder (the default starting folder when run from the
@@ -2757,11 +2810,11 @@ plain shell in that folder, since the command is not saved.
 
 | Error | Notice and its buttons |
 | --- | --- |
-| `notInstalled` | "Bashboard reads GitHub through the GitHub CLI." **Install with winget**, **Open cli.github.com**, **Retry** |
-| `signedOut`, GitHub | "Sign in to `<host>` with the GitHub CLI." **Sign in** (`gh auth login --hostname <host> --web`), **Retry** |
-| `signedOut`, Bitbucket, no token | "Bitbucket needs an API token." The reason, the numbered steps, and the scope list; **Open the API token page**, **Copy scopes**, **Run bb auth bitbucket**, **Retry** |
-| `signedOut`, Bitbucket, token refused | "Bitbucket rejected the stored API token." Steps and scopes folded under "How to make a new one"; the same buttons |
-| `forbidden`, Bitbucket | "Bitbucket denied the request", with the message naming the missing scope; the same steps, scopes, and buttons |
+| `notInstalled` | "Bashboard reads GitHub through the GitHub CLI." **Install with winget**, **Open cli.github.com**, **Manage accounts**, **Retry** |
+| `signedOut`, GitHub | "Sign in to `<host>` with the GitHub CLI." **Sign in** (`gh auth login --hostname <host> --web`), **Manage accounts**, **Retry** |
+| `signedOut`, Bitbucket, no token | "Bitbucket needs an API token." The reason, the numbered steps, and the scope list, whose last step says to choose Add token here (or run `bb auth bitbucket` in a terminal); **Add token**, **Open the API token page**, **Copy scopes**, **Retry** |
+| `signedOut`, Bitbucket, token refused | "Bitbucket rejected the stored API token." Steps and scopes folded under "How to make a new one"; the same buttons, with **Replace token** in place of Add token |
+| `forbidden`, Bitbucket | "Bitbucket denied the request", with the message naming the missing scope; the same steps, scopes, and buttons as a refused token, so **Replace token** leads |
 | `notFound`, GitHub, several accounts | "`<owner>/<name>` wasn't found as @`<account>`." **Use another account** (opens the account menu), **Retry** |
 | `ssoRequired` | "Single sign-on needs authorizing", **Authorize** (the host's URL), **Retry** |
 | `rateLimited` | "Rate limit reached", with when polling resumes |
@@ -2773,6 +2826,52 @@ The Bitbucket scope list comes from `BITBUCKET_SCOPE_INFO` and is shown as a tab
 [setup.md](setup.md#bitbucket-cloud): `read:repository:bitbucket`, `read:pullrequest:bitbucket`,
 `read:pipeline:bitbucket`, `write:pipeline:bitbucket` (optional, for re-run and stop), and
 `read:user:bitbucket`. **Copy scopes** copies them space separated.
+
+**Accounts tab.** The app dialog's Accounts tab (4.18; `accountsTab.ts`, with `forgeHostCard.ts`,
+`forgeTokenForm.ts`, and the pure `forgeAccountsModel.ts`) has one card per code host, from
+`forge_auth_status` (3.20): `github.com`, each other GitHub host, then `bitbucket.org`. A card shows
+status and never a token. The tab loads when it is shown, when the window regains focus, and on
+`forge://auth-changed`, so a sign-in finished in a terminal pane appears without a restart.
+
+- **GitHub card.** Whether `gh` is installed; the signed-in accounts, the active one badged; and
+  the status line for the active account's token source (GitHub CLI, Git Credential Manager, or
+  none). A card whose only source is Git Credential Manager has no account rows and offers a
+  card-level **Test**. Buttons: **Sign in** (**Sign in another account** once an account exists),
+  which runs `gh auth login --hostname <host> --web` in a new terminal pane; **Install GitHub CLI**
+  while `gh` is missing, which runs `winget install --id GitHub.cli -e` the same way. The dialog
+  closes first, since it is modal and the sign-in device code would open hidden behind it. Each
+  account row has **Make active** (not on the active one), which runs `gh auth switch` in the core;
+  **Sign out**, which asks first ("Signs @name out of GitHub CLI on <host>. Other apps that use gh
+  lose this account too.") and then runs `gh auth logout` in the core; and **Test**.
+  When the host's `ghEnvToken` is set, a muted note under the status reads "<VAR> is set, so gh in
+  a terminal uses that token; Bashboard uses the saved account shown here." Every action stays.
+- **Bitbucket card.** Whether a `bashboard:bitbucket.org` token is stored, else the source the app
+  would use; Git Credential Manager alone warns that it cannot read pipelines or pull requests.
+  Buttons: **Add token** (**Replace token** and **Remove token** once one is stored), **Test**,
+  **Open the API token page**, and **Copy scopes**, with the scope list and what each is for
+  beneath. **Remove token** asks first, and the Bitbucket panes stop working until a token is
+  added again. Add and Replace open the token form below the buttons.
+- **Test.** Asks the host who the credential belongs to (3.20) and shows the login and, on GitHub,
+  the granted scopes, or the error beside the card; a Bitbucket 403 names the missing scope. On
+  GitHub it runs per account, so a signed-in account that is not active can be checked without
+  switching to it. It bypasses the response cache, so it reaches the host every time.
+- **Token form.** A password field (`type="password"`, `autocomplete="off"`) with **Save** and
+  **Cancel**, and a hint that `bb auth bitbucket` stores one from a terminal. The value goes to the
+  core once, as the argument of `forge_bitbucket_set_token`, and the page keeps no copy: the field
+  is emptied on save, cancel, when the tab is hidden, and when the dialog closes. Escape cancels an
+  open form before it closes the dialog. A failed save shows its error in the form.
+- **Changes.** A successful switch, sign-out, save, or removal drops the host's cached credentials
+  in the core and emits `forge://auth-changed` (3.20); open Forge panes, the Overview, and the tab
+  itself refresh on it. The account chip's per-repo `credential.username` behavior is separate and
+  is unchanged.
+- **Entry points.** **Accounts** in a drilled Forge bar and in the Overview bar; **Manage
+  accounts** in the account chip's menu (the chip shows only with two or more accounts, and not on
+  a remote pin); the notice buttons **Manage accounts** (GitHub `signedOut` and `notInstalled`),
+  **Add token** (Bitbucket `signedOut`), and **Replace token** (a refused token, and `forbidden`),
+  the last two opening the Bitbucket card with the token form open; the same buttons on an
+  Overview row's error line; and the command palette's "Manage code host accounts"
+  (`showAccounts`, no default key). A button that names a host opens the tab and scrolls that
+  host's card into view; the Overview's bar button leaves the choice to the tab.
 
 ## 5. Readability
 
@@ -3015,7 +3114,7 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 | `SystemSample`, `DiskRow` | `src/systemModel.ts` | `system_sample` (4.6); `disks` is null unless the call passed `includeDisks` |
 | `AgentContext` | `src/agentModel.ts` | `agent_context` and `agent://context` (3.4) |
 | `ModelServersSnapshot`, `LoadedModel` | `src/modelServersApi.ts` | `model_servers_poll` (3.19) |
-| `ForgeRepo`, `Capabilities`, `Run`, `Job`, `Step`, `JobLog`, `PullList`, `PullRequest`, `Reviewer`, `OverviewRepo`, `PinnedRepo`, `ForgeError` | `src/forgeApi.ts` | The `forge_*` commands (3.20); the rules are under Forge payloads |
+| `ForgeRepo`, `Capabilities`, `Run`, `Job`, `Step`, `JobLog`, `PullList`, `PullRequest`, `Reviewer`, `OverviewRepo`, `PinnedRepo`, `ForgeError`, `HostAuth`, `AuthCheck`, `TokenSourceKind` | `src/forgeApi.ts` | The `forge_*` commands (3.20) and `forge://auth-changed`; the rules are under Forge payloads |
 | `ShellProfile` | `src/profiles.ts` | `shell_profiles` (3.1) |
 
 **Forge payloads.** The Rust types (`forge/types.rs`) serialize camelCase, with `Option` as null, and
@@ -3055,6 +3154,12 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
   `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, or `other`), `message` (plain
   text, never a token or an `Authorization` header), `url` (a page to open), `signIn` (the argv to
   run in a new terminal pane), and `retryAfterSecs`.
+- `HostAuth`: `provider` (`github` or `bitbucket`), `host`, `ghInstalled`, `accounts` (GitHub CLI's
+  users for the host; empty for Bitbucket), `activeAccount` (or null), `ghEnvToken` (the variable's name, or null; see 3.20), `tokenSource` (a
+  `TokenSourceKind`: `ghCli`, `gitCredentialManager`, or `bashboardCredential`; null when no source
+  has a token), and `bitbucketTokenStored`. It never holds a token. `AuthCheck`: `ok`, `login`,
+  `scopes` (the granted scopes when the host reports them), and `message`. The
+  `forge://auth-changed` payload is `{ provider, host }`.
 
 **Session status.** A hook event newer than the roster's `statusUpdatedAt` wins; otherwise the
 roster's value. `waiting` exists only from hooks, and clears on the next `UserPromptSubmit`,
@@ -3250,11 +3355,17 @@ toast, until the file is fixed.
   delete only the app's own scratch files.
 - Forge tokens (3.20) stay in the core's memory. They are read only from `gh auth token`, Git
   Credential Manager (`git credential fill`, never `approve` or `reject`, never interactive), or
-  the `bashboard:bitbucket.org` credential that only `bb auth` writes. They never reach the page, a
-  log, or an error message, and `Token`'s `Debug` output hides the value. A redirect to another
+  the `bashboard:bitbucket.org` credential that the Accounts tab and `bb auth` write. They never
+  reach the page, a log, or an error message, and `Token`'s `Debug` output hides the value. The one
+  way a secret enters the core is the Accounts tab's password field, which sends a Bitbucket token
+  to `forge_bitbucket_set_token` as a single argument; the core writes it to Windows Credential
+  Manager and nowhere else, and overwrites its copies afterward on a best effort basis, since the
+  IPC layer's own buffers are outside the app's control. The field is emptied on save, cancel, and
+  when the dialog closes. A redirect to another
   host drops the `Authorization` header, and the Bitbucket provider refuses any host but
   bitbucket.org before it sends anything, so a self-hosted host's token is never sent to Bitbucket
-  Cloud. `bb auth` hides its input and never prints the token.
+  Cloud. `bb auth` hides its input and never prints the token, and the Accounts tab's status and
+  test results carry no token.
 - `git`, `docker`, and `podman` run with argument lists, never through a shell, and paths come
   after `--` where the CLI accepts it. `open_in_editor` runs only a detected editor or the
   user's own `editor.command`.
@@ -3270,7 +3381,9 @@ checklist in [development.md](development.md#releasing) before each release.
 The Forge module's providers map captured JSON to the normalized shapes in pure functions, so the
 GitHub and Bitbucket mappings, remote parsing and host classification, status-code mapping, the ETag
 cache, account choice, and token-source order are all tested without a network, and `bb auth`'s
-argument and token handling the same. The notices and menus, polling intervals, grouping, and log
+argument and token handling the same. The Accounts tab's host ordering, source kinds, and
+signed-in check are Rust tests in `forge/accounts.rs`, and its cards are a Vitest module
+(`forgeAccountsModel.test.ts`). The notices and menus, polling intervals, grouping, and log
 cleanup are Vitest cases in `forgeModel.test.ts` and `forgeMenus.test.ts`. Live checks against a
 real repo are `#[ignore]` tests, run by hand with `cargo test forge::github -- --ignored` (it uses
 `gh auth token`), `cargo test forge::bitbucket -- --ignored` (it uses the token stored by `bb auth

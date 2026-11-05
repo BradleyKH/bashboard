@@ -9,6 +9,7 @@ import {
   forgeRerun,
   forgeRuns,
   forgeSetAccount,
+  onForgeAuthChanged,
   type ForgeError,
   type ForgeRepo,
   type Job,
@@ -100,8 +101,28 @@ export class ForgeStore {
     for (const stream of this.activeStreams()) void this.poll(stream);
   };
 
+  private unlistenAuth: (() => void) | null = null;
+
   private constructor(readonly root: string) {
     document.addEventListener('visibilitychange', this.onVisibility);
+    void this.listenAuth();
+  }
+
+  /** A credential change for this repo's host (or one before the repo resolved) means look again now. */
+  private async listenAuth(): Promise<void> {
+    let off: () => void;
+    try {
+      off = await onForgeAuthChanged(({ host }) => {
+        const mine = this.repoValue?.host;
+        // An empty host means "unknown", and an unresolved repo may be the one that failed signed out.
+        if (!mine || host === '' || host === mine) void this.refresh();
+      });
+    } catch {
+      return;
+    }
+    // Disposed before the subscription resolved.
+    if (this.disposed) off();
+    else this.unlistenAuth = off;
   }
 
   get repo(): ForgeRepo | null {
@@ -270,6 +291,8 @@ export class ForgeStore {
   private dispose(): void {
     this.disposed = true;
     document.removeEventListener('visibilitychange', this.onVisibility);
+    this.unlistenAuth?.();
+    this.unlistenAuth = null;
     this.cancelTimer('runs');
     this.cancelTimer('pulls');
     this.subscribers.clear();

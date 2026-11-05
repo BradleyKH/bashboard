@@ -204,6 +204,7 @@ export type NoticeAction =
   | { kind: 'openUrl'; label: string; url: string }
   | { kind: 'copyText'; label: string; text: string }
   | { kind: 'pickAccount'; label: string }
+  | { kind: 'openAccounts'; label: string; host: string; openTokenForm?: boolean }
   | { kind: 'retry'; label: string };
 
 export interface ScopeLine {
@@ -261,11 +262,13 @@ function waitText(secs: number | null): string {
   return `in about ${Math.ceil(secs / 3600)} hours`;
 }
 
-function bitbucketActions(): NoticeAction[] {
+// The host is fixed rather than read from the error: `hostOf` falls back to github.com, and the
+// Overview builds notices with no repo before its first poll.
+function bitbucketActions(lead: 'Add token' | 'Replace token'): NoticeAction[] {
   return [
+    { kind: 'openAccounts', label: lead, host: 'bitbucket.org', openTokenForm: true },
     { kind: 'openUrl', label: 'Open the API token page', url: BITBUCKET_TOKEN_URL },
     { kind: 'copyText', label: 'Copy scopes', text: BITBUCKET_SCOPES.join(' ') },
-    { kind: 'runTerminal', label: 'Run bb auth bitbucket', argv: ['bb', 'auth', 'bitbucket'] },
     RETRY,
   ];
 }
@@ -274,7 +277,7 @@ const BITBUCKET_STEPS = [
   'Open the API token page and choose Create API token with scopes.',
   'Name it "Bashboard", pick an expiry, and choose the Bitbucket app.',
   'Tick the scopes listed below.',
-  'Create it, copy it, and run bb auth bitbucket in a terminal pane, pasting it when asked.',
+  'Create it, copy it, and choose Add token here (or run bb auth bitbucket in a terminal).',
 ];
 
 function bitbucketScopes(): ScopeLine[] {
@@ -289,7 +292,7 @@ function signedOutNotice(err: ForgeError, repo: ForgeRepo | null | undefined): N
       return notice(
         'Bitbucket rejected the stored API token.',
         ['It may have expired, or it may be missing a scope.'],
-        bitbucketActions(),
+        bitbucketActions('Replace token'),
         { steps: BITBUCKET_STEPS, scopes: bitbucketScopes(), collapsedLabel: 'How to make a new one' },
       );
     }
@@ -299,7 +302,7 @@ function signedOutNotice(err: ForgeError, repo: ForgeRepo | null | undefined): N
         'Bitbucket has no official command line tool, and Git Credential Manager\'s sign-in cannot read pipelines or pull requests, so Bashboard uses an API token.',
         'Bashboard sends the token to the Bitbucket REST API as a Bearer token and keeps it in Windows Credential Manager.',
       ],
-      bitbucketActions(),
+      bitbucketActions('Add token'),
       { steps: BITBUCKET_STEPS, scopes: bitbucketScopes() },
     );
   }
@@ -308,6 +311,7 @@ function signedOutNotice(err: ForgeError, repo: ForgeRepo | null | undefined): N
     const argv = err.signIn ?? ['gh', 'auth', 'login', '--hostname', host, '--web'];
     return notice(`Sign in to ${host} with the GitHub CLI.`, [err.message], [
       { kind: 'runTerminal', label: 'Sign in', argv },
+      { kind: 'openAccounts', label: 'Manage accounts', host },
       RETRY,
     ]);
   }
@@ -324,7 +328,11 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
     case 'notInstalled': {
       const actions: NoticeAction[] = [];
       if (err.signIn) actions.push({ kind: 'runTerminal', label: 'Install with winget', argv: err.signIn });
-      actions.push({ kind: 'openUrl', label: 'Open cli.github.com', url: err.url ?? GITHUB_CLI_URL }, RETRY);
+      actions.push(
+        { kind: 'openUrl', label: 'Open cli.github.com', url: err.url ?? GITHUB_CLI_URL },
+        { kind: 'openAccounts', label: 'Manage accounts', host: hostOf(err, repo) },
+        RETRY,
+      );
       return notice(
         'Bashboard reads GitHub through the GitHub CLI.',
         [
@@ -386,7 +394,7 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
         return notice(
           'Bitbucket denied the request',
           [err.message, 'The API token may be missing a scope.'],
-          bitbucketActions(),
+          bitbucketActions('Replace token'),
           { steps: BITBUCKET_STEPS, scopes: bitbucketScopes(), collapsedLabel: 'How to make a new one' },
         );
       }

@@ -216,6 +216,12 @@ describe('default keybindings', () => {
     });
   });
 
+  it('knows showAccounts as an action name but binds no key to it', () => {
+    expect(ACTION_NAMES).toContain('showAccounts');
+    expect(actionFromEntry({ keys: 'ctrl+alt+a', action: 'showAccounts' })).toEqual({ type: 'showAccounts' });
+    expect(DEFAULT_KEYBINDINGS.some((e) => e.action === 'showAccounts')).toBe(false);
+  });
+
   it('shift+enter sends ESC CR', () => {
     expect(lookup(keymap, ev({ key: 'Enter', code: 'Enter', shiftKey: true }))).toEqual({
       type: 'sendInput',

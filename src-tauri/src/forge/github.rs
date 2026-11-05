@@ -38,7 +38,7 @@ fn is_dotcom(repo: &RepoRef) -> bool {
     bare.eq_ignore_ascii_case("github.com")
 }
 
-fn api_base(repo: &RepoRef) -> String {
+pub(super) fn api_base(repo: &RepoRef) -> String {
     if is_dotcom(repo) {
         "https://api.github.com".into()
     } else {
