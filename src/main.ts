@@ -944,7 +944,7 @@ panel.setContainersStore(containers);
 panel.setPortsStore(ports);
 panel.setLocalModelsStore(localModels);
 void containers.start();
-panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop.animate, payload.settings.localModels.minContext);
+panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop, payload.settings.localModels.minContext);
 forgeOverviewStore.applySettings(payload.settings);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
@@ -1139,6 +1139,6 @@ onSettingsChanged((p) => {
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
   forgeOverviewStore.applySettings(p.settings);
-  panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop.animate, p.settings.localModels.minContext);
+  panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop, p.settings.localModels.minContext);
   void refreshProfiles().then(() => settingsTab.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

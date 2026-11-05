@@ -154,7 +154,7 @@ drops the Launch menu. A settings file that still has `sections.folder` and no `
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Forge section lists only what needs you across the repos pinned to the Forge Overview (a red health branch, a pull request awaiting your review, or your own pull request with changes requested or failing checks), shows "All clear" when nothing does, and hides itself while no repo is pinned. The Local models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Forge section lists only what needs you across the repos pinned to the Forge Overview (a red health branch, a pull request awaiting your review, or your own pull request with changes requested or failing checks), shows "All clear" when nothing does, and hides itself while no repo is pinned. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -207,10 +207,10 @@ section of the Settings tab.
 ```
 
 `localModels.ollamaUrl` and `localModels.lmStudioUrl` (both default empty) set the address Bashboard
-asks for local models. An empty Ollama URL uses `OLLAMA_HOST` when it is set (a bind address such as
+asks for local AI models. An empty Ollama URL uses `OLLAMA_HOST` when it is set (a bind address such as
 `0.0.0.0` maps to `127.0.0.1`), else `http://127.0.0.1:11434`; an empty LM Studio URL uses
 `http://127.0.0.1:1234`. `localModels.minContext` (default 64000) is the context length below which a loaded
-model is flagged; 0 turns the warning off. All three are in the Local models section of the
+model is flagged; 0 turns the warning off. All three are in the Local AI models section of the
 Settings tab.
 
 ```jsonc

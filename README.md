@@ -15,7 +15,7 @@ Windows terminal built around Claude Code: split terminal panes, a live status b
 - **Pick up where you left off.** Tabs, splits, and pads come back on relaunch; named layouts
   rebuild a whole workspace in one click. A command palette (Ctrl+Shift+P) reaches everything.
 - **More than Claude Code.** Preview support for OpenAI Codex and GitHub Copilot CLI: the same
-  status, cards, notifications, and resume on relaunch. A Local models section shows what Ollama
+  status, cards, notifications, and resume on relaunch. A Local AI models section shows what Ollama
   and LM Studio have loaded, warns when a model's context is too small for an agent, and launches
   an agent on a local model from the Launch menu.
 - **CI and reviews beside the code.** The Forge pane's Overview ranks your pinned repos by what

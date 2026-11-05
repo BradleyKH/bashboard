@@ -320,7 +320,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
-    title: 'Local models',
+    title: 'Local AI models',
     fields: [
       { path: ['localModels', 'ollamaUrl'], label: 'Ollama URL', kind: 'text', allowEmpty: true, hint: 'Empty uses http://localhost:11434', applies: 'live' },
       { path: ['localModels', 'lmStudioUrl'], label: 'LM Studio URL', kind: 'text', allowEmpty: true, hint: 'Empty uses http://localhost:1234', applies: 'live' },

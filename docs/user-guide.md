@@ -588,7 +588,7 @@ With the Swirling Lights background, each live agent session also appears in the
 own colored lineage. It blooms while the session is busy and thins while it is idle; set
 `backdrop.waitingPulse` to `true` to also make it pulse while it waits for you. The color
 matches the swatch beside the session in the dashboard. The Matrix and None backgrounds show no
-lineages; switching back to Swirling Lights brings each live session's lineage back as a fresh
+lineages, so the dashboard hides those swatches; switching back to Swirling Lights brings each live session's lineage back as a fresh
 founder. The Background choice in the Settings tab picks the style (see
 [Settings](settings.md#settings)), and Ctrl+Shift+A pauses or resumes it. Ctrl+Shift+B cycles
 the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
@@ -664,7 +664,7 @@ started; untick it to see everything else, and tick **Windows services** to incl
 own ports, dimmed. Opening the pane from the dashboard on a port no pane started unticks it for
 you. Any pane can also become a Ports pane from its kind menu.
 
-## Codex, Copilot, and local models (preview)
+## Codex, Copilot, and local AI models (preview)
 
 Besides Claude Code, Bashboard follows OpenAI Codex and GitHub Copilot CLI sessions. Their status
 dots, waiting and done markers, pane borders, notifications, Panes cards, and resume on relaunch
@@ -674,14 +674,14 @@ example "Codex · gpt-5.5 · 112k / 272k tokens". Install each agent's hooks fro
 in the dashboard ("Install Codex hooks", "Install Copilot hooks") or the setup wizard's Coding
 agents step. Codex asks you to trust the hooks the next time it starts.
 
-Codex, Copilot, and Local models are a preview, built without a Codex or Copilot setup to test
+Codex, Copilot, and Local AI models are a preview, built without a Codex or Copilot setup to test
 against, so reports are welcome. Open an issue from the agent report template on GitHub with the
 agent's version, a sample of its hook payloads, and a few transcript lines (see
 [Reporting a problem with an agent](setup.md#reporting-a-problem-with-an-agent)).
 
-### Local models
+### Local AI models
 
-The **Local models** section of the dashboard lists the model servers that answer on this machine,
+The **Local AI models** section of the dashboard lists the model servers that answer on this machine,
 Ollama and LM Studio, and the models each has loaded: its name, where it runs, its context length,
 and the time until it unloads. It appears only while a server answers, and says "No model loaded"
 for a server with nothing in memory. A context length under `localModels.minContext` (64000 by

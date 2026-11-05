@@ -45,7 +45,7 @@ function modelRow(m: ModelRow, minContext: number): HTMLElement {
   return el;
 }
 
-/** The dashboard's Local models section: answering Ollama and LM Studio servers and what they have loaded. */
+/** The dashboard's Local AI models section: answering Ollama and LM Studio servers and what they have loaded. */
 export class LocalModelsSection {
   readonly el: HTMLElement;
   readonly head: HTMLElement;
@@ -59,7 +59,7 @@ export class LocalModelsSection {
     this.head = document.createElement('div');
     this.head.className = 'dashboard-section-head';
     const h = document.createElement('h2');
-    h.textContent = 'Local models';
+    h.textContent = 'Local AI models';
     h.title = 'Preview: models loaded in Ollama and LM Studio';
     this.head.append(h);
 

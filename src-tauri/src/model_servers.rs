@@ -1,4 +1,4 @@
-//! Local model servers for the dashboard's Local models section (docs/design.md section 3.19).
+//! Local model servers for the dashboard's Local AI models section (docs/design.md section 3.19).
 //!
 //! The front end polls `model_servers_poll` while the section is wanted; each call asks Ollama
 //! and LM Studio over loopback HTTP with short timeouts. A server that does not answer is simply

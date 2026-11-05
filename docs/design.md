@@ -23,7 +23,7 @@ title is "Bashboard".
   folders and layout, and resumes the agent sessions that were running in them.
 - **Session awareness.** A roster of all local agent sessions (Claude Code, Codex, and Copilot, in
   this app and elsewhere), their status, and which ones need attention, also expressed as organisms
-  in the simulation. Claude Code is the tested path; Codex, Copilot, and the Local models section
+  in the simulation. Claude Code is the tested path; Codex, Copilot, and the Local AI models section
   are a preview.
 - **Repo companions.** What usually stays open beside Claude Code (a folder of plans, a to-do
   file, git status, a code search, a scratch pad, Docker and Podman containers) opens as panes next to the
@@ -924,7 +924,7 @@ installed app; their saved state is already separate (3.6).
 
 ### 3.19 Local model servers (`src-tauri/src/model_servers.rs`)
 
-The Local models section (4.6) and the launcher's local-model entries need to know which model
+The Local AI models section (4.6) and the launcher's local-model entries need to know which model
 servers answer on this machine and what they have loaded. The core asks Ollama and LM Studio over
 loopback HTTP with an 800 ms timeout per request; a server that does not answer is absent from the
 result, never an error.
@@ -1520,7 +1520,7 @@ panel sits alone at the right end. Each button's tooltip ends with its action's 
 parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
 
 **Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports, Forge,
-Local models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
+Local AI models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
 Favorites, Layouts, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
@@ -1750,7 +1750,7 @@ Each card shows:
   272k tokens". Either half shows alone while the other is unknown (Copilot reports no tokens),
   and the line is absent until the transcript has a model or a count. The count is shown against a
   window only when one is known: Codex's transcript reports it, and for a model loaded in Ollama
-  the window is the loaded context length from the Local models poll (3.19). Claude Code's
+  the window is the loaded context length from the Local AI models poll (3.19). Claude Code's
   transcript does not name the window, so its count stands alone rather than guess a fraction.
 - For a terminal, time since the last status change.
 - A profile badge when the terminal's shell is not Git Bash.
@@ -1793,7 +1793,7 @@ the section reads "All clear"; before any has loaded it shows a dash. The sectio
 no repo is pinned. It reads the Overview's shared store (4.20), which polls only while this
 section is shown by `dashboard.sections.forge`, expanded, and on screen with the window shown.
 
-**Local models.** Shown while `dashboard.sections.localModels` is on and at least one model
+**Local AI models.** Shown while `dashboard.sections.localModels` is on and at least one model
 server answers (3.19), and a preview. One header row per answering server (Ollama first, then LM
 Studio) shows its name and version, with the server's URL in the tooltip, and a row beneath it
 per loaded model shows the model's name, where it runs (`GPU`, `CPU`, or a GPU share, for Ollama
@@ -1824,7 +1824,7 @@ agent's hook config is complete and only the hook script is out of date. With ev
 agent's hooks in, the footer takes no space.
 
 The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the
-sections Terminal, Dashboard, Appearance, Background, Editor, Git, Forge, Local models, and Restore. A filter field above them
+sections Terminal, Dashboard, Appearance, Background, Editor, Git, Forge, Local AI models, and Restore. A filter field above them
 shows only the fields whose label, hint, group, or section holds every word typed, and hides
 sections left empty. Dashboard holds the side choice, Left or Right, and a
 checkbox per element under "Show on the dashboard", followed by the Clock style select while the
@@ -1851,8 +1851,10 @@ A peek overlays the panes from the panel's side without narrowing them. It ends 
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends
 it too.
 
-Every row tied to an agent session has a hue swatch matching that session's lineage color in
-the backdrop (6.3), which is how the backdrop and the dashboard stay readable as one system.
+Under the Swirling Lights background, every row tied to an agent session has a hue swatch
+matching that session's lineage color in the backdrop (6.3), which is how the backdrop and the
+dashboard stay readable as one system. A pane card carries it on the model line, aligned under
+the title. Matrix and None draw no lineages, so the swatches hide.
 
 ### 4.7 Attention
 

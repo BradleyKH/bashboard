@@ -60,7 +60,7 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
   containers: 'Containers',
   ports: 'Ports',
   forge: 'Forge',
-  localModels: 'Local models',
+  localModels: 'Local AI models',
   external: 'External sessions',
   system: 'System',
   wave: 'Wave',
@@ -70,6 +70,7 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
 /** Muted notes under the settings dialog's checkboxes, for elements whose name says little. */
 export const ELEMENT_HINTS: Partial<Record<DashboardElement, string>> = {
   wave: 'A Lissajous figure that follows CPU and network load',
+  containers: 'Podman and Docker',
   forge: 'Manage pipelines and PRs for selected repos',
 };
 

@@ -15,6 +15,8 @@ export interface PaneCardOptions {
   agentLine: string | null;
   /** Shows the folder path under the title; hidden, the path moves into the title's tooltip. */
   showPath: boolean;
+  /** Shows the session's hue swatch; off when the backdrop draws no session lineages. */
+  showSwatch: boolean;
   /** True while the card shows its inline close confirmation. */
   confirming: boolean;
   onFocus: (paneId: string) => void;
@@ -137,15 +139,7 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
   title.textContent = card.title;
   title.title = card.path && !opts.showPath ? `${card.title}\n${card.path}` : card.title;
 
-  head.append(lead);
-  if (card.kind === 'terminal' && card.hue !== null) {
-    const swatch = document.createElement('span');
-    swatch.className = 'hue-swatch';
-    swatch.style.background = hueCss(card.hue);
-    swatch.title = 'Session color';
-    head.append(swatch);
-  }
-  head.append(title);
+  head.append(lead, title);
   if (card.collapsed) {
     const marker = document.createElement('span');
     marker.className = 'card-collapsed';
@@ -193,11 +187,25 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     setPathText(path, card.path);
     el.append(path);
   }
-  if (opts.agentLine !== null) {
+  const hue = card.kind === 'terminal' && opts.showSwatch ? card.hue : null;
+  // The swatch rides on the model line, which shows with just the swatch until the model is known.
+  if (opts.agentLine !== null || hue !== null) {
     const line = document.createElement('div');
     line.className = 'card-agent';
-    line.textContent = opts.agentLine;
-    line.title = opts.agentLine;
+    if (hue !== null) {
+      const swatch = document.createElement('span');
+      swatch.className = 'hue-swatch';
+      swatch.style.background = hueCss(hue);
+      swatch.title = 'Session color';
+      line.append(swatch);
+    }
+    if (opts.agentLine !== null) {
+      const text = document.createElement('span');
+      text.className = 'card-agent-text';
+      text.textContent = opts.agentLine;
+      text.title = opts.agentLine;
+      line.append(text);
+    }
     el.append(line);
   }
   return el;

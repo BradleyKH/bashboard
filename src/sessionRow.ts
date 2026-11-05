@@ -12,6 +12,8 @@ import { showToast } from './toast';
 export interface SessionRowOptions {
   now: number;
   expanded: boolean;
+  /** Shows the session's hue swatch; off when the backdrop draws no session lineages. */
+  showSwatch: boolean;
   onToggle: (sessionId: string) => void;
   /** Open menu beside the folder button; omitted, the row shows none. */
   onOpenIn?: OpenInHandler;
@@ -78,10 +80,6 @@ export function renderSessionRow(session: Session, opts: SessionRowOptions): HTM
   const reason = session.status === 'waiting' ? waitingText(session.waitingReason) : null;
   dot.title = reason ?? session.rawStatus ?? session.status;
 
-  const swatch = document.createElement('span');
-  swatch.className = 'hue-swatch';
-  swatch.style.background = hueCss(sessionHue(session));
-  swatch.title = 'Session color';
 
   const name = document.createElement('span');
   name.className = 'session-name';
@@ -92,7 +90,15 @@ export function renderSessionRow(session: Session, opts: SessionRowOptions): HTM
   age.className = 'session-age';
   age.textContent = formatAge(opts.now - session.statusChangedAt);
 
-  head.append(dot, swatch, name);
+  head.append(dot);
+  if (opts.showSwatch) {
+    const swatch = document.createElement('span');
+    swatch.className = 'hue-swatch';
+    swatch.style.background = hueCss(sessionHue(session));
+    swatch.title = 'Session color';
+    head.append(swatch);
+  }
+  head.append(name);
   if (session.cwd) head.append(folderButton(session.cwd));
   if (session.cwd && opts.onOpenIn) head.append(openMenuButton(session.cwd, opts.onOpenIn));
   head.append(age);

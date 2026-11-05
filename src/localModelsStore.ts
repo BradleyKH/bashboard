@@ -3,7 +3,7 @@ import { pollModelServers, type ModelServersSnapshot } from './modelServersApi';
 const POLL_MS = 5000;
 
 /**
- * The latest model-server snapshot for the dashboard's Local models section and the Panes card.
+ * The latest model-server snapshot for the dashboard's Local AI models section and the Panes card.
  * Like PortsStore it polls only while some consumer wants it, and the next demand polls at once.
  * An unreachable core leaves the snapshot as it was.
  */

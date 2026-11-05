@@ -799,13 +799,21 @@ body.dashboard-resizing {
 }
 
 .card-agent {
-  margin: 1px 0 0 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  /* Lines the session swatch up under the title: the status dot's 4px margins, 8px width, and the head's 6px gap. */
+  margin: 1px 0 0 22px;
   color: #6c777e;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.card-agent-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-reason,

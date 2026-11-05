@@ -206,6 +206,8 @@ export class DashboardPanel {
   private localModelsStore: LocalModelsStore | null = null;
   private unsubscribeLocalModels: (() => void) | null = null;
   private minContext = 64000;
+  /** Session swatches match the backdrop's lineages, which only Swirling Lights draws (section 6.3). */
+  private showSwatches = true;
   private readonly terminalList: HTMLElement;
   private readonly sessionList: HTMLElement;
 
@@ -449,18 +451,23 @@ export class DashboardPanel {
 
   /**
    * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md
-   * section 4.6); `animate` is `backdrop.animate`, which also stills the Wave.
+   * section 4.6); `backdrop.animate` also stills the Wave, and `backdrop.style` decides whether
+   * session swatches show.
    */
-  applyDashboardSettings(d: Settings['dashboard'], animate: boolean, minContext: number): void {
+  applyDashboardSettings(d: Settings['dashboard'], backdrop: Settings['backdrop'], minContext: number): void {
     this.shown = { ...d.sections };
+    const showSwatches = backdrop.style === 'lights';
+    const swatchesChanged = showSwatches !== this.showSwatches;
+    this.showSwatches = showSwatches;
     this.minContext = minContext;
     this.localModelsSection.update(this.localModelsStore?.current() ?? null, minContext);
-    this.wave.setAnimate(animate);
+    this.wave.setAnimate(backdrop.animate);
     this.clockStyle = d.clockStyle;
     this.clock.setStyle(d.clockStyle);
     this.setSide(d.side);
     this.layoutElements();
     this.syncTimers();
+    if (swatchesChanged) this.render();
   }
 
   /** Applies a saved element order without firing `onOrderChange`. */
@@ -880,6 +887,7 @@ export class DashboardPanel {
             )
           : null,
       showPath: this.showPanePaths,
+      showSwatch: this.showSwatches,
       confirming: this.confirming.has(card.paneId),
       onFocus: this.callbacks.onFocus,
       onToggleCollapse: this.callbacks.onToggleCollapse,
@@ -921,6 +929,7 @@ export class DashboardPanel {
         renderSessionRow(s, {
           now,
           expanded: this.expanded.has(s.sessionId),
+          showSwatch: this.showSwatches,
           onOpenIn: this.callbacks.onOpenIn,
           onToggle: (id) => {
             if (!this.expanded.delete(id)) this.expanded.add(id);

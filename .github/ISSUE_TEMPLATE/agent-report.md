@@ -1,11 +1,11 @@
 ---
 name: Agent report
-about: Codex, Copilot, or Local models behaving differently than the user guide describes (preview)
+about: Codex, Copilot, or Local AI models behaving differently than the user guide describes (preview)
 title: "[agent] "
 labels: ""
 ---
 
-Codex, Copilot, and Local models are a preview, so reports on how they behave on a real setup help
+Codex, Copilot, and Local AI models are a preview, so reports on how they behave on a real setup help
 a great deal. Thank you for sending one.
 
 ## Agent and version
