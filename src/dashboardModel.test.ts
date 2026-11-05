@@ -316,6 +316,7 @@ describe('groupCardsByTab', () => {
   const tab = (id: string, over: Partial<Parameters<typeof groupCardsByTab>[1][number]> = {}) => ({
     id,
     title: id,
+    name: null,
     active: false,
     status: 'idle' as const,
     attention: false,

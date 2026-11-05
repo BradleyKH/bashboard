@@ -89,7 +89,19 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  border-right: 1px solid var(--git-border);
+}
+
+.git-divider {
+  flex: none;
+  width: 4px;
+  cursor: col-resize;
+  background: rgba(255, 255, 255, 0.06);
+  touch-action: none;
+}
+
+.git-divider:hover,
+.git-divider.dragging {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 /* File and commit lists, branch rows, and the diff take the content text color; the head, tabs,

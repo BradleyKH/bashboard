@@ -1,4 +1,5 @@
 import './filesPane.css';
+import { startSplitDrag } from './splitDrag';
 import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
@@ -76,9 +77,6 @@ export interface FilesPaneOptions {
   getPinnedFolders: () => string[];
   onOpenInEditor?: (path: string) => void;
 }
-
-const MIN_SPLIT = 0.15;
-const MAX_SPLIT = 0.85;
 
 function errorText(err: unknown): string {
   if (typeof err === 'string') return err;
@@ -236,7 +234,12 @@ export class FilesPane implements PaneView {
     this.listeners.push(attachContextMenu(this.preview.el, () => ({ entries: this.previewMenu() })));
     this.listen(this.host, 'focusin', () => opts.onFocus());
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
-    this.listen(this.divider, 'pointerdown', (e) => this.startDrag(e as PointerEvent));
+    this.listen(this.divider, 'pointerdown', (e) =>
+      startSplitDrag(e as PointerEvent, this.divider, this.body, (f) => {
+        this.split = f;
+        this.applySplit();
+      }),
+    );
     // Mouse back and forward buttons; WebView2 would otherwise navigate the page.
     for (const type of ['mousedown', 'auxclick']) {
       this.listen(this.host, type, (e) => {
@@ -750,28 +753,6 @@ export class FilesPane implements PaneView {
 
   private applySplit(): void {
     this.left.style.flexBasis = `${this.split * 100}%`;
-  }
-
-  private startDrag(e: PointerEvent): void {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    this.divider.setPointerCapture(e.pointerId);
-    this.divider.classList.add('dragging');
-    const move = (ev: PointerEvent) => {
-      const r = this.body.getBoundingClientRect();
-      if (r.width <= 0) return;
-      this.split = Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, (ev.clientX - r.left) / r.width));
-      this.applySplit();
-    };
-    const up = () => {
-      this.divider.classList.remove('dragging');
-      this.divider.removeEventListener('pointermove', move);
-      this.divider.removeEventListener('pointerup', up);
-      this.divider.removeEventListener('pointercancel', up);
-    };
-    this.divider.addEventListener('pointermove', move);
-    this.divider.addEventListener('pointerup', up);
-    this.divider.addEventListener('pointercancel', up);
   }
 
   private onKeyDown(e: KeyboardEvent): void {

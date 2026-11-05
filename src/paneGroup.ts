@@ -1,14 +1,19 @@
+import { attachContextMenu } from './contextMenu';
+import { item } from './contextMenuModel';
 import type { PaneGroup } from './dashboardModel';
+import { setRowRename, startRename } from './rowControls';
+
+export interface PaneGroupHandlers {
+  onSwitchTab: (tabId: string) => void;
+  /** An empty name returns the tab to following its focused pane's title. */
+  onRename: (tabId: string, name: string) => void;
+}
 
 /**
  * One tab's group in the dashboard's Panes section (docs/design.md section 4.6): a header and,
  * under it, the tab's cards along a guide line.
  */
-export function renderPaneGroup(
-  group: PaneGroup,
-  cards: HTMLElement[],
-  onSwitchTab: (tabId: string) => void,
-): HTMLElement {
+export function renderPaneGroup(group: PaneGroup, cards: HTMLElement[], handlers: PaneGroupHandlers): HTMLElement {
   const el = document.createElement('div');
   el.className = 'terminal-group';
   el.classList.toggle('active', group.active);
@@ -29,7 +34,14 @@ export function renderPaneGroup(
   count.textContent = String(group.count);
 
   header.append(name, count);
-  header.addEventListener('click', () => onSwitchTab(group.tabId));
+  header.addEventListener('click', () => handlers.onSwitchTab(group.tabId));
+
+  const beginRename = (): void =>
+    startRename(name, group.name ?? group.title, (value) => handlers.onRename(group.tabId, value), {
+      allowEmpty: true,
+    });
+  setRowRename(header, beginRename);
+  attachContextMenu(header, () => ({ entries: [item('Rename', beginRename)], target: header }));
 
   const list = document.createElement('div');
   list.className = 'terminal-group-cards';

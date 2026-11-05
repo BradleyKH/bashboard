@@ -25,11 +25,15 @@ export function rowRename(row: HTMLElement): (() => void) | undefined {
   return renamers.get(row);
 }
 
-/** Swaps `label` for a text input; Enter or blur commits a changed, non-empty value, Escape cancels. */
+/**
+ * Swaps `label` for a text input; Enter or blur commits a changed value, Escape cancels. An empty
+ * value commits only with `allowEmpty`, for names where empty means "no fixed name".
+ */
 export function startRename(
   label: HTMLElement,
   current: string,
   commit: (value: string) => void,
+  opts: { allowEmpty?: boolean } = {},
 ): void {
   const input = document.createElement('input');
   input.type = 'text';
@@ -47,7 +51,7 @@ export function startRename(
     const value = input.value.trim();
     input.replaceWith(label);
     if (refocus && row?.isConnected) row.focus();
-    if (save && value && value !== current) commit(value);
+    if (save && (value || opts.allowEmpty) && value !== current) commit(value);
   };
   input.addEventListener('keydown', (e) => {
     e.stopPropagation();

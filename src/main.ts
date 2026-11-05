@@ -616,6 +616,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   },
   onCardDragStart: (paneId, e) => workspace.startDrag({ kind: 'pane', paneId }, e),
   onSwitchTab: (tabId) => workspace.switchTab(tabId),
+  onRenameTab: (tabId, name) => workspace.renameTab(tabId, name),
   onSectionsChange: () => saver.schedule(),
   onPanePathsChange: () => saver.schedule(),
   onWidthChange: () => saver.schedule(),

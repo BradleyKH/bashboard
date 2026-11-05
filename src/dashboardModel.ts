@@ -178,6 +178,8 @@ export function externalSessions(
 export interface TabGroupInput {
   id: string;
   title: string;
+  /** Null while the title follows the focused pane. */
+  name: string | null;
   active: boolean;
   status: TerminalStatus;
   attention: boolean;
@@ -186,6 +188,7 @@ export interface TabGroupInput {
 export interface PaneGroup {
   tabId: string;
   title: string;
+  name: string | null;
   count: number;
   status: TerminalStatus;
   active: boolean;
@@ -200,6 +203,7 @@ export function groupCardsByTab(cards: PaneCard[], tabs: TabGroupInput[]): PaneG
     return {
       tabId: tab.id,
       title: tab.title,
+      name: tab.name,
       count: own.length,
       status: tab.status,
       active: tab.active,

@@ -76,6 +76,8 @@ export interface DashboardCallbacks
   onToggleCollapse?: (paneId: string) => void;
   onCardDragStart?: (paneId: string, e: PointerEvent) => void;
   onSwitchTab?: (tabId: string) => void;
+  /** A tab group header's Rename; an empty name returns the tab to following its focused pane. */
+  onRenameTab?: (tabId: string, name: string) => void;
   /** The user collapsed or expanded a section; the argument is every collapsed section. */
   onSectionsChange?: (collapsed: DashboardSection[]) => void;
   /** The user toggled the Panes section's folder paths. */
@@ -895,13 +897,19 @@ export class DashboardPanel {
     });
     const groups = groupCardsByTab(cards, this.tabs);
     const showHeaders = groups.length > 1;
-    this.terminalList.replaceChildren(
+    // A status or age refresh would destroy a group header's open rename field; the commit
+    // re-renders once the field is gone.
+    const renaming = this.terminalList.querySelector('.favorite-rename') !== null;
+    if (!renaming) this.terminalList.replaceChildren(
       ...(showHeaders
         ? groups.map((g) =>
             renderPaneGroup(
               g,
               g.cards.map((card) => renderPaneCard(card, cardOptions(card))),
-              (tabId) => this.callbacks.onSwitchTab?.(tabId),
+              {
+                onSwitchTab: (tabId) => this.callbacks.onSwitchTab?.(tabId),
+                onRename: (tabId, name) => this.callbacks.onRenameTab?.(tabId, name),
+              },
             ),
           )
         : cards.map((card) => renderPaneCard(card, cardOptions(card)))),

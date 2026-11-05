@@ -1,4 +1,5 @@
 import './gitPane.css';
+import { startSplitDrag } from './splitDrag';
 import type { ConfirmOptions } from './confirmDialog';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
@@ -135,6 +136,9 @@ export class GitPane implements PaneView {
   private readonly body: HTMLElement;
   private readonly main: HTMLElement;
   private readonly left: HTMLElement;
+  private readonly divider: HTMLElement;
+  /** The list column's share of the pane's width, set by dragging the divider. */
+  private split = 0.4;
   private readonly right: HTMLElement;
   private readonly notice: HTMLElement;
   private readonly branch: GitBranchRow;
@@ -250,6 +254,9 @@ export class GitPane implements PaneView {
     });
     this.left.append(this.commitBox.el, this.stagedList.el, this.changesList.el, this.logList.el);
 
+    this.divider = document.createElement('div');
+    this.divider.className = 'git-divider';
+
     this.right = document.createElement('div');
     this.right.className = 'git-right';
     this.diffView = new GitDiffView(() => {
@@ -292,7 +299,7 @@ export class GitPane implements PaneView {
     head.append(this.branch.el, this.tabStrip.el);
     this.main = document.createElement('div');
     this.main.className = 'git-main';
-    this.main.append(this.left, this.right);
+    this.main.append(this.left, this.divider, this.right);
     this.body.append(head, this.main, this.branchesView.el, this.notice);
     this.body.classList.toggle('tab-branches', this.tab === 'branches');
     this.host.appendChild(this.body);
@@ -301,6 +308,12 @@ export class GitPane implements PaneView {
     this.notice.hidden = true;
 
     this.listen(this.host, 'focusin', () => opts.onFocus());
+    this.listen(this.divider, 'pointerdown', (e) =>
+      startSplitDrag(e as PointerEvent, this.divider, this.main, (f) => {
+        this.split = f;
+        this.applySplit();
+      }),
+    );
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
     this.listen(window, 'focus', () => this.refresh());
 
@@ -799,6 +812,10 @@ export class GitPane implements PaneView {
       e.preventDefault();
       e.stopPropagation();
     }
+  }
+
+  private applySplit(): void {
+    this.left.style.flexBasis = `${this.split * 100}%`;
   }
 
   private listen(target: EventTarget, type: string, fn: (e: Event) => void): void {

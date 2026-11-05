@@ -176,6 +176,7 @@ Click a file row to see its diff: the unstaged change for a row in Changes, or t
 a row in Staged. An untracked file shows its whole content as added. Click a commit to see its
 changes. A diff over 1 MiB is cut off with a note that it was truncated. The − and + buttons above
 the diff, or Ctrl+wheel over it, zoom it, and a new Git pane starts at the zoom you last chose.
+The divider between the lists and the diff can be dragged.
 
 Push never forces. A rejected push shows git's message, and after undoing a pushed commit the
 force push stays in a terminal.
@@ -420,10 +421,10 @@ the × at its right end hides the panel too, with a notice naming the ways back.
 small handle sits on that edge of the window, halfway down; click it to bring the panel back. F6 moves focus
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
 clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,
-F2 renames the focused favorite, layout, or pin, and F6 or Escape returns to the pane. Drag its inner
+F2 renames the focused favorite, layout, pin, or tab group header, and F6 or Escape returns to the pane. Drag its inner
 edge to make it wider or narrower; the width is saved with the workspace. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
-pane count, and status; click a header to switch to that tab). A terminal's card shows its status (a green check mark when it is done),
+pane count, and status; click a header to switch to that tab, or right-click it to rename the tab). A terminal's card shows its status (a green check mark when it is done),
 folder, and time since its status last changed, plus, while a coding agent session runs in it, the model
 and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k tokens" for Claude Code, and
 "Codex · gpt-5.5 · 112k / 272k tokens" for the others, which lead with the agent's name); a card for any other kind of pane shows the

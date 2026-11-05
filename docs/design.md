@@ -1560,8 +1560,8 @@ sections:
 
 - Up and Down move one row, stopping at the ends; Home and End go to the first and last.
 - Enter or Space acts as a click on the row, and Ctrl+Enter as a Ctrl+click.
-- F2 on a favorite, layout, or pin (one whose target exists) opens the rename field its button,
-  double-click, or menu opens. Enter saves and Escape cancels, both returning focus to the row;
+- F2 on a favorite, layout, pin (one whose target exists), or tab group header opens the rename
+  field its button, double-click, or menu opens. Enter saves and Escape cancels, both returning focus to the row;
   leaving the field saves, as it does for a mouse rename.
 - Left on a row goes to its section's header, and on an expanded header collapses the section.
   Right on a collapsed header expands it, and on an expanded one goes to its first row.
@@ -1594,12 +1594,13 @@ a git repo; "Explorer" is Open in File Explorer.
 | Recent | The Open entries, Explorer, Copy path, Add to favorites |
 | Layout | Open, Rename, Remove (asking inline, as its button does) |
 | Repo pin | Open, Explorer (a file pin's folder), Copy path, Rename, Remove pin |
+| Tab group header | Rename (an empty name follows the focused pane's title, as in the tab strip) |
 | Containers | Start when any container in the group is stopped, Stop when any runs, Open Containers |
 | Ports | Open localhost:&lt;port&gt;, Go to pane (when a pane started it), Show in Ports, Copy URL, Copy command line, Copy folder, Copy PID, Stop &lt;program&gt;... |
 | Claude | Focus, Copy path |
 
 A pin whose path is missing is dimmed, and its menu disables everything but Remove pin. A Containers row that only reports an engine not running has no menu.
-Section headers, tab group headers, the clock, Wave, the System section, the footer, gaps between
+Section headers, the clock, Wave, the System section, the footer, gaps between
 panes, and the backdrop have no menu.
 
 The Open menu button on those rows, and the Files row's menu button (4.12), open the same shared
@@ -1673,7 +1674,7 @@ moves out from under the pointer.
 A group's combined status follows the tab urgency order (4.10). With two or more tabs, each group has a header showing the tab's name and its pane count, with
 the group's cards indented beneath it along a vertical guide line. The header has no status dot,
 so only cards carry one. The active tab's header is brighter and its guide line takes the
-accent color, and clicking a header switches to that tab. With one tab there
+accent color, and clicking a header switches to that tab. Its menu or F2 renames the tab in place. With one tab there
 are no headers and the section reads as a plain list.
 
 Dragging a card or a title strip onto another tab's group (its header or cards) highlights the

@@ -1,4 +1,5 @@
 import './searchPane.css';
+import { startSplitDrag } from './splitDrag';
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
@@ -51,9 +52,6 @@ export interface SearchPaneOptions {
   /** Show in Files on a row: the file's absolute path and this pane's root. */
   onShowInFiles: (absolute: string, root: string) => void;
 }
-
-const MIN_SPLIT = 0.15;
-const MAX_SPLIT = 0.85;
 
 function baseName(p: string): string {
   const parts = p.split(/[\\/]+/).filter((s) => s !== '');
@@ -213,7 +211,12 @@ export class SearchPane implements PaneView {
     this.listen(this.includeField, 'keydown', (e) => this.onFieldKey(e as KeyboardEvent, false));
     this.listen(this.results.el, 'keydown', (e) => this.onListKey(e as KeyboardEvent));
     this.listen(this.results.el, 'focus', () => this.onListFocus());
-    this.listen(this.divider, 'pointerdown', (e) => this.startDrag(e as PointerEvent));
+    this.listen(this.divider, 'pointerdown', (e) =>
+      startSplitDrag(e as PointerEvent, this.divider, this.split, (f) => {
+        this.splitFraction = f;
+        this.applySplit();
+      }),
+    );
     this.listen(this.preview.el, 'focusout', (e) => this.onPreviewBlur(e as FocusEvent));
     this.listeners.push(attachContextMenu(this.preview.el, () => ({ entries: this.previewMenu() })));
 
@@ -501,28 +504,6 @@ export class SearchPane implements PaneView {
 
   private applySplit(): void {
     this.left.style.flexBasis = `${this.splitFraction * 100}%`;
-  }
-
-  private startDrag(e: PointerEvent): void {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    this.divider.setPointerCapture(e.pointerId);
-    this.divider.classList.add('dragging');
-    const move = (ev: PointerEvent) => {
-      const r = this.split.getBoundingClientRect();
-      if (r.width <= 0) return;
-      this.splitFraction = Math.min(MAX_SPLIT, Math.max(MIN_SPLIT, (ev.clientX - r.left) / r.width));
-      this.applySplit();
-    };
-    const up = () => {
-      this.divider.classList.remove('dragging');
-      this.divider.removeEventListener('pointermove', move);
-      this.divider.removeEventListener('pointerup', up);
-      this.divider.removeEventListener('pointercancel', up);
-    };
-    this.divider.addEventListener('pointermove', move);
-    this.divider.addEventListener('pointerup', up);
-    this.divider.addEventListener('pointercancel', up);
   }
 
   private listen(target: EventTarget, type: string, fn: (e: Event) => void): void {
