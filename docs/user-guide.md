@@ -249,17 +249,17 @@ Opening a Git pane runs `git status` and `git diff` in the repo, and a repo's ow
 make those run programs (`core.fsmonitor`, diff and textconv drivers), as it can for `git` in a
 terminal. Only open Git panes on repos you trust.
 
-## Forge pane
+## Ship pane
 
-A Forge pane shows how your repos' CI and pull requests are doing, from their code hosts, so you
+A Ship pane shows how your repos' CI and pull requests are doing, from their code hosts, so you
 can watch a build or see what awaits review without leaving Bashboard. It opens on an
 [Overview](#overview) of the repos you have pinned, and a click on one shows that repo's own CI runs
 and open pull requests. It supports GitHub (github.com and GitHub Enterprise Server) and Bitbucket
-Cloud. The command palette's Open the Forge tab, the Forge section's button on the dashboard, and
-**Forge** in the kind menu of a pane with no folder show the Overview. Click Forge in Launch, or
-choose **Forge** in the kind menu of a pane with a folder, and the pane opens on the repo of that
-folder, found from the repo's remote. A Forge pane comes back on relaunch where you left it, and
-layouts keep it. Its title is the repo's name while it shows a repo, and "Forge" on the Overview.
+Cloud. The command palette's Open the Ship tab, the Ship section's button on the dashboard, and
+**Ship** in the kind menu of a pane with no folder show the Overview. Click Ship in Launch, or
+choose **Ship** in the kind menu of a pane with a folder, and the pane opens on the repo of that
+folder, found from the repo's remote. A Ship pane comes back on relaunch where you left it, and
+layouts keep it. Its title is the repo's name while it shows a repo, and "Ship" on the Overview.
 In a folder outside a repo, or in a repo with no remote, it shows a notice.
 
 It reads the host with a sign-in you already have: the GitHub CLI (`gh`) for GitHub, and a Bitbucket
@@ -276,7 +276,8 @@ pane looks again on its own, unless the error is a rate limit. The full steps ar
 
 The Overview has one row per pinned repo, across GitHub and Bitbucket, ordered by what needs you
 first. A row shows the repo's `owner/name` with a GH or BB badge, a summary of its open pull
-requests ("3 open, 1 needs you", highlighted while a review is waiting on you), and a status icon
+requests ("3 PRs open, 1 draft, 1 needs you", highlighted while a review is waiting on you), the number of
+pipelines queued or running on any branch ("2 pipelines running", shown only while some are), and a status icon
 for each of its **health branches**: the repo's default branch, the branches its open pull requests
 target (usually the deploy branches), and any you list for the pin. Each shows how its newest run
 ended and how long ago, or "No recent run" when none of the repo's latest 20 runs was on it. When a
@@ -289,7 +290,7 @@ request awaiting your review, your own pull request with changes requested or fa
 health branch that is running, and then the rest by most recent activity. Rows tied on one of the
 first four keep the order of your pins.
 
-Click a row to see its Pipelines, or its pull request summary to see its Pull requests. Right-click
+Click a row or its running count to see its Pipelines, or its pull request summary to see its Pull requests. Right-click
 a row for **Open Pipelines**, **Open Pull requests**, **Open in browser**, **Open terminal here**
 (when the pin has a local clone), **Copy link**, and **Unpin from Overview**; when the pane is wide enough, the same actions
 (except Unpin) are buttons at the right of each row. In a repo's own view,
@@ -299,9 +300,9 @@ uses the host's default account.
 
 The Overview shows when it was last updated and has its own **Accounts** button, which opens the
 Accounts tab, and a **Refresh** button. It refreshes by
-itself every 5 minutes (`forge.overviewRefreshMinutes`; 0 turns this off),
+itself every 5 minutes (`ship.overviewRefreshMinutes`; 0 turns this off),
 every minute while a health branch is running, and when you focus the pane after more than 30
-seconds away. It polls only while the Overview or the dashboard's Forge section is on screen and
+seconds away. It polls only while the Overview or the dashboard's Ship section is on screen and
 the window is visible. Bitbucket allows 1,000 requests an hour per user and a refresh costs about
 3 per repo, so with more than three Bitbucket repos pinned they refresh less often (every 3 minutes
 for ten, even while running), and the bar shows the pace, such as "Bitbucket every 3 min".
@@ -313,26 +314,30 @@ bitbucket.org when every pin is on Bitbucket), `host/owner/name`, or paste a lin
 https or ssh remote URL or the address of a page in the repo, and press Enter or **Pin to
 Overview**. Below the box, the folders in your repos list and favorites that are on GitHub or
 Bitbucket are offered as one-click pins, and pinning one records the folder as the repo's local
-clone. Pins are saved as `forge.pinnedRepos` in `settings.json`, where you can also list extra
+clone. Pins are saved as `ship.pinnedRepos` in `settings.json`, where you can also list extra
 `branches` for the health row (see [Settings](settings.md#settings)).
 
-**Dashboard.** The dashboard's Forge section, after Ports, lists only what needs you across the
-pinned repos: a health branch that failed, a pull request awaiting your review, and your own pull
-request with changes requested or failing checks. It reads "All clear" when nothing does, and it is
-hidden while no repo is pinned. Click a row to open that repo's Pipelines (for a branch) or Pull
-requests (for a pull request); the button in the section's header opens the Overview. Turn the
-section off with `dashboard.sections.forge`.
+**Dashboard.** The dashboard's Ship section, after Ports, first lists what needs you across the
+pinned repos: a health branch that failed, your own pull request with changes requested or
+failing checks, and up to 5 pull requests awaiting your review. Below them, one line shows the
+pipelines running (the run itself when there is just one, else a count), and another counts the
+open pull requests that aren't drafts, adding how many await your review when that passes 5. With
+no repo pinned yet, it shows a Pin repos row that opens the Overview. Click a row to open that
+repo's Pipelines (for a branch or a run) or Pull requests (for a pull request), or the Overview
+for a count across repos; the button in the section's header opens the Overview. Turn the
+section off with `dashboard.sections.ship`.
 
 ### A repo's view
 
 Across the top, the bar holds the **Overview** link, the **Pipelines** and **Pull requests** tabs,
-a **This branch** checkbox (on the Pipelines tab only), an **Open** checkbox (on the Pull requests
-tab only), the repo's `owner/name`, which opens it on the host when clicked, the account button,
-**Pin to Overview**, **Accounts** (which opens the Accounts tab on this repo's host), and
-**Refresh**. This branch is clear by default, listing runs on
-every branch; check it to list only runs on the branch you have checked out. Open is checked by
-default, listing only open pull requests; clear it to list the latest ones in every state, with
-merged and closed ones marked. The pane remembers both choices across restarts.
+a **This branch** checkbox, which names the branch you have checked out, an **Open** checkbox (on
+the Pull requests tab only), the repo's `owner/name`, which opens it on the host when clicked, the
+account button, **Pin to Overview**, **Accounts** (which opens the Accounts tab on this repo's
+host), and **Refresh**. This branch is clear by default; check it on Pipelines to list only runs
+on your branch, or on Pull requests to list only pull requests from it. Each tab remembers its own
+setting, so you can scope runs to your branch and still browse every pull request. Open is
+checked by default, listing only open pull requests; clear it to list the latest ones in every
+state, with merged and closed ones marked. The pane remembers these choices across restarts.
 
 - **Pipelines** lists the latest 20 runs, newest first: a status icon, the commit message or run
   title, the workflow or pipeline name, number, branch, and who started it, then how long ago and
@@ -353,7 +358,7 @@ merged and closed ones marked. The pane remembers both choices across restarts.
   `read:user:bitbucket` scope, which sorts them into these groups.
 
 A finished run raises a toast, such as "Workflow run passed: CI on main", whose **Open** action
-opens the run. Several Forge panes on one repo share their requests and each finished run toasts
+opens the run. Several Ship panes on one repo share their requests and each finished run toasts
 once. A pane showing a repo polls only while it is expanded: runs every 15 seconds while one is
 queued or running and every minute otherwise, and pull requests only while their tab is showing. Bitbucket is
 polled more slowly, since it allows 1,000 requests an hour per user. Polling pauses while the
@@ -368,7 +373,7 @@ and your pushes agree. When the repo has no account of its own, the button is sh
 color: the pane is following whichever account `gh auth switch` last chose.
 
 A host Bashboard does not recognize shows a notice; for a self-hosted GitHub Enterprise Server host
-that `gh` is not signed in to, add it to `forge.hosts` (see [Settings](settings.md#settings)).
+that `gh` is not signed in to, add it to `ship.hosts` (see [Settings](settings.md#settings)).
 GitLab and Azure DevOps remotes are recognized and report that they are not supported yet.
 
 ## Code search
@@ -453,9 +458,9 @@ the row's repo root as a Terminal, as Files (see [Files panes](#files-panes)), a
 your Editor.
 
 **Launch** sits at the top by default and appears while the focused pane is in a folder (a
-scratch pad keeps the last one shown). Its row of icons opens a Terminal, Git, Files, Forge (see
-[Forge pane](#forge-pane)), Search (see [Code search](#code-search)), or Scratch pane at the
-focused pane's repo root, with Git and Forge for a git repo only (Forge opens on that repo, not the
+scratch pad keeps the last one shown). Its row of icons opens a Terminal, Git, Files, Ship (see
+[Ship pane](#ship-pane)), Search (see [Code search](#code-search)), or Scratch pane at the
+focused pane's repo root, with Git and Ship for a git repo only (Ship opens on that repo, not the
 Overview); hover one for its name and shortcut. While you hover, the
 panes show where the new one will open: the focused pane outlined and the new pane's share of it
 highlighted, or the Files or Git pane it would bring forward, or a note that it opens collapsed
@@ -464,7 +469,7 @@ not collapse.
 
 Ctrl+Shift+L (the `openLaunch` action) opens the same choices, plus Containers and Ports, as a
 menu over the focused pane, outlined in your accent color with the rest of the window dimmed:
-press a letter (**t** Terminal, **g** Git, **f** Files, **o** Forge, **s** Search, **c**
+press a letter (**t** Terminal, **g** Git, **f** Files, **o** Ship, **s** Search, **c**
 Containers, **r** Ports, **p** Scratch), or use the arrows and Enter, with the same preview as you
 move. Containers appears once Docker or Podman is installed. While Launch is turned
 off, a **+** button in the top bar, left of **?**, drops this menu. Ctrl+Shift+X (the `openEditor`
@@ -733,7 +738,7 @@ reports commands, and a bound agent session's own status takes precedence.
 
 Ctrl+Shift+P opens one list over your panes, tabs, favorites, layouts, the focused repo's pins and
 worktrees, and the actions, each with its keys. The actions include Open the Containers tab, Open
-the Ports tab, and Open the Forge tab (the Forge [Overview](#overview)), which switch to that pane or
+the Ports tab, and Open the Ship tab (the Ship [Overview](#overview)), which switch to that pane or
 add a tab holding one. Typing filters the list fuzzily, and a leading `>`
 shows only actions. Enter focuses a pane, switches to a tab, opens a favorite, layout, pin, or
 worktree, or runs an action; a favorite or worktree opens as a split, or collapsed with Ctrl+Enter.
@@ -770,7 +775,7 @@ again closes the dialog, and Escape or a click outside closes it too.
   setup wizard.
 - **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the
   list. The window behind it stays undimmed, so color and brightness changes show as they will look.
-- **Accounts** shows, for each code host, where the Forge pane gets its token, and manages it. It
+- **Accounts** shows, for each code host, where the Ship pane gets its token, and manages it. It
   has a card for GitHub (and each GitHub Enterprise Server host you use) and one for Bitbucket. A
   card shows status only, never a token. A GitHub card says whether the GitHub CLI is installed
   and lists its signed-in accounts, with the active one marked. **Sign in** (or **Sign in another
@@ -783,8 +788,8 @@ again closes the dialog, and Escape or a click outside closes it too.
   **Open the API token page** and **Copy scopes**. **Test** asks the host who the credential
   belongs to and shows the login, the granted scopes on GitHub, or the error, which for Bitbucket
   names a missing scope. On GitHub it tests each account in turn. The tab refreshes when you
-  return to the window, so a sign-in finished in a terminal shows up. Open it from the Forge pane's
-  **Accounts** button, the account menu's **Manage accounts**, a Forge notice, or the command
+  return to the window, so a sign-in finished in a terminal shows up. Open it from the Ship pane's
+  **Accounts** button, the account menu's **Manage accounts**, a Ship notice, or the command
   palette ("Manage code host accounts").
 - **Shortcuts** lists every key and is where keys are changed (see [Settings](settings.md)).
 - **CLI** lists the `bb` commands below, with examples to copy.
@@ -803,7 +808,7 @@ opens a pane splits the pane that ran it, in that pane's tab, and focus moves to
 | `bb git`                      | Opens the Git pane for the current folder's repo                              |
 | `bb search [<query>]`         | Opens a Search pane for the current folder's repo, with the query filled in   |
 | `bb scratch [<text>]`         | Opens a scratch pad holding the text, or the piped standard input             |
-| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Forge pane, or removes it with `--clear` (the Accounts tab does the same) |
+| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
 
 Add `--collapsed` anywhere in a command to open the pane collapsed. Relative paths resolve

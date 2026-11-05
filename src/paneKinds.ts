@@ -1,6 +1,6 @@
 // Pane kinds (docs/design.md section 4.11). Pure data, no DOM.
 
-export type PaneKind = 'terminal' | 'scratch' | 'files' | 'git' | 'forge' | 'search' | 'containers' | 'ports';
+export type PaneKind = 'terminal' | 'scratch' | 'files' | 'git' | 'ship' | 'search' | 'containers' | 'ports';
 
 export interface PaneKindInfo {
   kind: PaneKind;
@@ -16,7 +16,8 @@ export const PANE_KINDS: readonly PaneKindInfo[] = [
   { kind: 'terminal', label: 'Terminal', icon: '❯', hasFolder: true },
   { kind: 'files', label: 'Files', icon: '🗀', hasFolder: true },
   { kind: 'git', label: 'Git', icon: '⎇', hasFolder: true },
-  { kind: 'forge', label: 'Forge', icon: '⚒', hasFolder: true },
+  // U+FE0E asks for the text glyph; without it WebView2 draws the color emoji rocket.
+  { kind: 'ship', label: 'Ship', icon: '\u{1F680}︎', hasFolder: true },
   { kind: 'search', label: 'Search', icon: '⌕', hasFolder: true },
   { kind: 'containers', label: 'Containers', icon: '⬡', hasFolder: false },
   { kind: 'ports', label: 'Ports', icon: '⇄', hasFolder: false },

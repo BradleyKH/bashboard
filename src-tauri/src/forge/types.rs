@@ -18,7 +18,7 @@ pub enum ProviderKind {
 }
 
 impl ProviderKind {
-    /// A `forge.hosts` value; the settings loader has already dropped unknown ones.
+    /// A `ship.hosts` value; the settings loader has already dropped unknown ones.
     pub fn from_setting(s: &str) -> Option<Self> {
         match s {
             "github" => Some(Self::Github),
@@ -285,7 +285,7 @@ impl ForgeError {
     }
 }
 
-/// Where the token the Forge pane would use for a host comes from.
+/// Where the token the Ship pane would use for a host comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TokenSourceKind {

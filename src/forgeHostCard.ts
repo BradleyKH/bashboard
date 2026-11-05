@@ -10,7 +10,7 @@ import {
   type AuthProvider,
 } from './forgeApi';
 import type { AccountAction, CardAction, HostCard } from './forgeAccountsModel';
-import { BITBUCKET_SCOPE_INFO } from './forgeModel';
+import { BITBUCKET_SCOPE_INFO } from './shipModel';
 import { ForgeTokenForm } from './forgeTokenForm';
 
 export interface ForgeHostCardOptions {

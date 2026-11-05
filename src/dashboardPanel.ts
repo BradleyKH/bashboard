@@ -38,9 +38,9 @@ import type { ContainersSectionCallbacks } from './containersSection';
 import type { ContainersStore } from './containersStore';
 import { PortsSection, type PortsSectionCallbacks } from './portsSection';
 import type { PortsStore } from './portsStore';
-import { ForgeSection } from './forgeSection';
-import { forgeOverviewStore } from './forgeOverviewStore';
-import type { ForgeTab } from './forgeModel';
+import { ShipSection } from './shipSection';
+import { shipOverviewStore } from './shipOverviewStore';
+import type { ShipTab } from './shipModel';
 import { LocalModelsSection } from './localModelsSection';
 import { findLoadedOllama } from './localModelsModel';
 import type { LocalModelsStore } from './localModelsStore';
@@ -70,8 +70,8 @@ export interface DashboardCallbacks
   onClose: (paneId: string) => void;
   /** The Ports section's rows; omitted, they only list. */
   ports?: PortsSectionCallbacks;
-  /** The Forge section opens the Overview, drilled into `target` on `tab` when given. */
-  onOpenForge?: (target: string | null, tab?: ForgeTab) => void;
+  /** The Ship section opens the Overview, drilled into `target` on `tab` when given. */
+  onOpenShip?: (target: string | null, tab?: ShipTab) => void;
   /** A Panes card's menu collapses or expands its pane. */
   onToggleCollapse?: (paneId: string) => void;
   onCardDragStart?: (paneId: string, e: PointerEvent) => void;
@@ -199,7 +199,7 @@ export class DashboardPanel {
   private containersStore: ContainersStore | null = null;
   private unsubscribeContainers: (() => void) | null = null;
   private readonly portsSection: PortsSection;
-  private readonly forgeSection: ForgeSection;
+  private readonly shipSection: ShipSection;
   private portsStore: PortsStore | null = null;
   private unsubscribePorts: (() => void) | null = null;
   private readonly localModelsSection = new LocalModelsSection();
@@ -329,8 +329,8 @@ export class DashboardPanel {
       },
     );
     this.addSection('ports', this.portsSection.el, this.portsSection.head);
-    this.forgeSection = new ForgeSection({ onOpenForge: (target, tab) => this.callbacks.onOpenForge?.(target, tab) });
-    this.addSection('forge', this.forgeSection.el, this.forgeSection.head);
+    this.shipSection = new ShipSection({ onOpenShip: (target, tab) => this.callbacks.onOpenShip?.(target, tab) });
+    this.addSection('ship', this.shipSection.el, this.shipSection.head);
     this.addSection('localModels', this.localModelsSection.el, this.localModelsSection.head);
     this.sessionList = this.section('external', 'External sessions');
     this.addSection('system', this.system.el, this.system.head);
@@ -353,7 +353,7 @@ export class DashboardPanel {
       onKey: (e) => this.callbacks.onKey?.(e) ?? false,
     });
     this.layoutElements();
-    forgeOverviewStore.subscribe(() => this.renderForge());
+    shipOverviewStore.subscribe(() => this.renderShip());
     root.addEventListener('focusout', () => {
       if (!this.held) return;
       // A rebuild that replaced the focused row has already refocused its successor by the time
@@ -434,9 +434,9 @@ export class DashboardPanel {
     this.nav.restore(focus);
   }
 
-  private renderForge(): void {
+  private renderShip(): void {
     const focus = this.nav.capture();
-    this.forgeSection.update();
+    this.shipSection.update();
     this.nav.restore(focus);
   }
 
@@ -519,9 +519,9 @@ export class DashboardPanel {
       'dashboard',
       this.shown.ports && !this.collapsed.includes('ports') && onScreen && this.windowShown,
     );
-    forgeOverviewStore.setWanted(
+    shipOverviewStore.setWanted(
       'dashboard',
-      this.shown.forge && !this.collapsed.includes('forge') && onScreen && this.windowShown,
+      this.shown.ship && !this.collapsed.includes('ship') && onScreen && this.windowShown,
     );
     this.localModelsStore?.setWanted(
       'dashboard',

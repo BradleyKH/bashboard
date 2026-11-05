@@ -17,7 +17,7 @@ import {
   type PullRequest,
   type Run,
 } from './forgeApi';
-import { finishedSince, pollSecs, pullPollSecs, withPullChecks, type ForgeTab } from './forgeModel';
+import { finishedSince, pollSecs, pullPollSecs, withPullChecks, type ShipTab } from './shipModel';
 import { isWindowVisible } from './windowVisibility';
 
 export type BranchScope = 'branch' | 'all';
@@ -30,24 +30,24 @@ const FALLBACK_SECS = 60;
 const AFTER_ACTION_MS = 3000;
 
 interface Entry {
-  store: ForgeStore;
+  store: ShipStore;
   refs: number;
 }
 
 /**
- * One repo's runs and pull requests, shared by every Forge pane on that root (docs/design.md
+ * One repo's runs and pull requests, shared by every Ship pane on that root (docs/design.md
  * section 4.20). Runs poll while some pane wants the store, pull requests only while one of them is
  * on the Pull requests tab, and both pause while the window is hidden and catch up when it returns.
  */
-export class ForgeStore {
+export class ShipStore {
   private static readonly registry = new Map<string, Entry>();
 
   /** The store for `root`, created on first use. Each caller must `release()` it once. */
-  static for(root: string): ForgeStore {
-    let entry = ForgeStore.registry.get(root);
+  static for(root: string): ShipStore {
+    let entry = ShipStore.registry.get(root);
     if (!entry) {
-      entry = { store: new ForgeStore(root), refs: 0 };
-      ForgeStore.registry.set(root, entry);
+      entry = { store: new ShipStore(root), refs: 0 };
+      ShipStore.registry.set(root, entry);
     }
     entry.refs += 1;
     return entry.store;
@@ -55,16 +55,16 @@ export class ForgeStore {
 
   /** Whether some pane already holds the store for `root`. */
   static has(root: string): boolean {
-    return ForgeStore.registry.has(root);
+    return ShipStore.registry.has(root);
   }
 
   /** Drops one reference; the last one stops polling and forgets the store. */
   release(): void {
-    const entry = ForgeStore.registry.get(this.root);
+    const entry = ShipStore.registry.get(this.root);
     if (!entry || entry.store !== this) return;
     entry.refs -= 1;
     if (entry.refs > 0) return;
-    ForgeStore.registry.delete(this.root);
+    ShipStore.registry.delete(this.root);
     this.dispose();
   }
 
@@ -79,11 +79,12 @@ export class ForgeStore {
   private pullsEpoch = 0;
   private pullsStale = false;
   private scope: BranchScope = 'all';
+  private pullScope: BranchScope = 'all';
   private readonly errors: Record<'repo' | Stream, ForgeError | null> = { repo: null, runs: null, pulls: null };
 
   private readonly subscribers = new Set<() => void>();
   private readonly finishedSubscribers = new Set<(runs: Run[]) => void>();
-  private readonly wanted = new Map<string, ForgeTab>();
+  private readonly wanted = new Map<string, ShipTab>();
   private readonly timers: Record<Stream, ReturnType<typeof setTimeout> | undefined> = {
     runs: undefined,
     pulls: undefined,
@@ -156,13 +157,18 @@ export class ForgeStore {
     return this.scope;
   }
 
+  /** Whether Pull requests lists only the checked-out branch's, by source branch. */
+  get pullsBranchScope(): BranchScope {
+    return this.pullScope;
+  }
+
   /** Whether Pull requests lists open ones only, rather than the latest in every state. */
   get pullsOpenOnly(): boolean {
     return this.openOnly;
   }
 
   /** The error that stops `tab` from showing anything: the repo's own, else that tab's last one. */
-  errorFor(tab: ForgeTab): ForgeError | null {
+  errorFor(tab: ShipTab): ForgeError | null {
     return this.errors.repo ?? this.errors[tab === 'pipelines' ? 'runs' : 'pulls'];
   }
 
@@ -187,7 +193,7 @@ export class ForgeStore {
    * Each pane turns its own `key` on and off and says which tab it shows; run polling runs while
    * any key is on, pull request polling while any key is on the Pull requests tab.
    */
-  setWanted(key: string, wanted: boolean, tab: ForgeTab = 'pipelines'): void {
+  setWanted(key: string, wanted: boolean, tab: ShipTab = 'pipelines'): void {
     const before = this.activeStreams();
     if (wanted) this.wanted.set(key, tab);
     else this.wanted.delete(key);
@@ -211,6 +217,14 @@ export class ForgeStore {
     this.resetRuns();
     this.emit();
     await this.poll('runs');
+  }
+
+  async setPullsBranchScope(scope: BranchScope): Promise<void> {
+    if (scope === this.pullScope) return;
+    this.pullScope = scope;
+    this.resetPulls();
+    this.emit();
+    await this.poll('pulls');
   }
 
   async setPullsOpenOnly(on: boolean): Promise<void> {
@@ -371,6 +385,12 @@ export class ForgeStore {
       this.runsStale = false;
       this.emit();
     }
+    // Pull requests learn the branch from this poll, since theirs does not resolve the repo again.
+    if (this.pullScope === 'branch' && this.pullsLoaded && before !== repo.branch) {
+      this.resetPulls();
+      this.emit();
+      void this.poll('pulls');
+    }
     const epoch = this.runsEpoch;
     const next = await forgeRuns(this.root, this.scope === 'branch' ? repo.branch : null);
     if (epoch !== this.runsEpoch || this.disposed) return;
@@ -385,7 +405,8 @@ export class ForgeStore {
   private async pollPulls(): Promise<void> {
     if (!this.repoValue) this.repoValue = await this.loadRepo();
     const epoch = this.pullsEpoch;
-    const next = await forgePulls(this.root, this.openOnly);
+    const branch = this.pullScope === 'branch' ? this.repoValue.branch : null;
+    const next = await forgePulls(this.root, this.openOnly, branch);
     if (epoch !== this.pullsEpoch || this.disposed) return;
     this.pullList = next.items;
     this.pullTotal = next.total;

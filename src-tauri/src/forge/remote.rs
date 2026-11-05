@@ -216,7 +216,7 @@ fn kind_of(
         })
 }
 
-/// Picks the provider: the `forge.hosts` setting (keys already lowercased) wins, then the
+/// Picks the provider: the `ship.hosts` setting (keys already lowercased) wins, then the
 /// well-known hosts, then a host GitHub CLI is signed in to is GitHub Enterprise Server.
 /// `None` when the host is unknown or the path does not fit the provider.
 pub fn classify(

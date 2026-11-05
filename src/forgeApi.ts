@@ -1,4 +1,4 @@
-// Front-end side of the Forge pane's Tauri commands (docs/design.md section 4.20; the Rust side is
+// Front-end side of the Ship pane's Tauri commands (docs/design.md section 4.20; the Rust side is
 // section 3.20). The types mirror the Rust DTOs, which serialize camelCase with `Option` as null.
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -209,9 +209,12 @@ export function forgeCancel(root: string, runId: string): Promise<void> {
   return invoke<void>('forge_cancel', { root, runId });
 }
 
-/** The latest 50 pull requests: open ones only, or with `openOnly` false, every state. */
-export function forgePulls(root: string, openOnly: boolean): Promise<PullList> {
-  return invoke<PullList>('forge_pulls', { root, openOnly });
+/**
+ * The latest 50 pull requests: open ones only, or with `openOnly` false, every state; a non-null
+ * `branch` keeps only those from that source branch.
+ */
+export function forgePulls(root: string, openOnly: boolean, branch: string | null): Promise<PullList> {
+  return invoke<PullList>('forge_pulls', { root, openOnly, branch });
 }
 
 /** One pull request's checks, answering a `forgePullChecks` call. */
@@ -233,7 +236,7 @@ export function forgeSetAccount(root: string, user: string): Promise<ForgeRepo> 
   return invoke<ForgeRepo>('forge_set_account', { root, user });
 }
 
-/** A repo pinned to the Forge Overview; `repo` (`<host>/<path>`) is its identity, `root` an optional local clone. */
+/** A repo pinned to the Ship Overview; `repo` (`<host>/<path>`) is its identity, `root` an optional local clone. */
 export interface PinnedRepo {
   repo: string;
   root?: string;

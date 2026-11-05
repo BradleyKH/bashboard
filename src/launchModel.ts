@@ -6,7 +6,7 @@ import { item, submenu, type MenuEntry } from './contextMenuModel';
 import { paneKindInfo, type PaneKind } from './paneKinds';
 import { safeModel, type AgentId } from './savedWorkspace';
 
-export type LaunchKind = Extract<PaneKind, 'terminal' | 'git' | 'files' | 'forge' | 'search' | 'containers' | 'ports' | 'scratch'>;
+export type LaunchKind = Extract<PaneKind, 'terminal' | 'git' | 'files' | 'ship' | 'search' | 'containers' | 'ports' | 'scratch'>;
 
 /** Kinds with no folder: they open as they are, not at the launch root. */
 export type FolderlessLaunchKind = Extract<LaunchKind, 'containers' | 'ports' | 'scratch'>;
@@ -31,17 +31,17 @@ const OPTIONS: readonly LaunchOption[] = [
   { kind: 'terminal', label: 'Terminal', icon: paneKindInfo('terminal').icon, key: 't', title: 'Terminal at the repo root' },
   { kind: 'git', label: 'Git', icon: paneKindInfo('git').icon, key: 'g', title: 'Git pane for the repo', action: 'openGit' },
   { kind: 'files', label: 'Files', icon: paneKindInfo('files').icon, key: 'f', title: 'Files at the repo root', action: 'openFiles' },
-  { kind: 'forge', label: 'Forge', icon: paneKindInfo('forge').icon, key: 'o', title: 'Pipelines and pull requests for the repo' },
+  { kind: 'ship', label: 'Ship', icon: paneKindInfo('ship').icon, key: 'o', title: 'Pipelines and pull requests for the repo' },
   { kind: 'search', label: 'Search', icon: paneKindInfo('search').icon, key: 's', title: 'Search the repo\'s code', action: 'openSearch' },
   { kind: 'containers', label: 'Containers', icon: paneKindInfo('containers').icon, key: 'c', title: 'Docker and Podman containers', menuOnly: true },
   { kind: 'ports', label: 'Ports', icon: paneKindInfo('ports').icon, key: 'r', title: 'Listening dev servers', menuOnly: true },
   { kind: 'scratch', label: 'Scratch', icon: paneKindInfo('scratch').icon, key: 'p', title: 'Scratch pad', action: 'newScratch' },
 ];
 
-/** Git and Forge need a repo, so a folder that is not one leaves them out. */
-const NEEDS_GIT: ReadonlySet<LaunchKind> = new Set(['git', 'forge']);
+/** Git and Ship need a repo, so a folder that is not one leaves them out. */
+const NEEDS_GIT: ReadonlySet<LaunchKind> = new Set(['git', 'ship']);
 
-/** The dashboard row's options in display order; Git and Forge only for a git repo. */
+/** The dashboard row's options in display order; Git and Ship only for a git repo. */
 export function launchOptions(isGit: boolean): LaunchOption[] {
   return OPTIONS.filter((o) => !o.menuOnly && (isGit || !NEEDS_GIT.has(o.kind)));
 }

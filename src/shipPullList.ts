@@ -1,9 +1,9 @@
 import type { MenuEntry } from './contextMenuModel';
 import type { PullRequest } from './forgeApi';
-import { groupPulls, type PullGroupKey } from './forgeModel';
-import { ForgePullRow } from './forgePullRow';
+import { groupPulls, type PullGroupKey } from './shipModel';
+import { ShipPullRow } from './shipPullRow';
 
-export interface ForgePullListOptions {
+export interface ShipPullListOptions {
   onOpen: (pull: PullRequest) => void;
   menuItems: (pull: PullRequest) => MenuEntry[];
 }
@@ -12,20 +12,20 @@ export interface ForgePullListOptions {
  * The Pull requests list, grouped under small headers (docs/design.md section 4.20). Like the run
  * list, `update` reuses elements, so it is cheap to call on a tick.
  */
-export class ForgePullList {
+export class ShipPullList {
   readonly el: HTMLElement;
-  private readonly rows = new Map<string, ForgePullRow>();
+  private readonly rows = new Map<string, ShipPullRow>();
   private readonly headers = new Map<PullGroupKey, HTMLElement>();
   private readonly note: HTMLElement;
   private readonly limitNote: HTMLElement;
 
-  constructor(private readonly opts: ForgePullListOptions) {
+  constructor(private readonly opts: ShipPullListOptions) {
     this.el = document.createElement('div');
-    this.el.className = 'forge-pulls';
+    this.el.className = 'ship-pulls';
     this.note = document.createElement('div');
-    this.note.className = 'forge-note';
+    this.note.className = 'ship-note';
     this.limitNote = document.createElement('div');
-    this.limitNote.className = 'forge-note';
+    this.limitNote.className = 'ship-note';
   }
 
   /**
@@ -39,7 +39,7 @@ export class ForgePullList {
       let header = this.headers.get(group.key);
       if (!header) {
         header = document.createElement('div');
-        header.className = 'forge-group';
+        header.className = 'ship-group';
         this.headers.set(group.key, header);
       }
       const text = `${group.title} (${group.pulls.length})`;
@@ -50,7 +50,7 @@ export class ForgePullList {
         let row = this.rows.get(pull.id);
         if (row) row.update(pull, nowMs);
         else {
-          row = new ForgePullRow(pull, { onOpen: this.opts.onOpen, menuItems: this.opts.menuItems });
+          row = new ShipPullRow(pull, { onOpen: this.opts.onOpen, menuItems: this.opts.menuItems });
           this.rows.set(pull.id, row);
         }
         children.push(row.el);

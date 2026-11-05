@@ -1,14 +1,14 @@
-/* The Forge pane: pipelines and pull requests (docs/design.md section 4.20). */
-.forge-body {
-  --forge-border: rgba(255, 255, 255, 0.1);
-  --forge-hover: rgba(255, 255, 255, 0.06);
-  --forge-fg: var(--content-fg);
-  --forge-muted: var(--content-faint);
-  --forge-accent: var(--accent);
-  --forge-ok: #6fcf7f;
-  --forge-bad: #e8716f;
-  --forge-warn: #e6c15a;
-  --forge-idle: #7d8a91;
+/* The Ship pane: pipelines and pull requests (docs/design.md section 4.20). */
+.ship-body {
+  --ship-border: rgba(255, 255, 255, 0.1);
+  --ship-hover: rgba(255, 255, 255, 0.06);
+  --ship-fg: var(--content-fg);
+  --ship-muted: var(--content-faint);
+  --ship-accent: var(--accent);
+  --ship-ok: #6fcf7f;
+  --ship-bad: #e8716f;
+  --ship-warn: #e6c15a;
+  --ship-idle: #7d8a91;
 
   position: relative;
   z-index: 1;
@@ -19,46 +19,46 @@
   min-height: 0;
   outline: none;
   font: 12px system-ui, sans-serif;
-  color: var(--forge-fg);
+  color: var(--ship-fg);
 }
 
 /* The bar: tabs at the left, then whatever the pane adds (scope toggle, account chip). */
-.forge-bar {
+.ship-bar {
   flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
   padding: 0 8px;
-  border-bottom: 1px solid var(--forge-border);
+  border-bottom: 1px solid var(--ship-border);
 }
 
-.forge-tabs {
+.ship-tabs {
   flex: none;
   display: flex;
   gap: 2px;
 }
 
-.forge-tab {
+.ship-tab {
   padding: 6px 10px 4px;
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font: inherit;
   cursor: pointer;
 }
 
-.forge-tab:hover {
-  color: var(--forge-fg);
+.ship-tab:hover {
+  color: var(--ship-fg);
 }
 
-.forge-tab.active {
-  border-bottom-color: var(--forge-accent);
-  color: var(--forge-fg);
+.ship-tab.active {
+  border-bottom-color: var(--ship-accent);
+  color: var(--ship-fg);
 }
 
-.forge-check {
+.ship-check {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -68,192 +68,204 @@
   white-space: nowrap;
 }
 
-.forge-check input {
+.ship-check input {
   margin: 0;
 }
 
+/* The only bar item that may shrink, so a long branch name never pushes the buttons off. */
+.ship-scope {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.ship-scope-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 36ch;
+}
+
 /* Pushes the chip and anything after it to the bar's right edge. */
-.forge-bar-spacer {
+.ship-bar-spacer {
   flex: 1 1 auto;
 }
 
-.forge-chip {
+.ship-chip {
   flex: none;
   padding: 2px 8px;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 10px;
   background: transparent;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font: inherit;
   cursor: pointer;
 }
 
-.forge-chip:hover {
-  color: var(--forge-fg);
-  border-color: var(--forge-accent);
+.ship-chip:hover {
+  color: var(--ship-fg);
+  border-color: var(--ship-accent);
 }
 
-.forge-chip.warn {
-  border-color: var(--forge-warn);
-  color: var(--forge-warn);
+.ship-chip.warn {
+  border-color: var(--ship-warn);
+  color: var(--ship-warn);
 }
 
-.forge-chip[hidden] {
+.ship-chip[hidden] {
   display: none;
 }
 
-.forge-content {
+.ship-content {
   flex: 1 1 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
 }
 
-.forge-note {
+.ship-note {
   padding: 10px 8px;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
 }
 
-.forge-jobs-error {
-  color: var(--forge-bad);
+.ship-jobs-error {
+  color: var(--ship-bad);
 }
 
 /* Status icons: one 12 px footprint, a ring or a mask cut from a solid fill. */
-.forge-status {
+.ship-status {
   flex: none;
   display: inline-block;
   box-sizing: border-box;
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--forge-idle);
+  background: var(--ship-idle);
 }
 
-.forge-status--queued {
+.ship-status--queued {
   background: transparent;
-  border: 2px solid var(--forge-idle);
+  border: 2px solid var(--ship-idle);
 }
 
-.forge-status--running {
+.ship-status--running {
   background: transparent;
-  border: 2px solid color-mix(in srgb, var(--forge-warn) 30%, transparent);
-  border-top-color: var(--forge-warn);
-  animation: forge-spin 0.9s linear infinite;
+  border: 2px solid color-mix(in srgb, var(--ship-warn) 30%, transparent);
+  border-top-color: var(--ship-warn);
+  animation: ship-spin 0.9s linear infinite;
 }
 
-.forge-status--waiting {
-  background: var(--forge-warn);
-  animation: forge-pulse 1.2s ease-in-out infinite;
+.ship-status--waiting {
+  background: var(--ship-warn);
+  animation: ship-pulse 1.2s ease-in-out infinite;
 }
 
-.forge-status--success {
+.ship-status--success {
   border-radius: 0;
-  background: var(--forge-ok);
+  background: var(--ship-ok);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
-.forge-status--failure {
+.ship-status--failure {
   border-radius: 0;
-  background: var(--forge-bad);
+  background: var(--ship-bad);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
-.forge-status--cancelled,
-.forge-status--skipped {
+.ship-status--cancelled,
+.ship-status--skipped {
   border-radius: 0;
-  background: var(--forge-idle);
+  background: var(--ship-idle);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4 6.8 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4 6.8 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
 /* A pull request's checks still loading: a faint dot that settles into the real icon. */
-.forge-status--pending {
-  background: color-mix(in srgb, var(--forge-idle) 50%, transparent);
+.ship-status--pending {
+  background: color-mix(in srgb, var(--ship-idle) 50%, transparent);
   transform: scale(0.5);
-  animation: forge-pulse 1.2s ease-in-out infinite;
+  animation: ship-pulse 1.2s ease-in-out infinite;
 }
 
-@keyframes forge-spin {
+@keyframes ship-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-@keyframes forge-pulse {
+@keyframes ship-pulse {
   50% {
     opacity: 0.45;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .forge-status--running,
-  .forge-status--waiting,
-  .forge-status--pending {
+  .ship-status--running,
+  .ship-status--waiting,
+  .ship-status--pending {
     animation: none;
   }
 }
 
 /* Pipelines. */
-.forge-run-row {
+.ship-run-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: 10px;
   padding: 5px 8px;
-  border-bottom: 1px solid var(--forge-border);
+  border-bottom: 1px solid var(--ship-border);
   cursor: pointer;
   outline: none;
 }
 
-.forge-run-row:hover,
-.forge-run-row:focus-visible {
-  background: var(--forge-hover);
+.ship-run-row:hover,
+.ship-run-row:focus-visible {
+  background: var(--ship-hover);
 }
 
-.forge-run.expanded > .forge-run-row {
-  background: var(--forge-hover);
+.ship-run.expanded > .ship-run-row {
+  background: var(--ship-hover);
 }
 
-.forge-run-main {
+.ship-run-main {
   min-width: 0;
 }
 
-.forge-run-title,
-.forge-run-meta {
+.ship-run-title,
+.ship-run-meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.forge-run-meta,
-.forge-pull-meta {
+.ship-run-meta,
+.ship-pull-meta {
   margin-top: 1px;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font-size: 11px;
 }
 
-.forge-run-side,
-.forge-pull-side {
+.ship-run-side,
+.ship-pull-side {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 /* The same buttons on every row at the right edge, so each lines up with the one above it. */
-.forge-run-actions {
+.ship-run-actions {
   display: flex;
   gap: 2px;
 }
 
-.forge-run-btn {
+.ship-run-btn {
   padding: 0 6px;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
   background: transparent;
   color: var(--content-muted);
@@ -263,57 +275,57 @@
   cursor: pointer;
 }
 
-.forge-run-btn:hover:not(:disabled) {
-  background: var(--forge-hover);
-  border-color: var(--forge-accent);
-  color: var(--forge-fg);
+.ship-run-btn:hover:not(:disabled) {
+  background: var(--ship-hover);
+  border-color: var(--ship-accent);
+  color: var(--ship-fg);
 }
 
-.forge-run-btn:disabled {
+.ship-run-btn:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
-.forge-run-btn[hidden] {
+.ship-run-btn[hidden] {
   display: none;
 }
 
 /* A narrow pane keeps the title readable; the row's menu still has every action. */
-.forge-runs {
+.ship-runs {
   container-type: inline-size;
 }
 
 @container (max-width: 420px) {
-  .forge-run-actions {
+  .ship-run-actions {
     display: none;
   }
 }
 
-.forge-run-detail {
+.ship-run-detail {
   padding: 4px 8px 8px 30px;
-  border-bottom: 1px solid var(--forge-border);
+  border-bottom: 1px solid var(--ship-border);
   background: rgba(0, 0, 0, 0.18);
 }
 
-.forge-run-detail[hidden],
-.forge-log-wrap[hidden],
-.forge-badge[hidden],
-.forge-review[hidden] {
+.ship-run-detail[hidden],
+.ship-log-wrap[hidden],
+.ship-badge[hidden],
+.ship-review[hidden] {
   display: none;
 }
 
 /* Jobs, steps, and logs. */
-.forge-job {
+.ship-job {
   padding: 4px 0;
 }
 
-.forge-job-head {
+.ship-job-head {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.forge-job-name {
+.ship-job-name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -322,277 +334,277 @@
   font-weight: 600;
 }
 
-.forge-job-took {
-  color: var(--forge-muted);
+.ship-job-took {
+  color: var(--ship-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
-.forge-steps {
+.ship-steps {
   margin: 2px 0 0;
   padding: 0 0 0 20px;
   list-style: none;
 }
 
-.forge-step {
+.ship-step {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 1px 0;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
 }
 
-.forge-step .forge-status {
+.ship-step .ship-status {
   width: 10px;
   height: 10px;
 }
 
-.forge-step.failed {
-  color: var(--forge-bad);
+.ship-step.failed {
+  color: var(--ship-bad);
 }
 
-.forge-step-name {
+.ship-step-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.forge-step-mark {
+.ship-step-mark {
   flex: none;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.forge-log-toggle {
+.ship-log-toggle {
   margin: 4px 0 0 20px;
   padding: 0;
   border: none;
   background: none;
-  color: var(--forge-accent);
+  color: var(--ship-accent);
   font: inherit;
   cursor: pointer;
 }
 
-.forge-log-toggle:hover {
+.ship-log-toggle:hover {
   text-decoration: underline;
 }
 
-.forge-log-wrap {
+.ship-log-wrap {
   margin: 4px 0 0 20px;
 }
 
-.forge-log-trunc {
+.ship-log-trunc {
   padding: 2px 0;
   font-size: 11px;
 }
 
-.forge-log {
+.ship-log {
   margin: 0;
   padding: 6px 8px;
   max-height: 360px;
   overflow: auto;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.35);
-  color: var(--forge-fg);
+  color: var(--ship-fg);
   font: 11px/1.4 'Cascadia Mono', Consolas, monospace;
   white-space: pre;
   user-select: text;
 }
 
 /* Pull requests. */
-.forge-group {
+.ship-group {
   position: sticky;
   top: 0;
   z-index: 1;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--forge-border);
+  border-bottom: 1px solid var(--ship-border);
   background: rgba(10, 16, 22, 0.85);
   backdrop-filter: blur(6px);
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font-size: 11px;
   font-weight: 600;
 }
 
-.forge-pull {
+.ship-pull {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 10px;
   padding: 5px 8px;
-  border-bottom: 1px solid var(--forge-border);
+  border-bottom: 1px solid var(--ship-border);
   cursor: pointer;
   outline: none;
 }
 
-.forge-pull:hover,
-.forge-pull:focus-visible {
-  background: var(--forge-hover);
+.ship-pull:hover,
+.ship-pull:focus-visible {
+  background: var(--ship-hover);
 }
 
-.forge-pull-main {
+.ship-pull-main {
   min-width: 0;
 }
 
-.forge-pull-head {
+.ship-pull-head {
   display: flex;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
 }
 
-.forge-pull-number {
+.ship-pull-number {
   flex: none;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font-variant-numeric: tabular-nums;
 }
 
-.forge-pull-title {
+.ship-pull-title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.forge-pull-meta {
+.ship-pull-meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.forge-pull-side {
+.ship-pull-side {
   flex-direction: row;
   align-items: center;
   gap: 8px;
 }
 
-.forge-badge {
+.ship-badge {
   flex: none;
   padding: 0 5px;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font-size: 10px;
 }
 
-.forge-badge--merged {
+.ship-badge--merged {
   border-color: color-mix(in srgb, #a371f7 60%, transparent);
   color: #b392f0;
 }
 
 /* A merged or closed one reads as history beside the open ones. */
-.forge-pull.done .forge-pull-title {
-  color: var(--forge-muted);
+.ship-pull.done .ship-pull-title {
+  color: var(--ship-muted);
 }
 
-.forge-review {
-  color: var(--forge-muted);
+.ship-review {
+  color: var(--ship-muted);
 }
 
 /* In a narrow pane the review text would take the whole row and squeeze the title out. */
-.forge-pulls {
+.ship-pulls {
   container-type: inline-size;
 }
 
 @container (max-width: 320px) {
-  .forge-review {
+  .ship-review {
     display: none;
   }
 }
 
-.forge-review--approved {
-  color: var(--forge-ok);
+.ship-review--approved {
+  color: var(--ship-ok);
 }
 
-.forge-review--changesRequested {
-  color: var(--forge-bad);
+.ship-review--changesRequested {
+  color: var(--ship-bad);
 }
 
 /* The setup notice. */
-.forge-notice {
+.ship-notice {
   max-width: 62ch;
   padding: 14px 16px;
 }
 
-.forge-notice-title {
+.ship-notice-title {
   margin: 0 0 8px;
   font-size: 13px;
   font-weight: 600;
 }
 
-.forge-notice-text {
+.ship-notice-text {
   margin: 0 0 8px;
   line-height: 1.45;
   user-select: text;
 }
 
-.forge-notice-code {
+.ship-notice-code {
   margin: 0 0 8px;
   padding: 6px 8px;
   overflow-x: auto;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.35);
   font: 11px/1.4 'Cascadia Mono', Consolas, monospace;
   user-select: text;
 }
 
-.forge-notice-more {
+.ship-notice-more {
   margin: 0 0 8px;
 }
 
-.forge-notice-more > summary {
-  color: var(--forge-accent);
+.ship-notice-more > summary {
+  color: var(--ship-accent);
   cursor: pointer;
 }
 
-.forge-notice-steps,
-.forge-notice-scopes {
+.ship-notice-steps,
+.ship-notice-scopes {
   margin: 6px 0 8px;
   padding-left: 20px;
   line-height: 1.5;
 }
 
-.forge-notice-scopes {
+.ship-notice-scopes {
   list-style: none;
   padding-left: 4px;
 }
 
-.forge-notice code {
+.ship-notice code {
   font: 11px 'Cascadia Mono', Consolas, monospace;
   user-select: text;
 }
 
-.forge-notice-actions {
+.ship-notice-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
 }
 
-.forge-button {
+.ship-button {
   padding: 3px 10px;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
   background: transparent;
-  color: var(--forge-fg);
+  color: var(--ship-fg);
   font: inherit;
   cursor: pointer;
 }
 
-.forge-button:hover {
-  border-color: var(--forge-accent);
+.ship-button:hover {
+  border-color: var(--ship-accent);
 }
 
-.forge-button.primary {
-  border-color: var(--forge-accent);
-  background: color-mix(in srgb, var(--forge-accent) 22%, transparent);
+.ship-button.primary {
+  border-color: var(--ship-accent);
+  background: color-mix(in srgb, var(--ship-accent) 22%, transparent);
 }
 
 /* The repo name in the bar, a link to the repo on its host. */
-.forge-repo {
+.ship-repo {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -601,51 +613,52 @@
   padding: 2px 0;
   border: none;
   background: transparent;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font: inherit;
   cursor: pointer;
 }
 
-.forge-repo:hover {
-  color: var(--forge-fg);
+.ship-repo:hover {
+  color: var(--ship-fg);
   text-decoration: underline;
 }
 
-.forge-repo[hidden],
-.forge-check[hidden],
-.forge-content[hidden],
-.forge-runs[hidden],
-.forge-pulls[hidden] {
+.ship-repo[hidden],
+.ship-check[hidden],
+.ship-content[hidden],
+.ship-runs[hidden],
+.ship-pulls[hidden] {
   display: none;
 }
 
 /* The Overview view: one row per pinned repo, then the Add repo box. */
-.forge-overview {
+.ship-overview {
   flex: 1 1 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
 }
 
-.forge-ov-status {
+.ship-ov-status {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.forge-ov-slowed {
+.ship-ov-slowed {
   font-style: italic;
 }
 
-.forge-ov-bar {
+.ship-ov-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 5px 8px;
-  border-bottom: 1px solid var(--forge-border);
-  color: var(--forge-muted);
+  border-bottom: 1px solid var(--ship-border);
+  color: var(--ship-muted);
 }
 
 /*
@@ -653,30 +666,30 @@
  * pull request summary, each only as wide as its widest row and both at the left so they read
  * together, then the action buttons at the right edge, lined up down the list.
  */
-.forge-ov-list {
+.ship-ov-list {
   container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, max-content) minmax(0, max-content) 1fr auto;
 }
 
-.forge-ov-row {
+.ship-ov-row {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
   align-items: start;
   row-gap: 3px;
   padding: 6px 8px;
-  border-bottom: 1px solid var(--forge-border);
+  border-bottom: 1px solid var(--ship-border);
   cursor: pointer;
   outline: none;
 }
 
-.forge-ov-row:hover,
-.forge-ov-row:focus-visible {
-  background: var(--forge-hover);
+.ship-ov-row:hover,
+.ship-ov-row:focus-visible {
+  background: var(--ship-hover);
 }
 
-.forge-ov-info {
+.ship-ov-info {
   grid-column: 1;
   display: flex;
   flex-direction: column;
@@ -685,46 +698,46 @@
   padding-right: 24px;
 }
 
-.forge-ov-actions {
+.ship-ov-actions {
   grid-column: 4;
   grid-row: 1;
   padding-left: 12px;
 }
 
 /* A row without a local clone keeps its Terminal button's place, so the buttons line up. */
-.forge-run-btn.forge-ov-absent {
+.ship-run-btn.ship-ov-absent {
   visibility: hidden;
 }
 
 /* A narrow pane keeps the repo and its health readable; the row's menu still has every action. */
 @container (max-width: 560px) {
-  .forge-ov-actions {
+  .ship-ov-actions {
     display: none;
   }
 }
 
-.forge-ov-head {
+.ship-ov-head {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.forge-ov-provider {
+.ship-ov-provider {
   flex: none;
   padding: 0 4px;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font-size: 10px;
   line-height: 14px;
 }
 
-.forge-ov-provider[hidden] {
+.ship-ov-provider[hidden] {
   display: none;
 }
 
-.forge-ov-name {
+.ship-ov-name {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -733,138 +746,151 @@
   font-weight: 600;
 }
 
-.forge-ov-pulls {
+/* The pull request summary with the running count under it, lined up with the health branches. */
+.ship-ov-counts {
   grid-column: 2;
-  justify-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ship-ov-pulls {
+  white-space: nowrap;
   padding: 0;
   text-align: left;
   border: none;
   background: transparent;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font: inherit;
   cursor: pointer;
 }
 
-.forge-ov-pulls:hover {
-  color: var(--forge-fg);
+.ship-ov-pulls:hover {
+  color: var(--ship-fg);
   text-decoration: underline;
 }
 
-.forge-ov-pulls.needs-you {
-  color: var(--forge-warn);
+.ship-ov-pulls.needs-you {
+  color: var(--ship-warn);
 }
 
-.forge-ov-pulls[hidden],
-.forge-ov-health[hidden],
-.forge-ov-error[hidden],
-.forge-add-message[hidden],
-.forge-add-list[hidden],
-.forge-overview .forge-note[hidden] {
+.ship-ov-running {
+  color: var(--ship-accent);
+}
+
+.ship-ov-pulls[hidden],
+.ship-ov-health[hidden],
+.ship-ov-error[hidden],
+.ship-add-message[hidden],
+.ship-add-list[hidden],
+.ship-overview .ship-note[hidden] {
   display: none;
 }
 
-.forge-ov-health {
+.ship-ov-health {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 14px;
 }
 
-.forge-ov-branch {
+.ship-ov-branch {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   min-width: 0;
 }
 
-.forge-ov-branch-name {
+.ship-ov-branch-name {
   max-width: 24ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.forge-ov-age {
-  color: var(--forge-muted);
+.ship-ov-age {
+  color: var(--ship-muted);
   font-size: 11px;
 }
 
-.forge-ov-error {
+.ship-ov-error {
   grid-column: 1 / 4;
   grid-row: 2;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  color: var(--forge-bad);
+  color: var(--ship-bad);
 }
 
-.forge-add {
+.ship-add {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 10px 8px;
 }
 
-.forge-add-row {
+.ship-add-row {
   display: flex;
   gap: 6px;
 }
 
-.forge-add-input {
+.ship-add-input {
   flex: 1 1 auto;
   min-width: 0;
   padding: 3px 6px;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.25);
-  color: var(--forge-fg);
+  color: var(--ship-fg);
   font: inherit;
 }
 
-.forge-add-help {
+.ship-add-help {
   flex: none;
   align-self: center;
   width: 18px;
   height: 18px;
   padding: 0;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 50%;
   background: transparent;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font: 11px system-ui, sans-serif;
   line-height: 16px;
   cursor: help;
 }
 
-.forge-add-help:hover {
-  border-color: var(--forge-accent);
-  color: var(--forge-fg);
+.ship-add-help:hover {
+  border-color: var(--ship-accent);
+  color: var(--ship-fg);
 }
 
-.forge-add-input:focus {
-  border-color: var(--forge-accent);
+.ship-add-input:focus {
+  border-color: var(--ship-accent);
   outline: none;
 }
 
-.forge-add-message {
-  color: var(--forge-muted);
+.ship-add-message {
+  color: var(--ship-muted);
   user-select: text;
 }
 
-.forge-add-message.error {
-  color: var(--forge-bad);
+.ship-add-message.error {
+  color: var(--ship-bad);
 }
 
-.forge-add-list {
+.ship-add-list {
   display: flex;
   flex-direction: column;
   max-height: 180px;
   overflow-y: auto;
-  border: 1px solid var(--forge-border);
+  border: 1px solid var(--ship-border);
   border-radius: 3px;
 }
 
-.forge-add-item {
+.ship-add-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -872,75 +898,75 @@
   padding: 3px 8px;
   border: none;
   background: transparent;
-  color: var(--forge-fg);
+  color: var(--ship-fg);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.forge-add-item:hover,
-.forge-add-item:focus-visible {
-  background: var(--forge-hover);
+.ship-add-item:hover,
+.ship-add-item:focus-visible {
+  background: var(--ship-hover);
   outline: none;
 }
 
-.forge-add-item-name {
+.ship-add-item-name {
   flex: none;
 }
 
-.forge-add-item .forge-ov-age {
+.ship-add-item .ship-ov-age {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.forge-bar[hidden] {
+.ship-bar[hidden] {
   display: none;
 }
 
 /* The drilled view's way back to the Overview, ahead of the tabs. */
-.forge-crumb {
+.ship-crumb {
   padding: 6px 10px 4px 2px;
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font: inherit;
   cursor: pointer;
 }
 
-.forge-crumb::before {
+.ship-crumb::before {
   content: '\2039\00a0';
 }
 
-.forge-crumb:hover {
-  color: var(--forge-fg);
+.ship-crumb:hover {
+  color: var(--ship-fg);
 }
 
 /* A rarely used action in the bar, quiet like the Git pane's Fetch and Push. */
-.forge-quiet-btn {
+.ship-quiet-btn {
   flex: none;
   padding: 0 6px;
   border: none;
   border-radius: 3px;
   background: transparent;
-  color: var(--forge-muted);
+  color: var(--ship-muted);
   font: inherit;
   line-height: 18px;
   cursor: pointer;
 }
 
-.forge-quiet-btn:hover {
-  background: var(--forge-hover);
-  color: var(--forge-fg);
+.ship-quiet-btn:hover {
+  background: var(--ship-hover);
+  color: var(--ship-fg);
 }
 
-.forge-quiet-btn[hidden] {
+.ship-quiet-btn[hidden] {
   display: none;
 }
 
-.forge-check.disabled {
+.ship-check.disabled {
   opacity: 0.5;
   cursor: default;
 }

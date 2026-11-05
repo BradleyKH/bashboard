@@ -18,8 +18,8 @@ describe('SETTINGS_SECTIONS', () => {
 
   it('covers every non-keybinding leaf exactly once', () => {
     const { keybindings: _keybindings, ...rest } = DEFAULT_SETTINGS;
-    // Pins are edited from the Forge pane, so the list has no Settings tab field.
-    const expected = leaves(rest).filter((p) => p !== 'forge.pinnedRepos');
+    // Pins are edited from the Ship pane, so the list has no Settings tab field.
+    const expected = leaves(rest).filter((p) => p !== 'ship.pinnedRepos');
     expect(fields.map((f) => f.path.join('.')).sort()).toEqual(expected.sort());
   });
 

@@ -28,8 +28,8 @@ import {
   type DropTarget,
 } from './docking';
 import { FindBar } from './findBar';
-import type { ForgeTab } from './forgeModel';
-import { ForgePane } from './forgePane';
+import type { ShipTab } from './shipModel';
+import { ShipPane } from './shipPane';
 import { GitPane } from './gitPane';
 import type { OpenInHandler } from './openMenu';
 import type { Worktree } from './worktreeApi';
@@ -243,7 +243,14 @@ export type PaneSpec =
   | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
   | { kind: 'git'; root: string; tab?: GitTab }
   /** No `root` opens on the Overview. */
-  | { kind: 'forge'; root?: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean }
+  | {
+      kind: 'ship';
+      root?: string;
+      tab?: ShipTab;
+      thisBranch?: boolean;
+      thisBranchPulls?: boolean;
+      allPulls?: boolean;
+    }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' }
   | { kind: 'ports' };
@@ -954,7 +961,7 @@ export class Workspace {
       if (pane instanceof ScratchPane) return { key: id, collapsed, kind: 'scratch', scratchId: pane.scratchId };
       if (pane instanceof FilesPane) return { key: id, collapsed, kind: 'files', ...pane.saved() };
       if (pane instanceof GitPane) return { key: id, collapsed, kind: 'git', ...pane.saved() };
-      if (pane instanceof ForgePane) return { key: id, collapsed, kind: 'forge', ...pane.saved() };
+      if (pane instanceof ShipPane) return { key: id, collapsed, kind: 'ship', ...pane.saved() };
       if (pane instanceof SearchPane) return { key: id, collapsed, kind: 'search', ...pane.saved() };
       if (pane instanceof ContainersPane) return { key: id, collapsed, kind: 'containers' };
       if (pane instanceof PortsPane) return { key: id, collapsed, kind: 'ports' };
@@ -1143,29 +1150,29 @@ export class Workspace {
   }
 
   /**
-   * Design 4.20: shows a Forge pane already drilled into `target` (a repo root or
-   * `remote:<repo>`), else the first Forge pane in tab order drilled into it, else appends a
-   * Forge tab on it. A null target shows the first Forge pane as it is, or a new one on the
+   * Design 4.20: shows a Ship pane already drilled into `target` (a repo root or
+   * `remote:<repo>`), else the first Ship pane in tab order drilled into it, else appends a
+   * Ship tab on it. A null target shows the first Ship pane as it is, or a new one on the
    * Overview.
    */
-  openForge(target: string | null, tab?: ForgeTab): void {
+  openShip(target: string | null, tab?: ShipTab): void {
     // samePath because a pane rewrites a folder inside the repo to the repo's root.
     const drilledTo = (v: PaneView | undefined) => {
-      const root = v instanceof ForgePane ? v.root() : null;
+      const root = v instanceof ShipPane ? v.root() : null;
       return target !== null && root !== null && samePath(root, target);
     };
-    const anyForge = (v: PaneView | undefined) => v instanceof ForgePane;
-    const matches = [...this.paneViews.values()].some(drilledTo) ? drilledTo : anyForge;
-    const id = this.showOrAppendTab(matches, 'Forge', {
+    const anyShip = (v: PaneView | undefined) => v instanceof ShipPane;
+    const matches = [...this.paneViews.values()].some(drilledTo) ? drilledTo : anyShip;
+    const id = this.showOrAppendTab(matches, 'Ship', {
       key: 'f',
-      kind: 'forge',
+      kind: 'ship',
       ...(target !== null && { root: target }),
       ...(tab !== undefined && { tab }),
       collapsed: false,
     });
     const pane = id ? this.paneViews.get(id) : undefined;
     // A null target means the Overview, so an existing pane drilled into a repo backs out to it.
-    if (pane instanceof ForgePane) pane.drill(target, tab);
+    if (pane instanceof ShipPane) pane.drill(target, tab);
   }
 
   /**
@@ -1512,8 +1519,15 @@ export class Workspace {
         };
       case 'git':
         return { kind: 'git', root: p.root, tab: p.tab };
-      case 'forge':
-        return { kind: 'forge', root: p.root, tab: p.tab, thisBranch: p.thisBranch, allPulls: p.allPulls };
+      case 'ship':
+        return {
+          kind: 'ship',
+          root: p.root,
+          tab: p.tab,
+          thisBranch: p.thisBranch,
+          thisBranchPulls: p.thisBranchPulls,
+          allPulls: p.allPulls,
+        };
       case 'search':
         return { kind: 'search', root: p.root, query: p.query, options: p.options };
       case 'containers':
@@ -1526,7 +1540,7 @@ export class Workspace {
   /**
    * Design 4.11 Kind menu: a pane with no folder becoming a terminal opens where the tab's most
    * recent terminal is, else in the core's startingDirectory, with the default profile; becoming
-   * a Files or Git pane, it falls back last to the Repo section's repo. A Forge pane opens drilled
+   * a Files or Git pane, it falls back last to the Repo section's repo. A Ship pane opens drilled
    * into `folder` when one is given, else on the Overview.
    */
   private specForKind(kind: PaneKind, folder: string | null, tab: TabState): PaneSpec {
@@ -1539,8 +1553,8 @@ export class Workspace {
         return { kind: 'files', folder: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'git':
         return { kind: 'git', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
-      case 'forge':
-        return folder ? { kind: 'forge', root: folder } : { kind: 'forge' };
+      case 'ship':
+        return folder ? { kind: 'ship', root: folder } : { kind: 'ship' };
       case 'search':
         return { kind: 'search', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
       case 'containers':
@@ -1588,8 +1602,8 @@ export class Workspace {
       case 'git':
         pane = this.createGit(id, host, spec, expanded);
         break;
-      case 'forge':
-        pane = this.createForge(id, host, spec, expanded);
+      case 'ship':
+        pane = this.createShip(id, host, spec, expanded);
         break;
       case 'search':
         pane = this.createSearch(id, host, spec, expanded);
@@ -1720,13 +1734,13 @@ export class Workspace {
     });
   }
 
-  private createForge(
+  private createShip(
     id: string,
     host: HTMLElement,
-    spec: Extract<PaneSpec, { kind: 'forge' }>,
+    spec: Extract<PaneSpec, { kind: 'ship' }>,
     expanded: boolean,
-  ): ForgePane {
-    return new ForgePane({
+  ): ShipPane {
+    return new ShipPane({
       host,
       paneId: id,
       settings: this.paneSettings(),
@@ -1737,21 +1751,22 @@ export class Workspace {
       onFocus: () => this.setFocused(id),
       onChange: () => this.paneChanged(id),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
-      onRunTerminal: (argv, cwd) => this.openForgeCommand(id, argv, cwd),
+      onRunTerminal: (argv, cwd) => this.openShipCommand(id, argv, cwd),
       onOpenAccounts: (host, opts) => this.hooks.onOpenAccounts?.(host, opts),
       onOpenTerminal: (root) => this.openTerminal(root),
       tab: spec.tab,
       thisBranch: spec.thisBranch,
+      thisBranchPulls: spec.thisBranchPulls,
       allPulls: spec.allPulls,
     });
   }
 
   /**
-   * A Forge pane's sign-in or install command, in a terminal split off it. A clean exit closes
+   * A Ship pane's sign-in or install command, in a terminal split off it. A clean exit closes
    * that terminal; one still open at quit is saved, and restored, as a plain shell in `cwd`.
    */
-  private openForgeCommand(forgePaneId: string, argv: string[], cwd: string): void {
-    if (!this.store.isCollapsed(forgePaneId)) this.focusPane(forgePaneId);
+  private openShipCommand(shipPaneId: string, argv: string[], cwd: string): void {
+    if (!this.store.isCollapsed(shipPaneId)) this.focusPane(shipPaneId);
     this.openPane({ kind: 'terminal', cwd: cwd || undefined, command: argv });
   }
 
@@ -2142,8 +2157,8 @@ export class Workspace {
     if (pane instanceof GitPane) {
       return { ...common, kind: 'git', title: pane.title(), folder: pane.root(), confirmClose: false };
     }
-    if (pane instanceof ForgePane) {
-      return { ...common, kind: 'forge', title: pane.title(), folder: pane.folder, confirmClose: false };
+    if (pane instanceof ShipPane) {
+      return { ...common, kind: 'ship', title: pane.title(), folder: pane.folder, confirmClose: false };
     }
     if (pane instanceof SearchPane) {
       return { ...common, kind: 'search', title: pane.title(), folder: pane.root(), confirmClose: false };
@@ -2224,7 +2239,7 @@ export class Workspace {
       pane instanceof ScratchPane ||
       pane instanceof FilesPane ||
       pane instanceof GitPane ||
-      pane instanceof ForgePane ||
+      pane instanceof ShipPane ||
       pane instanceof SearchPane ||
       pane instanceof ContainersPane ||
       pane instanceof PortsPane

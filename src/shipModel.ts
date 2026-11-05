@@ -1,4 +1,4 @@
-// Run statuses, polling, grouping, log cleanup, and the setup notices for the Forge pane (docs/design.md
+// Run statuses, polling, grouping, log cleanup, and the setup notices for the Ship pane (docs/design.md
 // section 4.20). Pure, no DOM.
 import type {
   Capabilities,
@@ -11,11 +11,11 @@ import type {
   RunStatus,
 } from './forgeApi';
 
-export type ForgeTab = 'pipelines' | 'pulls';
+export type ShipTab = 'pipelines' | 'pulls';
 
 export interface StatusInfo {
   label: string;
-  /** The status itself, for a `forge-status--<modifier>` class. */
+  /** The status itself, for a `ship-status--<modifier>` class. */
   modifier: string;
   /** Queued or running: the run is still moving, so it is polled faster and its finish is announced. */
   active: boolean;
@@ -378,7 +378,7 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
       // The Rust side says "isn't supported yet" for a host it recognized as GitLab, Azure DevOps,
       // or Bitbucket Data Center, where mapping the host to github would be wrong advice.
       if (/isn't supported yet/i.test(err.message)) return notice(title, [err.message], [RETRY]);
-      const snippet = `"forge": { "hosts": { "${host ?? 'git.example.com'}": "github" } }`;
+      const snippet = `"ship": { "hosts": { "${host ?? 'git.example.com'}": "github" } }`;
       return notice(
         title,
         [

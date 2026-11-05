@@ -15,10 +15,12 @@ use super::{Cx, ForgeProvider};
 const LOG_TAIL_BYTES: usize = 1024 * 1024;
 const ACCEPT: (&str, &str) = ("Accept", "application/vnd.github+json");
 
-const PULLS_QUERY: &str = "query($owner: String!, $name: String!, $states: [PullRequestState!]) {
+// `$head` is a nullable variable passed as null for every branch, which GitHub treats as no
+// filter on `headRefName`.
+const PULLS_QUERY: &str = "query($owner: String!, $name: String!, $states: [PullRequestState!], $head: String) {
   viewer { login }
   repository(owner: $owner, name: $name) {
-    pullRequests(states: $states, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
+    pullRequests(states: $states, headRefName: $head, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       totalCount
       nodes {
         id number title state isDraft url createdAt updatedAt headRefName baseRefName reviewDecision
@@ -424,7 +426,13 @@ impl ForgeProvider for GitHub {
         Ok(())
     }
 
-    fn pulls(&self, cx: &Cx, repo: &RepoRef, open_only: bool) -> Result<PullList, ForgeError> {
+    fn pulls(
+        &self,
+        cx: &Cx,
+        repo: &RepoRef,
+        open_only: bool,
+        branch: Option<&str>,
+    ) -> Result<PullList, ForgeError> {
         let (owner, name) = owner_name(repo)?;
         let states = if open_only {
             json!(["OPEN"])
@@ -433,7 +441,7 @@ impl ForgeProvider for GitHub {
         };
         let body = json!({
             "query": PULLS_QUERY,
-            "variables": { "owner": owner, "name": name, "states": states },
+            "variables": { "owner": owner, "name": name, "states": states, "head": branch },
         });
         let v = cx.http.post_json(
             &graphql_url(repo),
@@ -879,7 +887,7 @@ mod tests {
             runs.iter()
                 .all(|r| !r.id.is_empty() && !r.web_url.is_empty())
         );
-        let pulls = GitHub.pulls(&cx, &r, true).unwrap();
+        let pulls = GitHub.pulls(&cx, &r, true, None).unwrap();
         assert!(
             pulls.total.is_some_and(|t| t >= pulls.items.len() as u64),
             "the list reports a total at least as large as the page"

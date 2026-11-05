@@ -1,19 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import type { PullRequest } from './forgeApi';
-import { bitbucketSlowedText, normalizeRepoInput, providerBadge, pullSummary, repoLabel, updatedText } from './forgeOverviewText';
+import { bitbucketSlowedText, normalizeRepoInput, providerBadge, pullSummary, repoLabel, runningSummary, updatedText } from './shipOverviewText';
 
 const pull = (over: Partial<PullRequest>): PullRequest => ({ state: 'open', reviewRequested: false, ...over }) as PullRequest;
 
 describe('pullSummary', () => {
   it('counts open pull requests and those awaiting the viewer', () => {
     const pulls = [pull({}), pull({ reviewRequested: true }), pull({ state: 'merged', reviewRequested: true })];
-    expect(pullSummary(pulls, 'pull request')).toBe('2 open, 1 needs you');
+    expect(pullSummary(pulls, 'pull request')).toBe('2 PRs open, 1 needs you');
   });
   it('omits the needs-you part when none', () => {
-    expect(pullSummary([pull({}), pull({})], 'pull request')).toBe('2 open');
+    expect(pullSummary([pull({}), pull({})], 'pull request')).toBe('2 PRs open');
   });
   it('says none are open, in the host noun', () => {
     expect(pullSummary([pull({ state: 'closed' })], 'merge request')).toBe('No open merge requests');
+  });
+  it('counts open drafts between the total and the needs-you part', () => {
+    const pulls = [pull({ draft: true }), pull({ draft: true }), pull({ reviewRequested: true }), pull({ state: 'closed', draft: true })];
+    expect(pullSummary(pulls, 'pull request')).toBe('3 PRs open, 2 drafts, 1 needs you');
+    expect(pullSummary([pull({ draft: true }), pull({})], 'pull request')).toBe('2 PRs open, 1 draft');
+  });
+  it('abbreviates the host noun, singular for one', () => {
+    expect(pullSummary([pull({})], 'pull request')).toBe('1 PR open');
+    expect(pullSummary([pull({}), pull({})], 'merge request')).toBe('2 MRs open');
+  });
+});
+
+describe('runningSummary', () => {
+  it('counts pipelines, singular for one, and is empty for none', () => {
+    expect(runningSummary(0)).toBe('');
+    expect(runningSummary(1)).toBe('1 pipeline running');
+    expect(runningSummary(3)).toBe('3 pipelines running');
   });
 });
 

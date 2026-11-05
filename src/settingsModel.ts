@@ -302,10 +302,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
-    title: 'Forge',
+    title: 'Ship',
     fields: [
       {
-        path: ['forge', 'overviewRefreshMinutes'],
+        path: ['ship', 'overviewRefreshMinutes'],
         label: 'Overview refresh interval',
         kind: 'number',
         min: 0,

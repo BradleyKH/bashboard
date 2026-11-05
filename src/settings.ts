@@ -52,7 +52,7 @@ export interface Settings {
    * reads `pinnedRepos` (identity is `repo`, `<host>/<path>`) and refreshes every
    * `overviewRefreshMinutes`, 0 meaning manual only (docs/settings.md).
    */
-  forge: {
+  ship: {
     hosts: Record<string, ForgeKind>;
     overviewRefreshMinutes: number;
     pinnedRepos: { repo: string; root?: string; branches?: string[] }[];
@@ -96,7 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5 },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
-  forge: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [] },
+  ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [] },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

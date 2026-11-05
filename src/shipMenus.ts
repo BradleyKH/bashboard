@@ -1,6 +1,6 @@
 import { item, separator, type MenuEntry } from './contextMenuModel';
 import type { Capabilities, ForgeRepo, PullRequest, Run } from './forgeApi';
-import { statusInfo } from './forgeModel';
+import { statusInfo } from './shipModel';
 
 export interface RunMenuHandlers {
   onOpen: () => void;

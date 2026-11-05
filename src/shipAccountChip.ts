@@ -1,18 +1,18 @@
 import type { ForgeRepo } from './forgeApi';
 
 /**
- * The "as @name" button in the Forge pane's bar, shown when the host holds several accounts
+ * The "as @name" button in the Ship pane's bar, shown when the host holds several accounts
  * (docs/design.md section 4.20). It is styled as a warning when the repo has no account of its own
  * and so follows whichever account `gh` last switched to.
  */
-export class ForgeAccountChip {
+export class ShipAccountChip {
   readonly el: HTMLButtonElement;
 
   /** `onClick` receives the chip, to anchor the account menu under it. */
   constructor(onClick: (anchor: HTMLElement) => void) {
     this.el = document.createElement('button');
     this.el.type = 'button';
-    this.el.className = 'forge-chip';
+    this.el.className = 'ship-chip';
     this.el.hidden = true;
     this.el.addEventListener('click', () => onClick(this.el));
   }

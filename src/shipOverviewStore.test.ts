@@ -17,7 +17,7 @@ vi.mock('./forgeApi', async (importOriginal) => ({
 }));
 vi.mock('./settings', () => ({ saveSetting: api.saveSetting }));
 
-const { ForgeOverviewStore } = await import('./forgeOverviewStore');
+const { ShipOverviewStore } = await import('./shipOverviewStore');
 type Settings = import('./settings').Settings;
 
 const REPO = { host: 'github.com', owner: 'acme', name: 'api' } as ForgeRepo;
@@ -69,7 +69,7 @@ function overview(runs: Run[] = [], pulls: PullRequest[] = []): OverviewRepo {
 }
 
 function settings(pinnedRepos: PinnedRepo[], overviewRefreshMinutes = 5): Settings {
-  return { forge: { hosts: {}, pinnedRepos, overviewRefreshMinutes } } as unknown as Settings;
+  return { ship: { hosts: {}, pinnedRepos, overviewRefreshMinutes } } as unknown as Settings;
 }
 
 const calls = () => api.forgeOverviewRepo.mock.calls.map((c) => c[0] as string);
@@ -91,9 +91,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('ForgeOverviewStore', () => {
+describe('ShipOverviewStore', () => {
   it('does not poll until wanted, then staggers the first round', async () => {
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }, { repo: 'b' }, { repo: 'c', root: 'C:/c' }]));
     expect(calls()).toEqual([]);
     store.setWanted('pane', true);
@@ -108,7 +108,7 @@ describe('ForgeOverviewStore', () => {
 
   it('polls on the heartbeat, and every minute while a watched branch runs', async () => {
     api.forgeOverviewRepo.mockResolvedValue(overview([run('main', 'running')]));
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }], 5));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(0);
@@ -126,7 +126,7 @@ describe('ForgeOverviewStore', () => {
 
   it('moves to the fast cadence when a branches-only edit watches a running branch', async () => {
     api.forgeOverviewRepo.mockResolvedValue(overview([run('main', 'success'), run('dev', 'running')]));
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }], 5));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(0);
@@ -137,7 +137,7 @@ describe('ForgeOverviewStore', () => {
   });
 
   it('pauses while unwanted and catches up on what fell due when wanted again', async () => {
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }], 5));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(0);
@@ -155,7 +155,7 @@ describe('ForgeOverviewStore', () => {
   });
 
   it('polls only on demand when the heartbeat is 0 and nothing runs', async () => {
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }], 0));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(60 * 60_000);
@@ -167,7 +167,7 @@ describe('ForgeOverviewStore', () => {
   it('holds Bitbucket pins to the request budget, leaving other hosts alone', async () => {
     api.forgeOverviewRepo.mockResolvedValue(overview([run('main', 'running')]));
     const bb = Array.from({ length: 10 }, (_, i) => ({ repo: `bitbucket.org/k/r${i}` }));
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([...bb, { repo: 'github.com/acme/api' }], 5));
     expect(store.bitbucketSlowedMs()).toBe(180_000);
     store.setWanted('pane', true);
@@ -187,7 +187,7 @@ describe('ForgeOverviewStore', () => {
   });
 
   it('reconciles pins on a settings change', async () => {
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }, { repo: 'b' }], 5));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(1000);
@@ -209,7 +209,7 @@ describe('ForgeOverviewStore', () => {
   it('drops a reply for a target that changed while it was in flight, then asks again', async () => {
     let resolveFirst: (o: OverviewRepo) => void = () => {};
     api.forgeOverviewRepo.mockImplementationOnce(() => new Promise((r) => (resolveFirst = r)));
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }], 5));
     store.setWanted('pane', true);
     store.applySettings(settings([{ repo: 'a', root: 'C:/a' }], 5));
@@ -220,7 +220,7 @@ describe('ForgeOverviewStore', () => {
   });
 
   it('keeps the last good overview beside an error', async () => {
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }], 5));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(0);
@@ -234,7 +234,7 @@ describe('ForgeOverviewStore', () => {
   it('fills pending checks after the list lands', async () => {
     api.forgeOverviewRepo.mockResolvedValue(overview([], [pull({ checksPending: true })]));
     api.forgePullChecks.mockResolvedValue([{ id: 'p1', checks: 'failure' }]);
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a', root: 'C:/a' }], 5));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(0);
@@ -249,7 +249,7 @@ describe('ForgeOverviewStore', () => {
       if (t === 'remote:c') return new Promise(() => {});
       return overview([run('main', 'success')]);
     });
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a' }, { repo: 'b' }, { repo: 'c' }], 5));
     store.setWanted('pane', true);
     await vi.advanceTimersByTimeAsync(1000);
@@ -259,11 +259,11 @@ describe('ForgeOverviewStore', () => {
   });
 
   it('pins and unpins by writing the whole array, keeping other fields', async () => {
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     store.applySettings(settings([{ repo: 'a', root: 'C:/a', branches: ['uat'] }, { repo: 'b' }]));
     await store.pin('c');
     expect(api.saveSetting).toHaveBeenLastCalledWith(
-      ['forge', 'pinnedRepos'],
+      ['ship', 'pinnedRepos'],
       [{ repo: 'a', root: 'C:/a', branches: ['uat'] }, { repo: 'b' }, { repo: 'c' }],
     );
     expect(store.isPinned('c')).toBe(true);
@@ -273,13 +273,13 @@ describe('ForgeOverviewStore', () => {
 
     await store.pin('b', 'C:/b');
     expect(api.saveSetting).toHaveBeenLastCalledWith(
-      ['forge', 'pinnedRepos'],
+      ['ship', 'pinnedRepos'],
       [{ repo: 'a', root: 'C:/a', branches: ['uat'] }, { repo: 'b', root: 'C:/b' }, { repo: 'c' }],
     );
 
     await store.unpin('a');
     expect(api.saveSetting).toHaveBeenLastCalledWith(
-      ['forge', 'pinnedRepos'],
+      ['ship', 'pinnedRepos'],
       [{ repo: 'b', root: 'C:/b' }, { repo: 'c' }],
     );
     expect(store.isPinned('a')).toBe(false);
@@ -288,7 +288,7 @@ describe('ForgeOverviewStore', () => {
   });
 
   it('refreshes the pins on a host whose credentials changed, or all of them for an empty host', async () => {
-    const store = new ForgeOverviewStore();
+    const store = new ShipOverviewStore();
     await Promise.resolve();
     expect(api.authChanged).not.toBeNull();
     store.applySettings(
@@ -314,11 +314,11 @@ describe('ForgeOverviewStore', () => {
 
   it('survives a runtime with no auth event', async () => {
     api.onForgeAuthChanged.mockImplementation(() => Promise.reject(new Error('no tauri')));
-    expect(() => new ForgeOverviewStore()).not.toThrow();
+    expect(() => new ShipOverviewStore()).not.toThrow();
     api.onForgeAuthChanged.mockImplementation(() => {
       throw new Error('missing');
     });
-    expect(() => new ForgeOverviewStore()).not.toThrow();
+    expect(() => new ShipOverviewStore()).not.toThrow();
     await Promise.resolve();
   });
 });

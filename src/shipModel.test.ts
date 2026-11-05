@@ -17,7 +17,7 @@ import {
   statusInfo,
   withPullChecks,
   type NoticeAction,
-} from './forgeModel';
+} from './shipModel';
 
 const GITHUB_CAPS: Capabilities = {
   rerun: true,
@@ -478,11 +478,11 @@ describe('noticeFor', () => {
     expect(noticeFor(err('rateLimited'), repo()).body.join(' ')).toContain('shortly');
   });
 
-  it('unsupportedHost names the host and offers the forge.hosts setting', () => {
+  it('unsupportedHost names the host and offers the ship.hosts setting', () => {
     const n = noticeFor(err('unsupportedHost'), repo({ provider: 'gitlab', host: 'gitlab.example.com' }));
     expect(n.title).toBe("gitlab.example.com isn't supported");
     const text = n.body.join('\n');
-    expect(text).toContain('"forge": { "hosts": { "gitlab.example.com": "github" } }');
+    expect(text).toContain('"ship": { "hosts": { "gitlab.example.com": "github" } }');
     // Bitbucket hosts other than bitbucket.org are refused, so the notice never offers `bitbucket`.
     expect(text).toContain('self-hosted GitHub Enterprise Server host');
     expect(text).not.toContain('"bitbucket"');
@@ -493,16 +493,16 @@ describe('noticeFor', () => {
   it('unsupportedHost without a repo still shows a usable setting', () => {
     const n = noticeFor(err('unsupportedHost'), null);
     expect(n.title).toBe("This host isn't supported");
-    expect(n.body.join('\n')).toContain('"forge"');
+    expect(n.body.join('\n')).toContain('"ship"');
   });
 
   it('unsupportedHost before the repo resolves names the host from the error URL', () => {
     const n = noticeFor(err('unsupportedHost', { url: 'https://git.corp.test' }), null);
     expect(n.title).toBe("git.corp.test isn't supported");
-    expect(n.body.join('\n')).toContain('"forge": { "hosts": { "git.corp.test": "github" } }');
+    expect(n.body.join('\n')).toContain('"ship": { "hosts": { "git.corp.test": "github" } }');
   });
 
-  it('unsupportedHost for a recognized provider not served yet offers no forge.hosts setting', () => {
+  it('unsupportedHost for a recognized provider not served yet offers no ship.hosts setting', () => {
     const n = noticeFor(err('unsupportedHost', { message: "GitLab isn't supported yet", url: 'https://gitlab.com' }), null);
     expect(n.title).toBe("gitlab.com isn't supported");
     expect(n.body).toEqual(["GitLab isn't supported yet"]);

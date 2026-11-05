@@ -1,7 +1,7 @@
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import type { PullRequest, ReviewState } from './forgeApi';
-import { relativeTime, statusInfo } from './forgeModel';
+import { relativeTime, statusInfo } from './shipModel';
 
 export interface PullRowHandlers {
   onOpen: (pull: PullRequest) => void;
@@ -19,7 +19,7 @@ function setText(el: HTMLElement, text: string): void {
 }
 
 /** One pull request in the Pull requests list (docs/design.md section 4.20). */
-export class ForgePullRow {
+export class ShipPullRow {
   readonly el: HTMLElement;
   private current: PullRequest;
 
@@ -36,35 +36,35 @@ export class ForgePullRow {
   constructor(pull: PullRequest, handlers: PullRowHandlers) {
     this.current = pull;
     this.el = document.createElement('div');
-    this.el.className = 'forge-pull';
+    this.el.className = 'ship-pull';
     this.el.tabIndex = 0;
     this.el.setAttribute('role', 'link');
 
     const main = document.createElement('div');
-    main.className = 'forge-pull-main';
+    main.className = 'ship-pull-main';
     const head = document.createElement('div');
-    head.className = 'forge-pull-head';
+    head.className = 'ship-pull-head';
     this.number = document.createElement('span');
-    this.number.className = 'forge-pull-number';
+    this.number.className = 'ship-pull-number';
     this.title = document.createElement('span');
-    this.title.className = 'forge-pull-title';
+    this.title.className = 'ship-pull-title';
     this.draft = document.createElement('span');
-    this.draft.className = 'forge-badge';
+    this.draft.className = 'ship-badge';
     this.draft.textContent = 'Draft';
     this.stateBadge = document.createElement('span');
     head.append(this.number, this.title, this.draft, this.stateBadge);
     this.meta = document.createElement('div');
-    this.meta.className = 'forge-pull-meta';
+    this.meta.className = 'ship-pull-meta';
     main.append(head, this.meta);
 
     const side = document.createElement('div');
-    side.className = 'forge-pull-side';
+    side.className = 'ship-pull-side';
     this.review = document.createElement('span');
-    this.review.className = 'forge-review';
+    this.review.className = 'ship-review';
     this.checks = document.createElement('span');
     this.checks.setAttribute('aria-hidden', 'true');
     this.when = document.createElement('span');
-    this.when.className = 'forge-pull-when';
+    this.when.className = 'ship-pull-when';
     side.append(this.review, this.checks, this.when);
 
     this.el.append(main, side);
@@ -90,7 +90,7 @@ export class ForgePullRow {
     if (this.title.title !== pull.title) this.title.title = pull.title;
     this.draft.hidden = !pull.draft || pull.state !== 'open';
     this.stateBadge.hidden = pull.state === 'open';
-    const stateClass = `forge-badge forge-badge--${pull.state}`;
+    const stateClass = `ship-badge ship-badge--${pull.state}`;
     if (this.stateBadge.className !== stateClass) this.stateBadge.className = stateClass;
     setText(this.stateBadge, pull.state === 'merged' ? 'Merged' : pull.state === 'closed' ? 'Closed' : '');
     this.el.classList.toggle('done', pull.state !== 'open');
@@ -98,14 +98,14 @@ export class ForgePullRow {
 
     const review = pull.reviewDecision;
     this.review.hidden = review === null;
-    this.review.className = `forge-review${review ? ` forge-review--${review}` : ''}`;
+    this.review.className = `ship-review${review ? ` ship-review--${review}` : ''}`;
     setText(this.review, review ? REVIEW_LABELS[review] : '');
 
     const checks = pull.checks;
     this.checks.hidden = checks === null && !pull.checksPending;
     if (checks !== null || pull.checksPending) {
       const info = checks !== null ? statusInfo(checks) : { modifier: 'pending', label: 'loading' };
-      const cls = `forge-status forge-status--${info.modifier}`;
+      const cls = `ship-status ship-status--${info.modifier}`;
       if (this.checks.className !== cls) this.checks.className = cls;
       const tip = `Checks: ${info.label}`;
       if (this.checks.title !== tip) this.checks.title = tip;

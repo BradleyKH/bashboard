@@ -1,8 +1,8 @@
 import { parseFavorites, samePath } from './favorites';
 import { asForgeError, forgeRepo } from './forgeApi';
-import { repoId } from './forgeOverviewModel';
-import { forgeOverviewStore } from './forgeOverviewStore';
-import { normalizeRepoInput, providerBadge, repoLabel } from './forgeOverviewText';
+import { repoId } from './shipOverviewModel';
+import { shipOverviewStore } from './shipOverviewStore';
+import { normalizeRepoInput, providerBadge, repoLabel } from './shipOverviewText';
 import { favoritesLoad, reposLoad } from './persistence';
 import { parseRepos } from './repos';
 
@@ -22,7 +22,7 @@ interface Suggestion {
 }
 
 /** The Overview's Add repo box: a typed repo or link, plus the known folders that are on a supported host. */
-export class ForgeAddRepo {
+export class ShipAddRepo {
   readonly el: HTMLElement;
   private readonly input: HTMLInputElement;
   private readonly addButton: HTMLButtonElement;
@@ -36,23 +36,23 @@ export class ForgeAddRepo {
 
   constructor() {
     this.el = document.createElement('div');
-    this.el.className = 'forge-add';
+    this.el.className = 'ship-add';
 
     const row = document.createElement('div');
-    row.className = 'forge-add-row';
+    row.className = 'ship-add-row';
     this.input = document.createElement('input');
     this.input.type = 'text';
-    this.input.className = 'forge-add-input';
+    this.input.className = 'ship-add-input';
     this.input.placeholder = 'Add a repo: owner/name or a link';
     this.input.setAttribute('aria-label', 'Repo to pin to Overview');
     this.input.spellcheck = false;
     this.addButton = document.createElement('button');
     this.addButton.type = 'button';
-    this.addButton.className = 'forge-button';
+    this.addButton.className = 'ship-button';
     this.addButton.textContent = 'Pin to Overview';
     const help = document.createElement('button');
     help.type = 'button';
-    help.className = 'forge-add-help';
+    help.className = 'ship-add-help';
     help.textContent = '?';
     help.title = ADD_REPO_HELP;
     help.setAttribute('aria-label', 'How to name a repo');
@@ -61,11 +61,11 @@ export class ForgeAddRepo {
     row.append(this.input, help, this.addButton);
 
     this.message = document.createElement('div');
-    this.message.className = 'forge-add-message';
+    this.message.className = 'ship-add-message';
     this.message.setAttribute('role', 'status');
     this.message.hidden = true;
     this.list = document.createElement('div');
-    this.list.className = 'forge-add-list';
+    this.list.className = 'ship-add-list';
     this.el.append(row, this.message, this.list);
 
     this.input.addEventListener('input', () => {
@@ -79,7 +79,7 @@ export class ForgeAddRepo {
     });
     this.addButton.addEventListener('click', () => void this.submit());
     // A pin or unpin elsewhere changes which suggestions are still offered.
-    this.unsubscribe = forgeOverviewStore.subscribe(() => this.renderSuggestions());
+    this.unsubscribe = shipOverviewStore.subscribe(() => this.renderSuggestions());
     this.renderSuggestions();
   }
 
@@ -126,23 +126,23 @@ export class ForgeAddRepo {
   private renderSuggestions(): void {
     const typed = this.input.value.trim().toLowerCase();
     const shown = this.suggestions.filter(
-      (s) => !forgeOverviewStore.isPinned(s.id) && (typed === '' || s.id.toLowerCase().includes(typed)),
+      (s) => !shipOverviewStore.isPinned(s.id) && (typed === '' || s.id.toLowerCase().includes(typed)),
     );
     this.list.hidden = shown.length === 0;
     this.list.replaceChildren(
       ...shown.map((s) => {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'forge-add-item';
+        button.className = 'ship-add-item';
         button.title = s.root;
         const badge = document.createElement('span');
-        badge.className = 'forge-ov-provider';
+        badge.className = 'ship-ov-provider';
         badge.textContent = providerBadge(s.id)?.letters ?? '';
         const name = document.createElement('span');
-        name.className = 'forge-add-item-name';
+        name.className = 'ship-add-item-name';
         name.textContent = repoLabel(s.id);
         const path = document.createElement('span');
-        path.className = 'forge-ov-age';
+        path.className = 'ship-ov-age';
         path.textContent = s.root;
         button.append(badge, name, path);
         button.addEventListener('click', () => void this.pin(s.id, s.root));
@@ -166,14 +166,14 @@ export class ForgeAddRepo {
   private async pin(id: string, root?: string): Promise<void> {
     this.showMessage('', false);
     try {
-      await forgeOverviewStore.pin(id, root);
+      await shipOverviewStore.pin(id, root);
     } catch (e) {
       this.showMessage(e instanceof Error ? e.message : String(e), true);
     }
   }
 
   private async submit(): Promise<void> {
-    const pinned = forgeOverviewStore.rows().map((e) => e.pin.repo);
+    const pinned = shipOverviewStore.rows().map((e) => e.pin.repo);
     const text = normalizeRepoInput(this.input.value, pinned);
     if (text === null || this.busy) return;
     this.setBusy(true);
@@ -182,11 +182,11 @@ export class ForgeAddRepo {
       // Pin the resolved identity, never the typed text, which can carry credentials or a page suffix.
       const id = repoId(await forgeRepo(`remote:${text}`));
       if (this.disposed) return;
-      if (forgeOverviewStore.isPinned(id)) {
+      if (shipOverviewStore.isPinned(id)) {
         this.showMessage(`${repoLabel(id)} is already on the Overview.`, false);
         return;
       }
-      await forgeOverviewStore.pin(id);
+      await shipOverviewStore.pin(id);
       this.input.value = '';
       this.showMessage('', false);
     } catch (e) {

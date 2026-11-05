@@ -1,8 +1,8 @@
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import type { Capabilities, Run } from './forgeApi';
-import { runActionStates, type RunActionKey } from './forgeMenus';
-import { duration, relativeTime, statusInfo } from './forgeModel';
+import { runActionStates, type RunActionKey } from './shipMenus';
+import { duration, relativeTime, statusInfo } from './shipModel';
 
 export interface RunRowHandlers {
   /** Expands or collapses the jobs under the row. */
@@ -30,7 +30,7 @@ function setText(el: HTMLElement, text: string): void {
  * One run in the Pipelines list (docs/design.md section 4.20): the row itself and, under it, a slot
  * for its jobs. `update` changes the parts that differ, so an expanded run keeps its scroll and focus.
  */
-export class ForgeRunRow {
+export class ShipRunRow {
   /** The run's block: the row, then the jobs slot. */
   readonly el: HTMLElement;
   /** Where the jobs view goes; empty and hidden while collapsed. */
@@ -51,41 +51,41 @@ export class ForgeRunRow {
   constructor(run: Run, handlers: RunRowHandlers) {
     this.current = run;
     this.el = document.createElement('div');
-    this.el.className = 'forge-run';
+    this.el.className = 'ship-run';
 
     this.row = document.createElement('div');
-    this.row.className = 'forge-run-row';
+    this.row.className = 'ship-run-row';
     this.row.tabIndex = 0;
     this.row.setAttribute('role', 'button');
 
     this.icon = document.createElement('span');
-    this.icon.className = 'forge-status';
+    this.icon.className = 'ship-status';
     this.icon.setAttribute('aria-hidden', 'true');
 
     const main = document.createElement('div');
-    main.className = 'forge-run-main';
+    main.className = 'ship-run-main';
     this.title = document.createElement('div');
-    this.title.className = 'forge-run-title';
+    this.title.className = 'ship-run-title';
     this.meta = document.createElement('div');
-    this.meta.className = 'forge-run-meta';
+    this.meta.className = 'ship-run-meta';
     main.append(this.title, this.meta);
 
     this.side = document.createElement('div');
-    this.side.className = 'forge-run-side';
+    this.side.className = 'ship-run-side';
     this.when = document.createElement('span');
-    this.when.className = 'forge-run-when';
+    this.when.className = 'ship-run-when';
     this.took = document.createElement('span');
-    this.took.className = 'forge-run-took';
+    this.took.className = 'ship-run-took';
     this.side.append(this.when, this.took);
 
     // Every row carries the same buttons, disabled where the run's status rules one out, so they
     // line up down the list; what the host cannot do at all is hidden on every row alike.
     const actions = document.createElement('div');
-    actions.className = 'forge-run-actions';
+    actions.className = 'ship-run-actions';
     const makeButton = (label: string, title: string, onClick: () => void): HTMLButtonElement => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'forge-run-btn';
+      b.className = 'ship-run-btn';
       b.textContent = label;
       b.title = title;
       b.addEventListener('click', (e) => {
@@ -109,7 +109,7 @@ export class ForgeRunRow {
     this.row.append(this.icon, main, this.side, actions);
 
     this.detail = document.createElement('div');
-    this.detail.className = 'forge-run-detail';
+    this.detail.className = 'ship-run-detail';
     this.detail.hidden = true;
     this.el.append(this.row, this.detail);
 
@@ -143,7 +143,7 @@ export class ForgeRunRow {
   update(run: Run, nowMs: number): void {
     this.current = run;
     const info = statusInfo(run.status);
-    const iconClass = `forge-status forge-status--${info.modifier}`;
+    const iconClass = `ship-status ship-status--${info.modifier}`;
     if (this.icon.className !== iconClass) this.icon.className = iconClass;
     if (this.icon.title !== info.label) this.icon.title = info.label;
 

@@ -1,7 +1,7 @@
 import { asForgeError, type Job, type JobLog, type Run, type Step } from './forgeApi';
-import { cleanLog, duration, statusInfo } from './forgeModel';
+import { cleanLog, duration, statusInfo } from './shipModel';
 
-export interface ForgeJobsViewOptions {
+export interface ShipJobsViewOptions {
   loadJobs: () => Promise<Job[]>;
   loadLog: (jobId: string) => Promise<JobLog>;
   /** Whether the host serves job logs; when false jobs show their steps only. */
@@ -39,14 +39,14 @@ function runLike(job: Job): Run {
 function statusIcon(status: Job['status']): HTMLElement {
   const info = statusInfo(status);
   const icon = document.createElement('span');
-  icon.className = `forge-status forge-status--${info.modifier}`;
+  icon.className = `ship-status ship-status--${info.modifier}`;
   icon.title = info.label;
   icon.setAttribute('aria-hidden', 'true');
   return icon;
 }
 
 /** The jobs of one run, each with its steps and an on-demand log (docs/design.md section 4.20). */
-export class ForgeJobsView {
+export class ShipJobsView {
   readonly el: HTMLElement;
   private jobs: Job[] = [];
   private loadedOnce = false;
@@ -55,9 +55,9 @@ export class ForgeJobsView {
   private disposed = false;
   private readonly states = new Map<string, JobState>();
 
-  constructor(private readonly opts: ForgeJobsViewOptions) {
+  constructor(private readonly opts: ShipJobsViewOptions) {
     this.el = document.createElement('div');
-    this.el.className = 'forge-jobs';
+    this.el.className = 'ship-jobs';
     this.render();
     void this.reload();
   }
@@ -85,7 +85,7 @@ export class ForgeJobsView {
 
   private render(): void {
     const children: HTMLElement[] = [];
-    if (this.error !== null) children.push(this.note(this.error, 'forge-jobs-error'));
+    if (this.error !== null) children.push(this.note(this.error, 'ship-jobs-error'));
     if (!this.loadedOnce) {
       children.push(this.note('Loading jobs…'));
     } else if (this.jobs.length === 0 && this.error === null) {
@@ -97,7 +97,7 @@ export class ForgeJobsView {
 
   private note(text: string, extra = ''): HTMLElement {
     const el = document.createElement('div');
-    el.className = `forge-note ${extra}`.trim();
+    el.className = `ship-note ${extra}`.trim();
     el.textContent = text;
     return el;
   }
@@ -106,7 +106,7 @@ export class ForgeJobsView {
     let state = this.states.get(jobId);
     if (!state) {
       const logEl = document.createElement('div');
-      logEl.className = 'forge-log-wrap';
+      logEl.className = 'ship-log-wrap';
       state = { open: false, logEl, loaded: false, loading: false };
       this.states.set(jobId, state);
     }
@@ -116,22 +116,22 @@ export class ForgeJobsView {
   private renderJob(job: Job): HTMLElement {
     const state = this.stateFor(job.id);
     const el = document.createElement('div');
-    el.className = 'forge-job';
+    el.className = 'ship-job';
 
     const head = document.createElement('div');
-    head.className = 'forge-job-head';
+    head.className = 'ship-job-head';
     const name = document.createElement('span');
-    name.className = 'forge-job-name';
+    name.className = 'ship-job-name';
     name.textContent = job.name;
     const took = document.createElement('span');
-    took.className = 'forge-job-took';
+    took.className = 'ship-job-took';
     took.textContent = duration(runLike(job), Date.now());
     head.append(statusIcon(job.status), name, took);
     el.append(head);
 
     if (job.steps.length > 0) {
       const steps = document.createElement('ol');
-      steps.className = 'forge-steps';
+      steps.className = 'ship-steps';
       for (const step of job.steps) steps.append(this.renderStep(step));
       el.append(steps);
     }
@@ -139,7 +139,7 @@ export class ForgeJobsView {
     if (this.opts.logs) {
       const toggle = document.createElement('button');
       toggle.type = 'button';
-      toggle.className = 'forge-log-toggle';
+      toggle.className = 'ship-log-toggle';
       toggle.textContent = state.open ? 'Hide log' : 'Show log';
       toggle.addEventListener('click', () => {
         state.open = !state.open;
@@ -155,20 +155,20 @@ export class ForgeJobsView {
 
   private renderStep(step: Step): HTMLElement {
     const li = document.createElement('li');
-    li.className = 'forge-step';
+    li.className = 'ship-step';
     const info = statusInfo(step.status);
     li.classList.toggle('failed', step.status === 'failure');
     const icon = document.createElement('span');
-    icon.className = `forge-status forge-status--${info.modifier}`;
+    icon.className = `ship-status ship-status--${info.modifier}`;
     icon.title = info.label;
     icon.setAttribute('aria-hidden', 'true');
     const text = document.createElement('span');
-    text.className = 'forge-step-name';
+    text.className = 'ship-step-name';
     text.textContent = step.name;
     li.append(icon, text);
     if (step.status === 'failure') {
       const mark = document.createElement('span');
-      mark.className = 'forge-step-mark';
+      mark.className = 'ship-step-mark';
       mark.textContent = 'failed';
       li.append(mark);
     }
@@ -183,10 +183,10 @@ export class ForgeJobsView {
       const log = await this.opts.loadLog(jobId);
       if (this.disposed) return;
       const pre = document.createElement('pre');
-      pre.className = 'forge-log';
+      pre.className = 'ship-log';
       pre.textContent = cleanLog(log.text);
       const parts: HTMLElement[] = [];
-      if (log.truncated) parts.push(this.note('Showing the last 1 MiB of the log.', 'forge-log-trunc'));
+      if (log.truncated) parts.push(this.note('Showing the last 1 MiB of the log.', 'ship-log-trunc'));
       parts.push(pre);
       state.logEl.replaceChildren(...parts);
       state.loaded = true;
@@ -194,7 +194,7 @@ export class ForgeJobsView {
       pre.scrollTop = pre.scrollHeight;
     } catch (e) {
       if (this.disposed) return;
-      state.logEl.replaceChildren(this.note(asForgeError(e).message, 'forge-jobs-error'));
+      state.logEl.replaceChildren(this.note(asForgeError(e).message, 'ship-jobs-error'));
     } finally {
       state.loading = false;
     }

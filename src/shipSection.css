@@ -1,0 +1,32 @@
+/* The dashboard's Ship section. Rows reuse the favorite row styles and the Ship pane's status icons. */
+
+/* The status icons read these from the Ship pane's body, which the dashboard is not inside. */
+.ship-section {
+  --ship-ok: #6fcf7f;
+  --ship-bad: #e8716f;
+  --ship-warn: #e6c15a;
+  --ship-idle: #7d8a91;
+}
+
+.favorite-row.ship-item-row {
+  padding-left: 8px;
+}
+
+.ship-item-repo {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--content-fg);
+}
+
+.ship-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa6ad;
+}

@@ -1,4 +1,4 @@
-//! The Accounts tab's commands: which credential the Forge pane would use for each host, a
+//! The Accounts tab's commands: which credential the Ship pane would use for each host, a
 //! sign-in check, the Bitbucket token, and GitHub CLI's account switch and sign-out. Token
 //! values stay in the core; only the Bitbucket token field sends one in (see `auth`).
 
@@ -23,7 +23,7 @@ const BITBUCKET_HOST: &str = "bitbucket.org";
 const BITBUCKET_USER_URL: &str = "https://api.bitbucket.org/2.0/user";
 
 /// The hosts the tab lists: `github.com`, the other GitHub hosts from `hosts.yml` and
-/// `forge.hosts` alphabetically, then `bitbucket.org`. A `hosts.yml` host that `forge.hosts`
+/// `ship.hosts` alphabetically, then `bitbucket.org`. A `hosts.yml` host that `ship.hosts`
 /// maps to another provider is left out, since the pane would not treat it as GitHub.
 pub(crate) fn listed_hosts(
     gh_hosts: &[String],

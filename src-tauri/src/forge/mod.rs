@@ -1,4 +1,4 @@
-//! The Forge pane's backend: a repo's CI runs and open pull requests from its code host
+//! The Ship pane's backend: a repo's CI runs and open pull requests from its code host
 //! (docs/design.md section 3.20).
 //!
 //! Every host sits behind `ForgeProvider` and returns the shapes in `types`, so the front end
@@ -66,8 +66,15 @@ pub trait ForgeProvider: Send + Sync {
         failed_only: bool,
     ) -> Result<(), ForgeError>;
     fn cancel(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<(), ForgeError>;
-    /// The most recently updated pull requests: open ones only, or those in any state.
-    fn pulls(&self, cx: &Cx, repo: &RepoRef, open_only: bool) -> Result<PullList, ForgeError>;
+    /// The most recently updated pull requests: open ones only, or those in any state, and
+    /// with `branch` only those whose source branch it is.
+    fn pulls(
+        &self,
+        cx: &Cx,
+        repo: &RepoRef,
+        open_only: bool,
+        branch: Option<&str>,
+    ) -> Result<PullList, ForgeError>;
     /// Checks for the pull requests `pulls` left marked `checks_pending`. A host whose list
     /// already carries them never marks one, so the default answers nothing.
     fn pull_checks(
@@ -262,7 +269,7 @@ fn unknown_host(host: &str) -> ForgeError {
     unsupported(
         host,
         format!(
-            "{host} isn't a code host Bashboard recognizes. Name its provider in the forge.hosts setting."
+            "{host} isn't a code host Bashboard recognizes. Name its provider in the ship.hosts setting."
         ),
     )
 }
@@ -299,7 +306,7 @@ fn resolve_remote(
         // password.
         ForgeError::new(
             ForgeErrorKind::UnsupportedHost,
-            "This repo address isn't one Bashboard can read. Use host/owner/name, or name a self-hosted host's provider in the forge.hosts setting.",
+            "This repo address isn't one Bashboard can read. Use host/owner/name, or name a self-hosted host's provider in the ship.hosts setting.",
         )
     })?;
     let (accounts, active) = served_accounts(&repo, hosts_yml)?;
@@ -610,7 +617,7 @@ fn overview(state: &ForgeState, git: &Git, r: &Resolved) -> Result<OverviewRepo,
     let _ = state.token(git, r, false);
     std::thread::scope(|s| {
         let pulls =
-            s.spawn(|| with_provider_in(state, git, r, |p, cx, repo| p.pulls(cx, repo, true)));
+            s.spawn(|| with_provider_in(state, git, r, |p, cx, repo| p.pulls(cx, repo, true, None)));
         let default_branch = s.spawn(|| state.default_branch(git, r));
         let mut runs = with_provider_in(state, git, r, |p, cx, repo| p.runs(cx, repo, None))?;
         runs.truncate(MAX_RUNS);
@@ -699,16 +706,19 @@ pub async fn forge_cancel(app: AppHandle, root: String, run_id: String) -> Resul
 }
 
 /// Pull requests, at most 50, with the host's count of all that match: open ones unless
-/// `open_only` is false, which takes every state.
+/// `open_only` is false, which takes every state; `branch` `None` means every source branch.
 #[tauri::command]
 pub async fn forge_pulls(
     app: AppHandle,
     root: String,
     open_only: Option<bool>,
+    branch: Option<String>,
 ) -> Result<PullList, ForgeError> {
     let open_only = open_only.unwrap_or(true);
     blocking(move || {
-        let mut pulls = with_provider(&app, &root, |p, cx, repo| p.pulls(cx, repo, open_only))?;
+        let mut pulls = with_provider(&app, &root, |p, cx, repo| {
+            p.pulls(cx, repo, open_only, branch.as_deref())
+        })?;
         pulls.items.truncate(MAX_PULLS);
         Ok(pulls)
     })

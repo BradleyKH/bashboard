@@ -58,7 +58,7 @@ import { SettingsTab } from './settingsTab';
 import { SetupWizard } from './setupWizard';
 import { HookInstallDialog } from './hookInstallDialog';
 import { moveItem, parseFavorites, samePath, type Favorite } from './favorites';
-import { forgeOverviewStore } from './forgeOverviewStore';
+import { shipOverviewStore } from './shipOverviewStore';
 import { pinTarget } from './filesRouting';
 import { layoutFromSnapshot, parseLayouts, upsertLayout, type NamedLayout } from './layouts';
 import { BackdropHost } from './backdrop/backdropHost';
@@ -468,10 +468,10 @@ function openPin(pin: Pin): void {
 function openIn(kind: Exclude<LaunchKind, FolderlessLaunchKind> | 'editor', path: string): void {
   cachedRepoRoot(path).then(
     ({ root, isGit }) => {
-      if (kind === 'git' || kind === 'forge') {
+      if (kind === 'git' || kind === 'ship') {
         if (!isGit) showToast(`${path} is not in a git repo`);
         else if (kind === 'git') workspace.showGit(root);
-        else workspace.openPane({ kind: 'forge', root });
+        else workspace.openPane({ kind: 'ship', root });
       } else if (kind === 'search') {
         workspace.showSearch(root);
       } else if (kind === 'terminal') {
@@ -631,7 +631,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
       showToast(`Could not save the setting: ${String(err)}`),
     ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
-  onOpenForge: (target, tab) => workspace.openForge(target, tab),
+  onOpenShip: (target, tab) => workspace.openShip(target, tab),
   ports: {
     onOpenPorts: (key, showAll): void => workspace.openPorts(key, showAll),
     ownerTitle: (ptyId): string | null => workspace.titleForPty(ptyId),
@@ -796,7 +796,7 @@ const palette = new CommandPalette({
     if (command === 'checkForUpdates') checkForUpdatesNow();
     else if (command === 'openContainers') workspace.openContainers();
     else if (command === 'openPorts') workspace.openPorts();
-    else if (command === 'openForge') workspace.openForge(null);
+    else if (command === 'openShip') workspace.openShip(null);
   },
 });
 /** The palette opens at once; its worktree items arrive when the load finishes. */
@@ -945,7 +945,7 @@ panel.setPortsStore(ports);
 panel.setLocalModelsStore(localModels);
 void containers.start();
 panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop, payload.settings.localModels.minContext);
-forgeOverviewStore.applySettings(payload.settings);
+shipOverviewStore.applySettings(payload.settings);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
 panel.setOpen(payload.settings.dashboard.visibleOnStart);
@@ -1138,7 +1138,7 @@ onSettingsChanged((p) => {
   shortcutsTab.update(p.settings.keybindings);
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
-  forgeOverviewStore.applySettings(p.settings);
+  shipOverviewStore.applySettings(p.settings);
   panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop, p.settings.localModels.minContext);
   void refreshProfiles().then(() => settingsTab.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

@@ -249,6 +249,24 @@ fn page_size(page: &Value) -> Option<u64> {
     page.get("size").and_then(Value::as_u64)
 }
 
+/// The pull request list URL. The branch filter goes in a BBQL query, since the list has no
+/// plain source-branch parameter; a ref name may hold `"` but never `\`, so escaping the quote
+/// is enough.
+fn pulls_url(base: &str, open_only: bool, branch: Option<&str>) -> String {
+    let states = if open_only {
+        "state=OPEN"
+    } else {
+        "state=OPEN&state=MERGED&state=DECLINED&state=SUPERSEDED"
+    };
+    let mut url =
+        format!("{base}/pullrequests?{states}&sort=-updated_on&pagelen=50&fields={PULL_FIELDS}");
+    if let Some(b) = branch {
+        let q = format!("source.branch.name=\"{}\"", b.replace('"', "\\\""));
+        url.push_str(&format!("&q={}", percent_encode(&q)));
+    }
+    url
+}
+
 /// One pull request, as listed with the `PULL_FIELDS` selection.
 pub fn map_pull(v: &Value, viewer: Option<&str>, checks: Option<RunStatus>) -> Option<PullRequest> {
     let number = v.get("id").and_then(Value::as_u64)?;
@@ -584,16 +602,15 @@ impl ForgeProvider for Bitbucket {
         Ok(())
     }
 
-    fn pulls(&self, cx: &Cx, repo: &RepoRef, open_only: bool) -> Result<PullList, ForgeError> {
+    fn pulls(
+        &self,
+        cx: &Cx,
+        repo: &RepoRef,
+        open_only: bool,
+        branch: Option<&str>,
+    ) -> Result<PullList, ForgeError> {
         let base = repo_base(repo)?;
-        let states = if open_only {
-            "state=OPEN"
-        } else {
-            "state=OPEN&state=MERGED&state=DECLINED&state=SUPERSEDED"
-        };
-        let url = format!(
-            "{base}/pullrequests?{states}&sort=-updated_on&pagelen=50&fields={PULL_FIELDS}"
-        );
+        let url = pulls_url(&base, open_only, branch);
         let page: Value = cx
             .http
             .get_json(&url, Some(&auth(cx)), ACCEPT)
@@ -663,6 +680,16 @@ mod tests {
     use super::*;
     use crate::forge::http::{Http, map_status_at, name_missing_scopes};
     use crate::forge::types::Token;
+
+    #[test]
+    fn pulls_url_filters_by_source_branch_only_when_asked() {
+        let all = pulls_url("https://x/r", true, None);
+        assert!(all.starts_with("https://x/r/pullrequests?state=OPEN&sort="));
+        assert!(!all.contains("&q="));
+        let mine = pulls_url("https://x/r", false, Some("feat/a\"b"));
+        assert!(mine.contains("state=DECLINED"));
+        assert!(mine.ends_with("&q=source.branch.name%3D%22feat%2Fa%5C%22b%22"));
+    }
 
     const WEB: &str = "https://bitbucket.org/ws/slug";
 
@@ -1167,14 +1194,14 @@ mod tests {
         );
         let jobs = Bitbucket.jobs(&cx, &repo, &runs[0].id).unwrap();
         assert!(!jobs.is_empty());
-        let pulls = Bitbucket.pulls(&cx, &repo, true).unwrap();
+        let pulls = Bitbucket.pulls(&cx, &repo, true, None).unwrap();
         assert!(
             pulls.total.is_some_and(|t| t >= pulls.items.len() as u64),
             "the list reports a total at least as large as the page"
         );
         // Every state, timing the list apart from the checks it leaves pending.
         let started = std::time::Instant::now();
-        let all = Bitbucket.pulls(&cx, &repo, false).unwrap();
+        let all = Bitbucket.pulls(&cx, &repo, false, None).unwrap();
         let listed = started.elapsed();
         assert!(
             all.items
@@ -1206,7 +1233,7 @@ mod tests {
             all.items.len(),
             queries.len()
         );
-        let again = Bitbucket.pulls(&cx, &repo, false).unwrap();
+        let again = Bitbucket.pulls(&cx, &repo, false, None).unwrap();
         assert!(
             again.items.iter().all(|p| !p.checks_pending),
             "a second list finds every rollup cached"

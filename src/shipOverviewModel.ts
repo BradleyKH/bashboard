@@ -1,7 +1,7 @@
-// Row building, attention order, dashboard items, and poll timing for the Forge Overview tab
+// Row building, attention order, dashboard items, and poll timing for the Ship Overview tab
 // (docs/design.md section 4.20). Pure, no DOM.
 import type { ForgeRepo, OverviewRepo, PinnedRepo, PullRequest, Run } from './forgeApi';
-import { statusInfo, type ForgeTab } from './forgeModel';
+import { statusInfo, type ShipTab } from './shipModel';
 
 /** A branch whose newest run is watched; `run` is null when none of the repo's latest runs is on it. */
 export interface HealthBranch {
@@ -16,14 +16,14 @@ export interface OverviewRow {
 }
 
 export type DashboardItem =
-  | { kind: 'branch'; target: string; repo: string; tab: ForgeTab; branch: string; run: Run }
-  | { kind: 'review' | 'mine'; target: string; repo: string; tab: ForgeTab; pull: PullRequest };
+  | { kind: 'branch'; target: string; repo: string; tab: ShipTab; branch: string; run: Run }
+  | { kind: 'review' | 'mine'; target: string; repo: string; tab: ShipTab; pull: PullRequest };
 
 export const FAST_POLL_MS = 60_000;
 
 /**
  * Overview requests an hour that Bitbucket pins may spend between them, well under Bitbucket's
- * 1,000 an hour per user, since drilled Forge panes and other tools share the same allowance.
+ * 1,000 an hour per user, since drilled Ship panes and other tools share the same allowance.
  */
 const BITBUCKET_HOURLY_BUDGET = 600;
 /** A poll's usual cost: the runs, the open pull requests, and the checks of those that changed. */
@@ -63,6 +63,11 @@ function openPulls(o: OverviewRepo): PullRequest[] {
 const isRedBranch = (h: HealthBranch): h is HealthBranch & { run: Run } => h.run?.status === 'failure';
 const needsReview = (p: PullRequest) => p.reviewRequested;
 const mineNeedsWork = (p: PullRequest) => p.isMine && (p.reviewDecision === 'changesRequested' || p.checks === 'failure');
+
+/** Runs queued or running among the repo's latest 20, on any branch. */
+export function runningCount(o: OverviewRepo): number {
+  return o.runs.filter((r) => statusInfo(r.status).active).length;
+}
 
 /** 1 is most urgent: red branch, review requested, own pull request needing work, branch running, the rest. */
 export function attentionRank(o: OverviewRepo, health: readonly HealthBranch[]): 1 | 2 | 3 | 4 | 5 {
@@ -123,10 +128,11 @@ export function bitbucketFloorMs(pins: number): number {
 }
 
 /**
- * 60s while a health-branch run is moving; else the heartbeat; null when that is off (0). Either
- * is stretched to `floorMs`, the gap a host's request budget needs.
+ * 60s while any of the latest runs is moving, so the row's running count clears promptly; else the
+ * heartbeat; null when that is off (0). Either is stretched to `floorMs`, the gap a host's request
+ * budget needs.
  */
-export function nextPollMs(health: readonly HealthBranch[], heartbeatMinutes: number, floorMs = 0): number | null {
-  if (health.some((h) => h.run !== null && statusInfo(h.run.status).active)) return Math.max(FAST_POLL_MS, floorMs);
+export function nextPollMs(runs: readonly Run[], heartbeatMinutes: number, floorMs = 0): number | null {
+  if (runs.some((r) => statusInfo(r.status).active)) return Math.max(FAST_POLL_MS, floorMs);
   return heartbeatMinutes > 0 ? Math.max(heartbeatMinutes * 60_000, floorMs) : null;
 }

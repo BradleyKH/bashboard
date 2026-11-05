@@ -1,6 +1,6 @@
-import type { Notice, NoticeAction, ScopeLine } from './forgeModel';
+import type { Notice, NoticeAction, ScopeLine } from './shipModel';
 
-export interface ForgeNoticeHandlers {
+export interface ShipNoticeHandlers {
   /** Runs `argv` in a new terminal pane. */
   onRunTerminal: (argv: string[]) => void;
   onOpenUrl: (url: string) => void;
@@ -18,30 +18,30 @@ function isCodeLine(line: string): boolean {
 }
 
 /** The in-pane setup guide for an error: what happened and the buttons for the next step (docs/design.md section 4.20). */
-export class ForgeNotice {
+export class ShipNotice {
   readonly el: HTMLElement;
 
-  constructor(private readonly handlers: ForgeNoticeHandlers) {
+  constructor(private readonly handlers: ShipNoticeHandlers) {
     this.el = document.createElement('div');
-    this.el.className = 'forge-notice';
+    this.el.className = 'ship-notice';
   }
 
   set(notice: Notice): void {
     const parts: HTMLElement[] = [];
     const title = document.createElement('h3');
-    title.className = 'forge-notice-title';
+    title.className = 'ship-notice-title';
     title.textContent = notice.title;
     parts.push(title);
 
     for (const line of notice.body) {
       if (isCodeLine(line)) {
         const code = document.createElement('pre');
-        code.className = 'forge-notice-code';
+        code.className = 'ship-notice-code';
         code.textContent = line;
         parts.push(code);
       } else {
         const p = document.createElement('p');
-        p.className = 'forge-notice-text';
+        p.className = 'ship-notice-text';
         p.textContent = line;
         parts.push(p);
       }
@@ -53,7 +53,7 @@ export class ForgeNotice {
     if (detail.length > 0) {
       if (notice.collapsedLabel !== null) {
         const box = document.createElement('details');
-        box.className = 'forge-notice-more';
+        box.className = 'ship-notice-more';
         const summary = document.createElement('summary');
         summary.textContent = notice.collapsedLabel;
         box.append(summary, ...detail);
@@ -65,7 +65,7 @@ export class ForgeNotice {
 
     if (notice.actions.length > 0) {
       const row = document.createElement('div');
-      row.className = 'forge-notice-actions';
+      row.className = 'ship-notice-actions';
       notice.actions.forEach((action, i) => row.append(this.button(action, i === 0)));
       parts.push(row);
     }
@@ -74,7 +74,7 @@ export class ForgeNotice {
 
   private steps(steps: readonly string[]): HTMLElement {
     const ol = document.createElement('ol');
-    ol.className = 'forge-notice-steps';
+    ol.className = 'ship-notice-steps';
     for (const step of steps) {
       const li = document.createElement('li');
       li.textContent = step;
@@ -85,7 +85,7 @@ export class ForgeNotice {
 
   private scopes(scopes: readonly ScopeLine[]): HTMLElement {
     const ul = document.createElement('ul');
-    ul.className = 'forge-notice-scopes';
+    ul.className = 'ship-notice-scopes';
     for (const s of scopes) {
       const li = document.createElement('li');
       const code = document.createElement('code');
@@ -99,7 +99,7 @@ export class ForgeNotice {
   private button(action: NoticeAction, primary: boolean): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = primary ? 'forge-button primary' : 'forge-button';
+    btn.className = primary ? 'ship-button primary' : 'ship-button';
     btn.textContent = action.label;
     btn.addEventListener('click', () => {
       switch (action.kind) {

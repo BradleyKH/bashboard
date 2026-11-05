@@ -1,8 +1,8 @@
 // Pure view model for the Accounts tab: one card per host, generic enough that the DOM view renders
 // the action unions without knowing about providers (docs/design.md section 4.20).
 import type { HostAuth, TokenSourceKind } from './forgeApi';
-import { signInAnotherArgv } from './forgeMenus';
-import { BITBUCKET_SCOPES, BITBUCKET_TOKEN_URL } from './forgeModel';
+import { signInAnotherArgv } from './shipMenus';
+import { BITBUCKET_SCOPES, BITBUCKET_TOKEN_URL } from './shipModel';
 
 export type Severity = 'ok' | 'warn' | 'missing';
 

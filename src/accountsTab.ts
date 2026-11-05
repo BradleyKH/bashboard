@@ -32,7 +32,7 @@ export class AccountsTab {
     const root = document.createElement('div');
     root.className = 'accounts-tab app-dialog-scroll';
     const intro = document.createElement('p');
-    intro.textContent = 'Where each code host gets its token. Forge panes use these to read pull requests and pipelines.';
+    intro.textContent = 'Where each code host gets its token. Ship panes use these to read pull requests and pipelines.';
     const error = document.createElement('p');
     error.className = 'accounts-error';
     error.hidden = true;

@@ -165,7 +165,7 @@ pub struct DashboardSections {
     pub panes: bool,
     pub containers: bool,
     pub ports: bool,
-    pub forge: bool,
+    pub ship: bool,
     pub local_models: bool,
     pub external: bool,
     pub system: bool,
@@ -199,17 +199,17 @@ pub struct GitSettings {
     pub auto_fetch_minutes: u32,
 }
 
-/// Forge kinds `forge.hosts` accepts.
+/// Forge kinds `ship.hosts` accepts.
 pub const FORGE_KINDS: [&str; 4] = ["github", "gitlab", "bitbucket", "azureDevOps"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Forge {
-    /// Lowercased host name to one of `FORGE_KINDS`; see `parse_forge_hosts`.
+pub struct Ship {
+    /// Lowercased host name to one of `FORGE_KINDS`; see `parse_ship_hosts`.
     pub hosts: HashMap<String, String>,
     /// Minutes between Overview refreshes; 0 turns the heartbeat off.
     pub overview_refresh_minutes: u32,
-    /// Repos pinned to the Forge Overview, in file order.
+    /// Repos pinned to the Ship Overview, in file order.
     pub pinned_repos: Vec<PinnedRepo>,
 }
 
@@ -282,14 +282,14 @@ pub struct Settings {
     pub editor: Editor,
     pub git: GitSettings,
     pub local_models: LocalModels,
-    pub forge: Forge,
+    pub ship: Ship,
     pub keybindings: Vec<Keybinding>,
 }
 
 impl Settings {
     /// Host names lowercased, so a lookup by a remote's host matches however the file cased it.
     pub(crate) fn forge_hosts(&self) -> HashMap<String, String> {
-        self.forge.hosts.iter().map(|(host, kind)| (host.to_lowercase(), kind.clone())).collect()
+        self.ship.hosts.iter().map(|(host, kind)| (host.to_lowercase(), kind.clone())).collect()
     }
 }
 
@@ -413,7 +413,7 @@ impl Default for Settings {
                     panes: true,
                     containers: true,
                     ports: true,
-                    forge: true,
+                    ship: true,
                     local_models: true,
                     external: true,
                     system: false,
@@ -426,7 +426,7 @@ impl Default for Settings {
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5 },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
-            forge: Forge { hosts: HashMap::new(), overview_refresh_minutes: 5, pinned_repos: Vec::new() },
+            ship: Ship { hosts: HashMap::new(), overview_refresh_minutes: 5, pinned_repos: Vec::new() },
             keybindings: default_keybindings(),
         }
     }
@@ -511,13 +511,13 @@ fn pick<T>(
 
 /// Each bad entry is dropped with a warning and the rest kept. Keys are lowercased, so a later
 /// entry that differs only in case replaces an earlier one.
-fn parse_forge_hosts(root: &Value, warnings: &mut Vec<String>) -> HashMap<String, String> {
+fn parse_ship_hosts(root: &Value, warnings: &mut Vec<String>) -> HashMap<String, String> {
     let mut hosts = HashMap::new();
-    let Some(v) = get(root, &["forge", "hosts"]) else {
+    let Some(v) = get(root, &["ship", "hosts"]) else {
         return hosts;
     };
     let Some(map) = v.as_object() else {
-        warnings.push("forge.hosts: invalid value, using default".into());
+        warnings.push("ship.hosts: invalid value, using default".into());
         return hosts;
     };
     for (host, kind) in map {
@@ -525,7 +525,7 @@ fn parse_forge_hosts(root: &Value, warnings: &mut Vec<String>) -> HashMap<String
             Some(kind) if !host.is_empty() => {
                 hosts.insert(host.to_lowercase(), kind.to_string());
             }
-            _ => warnings.push(format!("forge.hosts.{host}: invalid entry, dropped")),
+            _ => warnings.push(format!("ship.hosts.{host}: invalid entry, dropped")),
         }
     }
     hosts
@@ -533,11 +533,11 @@ fn parse_forge_hosts(root: &Value, warnings: &mut Vec<String>) -> HashMap<String
 
 /// Each bad entry is dropped with a warning naming its index and the rest kept.
 fn parse_pinned_repos(root: &Value, warnings: &mut Vec<String>) -> Vec<PinnedRepo> {
-    let Some(v) = get(root, &["forge", "pinnedRepos"]) else {
+    let Some(v) = get(root, &["ship", "pinnedRepos"]) else {
         return Vec::new();
     };
     let Some(items) = v.as_array() else {
-        warnings.push("forge.pinnedRepos: invalid value, using default".into());
+        warnings.push("ship.pinnedRepos: invalid value, using default".into());
         return Vec::new();
     };
     let nonempty = |v: &Value| v.as_str().filter(|s| !s.is_empty()).map(String::from);
@@ -557,7 +557,7 @@ fn parse_pinned_repos(root: &Value, warnings: &mut Vec<String>) -> Vec<PinnedRep
         };
         match (repo, clone, branches) {
             (Some(repo), Some(root), Some(branches)) => pins.push(PinnedRepo { repo, root, branches }),
-            _ => warnings.push(format!("forge.pinnedRepos[{i}]: invalid entry, dropped")),
+            _ => warnings.push(format!("ship.pinnedRepos[{i}]: invalid entry, dropped")),
         }
     }
     pins
@@ -918,7 +918,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
             containers: section(&mut w, "containers", containers_default),
             ports: section(&mut w, "ports", d.dashboard.sections.ports),
-            forge: section(&mut w, "forge", d.dashboard.sections.forge),
+            ship: section(&mut w, "ship", d.dashboard.sections.ship),
             local_models: section(&mut w, "localModels", d.dashboard.sections.local_models),
             external: section(&mut w, "external", d.dashboard.sections.external),
             system: section(&mut w, "system", d.dashboard.sections.system),
@@ -973,14 +973,14 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             d.local_models.min_context,
         ),
     };
-    let forge = Forge {
-        hosts: parse_forge_hosts(&root, &mut w),
+    let ship = Ship {
+        hosts: parse_ship_hosts(&root, &mut w),
         overview_refresh_minutes: pick(
             &root,
-            &["forge", "overviewRefreshMinutes"],
+            &["ship", "overviewRefreshMinutes"],
             &mut w,
             |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n <= 1440),
-            d.forge.overview_refresh_minutes,
+            d.ship.overview_refresh_minutes,
         ),
         pinned_repos: parse_pinned_repos(&root, &mut w),
     };
@@ -1001,7 +1001,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             editor,
             git,
             local_models,
-            forge,
+            ship,
             keybindings,
         },
         w,
@@ -1525,7 +1525,7 @@ mod tests {
                 panes: true,
                 containers: true,
                 ports: true,
-                forge: true,
+                ship: true,
                 local_models: true,
                 external: true,
                 system: false,
@@ -1583,16 +1583,16 @@ mod tests {
     }
 
     #[test]
-    fn forge_hosts_default_to_empty_and_are_in_default_file() {
-        assert!(Settings::default().forge.hosts.is_empty());
+    fn ship_hosts_default_to_empty_and_are_in_default_file() {
+        assert!(Settings::default().ship.hosts.is_empty());
         assert!(Settings::default().forge_hosts().is_empty());
-        assert!(default_file_text().contains("\"forge\""));
+        assert!(default_file_text().contains("\"ship\""));
     }
 
     #[test]
-    fn forge_hosts_parse_a_valid_map() {
+    fn ship_hosts_parse_a_valid_map() {
         let (s, w) = parse_settings(
-            r#"{ "forge": { "hosts": { "ghe.example.com": "github", "git.example.com": "gitlab", "bb.example.com": "bitbucket", "ado.example.com": "azureDevOps" } } }"#,
+            r#"{ "ship": { "hosts": { "ghe.example.com": "github", "git.example.com": "gitlab", "bb.example.com": "bitbucket", "ado.example.com": "azureDevOps" } } }"#,
         );
         assert!(w.is_empty(), "{w:?}");
         let hosts = s.forge_hosts();
@@ -1604,33 +1604,33 @@ mod tests {
     }
 
     #[test]
-    fn forge_hosts_drop_an_unknown_kind_with_a_warning_and_keep_the_rest() {
+    fn ship_hosts_drop_an_unknown_kind_with_a_warning_and_keep_the_rest() {
         let (s, w) = parse_settings(
-            r#"{ "forge": { "hosts": { "ghe.example.com": "github", "odd.example.com": "gitea", "num.example.com": 3 } } }"#,
+            r#"{ "ship": { "hosts": { "ghe.example.com": "github", "odd.example.com": "gitea", "num.example.com": 3 } } }"#,
         );
         assert_eq!(s.forge_hosts().len(), 1);
         assert_eq!(s.forge_hosts()["ghe.example.com"], "github");
         assert_eq!(w.len(), 2, "{w:?}");
-        assert!(w.iter().any(|m| m.starts_with("forge.hosts.odd.example.com")), "{w:?}");
-        assert!(w.iter().any(|m| m.starts_with("forge.hosts.num.example.com")), "{w:?}");
+        assert!(w.iter().any(|m| m.starts_with("ship.hosts.odd.example.com")), "{w:?}");
+        assert!(w.iter().any(|m| m.starts_with("ship.hosts.num.example.com")), "{w:?}");
     }
 
     #[test]
-    fn forge_hosts_lowercase_keys_and_reject_a_non_object() {
-        let (s, w) = parse_settings(r#"{ "forge": { "hosts": { "GHE.Example.COM": "github" } } }"#);
+    fn ship_hosts_lowercase_keys_and_reject_a_non_object() {
+        let (s, w) = parse_settings(r#"{ "ship": { "hosts": { "GHE.Example.COM": "github" } } }"#);
         assert!(w.is_empty(), "{w:?}");
-        assert_eq!(s.forge.hosts.get("ghe.example.com").map(String::as_str), Some("github"));
-        assert!(!s.forge.hosts.contains_key("GHE.Example.COM"));
+        assert_eq!(s.ship.hosts.get("ghe.example.com").map(String::as_str), Some("github"));
+        assert!(!s.ship.hosts.contains_key("GHE.Example.COM"));
 
-        let (s, w) = parse_settings(r#"{ "forge": { "hosts": ["github.com"] } }"#);
-        assert!(s.forge.hosts.is_empty());
+        let (s, w) = parse_settings(r#"{ "ship": { "hosts": ["github.com"] } }"#);
+        assert!(s.ship.hosts.is_empty());
         assert_eq!(w.len(), 1, "{w:?}");
-        assert!(w[0].starts_with("forge.hosts"), "{w:?}");
+        assert!(w[0].starts_with("ship.hosts"), "{w:?}");
     }
 
     #[test]
-    fn forge_overview_settings_default_and_are_in_default_file() {
-        let f = Settings::default().forge;
+    fn ship_overview_settings_default_and_are_in_default_file() {
+        let f = Settings::default().ship;
         assert_eq!(f.overview_refresh_minutes, 5);
         assert!(f.pinned_repos.is_empty());
         let text = default_file_text();
@@ -1638,17 +1638,17 @@ mod tests {
     }
 
     #[test]
-    fn forge_pinned_repos_parse_valid_entries() {
+    fn ship_pinned_repos_parse_valid_entries() {
         let (s, w) = parse_settings(
-            r#"{ "forge": { "overviewRefreshMinutes": 0, "pinnedRepos": [
+            r#"{ "ship": { "overviewRefreshMinutes": 0, "pinnedRepos": [
                 { "repo": "bitbucket.org/keysys/kweb", "root": "C:/src/kweb", "branches": ["uat", "prod"] },
                 { "repo": "github.com/acme/tool" }
             ] } }"#,
         );
         assert!(w.is_empty(), "{w:?}");
-        assert_eq!(s.forge.overview_refresh_minutes, 0);
+        assert_eq!(s.ship.overview_refresh_minutes, 0);
         assert_eq!(
-            s.forge.pinned_repos,
+            s.ship.pinned_repos,
             vec![
                 PinnedRepo {
                     repo: "bitbucket.org/keysys/kweb".into(),
@@ -1661,9 +1661,9 @@ mod tests {
     }
 
     #[test]
-    fn forge_pinned_repos_drop_bad_entries_with_their_index_and_keep_the_rest() {
+    fn ship_pinned_repos_drop_bad_entries_with_their_index_and_keep_the_rest() {
         let (s, w) = parse_settings(
-            r#"{ "forge": { "pinnedRepos": [
+            r#"{ "ship": { "pinnedRepos": [
                 { "repo": "github.com/a/b" },
                 { "repo": "" },
                 "github.com/c/d",
@@ -1673,34 +1673,34 @@ mod tests {
                 { "repo": "github.com/k/l", "root": "C:/k" }
             ] } }"#,
         );
-        let repos: Vec<&str> = s.forge.pinned_repos.iter().map(|p| p.repo.as_str()).collect();
+        let repos: Vec<&str> = s.ship.pinned_repos.iter().map(|p| p.repo.as_str()).collect();
         assert_eq!(repos, ["github.com/a/b", "github.com/k/l"]);
         assert_eq!(w.len(), 5, "{w:?}");
         for i in [1, 2, 3, 4, 5] {
-            assert!(w.iter().any(|m| m.starts_with(&format!("forge.pinnedRepos[{i}]"))), "{i}: {w:?}");
+            assert!(w.iter().any(|m| m.starts_with(&format!("ship.pinnedRepos[{i}]"))), "{i}: {w:?}");
         }
     }
 
     #[test]
-    fn forge_pinned_repos_reject_a_non_array() {
-        let (s, w) = parse_settings(r#"{ "forge": { "pinnedRepos": { "repo": "github.com/a/b" } } }"#);
-        assert!(s.forge.pinned_repos.is_empty());
+    fn ship_pinned_repos_reject_a_non_array() {
+        let (s, w) = parse_settings(r#"{ "ship": { "pinnedRepos": { "repo": "github.com/a/b" } } }"#);
+        assert!(s.ship.pinned_repos.is_empty());
         assert_eq!(w.len(), 1, "{w:?}");
-        assert!(w[0].starts_with("forge.pinnedRepos"), "{w:?}");
+        assert!(w[0].starts_with("ship.pinnedRepos"), "{w:?}");
     }
 
     #[test]
-    fn forge_overview_refresh_minutes_parses_bounds_and_rejects_out_of_range() {
+    fn ship_overview_refresh_minutes_parses_bounds_and_rejects_out_of_range() {
         for n in [0u32, 1, 1440] {
-            let (s, w) = parse_settings(&format!(r#"{{ "forge": {{ "overviewRefreshMinutes": {n} }} }}"#));
-            assert_eq!(s.forge.overview_refresh_minutes, n);
+            let (s, w) = parse_settings(&format!(r#"{{ "ship": {{ "overviewRefreshMinutes": {n} }} }}"#));
+            assert_eq!(s.ship.overview_refresh_minutes, n);
             assert!(w.is_empty(), "{w:?}");
         }
         for bad in ["-1", "1.5", "\"5\"", "1441"] {
-            let (s, w) = parse_settings(&format!(r#"{{ "forge": {{ "overviewRefreshMinutes": {bad} }} }}"#));
-            assert_eq!(s.forge.overview_refresh_minutes, 5, "{bad}");
+            let (s, w) = parse_settings(&format!(r#"{{ "ship": {{ "overviewRefreshMinutes": {bad} }} }}"#));
+            assert_eq!(s.ship.overview_refresh_minutes, 5, "{bad}");
             assert_eq!(w.len(), 1, "{bad}: {w:?}");
-            assert!(w[0].starts_with("forge.overviewRefreshMinutes"), "{bad}: {w:?}");
+            assert!(w[0].starts_with("ship.overviewRefreshMinutes"), "{bad}: {w:?}");
         }
     }
 

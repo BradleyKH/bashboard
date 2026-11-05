@@ -32,7 +32,7 @@ const REPLACE_LOSES: Record<PaneKind, string> = {
   scratch: 'deletes its text',
   files: 'closes it',
   git: 'closes it',
-  forge: 'closes it',
+  ship: 'closes it',
   search: 'closes it',
   containers: 'closes it',
   ports: 'closes it',
@@ -58,7 +58,7 @@ export function replaceConfirm(card: PaneCard, kind: PaneKind): ConfirmOptions {
   };
 }
 
-/** A Forge pane's Cancel on a run (docs/design.md section 4.20); Re-run does not ask. */
+/** A Ship pane's Cancel on a run (docs/design.md section 4.20); Re-run does not ask. */
 export function cancelRunConfirm(run: Run, runNoun: string): ConfirmOptions {
   const what = run.name || run.title;
   return {

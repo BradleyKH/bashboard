@@ -18,7 +18,7 @@ Windows terminal built around Claude Code: split terminal panes, a live status b
   status, cards, notifications, and resume on relaunch. A Local AI models section shows what Ollama
   and LM Studio have loaded, warns when a model's context is too small for an agent, and launches
   an agent on a local model from the Launch menu.
-- **CI and reviews beside the code.** The Forge pane's Overview ranks your pinned repos by what
+- **CI and reviews beside the code.** The Ship pane's Overview ranks your pinned repos by what
   needs you: a failed deploy branch, a review waiting, a pull request to fix. Click in for a repo's
   pipeline runs, job logs, and open pull requests from GitHub or Bitbucket, using the sign-in your
   terminal already has. An Accounts tab shows each host's sign-in and manages it: switch GitHub
@@ -83,10 +83,10 @@ from **Settings > Apps > Installed apps**.
 ## Documentation
 
 - [User guide](docs/user-guide.md): tabs, panes, the dashboard, Files, Git, code search,
-  containers, ports, the Forge pane, attention, and the `bb` pane CLI.
+  containers, ports, the Ship pane, attention, and the `bb` pane CLI.
 - [Shell and coding agent setup](docs/setup.md): the `~/.bashrc` and PowerShell lines that let
   new panes open in the current folder, the hooks for Claude Code, Codex, and Copilot, and signing
-  in to GitHub and Bitbucket for the Forge pane.
+  in to GitHub and Bitbucket for the Ship pane.
 - [Settings](docs/settings.md): the settings file and what each setting does.
 - [Development](docs/development.md): building from source, releasing, and debugging input.
 - [Design](docs/design.md): the spec, for anyone changing Bashboard itself.

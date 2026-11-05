@@ -1,22 +1,22 @@
 import { invoke } from '@tauri-apps/api/core';
-import './forgePane.css';
+import './shipPane.css';
 import type { ConfirmOptions } from './confirmDialog';
 import { openContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { copyText } from './copyText';
 import { samePath } from './favorites';
-import { ForgeAccountChip } from './forgeAccountChip';
+import { ShipAccountChip } from './shipAccountChip';
 import { asForgeError, type ForgeError, type PullRequest, type Run } from './forgeApi';
-import { accountMenuItems, pullMenuItems, runMenuItems, type RunActionKey } from './forgeMenus';
-import { finishToast, noticeFor, pullLimitNote, type ForgeTab } from './forgeModel';
-import { ForgeNotice } from './forgeNotice';
-import { ForgeOverview } from './forgeOverview';
-import { forgeOverviewStore } from './forgeOverviewStore';
-import { ForgePinButton } from './forgePinButton';
-import { ForgePullList } from './forgePullList';
-import { ForgeRunList } from './forgeRunList';
-import { ForgeStore, type BranchScope } from './forgeStore';
-import { ForgeTabStrip } from './forgeTabStrip';
+import { accountMenuItems, pullMenuItems, runMenuItems, type RunActionKey } from './shipMenus';
+import { finishToast, noticeFor, pullLimitNote, type ShipTab } from './shipModel';
+import { ShipNotice } from './shipNotice';
+import { ShipOverview } from './shipOverview';
+import { shipOverviewStore } from './shipOverviewStore';
+import { ShipPinButton } from './shipPinButton';
+import { ShipPullList } from './shipPullList';
+import { ShipRunList } from './shipRunList';
+import { ShipStore, type BranchScope } from './shipStore';
+import { ShipTabStrip } from './shipTabStrip';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
@@ -26,7 +26,7 @@ import { repoRoot, type RepoInfo } from './repoFiles';
 import type { Settings } from './settings';
 import { showToast } from './toast';
 
-export interface ForgePaneOptions {
+export interface ShipPaneOptions {
   host: HTMLElement;
   paneId: string;
   settings: Settings;
@@ -51,9 +51,11 @@ export interface ForgePaneOptions {
   /** Opens the Accounts tab on `host` (null leaves the choice to the tab), with the token form open when asked. */
   onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
   /** The tab the pane opens on; absent means Pipelines. */
-  tab?: ForgeTab;
+  tab?: ShipTab;
   /** Whether Pipelines lists only the checked-out branch; absent means every branch. */
   thisBranch?: boolean;
+  /** Whether Pull requests lists only the checked-out branch's; absent means every branch. */
+  thisBranchPulls?: boolean;
   /** Whether Pull requests lists every state rather than open ones only; absent means open only. */
   allPulls?: boolean;
 }
@@ -83,45 +85,48 @@ function localError(message: string, kind: ForgeError['kind'] = 'other'): ForgeE
 const NOT_LOADED = localError('The repo is not loaded yet.');
 
 /**
- * The Forge pane (docs/design.md section 4.20): the Overview of pinned repos when it has no
+ * The Ship pane (docs/design.md section 4.20): the Overview of pinned repos when it has no
  * target, else one repo's CI runs and pull requests on two tabs, with a crumb back.
  */
-export class ForgePane implements PaneView {
-  readonly kind = 'forge' as const;
+export class ShipPane implements PaneView {
+  readonly kind = 'ship' as const;
   readonly paneId: string;
-  private readonly opts: ForgePaneOptions;
+  private readonly opts: ShipPaneOptions;
   private readonly host: HTMLElement;
   private readonly body: HTMLElement;
   private readonly bar: HTMLElement;
-  private readonly tabStrip: ForgeTabStrip;
-  private readonly pinButton: ForgePinButton;
+  private readonly tabStrip: ShipTabStrip;
+  private readonly pinButton: ShipPinButton;
   private readonly scopeBox: HTMLInputElement;
   private readonly scopeLabel: HTMLElement;
+  private readonly scopeText: HTMLElement;
   private readonly openBox: HTMLInputElement;
   private readonly openLabel: HTMLElement;
   private readonly repoLink: HTMLButtonElement;
-  private readonly chip: ForgeAccountChip;
+  private readonly chip: ShipAccountChip;
   private readonly accountsBtn: HTMLButtonElement;
   private readonly refreshBtn: HTMLButtonElement;
-  private readonly notice: ForgeNotice;
+  private readonly notice: ShipNotice;
   /** Scrolls a long notice, in place of the list it stands in for. */
   private readonly noticeBox: HTMLElement;
   private readonly content: HTMLElement;
-  private readonly runList: ForgeRunList;
-  private readonly pullList: ForgePullList;
+  private readonly runList: ShipRunList;
+  private readonly pullList: ShipPullList;
   private settings: Settings;
   /** A local repo root or `remote:<repo>`; null on the Overview. */
   private target: string | null;
   /** Mounted while on the Overview. */
-  private overview: ForgeOverview | null = null;
-  private tab: ForgeTab;
-  /** Follows the store's scope once there is one, so saved state tracks another pane's change. */
+  private overview: ShipOverview | null = null;
+  private tab: ShipTab;
+  /** Pipelines' branch scope; follows the store's once there is one, so saved state tracks another pane's change. */
   private scope: BranchScope;
+  /** Pull requests' branch scope, kept apart from Pipelines' and following the store the same way. */
+  private pullScope: BranchScope;
   /** Follows the store's filter the same way as `scope`. */
   private openOnly: boolean;
   private expanded: boolean;
   /** Set once the root resolves to a repo; null while resolving or when it is not one. */
-  private store: ForgeStore | null = null;
+  private store: ShipStore | null = null;
   /** An error from resolving the folder, before there is a store to hold one. */
   private initError: ForgeError | null = null;
   private shownNotice: string | null = null;
@@ -134,7 +139,7 @@ export class ForgePane implements PaneView {
   private disposed = false;
   private readonly listeners: Array<() => void> = [];
 
-  constructor(opts: ForgePaneOptions) {
+  constructor(opts: ShipPaneOptions) {
     this.opts = opts;
     this.host = opts.host;
     this.paneId = opts.paneId;
@@ -142,50 +147,54 @@ export class ForgePane implements PaneView {
     this.target = opts.root || null;
     this.tab = opts.tab ?? 'pipelines';
     this.scope = opts.thisBranch ? 'branch' : 'all';
+    this.pullScope = opts.thisBranchPulls ? 'branch' : 'all';
     this.openOnly = !opts.allPulls;
     this.expanded = opts.expanded;
 
     this.host.style.display = 'flex';
     this.host.style.flexDirection = 'column';
     this.body = document.createElement('div');
-    this.body.className = 'pane-body forge-body';
+    this.body.className = 'pane-body ship-body';
     this.body.tabIndex = -1;
 
     const bar = document.createElement('div');
-    bar.className = 'forge-bar';
+    bar.className = 'ship-bar';
     this.bar = bar;
-    this.tabStrip = new ForgeTabStrip(
+    this.tabStrip = new ShipTabStrip(
       this.tab,
       (tab) => this.setTab(tab),
       () => this.drill(null),
     );
-    this.pinButton = new ForgePinButton();
+    this.pinButton = new ShipPinButton();
     this.scopeBox = document.createElement('input');
     this.scopeBox.type = 'checkbox';
     this.scopeLabel = document.createElement('label');
-    this.scopeLabel.className = 'forge-check';
-    this.scopeLabel.append(this.scopeBox, document.createTextNode('This branch'));
+    this.scopeLabel.className = 'ship-check ship-scope';
+    this.scopeText = document.createElement('span');
+    this.scopeText.className = 'ship-scope-text';
+    this.scopeText.textContent = 'This branch';
+    this.scopeLabel.append(this.scopeBox, this.scopeText);
     this.openBox = document.createElement('input');
     this.openBox.type = 'checkbox';
     this.openLabel = document.createElement('label');
-    this.openLabel.className = 'forge-check';
+    this.openLabel.className = 'ship-check';
     this.openLabel.title = 'Only open ones; clear to show the latest in every state';
     this.openLabel.append(this.openBox, document.createTextNode('Open'));
     const spacer = document.createElement('span');
-    spacer.className = 'forge-bar-spacer';
+    spacer.className = 'ship-bar-spacer';
     this.repoLink = document.createElement('button');
     this.repoLink.type = 'button';
-    this.repoLink.className = 'forge-repo';
+    this.repoLink.className = 'ship-repo';
     this.repoLink.hidden = true;
-    this.chip = new ForgeAccountChip((anchor) => this.openAccountMenu(anchor));
+    this.chip = new ShipAccountChip((anchor) => this.openAccountMenu(anchor));
     this.accountsBtn = document.createElement('button');
     this.accountsBtn.type = 'button';
-    this.accountsBtn.className = 'forge-button';
+    this.accountsBtn.className = 'ship-button';
     this.accountsBtn.textContent = 'Accounts';
     this.accountsBtn.title = 'Manage code host accounts';
     this.refreshBtn = document.createElement('button');
     this.refreshBtn.type = 'button';
-    this.refreshBtn.className = 'forge-button';
+    this.refreshBtn.className = 'ship-button';
     this.refreshBtn.textContent = 'Refresh';
     this.refreshBtn.title = 'Look again now';
     bar.append(
@@ -200,7 +209,7 @@ export class ForgePane implements PaneView {
       this.refreshBtn,
     );
 
-    this.notice = new ForgeNotice({
+    this.notice = new ShipNotice({
       onRunTerminal: (argv) => this.opts.onRunTerminal(argv, this.localRoot() ?? ''),
       onOpenUrl: (url) => this.openUrl(url),
       onCopy: (text, label) => void copyText(text, label.replace(/^Copy\s+/i, '')),
@@ -209,11 +218,11 @@ export class ForgePane implements PaneView {
       onRetry: () => this.retry(),
     });
     this.noticeBox = document.createElement('div');
-    this.noticeBox.className = 'forge-content';
+    this.noticeBox.className = 'ship-content';
     this.noticeBox.hidden = true;
     this.noticeBox.append(this.notice.el);
 
-    this.runList = new ForgeRunList({
+    this.runList = new ShipRunList({
       loadJobs: (runId) => this.store?.jobs(runId) ?? Promise.reject(NOT_LOADED),
       loadLog: (runId, jobId) => this.store?.log(runId, jobId) ?? Promise.reject(NOT_LOADED),
       logs: () => this.store?.repo?.capabilities.jobLogs ?? false,
@@ -223,19 +232,26 @@ export class ForgePane implements PaneView {
       onAction: (run, action) => this.runAction(run, action),
       onCopyLink: (run) => void copyText(run.webUrl, 'link'),
     });
-    this.pullList = new ForgePullList({
+    this.pullList = new ShipPullList({
       onOpen: (pull) => this.openUrl(pull.webUrl),
       menuItems: (pull) => this.pullMenu(pull),
     });
     this.content = document.createElement('div');
-    this.content.className = 'forge-content';
+    this.content.className = 'ship-content';
 
     this.body.append(bar, this.noticeBox, this.content);
     this.host.appendChild(this.body);
 
+    // One checkbox serves both tabs, each with its own scope.
     this.listen(this.scopeBox, 'change', () => {
-      this.setScope(this.scopeBox.checked ? 'branch' : 'all');
-      void this.store?.setBranchScope(this.scope);
+      const scope = this.scopeBox.checked ? 'branch' : 'all';
+      if (this.tab === 'pipelines') {
+        this.setScope(scope);
+        void this.store?.setBranchScope(scope);
+      } else {
+        this.setPullScope(scope);
+        void this.store?.setPullsBranchScope(scope);
+      }
     });
     this.listen(this.openBox, 'change', () => {
       this.setOpenOnly(this.openBox.checked);
@@ -271,19 +287,26 @@ export class ForgePane implements PaneView {
     return this.target;
   }
 
-  /** The repo's name for the title strip; "Forge" on the Overview. */
+  /** The repo's name for the title strip; "Ship" on the Overview. */
   title(): string {
     const t = this.target;
-    if (t === null) return 'Forge';
-    return baseName(isRemote(t) ? t.slice(REMOTE_PREFIX.length) : t) || 'Forge';
+    if (t === null) return 'Ship';
+    return baseName(isRemote(t) ? t.slice(REMOTE_PREFIX.length) : t) || 'Ship';
   }
 
   /** The `forge` saved-pane fields; `root` only when drilled, the rest only when not the default. */
-  saved(): { root?: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean } {
+  saved(): {
+    root?: string;
+    tab?: ShipTab;
+    thisBranch?: boolean;
+    thisBranchPulls?: boolean;
+    allPulls?: boolean;
+  } {
     return {
       ...(this.target !== null && { root: this.target }),
       ...(this.tab !== 'pipelines' && { tab: this.tab }),
       ...(this.scope === 'branch' && { thisBranch: true }),
+      ...(this.pullScope === 'branch' && { thisBranchPulls: true }),
       ...(!this.openOnly && { allPulls: true }),
     };
   }
@@ -296,7 +319,7 @@ export class ForgePane implements PaneView {
    * Drills into `target` (a folder in a repo or `remote:<repo>`) on `tab`, or returns to the
    * Overview for null. The same target only switches the tab.
    */
-  drill(target: string | null, tab?: ForgeTab): void {
+  drill(target: string | null, tab?: ShipTab): void {
     if (this.disposed) return;
     const same = target === null || this.target === null ? target === this.target : samePath(target, this.target);
     if (!same) {
@@ -339,7 +362,7 @@ export class ForgePane implements PaneView {
     const width = probe.getBoundingClientRect().width / 10;
     const probeHeight = probe.getBoundingClientRect().height;
     probe.remove();
-    const row = this.body.querySelector<HTMLElement>('.forge-run-row, .forge-pull');
+    const row = this.body.querySelector<HTMLElement>('.ship-run-row, .ship-pull');
     const height = row?.offsetHeight || probeHeight || this.settings.font.size * 1.2;
     return {
       width,
@@ -402,20 +425,23 @@ export class ForgePane implements PaneView {
     }
     const key = this.target ?? asked;
     // A store another pane already holds keeps that pane's filters; a new one takes this pane's.
-    const fresh = !ForgeStore.has(key);
-    const store = ForgeStore.for(key);
+    const fresh = !ShipStore.has(key);
+    const store = ShipStore.for(key);
     this.store = store;
     if (fresh) {
       // A remote-only repo has no checked-out branch to scope to.
       void store.setBranchScope(isRemote(key) ? 'all' : this.scope);
+      void store.setPullsBranchScope(isRemote(key) ? 'all' : this.pullScope);
       void store.setPullsOpenOnly(this.openOnly);
     } else {
       this.setScope(store.branchScope);
+      this.setPullScope(store.pullsBranchScope);
       this.setOpenOnly(store.pullsOpenOnly);
     }
     this.storeOff = [
       store.subscribe(() => {
         this.setScope(store.branchScope);
+        this.setPullScope(store.pullsBranchScope);
         this.setOpenOnly(store.pullsOpenOnly);
         this.render();
       }),
@@ -447,7 +473,7 @@ export class ForgePane implements PaneView {
 
   private mountOverview(): void {
     if (this.overview) return;
-    this.overview = new ForgeOverview({
+    this.overview = new ShipOverview({
       onDrill: (target, tab) => this.drill(target, tab),
       onRunTerminal: (argv) => this.opts.onRunTerminal(argv, ''),
       onOpenTerminal: (root) => this.opts.onOpenTerminal(root),
@@ -475,8 +501,8 @@ export class ForgePane implements PaneView {
   /** Back from elsewhere to a stale Overview: poll now rather than waiting out the heartbeat. */
   private refreshOverviewIfStale(): void {
     if (!this.overview || !this.expanded || this.disposed) return;
-    const last = forgeOverviewStore.lastUpdated();
-    if (last !== null && Date.now() - last > STALE_ON_FOCUS_MS) void forgeOverviewStore.refresh();
+    const last = shipOverviewStore.lastUpdated();
+    if (last !== null && Date.now() - last > STALE_ON_FOCUS_MS) void shipOverviewStore.refresh();
   }
 
   /** Keeps relative times and durations current while the pane is on screen. */
@@ -498,13 +524,19 @@ export class ForgePane implements PaneView {
     this.opts.onChange();
   }
 
+  private setPullScope(scope: BranchScope): void {
+    if (scope === this.pullScope) return;
+    this.pullScope = scope;
+    this.opts.onChange();
+  }
+
   private setOpenOnly(on: boolean): void {
     if (on === this.openOnly) return;
     this.openOnly = on;
     this.opts.onChange();
   }
 
-  private setTab(tab: ForgeTab): void {
+  private setTab(tab: ShipTab): void {
     if (tab === this.tab) return;
     this.tab = tab;
     this.tabStrip.set(tab);
@@ -540,17 +572,19 @@ export class ForgePane implements PaneView {
     const repo = store?.repo ?? null;
     const remote = this.localRoot() === null;
 
-    this.scopeLabel.hidden = this.tab !== 'pipelines';
+    const pipelines = this.tab === 'pipelines';
+    const branch = remote ? null : (repo?.branch ?? null);
     this.scopeBox.disabled = remote;
     this.scopeLabel.classList.toggle('disabled', remote);
-    this.scopeBox.checked = this.scope === 'branch';
-    this.openLabel.hidden = this.tab !== 'pulls';
+    this.scopeBox.checked = (pipelines ? this.scope : this.pullScope) === 'branch';
+    const text = branch ? `This branch (${branch})` : 'This branch';
+    if (this.scopeText.textContent !== text) this.scopeText.textContent = text;
+    this.openLabel.hidden = pipelines;
     this.openBox.checked = this.openOnly;
+    const what = pipelines ? 'runs on' : `${repo?.capabilities.prNoun ?? 'pull request'}s from`;
     this.scopeLabel.title = remote
       ? 'This repo has no clone here, so there is no checked-out branch'
-      : repo?.branch
-        ? `Only runs on ${repo.branch}; clear to show every branch`
-        : 'Only runs on the checked-out branch; clear to show every branch';
+      : `Only ${what} ${branch ?? 'the checked-out branch'}; clear to show every branch`;
     if (repo) {
       this.tabStrip.setPrNoun(repo.capabilities.prNoun);
       const name = `${repo.owner}/${repo.name}`;
@@ -580,7 +614,6 @@ export class ForgePane implements PaneView {
     this.content.hidden = false;
 
     const now = Date.now();
-    const pipelines = this.tab === 'pipelines';
     if (pipelines) this.runList.update(store?.runs ?? [], now, this.runsEmptyText());
     else this.pullList.update(store?.pulls ?? [], now, this.pullsEmptyText(), this.pullsLimitText());
     // Hidden rather than detached: detaching resets an open log's scroll, which starts at the end.
@@ -608,6 +641,10 @@ export class ForgePane implements PaneView {
     const store = this.store;
     if (!store || !store.pullsReady) return 'Loading…';
     const noun = store.repo?.capabilities.prNoun ?? 'pull request';
+    const branch = store.repo?.branch;
+    if (store.pullsBranchScope === 'branch' && branch) {
+      return this.openOnly ? `No open ${noun}s from ${branch}.` : `No ${noun}s from ${branch}.`;
+    }
     return this.openOnly ? `No open ${noun}s.` : `No ${noun}s yet.`;
   }
 

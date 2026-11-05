@@ -742,7 +742,7 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb git` | The Git pane for the working directory's repo, focusing an existing one (4.11) |
 | `bb search [<query>]` | A Search pane for the working directory's repo, starting with the query |
 | `bb scratch [<text>]` | A new scratch pad (4.15) holding the text, or standard input when it is not a terminal (`git diff \| bb scratch`) |
-| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Forge pane (3.20), or removes it with `--clear` |
+| `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane (3.20), or removes it with `--clear` |
 | `bb help` | Lists the commands |
 
 `src-tauri/cli-commands.json` holds each command's usage, summary, details, and examples. `bb help`
@@ -768,7 +768,7 @@ tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
   when that is not a terminal (up to 1 MiB, first line used), and stores it as the generic
   credential `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, persisted
   for the local machine. A token that is empty or over 2,560 bytes (the Credential Manager blob
-  limit) is refused. `--clear` deletes the credential and says when none was stored. The Forge
+  limit) is refused. `--clear` deletes the credential and says when none was stored. The Ship
   pane's Bitbucket token source (3.20) reads that credential. The command and the app dialog's
   Accounts tab (4.20) share one store, `credential_store.rs`, which both `bb.exe` and the app
   compile, so they agree on the target, the user name, the size limit, and how a token is
@@ -946,23 +946,23 @@ result, never an error.
 Both commands read the settings on every call, so a changed URL applies without a restart. Every
 field of every reply is optional on parse, since these APIs are not versioned contracts.
 
-### 3.20 Forge (`src-tauri/src/forge/`)
+### 3.20 Ship (`src-tauri/src/forge/`)
 
-The Forge pane (4.20) shows a repo's CI runs and open pull requests, and an Overview of every
+The Ship pane (4.20) shows a repo's CI runs and open pull requests, and an Overview of every
 pinned repo. The core talks to the code host's REST API, and every host returns the same normalized shapes (section 7), so the front end
 knows a host only through a few capability flags. The module is split by concern: `mod.rs` (the
-commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shapes), `remote.rs`
+commands, repo resolution, and the `ShipProvider` trait), `types.rs` (the shapes), `remote.rs`
 (remote URLs), `auth.rs` (token sources and accounts), `accounts.rs` (the Accounts tab's commands,
 below), `http.rs` (the client), and one file per provider, `github.rs` and `bitbucket.rs`. The
 Windows Credential Manager access sits in `src-tauri/src/credential_store.rs`, outside the module,
 because `bb.exe` compiles it too.
 
-- **Provider trait.** `ForgeProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
+- **Provider trait.** `ShipProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
   `jobs`, `log`, `rerun`, `cancel`, `pulls`, and `default_branch`, each taking a `Cx` (the shared `Http` and the
   resolved `Token`) and a `RepoRef`. The commands already run on `spawn_blocking`, so the methods
   are blocking, which keeps the trait object safe with no async trait crate. `provider(kind)`
   returns the GitHub and Bitbucket providers, and `None` for GitLab and Azure DevOps, which the
-  remote parser and the `forge.hosts` setting already know. `forge_repo` reports those as
+  remote parser and the `ship.hosts` setting already know. `forge_repo` reports those as
   `unsupportedHost` with "GitLab isn't supported yet" or "Azure DevOps isn't supported yet".
   `RepoRef` carries the provider, host, a path (GitHub `[owner, repo]`, Bitbucket `[workspace,
   slug]`, GitLab the full group path, Azure DevOps `[org, project, repo]`), and the repo's web URL.
@@ -997,13 +997,13 @@ because `bb.exe` compiles it too.
   and `<org>.visualstudio.com`) normalizes to host `dev.azure.com` and `[org, project, repo]`.
   `ssh.github.com` is `github.com`. Remote URLs never appear in messages, since an https remote
   can carry a password.
-- **Host classification.** `classify` picks the provider from the `forge.hosts` setting (section
+- **Host classification.** `classify` picks the provider from the `ship.hosts` setting (section
   8) first, then the well-known hosts (`github.com`, `bitbucket.org`, `gitlab.com`,
   `dev.azure.com`), then treats any host the GitHub CLI is signed in to (a top-level key in its
   `hosts.yml`) as GitHub Enterprise Server. Anything else is `unsupportedHost`. The Bitbucket
   provider speaks only Bitbucket Cloud (`api.bitbucket.org`): for another host it answers
   `unsupportedHost` with "Bitbucket Data Center isn't supported yet" before sending a request, so a
-  self-hosted host's Git Credential Manager token never goes to Bitbucket Cloud. `forge.hosts` is
+  self-hosted host's Git Credential Manager token never goes to Bitbucket Cloud. `ship.hosts` is
   therefore for GitHub Enterprise Server hosts the CLI is not signed in to, and for GitLab and
   Azure DevOps hosts once those are served.
 - **Tokens.** Bashboard never runs an OAuth flow, and the one secret it writes is a Bitbucket API
@@ -1029,14 +1029,14 @@ because `bb.exe` compiles it too.
   --local credential.username <user>`, drops that root's repo and token caches, and returns the
   re-resolved repo. That setting is the one that also stops Git Credential Manager asking which
   account to use on every push.
-- **Accounts commands** (`forge/accounts.rs`) serve the Accounts tab (4.20), and none returns a
+- **Accounts commands** (`ship/accounts.rs`) serve the Accounts tab (4.20), and none returns a
   token. `forge_auth_status()` returns one `HostAuth` per host: `github.com` always, every host in
-  GitHub CLI's `hosts.yml`, and every `forge.hosts` entry mapped to `github` (a `hosts.yml` host
-  that `forge.hosts` maps to another provider is left out, since the pane would not treat it as
+  GitHub CLI's `hosts.yml`, and every `ship.hosts` entry mapped to `github` (a `hosts.yml` host
+  that `ship.hosts` maps to another provider is left out, since the pane would not treat it as
   GitHub), then `bitbucket.org` always; lowercased and deduplicated, `github.com` first, the other
   GitHub hosts alphabetically, then Bitbucket. Each carries whether `gh` is installed (on the
   `PATH` or in its install folders), the host's `hosts.yml` accounts and active account, the kind
-  of source the Forge pane would take its token from (`TokenSourceKind`: `ghCli`,
+  of source the Ship pane would take its token from (`TokenSourceKind`: `ghCli`,
   `gitCredentialManager`, or `bashboardCredential`; null when none yields one), and whether the
   Bitbucket credential exists. Hosts are inspected side by side, and only the source's kind leaves
   the lookup. `ghEnvToken` is the name of the environment variable that `gh` in a terminal would use
@@ -1057,7 +1057,7 @@ because `bb.exe` compiles it too.
   standard error on failure. Both remove `GH_TOKEN`, `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN`, and
   `GITHUB_ENTERPRISE_TOKEN` from `gh`'s environment, since `gh` refuses to switch or log out while
   one applies to the host. Every successful change drops the host's cached tokens and resolved
-  repos and emits `forge://auth-changed` with `{ provider, host }`; Forge panes (`ForgeStore`),
+  repos and emits `forge://auth-changed` with `{ provider, host }`; Ship panes (`ShipStore`),
   the Overview store, and an open Accounts tab refresh on it. A sign-in finished in a terminal
   pane changes `hosts.yml` without passing through the core, so the tab also reloads when it is
   shown and when the window regains focus.
@@ -1471,10 +1471,10 @@ Actions left out are `copy`, `paste`, `sendInput` (Claude Code's newline), `swit
 items instead), and `openPalette` itself. Labels come from `helpModel.ts`, so the palette and the
 Shortcuts tab agree, and each action's hint lists its chords from the live keymap, so overrides show.
 `moveFocus` and `resizePane` get one row per direction. Open the Containers tab (4.16), Open the
-Ports tab (4.19), Open the Forge tab (4.20), and Check for updates (3.16) are action rows with no
+Ports tab (4.19), Open the Ship tab (4.20), and Check for updates (3.16) are action rows with no
 keymap action behind them (`PALETTE_COMMANDS` in `paletteModel.ts`), so they never appear in the
-Shortcuts tab or take a key. Open the Forge tab shows the first Forge pane in tab order, backed out
-to its Overview (4.20) when it is drilled into a repo, and adds a Forge tab on the Overview when
+Shortcuts tab or take a key. Open the Ship tab shows the first Ship pane in tab order, backed out
+to its Overview (4.20) when it is drilled into a repo, and adds a Ship tab on the Overview when
 there is none. It does not depend on the focused pane's repo.
 
 Matching is fuzzy over the label, then the detail (a pane's tab name, a favorite's path), and a
@@ -1519,7 +1519,7 @@ which open the app dialog (4.18) on those tabs. The × that hides the
 panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
 parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
 
-**Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports, Forge,
+**Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports, Ship,
 Local AI models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
 Favorites, Layouts, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
@@ -1657,12 +1657,12 @@ menu is dropped if another menu opened or closed meanwhile.
 focused pane that had one; a folder outside any repo counts as its own. A Files pane counts as the
 repo it was opened for, not the folder it is showing, so opening a pinned subfolder keeps them on
 its repo. Under a **Launch** heading, which does not collapse, one row of equal icon buttons opens
-a Terminal, Git, Files, Forge, Search, or Scratch pane, in that order, with Git and Forge for git
+a Terminal, Git, Files, Ship, Search, or Scratch pane, in that order, with Git and Ship for git
 repos only; the row fits on one line at the panel's minimum width. Each tooltip names the option,
 and those for Git, Files, Search, and Scratch end with the keys of openGit, openFiles, openSearch,
 and newScratch, which open the same thing, read on hover like the top bar's; Terminal names none,
-since splitAuto opens at the focused pane's folder rather than the repo root, and Forge has no
-action. Forge opens a pane drilled into the repo (4.20), not on the Overview. The section is hidden
+since splitAuto opens at the focused pane's folder rather than the repo root, and Ship has no
+action. Ship opens a pane drilled into the repo (4.20), not on the Overview. The section is hidden
 until some pane has a folder.
 
 While a button is hovered or focused, a preview over the panes shows where its pane will land: the
@@ -1779,19 +1779,30 @@ Manage button (the same arrow leaving a square as Containers) opens the Ports ta
 polls only while enabled, expanded, and on screen with the window shown, and reads "Nothing
 listening" when the list is empty.
 
-**Forge.** What needs the viewer across the repos pinned to the Forge Overview (4.20), and
-nothing else: a health branch whose newest run failed ("main failed"), a pull request awaiting the
+**Ship.** What needs the viewer across the repos pinned to the Ship Overview (4.20), then
+what is moving there. The item rows come first: a health branch whose newest run failed ("main failed"), a pull request awaiting the
 viewer's review ("#12 needs your review"), and the viewer's own pull request with changes
 requested or failing checks ("#12 changes requested", "#12 checks failing"). Each row shows a
 status icon (a failure icon, or the neutral icon for a review request), the repo's `owner/name`,
-and that text, with the run's or pull request's title in its tooltip. Rows follow the Overview's
-attention order, a repo's red branches before its pull requests. Clicking a branch row opens
-that repo's Pipelines in a Forge pane, and a pull request row its Pull requests (4.20 says which
-pane). The header's button, the Overview
-icon, opens the Overview. When at least one pinned repo has loaded and nothing needs the viewer,
-the section reads "All clear"; before any has loaded it shows a dash. The section is hidden while
-no repo is pinned. It reads the Overview's shared store (4.20), which polls only while this
-section is shown by `dashboard.sections.forge`, expanded, and on screen with the window shown.
+and that text, with the run's or pull request's title in its tooltip. Every failure row comes
+first, in the Overview's attention order, then at most 5 review request rows. Clicking a branch
+row opens that repo's Pipelines in a Ship pane, and a pull request row its Pull requests (4.20
+says which pane).
+
+Two summary lines follow. The running line is always shown: with one run queued or running, it
+shows that run's repo, branch, pipeline name, and start ("main · Build · 3m ago") and opens the
+repo's Pipelines; otherwise it counts them ("0 pipelines running", "3 pipelines running in 2
+repos"), naming and opening the repo when they share one, else opening the Overview. The pull
+request line counts the open pull requests across the pinned repos, drafts left out ("12 open
+PRs"), and adds the review request count when it passes the row cap ("12 open PRs, 7 need your
+review"). It is shown when some open pull request is not awaiting the viewer's review, or when
+review requests pass the cap, and opens the Overview. Both count from what each poll already
+fetches, a repo's newest 20 runs and 50 open pull requests.
+
+The header's button, the Overview icon, opens the Overview. The section is never empty: before
+any pinned repo has loaded it shows a dash, and with no repo pinned it shows a "Pin repos" row
+that opens the Overview, since the section is a new user's way into Ship. It reads the Overview's shared store (4.20), which polls only while this
+section is shown by `dashboard.sections.ship`, expanded, and on screen with the window shown.
 
 **Local AI models.** Shown while `dashboard.sections.localModels` is on and at least one model
 server answers (3.19), and a preview. One header row per answering server (Ollama first, then LM
@@ -1824,13 +1835,13 @@ agent's hook config is complete and only the hook script is out of date. With ev
 agent's hooks in, the footer takes no space.
 
 The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the
-sections Terminal, Dashboard, Appearance, Background, Editor, Git, Forge, Local AI models, and Restore. A filter field above them
+sections Terminal, Dashboard, Appearance, Background, Editor, Git, Ship, Local AI models, and Restore. A filter field above them
 shows only the fields whose label, hint, group, or section holds every word typed, and hides
 sections left empty. Dashboard holds the side choice, Left or Right, and a
 checkbox per element under "Show on the dashboard", followed by the Clock style select while the
 clock is on. Terminal includes a Default shell
 select listing the available profiles. Editor selects the preferred editor from those found (3.12),
-plus a custom command field. Forge holds the Overview refresh interval (4.20). Appearance's Font family field suggests installed fonts as you type
+plus a custom command field. Ship holds the Overview refresh interval (4.20). Appearance's Font family field suggests installed fonts as you type
 (3.17), monospace first, with the bundled JetBrainsMono Nerd Font Mono (3.16) leading. It stays a
 text field, so a name that is not installed or a comma-separated fallback list saves as typed;
 picking an entry replaces the whole value and saves it at once. The list loads after the tab
@@ -2021,7 +2032,7 @@ Every leaf of a tab's split tree is a pane of one kind:
 | `terminal` | A shell | 4.4 |
 | `files` | A folder's files beside a preview of the selected one | 4.12 |
 | `git` | A repo's changes, staging, commits, and diffs | 4.13 |
-| `forge` | The Overview of pinned repos, and one repo's CI runs and open pull requests from its code host | 4.20 |
+| `ship` | The Overview of pinned repos, and one repo's CI runs and open pull requests from its code host | 4.20 |
 | `search` | Code search over a repo | 4.14 |
 | `scratch` | A plain text scratch pad | 4.15 |
 | `containers` | Docker and Podman containers grouped by Compose project | 4.16 |
@@ -2035,7 +2046,7 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
 - **Kind menu.** The first control in the title strip shows the pane's kind as an icon.
   Clicking it lists the kinds, and choosing one replaces the pane in place: same spot in the
   tree, same folder. A pane with no folder passes on the Launch section's repo (4.6), except for
-  Forge, which opens on the Overview (4.20) rather than on that repo. Replacing a
+  Ship, which opens on the Overview (4.20) rather than on that repo. Replacing a
   terminal with a running command or a live Claude session asks first, as closing it does, and
   so does replacing a scratch pad that is not empty. A terminal chosen from the menu runs the
   default profile. The menu lists Containers only while a container engine is available (3.10),
@@ -2051,7 +2062,7 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
   which for other kinds is the folder's name, a scratch pad's first line, "Containers", or "Ports".
 - **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder,
-  selected file, sort, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Forge pane's repo and tab (or the Overview), a Search pane's
+  selected file, sort, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Ship pane's repo and tab (or the Overview), a Search pane's
   repo, query, and options (rerun on restore), and a scratch pad's text. A pane whose folder no
   longer exists opens on a notice naming the path, with the kind menu still available. A Files
   pane restored expanded over a file that is missing or cannot be previewed as text shows its list.
@@ -2606,33 +2617,34 @@ last when sorting by Pane in either direction. The sort is not saved. A click se
 rebuilding the list. The pane saves no state.
 
 
-### 4.20 Forge pane
+### 4.20 Ship pane
 
-A Forge pane has two views. The **Overview** is the default: one row per pinned repo, across GitHub
+A Ship pane has two views. The **Overview** is the default: one row per pinned repo, across GitHub
 and Bitbucket, showing its deploy branches' health and its open pull requests, ordered by what needs
 attention. A repo's own view, reached by drilling into a row, shows its CI runs and pull requests
 from the repo's code host (3.20) as two tabs, **Pipelines** and **Pull requests** (the second reads
 "Merge requests" on a host whose `prNoun` says so), with an **Overview** crumb at the start of the
 tab strip that goes back. The drilled view resolves the repo's root as the Git pane does (4.13); a
 folder outside a repo shows a notice. Its title is the repo's name while drilled in (the folder's
-name, or the repo's name for one with no clone) and "Forge" on the Overview. The pane saves its
-target (`root`, absent on the Overview), its tab, whether This branch is checked (`thisBranch`),
-and whether Open is cleared (`allPulls`), each default omitted (section 7), and layouts keep it.
-The last three mean nothing on the Overview.
+name, or the repo's name for one with no clone) and "Ship" on the Overview. The pane saves its
+target (`root`, absent on the Overview), its tab, whether This branch is checked on Pipelines
+(`thisBranch`) and on Pull requests (`thisBranchPulls`), and whether Open is cleared
+(`allPulls`), each default omitted (section 7), and layouts keep it. The last four mean nothing
+on the Overview.
 
-**Opening.** An open with no repo context shows the Overview: the palette's Open the Forge tab
-(4.5), the dashboard Forge section's header button (4.6), and a Forge pane chosen from the kind
-menu (4.11) for a pane with no folder. When a Forge pane already exists, these back it out of any
-repo it was drilled into. An open for a repo drills in: Launch's Forge button and menu entry (4.6),
+**Opening.** An open with no repo context shows the Overview: the palette's Open the Ship tab
+(4.5), the dashboard Ship section's header button (4.6), and a Ship pane chosen from the kind
+menu (4.11) for a pane with no folder. When a Ship pane already exists, these back it out of any
+repo it was drilled into. An open for a repo drills in: Launch's Ship button and menu entry (4.6),
 a kind-menu choice that keeps the pane's folder, and a row of the Overview or the dashboard's
-Forge section. A row shows the first Forge pane already drilled into that repo, else the first
-Forge pane in tab order, drilled into it, else a new Forge tab. A saved pane reopens where it was
+Ship section. A row shows the first Ship pane already drilled into that repo, else the first
+Ship pane in tab order, drilled into it, else a new Ship tab. A saved pane reopens where it was
 left.
 
-**Pins.** The Overview shows the repos in `forge.pinnedRepos` (section 8). A pin's `repo` is
+**Pins.** The Overview shows the repos in `ship.pinnedRepos` (section 8). A pin's `repo` is
 `<host>/<path segments>`, such as `bitbucket.org/keysys/kweb`, and is its identity; `root`, when
 set, is a local clone, which gives the repo its local account and an Open terminal here entry;
-`branches` adds health branches. Every forge command is addressed by the pin's target, which is its
+`branches` adds health branches. Every ship command is addressed by the pin's target, which is its
 `root` when set and `remote:<repo>` otherwise (3.20). The drilled view has a **Pin to Overview**
 toggle in its bar, a quiet text button like the Git pane's Fetch that reads **Unpin** while pinned, which records the repo's local clone, if
 any, as the pin's `root`. Pinning and unpinning rewrite the setting in place through the app, so
@@ -2641,13 +2653,16 @@ the file's comments survive, and an edit made in the file applies on save.
 **Overview.** The pane's own bar (This branch, Open, the account chip) is hidden on the Overview,
 which has its own line, "Updated 2m ago" (or "Not updated yet"), an **Accounts** button that opens
 the Accounts tab (below), and a **Refresh** button that polls every pin at once. The Overview also refreshes when the pane takes focus while its newest
-poll is more than 30 s old. With no pins, a note says to pin a repo from its Forge view or add one
+poll is more than 30 s old. With no pins, a note says to pin a repo from its Ship view or add one
 there. Each row holds:
 
 - A provider badge (GH for GitHub, BB for Bitbucket), the repo's `owner/name` (the full
   `<host>/<path>` in its tooltip), with the health branches under it, and beside them a pull
-  request summary: "3 open, 1 needs you", "3 open", or
-  "No open pull requests" (with the host's noun), highlighted while a review is awaited.
+  request summary: "3 PRs open, 1 draft, 1 needs you", "1 PR open", or "No open pull requests"
+  (with the host's noun, as initials when counted; the draft and needs-you parts appear only when
+  nonzero), highlighted while a review is awaited. Under the summary,
+  "2 pipelines running" counts the queued or running runs among the latest 20 on any branch, and
+  is absent when none is.
 - The **health branches**: the repo's default branch (3.20), then the distinct target branches of
   its open pull requests (a deploy branch is usually one), then the pin's own `branches`. Each shows
   the status icon of its newest run among the repo's latest 20 and the age of that run, with the
@@ -2666,10 +2681,10 @@ among themselves. A pin that has not loaded follows the loaded rows, in pin orde
 30 s while the Overview is on screen.
 
 **Row actions.** Clicking a row drills into its Pipelines; its pull request summary drills into
-its Pull requests. The row menu holds **Open Pipelines**, **Open Pull requests**, **Open in
+its Pull requests, and its running count into its Pipelines. The row menu holds **Open Pipelines**, **Open Pull requests**, **Open in
 browser** and **Copy link** (both disabled until the repo has resolved), **Open terminal here**
 (only for a pin with a `root`), and **Unpin from Overview**. The rows share columns (a subgrid):
-the repo and its health branches, then the pull request summary, each as wide as its widest row
+the repo and its health branches, then the pull request summary and running count, each as wide as its widest row
 and both at the left, then at the right edge the buttons **Pipelines**, **Pull requests**,
 **Open**, **Terminal**, and **Copy link**, matching the menu's entries without Unpin. Open and Copy
 link are disabled until the repo resolves, and a pin without a `root` keeps an invisible Terminal
@@ -2689,19 +2704,19 @@ or a repo already pinned, shows in place under the box. Below it, suggestions li
 one per repo and not already pinned, filtered by the typed text; clicking one pins the repo with
 that folder as its `root`.
 
-**Overview polling.** One shared store (`ForgeOverviewStore`, `src/forgeOverviewStore.ts`) holds
-every pin's data for the Overview and for the dashboard's Forge section (4.6). It polls only
-while some consumer wants it, which is an Overview on screen or the dashboard's Forge section
+**Overview polling.** One shared store (`ShipOverviewStore`, `src/shipOverviewStore.ts`) holds
+every pin's data for the Overview and for the dashboard's Ship section (4.6). It polls only
+while some consumer wants it, which is an Overview on screen or the dashboard's Ship section
 shown and expanded, and while the window is visible. Each pin polls `forge_overview_repo` (3.20)
-on its own clock: every `forge.overviewRefreshMinutes` (the heartbeat), or every 60 s while a
-health branch has a queued or running run. A pin's first poll waits a stagger of up to 500 ms
+on its own clock: every `ship.overviewRefreshMinutes` (the heartbeat), or every 60 s while any
+of its latest 20 runs is queued or running, so the running count clears promptly. A pin's first poll waits a stagger of up to 500 ms
 per pin, within 3 s, so a round of pins does not hit a host at once. When the window or a consumer
 returns, only the pins that fell due poll. A rate-limited answer delays that pin by the seconds the
 host asked for, or 60 s when it did not say; any other failure waits out the usual interval. A
-heartbeat of 0 stops the interval polling, leaving Refresh and the 60 s polling of a running
-branch. A refresh costs about 3 requests per repo (the runs, the open pull requests, and the checks
+heartbeat of 0 stops the interval polling, leaving Refresh and the 60 s polling of a repo
+with a run in progress. A refresh costs about 3 requests per repo (the runs, the open pull requests, and the checks
 of pull requests that changed). Bitbucket allows 1,000 requests an hour per user, shared with
-drilled Forge panes and any other tool on the same token, so Bitbucket pins share a budget of 600
+drilled Ship panes and any other tool on the same token, so Bitbucket pins share a budget of 600
 Overview requests an hour: each one's interval, the heartbeat and the 60 s running poll alike, is
 stretched to at least the pin count times 18 s, which leaves up to three pins at the usual pace and
 holds ten to every 3 minutes. Other hosts are not budgeted. While the budget slows Bitbucket below
@@ -2709,20 +2724,24 @@ the 60 s running poll, the bar notes the gap beside the Updated line ("Bitbucket
 Pinning or unpinning a Bitbucket repo retimes the others' next poll. Changing a pin's target or
 branches takes effect without waiting for the next poll.
 
-**Store.** `ForgeStore` (`src/forgeStore.ts`) holds one drilled repo's repo info, runs, and pull
-requests, shared by every Forge pane on that root and reference counted, so two panes on a repo
+**Store.** `ShipStore` (`src/shipStore.ts`) holds one drilled repo's repo info, runs, and pull
+requests, shared by every Ship pane on that root and reference counted, so two panes on a repo
 make one set of requests. A pane wants its store only while expanded.
 
-**Bar.** On a drilled repo, from the left: the **Overview** crumb and the two tabs; a **This branch** checkbox, clear by default and shown on
-the Pipelines tab only; an **Open** checkbox, checked by default and shown on the Pull requests
+**Bar.** On a drilled repo, from the left: the **Overview** crumb and the two tabs; a **This branch** checkbox, clear by default and
+shown on both tabs, labeled "This branch (<branch>)" once the branch is known and truncated with
+an ellipsis when long; an **Open** checkbox, checked by default and shown on the Pull requests
 tab only; the repo's `owner/name`, linking to its `webUrl`, once the repo has
 resolved; the account chip; the pin toggle; **Accounts**, which opens the Accounts tab (below) on the repo's
-host; and **Refresh**, which polls at once. Checking the box limits the list
-to runs on one branch, and the choice is shared by the panes on one repo: a pane that opens on
-a repo another pane already shows takes that pane's choice, and the first pane to open a repo
-applies its own saved one. Open is shared the same way. This branch follows the
-repo's current local branch, resolved again on every poll, so a checkout empties the list and
-loads the new branch's runs; a detached HEAD has no branch and lists every branch. The chip reads
+host; and **Refresh**, which polls at once. Each tab keeps its own This branch choice: on
+Pipelines it limits the list to runs on the branch, and on Pull requests to pull requests whose
+source branch it is, filtered by the host (GitHub's `headRefName`, Bitbucket's
+`q=source.branch.name="<branch>"`) so the 50-item cap never hides one. Each choice is shared by
+the panes on one repo: a pane that opens on a repo another pane already shows takes that pane's
+choices, and the first pane to open a repo applies its own saved ones. Open is shared the same
+way. This branch follows the repo's current local branch, resolved again on every run poll, so a
+checkout empties a scoped list and loads the new branch's; a detached HEAD has no branch and
+lists every branch. The chip reads
 "as @name" and appears only when the host holds several accounts (`capabilities.accounts` and
 more than one in `accounts`). It is styled as a warning when the account came from
 `cliActive`, since the repo then follows whichever account `gh auth switch` last chose, and
@@ -2753,7 +2772,7 @@ jobs. The list is the latest 20 runs, and an empty list says so.
   disabled rather than absent on a run that is not live. Every row carries the same buttons, and
   one the host cannot do is hidden on every row alike, so they line up down the list. Clicking one
   acts without expanding the row. Below 420 px of pane width the buttons are hidden, leaving the
-  title its room; the menu still holds every action. `runActionStates` in `src/forgeMenus.ts`
+  title its room; the menu still holds every action. `runActionStates` in `src/shipMenus.ts`
   decides both the buttons and the menu.
 - **Run menu.** Right-click a row: **Open in browser**; **Re-run** (greyed while the run is
   active); **Re-run failed jobs**, only on a host that has it (GitHub), enabled for a failed run;
@@ -2777,7 +2796,7 @@ request in the browser. The menu holds **Open in browser**, **Copy link**, and *
 name**. When the host counts more matching
 pull requests than the 50 listed, a note after the groups reads "Showing the latest 50 of 60 open
 pull requests.", leaving out "open" while Open is cleared (with "merge requests" on a host that
-uses that noun); `src/forgeModel.ts` builds the text. Changing Open empties the list and asks
+uses that noun); `src/shipModel.ts` builds the text. Changing Open empties the list and asks
 again, dropping any reply to the other question still in flight.
 
 **Polling.** Runs poll while any expanded pane is on the store: every 15 s while a run is queued
@@ -2798,14 +2817,14 @@ receive the same finished runs and only the first announces them, so each finish
 
 **Notices.** An error that stops a tab from showing anything replaces that tab's list with a setup
 notice: what happened, and buttons that do the next step. An error from resolving the repo shows on
-both tabs; one from polling runs or pull requests, only on its own tab. `src/forgeModel.ts` builds
-the notices from the error and the repo, and `ForgeNotice` draws them. The buttons run a command in
+both tabs; one from polling runs or pull requests, only on its own tab. `src/shipModel.ts` builds
+the notices from the error and the repo, and `ShipNotice` draws them. The buttons run a command in
 a terminal split of this pane, open a URL, copy text (with a "Copied" toast), open the account
 menu, open the Accounts tab, or retry.
 
 **Terminal splits.** A command from a notice or the account menu (sign in, install) runs in a
 terminal split off the pane, in the repo folder (the default starting folder when run from the
-Overview, which has none), after focusing the Forge pane when it is expanded.
+Overview, which has none), after focusing the Ship pane when it is expanded.
 The terminal runs the command in place of a shell, as a container shell does (4.16), so a clean exit
 closes it and a nonzero exit leaves it readable. Restore brings back one still open at quit as a
 plain shell in that folder, since the command is not saved.
@@ -2820,7 +2839,7 @@ plain shell in that folder, since the command is not saved.
 | `notFound`, GitHub, several accounts | "`<owner>/<name>` wasn't found as @`<account>`." **Use another account** (opens the account menu), **Retry** |
 | `ssoRequired` | "Single sign-on needs authorizing", **Authorize** (the host's URL), **Retry** |
 | `rateLimited` | "Rate limit reached", with when polling resumes |
-| `unsupportedHost` | "`<host>` isn't supported", the message, and, for a GitHub Enterprise Server host the CLI is not signed in to, the `forge.hosts` setting to copy; **Copy setting**, **Retry** |
+| `unsupportedHost` | "`<host>` isn't supported", the message, and, for a GitHub Enterprise Server host the CLI is not signed in to, the `ship.hosts` setting to copy; **Copy setting**, **Retry** |
 | `notARepo` | "Not a git repository" |
 | `noRemote`, `network`, `other`, other `forbidden` and `notFound` | A titled notice holding the error's message, with **Retry** |
 
@@ -2863,10 +2882,10 @@ status and never a token. The tab loads when it is shown, when the window regain
   is emptied on save, cancel, when the tab is hidden, and when the dialog closes. Escape cancels an
   open form before it closes the dialog. A failed save shows its error in the form.
 - **Changes.** A successful switch, sign-out, save, or removal drops the host's cached credentials
-  in the core and emits `forge://auth-changed` (3.20); open Forge panes, the Overview, and the tab
+  in the core and emits `forge://auth-changed` (3.20); open Ship panes, the Overview, and the tab
   itself refresh on it. The account chip's per-repo `credential.username` behavior is separate and
   is unchanged.
-- **Entry points.** **Accounts** in a drilled Forge bar and in the Overview bar; **Manage
+- **Entry points.** **Accounts** in a drilled Ship bar and in the Overview bar; **Manage
   accounts** in the account chip's menu (the chip shows only with two or more accounts, and not on
   a remote pin); the notice buttons **Manage accounts** (GitHub `signedOut` and `notInstalled`),
   **Add token** (Bitbucket `signedOut`), and **Replace token** (a refused token, and `forbidden`),
@@ -3116,10 +3135,10 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 | `SystemSample`, `DiskRow` | `src/systemModel.ts` | `system_sample` (4.6); `disks` is null unless the call passed `includeDisks` |
 | `AgentContext` | `src/agentModel.ts` | `agent_context` and `agent://context` (3.4) |
 | `ModelServersSnapshot`, `LoadedModel` | `src/modelServersApi.ts` | `model_servers_poll` (3.19) |
-| `ForgeRepo`, `Capabilities`, `Run`, `Job`, `Step`, `JobLog`, `PullList`, `PullRequest`, `Reviewer`, `OverviewRepo`, `PinnedRepo`, `ForgeError`, `HostAuth`, `AuthCheck`, `TokenSourceKind` | `src/forgeApi.ts` | The `forge_*` commands (3.20) and `forge://auth-changed`; the rules are under Forge payloads |
+| `ForgeRepo`, `Capabilities`, `Run`, `Job`, `Step`, `JobLog`, `PullList`, `PullRequest`, `Reviewer`, `OverviewRepo`, `PinnedRepo`, `ForgeError`, `HostAuth`, `AuthCheck`, `TokenSourceKind` | `src/forgeApi.ts` | The `forge_*` commands (3.20) and `forge://auth-changed`; the rules are under Ship payloads |
 | `ShellProfile` | `src/profiles.ts` | `shell_profiles` (3.1) |
 
-**Forge payloads.** The Rust types (`forge/types.rs`) serialize camelCase, with `Option` as null, and
+**Ship payloads.** The Rust types (`ship/types.rs`) serialize camelCase, with `Option` as null, and
 `src/forgeApi.ts` mirrors them field for field. Times are ISO 8601 strings.
 
 - `ProviderKind`: `github`, `bitbucket`, `gitlab`, or `azureDevOps`. `RunStatus`: `queued`,
@@ -3151,7 +3170,7 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 - `OverviewRepo`: `repo` (a `ForgeRepo`), `defaultBranch` (null when the host does not say or the
   lookup failed), `runs` (the newest 20 on every branch, newest first), and `pulls` (a `PullList`
   of the open pull requests only). It is what `forge_overview_repo` returns (3.20). `PinnedRepo`
-  is a `forge.pinnedRepos` entry (section 8): `repo`, and optionally `root` and `branches`.
+  is a `ship.pinnedRepos` entry (section 8): `repo`, and optionally `root` and `branches`.
 - `ForgeError`: `kind` (`notARepo`, `noRemote`, `unsupportedHost`, `notInstalled`, `signedOut`,
   `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, or `other`), `message` (plain
   text, never a token or an `Authorization` header), `url` (a page to open), `signIn` (the argv to
@@ -3196,10 +3215,10 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   Claude Code, which an unknown value also reads as. Its `resumeModel` (kept only beside a
   `sessionId`): none. Its `scrollbackId` (the scratch id alphabet):
   none, so the terminal starts without saved scrollback. A Files pane's `root`: resolved from its
-  `folder`. Its `expanded`: false. A Forge pane's `root`: none, which opens on the Overview;
+  `folder`. Its `expanded`: false. A Ship pane's `root`: none, which opens on the Overview;
   a drilled pane saves its local repo root or `remote:<host>/<path>`. Its `tab`: `pipelines`, the
-  other being `pulls`; it is omitted from the file when it is `pipelines`. Its `thisBranch` and `allPulls`: false, and
-  each omitted when false; any value but `true` reads as false.
+  other being `pulls`; it is omitted from the file when it is `pipelines`. Its `thisBranch`, `thisBranchPulls`, and
+  `allPulls`: false, and each omitted when false; any value but `true` reads as false.
 
 **layouts.json.** Names are unique without regard to case. A layout holds one tab whose
 terminals carry no session ids, permission modes, or scrollback ids and whose scratch pads have a null
@@ -3280,7 +3299,7 @@ it with no pins, and Automatic omits it.
       "panes": true,
       "containers": true,
       "ports": true,
-      "forge": true,
+      "ship": true,
       "localModels": true,
       "external": true,
       "system": false,
@@ -3296,20 +3315,20 @@ it with no pins, and Automatic omits it.
   // http://127.0.0.1:1234 for LM Studio. minContext is the context length under which the Local
   // models section warns (4.6); 0 turns the warning off.
   "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 },
-  // Host name to forge kind (github, gitlab, bitbucket, or azureDevOps) for a self-hosted host,
+  // Host name to provider (github, gitlab, bitbucket, or azureDevOps) for a self-hosted host,
   // matched without regard to case (3.20). Only a GitHub Enterprise Server host is served today; a
   // GitLab or Azure DevOps host reports "not yet supported", and the Bitbucket provider refuses
   // any host but bitbucket.org. Hosts the GitHub CLI is signed in to need no entry. An entry with
   // another kind is dropped with a warning. No Settings tab field; edit the file.
-  // pinnedRepos lists the repos on the Forge Overview (4.20), in order: repo is
+  // pinnedRepos lists the repos on the Ship Overview (4.20), in order: repo is
   // "<host>/<path segments>" and is the pin's identity, root (optional) is a local clone, and
   // branches (optional) adds health branches beyond the default branch and the open pull requests'
   // targets. An entry with an empty or missing repo, or a root or branches of the wrong type, is
   // dropped with a warning naming its position. overviewRefreshMinutes is the minutes between
   // background refreshes of the Overview, 0 to 1440; 0 leaves only Refresh and the 60 s polling of
-  // a running branch. It has a Settings tab field; pinnedRepos does not.
+  // a repo with a run in progress. It has a Settings tab field; pinnedRepos does not.
   // For example { "repo": "bitbucket.org/keysys/kweb", "root": "C:/src/kweb", "branches": ["uat"] }.
-  "forge": { "hosts": {}, "overviewRefreshMinutes": 5, "pinnedRepos": [] },
+  "ship": { "hosts": {}, "overviewRefreshMinutes": 5, "pinnedRepos": [] },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
   // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in
@@ -3355,7 +3374,7 @@ toast, until the file is fixed.
   `DOMPurify`, with no remote images and links opened only through `open_url` (4.12).
 - The file commands (3.8) normalize every path, write only to existing files, and create or
   delete only the app's own scratch files.
-- Forge tokens (3.20) stay in the core's memory. They are read only from `gh auth token`, Git
+- Ship tokens (3.20) stay in the core's memory. They are read only from `gh auth token`, Git
   Credential Manager (`git credential fill`, never `approve` or `reject`, never interactive), or
   the `bashboard:bitbucket.org` credential that the Accounts tab and `bb auth` write. They never
   reach the page, a log, or an error message, and `Token`'s `Debug` output hides the value. The one
@@ -3380,16 +3399,16 @@ folders, temp repos, captured CLI output, and a spawned pty. Keys are the except
 reaches the shell through WebView2 and xterm.js can only be checked by hand, with the keyboard
 checklist in [development.md](development.md#releasing) before each release.
 
-The Forge module's providers map captured JSON to the normalized shapes in pure functions, so the
+The Ship module's providers map captured JSON to the normalized shapes in pure functions, so the
 GitHub and Bitbucket mappings, remote parsing and host classification, status-code mapping, the ETag
 cache, account choice, and token-source order are all tested without a network, and `bb auth`'s
 argument and token handling the same. The Accounts tab's host ordering, source kinds, and
-signed-in check are Rust tests in `forge/accounts.rs`, and its cards are a Vitest module
+signed-in check are Rust tests in `ship/accounts.rs`, and its cards are a Vitest module
 (`forgeAccountsModel.test.ts`). The notices and menus, polling intervals, grouping, and log
-cleanup are Vitest cases in `forgeModel.test.ts` and `forgeMenus.test.ts`. Live checks against a
-real repo are `#[ignore]` tests, run by hand with `cargo test forge::github -- --ignored` (it uses
-`gh auth token`), `cargo test forge::bitbucket -- --ignored` (it uses the token stored by `bb auth
-bitbucket`), and `cargo test forge::http -- --ignored` (TLS through the Windows certificate store).
+cleanup are Vitest cases in `shipModel.test.ts` and `shipMenus.test.ts`. Live checks against a
+real repo are `#[ignore]` tests, run by hand with `cargo test ship::github -- --ignored` (it uses
+`gh auth token`), `cargo test ship::bitbucket -- --ignored` (it uses the token stored by `bb auth
+bitbucket`), and `cargo test ship::http -- --ignored` (TLS through the Windows certificate store).
 
 CI: a GitHub Actions workflow (`.github/workflows/ci.yml`) on `windows-latest` runs the type
 check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS installer as the

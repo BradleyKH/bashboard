@@ -8,7 +8,7 @@ import {
   placeElement,
 } from './dashboardSections';
 import { type Layout, close, leaves } from './layout';
-import type { ForgeTab } from './forgeModel';
+import type { ShipTab } from './shipModel';
 import type { GitTab } from './gitBranchModel';
 import type { PaneKind } from './paneKinds';
 import { parseFilesSort, type FilesSort } from './filesModel';
@@ -56,10 +56,18 @@ export type SavedPane = { key: string; collapsed: boolean } & (
    * `root` is the drilled-in target, a local repo root or a `remote:<host>/<owner>/<name>` key;
    * absent means the pane is on Overview. `tab` is the open tab, absent meaning Pipelines;
    * `thisBranch` is whether Pipelines lists only the checked-out branch, absent meaning false;
+   * `thisBranchPulls` is the same for Pull requests, matching the source branch;
    * `allPulls` is whether Pull requests lists every state, absent meaning open ones only. The
-   * last three mean nothing on Overview.
+   * last four mean nothing on Overview.
    */
-  | { kind: 'forge'; root?: string; tab?: ForgeTab; thisBranch?: boolean; allPulls?: boolean }
+  | {
+      kind: 'ship';
+      root?: string;
+      tab?: ShipTab;
+      thisBranch?: boolean;
+      thisBranchPulls?: boolean;
+      allPulls?: boolean;
+    }
   /** `root` is the repo root the pane searches. */
   | { kind: 'search'; root: string; query: string; options: SearchOptions }
   /** The Containers pane saves no state; its containers come from the engines. */
@@ -200,15 +208,16 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
     if (typeof raw.root !== 'string') return null;
     return { ...base, kind: 'git', root: raw.root, ...(raw.tab === 'branches' && { tab: 'branches' as const }) };
   },
-  forge: (raw, base) => {
+  ship: (raw, base) => {
     // An empty root is how a pane with no target was once saved, so it reads as Overview too.
     const root = typeof raw.root === 'string' && raw.root !== '' ? raw.root : undefined;
     return {
       ...base,
-      kind: 'forge',
+      kind: 'ship',
       ...(root !== undefined && { root }),
       ...(raw.tab === 'pulls' && { tab: 'pulls' as const }),
       ...(raw.thisBranch === true && { thisBranch: true }),
+      ...(raw.thisBranchPulls === true && { thisBranchPulls: true }),
       ...(raw.allPulls === true && { allPulls: true }),
     };
   },
@@ -231,7 +240,8 @@ function parsePane(raw: unknown, kind?: PaneKind): SavedPane | null {
   if (!isRecord(raw)) return null;
   const { key, collapsed } = raw;
   if (typeof key !== 'string' || key === '' || typeof collapsed !== 'boolean') return null;
-  const k = kind ?? raw.kind;
+  // Ship panes were saved as kind 'forge' before the rename; read them as Ship so layouts survive.
+  const k = kind ?? (raw.kind === 'forge' ? 'ship' : raw.kind);
   if (typeof k !== 'string' || !Object.prototype.hasOwnProperty.call(PANE_PARSERS, k)) return null;
   return PANE_PARSERS[k as PaneKind](raw, { key, collapsed });
 }

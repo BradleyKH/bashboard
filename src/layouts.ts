@@ -17,7 +17,7 @@ function forLayoutPane(p: SavedPane): SavedPane {
       return { ...p, scratchId: null };
     case 'files':
     case 'git':
-    case 'forge':
+    case 'ship':
     case 'search':
     case 'containers':
     case 'ports':

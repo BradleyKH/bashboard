@@ -54,12 +54,12 @@ describe('buildPaletteItems', () => {
     expect(actionOrder()).not.toContain('checkForUpdates');
   });
 
-  it('lists the Containers, Ports, and Forge tabs as commands', () => {
+  it('lists the Containers, Ports, and Ship tabs as commands', () => {
     const items = buildPaletteItems(input());
     for (const [label, command] of [
       ['Open the Containers tab', 'openContainers'],
       ['Open the Ports tab', 'openPorts'],
-      ['Open the Forge tab', 'openForge'],
+      ['Open the Ship tab', 'openShip'],
     ]) {
       expect(byLabel(items, label)).toMatchObject({ category: 'Action', choice: { kind: 'command', command } });
     }

@@ -53,10 +53,10 @@ describe('parseLayouts', () => {
     expect(parseLayouts([{ name: 'Dev', tab: t }])).toEqual([{ name: 'Dev', tab: t }]);
   });
 
-  it('keeps a Forge pane root and tab', () => {
+  it('keeps a Ship pane root and tab', () => {
     const t: SavedTab = {
       name: null,
-      panes: [{ key: 'a', kind: 'forge', collapsed: false, root: '/c/a', tab: 'pulls' }],
+      panes: [{ key: 'a', kind: 'ship', collapsed: false, root: '/c/a', tab: 'pulls' }],
       layout: { kind: 'pane', paneId: 'a' },
       focused: 'a',
     };

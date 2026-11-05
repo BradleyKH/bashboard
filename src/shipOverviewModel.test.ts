@@ -10,8 +10,9 @@ import {
   nextPollMs,
   orderRows,
   repoId,
+  runningCount,
   targetKey,
-} from './forgeOverviewModel';
+} from './shipOverviewModel';
 
 let seq = 0;
 
@@ -229,29 +230,37 @@ describe('dashboardItems', () => {
   });
 });
 
-describe('nextPollMs', () => {
-  const health = (status: RunStatus | null) => [{ branch: 'main', run: status ? run('main', status) : null }];
+describe('runningCount', () => {
+  it('counts queued and running runs on any branch', () => {
+    const o = { runs: [run('main', 'running'), run('feature/x', 'queued'), run('main', 'failure'), run(null, 'success')] } as OverviewRepo;
+    expect(runningCount(o)).toBe(2);
+  });
+});
 
-  it('polls every 60s while a health-branch run is queued or running, whatever the heartbeat', () => {
-    expect(nextPollMs(health('running'), 10)).toBe(60_000);
-    expect(nextPollMs(health('queued'), 0)).toBe(60_000);
+describe('nextPollMs', () => {
+  const runsOf = (status: RunStatus | null) => (status ? [run('main', status)] : []);
+
+  it('polls every 60s while any run is queued or running, whatever the heartbeat', () => {
+    expect(nextPollMs(runsOf('running'), 10)).toBe(60_000);
+    expect(nextPollMs(runsOf('queued'), 0)).toBe(60_000);
+    expect(nextPollMs([run('feature/x', 'running'), run('main')], 10)).toBe(60_000);
   });
 
   it('uses the heartbeat otherwise', () => {
-    expect(nextPollMs(health('success'), 5)).toBe(300_000);
-    expect(nextPollMs(health(null), 1)).toBe(60_000);
+    expect(nextPollMs(runsOf('success'), 5)).toBe(300_000);
+    expect(nextPollMs(runsOf(null), 1)).toBe(60_000);
   });
 
   it('is null when the heartbeat is off and nothing is running', () => {
-    expect(nextPollMs(health('failure'), 0)).toBeNull();
+    expect(nextPollMs(runsOf('failure'), 0)).toBeNull();
     expect(nextPollMs([], 0)).toBeNull();
   });
 
   it('stretches either interval to the floor, but never turns a heartbeat of 0 on', () => {
-    expect(nextPollMs(health('running'), 5, 180_000)).toBe(180_000);
-    expect(nextPollMs(health('success'), 5, 540_000)).toBe(540_000);
-    expect(nextPollMs(health('success'), 5, 72_000)).toBe(300_000);
-    expect(nextPollMs(health('success'), 0, 540_000)).toBeNull();
+    expect(nextPollMs(runsOf('running'), 5, 180_000)).toBe(180_000);
+    expect(nextPollMs(runsOf('success'), 5, 540_000)).toBe(540_000);
+    expect(nextPollMs(runsOf('success'), 5, 72_000)).toBe(300_000);
+    expect(nextPollMs(runsOf('success'), 0, 540_000)).toBeNull();
   });
 });
 

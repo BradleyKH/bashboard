@@ -1,4 +1,4 @@
-import type { ForgeTab } from './forgeModel';
+import type { ShipTab } from './shipModel';
 
 const DEFAULT_PR_NOUN = 'pull request';
 
@@ -12,32 +12,32 @@ export function pullsTabLabel(prNoun: string): string {
 }
 
 /**
- * The Forge pane's Pipelines and Pull requests tabs, after an "Overview" crumb back to the
+ * The Ship pane's Pipelines and Pull requests tabs, after an "Overview" crumb back to the
  * pinned repos (docs/design.md section 4.20).
  */
-export class ForgeTabStrip {
+export class ShipTabStrip {
   readonly el: HTMLElement;
-  private readonly buttons = new Map<ForgeTab, HTMLButtonElement>();
+  private readonly buttons = new Map<ShipTab, HTMLButtonElement>();
 
-  constructor(tab: ForgeTab, onPick: (tab: ForgeTab) => void, onBack: () => void) {
+  constructor(tab: ShipTab, onPick: (tab: ShipTab) => void, onBack: () => void) {
     this.el = document.createElement('div');
-    this.el.className = 'forge-tabs';
+    this.el.className = 'ship-tabs';
     this.el.setAttribute('role', 'tablist');
     const crumb = document.createElement('button');
     crumb.type = 'button';
-    crumb.className = 'forge-crumb';
+    crumb.className = 'ship-crumb';
     crumb.textContent = 'Overview';
     crumb.title = 'Back to the Overview';
     crumb.addEventListener('click', onBack);
     this.el.append(crumb);
-    const labels: ReadonlyArray<{ tab: ForgeTab; label: string }> = [
+    const labels: ReadonlyArray<{ tab: ShipTab; label: string }> = [
       { tab: 'pipelines', label: 'Pipelines' },
       { tab: 'pulls', label: pullsTabLabel(DEFAULT_PR_NOUN) },
     ];
     for (const t of labels) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'forge-tab';
+      btn.className = 'ship-tab';
       btn.setAttribute('role', 'tab');
       btn.textContent = t.label;
       btn.addEventListener('click', () => onPick(t.tab));
@@ -47,7 +47,7 @@ export class ForgeTabStrip {
     this.set(tab);
   }
 
-  set(tab: ForgeTab): void {
+  set(tab: ShipTab): void {
     for (const [t, btn] of this.buttons) {
       btn.classList.toggle('active', t === tab);
       btn.setAttribute('aria-selected', String(t === tab));

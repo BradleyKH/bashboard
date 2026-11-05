@@ -7,7 +7,7 @@ import {
   type OverviewRepo,
   type PinnedRepo,
 } from './forgeApi';
-import { withPullChecks } from './forgeModel';
+import { withPullChecks } from './shipModel';
 import {
   bitbucketFloorMs,
   buildRow,
@@ -19,7 +19,7 @@ import {
   targetKey,
   type DashboardItem,
   type OverviewRow,
-} from './forgeOverviewModel';
+} from './shipOverviewModel';
 import { saveSetting, type Settings } from './settings';
 import { isWindowVisible } from './windowVisibility';
 
@@ -61,12 +61,12 @@ const sameBranches = (a: PinnedRepo, b: PinnedRepo): boolean =>
   JSON.stringify(a.branches ?? []) === JSON.stringify(b.branches ?? []);
 
 /**
- * Every pinned repo's Overview data, shared by the Forge pane's Overview tab and the dashboard's
- * Forge section (docs/design.md section 4.20). Each repo polls on its own cadence (fast while a
+ * Every pinned repo's Overview data, shared by the Ship pane's Overview tab and the dashboard's
+ * Ship section (docs/design.md section 4.20). Each repo polls on its own cadence (fast while a
  * watched branch is running, else the heartbeat) only while some consumer wants it and the window
  * is visible, and catches up on what fell due when either returns.
  */
-export class ForgeOverviewStore {
+export class ShipOverviewStore {
   private entries = new Map<string, Entry>();
   private pins: PinnedRepo[] = [];
   private minutes = 0;
@@ -164,9 +164,9 @@ export class ForgeOverviewStore {
     await Promise.all([...this.entries.values()].map((e) => this.poll(e)));
   }
 
-  /** Reconciles the entries with `forge.pinnedRepos` and picks up the heartbeat. */
+  /** Reconciles the entries with `ship.pinnedRepos` and picks up the heartbeat. */
   applySettings(settings: Settings): void {
-    this.reconcile(settings.forge.pinnedRepos, settings.forge.overviewRefreshMinutes);
+    this.reconcile(settings.ship.pinnedRepos, settings.ship.overviewRefreshMinutes);
   }
 
   /** Pins `repo`, or sets the clone of one already pinned; other pins keep their fields. */
@@ -185,7 +185,7 @@ export class ForgeOverviewStore {
   }
 
   private async write(next: PinnedRepo[]): Promise<void> {
-    await saveSetting(['forge', 'pinnedRepos'], next);
+    await saveSetting(['ship', 'pinnedRepos'], next);
     // Hot reload brings the same array back; applying it now lets a second edit build on this one.
     this.reconcile(next, this.minutes);
   }
@@ -297,7 +297,7 @@ export class ForgeOverviewStore {
 
   private delayFor(e: Entry, err: ForgeError | null): number | null {
     if (err?.kind === 'rateLimited') return Math.max(err.retryAfterSecs ?? RATE_LIMIT_FALLBACK_SECS, 1) * 1000;
-    return nextPollMs(e.row?.health ?? [], this.minutes, isBitbucketPin(e.pin.repo) ? this.bitbucketFloor() : 0);
+    return nextPollMs(e.row?.overview.runs ?? [], this.minutes, isBitbucketPin(e.pin.repo) ? this.bitbucketFloor() : 0);
   }
 
   private bitbucketFloor(): number {
@@ -359,4 +359,4 @@ export class ForgeOverviewStore {
   }
 }
 
-export const forgeOverviewStore = new ForgeOverviewStore();
+export const shipOverviewStore = new ShipOverviewStore();

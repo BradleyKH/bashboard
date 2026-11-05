@@ -1,11 +1,11 @@
 import type { MenuEntry } from './contextMenuModel';
 import type { Capabilities, JobLog, Job, Run } from './forgeApi';
-import type { RunActionKey } from './forgeMenus';
-import { statusInfo } from './forgeModel';
-import { ForgeJobsView } from './forgeJobsView';
-import { ForgeRunRow } from './forgeRunRow';
+import type { RunActionKey } from './shipMenus';
+import { statusInfo } from './shipModel';
+import { ShipJobsView } from './shipJobsView';
+import { ShipRunRow } from './shipRunRow';
 
-export interface ForgeRunListOptions {
+export interface ShipRunListOptions {
   loadJobs: (runId: string) => Promise<Job[]>;
   loadLog: (runId: string, jobId: string) => Promise<JobLog>;
   /** Whether the host serves job logs. */
@@ -18,8 +18,8 @@ export interface ForgeRunListOptions {
 }
 
 interface Slot {
-  row: ForgeRunRow;
-  jobs: ForgeJobsView | null;
+  row: ShipRunRow;
+  jobs: ShipJobsView | null;
 }
 
 /**
@@ -27,16 +27,16 @@ interface Slot {
  * keep their elements, so a poll or a tick that changed only times touches only those texts, and an
  * expanded run keeps its jobs view, with its open logs.
  */
-export class ForgeRunList {
+export class ShipRunList {
   readonly el: HTMLElement;
   private readonly slots = new Map<string, Slot>();
   private readonly note: HTMLElement;
 
-  constructor(private readonly opts: ForgeRunListOptions) {
+  constructor(private readonly opts: ShipRunListOptions) {
     this.el = document.createElement('div');
-    this.el.className = 'forge-runs';
+    this.el.className = 'ship-runs';
     this.note = document.createElement('div');
-    this.note.className = 'forge-note';
+    this.note.className = 'ship-note';
   }
 
   /** `emptyText` is shown when `runs` is empty ("Loading…", "No runs on this branch."). */
@@ -47,7 +47,7 @@ export class ForgeRunList {
       seen.add(run.id);
       let slot = this.slots.get(run.id);
       if (!slot) {
-        const row = new ForgeRunRow(run, {
+        const row = new ShipRunRow(run, {
           onToggle: (r) => this.toggle(r.id),
           menuItems: this.opts.menuItems,
           caps: this.opts.caps,
@@ -91,7 +91,7 @@ export class ForgeRunList {
     const open = !slot.row.isExpanded;
     slot.row.setExpanded(open);
     if (open && !slot.jobs) {
-      slot.jobs = new ForgeJobsView({
+      slot.jobs = new ShipJobsView({
         loadJobs: () => this.opts.loadJobs(id),
         loadLog: (jobId) => this.opts.loadLog(id, jobId),
         logs: this.opts.logs(),

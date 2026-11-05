@@ -7,10 +7,10 @@ const NO_GIT = { isGit: false, containers: true };
 
 describe('launchOptions', () => {
   it('lists every option in a git repo, in display order', () => {
-    expect(launchOptions(true).map((o) => o.kind)).toEqual(['terminal', 'git', 'files', 'forge', 'search', 'scratch']);
+    expect(launchOptions(true).map((o) => o.kind)).toEqual(['terminal', 'git', 'files', 'ship', 'search', 'scratch']);
   });
 
-  it('drops Git and Forge outside a git repo', () => {
+  it('drops Git and Ship outside a git repo', () => {
     expect(launchOptions(false).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'scratch']);
   });
 
@@ -19,7 +19,7 @@ describe('launchOptions', () => {
 describe('launchMenuOptions', () => {
   it('adds Containers and Ports to the row options, in kind menu order', () => {
     expect(launchMenuOptions(GIT).map((o) => o.kind)).toEqual([
-      'terminal', 'git', 'files', 'forge', 'search', 'containers', 'ports', 'scratch',
+      'terminal', 'git', 'files', 'ship', 'search', 'containers', 'ports', 'scratch',
     ]);
   });
 

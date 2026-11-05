@@ -1,14 +1,37 @@
-// Wording and input rules for the Forge Overview rows and Add repo box (docs/design.md section 4.20).
+// Wording and input rules for the Ship Overview rows and Add repo box (docs/design.md section 4.20).
 // Pure, no DOM.
 import type { PullRequest } from './forgeApi';
-import { relativeTime } from './forgeModel';
+import { relativeTime } from './shipModel';
 
-/** "3 open, 1 needs you"; "No open pull requests" when none. `noun` is the host's own word for them. */
+/** "PR" for "pull request", "MR" for "merge request": the host's noun as initials. */
+function pullAbbrev(noun: string): string {
+  return noun
+    .split(/\s+/)
+    .filter((w) => w !== '')
+    .map((w) => w[0].toUpperCase())
+    .join('');
+}
+
+/**
+ * "3 PRs open, 1 draft, 1 needs you", leaving out a part whose count is zero; "No open pull requests"
+ * when none. Drafts count among the open ones. `noun` is the host's own word for them.
+ */
 export function pullSummary(pulls: readonly PullRequest[], noun: string): string {
   const open = pulls.filter((p) => p.state === 'open');
   if (open.length === 0) return `No open ${noun}s`;
+  const abbrev = pullAbbrev(noun);
+  const parts = [`${open.length} ${abbrev}${open.length === 1 ? '' : 's'} open`];
+  const drafts = open.filter((p) => p.draft).length;
+  if (drafts > 0) parts.push(`${drafts} draft${drafts === 1 ? '' : 's'}`);
   const awaiting = open.filter((p) => p.reviewRequested).length;
-  return awaiting > 0 ? `${open.length} open, ${awaiting} needs you` : `${open.length} open`;
+  if (awaiting > 0) parts.push(`${awaiting} needs you`);
+  return parts.join(', ');
+}
+
+/** "2 pipelines running"; empty when none, so the row shows nothing. Queued runs count as running. */
+export function runningSummary(count: number): string {
+  if (count <= 0) return '';
+  return `${count} pipeline${count === 1 ? '' : 's'} running`;
 }
 
 /** The Overview's "Updated 2m ago" line; `updatedAt` and `now` are epoch milliseconds. */

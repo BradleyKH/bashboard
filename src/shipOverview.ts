@@ -1,70 +1,70 @@
-import { ForgeAddRepo } from './forgeAddRepo';
-import { ForgeOverviewRow, type OverviewRowHandlers } from './forgeOverviewRow';
-import { forgeOverviewStore } from './forgeOverviewStore';
-import { bitbucketSlowedText, updatedText } from './forgeOverviewText';
+import { ShipAddRepo } from './shipAddRepo';
+import { ShipOverviewRow, type OverviewRowHandlers } from './shipOverviewRow';
+import { shipOverviewStore } from './shipOverviewStore';
+import { bitbucketSlowedText, updatedText } from './shipOverviewText';
 
 /** The ages and the Updated line tick at this pace while the view is wanted. */
 const TICK_MS = 30_000;
 
 let nextId = 1;
 
-/** The Forge pane's Overview view: one row per pinned repo in attention order (docs/design.md section 4.20). */
-export class ForgeOverview {
+/** The Ship pane's Overview view: one row per pinned repo in attention order (docs/design.md section 4.20). */
+export class ShipOverview {
   readonly el: HTMLElement;
   private readonly key = `overview:${nextId++}`;
-  private readonly rows = new Map<string, ForgeOverviewRow>();
+  private readonly rows = new Map<string, ShipOverviewRow>();
   private readonly updated: HTMLElement;
   private readonly slowed: HTMLElement;
   private readonly refreshButton: HTMLButtonElement;
   private readonly list: HTMLElement;
   private readonly empty: HTMLElement;
-  private readonly addRepo = new ForgeAddRepo();
+  private readonly addRepo = new ShipAddRepo();
   private readonly unsubscribe: () => void;
   private tick: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
 
   constructor(private readonly handlers: OverviewRowHandlers) {
     this.el = document.createElement('div');
-    this.el.className = 'forge-overview';
+    this.el.className = 'ship-overview';
 
     const bar = document.createElement('div');
-    bar.className = 'forge-ov-bar';
+    bar.className = 'ship-ov-bar';
     this.updated = document.createElement('span');
-    this.updated.className = 'forge-ov-updated';
+    this.updated.className = 'ship-ov-updated';
     this.slowed = document.createElement('span');
-    this.slowed.className = 'forge-ov-slowed';
+    this.slowed.className = 'ship-ov-slowed';
     this.slowed.title = 'Bitbucket repos refresh less often as more are pinned, to stay inside its limit of 1,000 requests an hour.';
     const status = document.createElement('div');
-    status.className = 'forge-ov-status';
+    status.className = 'ship-ov-status';
     status.append(this.updated, this.slowed);
     this.refreshButton = document.createElement('button');
     this.refreshButton.type = 'button';
-    this.refreshButton.className = 'forge-chip';
+    this.refreshButton.className = 'ship-chip';
     this.refreshButton.textContent = 'Refresh';
     this.refreshButton.addEventListener('click', () => void this.refresh());
     const accountsButton = document.createElement('button');
     accountsButton.type = 'button';
-    accountsButton.className = 'forge-chip';
+    accountsButton.className = 'ship-chip';
     accountsButton.textContent = 'Accounts';
     accountsButton.title = 'Manage code host accounts';
     accountsButton.addEventListener('click', () => this.handlers.onOpenAccounts(null));
     bar.append(status, accountsButton, this.refreshButton);
 
     this.list = document.createElement('div');
-    this.list.className = 'forge-ov-list';
+    this.list.className = 'ship-ov-list';
     this.empty = document.createElement('div');
-    this.empty.className = 'forge-note';
-    this.empty.textContent = 'No repos on the Overview yet. Pin a repo from its Forge view, or add one here.';
+    this.empty.className = 'ship-note';
+    this.empty.textContent = 'No repos on the Overview yet. Pin a repo from its Ship view, or add one here.';
 
     this.el.append(bar, this.list, this.empty, this.addRepo.el);
-    this.unsubscribe = forgeOverviewStore.subscribe(() => this.render());
+    this.unsubscribe = shipOverviewStore.subscribe(() => this.render());
     this.render();
   }
 
   /** Polling runs while the view is on screen; the age text ticks only then too. */
   setWanted(on: boolean): void {
     const want = on && !this.disposed;
-    forgeOverviewStore.setWanted(this.key, want);
+    shipOverviewStore.setWanted(this.key, want);
     if (want) {
       this.addRepo.load();
       this.render();
@@ -85,7 +85,7 @@ export class ForgeOverview {
   private async refresh(): Promise<void> {
     this.refreshButton.disabled = true;
     try {
-      await forgeOverviewStore.refresh();
+      await shipOverviewStore.refresh();
     } finally {
       if (!this.disposed) this.refreshButton.disabled = false;
     }
@@ -93,9 +93,9 @@ export class ForgeOverview {
 
   private render(): void {
     const now = Date.now();
-    const entries = forgeOverviewStore.rows();
-    setText(this.updated, updatedText(forgeOverviewStore.lastUpdated(), now));
-    const slowedMs = forgeOverviewStore.bitbucketSlowedMs();
+    const entries = shipOverviewStore.rows();
+    setText(this.updated, updatedText(shipOverviewStore.lastUpdated(), now));
+    const slowedMs = shipOverviewStore.bitbucketSlowedMs();
     this.slowed.hidden = slowedMs === null;
     setText(this.slowed, slowedMs === null ? '' : bitbucketSlowedText(slowedMs));
     this.empty.hidden = entries.length > 0;
@@ -108,7 +108,7 @@ export class ForgeOverview {
       let row = this.rows.get(entry.pin.repo);
       if (row) row.update(entry, now);
       else {
-        row = new ForgeOverviewRow(entry, this.handlers);
+        row = new ShipOverviewRow(entry, this.handlers);
         this.rows.set(entry.pin.repo, row);
       }
       ordered.push(row.el);

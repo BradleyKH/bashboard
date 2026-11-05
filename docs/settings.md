@@ -154,7 +154,7 @@ drops the Launch menu. A settings file that still has `sections.folder` and no `
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Forge section lists only what needs you across the repos pinned to the Forge Overview (a red health branch, a pull request awaiting your review, or your own pull request with changes requested or failing checks), shows "All clear" when nothing does, and hides itself while no repo is pinned. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Ship section lists what needs you across the repos pinned to the Ship Overview (a red health branch, your own pull request with changes requested or failing checks, or up to 5 pull requests awaiting your review), then the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -172,7 +172,7 @@ dashboard", shown while the clock is on; right-clicking the clock sets it too.
     "panes": true,
     "containers": true,
     "ports": true,
-    "forge": true,
+    "ship": true,
     "localModels": true,
     "external": true,
     "system": false,
@@ -217,7 +217,7 @@ Settings tab.
 "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 }
 ```
 
-`forge.hosts` (default `{}`) tells Bashboard which kind of forge a self-hosted host runs. It maps a
+`ship.hosts` (default `{}`) tells Bashboard which provider a self-hosted host runs. It maps a
 host name, such as `ghe.example.com`, to `github`, `gitlab`, `bitbucket`, or `azureDevOps`. Use it
 for a self-hosted GitHub Enterprise Server host the GitHub CLI (`gh`) is not signed in to; a host
 you are signed in to with `gh` is found without an entry. Of the four kinds, only `github` is served
@@ -226,32 +226,32 @@ and the Bitbucket provider speaks only Bitbucket Cloud (bitbucket.org), so any o
 is refused with "Bitbucket Data Center isn't supported yet" before a request is sent. Host names are
 lowercased when the file loads, so their case does not matter. An entry with any other kind is
 dropped with a notice, and the other entries still apply. The map has no field in the Settings tab;
-edit it in the file. See [Code hosts](setup.md#code-hosts) for what the Forge pane needs.
+edit it in the file. See [Code hosts](setup.md#code-hosts) for what the Ship pane needs.
 
 ```jsonc
-"forge": { "hosts": { "ghe.example.com": "github" } }
+"ship": { "hosts": { "ghe.example.com": "github" } }
 ```
 
-`forge.pinnedRepos` (default `[]`) lists the repos on the Forge pane's Overview tab, one row each. An
+`ship.pinnedRepos` (default `[]`) lists the repos on the Ship pane's Overview tab, one row each. An
 entry's `repo` is `<host>/<path segments>`, such as `bitbucket.org/keysys/kweb`, and is the pin's
 identity. `root` (optional) is a local clone of the repo. `branches` (optional) adds branches to the
-row's health strip beyond the automatic ones. Pin and unpin from the Forge pane ("Pin to Overview"
+row's health strip beyond the automatic ones. Pin and unpin from the Ship pane ("Pin to Overview"
 and "Unpin"); the file is also yours to edit, and it applies on save. An entry whose
 `repo` is missing or empty, or whose `root` or `branches` has the wrong type, is dropped with a
 notice naming its position in the list, and the other entries still apply. The list has no field in
 the Settings tab.
 
-`forge.overviewRefreshMinutes` (default 5, 0 to 1440) is the number of minutes between background
+`ship.overviewRefreshMinutes` (default 5, 0 to 1440) is the number of minutes between background
 refreshes of the Overview; 0 turns them off, leaving the Refresh button. A repo with a pipeline
-running on one of its health branches is refreshed every 60 seconds whatever the interval. Each
+queued or running on any branch is refreshed every 60 seconds whatever the interval. Each
 refresh costs about 3 requests (its runs, its open pull requests, and the statuses of open pull
 requests that changed), and Bitbucket allows 1,000 requests an hour per user, so Bitbucket repos
 stay within 600 an hour between them: with more than three pinned, each is refreshed no more often
 than every 18 seconds times the number pinned (every 3 minutes for ten), even when this interval
-is shorter. It applies on save and is also in the Forge section of the Settings tab.
+is shorter. It applies on save and is also in the Ship section of the Settings tab.
 
 ```jsonc
-"forge": {
+"ship": {
   "overviewRefreshMinutes": 5,
   "pinnedRepos": [
     { "repo": "bitbucket.org/keysys/kweb", "root": "C:/Users/me/source/repos/kweb", "branches": ["uat"] }

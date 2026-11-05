@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { HostAuth } from './forgeApi';
 import { hostCard, INSTALL_GH_ARGV } from './forgeAccountsModel';
-import { BITBUCKET_SCOPES, BITBUCKET_TOKEN_URL } from './forgeModel';
+import { BITBUCKET_SCOPES, BITBUCKET_TOKEN_URL } from './shipModel';
 
 function gh(over: Partial<HostAuth> = {}): HostAuth {
   return {

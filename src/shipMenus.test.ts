@@ -10,7 +10,7 @@ import {
   signInAnotherArgv,
   type AccountMenuHandlers,
   type RunMenuHandlers,
-} from './forgeMenus';
+} from './shipMenus';
 
 const GITHUB: Capabilities = {
   rerun: true,

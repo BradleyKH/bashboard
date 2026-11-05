@@ -166,17 +166,17 @@ transcript (with anything private redacted) to an issue from the agent report te
 
 ## Code hosts
 
-The Forge pane shows a repo's pipeline runs, job logs, and open pull requests. It reads them from
+The Ship pane shows a repo's pipeline runs, job logs, and open pull requests. It reads them from
 the code host's API with a sign-in you already have, so each host needs a one-time setup. Bashboard
 never runs a sign-in flow of its own and keeps tokens in memory only; the one thing it stores is a
 Bitbucket API token, in Windows Credential Manager. Open the pane from any pane's kind menu (see
-the [user guide](user-guide.md#forge-pane)); when something is missing, the pane shows the same
+the [user guide](user-guide.md#ship-pane)); when something is missing, the pane shows the same
 steps with buttons that do them.
 
 The dialog's **Accounts** tab is the place to do the setup below. It has a card for each code
 host showing where its token comes from (never the token itself), and buttons for signing in,
 switching or removing an account, and adding, replacing, or removing a Bitbucket token. Open it
-from the **Accounts** button in the Forge pane's bar, from a Forge notice's buttons, or from the
+from the **Accounts** button in the Ship pane's bar, from a Ship notice's buttons, or from the
 command palette ("Manage code host accounts"). Each step below also has a command that does the
 same from a terminal.
 
@@ -198,7 +198,7 @@ Bashboard reads GitHub through the GitHub CLI, then falls back to Git Credential
 
 A host you are signed in to with `gh` is recognized without any setting, and gets its own card in
 the Accounts tab. A GitHub Enterprise Server host that `gh` is not signed in to needs an entry in
-`forge.hosts` (see [Settings](settings.md#settings)); it then gets a card too.
+`ship.hosts` (see [Settings](settings.md#settings)); it then gets a card too.
 
 **Several accounts.** Choose **Sign in another account** on the card, or run `gh auth login` again
 for each account. **Make active** on an account's row does what `gh auth switch --hostname <host>
@@ -213,7 +213,7 @@ in a warning color to say so.
 
 **Environment tokens.** If `GH_TOKEN` or `GITHUB_TOKEN` is set in the environment Bashboard was
 launched from (for an Enterprise Server host, `GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN`),
-`gh auth status` and `gh` in a terminal act as that token's account. The Forge pane still uses the
+`gh auth status` and `gh` in a terminal act as that token's account. The Ship pane still uses the
 account **Make active** or `gh auth switch` chose, and **Make active** and **Sign out** on the
 Accounts tab work as usual; the GitHub card notes which variable is set.
 

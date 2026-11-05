@@ -131,42 +131,54 @@ describe('parseSavedTab', () => {
     expect(parse(git())).toEqual(git());
   });
 
-  it('round-trips a Forge pane with and without its tab, and drops one with no root', () => {
-    const forge = (tab?: unknown) => ({ key: 'a', kind: 'forge', collapsed: false, root: '/c/a', ...(tab !== undefined && { tab }) });
+  it('round-trips a Ship pane with and without its tab, and drops one with no root', () => {
+    const ship = (tab?: unknown) => ({ key: 'a', kind: 'ship', collapsed: false, root: '/c/a', ...(tab !== undefined && { tab }) });
     const parse = (p: object) => parseSavedTab({ panes: [p], layout: pane('a'), focused: 'a' })?.panes[0];
-    expect(parse(forge())).toEqual(forge());
-    expect(parse(forge('pulls'))).toEqual(forge('pulls'));
-    expect(parse(forge('bogus'))).toEqual(forge());
+    expect(parse(ship())).toEqual(ship());
+    expect(parse(ship('pulls'))).toEqual(ship('pulls'));
+    expect(parse(ship('bogus'))).toEqual(ship());
     // Pipelines is the default, so it saves as no tab.
-    expect(parse(forge('pipelines'))).toEqual(forge());
+    expect(parse(ship('pipelines'))).toEqual(ship());
     // Every branch is the default, so only a true thisBranch survives.
-    expect(parse({ ...forge(), thisBranch: true })).toEqual({ ...forge(), thisBranch: true });
-    expect(parse({ ...forge(), thisBranch: false })).toEqual(forge());
-    expect(parse({ ...forge(), thisBranch: 'yes' })).toEqual(forge());
+    expect(parse({ ...ship(), thisBranch: true })).toEqual({ ...ship(), thisBranch: true });
+    expect(parse({ ...ship(), thisBranch: false })).toEqual(ship());
+    expect(parse({ ...ship(), thisBranch: 'yes' })).toEqual(ship());
+    expect(parse({ ...ship(), thisBranchPulls: true })).toEqual({ ...ship(), thisBranchPulls: true });
+    expect(parse({ ...ship(), thisBranchPulls: 1 })).toEqual(ship());
     // Open only is the default, so only a true allPulls survives.
-    expect(parse({ ...forge(), allPulls: true })).toEqual({ ...forge(), allPulls: true });
-    expect(parse({ ...forge(), allPulls: false })).toEqual(forge());
-
+    expect(parse({ ...ship(), allPulls: true })).toEqual({ ...ship(), allPulls: true });
+    expect(parse({ ...ship(), allPulls: false })).toEqual(ship());
   });
 
-  it('loads a rootless Forge pane as Overview, and an empty root as Overview too', () => {
-    const overview = { key: 'a', kind: 'forge', collapsed: false };
+  it('loads a pane saved with the old forge kind as a Ship pane', () => {
+    const parse = (p: object) => parseSavedTab({ panes: [p], layout: pane('a'), focused: 'a' })?.panes[0];
+    expect(parse({ key: 'a', kind: 'forge', collapsed: false, root: '/c/a', tab: 'pulls' })).toEqual({
+      key: 'a',
+      kind: 'ship',
+      collapsed: false,
+      root: '/c/a',
+      tab: 'pulls',
+    });
+  });
+
+  it('loads a rootless Ship pane as Overview, and an empty root as Overview too', () => {
+    const overview = { key: 'a', kind: 'ship', collapsed: false };
     const parse = (p: object) => parseSavedTab({ panes: [p], layout: pane('a'), focused: 'a' })?.panes[0];
     expect(parse(overview)).toEqual(overview);
     expect(parse({ ...overview, root: '' })).toEqual(overview);
     expect(parse({ ...overview, root: 7 })).toEqual(overview);
     // The drilldown fields load unchanged, so a pane that drills in again keeps its last tab.
-    const kept = { ...overview, tab: 'pulls', thisBranch: true, allPulls: true };
+    const kept = { ...overview, tab: 'pulls', thisBranch: true, thisBranchPulls: true, allPulls: true };
     expect(parse(kept)).toEqual(kept);
     expect(parseSavedTab({ panes: [{ ...overview, collapsed: 'no' }], layout: null, focused: null })?.panes).toEqual([]);
   });
 
-  it('loads an old Forge pane with a root as drilled in, and a remote target key as its root', () => {
-    const old = { key: 'a', kind: 'forge', collapsed: false, root: '/c/a', tab: 'pulls', allPulls: true };
+  it('loads an old Ship pane with a root as drilled in, and a remote target key as its root', () => {
+    const old = { key: 'a', kind: 'ship', collapsed: false, root: '/c/a', tab: 'pulls', allPulls: true };
     expect(parseSavedTab({ panes: [old], layout: pane('a'), focused: 'a' })?.panes[0]).toEqual(old);
     const remote = {
       key: 'a',
-      kind: 'forge',
+      kind: 'ship',
       collapsed: false,
       root: 'remote:bitbucket.org/keysys/kweb',
       thisBranch: true,
@@ -602,7 +614,7 @@ describe('parseSavedWorkspace', () => {
   });
 
   it('keeps a saved element order and cleans it', () => {
-    const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'forge', 'localModels'];
+    const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'ship', 'localModels'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);
     const messy = ['panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock', 'folder', 'launch'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: messy })?.dashboardSectionOrder).toEqual([
@@ -611,7 +623,7 @@ describe('parseSavedWorkspace', () => {
       'layouts',
       'containers',
       'ports',
-      'forge',
+      'ship',
       'localModels',
       'external',
       'system',
@@ -631,7 +643,7 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'ports',
-      'forge',
+      'ship',
       'localModels',
       'external',
       'system',
@@ -649,7 +661,7 @@ describe('parseSavedWorkspace', () => {
       'panes',
       'containers',
       'ports',
-      'forge',
+      'ship',
       'localModels',
       'external',
       'system',
