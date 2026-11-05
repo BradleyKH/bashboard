@@ -343,9 +343,8 @@ merged and closed ones marked. The pane remembers both choices across restarts.
   reviewer who has not reviewed), **Yours**, and **Others**, each row with its author, branches,
   review state, checks, and last update. Click one to open it in the browser, or right-click to
   copy its link or branch name. The list holds the 50 most recently updated, and a note below the
-  groups, such as "Showing the latest 50 of 60 open pull requests.", says when the repo has more. Without the
-  `read:user:bitbucket` scope, Bitbucket pull requests load without the Yours and Review requested
-  groups.
+  groups, such as "Showing the latest 50 of 60 open pull requests.", says when the repo has more. Bitbucket pull requests need the
+  `read:user:bitbucket` scope, which sorts them into these groups.
 
 A finished run raises a toast, such as "Workflow run passed: CI on main", whose **Open** action
 opens the run. Several Forge panes on one repo share their requests and each finished run toasts

@@ -24,8 +24,7 @@ const LOG_MAX: usize = 1024 * 1024;
 const MAX_PAGES: usize = 5;
 const ACCEPT: &[(&str, &str)] = &[("Accept", "application/json")];
 
-/// The viewer's uuid per token (by hash, never the token itself); `None` when the token
-/// can't read `/user`.
+/// The viewer's uuid per token (by hash, never the token itself), cached once `/user` answers.
 static VIEWERS: LazyLock<Mutex<HashMap<u64, Option<String>>>> = LazyLock::new(Default::default);
 
 /// A PR's check rollup by (repo, PR id), with the `updated_on` it was fetched at. A new build
@@ -379,28 +378,22 @@ fn all_values(cx: &Cx, first: &str) -> Result<Vec<Value>, ForgeError> {
 }
 
 impl Bitbucket {
-    /// The viewer's uuid, or `None` when the token lacks `read:user:bitbucket` or the call
-    /// failed; then no pull request is marked as the viewer's.
-    fn viewer(&self, cx: &Cx) -> Option<String> {
+    /// The viewer's uuid, which marks the pull requests that are the viewer's or await their
+    /// review. `read:user:bitbucket` is a required scope, so a refusal fails the list with a
+    /// message naming it rather than quietly dropping the Yours and Review requested groups.
+    /// Only a success is cached, so a token replaced after a failure is asked again.
+    fn viewer(&self, cx: &Cx) -> Result<Option<String>, ForgeError> {
         let key = token_key(cx);
         if let Some(v) = VIEWERS.lock().unwrap().get(&key) {
-            return v.clone();
+            return Ok(v.clone());
         }
-        match cx
+        let user = cx
             .http
             .get_json::<Value>(&format!("{API}/user"), Some(&auth(cx)), ACCEPT)
-        {
-            Ok(user) => {
-                let uuid = string_at(&user, "/uuid");
-                VIEWERS.lock().unwrap().insert(key, uuid.clone());
-                uuid
-            }
-            Err(e) if matches!(e.kind, ForgeErrorKind::Forbidden | ForgeErrorKind::NotFound) => {
-                VIEWERS.lock().unwrap().insert(key, None);
-                None
-            }
-            Err(_) => None,
-        }
+            .map_err(|e| reword(e, &cx.token.source))?;
+        let uuid = string_at(&user, "/uuid");
+        VIEWERS.lock().unwrap().insert(key, uuid.clone());
+        Ok(uuid)
     }
 
     /// First message lines for the commits that title `runs`, from the cache or one request per
@@ -610,7 +603,7 @@ impl ForgeProvider for Bitbucket {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let viewer = self.viewer(cx);
+        let viewer = self.viewer(cx)?;
         let cached = Self::cached_checks(&base, &values);
         let items = values
             .iter()

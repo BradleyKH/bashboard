@@ -231,8 +231,8 @@ read pipelines or pull requests, so Bashboard uses a Bitbucket API token. Only B
 | `write:pipeline:bitbucket` | Optional: re-run and stop pipelines |
 | `read:user:bitbucket` | Tell which pull requests are yours or await your review |
 
-Without `read:user:bitbucket`, pull requests still load, but without the Yours and Review requested
-groups. Without `write:pipeline:bitbucket`, Re-run and Cancel report that the token is missing it.
+Every scope but `write:pipeline:bitbucket` is required: without `read:user:bitbucket`, for example,
+the pull request list reports the missing scope instead of loading. Without `write:pipeline:bitbucket`, Re-run and Cancel report that the token is missing it.
 When a request needs a scope the token lacks, the pane's message names it: "This token is missing
 the `<scope>` scope." Scopes cannot be added to an existing token, so make a new one with the full
 list and store it with `bb auth bitbucket`. A running Bashboard picks the replacement up on the next

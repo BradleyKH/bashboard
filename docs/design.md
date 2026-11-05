@@ -1069,9 +1069,9 @@ commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shape
   same target (branch or pull request, selector, and commit); custom pipeline variables are not
   kept. There is no failed-only re-run (`rerunFailed` is false), and cancel is `stopPipeline`. A
   step that has not started has an empty log. Pull requests are listed with a `fields` selection of
-  only what the row shows, including participants, and the page's `size` is the matching count; the viewer's uuid comes from `/user` once per token, and a token without
-  `read:user:bitbucket` still lists pull requests, with none marked as yours or awaiting your
-  review. A pull request's checks are the worst of its commit's build statuses, fetched once per
+  only what the row shows, including participants, and the page's `size` is the matching count; the viewer's uuid comes from `/user` once per token and marks the
+  pull requests that are yours or await your review. `read:user:bitbucket` is a required scope: a
+  token without it fails the list with a `forbidden` error naming the missing scope. A pull request's checks are the worst of its commit's build statuses, fetched once per
   pull request and kept until its `updated_on` changes, which keeps polling inside Bitbucket's
   limit of 1,000 requests an hour per user. Merged and declined pull requests show no checks. The
   list returns at once with the cached rollups and marks the open ones still missing `checksPending`; the front end then asks `forge_pull_checks` for those, which
@@ -1474,7 +1474,7 @@ panel sits alone at the right end. Each button's tooltip ends with its action's 
 parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
 
 **Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports, Forge,
-External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
+Local models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
 Favorites, Layouts, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
@@ -1778,7 +1778,7 @@ agent's hook config is complete and only the hook script is out of date. With ev
 agent's hooks in, the footer takes no space.
 
 The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the
-sections Appearance, Backdrop, Terminal, Editor, Dashboard, Forge, Local models, and Restore. A filter field above them
+sections Terminal, Dashboard, Appearance, Background, Editor, Git, Forge, Local models, and Restore. A filter field above them
 shows only the fields whose label, hint, group, or section holds every word typed, and hides
 sections left empty. Dashboard holds the side choice, Left or Right, and a
 checkbox per element under "Show on the dashboard", followed by the Clock style select while the
@@ -2711,8 +2711,7 @@ title dimmed, on one that is not open, the
 author and source and target branches, the review state (Approved, Changes requested, or Review
 pending), the checks status icon (a faint pulsing dot while it loads), and the age of the last update. Clicking a row opens the pull
 request in the browser. The menu holds **Open in browser**, **Copy link**, and **Copy branch
-name**. A Bitbucket token without `read:user:bitbucket` still lists pull requests, but every one
-falls under Others, since none can be marked as the viewer's. When the host counts more matching
+name**. When the host counts more matching
 pull requests than the 50 listed, a note after the groups reads "Showing the latest 50 of 60 open
 pull requests.", leaving out "open" while Open is cleared (with "merge requests" on a host that
 uses that noun); `src/forgeModel.ts` builds the text. Changing Open empties the list and asks

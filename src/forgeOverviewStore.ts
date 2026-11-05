@@ -191,14 +191,17 @@ export class ForgeOverviewStore {
       }
       const old = e.pin;
       e.pin = pin;
+      let rebuilt = false;
       if (targetKey(old) !== targetKey(pin)) {
         e.epoch += 1;
         e.stale = e.inFlight;
         if (!e.inFlight) repoll.push(e);
       } else if (!sameBranches(old, pin) && e.overview) {
         e.row = buildRow(pin, e.overview);
+        rebuilt = true;
       }
-      if (retime && !e.inFlight) e.nextDelayMs = this.delayFor(e, e.error);
+      // A rebuilt row can gain a running branch, which polls on the fast cadence from now.
+      if ((retime || rebuilt) && !e.inFlight) e.nextDelayMs = this.delayFor(e, e.error);
       next.set(pin.repo, e);
     }
     for (const [repo, e] of this.entries) {

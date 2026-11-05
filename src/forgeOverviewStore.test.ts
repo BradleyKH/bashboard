@@ -116,6 +116,18 @@ describe('ForgeOverviewStore', () => {
     expect(calls()).toHaveLength(4);
   });
 
+  it('moves to the fast cadence when a branches-only edit watches a running branch', async () => {
+    api.forgeOverviewRepo.mockResolvedValue(overview([run('main', 'success'), run('dev', 'running')]));
+    const store = new ForgeOverviewStore();
+    store.applySettings(settings([{ repo: 'a' }], 5));
+    store.setWanted('pane', true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls()).toHaveLength(1);
+    store.applySettings(settings([{ repo: 'a', branches: ['dev'] }], 5));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calls()).toHaveLength(2);
+  });
+
   it('pauses while unwanted and catches up on what fell due when wanted again', async () => {
     const store = new ForgeOverviewStore();
     store.applySettings(settings([{ repo: 'a' }], 5));
