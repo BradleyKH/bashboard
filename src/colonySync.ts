@@ -13,7 +13,9 @@ function moodFor(status: SessionStatus): Mood {
   return status === 'unknown' ? 'idle' : status;
 }
 
-/** Reconciles the session roster with the backdrop's colony (docs/design.md section 6.2). */
+/**
+ * Reconciles the session roster with the backdrop's colony (docs/design/backdrop.md section 6.2).
+ */
 export class ColonySync {
   private readonly lastMood = new Map<string, Mood>();
 

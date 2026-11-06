@@ -31,7 +31,7 @@ export interface ForgeHostCardOptions {
   knownOrgs(): string[];
 }
 
-/** One code host's card in the Accounts tab: status, account rows, and every auth action (docs/design.md section 4.20). */
+/** One code host's card in the Accounts tab: status, account rows, and every auth action (docs/design/ship.md section 4.20). */
 export class ForgeHostCard {
   readonly element: HTMLElement;
   private readonly head: HTMLElement;

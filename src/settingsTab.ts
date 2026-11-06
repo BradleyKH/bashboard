@@ -32,7 +32,7 @@ interface Control {
   read?: () => string;
 }
 
-/** The app dialog's Settings tab; each control writes one value to settings.json (docs/design.md section 8). */
+/** The app dialog's Settings tab; each control writes one value to settings.json (docs/design/data.md section 8). */
 export class SettingsTab {
   private root: HTMLElement | null = null;
   private warnings: HTMLElement | null = null;

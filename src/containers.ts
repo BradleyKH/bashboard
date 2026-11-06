@@ -20,7 +20,7 @@ export interface ContainerPort {
   protocol: string;
 }
 
-/** A container from either engine (docs/design.md section 7). */
+/** A container from either engine (docs/design/data.md section 7). */
 export interface Container {
   engine: Engine;
   id: string;
@@ -106,7 +106,9 @@ export async function onContainersChanged(cb: (s: ContainersSnapshot) => void): 
   }
 }
 
-/** The pty_spawn command for a shell inside a container (docs/design.md section 3.10). */
+/**
+ * The pty_spawn command for a shell inside a container (docs/design/containers.md section 3.10).
+ */
 export function shellCommand(container: Pick<Container, 'engine' | 'id'>): string[] {
   return [
     // Docker Desktop puts an extension-less shell script named docker beside docker.exe, and the

@@ -1,4 +1,6 @@
-/** Files list multi-selection rules, as File Explorer has them (docs/design.md section 4.12). */
+/**
+ * Files list multi-selection rules, as File Explorer has them (docs/design/files.md section 4.12).
+ */
 
 export interface FileSelection {
   /** The focused row, which the preview follows; it can be unmarked after a Ctrl+click. */

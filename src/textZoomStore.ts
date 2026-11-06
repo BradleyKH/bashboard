@@ -1,6 +1,6 @@
 import { ZOOM_LEVELS } from './textZoom';
 
-/** The zoom a new pane of each kind starts at (docs/design.md sections 4.12 to 4.16). */
+/** The zoom a new pane of each kind starts at (docs/design/files.md sections 4.12 to 4.16). */
 export interface TextZoom {
   filesList: number;
   filePreview: number;

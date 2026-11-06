@@ -1,4 +1,5 @@
-// Where the Image and Slideshow styles draw a picture on the canvas (docs/design.md section 6.5).
+// Where the Image and Slideshow styles draw a picture on the canvas (docs/design/backdrop.md
+// section 6.5).
 
 export type ImageFit = 'fill' | 'fit' | 'stretch' | 'center' | 'tile';
 

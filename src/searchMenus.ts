@@ -14,7 +14,7 @@ export interface SearchGroupMenuHandlers extends SearchMenuHandlers {
   toggle: (path: string) => void;
 }
 
-/** Menu for a match row (docs/design.md section 4.14). */
+/** Menu for a match row (docs/design/files.md section 4.14). */
 export function searchMatchMenuItems(target: Extract<SearchItem, { kind: 'match' }>, h: SearchMenuHandlers): MenuEntry[] {
   return [
     item('Open in editor', () => h.open(target)),

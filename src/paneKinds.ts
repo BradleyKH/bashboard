@@ -1,4 +1,4 @@
-// Pane kinds (docs/design.md section 4.11). Pure data, no DOM.
+// Pane kinds (docs/design/workspace.md section 4.11). Pure data, no DOM.
 
 export type PaneKind = 'terminal' | 'scratch' | 'files' | 'git' | 'ship' | 'search' | 'containers' | 'ports';
 

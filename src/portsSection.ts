@@ -18,7 +18,7 @@ export interface PortsSectionCallbacks {
   onStop(l: Listener): void;
 }
 
-/** The dashboard's Ports section: what is listening, and which pane started it (docs/design.md section 4.19). */
+/** The dashboard's Ports section: what is listening, and which pane started it (docs/design/containers.md section 4.19). */
 export class PortsSection {
   readonly el: HTMLElement;
   readonly head: HTMLElement;

@@ -1,8 +1,8 @@
-//! Installs the shell integration lines into a shell's startup file (docs/design.md section
-//! 3.14): the OSC 133 markers and OSC 9;9 working directory into Git Bash's `~/.bashrc`, and the
-//! OSC 9;9 prompt wrapper into a PowerShell profile (`powershell`). Both files take the same
-//! marked block, so the classify-and-rewrite logic is shared and each shell supplies a `Flavor`.
-//! The file work runs over injectable paths so tests never touch the real ones; the Tauri
+//! Installs the shell integration lines into a shell's startup file (docs/design/app.md
+//! section 3.14): the OSC 133 markers and OSC 9;9 working directory into Git Bash's `~/.bashrc`,
+//! and the OSC 9;9 prompt wrapper into a PowerShell profile (`powershell`). Both files take the
+//! same marked block, so the classify-and-rewrite logic is shared and each shell supplies a
+//! `Flavor`. The file work runs over injectable paths so tests never touch the real ones; the Tauri
 //! commands resolve them and delegate.
 
 mod powershell;

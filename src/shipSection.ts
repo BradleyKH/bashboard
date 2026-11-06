@@ -25,7 +25,7 @@ export interface ShipSectionCallbacks {
   onOpenAccounts(host: string | null, opts?: { openTokenForm?: boolean; org?: string }): void;
 }
 
-/** The dashboard's Ship section: what needs the viewer, then what is moving, across the pinned repos (docs/design.md section 4.6). */
+/** The dashboard's Ship section: what needs the viewer, then what is moving, across the pinned repos (docs/design/dashboard.md section 4.6). */
 export class ShipSection {
   readonly el: HTMLElement;
   readonly head: HTMLElement;

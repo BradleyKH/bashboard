@@ -16,9 +16,9 @@ function place(el: HTMLElement, r: Rect): void {
 }
 
 /**
- * Shows where a Launch option would put its pane (docs/design.md section 4.6) while the option is
- * hovered or highlighted: the new pane's share of the focused pane, the existing pane it would
- * bring forward, or a note that it opens collapsed. Never takes pointer events.
+ * Shows where a Launch option would put its pane (docs/design/dashboard.md section 4.6) while the
+ * option is hovered or highlighted: the new pane's share of the focused pane, the existing pane it
+ * would bring forward, or a note that it opens collapsed. Never takes pointer events.
  */
 export class LaunchPreview {
   private readonly layer = box('launch-preview');

@@ -8,7 +8,7 @@ import type { FavoritesCallbacks } from './favoritesSection';
 import { folderButton, openFolder } from './folderButton';
 import { openInMenuItems, openMenuButton } from './openMenu';
 
-/** One recent folder under the Favorites section (docs/design.md section 4.6). */
+/** One recent folder under the Favorites section (docs/design/dashboard.md section 4.6). */
 export function renderRecentRow(path: string, callbacks: FavoritesCallbacks): HTMLElement {
   const el = document.createElement('div');
   el.className = 'recent-row';

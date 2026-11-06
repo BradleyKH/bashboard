@@ -1,5 +1,5 @@
 // Row building, attention order, dashboard items, and poll timing for the Ship Overview tab
-// (docs/design.md section 4.20). Pure, no DOM.
+// (docs/design/ship.md section 4.20). Pure, no DOM.
 import type { ForgeRepo, OverviewRepo, PinnedRepo, PullRequest, Run } from './forgeApi';
 import { isReadyToMerge, statusInfo, type ShipTab } from './shipModel';
 

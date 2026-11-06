@@ -77,7 +77,9 @@ const STEP_TEXT: Record<SetupStep, { title: string; intro: string }> = {
   look: { title: 'Look', intro: 'The background behind the panes, and the colors the app draws with.' },
 };
 
-/** First-run setup, one choice per step, each saved as it is made (docs/design.md section 4.17). */
+/**
+ * First-run setup, one choice per step, each saved as it is made (docs/design/app.md section 4.17).
+ */
 export class SetupWizard {
   private backdrop: HTMLElement | null = null;
   private box!: HTMLElement;

@@ -1,4 +1,4 @@
-/** Pure helpers behind the Git pane's Branches tab and branch switcher (docs/design.md section 4.13); no DOM. */
+/** Pure helpers behind the Git pane's Branches tab and branch switcher (docs/design/git.md section 4.13); no DOM. */
 
 import type { GitBranchList, GitLocalBranch, GitRemoteBranch } from './gitApi';
 

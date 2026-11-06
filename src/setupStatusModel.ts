@@ -13,7 +13,7 @@ export type StatusFix =
   | { kind: 'shell'; shell: IntegrationShell }
   | { kind: 'hooks'; agent: AgentId };
 
-/** One line of the Help tab's setup status (docs/design.md section 4.18). */
+/** One line of the Help tab's setup status (docs/design/app.md section 4.18). */
 export interface StatusRow {
   id: string;
   label: string;

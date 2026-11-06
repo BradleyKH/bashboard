@@ -60,7 +60,9 @@ function errorText(err: unknown): string {
   return String(err);
 }
 
-/** Docker and Podman containers grouped by Compose project (docs/design.md section 4.16). */
+/**
+ * Docker and Podman containers grouped by Compose project (docs/design/containers.md section 4.16).
+ */
 export class ContainersPane implements PaneView {
   readonly kind = 'containers' as const;
   readonly paneId: string;

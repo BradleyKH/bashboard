@@ -127,7 +127,7 @@ function repoPath(root: string, rel: string): string {
   return /[\\/]$/.test(root) ? `${root}${tail}` : `${root}${sep}${tail}`;
 }
 
-/** A repo's changes, staging, commits, and diffs (docs/design.md section 4.13). */
+/** A repo's changes, staging, commits, and diffs (docs/design/git.md section 4.13). */
 export class GitPane implements PaneView {
   readonly kind = 'git' as const;
   readonly paneId: string;

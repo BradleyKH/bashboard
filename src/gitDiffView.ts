@@ -2,7 +2,7 @@ import type { GitDiff } from './gitApi';
 import { diffLines } from './gitModel';
 import { ZoomButtons } from './zoomButtons';
 
-/** The unified diff panel beside the Git pane's lists (docs/design.md section 4.13). */
+/** The unified diff panel beside the Git pane's lists (docs/design/git.md section 4.13). */
 export class GitDiffView {
   readonly el: HTMLElement;
   private readonly undo: HTMLButtonElement;

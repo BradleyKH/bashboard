@@ -6,7 +6,7 @@ export function isWindowVisible(documentVisible: boolean, minimized: boolean): b
 
 /**
  * Reports whether the window is on screen: once at bind time, then only when the value changes.
- * The backdrop and the background git fetch both pause on it (docs/design.md section 6.4).
+ * The backdrop and the background git fetch both pause on it (docs/design/backdrop.md section 6.4).
  */
 export function bindWindowVisibility(onChange: (visible: boolean) => void): void {
   let minimized = false;

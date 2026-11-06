@@ -11,7 +11,7 @@ export interface CheckForUpdateOptions {
 
 let notice: UpdateNotice | null = null;
 
-/** Checks for a newer release and offers it in a banner (docs/design.md section 3.16). */
+/** Checks for a newer release and offers it in a banner (docs/design/app.md section 3.16). */
 export async function checkForUpdate(opts: CheckForUpdateOptions): Promise<void> {
   // The updater has no installed bundle to replace under `pnpm tauri dev`.
   if (import.meta.env.DEV) {

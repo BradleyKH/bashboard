@@ -3,7 +3,7 @@ import type { ColonyLike } from '../colonySync';
 type Mood = Parameters<ColonyLike['setMood']>[1];
 
 /**
- * Stands in for the colony across backdrop style switches (docs/design.md section 6.2).
+ * Stands in for the colony across backdrop style switches (docs/design/backdrop.md section 6.2).
  * ColonySync only reports changes, so a colony mounted after sessions already exist would never
  * hear of them; the relay remembers each live session and replays it into a newly attached one.
  */

@@ -1,4 +1,4 @@
-//! Finding a token for a code host (docs/design.md section 3.20). Bashboard never runs an
+//! Finding a token for a code host (docs/design/ship.md section 3.20). Bashboard never runs an
 //! OAuth flow: it asks GitHub CLI, GitLab CLI, Azure CLI, an environment variable, Git
 //! Credential Manager, or the Bitbucket credential in
 //! Windows Credential Manager that `bb auth bitbucket` or the Accounts tab stores

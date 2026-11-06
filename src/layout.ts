@@ -1,4 +1,5 @@
-// Binary split-tree pane layout (docs/design.md section 4.2). Pure data and functions, no DOM.
+// Binary split-tree pane layout (docs/design/workspace.md section 4.2). Pure data and functions, no
+// DOM.
 
 export type Layout =
   | { kind: 'pane'; paneId: string }

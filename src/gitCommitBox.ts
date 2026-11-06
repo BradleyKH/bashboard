@@ -5,7 +5,7 @@ export interface GitCommitBoxOptions {
   onInput: (message: string) => void;
 }
 
-/** Commit message field and button (docs/design.md section 4.13). */
+/** Commit message field and button (docs/design/git.md section 4.13). */
 export class GitCommitBox {
   readonly el: HTMLElement;
   private readonly field: HTMLTextAreaElement;

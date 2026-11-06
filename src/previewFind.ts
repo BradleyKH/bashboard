@@ -35,7 +35,7 @@ function highlights(): SharedHighlights {
 }
 
 /**
- * The Find button and bar on a file preview's toolbar (docs/design.md section 4.12). Enter is
+ * The Find button and bar on a file preview's toolbar (docs/design/files.md section 4.12). Enter is
  * next, Shift+Enter previous, Esc closes.
  */
 export class PreviewFind {

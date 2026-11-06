@@ -1,7 +1,7 @@
 import type { Session } from './sessions';
 
 /**
- * 'done' is 'idle' after a Stop the user has not looked at yet (docs/design.md section 7).
+ * 'done' is 'idle' after a Stop the user has not looked at yet (docs/design/data.md section 7).
  * 'failed' is display state beside it, set by a long shell command that exited nonzero.
  */
 export type TerminalStatus = 'idle' | 'working' | 'waiting' | 'done' | 'failed';
@@ -30,7 +30,7 @@ export interface ShellStatus {
   changedAt: number;
 }
 
-/** Shell-level status for a pane (docs/design.md section 4.8): OSC 133, then the sweep, then idle. */
+/** Shell-level status for a pane (docs/design/terminal.md section 4.8): OSC 133, then the sweep, then idle. */
 export function shellStatus(
   osc: OscShellState,
   sweep: SweepState | null,

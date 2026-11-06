@@ -27,8 +27,9 @@ function setText(el: HTMLElement, text: string): void {
 }
 
 /**
- * One run in the Pipelines list (docs/design.md section 4.20): the row itself and, under it, a slot
- * for its jobs. `update` changes the parts that differ, so an expanded run keeps its scroll and focus.
+ * One run in the Pipelines list (docs/design/ship.md section 4.20): the row itself and, under it, a
+ * slot for its jobs. `update` changes the parts that differ, so an expanded run keeps its scroll
+ * and focus.
  */
 export class ShipRunRow {
   /** The run's block: the row, then the jobs slot. */

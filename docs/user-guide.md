@@ -1,5 +1,29 @@
 # User guide
 
+- [Tabs](#tabs)
+- [Scratch pads](#scratch-pads)
+- [Files panes](#files-panes)
+  - [Dragging paths onto terminals](#dragging-paths-onto-terminals)
+  - [Pins](#pins)
+- [Git pane](#git-pane)
+  - [Branches tab](#branches-tab)
+- [Ship pane](#ship-pane)
+  - [Overview](#overview)
+  - [A repo's view](#a-repos-view)
+- [Code search](#code-search)
+- [Dashboard](#dashboard)
+  - [Layouts](#layouts)
+  - [Containers](#containers)
+  - [Ports](#ports)
+- [Codex, Copilot, and local AI models (preview)](#codex-copilot-and-local-ai-models-preview)
+  - [Local AI models](#local-ai-models)
+- [Attention and status](#attention-and-status)
+- [Command palette](#command-palette)
+- [Find and links](#find-and-links)
+- [Font size](#font-size)
+- [Help, settings, and shortcuts](#help-settings-and-shortcuts)
+- [Pane CLI](#pane-cli)
+
 ## Tabs
 
 A tab holds its own arrangement of panes. The tab strip across the top appears when there are

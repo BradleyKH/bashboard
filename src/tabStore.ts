@@ -3,7 +3,7 @@ import { focusAfterRemoval } from './docking';
 import { addPane, removePane, replacePane, tabOf, type TabState, type TabsState } from './tabs';
 
 /**
- * The workspace's tabs (docs/design.md section 4.10) with the active tab's tree and focus
+ * The workspace's tabs (docs/design/workspace.md section 4.10) with the active tab's tree and focus
  * exposed directly, since every layout operation acts on the active tab. No DOM.
  */
 export class TabStore {

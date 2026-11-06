@@ -17,7 +17,7 @@ function isCodeLine(line: string): boolean {
   return line.startsWith('"') || line.startsWith('{');
 }
 
-/** The in-pane setup guide for an error: what happened and the buttons for the next step (docs/design.md section 4.20). */
+/** The in-pane setup guide for an error: what happened and the buttons for the next step (docs/design/ship.md section 4.20). */
 export class ShipNotice {
   readonly el: HTMLElement;
 

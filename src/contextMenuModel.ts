@@ -1,4 +1,4 @@
-/** One choosable row in a context menu (docs/design.md section 4.4). */
+/** One choosable row in a context menu (docs/design/terminal.md section 4.4). */
 export interface MenuItem {
   kind: 'item';
   label: string;

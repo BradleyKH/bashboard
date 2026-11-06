@@ -50,7 +50,7 @@ function span(className: string, text: string, title?: string): HTMLSpanElement 
 }
 
 /**
- * The Branches tab's Worktrees group (docs/design.md section 4.13): every worktree of the repo,
+ * The Branches tab's Worktrees group (docs/design/git.md section 4.13): every worktree of the repo,
  * compared with the primary branch, one row at a time expanded into its detail. Shown while the
  * repo has two or more worktrees.
  */

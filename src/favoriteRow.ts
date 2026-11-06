@@ -13,7 +13,7 @@ import { attachBodyDrag } from './bodyDrag';
 
 const DOUBLE_CLICK_MS = 300;
 
-/** One favorite in the dashboard's Favorites section (docs/design.md section 4.6). */
+/** One favorite in the dashboard's Favorites section (docs/design/dashboard.md section 4.6). */
 export function renderFavoriteRow(
   favorite: Favorite,
   index: number,

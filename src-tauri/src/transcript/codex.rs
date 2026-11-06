@@ -1,4 +1,4 @@
-//! Codex CLI rollout reading (docs/design.md section 3.3). A rollout is JSONL with a
+//! Codex CLI rollout reading (docs/design/sessions.md section 3.3). A rollout is JSONL with a
 //! `turn_context` line per turn (carrying the model) and `event_msg` lines of type `token_count`.
 //! The format is internal to Codex, so every field is optional and an unparseable line is skipped.
 

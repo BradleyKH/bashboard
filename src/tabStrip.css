@@ -1,4 +1,5 @@
-/* Tab strip (docs/design.md section 4.10): chrome above the panes, below the dock layer. */
+/* Tab strip (docs/design/workspace.md section 4.10): chrome above the panes, below the dock layer.
+   */
 #tab-strip {
   position: fixed;
   top: 8px;

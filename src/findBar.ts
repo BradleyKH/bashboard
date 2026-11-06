@@ -1,8 +1,8 @@
 import type { FindResults, TerminalPane } from './pane';
 
 /**
- * Find in scrollback (docs/design.md section 4.4): one bar, attached over the top-right corner
- * of a pane's host. Enter is next, Shift+Enter previous, Esc closes.
+ * Find in scrollback (docs/design/terminal.md section 4.4): one bar, attached over the top-right
+ * corner of a pane's host. Enter is next, Shift+Enter previous, Esc closes.
  */
 export class FindBar {
   private readonly el: HTMLElement;

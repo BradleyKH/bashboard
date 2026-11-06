@@ -66,7 +66,7 @@ const TOGGLES: ReadonlyArray<{ name: ToggleName; label: string; title: string }>
   { name: 'regex', label: '.*', title: 'Regex' },
 ];
 
-/** Code search over a repo (docs/design.md section 4.14). */
+/** Code search over a repo (docs/design/files.md section 4.14). */
 export class SearchPane implements PaneView {
   readonly kind = 'search' as const;
   readonly paneId: string;

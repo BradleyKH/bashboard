@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { Action, Keymap } from './keymap';
 import { isOpenableUrl } from './links';
-import { classifyLink, renderMarkdown } from './markdownRender';
+import { classifyLink, renderMarkdown, samePath } from './markdownRender';
 import { PreviewFind, revealIn, selectRange, type FindSurface } from './previewFind';
 import { fsReadText } from './repoFiles';
 import type { Settings } from './settings';
@@ -15,11 +15,11 @@ export interface MarkdownViewOptions {
   settings: Settings;
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
-  /** A relative link to another file was clicked; `path` is absolute. */
-  onOpenFile: (path: string) => void;
+  /** A relative link to another file was clicked; `path` is absolute, `fragment` the heading slug if any. */
+  onOpenFile: (path: string, fragment?: string) => void;
 }
 
-/** Rendered markdown with an Edit toggle (docs/design.md section 4.12). */
+/** Rendered markdown with an Edit toggle (docs/design/files.md section 4.12). */
 export class MarkdownView {
   readonly el: HTMLElement;
   private readonly toggle: HTMLButtonElement;
@@ -168,7 +168,20 @@ export class MarkdownView {
         invoke('open_url', { url: target.url }).catch((err: unknown) => console.warn('open_url failed', err));
       }
     } else if (target.kind === 'file') {
-      this.opts.onOpenFile(target.path);
+      if (target.fragment !== undefined && samePath(target.path, this.opts.path)) this.scrollToAnchor(target.fragment);
+      else this.opts.onOpenFile(target.path, target.fragment);
+    } else if (target.kind === 'anchor') {
+      this.scrollToAnchor(target.fragment);
     }
+  }
+
+  /** Scrolls the rendered preview to the heading whose slug is `fragment`; no-op while editing. */
+  scrollToAnchor(fragment: string): void {
+    if (this.editor) return;
+    const heading = this.body.querySelector(`[data-anchor="${CSS.escape(fragment.toLowerCase())}"]`);
+    if (!heading) return;
+    // Scroll only the preview; scrollIntoView would also move the pane's ancestors.
+    const top = heading.getBoundingClientRect().top - this.body.getBoundingClientRect().top;
+    this.body.scrollTop += top;
   }
 }

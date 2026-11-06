@@ -1,7 +1,7 @@
-//! Agent descriptors (docs/design.md sections 3.2 to 3.4): one static `Agent` per supported
-//! coding agent (Claude Code, Codex, Copilot), carrying the facts the roster, hook installer,
-//! and transcript reader share: where the agent keeps its home folder, which executables are
-//! the agent, and how to recognize its process.
+//! Agent descriptors (docs/design/sessions.md sections 3.2 to 3.4): one static `Agent` per
+//! supported coding agent (Claude Code, Codex, Copilot), carrying the facts the roster, hook
+//! installer, and transcript reader share: where the agent keeps its home folder, which executables
+//! are the agent, and how to recognize its process.
 //!
 //! Detection is the home folder existing. It never consults `PATH`: VS Code installs a
 //! `copilot-shim\copilot.exe` launcher there that is not the Copilot CLI.

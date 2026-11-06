@@ -1,8 +1,8 @@
-/** Files pane list, path, history, and keyboard rules (docs/design.md section 4.12). */
+/** Files pane list, path, history, and keyboard rules (docs/design/files.md section 4.12). */
 
 import { samePath } from './favorites';
 
-/** Mirrors the core's `fs_list` entry (docs/design.md section 3.8); times are epoch milliseconds. */
+/** Mirrors the core's `fs_list` entry (docs/design/files.md section 3.8); times are epoch milliseconds. */
 export interface FileEntry {
   name: string;
   isDir: boolean;

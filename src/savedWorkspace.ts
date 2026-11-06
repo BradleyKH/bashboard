@@ -26,7 +26,7 @@ function parseAgent(v: unknown): AgentId {
   return AGENT_IDS.includes(v as AgentId) ? (v as AgentId) : 'claude';
 }
 
-/** One pane (docs/design.md sections 4.11 and 7). Pane ids do not survive a restart, so entries use saved keys. */
+/** One pane (docs/design/workspace.md sections 4.11 and 7). Pane ids do not survive a restart, so entries use saved keys. */
 export type SavedPane = { key: string; collapsed: boolean } & (
   | {
       kind: 'terminal';
@@ -83,7 +83,7 @@ export function isTerminalPane(p: SavedPane): p is SavedTerminalPane {
   return p.kind === 'terminal';
 }
 
-/** One tab (docs/design.md sections 4.10 and 7). Layout leaves hold pane keys. */
+/** One tab (docs/design/workspace.md sections 4.10 and 7). Layout leaves hold pane keys. */
 export interface SavedTab {
   /** A name the user or a layout fixed; null follows the focused pane's title. */
   name: string | null;
@@ -92,7 +92,7 @@ export interface SavedTab {
   focused: string | null;
 }
 
-/** workspace.json (docs/design.md sections 3.7 and 7), tabs in strip order. */
+/** workspace.json (docs/design/data.md sections 3.7 and 7), tabs in strip order. */
 export interface SavedWorkspace {
   version: 3;
   tabs: SavedTab[];

@@ -1,4 +1,4 @@
-//! `bb`, the pane CLI (docs/design.md section 3.13). It forwards its arguments to the app's
+//! `bb`, the pane CLI (docs/design/app.md section 3.13). It forwards its arguments to the app's
 //! hook receiver as `POST /cli`; parsing and path resolution happen in the core.
 
 use std::io::{self, IsTerminal, Read, Write};

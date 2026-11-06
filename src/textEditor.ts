@@ -22,7 +22,7 @@ export interface TextEditorOptions {
   onSaved?: () => void;
 }
 
-/** The monospaced editor for a file on disk (docs/design.md section 4.12, Text editor). */
+/** The monospaced editor for a file on disk (docs/design/files.md section 4.12, Text editor). */
 export class TextEditor {
   readonly el: HTMLElement;
   private readonly area: HTMLTextAreaElement;

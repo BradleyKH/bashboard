@@ -1,4 +1,5 @@
-// Owns the #backdrop canvas and whichever backdrop style is mounted on it (docs/design.md section 6).
+// Owns the #backdrop canvas and whichever backdrop style is mounted on it (docs/design/backdrop.md
+// section 6).
 import type { BackdropStyle, Settings } from '../settings';
 import type { BackdropHandle } from './backdrop';
 import { ColonyRelay } from './colonyRelay';

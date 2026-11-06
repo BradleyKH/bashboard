@@ -1,6 +1,6 @@
 // Image and Slideshow backdrop styles: a local picture, or a folder of them in turn, drawn with
-// Canvas 2D (docs/design.md section 6.5). The scrim's brightness and blur apply through the
-// canvas's CSS filter like every other style.
+// Canvas 2D (docs/design/backdrop.md section 6.5). The scrim's brightness and blur apply through
+// the canvas's CSS filter like every other style.
 import { invoke } from '@tauri-apps/api/core';
 import type { Settings } from '../../settings';
 import type { StyleBackdrop } from '../backdropHandle';

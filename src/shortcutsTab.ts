@@ -51,7 +51,7 @@ function noModifiers(c: Chord): boolean {
   return !c.ctrl && !c.alt && !c.shift && !c.meta;
 }
 
-/** The app dialog's Shortcuts tab: the shortcut guide and keybinding editor (docs/design.md section 4.5). */
+/** The app dialog's Shortcuts tab: the shortcut guide and keybinding editor (docs/design/keys.md section 4.5). */
 export class ShortcutsTab {
   private root: HTMLElement | null = null;
   /** The dialog box, which takes focus when the focused control goes away. */

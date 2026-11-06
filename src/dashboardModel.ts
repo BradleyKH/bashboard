@@ -17,13 +17,13 @@ export interface TerminalCardInput {
   collapsed: boolean;
   shell: ShellStatus;
   attention: boolean;
-  /** An unseen `Stop` or long command (docs/design.md section 4.8), already resolved over the status. */
+  /** An unseen `Stop` or long command (docs/design/terminal.md section 4.8), already resolved over the status. */
   mark: { status: 'done' | 'failed'; at: number } | null;
   /** Set for a container shell, which the card titles by the container's name. */
   containerName?: string;
 }
 
-/** A pane of any kind other than a terminal (docs/design.md section 4.11). */
+/** A pane of any kind other than a terminal (docs/design/workspace.md section 4.11). */
 export interface OtherCardInput {
   kind: Exclude<PaneKind, 'terminal'>;
   paneId: string;

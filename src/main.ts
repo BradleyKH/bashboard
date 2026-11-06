@@ -152,7 +152,7 @@ bindWindowVisibility((visible) => {
 });
 
 // xterm.js measures glyph cells when a terminal opens, so the bundled font must be loaded before
-// the first pane (docs/design.md section 4.4).
+// the first pane (docs/design/terminal.md section 4.4).
 await fontsReady();
 
 // getCurrentWindow() throws synchronously outside Tauri (plain `pnpm dev`), which would abort the
@@ -184,7 +184,7 @@ function toggleFullscreen(): void {
 }
 
 // Ptys from before a reload are unreachable since their channels died with the old page
-// (docs/design.md section 3.1). Any of them can exit on its own before the kill lands.
+// (docs/design/terminal.md section 3.1). Any of them can exit on its own before the kill lands.
 const stale = await invoke<{ id: number; pid: number; startedAt: number }[]>('pty_list').catch(() => []);
 await Promise.allSettled(stale.map(({ id }) => invoke('pty_kill', { id })));
 

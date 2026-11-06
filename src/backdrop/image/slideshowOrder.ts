@@ -1,4 +1,5 @@
-// Picks the Slideshow style's next image (docs/design.md section 6.5). Pure, so it is unit tested.
+// Picks the Slideshow style's next image (docs/design/backdrop.md section 6.5). Pure, so it is unit
+// tested.
 
 /**
  * In order, the image after the current one, wrapping. Shuffled, a random image not yet shown this

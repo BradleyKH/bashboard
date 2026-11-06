@@ -19,7 +19,7 @@ export interface FavoritesCallbacks {
   onOpenIn?: OpenInHandler;
 }
 
-/** The dashboard's Favorites section: favorites, then recent folders (docs/design.md section 4.6). */
+/** The dashboard's Favorites section: favorites, then recent folders (docs/design/dashboard.md section 4.6). */
 export class FavoritesSection {
   readonly el: HTMLElement;
   readonly head: HTMLElement;

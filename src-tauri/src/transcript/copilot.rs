@@ -1,7 +1,7 @@
-//! Copilot CLI session reading (docs/design.md section 3.3). `events.jsonl` carries the model in
-//! `session.start` and `session.model_change`; token counts are ephemeral events Copilot never
-//! writes to disk, so only the model is read. Every field is optional and an unparseable line is
-//! skipped.
+//! Copilot CLI session reading (docs/design/sessions.md section 3.3). `events.jsonl` carries the
+//! model in `session.start` and `session.model_change`; token counts are ephemeral events Copilot
+//! never writes to disk, so only the model is read. Every field is optional and an unparseable line
+//! is skipped.
 
 use std::path::{Path, PathBuf};
 

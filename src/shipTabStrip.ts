@@ -11,7 +11,7 @@ export function pullsTabLabel(prNoun: string): string {
 
 /**
  * The Ship pane's Pipelines and Pull requests tabs, after an "Overview" crumb back to the
- * pinned repos (docs/design.md section 4.20).
+ * pinned repos (docs/design/ship.md section 4.20).
  */
 export class ShipTabStrip {
   readonly el: HTMLElement;

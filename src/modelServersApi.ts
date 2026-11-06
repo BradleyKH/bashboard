@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-/** One model a server has loaded (docs/design.md section 3.19). */
+/** One model a server has loaded (docs/design/containers.md section 3.19). */
 export interface LoadedModel {
   name: string;
   /** Total bytes; 0 when the server does not say. */

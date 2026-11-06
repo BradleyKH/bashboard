@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-/** Whether Git Bash and winget are present (docs/design.md section 4.17). */
+/** Whether Git Bash and winget are present (docs/design/app.md section 4.17). */
 export interface GitInstallStatus {
   gitBashFound: boolean;
   wingetFound: boolean;

@@ -15,7 +15,7 @@ export interface KeyContext {
 const dispatched = new Map<string, boolean>();
 
 /**
- * Keymap-driven key handling (docs/design.md section 4.5). Returns true when xterm.js
+ * Keymap-driven key handling (docs/design/keys.md section 4.5). Returns true when xterm.js
  * should process the key, matching attachCustomKeyEventHandler.
  */
 export function handleKey(e: KeyboardEvent, ctx: KeyContext): boolean {

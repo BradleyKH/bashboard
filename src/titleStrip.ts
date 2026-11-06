@@ -30,13 +30,15 @@ export interface TitleStripZoomState {
   /** Two or more expanded panes in the tab; otherwise the button is hidden. */
   available: boolean;
   zoomed: boolean;
-  /** A hidden pane in the zoomed tab is marked for attention (docs/design.md section 4.2). */
+  /**
+   * A hidden pane in the zoomed tab is marked for attention (docs/design/workspace.md section 4.2).
+   */
   attention: boolean;
 }
 
 const DRAG_THRESHOLD_PX = 4;
 
-/** The title strip's right-click menu (docs/design.md section 4.4). */
+/** The title strip's right-click menu (docs/design/terminal.md section 4.4). */
 export function titleStripMenuItems(
   state: { kindItems: MenuLeaf[]; zoom: TitleStripZoomState },
   hooks: Pick<TitleStripHooks, 'onCollapse' | 'onClose' | 'onZoom'>,
@@ -52,7 +54,7 @@ export function titleStripMenuItems(
 
 /**
  * The per-pane title bar: kind button, status dot, title, the pane's own action buttons, then
- * collapse, zoom, and close (docs/design.md section 4.4).
+ * collapse, zoom, and close (docs/design/terminal.md section 4.4).
  */
 export class TitleStrip {
   readonly el: HTMLElement;

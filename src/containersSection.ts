@@ -15,7 +15,7 @@ export interface ContainersSectionCallbacks {
   onStartEngine(engine: Engine): void;
 }
 
-/** The dashboard's Containers section: one row per container group (docs/design.md sections 4.6 and 4.16). */
+/** The dashboard's Containers section: one row per container group (docs/design/dashboard.md sections 4.6 and 4.16). */
 export class ContainersSection {
   readonly el: HTMLElement;
   readonly head: HTMLElement;

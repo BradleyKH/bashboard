@@ -37,8 +37,8 @@ function same(els: HTMLElement[], parent: HTMLElement): boolean {
 
 /**
  * The panel's area below the top bar: one or two scrolling columns, each with a top slot, Pins
- * in one of them, and a lower list (docs/design.md section 4.6). The panel's width picks the
- * column count; one column shows both columns' slots stacked.
+ * in one of them, and a lower list (docs/design/dashboard.md section 4.6). The panel's width picks
+ * the column count; one column shows both columns' slots stacked.
  */
 export class DashboardColumnsView {
   readonly el: HTMLElement;

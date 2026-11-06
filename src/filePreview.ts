@@ -3,6 +3,7 @@ import { BinaryNotice } from './binaryNotice';
 import { ExpandPreviewButton } from './expandPreviewButton';
 import { previewKind } from './filesModel';
 import type { Action, Keymap } from './keymap';
+import { samePath } from './markdownRender';
 import { MarkdownView } from './markdownView';
 import { PreviewFind } from './previewFind';
 import { classifyReadError, fsReadText, type FileText } from './repoFiles';
@@ -44,7 +45,7 @@ type Current =
   | { kind: 'plain' | 'code'; path: string; view: TextEditor; find: PreviewFind }
   | { kind: 'notice'; path: string; view: BinaryNotice };
 
-/** The right half of a Files pane: shows the selected file (docs/design.md section 4.12). */
+/** The right half of a Files pane: shows the selected file (docs/design/files.md section 4.12). */
 export class FilePreview {
   readonly el: HTMLElement;
   private readonly opts: FilePreviewOptions;
@@ -58,6 +59,8 @@ export class FilePreview {
   private generation = 0;
   /** Set by `invalidate`: the next `show` re-reads the file even when it is already on screen. */
   private stale = false;
+  /** A heading to scroll to once a markdown link's target file is shown. */
+  private pendingAnchor: { path: string; fragment: string } | null = null;
 
   constructor(opts: FilePreviewOptions) {
     this.opts = opts;
@@ -109,9 +112,11 @@ export class FilePreview {
    */
   async show(path: string | null, size = 0, line: number | null = null): Promise<void> {
     const gen = ++this.generation;
+    const anchor = this.takeAnchor(path);
     const c = this.current;
     if (path !== null && !this.stale && c?.path === path) {
       if (line !== null && c.kind === 'code') c.view.revealLine(line);
+      if (anchor !== null && c.kind === 'markdown') c.view.scrollToAnchor(anchor);
       return;
     }
     await this.flush();
@@ -136,6 +141,8 @@ export class FilePreview {
       const now = this.current;
       if (line !== null && now?.kind === 'code') now.view.revealLine(line);
       this.opts.onShown?.(true);
+      // After onShown, which may expand the preview and so change where the heading sits.
+      if (anchor !== null && now?.kind === 'markdown') requestAnimationFrame(() => now.view.scrollToAnchor(anchor));
     } catch (err) {
       if (gen !== this.generation) return;
       const failure = classifyReadError(err);
@@ -216,7 +223,10 @@ export class FilePreview {
         settings: this.settings,
         keymap,
         dispatch,
-        onOpenFile: this.opts.onOpenFile,
+        onOpenFile: (target, fragment) => {
+          this.pendingAnchor = fragment === undefined ? null : { path: target, fragment };
+          this.opts.onOpenFile(target);
+        },
       });
       view.toolbar.prepend(this.fileName(path));
       view.toolbar.append(this.zoom.el, ...this.expandButton());
@@ -239,6 +249,17 @@ export class FilePreview {
       this.current = { kind, path, view, find };
       this.el.replaceChildren(framed(view.el, find, [this.zoom.el, ...this.expandButton()], this.fileName(path)));
     }
+  }
+
+  /**
+   * The pending heading for `path`. It survives `show(null)`, which a Files pane sends while it
+   * lists the link's folder, and any file shown clears it, so a stale one never fires later.
+   */
+  private takeAnchor(path: string | null): string | null {
+    if (path === null) return null;
+    const pending = this.pendingAnchor;
+    this.pendingAnchor = null;
+    return pending !== null && samePath(pending.path, path) ? pending.fragment : null;
   }
 
   private expandButton(): HTMLElement[] {

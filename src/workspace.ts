@@ -130,11 +130,11 @@ export interface TerminalInfo {
   collapsed: boolean;
   shell: ShellStatus;
   attention: boolean;
-  /** An unseen `Stop` or long command (docs/design.md section 4.8). */
+  /** An unseen `Stop` or long command (docs/design/terminal.md section 4.8). */
   mark: { status: 'done' | 'failed'; at: number } | null;
 }
 
-/** One tab as the tab strip and dashboard show it (docs/design.md section 4.10). */
+/** One tab as the tab strip and dashboard show it (docs/design/workspace.md section 4.10). */
 export interface TabInfo {
   id: string;
   /** The fixed name, else the focused pane's title. */
@@ -166,11 +166,14 @@ export interface WorkspaceHooks {
   onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
   onToggleBackdrop?: () => void;
   onToggleFullscreen?: () => void;
-  /** Called whenever a pane's attention is newly raised (docs/design.md section 4.7). */
+  /** Called whenever a pane's attention is newly raised (docs/design/sessions.md section 4.7). */
   onAttention?: (paneId: string, cause: AttentionCause) => void;
   /** Pointer position during a pane drag, `null` when it ends. */
   onDragHover?: (pos: { x: number; y: number } | null) => void;
-  /** The dashboard tab group under the point during a pane drag (docs/design.md section 4.6). */
+  /**
+   * The dashboard tab group under the point during a pane drag (docs/design/dashboard.md
+   * section 4.6).
+   */
   tabDropAt?: (x: number, y: number) => { tabId: string; rect: DOMRect } | null;
   /** Asks before closing a tab whose `busy` panes would lose work; true closes it. */
   onConfirmCloseTab?: (tabId: string, busy: PaneCardInput[]) => Promise<boolean>;
@@ -180,16 +183,23 @@ export interface WorkspaceHooks {
   onConfirmReplace?: (paneId: string, kind: PaneKind) => Promise<boolean>;
   /** Shows a confirm dialog for a pane's own question (a Git pane's Undo last commit); true goes ahead. */
   onConfirm?: (options: ConfirmOptions) => Promise<boolean>;
-  /** A Files pane pinned a file or folder of the repo at `root` (docs/design.md section 4.12). */
+  /**
+   * A Files pane pinned a file or folder of the repo at `root` (docs/design/files.md section 4.12).
+   */
   onPin?: (root: string, absolute: string, isDir: boolean) => void;
   onUnpin?: (root: string, absolute: string) => void;
   /** Absolute paths of the existing pinned folders of the repo at `root`. */
   getPinnedFolders?: (root: string) => string[];
   /** The Repo section's repo root, which a pane with no folder passes on when replaced (4.11). */
   getRepoFolder?: () => string | null;
-  /** The container snapshot every Containers pane shares (docs/design.md section 4.16). */
+  /**
+   * The container snapshot every Containers pane shares (docs/design/containers.md section 4.16).
+   */
   containers?: ContainersStore;
-  /** The listener list every Ports pane and the dashboard share (docs/design.md section 4.19). */
+  /**
+   * The listener list every Ports pane and the dashboard share (docs/design/containers.md
+   * section 4.19).
+   */
   ports?: PortsStore;
   /** A Git pane's worktree row opened its folder as another pane kind or in the editor. */
   onOpenIn?: OpenInHandler;
@@ -200,9 +210,9 @@ export interface WorkspaceHooks {
 }
 
 /**
- * Where a launched pane would land (docs/design.md section 4.6): a split of the focused pane
- * (`pane` is it now, `kept` and `added` its two halves after), an existing pane brought forward,
- * the whole pane area of an empty tab, or collapsed for want of room.
+ * Where a launched pane would land (docs/design/dashboard.md section 4.6): a split of the focused
+ * pane (`pane` is it now, `kept` and `added` its two halves after), an existing pane brought
+ * forward, the whole pane area of an empty tab, or collapsed for want of room.
  */
 export type LaunchTarget =
   | { kind: 'split'; pane: Rect; kept: Rect; added: Rect }
@@ -223,7 +233,7 @@ export interface OpenTerminalOptions extends OpenPaneOptions {
   profile?: string;
 }
 
-/** What to build for a new pane (docs/design.md section 4.11). */
+/** What to build for a new pane (docs/design/workspace.md section 4.11). */
 export type PaneSpec =
   | {
       kind: 'terminal';
@@ -258,9 +268,9 @@ export type PaneSpec =
 
 /**
  * Owns the tabs, each with its own split tree, focus, and collapsed panes, plus every pane of
- * every kind and the scrim state (docs/design.md sections 4.2, 4.3, 4.10, 4.11). Everything that
- * acts on "the" tree or focus acts on the active tab. A tab's `focusedId` is always an expanded
- * pane, or '' when none is.
+ * every kind and the scrim state (docs/design/workspace.md sections 4.2, 4.3, 4.10, 4.11).
+ * Everything that acts on "the" tree or focus acts on the active tab. A tab's `focusedId` is always
+ * an expanded pane, or '' when none is.
  */
 export class Workspace {
   private readonly store = new TabStore();

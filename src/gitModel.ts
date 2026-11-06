@@ -1,4 +1,4 @@
-/** Pure helpers behind the Git pane (docs/design.md section 4.13); no DOM. */
+/** Pure helpers behind the Git pane (docs/design/git.md section 4.13); no DOM. */
 
 import type { GitCommit, GitFileEntry, GitLastFetch, GitStatus } from './gitApi';
 import { samePath } from './favorites';
@@ -145,7 +145,9 @@ export function diffLines(text: string): DiffLine[] {
   return out;
 }
 
-/** Reuse a Git pane already showing the repo (docs/design.md section 4.11), else open one. */
+/**
+ * Reuse a Git pane already showing the repo (docs/design/workspace.md section 4.11), else open one.
+ */
 export function routeGitRequest(
   panes: readonly { paneId: string; root: string }[],
   root: string,
@@ -176,7 +178,7 @@ export interface RemoteButtons {
 
 const NO_REMOTE = 'This repo has no remote';
 
-/** The branch row's Fetch, Pull, and Push / Publish buttons (docs/design.md section 4.13). */
+/** The branch row's Fetch, Pull, and Push / Publish buttons (docs/design/git.md section 4.13). */
 export function remoteButtons(status: GitStatus, running: RemoteOp | null): RemoteButtons {
   const hasRemote = status.remotes.length > 0;
   const fetch: RemoteButton = {

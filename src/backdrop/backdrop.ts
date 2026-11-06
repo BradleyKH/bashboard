@@ -29,16 +29,16 @@ export interface BackdropOptions {
   mutationRate: number;
   /** Divides the camera's home distance; above 1 fills more of the window with the colony. */
   zoom: number;
-  /** Brightness pulse on a waiting session's organisms (docs/design.md section 6.2). */
+  /** Brightness pulse on a waiting session's organisms (docs/design/backdrop.md section 6.2). */
   waitingPulse: boolean;
 }
 
 export interface BackdropHandle extends StyleBackdrop {
-  /** 0 is uncapped (docs/design.md section 6.4). */
+  /** 0 is uncapped (docs/design/backdrop.md section 6.4). */
   setMaxFps(maxFps: number): void;
   /** The simulation and camera settings (`backdrop.*`). */
   setOptions(options: BackdropOptions): void;
-  /** Session organisms planted in the sim (docs/design.md section 6.2). */
+  /** Session organisms planted in the sim (docs/design/backdrop.md section 6.2). */
   colony: SessionColony;
 }
 

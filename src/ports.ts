@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-/** One listening TCP port and the process behind it (docs/design.md section 4.19). */
+/** One listening TCP port and the process behind it (docs/design/containers.md section 4.19). */
 export interface Listener {
   port: number;
   /** Local addresses for this port, IPv4 first. */

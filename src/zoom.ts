@@ -1,4 +1,4 @@
-// Pane zoom state (docs/design.md section 4.2 "Zoom"). Pure data, no DOM.
+// Pane zoom state (docs/design/workspace.md section 4.2 "Zoom"). Pure data, no DOM.
 import { type Layout, leaves } from './layout';
 
 /** True when the tab has two or more expanded panes and `focusedId` is one of them. */

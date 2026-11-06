@@ -1,5 +1,5 @@
 //! Installs Git for Windows (which provides Git Bash) through winget when it is missing
-//! (docs/design.md section 3.15). The pure parts (winget lookup, argument list, output
+//! (docs/design/app.md section 3.15). The pure parts (winget lookup, argument list, output
 //! trimming) take their inputs as parameters so tests never touch the real machine.
 
 use std::ffi::OsStr;

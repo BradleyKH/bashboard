@@ -62,7 +62,7 @@ const sameBranches = (a: PinnedRepo, b: PinnedRepo): boolean =>
 
 /**
  * Every pinned repo's Overview data, shared by the Ship pane's Overview tab and the dashboard's
- * Ship section (docs/design.md section 4.20). Each repo polls on its own cadence (fast while a
+ * Ship section (docs/design/ship.md section 4.20). Each repo polls on its own cadence (fast while a
  * watched branch is running, else the heartbeat) only while some consumer wants it and the window
  * is visible, and catches up on what fell due when either returns.
  */

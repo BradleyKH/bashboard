@@ -9,7 +9,7 @@ export interface HookInstallDialogCallbacks {
   onClose(): void;
 }
 
-/** Modal confirmation for installing one agent's hooks (docs/design.md section 3.3). */
+/** Modal confirmation for installing one agent's hooks (docs/design/sessions.md section 3.3). */
 export class HookInstallDialog {
   private backdrop: HTMLElement | null = null;
   private busy = false;

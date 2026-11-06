@@ -1,4 +1,5 @@
-//! Local image files for the Image and Slideshow backdrop styles (docs/design.md section 6.5).
+//! Local image files for the Image and Slideshow backdrop styles (docs/design/backdrop.md
+//! section 6.5).
 //!
 //! The webview's CSP allows images only from the app itself, so the front end never loads a path
 //! directly: it asks for the bytes here and decodes them with `createImageBitmap`. Only files with

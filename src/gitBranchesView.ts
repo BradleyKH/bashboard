@@ -30,8 +30,8 @@ export interface GitBranchesViewOptions {
 type RowKey = string;
 
 /**
- * The Branches tab (docs/design.md section 4.13): the repo's worktrees, then local branches, then
- * remote ones with no local copy.
+ * The Branches tab (docs/design/git.md section 4.13): the repo's worktrees, then local branches,
+ * then remote ones with no local copy.
  */
 export class GitBranchesView {
   readonly el: HTMLElement;

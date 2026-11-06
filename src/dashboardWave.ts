@@ -9,8 +9,8 @@ const FRAME_MS = 1000 / WAVE_FPS;
 
 /**
  * The dashboard's Wave element: a looping line whose weave follows CPU load and whose drift
- * follows network traffic (docs/design.md section 4.6). It samples and draws only while the
- * panel decides it runs, and holds a still figure when the OS asks for reduced motion.
+ * follows network traffic (docs/design/dashboard.md section 4.6). It samples and draws only while
+ * the panel decides it runs, and holds a still figure when the OS asks for reduced motion.
  */
 export class DashboardWave {
   readonly el: HTMLElement;

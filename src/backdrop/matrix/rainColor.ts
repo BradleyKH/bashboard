@@ -1,5 +1,5 @@
-// The Matrix rain's color (docs/design.md section 8, backdrop.matrix.color). The setting picks a
-// mode; the backdrop host resolves it to the #rrggbb the renderer draws with.
+// The Matrix rain's color (docs/design/data.md section 8, backdrop.matrix.color). The setting picks
+// a mode; the backdrop host resolves it to the #rrggbb the renderer draws with.
 
 export type MatrixColorMode = 'green' | 'accent';
 

@@ -28,7 +28,7 @@ interface SessionEntry {
 
 /**
  * Gives each live session its own blight-immune lineage in the sim
- * (docs/design.md sections 6.2 and 6.3).
+ * (docs/design/backdrop.md sections 6.2 and 6.3).
  */
 export class SimSessionColony implements SessionColony {
   private readonly sessions = new Map<string, SessionEntry>();

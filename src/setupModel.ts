@@ -1,4 +1,4 @@
-// Pure helpers for the setup wizard (docs/design.md section 4.17).
+// Pure helpers for the setup wizard (docs/design/app.md section 4.17).
 
 import { ACCENT_PRESETS, DEFAULT_ACCENT } from './accent';
 import { lastFolder } from './dashboardModel';

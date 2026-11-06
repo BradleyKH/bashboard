@@ -23,9 +23,9 @@ interface Slot {
 }
 
 /**
- * The Pipelines list (docs/design.md section 4.20). `update` is cheap to call every second: rows
- * keep their elements, so a poll or a tick that changed only times touches only those texts, and an
- * expanded run keeps its jobs view, with its open logs.
+ * The Pipelines list (docs/design/ship.md section 4.20). `update` is cheap to call every second:
+ * rows keep their elements, so a poll or a tick that changed only times touches only those texts,
+ * and an expanded run keeps its jobs view, with its open logs.
  */
 export class ShipRunList {
   readonly el: HTMLElement;

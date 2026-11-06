@@ -1,4 +1,4 @@
-// Tab model (docs/design.md section 4.10). Pure data and functions, no DOM.
+// Tab model (docs/design/workspace.md section 4.10). Pure data and functions, no DOM.
 import { type Layout, replaceLeaf } from './layout';
 import type { TerminalStatus } from './terminalStatus';
 

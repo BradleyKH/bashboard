@@ -1,5 +1,5 @@
-//! Docker and Podman container support (docs/design.md section 3.10): parsing each engine's
-//! CLI output into the shared `Container` shape, engine detection, the `containers_*`
+//! Docker and Podman container support (docs/design/containers.md section 3.10): parsing each
+//! engine's CLI output into the shared `Container` shape, engine detection, the `containers_*`
 //! commands, starting and stopping the engines themselves, and the per-engine `events`
 //! watcher that emits `containers://changed`.
 //!

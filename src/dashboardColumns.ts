@@ -1,4 +1,4 @@
-// The dashboard's two-column layout (docs/design.md section 4.6). Pure, no DOM.
+// The dashboard's two-column layout (docs/design/dashboard.md section 4.6). Pure, no DOM.
 
 import { parseTopElements, type DashboardElement, type ElementZone } from './dashboardSections';
 

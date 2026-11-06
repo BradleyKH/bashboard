@@ -1,4 +1,4 @@
-//! The PowerShell 7 and Windows PowerShell flavor of the shell integration (docs/design.md
+//! The PowerShell 7 and Windows PowerShell flavor of the shell integration (docs/design/app.md
 //! section 3.14): a prompt wrapper that reports the folder (OSC 9;9), added to the shell's
 //! `$PROFILE.CurrentUserCurrentHost`. Each shell has its own profile file, and only the shell
 //! itself knows where (Documents may be redirected to OneDrive), so the path is asked of it.

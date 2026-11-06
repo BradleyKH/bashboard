@@ -4,7 +4,7 @@ import type { AgentId } from './savedWorkspace';
 
 export type SessionStatus = 'busy' | 'idle' | 'waiting' | 'unknown';
 
-/** A coding agent session; mirrors the Rust roster payload (docs/design.md section 7). */
+/** A coding agent session; mirrors the Rust roster payload (docs/design/data.md section 7). */
 export interface Session {
   sessionId: string;
   pid: number;

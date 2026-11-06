@@ -1,4 +1,5 @@
-// The dashboard's drag-to-resize inner edge, the one facing the panes (docs/design.md section 4.6).
+// The dashboard's drag-to-resize inner edge, the one facing the panes (docs/design/dashboard.md
+// section 4.6).
 
 export type DashboardSide = 'left' | 'right';
 

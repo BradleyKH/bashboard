@@ -9,8 +9,8 @@ export interface PaneAttentionHooks {
 }
 
 /**
- * Applies the attention tracker to pane hosts (docs/design.md section 4.7). Each method returns
- * true when attention changed, so the workspace knows to notify its listeners.
+ * Applies the attention tracker to pane hosts (docs/design/sessions.md section 4.7). Each method
+ * returns true when attention changed, so the workspace knows to notify its listeners.
  */
 export class PaneAttention {
   private readonly tracker = new AttentionTracker();

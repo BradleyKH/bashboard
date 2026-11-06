@@ -1,5 +1,5 @@
 //! The Ship pane's backend: a repo's CI runs and open pull requests from its code host
-//! (docs/design.md section 3.20).
+//! (docs/design/ship.md section 3.20).
 //!
 //! Every host sits behind `ForgeProvider` and returns the shapes in `types`, so the front end
 //! only sees a few capability flags. The commands resolve the repo from its git remote, pick

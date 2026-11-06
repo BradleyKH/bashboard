@@ -1,5 +1,5 @@
 // Pure view model for the Accounts tab: one card per host, generic enough that the DOM view renders
-// the action unions without knowing about providers (docs/design.md section 4.20).
+// the action unions without knowing about providers (docs/design/ship.md section 4.20).
 import type { HostAuth, ProviderKind, TokenSourceKind } from './forgeApi';
 import { signInAnotherArgv } from './shipMenus';
 import { AZURE_DEVOPS_SCOPE_INFO, BITBUCKET_SCOPES, BITBUCKET_TOKEN_URL } from './shipModel';

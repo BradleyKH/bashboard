@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-/** One shell the core can launch in a pane (docs/design.md section 3.1). */
+/** One shell the core can launch in a pane (docs/design/terminal.md section 3.1). */
 export interface ShellProfile {
   id: string;
   name: string;

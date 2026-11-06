@@ -16,7 +16,7 @@ export interface CommandPaletteDeps {
   runCommand(command: PaletteCommand): void;
 }
 
-/** One list over panes, tabs, favorites, layouts, pins, worktrees, and actions (docs/design.md section 4.5). */
+/** One list over panes, tabs, favorites, layouts, pins, worktrees, and actions (docs/design/keys.md section 4.5). */
 export class CommandPalette {
   private readonly picker: Picker;
   private items = new Map<string, PaletteItem>();

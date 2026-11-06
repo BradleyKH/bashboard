@@ -20,7 +20,7 @@ export interface FileRowMenuHandlers {
 }
 
 /**
- * A Files row's menu (docs/design.md section 4.12), from its ⋯ button or a right-click.
+ * A Files row's menu (docs/design/files.md section 4.12), from its ⋯ button or a right-click.
  * `selection` is what the menu acts on: the row, or every selected row when it is one of several,
  * which leaves only the items that take many paths. Move to moves the selection's files
  * (`fs_move` moves files) and appears only when there are files and targets.

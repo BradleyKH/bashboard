@@ -1,5 +1,5 @@
-//! GitLab, gitlab.com and self-managed (docs/design.md section 3.20), over the v4 REST API with
-//! a Bearer token. The JSON-to-DTO mapping and the action requests are pure functions over
+//! GitLab, gitlab.com and self-managed (docs/design/ship.md section 3.20), over the v4 REST API
+//! with a Bearer token. The JSON-to-DTO mapping and the action requests are pure functions over
 //! `serde_json::Value`, so they test without the network.
 
 use std::collections::HashMap;

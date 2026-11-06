@@ -1,4 +1,4 @@
-//! Machine load for the dashboard's System section (docs/design.md section 4.6).
+//! Machine load for the dashboard's System section (docs/design/dashboard.md section 4.6).
 //!
 //! The sampler persists between calls because CPU and network are deltas
 //! between two refreshes; a reading whose previous refresh is missing or too old is reported as

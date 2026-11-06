@@ -140,7 +140,8 @@ function topButton(
 /**
  * The dashboard, docked on the left or right side of the window: the top bar over one or two
  * columns, each with a top slot, Pins in one of them, and a lower list; the elements sit in any
- * slot in the user's order, each shown or hidden by its setting (docs/design.md section 4.6).
+ * slot in the user's order, each shown or hidden by its setting (docs/design/dashboard.md
+ * section 4.6).
  */
 export class DashboardPanel {
   private open = false;
@@ -451,8 +452,8 @@ export class DashboardPanel {
   }
 
   /**
-   * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md
-   * section 4.6); `backdrop.style` decides whether session swatches show.
+   * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle`
+   * (docs/design/dashboard.md section 4.6); `backdrop.style` decides whether session swatches show.
    */
   applyDashboardSettings(d: Settings['dashboard'], backdrop: Settings['backdrop'], minContext: number): void {
     this.shown = { ...d.sections };
@@ -515,7 +516,7 @@ export class DashboardPanel {
 
   /**
    * Starts or stops every timer that runs only while its element is on screen; System also stops
-   * while collapsed (docs/design.md section 4.6). Called whenever any input changes.
+   * while collapsed (docs/design/dashboard.md section 4.6). Called whenever any input changes.
    */
   private syncTimers(): void {
     const onScreen = this.isShown();
@@ -543,7 +544,8 @@ export class DashboardPanel {
   }
 
   private layoutElements(): void {
-    // A hidden section's list stays reachable from the top bar (docs/design.md section 4.6).
+    // A hidden section's list stays reachable from the top bar (docs/design/dashboard.md
+    // section 4.6).
     this.favoritesMenuButton.hidden = this.shown.favorites;
     this.layoutsMenuButton.hidden = this.shown.layouts;
     this.launchMenuButton.hidden = this.shown.launch;
@@ -573,8 +575,8 @@ export class DashboardPanel {
   }
 
   /**
-   * Moves keyboard focus into the panel (docs/design.md section 4.6). A hidden panel shows as a
-   * peek that lasts until focus leaves it.
+   * Moves keyboard focus into the panel (docs/design/dashboard.md section 4.6). A hidden panel
+   * shows as a peek that lasts until focus leaves it.
    */
   focusIn(): void {
     if (!this.open && !this.held) {
@@ -845,7 +847,7 @@ export class DashboardPanel {
       this.layoutsSection.update(this.layouts);
     }
 
-    // Group headers appear only with two or more tabs (docs/design.md section 4.6).
+    // Group headers appear only with two or more tabs (docs/design/dashboard.md section 4.6).
     const cardOptions = (card: (typeof cards)[number]) => ({
       now,
       agentLine:

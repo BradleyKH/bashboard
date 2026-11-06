@@ -1,5 +1,6 @@
-// Front-end side of the Ship pane's Tauri commands (docs/design.md section 4.20; the Rust side is
-// section 3.20). The types mirror the Rust DTOs, which serialize camelCase with `Option` as null.
+// Front-end side of the Ship pane's Tauri commands (docs/design/ship.md section 4.20; the Rust side
+// is section 3.20). The types mirror the Rust DTOs, which serialize camelCase with `Option` as
+// null.
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 

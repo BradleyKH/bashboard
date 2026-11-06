@@ -22,7 +22,7 @@ function setText(el: HTMLElement, text: string): void {
   if (el.textContent !== text) el.textContent = text;
 }
 
-/** One pull request in the Pull requests list (docs/design.md section 4.20). */
+/** One pull request in the Pull requests list (docs/design/ship.md section 4.20). */
 export class ShipPullRow {
   readonly el: HTMLElement;
   private current: PullRequest;

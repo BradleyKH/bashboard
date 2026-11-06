@@ -90,7 +90,7 @@ pub struct ImageBackdrop {
     pub include_subfolders: bool,
 }
 
-/// Ids `backdrop.style` accepts (docs/design.md section 8).
+/// Ids `backdrop.style` accepts (docs/design/data.md section 8).
 pub const BACKDROP_STYLES: [&str; 5] = ["none", "lights", "matrix", "image", "slideshow"];
 
 /// Ids `backdrop.image.fit` accepts, the Windows wallpaper modes less Span.
@@ -170,10 +170,10 @@ fn parse_bright_hex(s: &str, min: f64) -> Option<String> {
     (luminance >= min).then(|| format!("#{}", hex.to_ascii_lowercase()))
 }
 
-/// Ids `dashboard.side` accepts (docs/design.md section 4.6).
+/// Ids `dashboard.side` accepts (docs/design/dashboard.md section 4.6).
 pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
 
-/// Ids `dashboard.clockStyle` accepts (docs/design.md section 4.6).
+/// Ids `dashboard.clockStyle` accepts (docs/design/dashboard.md section 4.6).
 pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
 
 /// Which dashboard elements show; fields follow the panel's default element order.
@@ -261,11 +261,12 @@ pub struct Terminal {
 pub struct Editor {
     /// One of `EDITOR_IDS`.
     pub preferred: String,
-    /// When non-empty, replaces the editor's built-in arguments; see docs/design.md section 3.12.
+    /// When non-empty, replaces the editor's built-in arguments; see docs/design/files.md
+    /// section 3.12.
     pub command: String,
 }
 
-/// Ids `editor.preferred` accepts (docs/design.md section 3.12).
+/// Ids `editor.preferred` accepts (docs/design/files.md section 3.12).
 pub const EDITOR_IDS: [&str; 18] = [
     "zed", "vscode", "cursor", "visualStudio", "notepadpp", "sublime", "rider", "intellij",
     "webstorm", "pycharm", "rustrover", "goland", "clion", "phpstorm", "windsurf",
@@ -319,7 +320,7 @@ impl Settings {
 pub struct SettingsPayload {
     pub settings: Settings,
     pub warnings: Vec<String>,
-    /// True when this launch created settings.json (docs/design.md section 4.17).
+    /// True when this launch created settings.json (docs/design/app.md section 4.17).
     pub first_run: bool,
 }
 
@@ -425,7 +426,7 @@ impl Default for Settings {
                     folder: String::new(),
                     fit: "fill".into(),
                     interval_seconds: 600,
-                    crossfade_seconds: 2.5,
+                    crossfade_seconds: 5.0,
                     shuffle: true,
                     include_subfolders: false,
                 },
@@ -640,7 +641,7 @@ fn parse_keybindings(root: &Value, warnings: &mut Vec<String>) -> Vec<Keybinding
     merged
 }
 
-/// One edit to the raw `keybindings` array (docs/design.md section 4.5).
+/// One edit to the raw `keybindings` array (docs/design/keys.md section 4.5).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum KeybindingOp {
@@ -907,7 +908,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
                 &root,
                 &["backdrop", "image", "crossfadeSeconds"],
                 &mut w,
-                |v| number(v).filter(|n| (0.0..=5.0).contains(n)),
+                |v| number(v).filter(|n| (0.0..=10.0).contains(n)),
                 d.backdrop.image.crossfade_seconds,
             ),
             shuffle: pick(&root, &["backdrop", "image", "shuffle"], &mut w, boolean, d.backdrop.image.shuffle),
@@ -1104,7 +1105,8 @@ fn default_file_text() -> String {
     .replace(
         "  \"dashboard\": {",
         "  // side is left or right. sections shows or hides each dashboard element; sections.containers
-  // also decides whether the kind menu offers a Containers pane (docs/design.md section 4.6).
+  // also decides whether the kind menu offers a Containers pane (docs/design/dashboard.md
+  // section 4.6).
   \"dashboard\": {",
     )
     .replace(
@@ -1114,7 +1116,7 @@ fn default_file_text() -> String {
     )
     .replace(
         "  \"keybindings\": []",
-        "  // Entries add to or override the default keybindings listed in docs/design.md\n  // section 4.5. An entry with \"action\": \"unbound\" removes the default for its keys.\n  \"keybindings\": []",
+        "  // Entries add to or override the default keybindings listed in\n  // docs/design/keys.md section 4.5. An entry with \"action\": \"unbound\" removes the default for its keys.\n  \"keybindings\": []",
     )
 }
 
@@ -1440,7 +1442,7 @@ mod tests {
                 include_subfolders: true,
             }
         );
-        for (key, bad) in [("fit", r#""span""#), ("intervalSeconds", "4"), ("intervalSeconds", "86401"), ("crossfadeSeconds", "5.5"), ("crossfadeSeconds", "-1"), ("shuffle", "1")] {
+        for (key, bad) in [("fit", r#""span""#), ("intervalSeconds", "4"), ("intervalSeconds", "86401"), ("crossfadeSeconds", "10.5"), ("crossfadeSeconds", "-1"), ("shuffle", "1")] {
             let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "image": {{ "{key}": {bad} }} }} }}"#));
             assert_eq!(s.backdrop.image, Settings::default().backdrop.image, "{key}: {bad}");
             assert!(w.iter().any(|m| m.starts_with(&format!("backdrop.image.{key}"))), "{key}: {w:?}");

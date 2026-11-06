@@ -27,7 +27,9 @@ function errorText(err: unknown): string {
   return String(err);
 }
 
-/** The Git pane's branch operations and their confirms and toasts (docs/design.md section 4.13). */
+/**
+ * The Git pane's branch operations and their confirms and toasts (docs/design/git.md section 4.13).
+ */
 export class GitBranchActions {
   private busy = false;
 

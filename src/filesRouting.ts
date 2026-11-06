@@ -1,4 +1,6 @@
-/** Where a Files request goes, and the path text it produces (docs/design.md section 4.12). */
+/**
+ * Where a Files request goes, and the path text it produces (docs/design/files.md section 4.12).
+ */
 
 import { samePath } from './favorites';
 import { relativeWithin } from './filesModel';
@@ -97,7 +99,7 @@ function quoteFor(text: string, shell: string): string {
 }
 
 /**
- * Text for inserting paths into a terminal (docs/design.md section 4.4). Paths inside
+ * Text for inserting paths into a terminal (docs/design/terminal.md section 4.4). Paths inside
  * `baseRoot` are relative; the caller picks the base: a drop passes the
  * target terminal's repo, Insert path the source pane's root. Slashes (backslashes for Command
  * Prompt without Claude Code, forward slashes otherwise) and quoting follow `profile`, which is

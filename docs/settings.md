@@ -123,7 +123,7 @@ shows its first frame). Their fields live under `backdrop.image`:
   color.
 - `intervalSeconds` (5 to 86400, default 600) is how long Slideshow shows each picture. The dialog
   offers 30 seconds to 1 day; another value set in the file shows as Custom.
-- `crossfadeSeconds` (0 to 5, default 2.5) is how long Slideshow takes to fade from one picture to
+- `crossfadeSeconds` (0 to 10, default 5) is how long Slideshow takes to fade from one picture to
   the next; 0 switches with no fade.
 - `shuffle` (default `true`) shows the folder in random order, every picture once before any
   repeats; off, it goes in name order. `includeSubfolders` (default `false`) also takes pictures
@@ -144,7 +144,7 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
   "zoom": 2,
   "waitingPulse": false,
   "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 },
-  "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 2.5, "shuffle": true, "includeSubfolders": false }
+  "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 5, "shuffle": true, "includeSubfolders": false }
 }
 ```
 
@@ -292,4 +292,5 @@ Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `worksp
 `favorites.json`, `layouts.json`, and `repos.json` are plain JSON you can edit by hand, and the
 panel updates when you save them.
 
-The schema and the default keys are in [docs/design.md](design.md) sections 4.5 and 8.
+The default keys are in [docs/design/keys.md](design/keys.md) section 4.5, and the schema in
+[docs/design/data.md](design/data.md) section 8.

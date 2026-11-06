@@ -21,7 +21,7 @@ export interface GitFileListOptions {
   menuItems?: (row: GitRow) => MenuEntry[];
 }
 
-/** A titled list of changed files (docs/design.md section 4.13). */
+/** A titled list of changed files (docs/design/git.md section 4.13). */
 export class GitFileList {
   readonly el: HTMLElement;
   private readonly count: HTMLElement;

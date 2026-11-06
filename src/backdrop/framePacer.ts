@@ -1,7 +1,7 @@
 /** Absorbs requestAnimationFrame jitter so a cap equal to the refresh rate never drops frames. */
 const TOLERANCE_MS = 1;
 
-/** Decides which requestAnimationFrame callbacks render under a `maxFps` cap (docs/design.md section 6.4). */
+/** Decides which requestAnimationFrame callbacks render under a `maxFps` cap (docs/design/backdrop.md section 6.4). */
 export class FramePacer {
   private intervalMs = 0;
   private nextAt = -Infinity;

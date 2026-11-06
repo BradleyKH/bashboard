@@ -1,4 +1,4 @@
-/** A keyboard move within the dashboard's rows (docs/design.md section 4.6). */
+/** A keyboard move within the dashboard's rows (docs/design/dashboard.md section 4.6). */
 export type NavMove = 'next' | 'prev' | 'first' | 'last';
 
 /**

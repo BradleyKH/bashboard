@@ -13,7 +13,7 @@ export interface PortRowOptions {
   menuItems: () => MenuEntry[];
 }
 
-/** One row in the dashboard's Ports section (docs/design.md section 4.19). */
+/** One row in the dashboard's Ports section (docs/design/containers.md section 4.19). */
 export function renderPortRow(l: Listener, opts: PortRowOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = 'favorite-row port-row';

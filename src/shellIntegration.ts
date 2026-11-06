@@ -9,7 +9,7 @@ export function isIntegrationShell(id: string): id is IntegrationShell {
   return (INTEGRATION_SHELLS as readonly string[]).includes(id);
 }
 
-/** How the shell's startup file relates to the shell-integration block (docs/design.md section 3.14). */
+/** How the shell's startup file relates to the shell-integration block (docs/design/app.md section 3.14). */
 export type ShellIntegrationStatus = 'missing' | 'installed' | 'outdated' | 'handAdded' | 'custom';
 
 export interface ShellIntegrationPreview {

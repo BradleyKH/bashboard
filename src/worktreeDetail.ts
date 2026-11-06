@@ -51,7 +51,7 @@ function statusLines(w: Worktree, detail: WorktreeDetail): HTMLElement[] {
   ];
 }
 
-/** The expanded part of a worktree row in the Git pane's Branches tab (docs/design.md section 4.13). */
+/** The expanded part of a worktree row in the Git pane's Branches tab (docs/design/git.md section 4.13). */
 export function renderWorktreeDetail(
   w: Worktree,
   detail: WorktreeDetail | null,

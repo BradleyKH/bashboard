@@ -1,4 +1,4 @@
-/* The Ship pane: pipelines and pull requests (docs/design.md section 4.20). */
+/* The Ship pane: pipelines and pull requests (docs/design/ship.md section 4.20). */
 .ship-body {
   --ship-border: rgba(255, 255, 255, 0.1);
   --ship-hover: rgba(255, 255, 255, 0.06);

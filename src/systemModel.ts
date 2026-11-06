@@ -1,4 +1,4 @@
-// Pure model for the dashboard System section (docs/design.md section 4.6): wire types,
+// Pure model for the dashboard System section (docs/design/dashboard.md section 4.6): wire types,
 // value formatting, load bands, and the sparkline buffer and scale. No DOM, no Tauri.
 
 /** One fixed drive, as `system.rs` reports it. */

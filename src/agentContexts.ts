@@ -3,8 +3,9 @@ import { agentContext, agentContextStop, onAgentContext } from './agentApi';
 import type { AgentContext } from './agentModel';
 
 /**
- * Each agent session's newest model and context, tracked from the core while enabled (docs/design.md
- * section 4.6). `onChange` fires after any context arrives or the set is cleared.
+ * Each agent session's newest model and context, tracked from the core while enabled
+ * (docs/design/dashboard.md section 4.6). `onChange` fires after any context arrives or the set is
+ * cleared.
  */
 export class AgentContexts {
   private readonly contexts = new Map<string, AgentContext>();

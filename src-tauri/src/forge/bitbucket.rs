@@ -1,4 +1,4 @@
-//! The Bitbucket Cloud provider (docs/design.md section 3.20), over the 2.0 REST API with a
+//! The Bitbucket Cloud provider (docs/design/ship.md section 3.20), over the 2.0 REST API with a
 //! Bearer token. The JSON-to-DTO mapping is pure functions over `serde_json::Value` so it tests
 //! without the network.
 

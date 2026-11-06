@@ -3,7 +3,7 @@ import { repoId } from './shipOverviewModel';
 import { shipOverviewStore } from './shipOverviewStore';
 import { showToast } from './toast';
 
-/** The drilled Ship view's "Pin to Overview" toggle (docs/design.md section 4.20). */
+/** The drilled Ship view's "Pin to Overview" toggle (docs/design/ship.md section 4.20). */
 export class ShipPinButton {
   readonly el: HTMLButtonElement;
   private repo: ForgeRepo | null = null;

@@ -18,8 +18,8 @@ export interface PickerCallbacks {
 }
 
 /**
- * A button beside the input that adds to the list (docs/design.md section 4.6). `run` acts at
- * once; `name` turns the input into a name field, and Enter passes the name to `submit`.
+ * A button beside the input that adds to the list (docs/design/dashboard.md section 4.6). `run`
+ * acts at once; `name` turns the input into a name field, and Enter passes the name to `submit`.
  */
 export type PickerAction =
   | { kind: 'run'; label: string; title: string; enabled(): boolean; run(): void }
@@ -43,7 +43,9 @@ const substringMatcher: PickerMatcher = (items, query) => {
   );
 };
 
-/** Filterable overlay for picking one item, such as a favorite (docs/design.md section 4.5). */
+/**
+ * Filterable overlay for picking one item, such as a favorite (docs/design/keys.md section 4.5).
+ */
 export class Picker {
   private backdrop: HTMLElement | null = null;
   private input!: HTMLInputElement;

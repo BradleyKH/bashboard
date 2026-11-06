@@ -1,4 +1,4 @@
-// Confirm dialog text for closing or replacing panes that would lose work (docs/design.md
+// Confirm dialog text for closing or replacing panes that would lose work (docs/design/workspace.md
 // sections 4.10, 4.11, 4.15). Pure, no DOM.
 import type { ConfirmOptions } from './confirmDialog';
 import type { PaneCard } from './dashboardModel';
@@ -38,7 +38,7 @@ const REPLACE_LOSES: Record<PaneKind, string> = {
   ports: 'closes it',
 };
 
-/** The undo dialog for the newest commit (docs/design.md section 4.13). */
+/** The undo dialog for the newest commit (docs/design/git.md section 4.13). */
 export function undoCommitConfirm(shortHash: string, subject: string, pushed: boolean): ConfirmOptions {
   const body = [`Undoing commit ${shortHash} (${subject}) keeps its changes staged and puts its message back in the commit box.`];
   if (pushed) body.push('This commit is already pushed, so publishing the result will need a force push.');
@@ -58,7 +58,7 @@ export function replaceConfirm(card: PaneCard, kind: PaneKind): ConfirmOptions {
   };
 }
 
-/** A Ship pane's Cancel on a run (docs/design.md section 4.20); Re-run does not ask. */
+/** A Ship pane's Cancel on a run (docs/design/ship.md section 4.20); Re-run does not ask. */
 export function cancelRunConfirm(run: Run, runNoun: string): ConfirmOptions {
   const what = run.name || run.title;
   return {
@@ -68,7 +68,9 @@ export function cancelRunConfirm(run: Run, runNoun: string): ConfirmOptions {
   };
 }
 
-/** Asked after `branch -d` refuses a branch that is not merged (docs/design.md section 4.13). */
+/**
+ * Asked after `branch -d` refuses a branch that is not merged (docs/design/git.md section 4.13).
+ */
 export function deleteUnmergedConfirm(name: string, unmerged: number): ConfirmOptions {
   const commits = unmerged === 1 ? '1 commit' : `${unmerged} commits`;
   const body =

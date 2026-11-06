@@ -19,7 +19,7 @@ const PURPOSE: Record<IntegrationShell, string> = {
 
 /**
  * The setup wizard's shell-integration step, for the shell new panes open with: the `.bashrc`
- * lines for Git Bash, or the profile lines for PowerShell (docs/design.md section 4.17).
+ * lines for Git Bash, or the profile lines for PowerShell (docs/design/app.md section 4.17).
  */
 export function renderShellIntegrationStep(
   content: HTMLElement,

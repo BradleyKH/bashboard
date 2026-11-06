@@ -5,7 +5,7 @@ import type { NamedLayout } from './layouts';
 import type { ReposFile } from './repos';
 import type { SavedWorkspace } from './savedWorkspace';
 
-/** One entry of the core's shell activity sweep (docs/design.md section 3.1). */
+/** One entry of the core's shell activity sweep (docs/design/terminal.md section 3.1). */
 export interface PtyActivity {
   id: number;
   busy: boolean;

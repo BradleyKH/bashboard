@@ -1,6 +1,6 @@
-//! The GitHub provider, for github.com and GitHub Enterprise Server (docs/design.md section
-//! 3.20). Runs, jobs, logs, and the run actions use the REST API; open pull requests come from
-//! one GraphQL query, since REST would need a request per pull request for its reviews and
+//! The GitHub provider, for github.com and GitHub Enterprise Server (docs/design/ship.md
+//! section 3.20). Runs, jobs, logs, and the run actions use the REST API; open pull requests come
+//! from one GraphQL query, since REST would need a request per pull request for its reviews and
 //! checks. The JSON-to-DTO mapping is pure so it tests without the network.
 
 use serde_json::{Value, json};

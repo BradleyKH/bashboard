@@ -1,5 +1,5 @@
-// The agent line on a Panes card (docs/design.md section 4.6): token text and model display
-// names. Pure, no DOM.
+// The agent line on a Panes card (docs/design/dashboard.md section 4.6): token text and model
+// display names. Pure, no DOM.
 import { agentName } from './agentNames';
 import type { AgentId } from './savedWorkspace';
 

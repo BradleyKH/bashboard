@@ -57,7 +57,7 @@ interface RenderedGroup {
 }
 
 /**
- * The results list of a Search pane (docs/design.md section 4.14). Batches only ever append
+ * The results list of a Search pane (docs/design/files.md section 4.14). Batches only ever append
  * groups, so `update` appends the new ones and rebuilds only when a search starts over.
  * File content is untrusted: every piece of text goes in through `textContent`.
  */

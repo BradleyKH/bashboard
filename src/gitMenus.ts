@@ -11,7 +11,7 @@ export interface GitFileMenuHandlers {
   insertPath: (row: GitRow) => void;
 }
 
-/** The menu for a changed-file row (docs/design.md section 4.4). */
+/** The menu for a changed-file row (docs/design/terminal.md section 4.4). */
 export function gitFileMenuItems(row: GitRow, staged: boolean, h: GitFileMenuHandlers): MenuEntry[] {
   return [
     item('Show diff', () => h.showDiff(row)),
@@ -42,7 +42,7 @@ export interface GitCommitMenuState {
   canPush: boolean;
 }
 
-/** The menu for a commit row (docs/design.md section 4.13). */
+/** The menu for a commit row (docs/design/git.md section 4.13). */
 export function gitCommitMenuItems(commit: GitCommit, state: GitCommitMenuState, h: GitCommitMenuHandlers): MenuEntry[] {
   const entries: MenuEntry[] = [
     item('Show diff', () => h.showDiff(commit)),

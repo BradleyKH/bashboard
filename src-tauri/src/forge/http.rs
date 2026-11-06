@@ -1,4 +1,4 @@
-//! The forge's HTTP client (docs/design.md section 3.20): one `ureq` agent, an ETag cache, and
+//! The forge's HTTP client (docs/design/ship.md section 3.20): one `ureq` agent, an ETag cache, and
 //! the mapping from status codes to `ForgeError`. Messages built here never include a header,
 //! so a token cannot leak into the page through an error.
 

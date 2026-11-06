@@ -1,7 +1,7 @@
 import { CLI_COMMANDS, CLI_INTRO, CLI_OPTIONS, type CliEntry } from './cliReference';
 import { copyText } from './copyText';
 
-/** The app dialog's CLI tab: the `bb` commands, their syntax, and copyable examples (docs/design.md section 3.13). */
+/** The app dialog's CLI tab: the `bb` commands, their syntax, and copyable examples (docs/design/app.md section 3.13). */
 export class CliTab {
   private root: HTMLElement | null = null;
 

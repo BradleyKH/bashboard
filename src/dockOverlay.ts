@@ -21,7 +21,7 @@ interface Hit {
   rect: DOMRect;
 }
 
-/** Pointer-driven drag layer for docking (docs/design.md section 4.2); never HTML5 drag and drop. */
+/** Pointer-driven drag layer for docking (docs/design/workspace.md section 4.2); never HTML5 drag and drop. */
 export class DockOverlay {
   private active: (() => void) | null = null;
   private retrack: (() => void) | null = null;

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { BUNDLED_FONT_FAMILY } from './fontsReady';
 
-/** An installed font family the core listed (docs/design.md section 3.17). */
+/** An installed font family the core listed (docs/design/terminal.md section 3.17). */
 export interface FontFamily {
   family: string;
   monospace: boolean;

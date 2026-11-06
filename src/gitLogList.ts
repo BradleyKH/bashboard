@@ -10,7 +10,7 @@ export interface GitLogListOptions {
   menuItems?: (commit: GitCommit) => MenuEntry[];
 }
 
-/** "Recent commits" (docs/design.md section 4.13). */
+/** "Recent commits" (docs/design/git.md section 4.13). */
 export class GitLogList {
   readonly el: HTMLElement;
   private readonly list: HTMLElement;

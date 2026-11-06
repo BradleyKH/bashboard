@@ -47,7 +47,7 @@ function button(label: string, className: string, onClick: () => void): HTMLButt
   return el;
 }
 
-/** One card in the dashboard's Panes section (docs/design.md section 4.6). */
+/** One card in the dashboard's Panes section (docs/design/dashboard.md section 4.6). */
 export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = 'terminal-card';

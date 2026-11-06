@@ -105,7 +105,7 @@ function selectionName(folder: string, select: string | null | undefined): strin
   return samePath(parent, folder) ? baseName(select) : null;
 }
 
-/** A folder's files beside a preview of the selected one (docs/design.md section 4.12). */
+/** A folder's files beside a preview of the selected one (docs/design/files.md section 4.12). */
 export class FilesPane implements PaneView {
   readonly kind = 'files' as const;
   readonly paneId: string;

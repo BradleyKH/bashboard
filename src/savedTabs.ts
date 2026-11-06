@@ -1,4 +1,5 @@
-// Converts between live tabs and their saved shape (docs/design.md sections 4.9 and 7). Pure, no DOM.
+// Converts between live tabs and their saved shape (docs/design/workspace.md sections 4.9 and 7).
+// Pure, no DOM.
 import type { DashboardSection } from './dashboardSections';
 import { leaves } from './layout';
 import { pruneLayout, remapLayout, type SavedPane, type SavedTab, type SavedWorkspace } from './savedWorkspace';

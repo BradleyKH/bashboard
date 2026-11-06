@@ -1,6 +1,6 @@
 import { formatSize } from './formatSize';
 
-/** Shown for binary files and files over the text cap (docs/design.md section 4.12). */
+/** Shown for binary files and files over the text cap (docs/design/files.md section 4.12). */
 export class BinaryNotice {
   readonly el: HTMLElement;
 

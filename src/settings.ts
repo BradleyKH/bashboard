@@ -16,12 +16,12 @@ export type ForgeKind = 'github' | 'gitlab' | 'bitbucket' | 'azureDevOps';
 export interface Settings {
   shell: { path: string; args: string[]; startingDirectory: string; defaultProfile: string };
   font: { family: string; size: number };
-  /** #rrggbb, bright enough to read on the dark panes (docs/design.md section 8). */
+  /** #rrggbb, bright enough to read on the dark panes (docs/design/data.md section 8). */
   accentColor: string;
-  /** Non-terminal pane content and dashboard text, derived from the accent (docs/design.md section 8). */
+  /** Non-terminal pane content and dashboard text, derived from the accent (docs/design/data.md section 8). */
   contentTextColor: ContentTextMode;
   scrim: { opacity: number; blurPx: number };
-  /** maxFps 0 is uncapped (docs/design.md section 6.4). */
+  /** maxFps 0 is uncapped (docs/design/backdrop.md section 6.4). */
   backdrop: {
     style: BackdropStyle;
     animate: boolean;
@@ -47,7 +47,7 @@ export interface Settings {
   };
   restore: { enabled: boolean; resumeSessions: boolean; scrollback: boolean };
   editor: { preferred: string; command: string };
-  /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design.md section 3.9). */
+  /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design/git.md section 3.9). */
   git: { autoFetchMinutes: number };
   localModels: { ollamaUrl: string; lmStudioUrl: string; minContext: number };
   /**
@@ -66,7 +66,7 @@ export interface Settings {
 export interface SettingsPayload {
   settings: Settings;
   warnings: string[];
-  /** True when this launch created settings.json (docs/design.md section 4.17). */
+  /** True when this launch created settings.json (docs/design/app.md section 4.17). */
   firstRun: boolean;
 }
 
@@ -91,7 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
     zoom: 2,
     waitingPulse: false,
     matrix: { color: DEFAULT_MATRIX_COLOR_MODE, zoom: 1, speed: 10, density: 3 },
-    image: { file: '', folder: '', fit: 'fill', intervalSeconds: 600, crossfadeSeconds: 2.5, shuffle: true, includeSubfolders: false },
+    image: { file: '', folder: '', fit: 'fill', intervalSeconds: 600, crossfadeSeconds: 5, shuffle: true, includeSubfolders: false },
   },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30, notifyWhenWaiting: true },

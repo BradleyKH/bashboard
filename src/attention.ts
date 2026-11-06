@@ -2,7 +2,7 @@ import type { TerminalStatus } from './terminalStatus';
 
 export type AttentionCause = 'waiting' | 'bell';
 
-/** Tracks which panes are asking for the user (docs/design.md section 4.7). */
+/** Tracks which panes are asking for the user (docs/design/sessions.md section 4.7). */
 export class AttentionTracker {
   private readonly raised = new Set<string>();
   private readonly lastStatus = new Map<string, TerminalStatus>();

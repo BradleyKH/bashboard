@@ -2,8 +2,8 @@ import type { ForgeRepo } from './forgeApi';
 
 /**
  * The "as @name" button in the Ship pane's bar, shown when the host holds several accounts
- * (docs/design.md section 4.20). It is styled as a warning when the repo has no account of its own
- * and so follows whichever account `gh` last switched to.
+ * (docs/design/ship.md section 4.20). It is styled as a warning when the repo has no account of its
+ * own and so follows whichever account `gh` last switched to.
  */
 export class ShipAccountChip {
   readonly el: HTMLButtonElement;

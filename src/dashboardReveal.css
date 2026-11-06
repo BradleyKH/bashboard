@@ -1,5 +1,6 @@
-/* The hidden dashboard's edge handle (docs/design.md section 4.6). It lives in the 8px gutter
-   between the panes and the window edge on the dashboard's side, so at rest it covers no pane. */
+/* The hidden dashboard's edge handle (docs/design/dashboard.md section 4.6). It lives in the 8px
+   gutter between the panes and the window edge on the dashboard's side, so at rest it covers no
+   pane. */
 .dashboard-reveal {
   display: none;
   position: fixed;

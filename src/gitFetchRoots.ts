@@ -2,7 +2,9 @@ import type { PaneCardInput } from './dashboardModel';
 import { samePath } from './favorites';
 import { gitFetchRoots } from './gitApi';
 
-/** Folders of the open Git panes, one per repo, in a stable order (docs/design.md section 3.9). */
+/**
+ * Folders of the open Git panes, one per repo, in a stable order (docs/design/git.md section 3.9).
+ */
 export function gitRootsOf(panes: readonly PaneCardInput[]): string[] {
   const roots: string[] = [];
   for (const p of panes) {

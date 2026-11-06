@@ -1,5 +1,5 @@
-// Run statuses, polling, grouping, log cleanup, and the setup notices for the Ship pane (docs/design.md
-// section 4.20). Pure, no DOM.
+// Run statuses, polling, grouping, log cleanup, and the setup notices for the Ship pane
+// (docs/design/ship.md section 4.20). Pure, no DOM.
 import type {
   Capabilities,
   ForgeError,

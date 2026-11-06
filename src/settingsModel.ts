@@ -224,7 +224,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         label: 'Crossfade',
         kind: 'slider',
         min: 0,
-        max: 5,
+        max: 10,
         step: 0.5,
         unit: 's',
         hint: '0 switches with no fade',

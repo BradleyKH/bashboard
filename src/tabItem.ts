@@ -12,7 +12,7 @@ export interface TabItemHooks {
   onPointerDown(id: string, e: PointerEvent): void;
 }
 
-/** One tab in the strip (docs/design.md section 4.10). */
+/** One tab in the strip (docs/design/workspace.md section 4.10). */
 export class TabItem {
   readonly el: HTMLElement;
   private readonly dot: HTMLElement;

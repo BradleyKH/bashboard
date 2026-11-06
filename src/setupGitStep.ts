@@ -11,7 +11,9 @@ export interface GitStepActions {
   openDownload(): void;
 }
 
-/** The setup wizard's Git step, shown while Git Bash is missing (docs/design.md section 4.17). */
+/**
+ * The setup wizard's Git step, shown while Git Bash is missing (docs/design/app.md section 4.17).
+ */
 export function renderGitStep(
   content: HTMLElement,
   state: GitStepState,

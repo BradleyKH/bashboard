@@ -1,4 +1,4 @@
-/** Scratch pad text rules (docs/design.md section 4.15). */
+/** Scratch pad text rules (docs/design/files.md section 4.15). */
 
 import { item, type MenuItem } from './contextMenuModel';
 
@@ -38,7 +38,7 @@ export interface ScratchMenuHandlers {
   saveAs: () => void;
 }
 
-/** The pad's own items, added after the text field menu's (docs/design.md section 4.4). */
+/** The pad's own items, added after the text field menu's (docs/design/terminal.md section 4.4). */
 export function scratchMenuExtras(state: { canSend: boolean }, handlers: ScratchMenuHandlers): MenuItem[] {
   return [
     item('Send', handlers.send, { enabled: state.canSend }),

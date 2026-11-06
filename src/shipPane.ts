@@ -85,7 +85,7 @@ function localError(message: string, kind: ForgeError['kind'] = 'other'): ForgeE
 const NOT_LOADED = localError('The repo is not loaded yet.');
 
 /**
- * The Ship pane (docs/design.md section 4.20): the Overview of pinned repos when it has no
+ * The Ship pane (docs/design/ship.md section 4.20): the Overview of pinned repos when it has no
  * target, else one repo's CI runs and pull requests on two tabs, with a crumb back.
  */
 export class ShipPane implements PaneView {

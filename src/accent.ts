@@ -1,5 +1,5 @@
-// The UI accent color (docs/design.md section 8, accentColor). CSS reads it as --accent; xterm.js
-// takes literal colors only, so terminals get the shades computed here.
+// The UI accent color (docs/design/data.md section 8, accentColor). CSS reads it as --accent;
+// xterm.js takes literal colors only, so terminals get the shades computed here.
 
 export const DEFAULT_ACCENT = '#4fb3c8';
 

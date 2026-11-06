@@ -52,7 +52,7 @@ function detail(label: string, value: string): HTMLElement {
   return row;
 }
 
-/** One row in the dashboard's External sessions section (docs/design.md section 4.6). */
+/** One row in the dashboard's External sessions section (docs/design/dashboard.md section 4.6). */
 export function renderSessionRow(session: Session, opts: SessionRowOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = 'session-row';

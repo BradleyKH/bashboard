@@ -2,7 +2,7 @@ import { lastFolder } from './dashboardModel';
 import { parseProfileId } from './profiles';
 import type { Session } from './sessions';
 
-/** favorites.json (docs/design.md sections 3.7 and 7), in display order. */
+/** favorites.json (docs/design/data.md sections 3.7 and 7), in display order. */
 export interface Favorite {
   label: string;
   path: string;

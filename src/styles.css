@@ -144,8 +144,9 @@ body.resizing.column {
   border-color: var(--accent);
 }
 
-/* Title strip (docs/design.md section 4.4): always in the flow, even for a lone pane. Never make
-   it a hover overlay; it would sit over the buttons and first row at the top of the pane. */
+/* Title strip (docs/design/terminal.md section 4.4): always in the flow, even for a lone pane.
+   Never make it a hover overlay; it would sit over the buttons and first row at the top of the
+   pane. */
 .pane-strip {
   position: relative;
   z-index: 2;
@@ -266,7 +267,8 @@ body.resizing.column {
   animation: attention-pulse 1s ease-in-out infinite;
 }
 
-/* Find bar (docs/design.md section 4.4): below the title strip, above it in stacking order. */
+/* Find bar (docs/design/terminal.md section 4.4): below the title strip, above it in stacking
+   order. */
 .find-bar {
   position: absolute;
   top: 24px;
@@ -331,7 +333,7 @@ body.resizing.column {
   pointer-events: none;
 }
 
-/* Docking drag (docs/design.md section 4.2); geometry is set inline by dockOverlay.ts. */
+/* Docking drag (docs/design/workspace.md section 4.2); geometry is set inline by dockOverlay.ts. */
 .dock-layer {
   background: transparent;
 }
@@ -369,9 +371,9 @@ body.resizing.column {
   display: none;
 }
 
-/* Dashboard (docs/design.md section 4.6): above the panes, below toasts. `--dashboard-width`
-   is set from JS as the user drags the panel's inner edge. The base rules dock it right;
-   `body.dashboard-left` mirrors them. */
+/* Dashboard (docs/design/dashboard.md section 4.6): above the panes, below toasts.
+   `--dashboard-width` is set from JS as the user drags the panel's inner edge. The base rules dock
+   it right; `body.dashboard-left` mirrors them. */
 :root {
   --dashboard-width: 300px;
 }

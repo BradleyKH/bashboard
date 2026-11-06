@@ -1,6 +1,6 @@
 import { type SavedPane, type SavedTab, type SavedWorkspace, parseSavedTab } from './savedWorkspace';
 
-/** layouts.json (docs/design.md section 7): one tab, with no Claude session ids and empty scratch pads. */
+/** layouts.json (docs/design/data.md section 7): one tab, with no Claude session ids and empty scratch pads. */
 export interface NamedLayout {
   name: string;
   /** Its name is ignored, since a tab opened from a layout takes the layout's name. */

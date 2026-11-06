@@ -3,7 +3,9 @@ import { samePath } from './favorites';
 import type { Session } from './sessions';
 import type { MergedState, PrimaryBranch, Worktree, WorktreeDetail } from './worktreeApi';
 
-/** Pure text and matching rules for the Git pane's worktree list (docs/design.md section 4.13). */
+/**
+ * Pure text and matching rules for the Git pane's worktree list (docs/design/git.md section 4.13).
+ */
 
 export type WorktreeBadge = 'Merged' | 'Probably merged' | 'Locked' | 'Prunable';
 

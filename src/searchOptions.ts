@@ -1,4 +1,4 @@
-// Code search options (docs/design.md section 7). Pure data, no DOM.
+// Code search options (docs/design/data.md section 7). Pure data, no DOM.
 
 export interface SearchOptions {
   caseSensitive: boolean;

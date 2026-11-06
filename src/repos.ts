@@ -7,8 +7,8 @@ export interface Pin {
 }
 
 /**
- * repos.json (docs/design.md sections 3.7 and 7): pins per repo, roots compared without regard to
- * case. `primaryBranch` is the branch the Git pane compares worktrees with; an entry may
+ * repos.json (docs/design/data.md sections 3.7 and 7): pins per repo, roots compared without regard
+ * to case. `primaryBranch` is the branch the Git pane compares worktrees with; an entry may
  * carry it with no pins.
  */
 export interface RepoPins {

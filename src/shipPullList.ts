@@ -9,8 +9,8 @@ export interface ShipPullListOptions {
 }
 
 /**
- * The Pull requests list, grouped under small headers (docs/design.md section 4.20). Like the run
- * list, `update` reuses elements, so it is cheap to call on a tick.
+ * The Pull requests list, grouped under small headers (docs/design/ship.md section 4.20). Like the
+ * run list, `update` reuses elements, so it is cheap to call on a tick.
  */
 export class ShipPullList {
   readonly el: HTMLElement;

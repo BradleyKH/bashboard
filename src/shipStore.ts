@@ -35,7 +35,7 @@ interface Entry {
 }
 
 /**
- * One repo's runs and pull requests, shared by every Ship pane on that root (docs/design.md
+ * One repo's runs and pull requests, shared by every Ship pane on that root (docs/design/ship.md
  * section 4.20). Runs poll while some pane wants the store, pull requests only while one of them is
  * on the Pull requests tab, and both pause while the window is hidden and catch up when it returns.
  */

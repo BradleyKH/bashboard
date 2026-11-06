@@ -33,9 +33,9 @@ const ITEM_SELECTOR = [
 ].join(', ');
 
 /**
- * Keyboard navigation of the dashboard (docs/design.md section 4.6): arrows move between rows,
- * Enter acts as a click, F2 renames a row that can be renamed, and keys the dashboard does not
- * use run as workspace actions. Rows are focused only from the keyboard, since the panel keeps
+ * Keyboard navigation of the dashboard (docs/design/dashboard.md section 4.6): arrows move between
+ * rows, Enter acts as a click, F2 renames a row that can be renamed, and keys the dashboard does
+ * not use run as workspace actions. Rows are focused only from the keyboard, since the panel keeps
  * mouse presses from taking focus.
  */
 export class DashboardNav {

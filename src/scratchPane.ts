@@ -30,7 +30,7 @@ export interface ScratchPaneOptions {
   onSavedAs: (path: string) => void;
 }
 
-/** A plain text scratch pad (docs/design.md section 4.15). */
+/** A plain text scratch pad (docs/design/files.md section 4.15). */
 export class ScratchPane implements PaneView {
   readonly kind = 'scratch' as const;
   readonly paneId: string;

@@ -44,7 +44,7 @@ export interface PortsPaneOptions {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
 }
 
-/** Every listening TCP port, with its process, command line, and owning pane (docs/design.md section 4.19). */
+/** Every listening TCP port, with its process, command line, and owning pane (docs/design/containers.md section 4.19). */
 export class PortsPane implements PaneView {
   readonly kind = 'ports' as const;
   readonly paneId: string;

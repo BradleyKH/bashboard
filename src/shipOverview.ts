@@ -8,7 +8,7 @@ const TICK_MS = 30_000;
 
 let nextId = 1;
 
-/** The Ship pane's Overview view: one row per pinned repo in attention order (docs/design.md section 4.20). */
+/** The Ship pane's Overview view: one row per pinned repo in attention order (docs/design/ship.md section 4.20). */
 export class ShipOverview {
   readonly el: HTMLElement;
   private readonly key = `overview:${nextId++}`;

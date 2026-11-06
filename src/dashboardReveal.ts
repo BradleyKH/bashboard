@@ -2,9 +2,10 @@ import './dashboardReveal.css';
 import { revealTitle } from './dashboardRevealModel';
 
 /**
- * The handle on the window edge that brings back a hidden dashboard (docs/design.md section
- * 4.6), so a mouse user who hid it with × is never stuck without the shortcut. CSS shows it only
- * while the panel is neither open nor peeking. `getKeys` is read on hover so a rebinding shows.
+ * The handle on the window edge that brings back a hidden dashboard (docs/design/dashboard.md
+ * section 4.6), so a mouse user who hid it with × is never stuck without the shortcut. CSS shows it
+ * only while the panel is neither open nor peeking. `getKeys` is read on hover so a rebinding
+ * shows.
  */
 export function dashboardRevealHandle(onClick: () => void, getKeys: () => string | undefined): HTMLButtonElement {
   const handle = document.createElement('button');

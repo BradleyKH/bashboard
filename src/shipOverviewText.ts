@@ -1,5 +1,5 @@
-// Wording and input rules for the Ship Overview rows and Add repo box (docs/design.md section 4.20).
-// Pure, no DOM.
+// Wording and input rules for the Ship Overview rows and Add repo box (docs/design/ship.md
+// section 4.20). Pure, no DOM.
 import type { ProviderKind, PullRequest } from './forgeApi';
 import { approvedByText, isReadyToMerge, relativeTime } from './shipModel';
 

@@ -1,5 +1,5 @@
-/* The dashboard's columns (docs/design.md section 4.6). The panel itself does not scroll; each
-   column does, so the top bar above them needs no sticky positioning. */
+/* The dashboard's columns (docs/design/dashboard.md section 4.6). The panel itself does not scroll;
+   each column does, so the top bar above them needs no sticky positioning. */
 #dashboard .dashboard-columns {
   flex: 1 1 auto;
   min-height: 0;

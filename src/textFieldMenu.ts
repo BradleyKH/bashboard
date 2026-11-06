@@ -16,7 +16,10 @@ export interface TextFieldMenuActions {
   selectAll: () => void;
 }
 
-/** The text field menu (docs/design.md section 4.4), with an owner's extras after a separator. */
+/**
+ * The text field menu (docs/design/terminal.md section 4.4), with an owner's extras after a
+ * separator.
+ */
 export function textFieldMenuItems(
   state: TextFieldMenuState,
   actions: TextFieldMenuActions,
@@ -128,7 +131,7 @@ function actionsFor(field: TextField, range: Range): TextFieldMenuActions {
 let installed = false;
 
 /**
- * Gives every text field outside a terminal its menu (docs/design.md section 4.4).
+ * Gives every text field outside a terminal its menu (docs/design/terminal.md section 4.4).
  * Owners' `attachContextMenu` listeners let text field events bubble, so one listener on
  * `document` serves inline renames, filters, find bars, dialogs, and the rest.
  */

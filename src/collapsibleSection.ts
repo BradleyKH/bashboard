@@ -1,6 +1,6 @@
 /**
- * Makes clicking a dashboard section's header toggle it (docs/design.md section 4.6). Clicks on a
- * button inside the header, such as a "+", act on that button only.
+ * Makes clicking a dashboard section's header toggle it (docs/design/dashboard.md section 4.6).
+ * Clicks on a button inside the header, such as a "+", act on that button only.
  */
 export function makeCollapsible(
   section: HTMLElement,

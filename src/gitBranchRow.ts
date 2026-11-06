@@ -13,7 +13,7 @@ function isRunning(label: string): boolean {
   return label.endsWith('...');
 }
 
-/** The branch name, last fetch label, and Fetch, Pull, Push buttons (docs/design.md section 4.13). */
+/** The branch name, last fetch label, and Fetch, Pull, Push buttons (docs/design/git.md section 4.13). */
 export class GitBranchRow {
   readonly el: HTMLElement;
   private readonly branch: HTMLElement;

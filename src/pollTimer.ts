@@ -10,9 +10,10 @@ export function shouldPoll(g: PollGate): boolean {
 }
 
 /**
- * Runs `tick` on an interval only while every gate field is true (docs/design.md section 4.6's
- * polling rule): a disabled, collapsed, off-screen, or hidden section costs nothing, and the next
- * start ticks at once so the data is never staler than one interval after it reappears.
+ * Runs `tick` on an interval only while every gate field is true (docs/design/dashboard.md
+ * section 4.6's polling rule): a disabled, collapsed, off-screen, or hidden section costs nothing,
+ * and the next start ticks at once so the data is never staler than one interval after it
+ * reappears.
  */
 export class PollTimer {
   private gate: PollGate = { enabled: false, expanded: false, onScreen: false, windowShown: true };

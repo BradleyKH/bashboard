@@ -5,7 +5,7 @@ const TABS: ReadonlyArray<{ tab: GitTab; label: string }> = [
   { tab: 'branches', label: 'Branches' },
 ];
 
-/** The Git pane's Changes and Branches tabs (docs/design.md section 4.13). */
+/** The Git pane's Changes and Branches tabs (docs/design/git.md section 4.13). */
 export class GitTabStrip {
   readonly el: HTMLElement;
   private readonly buttons = new Map<GitTab, HTMLButtonElement>();

@@ -1,4 +1,5 @@
-//! Installed font families for the settings dialog's Font family suggestions (docs/design.md section 3.17).
+//! Installed font families for the settings dialog's Font family suggestions
+//! (docs/design/terminal.md section 3.17).
 
 use serde::Serialize;
 

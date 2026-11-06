@@ -17,7 +17,7 @@ import {
 const POLL_MS = 2000;
 const DISK_MS = 60_000;
 
-/** The dashboard's System section: CPU, memory, network, and disk rows (docs/design.md section 4.6). */
+/** The dashboard's System section: CPU, memory, network, and disk rows (docs/design/dashboard.md section 4.6). */
 export class DashboardSystem {
   readonly el: HTMLElement;
   readonly head: HTMLElement;

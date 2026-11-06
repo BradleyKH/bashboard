@@ -1,6 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 
-/** docs/design.md section 3.8: the repo a folder belongs to. */
+/** docs/design/files.md section 3.8: the repo a folder belongs to. */
 export interface RepoInfo {
   root: string;
   isGit: boolean;

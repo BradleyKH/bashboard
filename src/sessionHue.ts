@@ -1,7 +1,7 @@
 const FNV_OFFSET = 2166136261;
 const FNV_PRIME = 16777619;
 
-/** Stable 0..1 hue from the session's name, or its cwd when unnamed (docs/design.md section 6.3). */
+/** Stable 0..1 hue from the session's name, or its cwd when unnamed (docs/design/backdrop.md section 6.3). */
 export function sessionHue(session: { name: string | null; cwd: string }): number {
   // Lowercase so the same folder typed with different drive-letter case keeps its hue.
   const key = session.name ? session.name : session.cwd.toLowerCase();

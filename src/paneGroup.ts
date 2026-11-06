@@ -10,8 +10,8 @@ export interface PaneGroupHandlers {
 }
 
 /**
- * One tab's group in the dashboard's Panes section (docs/design.md section 4.6): a header and,
- * under it, the tab's cards along a guide line.
+ * One tab's group in the dashboard's Panes section (docs/design/dashboard.md section 4.6): a header
+ * and, under it, the tab's cards along a guide line.
  */
 export function renderPaneGroup(group: PaneGroup, cards: HTMLElement[], handlers: PaneGroupHandlers): HTMLElement {
   const el = document.createElement('div');

@@ -3,7 +3,7 @@ import { closeContextMenu, contextMenuGeneration, isContextMenuOpenFor, openCont
 import { item, type MenuItem } from './contextMenuModel';
 import { iconButton } from './rowControls';
 
-/** What the Open menu can open a row's repo as (docs/design.md section 4.6). */
+/** What the Open menu can open a row's repo as (docs/design/dashboard.md section 4.6). */
 export type OpenInKind = 'terminal' | 'files' | 'git' | 'search' | 'editor';
 
 export type OpenInHandler = (kind: OpenInKind, path: string) => void;

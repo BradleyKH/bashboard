@@ -1,4 +1,4 @@
-// The dashboard's Wave element: a looping figure shaped by machine load (docs/design.md
+// The dashboard's Wave element: a looping figure shaped by machine load (docs/design/dashboard.md
 // section 4.6). Pure, no DOM.
 
 /** Network rate that reads as full activity; the scale is logarithmic below it. */

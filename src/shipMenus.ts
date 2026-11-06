@@ -30,7 +30,7 @@ export function runActionStates(run: Run, caps: Capabilities): Record<RunActionK
 }
 
 /**
- * The menu on a run row (docs/design.md section 4.20). What the host cannot do is left out;
+ * The menu on a run row (docs/design/ship.md section 4.20). What the host cannot do is left out;
  * what the run's status rules out right now is greyed, except Cancel, which only a live run has.
  */
 export function runMenuItems(run: Run, caps: Capabilities, handlers: RunMenuHandlers): MenuEntry[] {

@@ -1,5 +1,5 @@
-// Listening ports for the dashboard's Ports section and the Ports pane (docs/design.md section
-// 4.19). Pure, no DOM.
+// Listening ports for the dashboard's Ports section and the Ports pane (docs/design/containers.md
+// section 4.19). Pure, no DOM.
 import type { ConfirmOptions } from './confirmDialog';
 import { displayPath } from './displayPath';
 import type { Listener } from './ports';

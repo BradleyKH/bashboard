@@ -1,5 +1,5 @@
 //! Listening TCP ports for the dashboard's Ports section and the Ports pane
-//! (docs/design.md section 4.19).
+//! (docs/design/containers.md section 4.19).
 //!
 //! Each listener carries its owning process and, when the process was started from a pane, that
 //! pane's pty id, so a server launched in the background still says where it came from.

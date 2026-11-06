@@ -9,7 +9,7 @@ import {
 import type { ContainersSectionCallbacks } from './containersSection';
 import { iconButton } from './rowControls';
 
-/** One row in the dashboard's Containers section (docs/design.md section 4.16). */
+/** One row in the dashboard's Containers section (docs/design/containers.md section 4.16). */
 export function renderContainerDashboardRow(
   row: DashboardContainerRow,
   callbacks: ContainersSectionCallbacks,

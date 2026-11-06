@@ -1,4 +1,4 @@
-/** Text editor save and reload rules (docs/design.md section 4.12, Text editor). */
+/** Text editor save and reload rules (docs/design/files.md section 4.12, Text editor). */
 
 /** Typing that stops for this long triggers a save. */
 export const EDITOR_SAVE_DELAY_MS = 1000;

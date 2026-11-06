@@ -27,7 +27,7 @@ export function kindMenuItems(
   );
 }
 
-/** Popup for changing a pane's kind (docs/design.md section 4.11). */
+/** Popup for changing a pane's kind (docs/design/workspace.md section 4.11). */
 export const kindMenu = {
   open(anchor: HTMLElement, current: PaneKind, onChoose: (kind: PaneKind) => void): void {
     openContextMenu(kindMenuItems(current, onChoose), { anchorEl: anchor, align: 'left' });

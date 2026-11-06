@@ -45,7 +45,9 @@ function statusIcon(status: Job['status']): HTMLElement {
   return icon;
 }
 
-/** The jobs of one run, each with its steps and an on-demand log (docs/design.md section 4.20). */
+/**
+ * The jobs of one run, each with its steps and an on-demand log (docs/design/ship.md section 4.20).
+ */
 export class ShipJobsView {
   readonly el: HTMLElement;
   private jobs: Job[] = [];

@@ -1,4 +1,4 @@
-//! Editor detection and `open_in_editor` (docs/design.md section 3.12).
+//! Editor detection and `open_in_editor` (docs/design/files.md section 3.12).
 //!
 //! Every editor runs from its `.exe` with an argument list, never through a shell (section 9).
 //! VS Code, Cursor, Windsurf, VS Code Insiders, and VSCodium put only `.cmd` shims on `PATH`, so a

@@ -8,7 +8,10 @@ export interface BranchMenuItem {
 
 let closeOpen: (() => void) | null = null;
 
-/** A popup list of choices under `anchor`, one marked with a check (docs/design.md section 4.6). */
+/**
+ * A popup list of choices under `anchor`, one marked with a check (docs/design/dashboard.md
+ * section 4.6).
+ */
 export function openBranchMenu(anchor: HTMLElement, items: BranchMenuItem[]): void {
   // A second press on the anchor closes its menu; the press itself is left to this click.
   const toggledOff = anchor.classList.contains('open') && closeOpen !== null;

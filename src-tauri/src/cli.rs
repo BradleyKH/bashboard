@@ -1,4 +1,4 @@
-//! Parsing and resolution of `POST /cli` requests from `bb` (docs/design.md section 3.13).
+//! Parsing and resolution of `POST /cli` requests from `bb` (docs/design/app.md section 3.13).
 //!
 //! Pure: no Tauri types. The hook receiver passes the body and the calling pty id to [`parse`]
 //! and emits the resolved [`CliCommand`] as `cli://command`; an `Err` becomes a 400.

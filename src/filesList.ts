@@ -46,7 +46,7 @@ export interface FilesListOptions {
 
 /**
  * Sorted, filtered, keyboard-driven list of a folder's entries, with File Explorer's Ctrl and
- * Shift multi-selection (docs/design.md section 4.12).
+ * Shift multi-selection (docs/design/files.md section 4.12).
  */
 export class FilesList {
   readonly el: HTMLElement;

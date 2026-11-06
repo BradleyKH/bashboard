@@ -41,7 +41,8 @@ const BRIGHTNESS: { preset: keyof typeof SCRIM_PRESETS; label: string }[] = [
 /**
  * The setup wizard's Look step: the background style (Image and Slideshow by way of the native
  * picker), how brightly it shows through the panes, whether it moves, and the accent and text
- * colors (docs/design.md section 4.17). Returns the function that shows a settings file's values.
+ * colors (docs/design/app.md section 4.17). Returns the function that shows a settings file's
+ * values.
  */
 export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: Settings) => void {
   const { ui } = ctx;

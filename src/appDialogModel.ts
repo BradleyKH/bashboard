@@ -1,4 +1,4 @@
-/** The tabs of the app dialog, left to right (docs/design.md section 4.18). */
+/** The tabs of the app dialog, left to right (docs/design/app.md section 4.18). */
 export const DIALOG_TABS = ['help', 'settings', 'accounts', 'shortcuts', 'cli', 'about'] as const;
 
 export type DialogTab = (typeof DIALOG_TABS)[number];

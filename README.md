@@ -91,7 +91,7 @@ from **Settings > Apps > Installed apps**.
   in to GitHub, GitLab, Bitbucket, and Azure DevOps for the Ship pane.
 - [Settings](docs/settings.md): the settings file and what each setting does.
 - [Development](docs/development.md): building from source, releasing, and debugging input.
-- [Design](docs/design.md): the spec, for anyone changing Bashboard itself.
+- [Design](docs/design/README.md): the spec, for anyone changing Bashboard itself.
 
 ## License
 

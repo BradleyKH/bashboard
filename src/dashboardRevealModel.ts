@@ -1,5 +1,5 @@
 // Text for the dashboard's top-bar and edge-handle tooltips and the notice the × button shows
-// (docs/design.md section 4.6).
+// (docs/design/dashboard.md section 4.6).
 
 import type { DashboardSide } from './dashboardResize';
 

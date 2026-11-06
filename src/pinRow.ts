@@ -18,7 +18,7 @@ function parentFolder(path: string): string {
   return cut > 0 ? path.slice(0, cut) : path;
 }
 
-/** One pin in the dashboard's Pins section (docs/design.md section 4.6). A missing target is dimmed and inert. */
+/** One pin in the dashboard's Pins section (docs/design/dashboard.md section 4.6). A missing target is dimmed and inert. */
 export function renderPinRow(
   pin: Pin,
   /** Shown when the pin has no label. */

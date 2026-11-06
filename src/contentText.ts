@@ -1,4 +1,4 @@
-// The text color of non-terminal pane content and the dashboard (docs/design.md section 8,
+// The text color of non-terminal pane content and the dashboard (docs/design/data.md section 8,
 // contentTextColor). The setting picks a mode; the color is derived from the accent here, so the
 // two always pair. CSS reads it as --content-fg; terminals take it only for pure white text.
 

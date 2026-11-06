@@ -63,7 +63,7 @@ export function containerUsage(stats: ContainerStats): string {
   return parts.join('  ');
 }
 
-/** One container in the Containers pane (docs/design.md section 4.16). */
+/** One container in the Containers pane (docs/design/containers.md section 4.16). */
 export function renderContainerRow(c: Container, opts: ContainerRowOptions): HTMLElement {
   const running = c.state === 'running';
   const el = document.createElement('div');

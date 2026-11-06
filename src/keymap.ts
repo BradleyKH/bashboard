@@ -49,7 +49,7 @@ export type Action =
   | { type: 'decreaseFontSize' }
   | { type: 'resetFontSize' };
 
-/** Same shape the Rust settings loader sends (docs/design.md section 4.5). */
+/** Same shape the Rust settings loader sends (docs/design/keys.md section 4.5). */
 export interface KeybindingEntry {
   keys: string;
   action: string;

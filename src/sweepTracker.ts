@@ -2,8 +2,8 @@ import type { PtyActivity } from './persistence';
 import type { SweepState } from './terminalStatus';
 
 /**
- * Folds one activity sweep into the per-pty state (docs/design.md section 4.8). `changedAt`
- * moves only when `busy` flips; ptys missing from the sweep are dropped.
+ * Folds one activity sweep into the per-pty state (docs/design/terminal.md section 4.8).
+ * `changedAt` moves only when `busy` flips; ptys missing from the sweep are dropped.
  */
 export function applyActivity(
   prev: ReadonlyMap<number, SweepState>,

@@ -24,7 +24,7 @@ function entryNote(e: SwitcherEntry): string {
 }
 
 /**
- * The branch name's quick switcher (docs/design.md section 4.13): a filter field over the
+ * The branch name's quick switcher (docs/design/git.md section 4.13): a filter field over the
  * branches, ending in a Create row when the text is a new valid name.
  */
 export function openBranchSwitcher(anchor: HTMLElement, list: GitBranchList, h: BranchSwitcherHandlers): void {

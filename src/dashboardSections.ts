@@ -1,9 +1,9 @@
-// Dashboard elements and the sections the user can collapse (docs/design.md sections 4.6 and 7).
-// Pure, no DOM.
+// Dashboard elements and the sections the user can collapse (docs/design/dashboard.md sections 4.6
+// and 7). Pure, no DOM.
 
 /**
- * The panel's draggable elements in default order (docs/design.md section 4.6). The clock and
- * Launch lead, so each sits at the top of the lower list whenever it is not in the top slot.
+ * The panel's draggable elements in default order (docs/design/dashboard.md section 4.6). The clock
+ * and Launch lead, so each sits at the top of the lower list whenever it is not in the top slot.
  */
 export const DEFAULT_ELEMENT_ORDER = [
   'clock',

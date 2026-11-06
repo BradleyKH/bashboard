@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { showToast } from './toast';
 
-/** An editor the core detected (docs/design.md section 3.12). */
+/** An editor the core detected (docs/design/files.md section 3.12). */
 export interface Editor {
   id: string;
   name: string;

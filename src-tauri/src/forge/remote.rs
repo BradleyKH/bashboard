@@ -1,4 +1,4 @@
-//! Turning a git remote URL into a `RepoRef` (docs/design.md section 3.20). Pure apart from
+//! Turning a git remote URL into a `RepoRef` (docs/design/ship.md section 3.20). Pure apart from
 //! `gh_hosts` and `read_glab_hosts`, which read GitHub CLI's `hosts.yml` and GitLab CLI's
 //! `config.yml`.
 

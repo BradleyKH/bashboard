@@ -1,4 +1,4 @@
-//! The normalized shapes every forge provider returns (docs/design.md section 3.20). They
+//! The normalized shapes every forge provider returns (docs/design/ship.md section 3.20). They
 //! serialize camelCase and `src/forgeApi.ts` mirrors them field for field.
 
 use std::fmt;

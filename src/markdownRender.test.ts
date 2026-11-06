@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { classifyLink, renderUnsanitized } from './markdownRender';
+import { classifyLink, renderUnsanitized, samePath, slugify } from './markdownRender';
+
+describe('heading anchors', () => {
+  it('slugs headings the way GitHub does', () => {
+    expect(slugify("A repo's view")).toBe('a-repos-view');
+    expect(slugify('Codex, Copilot, and local AI models (preview)')).toBe('codex-copilot-and-local-ai-models-preview');
+  });
+
+  it('tags headings with their slug and numbers duplicates', () => {
+    const out = renderUnsanitized('## The `bb` CLI\n\n## Pins\n\n## Pins');
+    expect(out).toContain('<h2 data-anchor="the-bb-cli">');
+    expect(out).toContain('<h2 data-anchor="pins">');
+    expect(out).toContain('<h2 data-anchor="pins-1">');
+  });
+});
 
 describe('renderUnsanitized', () => {
   it('escapes raw HTML', () => {
@@ -35,8 +49,15 @@ describe('classifyLink', () => {
   });
 
   it('treats fragments as anchors', () => {
-    expect(classifyLink('#top', file)).toEqual({ kind: 'anchor' });
-    expect(classifyLink('guide.md#top', file)).toEqual({ kind: 'file', path: 'C:\\repo\\docs\\guide.md' });
+    expect(classifyLink('#top', file)).toEqual({ kind: 'anchor', fragment: 'top' });
+    expect(classifyLink('?x#a%20b', file)).toEqual({ kind: 'anchor', fragment: 'a b' });
+    expect(classifyLink('guide.md#top', file)).toEqual({ kind: 'file', path: 'C:\\repo\\docs\\guide.md', fragment: 'top' });
+    expect(classifyLink('guide.md', file)).toEqual({ kind: 'file', path: 'C:\\repo\\docs\\guide.md' });
+  });
+
+  it('compares Windows paths ignoring case and slash direction', () => {
+    expect(samePath('C:\\Repo\\docs\\Guide.md', 'c:/repo/docs/guide.md')).toBe(true);
+    expect(samePath('C:\\repo\\a.md', 'C:\\repo\\b.md')).toBe(false);
   });
 
   it('resolves relative paths against the current file folder', () => {
@@ -45,8 +66,8 @@ describe('classifyLink', () => {
     expect(classifyLink('../README.md', file)).toEqual({ kind: 'file', path: 'C:\\repo\\README.md' });
   });
 
-  it('decodes percent escapes and strips query and fragment', () => {
-    expect(classifyLink('my%20notes.md?x=1#h', file)).toEqual({ kind: 'file', path: 'C:\\repo\\docs\\my notes.md' });
+  it('decodes percent escapes, strips the query, and keeps the fragment apart', () => {
+    expect(classifyLink('my%20notes.md?x=1#a%20b', file)).toEqual({ kind: 'file', path: 'C:\\repo\\docs\\my notes.md', fragment: 'a b' });
   });
 
   it('keeps forward slashes for a posix-style current file', () => {

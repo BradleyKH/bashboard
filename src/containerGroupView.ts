@@ -39,7 +39,7 @@ function spacer(label: string): HTMLElement {
   return s;
 }
 
-/** A group header plus, when expanded, its containers (docs/design.md section 4.16). */
+/** A group header plus, when expanded, its containers (docs/design/containers.md section 4.16). */
 export function renderContainerGroup(g: ContainerGroup, opts: ContainerGroupViewOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = 'ctr-group';

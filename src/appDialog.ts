@@ -26,7 +26,9 @@ interface Slot {
   mounted: boolean;
 }
 
-/** The Help, Settings, Accounts, Shortcuts, CLI, and About dialog (docs/design.md section 4.18). */
+/**
+ * The Help, Settings, Accounts, Shortcuts, CLI, and About dialog (docs/design/app.md section 4.18).
+ */
 export class AppDialog {
   private backdrop: HTMLElement | null = null;
   private box: HTMLElement | null = null;

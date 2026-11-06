@@ -24,7 +24,7 @@ export interface ContainerLogsOptions {
   onClose: () => void;
 }
 
-/** The logs panel beside the Containers list (docs/design.md section 4.16). */
+/** The logs panel beside the Containers list (docs/design/containers.md section 4.16). */
 export class ContainerLogs {
   readonly el: HTMLElement;
   private readonly title: HTMLElement;

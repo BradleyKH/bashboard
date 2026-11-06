@@ -5,7 +5,7 @@ import './updateNotice.css';
 
 export type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
 
-/** Bottom-right banner offering an available update (docs/design.md section 3.16). */
+/** Bottom-right banner offering an available update (docs/design/app.md section 3.16). */
 export class UpdateNotice {
   private root: HTMLElement | null = null;
   private busy = false;

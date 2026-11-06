@@ -1,6 +1,8 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-/** A resolved `bb` request; mirrors `CliAction` in the Rust core (docs/design.md section 3.13). */
+/**
+ * A resolved `bb` request; mirrors `CliAction` in the Rust core (docs/design/app.md section 3.13).
+ */
 export type CliAction =
   | { kind: 'open'; path: string; isDir: boolean; root: string }
   | { kind: 'edit'; path: string; line?: number | null }

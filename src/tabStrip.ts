@@ -7,7 +7,7 @@ import type { Workspace } from './workspace';
 const DRAG_THRESHOLD_PX = 4;
 const HOVER_SWITCH_MS = 500;
 
-/** Window-top tab strip, visible with two or more tabs (docs/design.md section 4.10). */
+/** Window-top tab strip, visible with two or more tabs (docs/design/workspace.md section 4.10). */
 export class TabStrip {
   private readonly items = new Map<string, TabItem>();
   private readonly add: HTMLButtonElement;

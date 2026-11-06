@@ -1,4 +1,4 @@
-//! Azure DevOps Services (docs/design.md section 3.20), over the REST API at
+//! Azure DevOps Services (docs/design/ship.md section 3.20), over the REST API at
 //! `https://dev.azure.com/{org}` with `api-version` on every call. The JSON-to-DTO mapping and
 //! the requests that change a build (cancel, re-run) are pure functions, so they test without
 //! the network.

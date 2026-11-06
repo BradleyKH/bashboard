@@ -23,8 +23,9 @@ export function folderName(path: string): string {
 }
 
 /**
- * The dashboard's Pins section, the focused pane's repo's pins (docs/design.md section 4.6). The
- * panel keeps it fixed between the top slot and the lower list rather than among the elements.
+ * The dashboard's Pins section, the focused pane's repo's pins (docs/design/dashboard.md
+ * section 4.6). The panel keeps it fixed between the top slot and the lower list rather than among
+ * the elements.
  */
 export class PinsSection {
   readonly el: HTMLElement;

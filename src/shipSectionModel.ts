@@ -1,4 +1,4 @@
-// What the dashboard's Ship section shows (docs/design.md section 4.6). Pure, no DOM.
+// What the dashboard's Ship section shows (docs/design/dashboard.md section 4.6). Pure, no DOM.
 import type { Run, RunStatus } from './forgeApi';
 import { approvedByText, isReadyToMerge, relativeTime, statusInfo, type ShipTab } from './shipModel';
 import { isBitbucketPin, targetKey, type DashboardItem, type OverviewRow } from './shipOverviewModel';

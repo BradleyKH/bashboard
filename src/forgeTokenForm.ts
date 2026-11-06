@@ -15,9 +15,9 @@ export interface ForgeTokenFormOptions {
 
 /**
  * Password field for a Bitbucket API token or an Azure DevOps personal access token, plus the
- * organization for Azure DevOps (docs/design.md section 4.20). The value goes to the core once, as
- * the argument of `forgeSetToken`; it is never logged or kept, and the field is emptied on every
- * path out, success or not.
+ * organization for Azure DevOps (docs/design/ship.md section 4.20). The value goes to the core
+ * once, as the argument of `forgeSetToken`; it is never logged or kept, and the field is emptied on
+ * every path out, success or not.
  */
 export class ForgeTokenForm {
   readonly element: HTMLFormElement;

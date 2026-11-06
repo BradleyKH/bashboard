@@ -28,7 +28,7 @@ interface FocusRequest {
   retried: boolean;
 }
 
-/** The app dialog's Accounts tab: one card per code host, showing where its token comes from (docs/design.md section 4.20). */
+/** The app dialog's Accounts tab: one card per code host, showing where its token comes from (docs/design/ship.md section 4.20). */
 export class AccountsTab {
   private root: HTMLElement | null = null;
   private list: HTMLElement | null = null;

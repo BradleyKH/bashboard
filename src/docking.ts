@@ -1,4 +1,5 @@
-// Docking and expand rules over the split tree (docs/design.md sections 4.2, 4.3). Pure, no DOM.
+// Docking and expand rules over the split tree (docs/design/workspace.md sections 4.2, 4.3). Pure,
+// no DOM.
 import {
   autoDir,
   close,
@@ -25,10 +26,15 @@ export type DockResult =
 
 export type WindowEdge = Exclude<DockZone, 'center'>;
 export type DockTarget = { paneId: string; zone: DockZone } | { windowEdge: WindowEdge };
-/** A dock target, or a dashboard group whose tab a pane moves into (docs/design.md section 4.6). */
+/**
+ * A dock target, or a dashboard group whose tab a pane moves into (docs/design/dashboard.md
+ * section 4.6).
+ */
 export type DropTarget = DockTarget | { tabId: string };
 
-/** Width of the drop band along each edge of the pane area (docs/design.md section 4.2). */
+/**
+ * Width of the drop band along each edge of the pane area (docs/design/workspace.md section 4.2).
+ */
 export const WINDOW_EDGE_BAND_PX = 24;
 
 const EDGES: DockZone[] = ['left', 'right', 'top', 'bottom'];

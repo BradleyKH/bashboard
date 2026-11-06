@@ -13,7 +13,7 @@ export interface GitBranchMenuHandlers {
   insertName: (name: string) => void;
 }
 
-/** The menu for a local branch row (docs/design.md section 4.13). */
+/** The menu for a local branch row (docs/design/git.md section 4.13). */
 export function localBranchMenuItems(b: GitLocalBranch, h: GitBranchMenuHandlers): MenuEntry[] {
   const locked = lockedReason(b) !== null;
   const first =

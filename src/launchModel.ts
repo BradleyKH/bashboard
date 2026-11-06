@@ -1,5 +1,5 @@
-// The Launch options (docs/design.md section 4.6), shared by the Launch section, the top bar's
-// + menu, and the openLaunch menu. Pure, no DOM.
+// The Launch options (docs/design/dashboard.md section 4.6), shared by the Launch section, the top
+// bar's + menu, and the openLaunch menu. Pure, no DOM.
 
 import { agentName } from './agentNames';
 import { item, submenu, type MenuEntry } from './contextMenuModel';

@@ -40,12 +40,12 @@ export interface CommandEnd {
 const INTERRUPTED = 130;
 
 /**
- * Tracks which terminals show `done` or `failed` (docs/design.md section 4.8), from one mark per
- * pane, a newer mark of either kind replacing the old one. A `session` mark is a bound session's
- * Stop that arrived while the terminal was not being looked at; it shows `done`. A `command` mark
- * is a long shell command that finished unseen; it shows `done`, or `failed` when the command
- * exited nonzero, and clears on the next command's start. Pure display state layered over the
- * resolved status; it never reaches the roster or the backdrop.
+ * Tracks which terminals show `done` or `failed` (docs/design/terminal.md section 4.8), from one
+ * mark per pane, a newer mark of either kind replacing the old one. A `session` mark is a bound
+ * session's Stop that arrived while the terminal was not being looked at; it shows `done`. A
+ * `command` mark is a long shell command that finished unseen; it shows `done`, or `failed` when
+ * the command exited nonzero, and clears on the next command's start. Pure display state layered
+ * over the resolved status; it never reaches the roster or the backdrop.
  */
 export class DoneTracker {
   private readonly marks = new Map<string, DoneMark>();
