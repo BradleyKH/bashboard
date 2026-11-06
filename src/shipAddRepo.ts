@@ -90,6 +90,10 @@ export class ShipAddRepo {
     void this.resolveFolders();
   }
 
+  focus(): void {
+    this.input.focus();
+  }
+
   dispose(): void {
     this.disposed = true;
     this.unsubscribe();

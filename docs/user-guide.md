@@ -302,7 +302,7 @@ the **Overview** link at the start of the tabs goes back. A repo you pinned with
 has no checked-out branch, so its This branch checkbox is disabled and it has no account button; it
 uses the host's default account.
 
-The Overview shows when it was last updated and has its own **Accounts** button, which opens the
+The Overview shows when it was last updated and has an **Add** button (see Pinning), its own **Accounts** button, which opens the
 Accounts tab, and a **Refresh** button. It refreshes by
 itself every 5 minutes (`ship.overviewRefreshMinutes`; 0 turns this off),
 every minute while a health branch is running, and when you focus the pane after more than 30
@@ -312,8 +312,10 @@ the window is visible. Bitbucket allows 1,000 requests an hour per user and a re
 for ten, even while running), and the bar shows the pace, such as "Bitbucket every 3 min".
 
 **Pinning.** A repo's own view has a **Pin to Overview** button (**Unpin** while it is
-pinned). The box under the rows adds a repo without opening it (its **?** button explains the
-forms with examples): type `owner/name` (github.com, or
+pinned). The Overview's add box pins a repo without opening it. With nothing pinned it shows
+under the empty note; once a repo is pinned it is tucked behind the **Add** button in the bar,
+left of **Accounts**, and opens under the bar until you click **Add** again or press Escape. Its
+**?** button explains the forms with examples: type `owner/name` (github.com, or
 bitbucket.org when every pin is on Bitbucket), `host/owner/name`, or paste a link, which can be an
 https or ssh remote URL or the address of a page in the repo, and press Enter or **Pin to
 Overview**. Below the box, the folders in your repos list and favorites that are on a host the Ship
@@ -518,8 +520,8 @@ samples only while it is expanded, the panel is on screen, and the window is sho
 The **Wave**, also off by default, is a slowly turning looped line that reacts to your machine:
 it weaves tighter as CPU load rises and turns faster and brighter with network traffic. Hover it
 for the readings. Like the clock it has no header; drag it anywhere on the panel to move it. It
-holds still when the background animation is paused (Ctrl+Shift+A) or Windows asks apps to
-reduce motion.
+keeps moving when the background animation is paused (Ctrl+Shift+A), and holds still only when
+Windows asks apps to reduce motion.
 
 **Favorites** are folders you open terminals in often. By default they live behind the
 **Favorites** button in the panel's top bar, which drops a list that filters as you type;
@@ -616,10 +618,11 @@ the agent sent its first hook.
 With the Swirling Lights background, each live agent session also appears in the backdrop as its
 own colored lineage. It blooms while the session is busy and thins while it is idle; set
 `backdrop.waitingPulse` to `true` to also make it pulse while it waits for you. The color
-matches the swatch beside the session in the dashboard. The Matrix and None backgrounds show no
-lineages, so the dashboard hides those swatches; switching back to Swirling Lights brings each live session's lineage back as a fresh
+matches the swatch beside the session in the dashboard. The other backgrounds (Matrix, Image,
+Slideshow, and None) show no lineages, so the dashboard hides those swatches; switching back to Swirling Lights brings each live session's lineage back as a fresh
 founder. The Background choice in the Settings tab picks the style (see
-[Settings](settings.md#settings)), and Ctrl+Shift+A pauses or resumes it. Ctrl+Shift+B cycles
+[Settings](settings.md#settings)), including Image and Slideshow, which show your own pictures,
+and Ctrl+Shift+A pauses or resumes Swirling Lights or Matrix. Ctrl+Shift+B cycles
 the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
 Brightness in the Settings tab; the blur stays as set there.
 

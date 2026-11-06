@@ -1,4 +1,5 @@
 mod agents;
+mod backdrop_image;
 mod cli;
 mod clipboard;
 mod config_dir;
@@ -170,6 +171,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             agents::agents_detected,
+            backdrop_image::backdrop_image_read,
+            backdrop_image::backdrop_image_list,
+            backdrop_image::backdrop_image_pick,
             clipboard::clipboard_read_text,
             pty::pty_spawn,
             pty::pty_write,

@@ -1719,8 +1719,8 @@ on a log scale that tops out at 10 MB/s, speeds the slow turn of its phase and b
 A faint copy a little behind the main line gives it depth. Both inputs ease toward each new
 reading over about 1.5 s, so the figure morphs rather than jumps. It samples `system_sample`
 every 2 s and draws at most 20 frames a second on a small 2D canvas, only while it is enabled,
-the panel is on screen, and the window is shown. With `backdrop.animate` off or reduced motion
-requested, it holds a still figure redrawn on each sample. Its tooltip and accessible name give
+the panel is on screen, and the window is shown. It keeps moving with `backdrop.animate` off; with
+reduced motion requested, it holds a still figure redrawn on each sample. Its tooltip and accessible name give
 the CPU and network readings.
 
 **Polling.** System, shown by `dashboard.sections.system`, polls the core on timers, and each
@@ -2675,8 +2675,13 @@ has Back, Next, and Skip setup.
    agent's install with its confirmation (3.3). An installed Codex hook that is not yet trusted
    says Codex will ask to trust it on its next start.
 7. **Look.** Applied live, in the Settings tab's terms (6.2). Background (None, Swirling
-   Lights, Matrix; `backdrop.style`). Animate the background (`backdrop.animate`) and Brightness
-   (Low, Medium, High, the scrim presets of section 5 from darkest), both hidden under None. Accent
+   Lights, Matrix, Image, Slideshow; `backdrop.style`). Image and Slideshow open the native picker
+   (`backdrop_image_pick`, 6.5) for a file or folder and save the style only once it returns a
+   path (`backdrop.image.file` or `backdrop.image.folder`), so cancelling changes nothing; a line
+   under the row then names the picked path with a Change button, and Fit and the slideshow's
+   timing stay at their defaults for the Settings tab. Animate the background
+   (`backdrop.animate`), shown only for Swirling Lights and Matrix, and Brightness (Low, Medium,
+   High, the scrim presets of section 5 from darkest), hidden under None. Accent
    color as swatches of its presets (`accentColor`), and Text color as an Accent tint swatch, drawn
    from the accent shown, and a White one (`contentTextColor`). Picking Matrix turns the accent
    to the Green preset while it is still at its default, to go with the green rain, and the
@@ -2868,7 +2873,11 @@ hidden; the menu still holds every action. A drilled view with no clone has no
 checked-out branch, so its This branch checkbox is disabled, and its account chip is hidden, since
 the account is the host's default one.
 
-**Add repo.** A box at the bottom of the Overview, with a **Pin to Overview** button and Enter,
+**Add repo.** A box on the Overview, with a **Pin to Overview** button and Enter. With no repo
+pinned it shows under the empty note; with pins it is hidden behind an **Add** chip in the bar,
+left of Accounts, which toggles it open under the bar, and Escape in it closes it. It stays open
+after a pin, including the first one made from the empty Overview, so several can be pinned in a
+row. It
 has a **?** button whose tooltip, also shown under the box on click, explains the forms with
 examples, and takes a repo as `owner/name`, `host/owner/name`, or a link: an https, ssh, or scp remote URL, or a
 web URL into the repo. A bare `owner/name` is taken as github.com, or as bitbucket.org when every
@@ -3139,10 +3148,11 @@ constantly redrawing canvas is the most expensive effect here, hence the default
 
 ## 6. Backdrop
 
-The backdrop has three styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
-default), `matrix` (Matrix), and `none`. Swirling Lights is the colony simulation drawn by
-Three.js, and the one that shows sessions as organisms (6.3). Matrix is falling glyph rain drawn
-with Canvas 2D. None mounts nothing, so z0 is empty. Exactly one style is mounted at a time, and
+The backdrop has five styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
+default), `matrix` (Matrix), `image` (Image), `slideshow` (Slideshow), and `none`. Swirling Lights
+is the colony simulation drawn by Three.js, and the one that shows sessions as organisms (6.3).
+Matrix is falling glyph rain drawn with Canvas 2D. Image and Slideshow draw local pictures with
+Canvas 2D (6.5). None mounts nothing, so z0 is empty. Exactly one style is mounted at a time, and
 changing the setting swaps it live.
 
 ### 6.1 Modules
@@ -3154,6 +3164,10 @@ The backdrop code lives in `src/backdrop/`.
   Lights style.
 - `src/backdrop/matrix/` is the Matrix style: `matrixModel.ts` is the pure, DOM-free rain model
   (unit tested), and `matrixBackdrop.ts` draws it on a canvas and runs its step clock.
+- `src/backdrop/image/` is the Image and Slideshow styles: `imageFit.ts` (where a picture is drawn
+  for each fit) and `slideshowOrder.ts` (which picture is next) are pure and unit tested, and
+  `imageBackdrop.ts` loads, draws, crossfades, and times the pictures. The core's
+  `backdrop_image.rs` reads and lists the files (6.5).
 - `backdropHandle.ts` holds `StyleBackdrop`, the interface every style exposes. `backdropHost.ts`
   is the `BackdropHost`, which owns the canvas and the mounted style, and `colonyRelay.ts` is the
   `ColonyRelay` that carries sessions across style switches (6.2).
@@ -3225,6 +3239,14 @@ export interface MatrixBackdrop extends StyleBackdrop {
 }
 
 export function mountMatrix(canvas: HTMLCanvasElement, options: MatrixOptions): MatrixBackdrop;
+
+// Image and Slideshow, src/backdrop/image/imageBackdrop.ts
+export interface ImageBackdrop extends StyleBackdrop {
+  /** `backdrop.image`, plus which of the two styles is mounted. setAnimated does nothing. */
+  setOptions(options: ImageOptions): void;
+}
+
+export function mountImage(canvas: HTMLCanvasElement, options: ImageOptions, onError: (message: string) => void): ImageBackdrop;
 ```
 
 Swirling Lights' simulation runs at a fixed 12 generations per second, and the camera orbits
@@ -3237,7 +3259,8 @@ pulse below.
 
 The Settings tab groups the backdrop's settings, and the scrim, under "Background
 Animation"; the UI calls the backdrop the background animation. It opens with a Background select
-(None, Swirling Lights, Matrix) and shows only the fields that apply to the chosen style. The
+(None, Swirling Lights, Matrix, Image, Slideshow) and shows only the fields that apply to the
+chosen style. The
 scrim's controls are labeled "Brightness" (shown as 1 minus `scrim.opacity`, so the far left is
 fully dimmed) and "Blur".
 
@@ -3246,6 +3269,8 @@ fully dimmed) and "Blur".
 | None | Background | (nothing) |
 | Swirling Lights | Background, Animate, Brightness, Blur, Zoom | Frame rate cap, Density, Color drift, Pulse waiting sessions |
 | Matrix | Background, Animate, Brightness, Blur, Color, Zoom, Density | Speed |
+| Image | Background, Image, Fit, Brightness, Blur | (the same) |
+| Slideshow | Background, Folder, Fit, Change every, Crossfade, Shuffle, Include subfolders, Brightness, Blur | (the same) |
 
 While `backdrop.animate` is off, the fields a still frame can't show are hidden. Zoom, Brightness,
 and Blur still change the frozen view, and so do Matrix's Color and Density, which redraw the still
@@ -3346,6 +3371,40 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
 - Ctrl+Shift+A pauses or resumes the mounted style and saves `backdrop.animate`; under None it
   does nothing and saves nothing.
 - None mounts nothing: no renderer, no frame loop, and no Three.js load.
+
+### 6.5 Image and Slideshow
+
+Image draws one picture (`backdrop.image.file`); Slideshow draws the pictures in a folder
+(`backdrop.image.folder`) in turn. Both draw into the `#backdrop` canvas with Canvas 2D, so the
+scrim's brightness and blur reach them through the canvas's CSS filter like every other style.
+Neither animates, so they ignore `backdrop.animate`, the Settings tab hides Animate for them, and
+Ctrl+Shift+A does nothing while either is shown.
+
+- **Loading through the core.** The CSP allows images only from the app (`img-src 'self'`), so the
+  webview never loads a path. `backdrop_image_read` returns the file's bytes as a raw IPC response
+  and the front end decodes them with `createImageBitmap`, which the CSP does not govern.
+  `backdrop_image_list` lists a folder, optionally with its subfolders, sorted case-insensitively.
+  Both expand `%VARS%`, serve only image extensions (png, jpg, jpeg, webp, avif, bmp, gif), and
+  refuse files over 100 MB; a listing stops at 20,000 files and 16 folders deep, and never follows
+  a linked folder. `backdrop_image_pick` opens the native file or folder picker for the Settings
+  tab's Browse buttons.
+- **Fit.** `fill`, `fit`, `stretch`, `center`, and `tile` match the Windows wallpaper modes (Span
+  has no meaning inside one window). Center and tile draw at one picture pixel per device pixel.
+  The canvas is cleared to the body's background color first, so bars and uncovered space match
+  the gaps between panes.
+- **Decoding size.** A picture larger than the screen is shrunk once, at decode, to just cover the
+  screen (fill, fit, and stretch never need more), so an 8K photo does not stay in memory at full
+  size. Center and tile keep every pixel. Changing the fit decodes the current picture again.
+- **Slideshow timing.** Each change lists the folder again, so added and removed pictures are
+  picked up without a watcher. In order, the next picture is the first whose path sorts after the
+  current one, wrapping; shuffled, it is a random picture not yet shown this round, never the
+  current one twice in a row. The incoming picture crossfades in over `crossfadeSeconds` (0 to 5,
+  default 2.5), eased in and out; 0, or reduced motion, swaps it instantly. The timer stops while the window is hidden and resumes with the time it had
+  left. A picture that fails to load is reported and skipped, up to 10 in a row; an error repeated
+  at the next interval is not reported twice.
+- **Errors.** An empty path is the unset state and draws only the background color. Anything that
+  cannot be shown raises a "Could not show the background image" toast through the `onError`
+  callback the `BackdropHost` passes in, since a picture can fail long after the style mounted.
 
 ## 7. Data model
 
@@ -3501,15 +3560,19 @@ it with no pins, and Automatic omits it.
   // #e6e6e6 and as accent otherwise; any other value falls back to accent with a notice.
   "contentTextColor": "accent",
   "scrim": { "opacity": 0.5, "blurPx": 1 },
-  // style is none, lights (Swirling Lights), or matrix; a missing or invalid value falls back to
-  // lights. animate false freezes lights and matrix on a still frame (6.4); none ignores it.
+  // style is none, lights (Swirling Lights), matrix, image, or slideshow; a missing or invalid
+  // value falls back to lights. animate false freezes lights and matrix on a still frame (6.4);
+  // the other styles ignore it.
   // maxFps, capacity, mutationRate, zoom, and waitingPulse apply to lights only: maxFps 0 renders
   // at the display's refresh rate, and the rest are the simulation and camera controls (6.2).
   // matrix.color is green (#00ff41) or accent: accentColor at full brightness with its HSV
   // saturation raised by half, so a gray accent stays gray. A #rrggbb value loads as green when it
   // is #00ff41 and as accent otherwise. matrix.zoom is 0.5 to 3 (the base cell is 20 px);
   // matrix.speed is a whole number of rain steps per second, 5 to 30; matrix.density (0.25 to 4)
-  // scales how often a new drop starts. Out-of-range or invalid values fall back to their defaults.
+  // scales how often a new drop starts. image is for the image and slideshow styles (6.5): file
+  // and folder may contain %VARS% and are empty until set; fit is fill, fit, stretch, center, or
+  // tile; intervalSeconds is a whole number from 5 to 86400; crossfadeSeconds is 0 to 5. Out-of-range or invalid values fall
+  // back to their defaults.
   "backdrop": {
     "style": "lights",
     "animate": false,
@@ -3518,7 +3581,8 @@ it with no pins, and Automatic omits it.
     "mutationRate": 0.2,
     "zoom": 2,
     "waitingPulse": false,
-    "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 }
+    "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 },
+    "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 2.5, "shuffle": true, "includeSubfolders": false }
   },
   "scrollback": 10000,
   // A shell command that runs this many seconds and finishes unseen marks its terminal done or

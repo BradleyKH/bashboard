@@ -105,6 +105,11 @@
   border-color: var(--ship-accent);
 }
 
+.ship-chip[aria-pressed='true'] {
+  color: var(--ship-fg);
+  border-color: var(--ship-accent);
+}
+
 .ship-chip.warn {
   border-color: var(--ship-warn);
   color: var(--ship-warn);
@@ -788,6 +793,7 @@
 .ship-ov-pulls[hidden],
 .ship-ov-health[hidden],
 .ship-ov-error[hidden],
+.ship-add[hidden],
 .ship-add-message[hidden],
 .ship-add-list[hidden],
 .ship-overview .ship-note[hidden] {
@@ -834,6 +840,11 @@
   flex-direction: column;
   gap: 6px;
   padding: 10px 8px;
+}
+
+/* Opened under the bar, above the pinned rows. */
+.ship-add:has(+ .ship-ov-list:not(:empty)) {
+  border-bottom: 1px solid var(--ship-border);
 }
 
 .ship-add-row {

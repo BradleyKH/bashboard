@@ -452,8 +452,7 @@ export class DashboardPanel {
 
   /**
    * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle` (docs/design.md
-   * section 4.6); `backdrop.animate` also stills the Wave, and `backdrop.style` decides whether
-   * session swatches show.
+   * section 4.6); `backdrop.style` decides whether session swatches show.
    */
   applyDashboardSettings(d: Settings['dashboard'], backdrop: Settings['backdrop'], minContext: number): void {
     this.shown = { ...d.sections };
@@ -462,7 +461,6 @@ export class DashboardPanel {
     this.showSwatches = showSwatches;
     this.minContext = minContext;
     this.localModelsSection.update(this.localModelsStore?.current() ?? null, minContext);
-    this.wave.setAnimate(backdrop.animate);
     this.clockStyle = d.clockStyle;
     this.clock.setStyle(d.clockStyle);
     this.setSide(d.side);

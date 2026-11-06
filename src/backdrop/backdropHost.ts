@@ -2,11 +2,15 @@
 import type { BackdropStyle, Settings } from '../settings';
 import type { BackdropHandle } from './backdrop';
 import { ColonyRelay } from './colonyRelay';
+import type { ImageBackdrop, ImageOptions } from './image/imageBackdrop';
 import type { MatrixBackdrop, MatrixOptions } from './matrix/matrixBackdrop';
 import { matrixRainColor } from './matrix/rainColor';
 
 type BackdropSettings = Settings['backdrop'];
-type Mounted = { style: 'lights'; handle: BackdropHandle } | { style: 'matrix'; handle: MatrixBackdrop };
+type Mounted =
+  | { style: 'lights'; handle: BackdropHandle }
+  | { style: 'matrix'; handle: MatrixBackdrop }
+  | { style: 'image' | 'slideshow'; handle: ImageBackdrop };
 
 export class BackdropHost {
   /** Hand this to ColonySync; it survives style switches and replays sessions into a new colony. */
@@ -23,7 +27,8 @@ export class BackdropHost {
   private visible = true;
   private animated = true;
 
-  constructor(canvas: HTMLCanvasElement) {
+  /** `onError` reports a picture the Image or Slideshow style could not show after mounting. */
+  constructor(canvas: HTMLCanvasElement, private readonly onError: (message: string) => void = () => {}) {
     this.canvas = canvas;
     // Cloned before any style touches the canvas, so a style's inline styles never carry over.
     this.template = canvas.cloneNode(false) as HTMLCanvasElement;
@@ -52,7 +57,7 @@ export class BackdropHost {
     const canvas = this.canvas;
     let mounted: Mounted;
     try {
-      mounted = await mount(style, canvas, matrixOptions(settings, accent));
+      mounted = await mount(style, canvas, settings, accent, this.onError);
     } catch (err) {
       if (generation !== this.generation) return;
       throw err;
@@ -83,8 +88,10 @@ export class BackdropHost {
     if (current.style === 'lights') {
       current.handle.setMaxFps(settings.maxFps);
       current.handle.setOptions(settings);
-    } else {
+    } else if (current.style === 'matrix') {
       current.handle.setOptions(matrixOptions(settings, this.accent));
+    } else {
+      current.handle.setOptions(imageOptions(settings, current.style));
     }
     current.handle.setAnimated(this.animated);
     current.handle.setVisible(this.visible);
@@ -110,12 +117,26 @@ function matrixOptions(settings: BackdropSettings, accent: string): MatrixOption
   return { ...settings.matrix, color: matrixRainColor(settings.matrix.color, accent) };
 }
 
-async function mount(style: 'lights' | 'matrix', canvas: HTMLCanvasElement, matrix: MatrixOptions): Promise<Mounted> {
+function imageOptions(settings: BackdropSettings, mode: 'image' | 'slideshow'): ImageOptions {
+  return { ...settings.image, mode };
+}
+
+async function mount(
+  style: Exclude<BackdropStyle, 'none'>,
+  canvas: HTMLCanvasElement,
+  settings: BackdropSettings,
+  accent: string,
+  onError: (message: string) => void,
+): Promise<Mounted> {
   // Dynamic imports keep Three.js out of the main bundle; only the lights style loads it.
   if (style === 'lights') {
     const { mountBackdrop } = await import('./backdrop');
     return { style, handle: mountBackdrop(canvas) };
   }
-  const { mountMatrix } = await import('./matrix/matrixBackdrop');
-  return { style, handle: mountMatrix(canvas, matrix) };
+  if (style === 'matrix') {
+    const { mountMatrix } = await import('./matrix/matrixBackdrop');
+    return { style, handle: mountMatrix(canvas, matrixOptions(settings, accent)) };
+  }
+  const { mountImage } = await import('./image/imageBackdrop');
+  return { style, handle: mountImage(canvas, imageOptions(settings, style), onError) };
 }

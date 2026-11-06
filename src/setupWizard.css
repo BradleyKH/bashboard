@@ -183,8 +183,20 @@
 
 /* The flex rules above would otherwise override the hidden attribute. */
 .setup-wizard-field[hidden],
-.setup-wizard-choice[hidden] {
+.setup-wizard-choice[hidden],
+.setup-wizard-picked[hidden] {
   display: none;
+}
+
+.setup-wizard-picked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-wizard-picked .setup-wizard-note {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .setup-wizard-swatches {

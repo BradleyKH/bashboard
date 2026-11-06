@@ -58,6 +58,7 @@ pub struct Backdrop {
     pub zoom: f64,
     pub waiting_pulse: bool,
     pub matrix: MatrixBackdrop,
+    pub image: ImageBackdrop,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -72,8 +73,28 @@ pub struct MatrixBackdrop {
     pub density: f64,
 }
 
+/// The Image and Slideshow styles' settings; `file` is Image's, the rest Slideshow's, and `fit`
+/// both.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageBackdrop {
+    /// May contain `%VARS%`; empty until the user picks one.
+    pub file: String,
+    pub folder: String,
+    /// One of `IMAGE_FITS`.
+    pub fit: String,
+    pub interval_seconds: u32,
+    /// 0 swaps pictures with no fade.
+    pub crossfade_seconds: f64,
+    pub shuffle: bool,
+    pub include_subfolders: bool,
+}
+
 /// Ids `backdrop.style` accepts (docs/design.md section 8).
-pub const BACKDROP_STYLES: [&str; 3] = ["none", "lights", "matrix"];
+pub const BACKDROP_STYLES: [&str; 5] = ["none", "lights", "matrix", "image", "slideshow"];
+
+/// Ids `backdrop.image.fit` accepts, the Windows wallpaper modes less Span.
+pub const IMAGE_FITS: [&str; 5] = ["fill", "fit", "stretch", "center", "tile"];
 
 /// The front end derives the rain's color from the mode and the accent
 /// (src/backdrop/matrix/rainColor.ts).
@@ -399,6 +420,15 @@ impl Default for Settings {
                 zoom: 2.0,
                 waiting_pulse: false,
                 matrix: MatrixBackdrop { color: "green".into(), zoom: 1.0, speed: 10, density: 3.0 },
+                image: ImageBackdrop {
+                    file: String::new(),
+                    folder: String::new(),
+                    fit: "fill".into(),
+                    interval_seconds: 600,
+                    crossfade_seconds: 2.5,
+                    shuffle: true,
+                    include_subfolders: false,
+                },
             },
             scrollback: 10000,
             terminal: Terminal { done_after_seconds: 30, notify_when_waiting: true },
@@ -854,6 +884,39 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
                 &mut w,
                 |v| number(v).filter(|n| (0.25..=4.0).contains(n)),
                 d.backdrop.matrix.density,
+            ),
+        },
+        image: ImageBackdrop {
+            file: pick(&root, &["backdrop", "image", "file"], &mut w, string, d.backdrop.image.file),
+            folder: pick(&root, &["backdrop", "image", "folder"], &mut w, string, d.backdrop.image.folder),
+            fit: pick(
+                &root,
+                &["backdrop", "image", "fit"],
+                &mut w,
+                |v| v.as_str().filter(|s| IMAGE_FITS.contains(s)).map(String::from),
+                d.backdrop.image.fit,
+            ),
+            interval_seconds: pick(
+                &root,
+                &["backdrop", "image", "intervalSeconds"],
+                &mut w,
+                |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| (5..=86400).contains(n)),
+                d.backdrop.image.interval_seconds,
+            ),
+            crossfade_seconds: pick(
+                &root,
+                &["backdrop", "image", "crossfadeSeconds"],
+                &mut w,
+                |v| number(v).filter(|n| (0.0..=5.0).contains(n)),
+                d.backdrop.image.crossfade_seconds,
+            ),
+            shuffle: pick(&root, &["backdrop", "image", "shuffle"], &mut w, boolean, d.backdrop.image.shuffle),
+            include_subfolders: pick(
+                &root,
+                &["backdrop", "image", "includeSubfolders"],
+                &mut w,
+                boolean,
+                d.backdrop.image.include_subfolders,
             ),
         },
     };
@@ -1355,6 +1418,32 @@ mod tests {
             let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "maxFps": {bad} }} }}"#));
             assert_eq!(s.backdrop.max_fps, Settings::default().backdrop.max_fps, "{bad}");
             assert!(w.iter().any(|m| m.starts_with("backdrop.maxFps")), "{bad}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn backdrop_image_values_parse_and_invalid_ones_fall_back() {
+        let (s, w) = parse_settings(
+            r#"{ "backdrop": { "style": "slideshow", "image": { "file": "%USERPROFILE%/a.png", "folder": "D:/pics", "fit": "tile", "intervalSeconds": 60, "crossfadeSeconds": 0, "shuffle": false, "includeSubfolders": true } } }"#,
+        );
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.backdrop.style, "slideshow");
+        assert_eq!(
+            s.backdrop.image,
+            ImageBackdrop {
+                file: "%USERPROFILE%/a.png".into(),
+                folder: "D:/pics".into(),
+                fit: "tile".into(),
+                interval_seconds: 60,
+                crossfade_seconds: 0.0,
+                shuffle: false,
+                include_subfolders: true,
+            }
+        );
+        for (key, bad) in [("fit", r#""span""#), ("intervalSeconds", "4"), ("intervalSeconds", "86401"), ("crossfadeSeconds", "5.5"), ("crossfadeSeconds", "-1"), ("shuffle", "1")] {
+            let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "image": {{ "{key}": {bad} }} }} }}"#));
+            assert_eq!(s.backdrop.image, Settings::default().backdrop.image, "{key}: {bad}");
+            assert!(w.iter().any(|m| m.starts_with(&format!("backdrop.image.{key}"))), "{key}: {w:?}");
         }
     }
 

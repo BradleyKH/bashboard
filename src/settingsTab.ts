@@ -9,6 +9,8 @@ export interface SettingsTabCallbacks {
   onOpenFile(): Promise<void>;
   /** The shells the core can launch, for fields limited to installed options. */
   getProfiles(): ShellProfile[];
+  /** Opens the native picker for a field's Browse button; null when cancelled. */
+  onBrowse(kind: 'imageFile' | 'folder', current: string): Promise<string | null>;
 }
 
 const SLIDER_DEBOUNCE_MS = 250;
@@ -316,8 +318,8 @@ export class SettingsTab {
         };
       } else {
         c.show = (v) => {
-          fill(selectChoices(f.options ?? [], v));
-          if (typeof v === 'string') sel.value = v;
+          fill(selectChoices(f.options ?? [], v, f.unit));
+          if (typeof v === 'string' || typeof v === 'number') sel.value = String(v);
         };
       }
       return sel;
@@ -397,6 +399,24 @@ export class SettingsTab {
           const options = Array.from(list.options, (o) => o.value);
           if (isSuggestionPick((e as InputEvent).inputType, input.value, options)) this.commit(c, input.value);
         });
+      }
+      const browseKind = f.browse;
+      if (browseKind) {
+        const browse = document.createElement('button');
+        browse.type = 'button';
+        browse.className = 'settings-tab-browse';
+        browse.textContent = 'Browse';
+        browse.addEventListener('click', () => {
+          this.callbacks
+            .onBrowse(browseKind, input.value)
+            .then((picked) => {
+              if (picked === null) return;
+              input.value = picked;
+              this.commit(c, picked);
+            })
+            .catch((err: unknown) => setError(c, errorText(err)));
+        });
+        c.cell.append(browse);
       }
     }
     input.addEventListener('blur', () => this.commit(c, input.value));

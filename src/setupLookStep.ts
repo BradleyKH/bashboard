@@ -1,4 +1,5 @@
 import { ACCENT_PRESETS } from './accent';
+import { pickBackdropImage } from './backdrop/image/imagePick';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { SCRIM_PRESETS } from './scrim';
 import type { BackdropStyle, Settings } from './settings';
@@ -15,6 +16,8 @@ export interface LookStepContext {
   getSettings(): Settings;
   /** Saves one value; on failure the wizard shows the error and calls `revert`. */
   save(path: string[], value: unknown, revert: () => void): void;
+  /** Shows an error that no save produced, such as a picker that failed to open. */
+  fail(message: string): void;
   /** Whether the wizard turned the accent green for Matrix, kept across re-renders of the step. */
   autoColors: { get(): AutoColors; set(next: AutoColors): void };
 }
@@ -23,6 +26,8 @@ const BACKGROUNDS: { value: BackdropStyle; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'lights', label: 'Swirling Lights' },
   { value: 'matrix', label: 'Matrix' },
+  { value: 'image', label: 'Image' },
+  { value: 'slideshow', label: 'Slideshow' },
 ];
 
 // Named for how bright the background shows through, matching the settings dialog's Brightness
@@ -34,9 +39,9 @@ const BRIGHTNESS: { preset: keyof typeof SCRIM_PRESETS; label: string }[] = [
 ];
 
 /**
- * The setup wizard's Look step: the background style, how brightly it shows through the panes,
- * whether it moves, and the accent and text colors (docs/design.md section 4.17). Returns the
- * function that shows a settings file's values.
+ * The setup wizard's Look step: the background style (Image and Slideshow by way of the native
+ * picker), how brightly it shows through the panes, whether it moves, and the accent and text
+ * colors (docs/design.md section 4.17). Returns the function that shows a settings file's values.
  */
 export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: Settings) => void {
   const { ui } = ctx;
@@ -44,12 +49,53 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
   let shownAccent = '';
 
   const backgrounds = pressGroup('Background', BACKGROUNDS, ui, (style) => {
+    if (style === 'image' || style === 'slideshow') void pickPicture(style);
+    else applyStyle(style);
+  });
+
+  function applyStyle(style: BackdropStyle): void {
     showStyle(style);
     ctx.save(['backdrop', 'style'], style, revert);
     const { saves, auto } = backgroundColorSaves(style, shownAccent, ctx.autoColors.get());
     ctx.autoColors.set(auto);
     for (const [, value] of saves) pickAccent(value, false);
-  });
+  }
+
+  // A picture style without a path draws nothing, so the style is saved only once the picker
+  // returns one; cancelling leaves the background as it was.
+  async function pickPicture(style: 'image' | 'slideshow'): Promise<void> {
+    const key = style === 'image' ? 'file' : 'folder';
+    let path: string | null;
+    try {
+      path = await pickBackdropImage(style === 'image' ? 'imageFile' : 'folder', ctx.getSettings().backdrop.image[key]);
+    } catch (err) {
+      ctx.fail(`Could not open the picker: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    if (path === null) return;
+    ctx.save(['backdrop', 'image', key], path, revert);
+    showPicked(style, path);
+    applyStyle(style);
+  }
+
+  // The picked file or folder, with a way to pick again; fit and slideshow timing stay in the
+  // Settings tab at their defaults.
+  const picked = document.createElement('div');
+  picked.className = 'setup-wizard-picked';
+  const pickedPath = document.createElement('span');
+  pickedPath.className = 'setup-wizard-note';
+  let pickedStyle: 'image' | 'slideshow' = 'image';
+  const change = ui.button('Change', () => void pickPicture(pickedStyle));
+  picked.append(pickedPath, change);
+
+  function showPicked(style: BackdropStyle, path: string): void {
+    picked.hidden = style !== 'image' && style !== 'slideshow';
+    if (picked.hidden) return;
+    pickedStyle = style as 'image' | 'slideshow';
+    const what = style === 'image' ? 'Picture' : 'Folder';
+    pickedPath.textContent = path ? `${what}: ${path}` : `No ${what.toLowerCase()} picked yet`;
+    pickedPath.title = path;
+  }
 
   const animate = document.createElement('label');
   animate.className = 'setup-wizard-choice';
@@ -89,16 +135,16 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
     text.paint((mode) => contentTextColor(mode, value));
   }
 
-  // None draws nothing, so there is nothing to animate or dim.
+  // None draws nothing, so there is nothing to animate or dim; a picture dims but never animates.
   function showStyle(style: BackdropStyle): void {
     backgrounds.mark(style);
-    const drawn = style !== 'none';
-    animate.hidden = !drawn;
-    brightness.group.hidden = !drawn;
+    animate.hidden = style !== 'lights' && style !== 'matrix';
+    brightness.group.hidden = style === 'none';
   }
 
   const sync = (s: Settings): void => {
     showStyle(s.backdrop.style);
+    showPicked(s.backdrop.style, s.backdrop.style === 'image' ? s.backdrop.image.file : s.backdrop.image.folder);
     animateBox.checked = s.backdrop.animate;
     brightness.mark(scrimPresetFor(s.scrim.opacity));
     showAccent(s.accentColor);
@@ -108,7 +154,7 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
     sync(ctx.getSettings());
   }
 
-  content.append(backgrounds.group, animate, brightness.group, accent.group, text.group);
+  content.append(backgrounds.group, picked, animate, brightness.group, accent.group, text.group);
   sync(ctx.getSettings());
   return sync;
 }

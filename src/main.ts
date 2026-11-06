@@ -64,6 +64,7 @@ import type { ProviderKind } from './forgeApi';
 import { pinTarget } from './filesRouting';
 import { layoutFromSnapshot, parseLayouts, upsertLayout, type NamedLayout } from './layouts';
 import { BackdropHost } from './backdrop/backdropHost';
+import { pickBackdropImage } from './backdrop/image/imagePick';
 import { setOpenMenuGitProbe } from './openMenu';
 import {
   favoritesLoad,
@@ -118,7 +119,9 @@ import { installTextFieldMenu } from './textFieldMenu';
 window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
 installTextFieldMenu();
 
-const backdrop = new BackdropHost(document.getElementById('backdrop') as HTMLCanvasElement);
+const backdrop = new BackdropHost(document.getElementById('backdrop') as HTMLCanvasElement, (message) =>
+  showToast(`Could not show the background image: ${message}`),
+);
 const colonySync = new ColonySync(backdrop.colony);
 // Tracked here rather than read from the settings so quick repeated toggles don't act on a
 // value the file watcher hasn't reported back yet.
@@ -162,7 +165,8 @@ try {
 }
 
 function toggleBackdrop(): void {
-  if (backdrop.style === 'none') return;
+  // Only the drawn styles animate; Image and Slideshow ignore backdrop.animate.
+  if (backdrop.style !== 'lights' && backdrop.style !== 'matrix') return;
   backdropAnimated = !backdropAnimated;
   backdrop.setAnimated(backdropAnimated);
   saveSetting(['backdrop', 'animate'], backdropAnimated).catch((err: unknown) =>
@@ -844,6 +848,7 @@ const settingsTab = new SettingsTab({
   onSave: saveSetting,
   onOpenFile: openSettingsFile,
   getProfiles: () => profiles,
+  onBrowse: pickBackdropImage,
 });
 const helpTab = new HelpTab(
   new SetupStatus({

@@ -10,7 +10,7 @@ const FRAME_MS = 1000 / WAVE_FPS;
 /**
  * The dashboard's Wave element: a looping line whose weave follows CPU load and whose drift
  * follows network traffic (docs/design.md section 4.6). It samples and draws only while the
- * panel decides it runs, and holds a still figure when motion is off.
+ * panel decides it runs, and holds a still figure when the OS asks for reduced motion.
  */
 export class DashboardWave {
   readonly el: HTMLElement;
@@ -18,7 +18,6 @@ export class DashboardWave {
   private readonly observer: ResizeObserver;
   private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private running = false;
-  private animate = true;
   private poll: ReturnType<typeof setInterval> | undefined;
   private frame: number | undefined;
   private lastFrame = 0;
@@ -57,15 +56,9 @@ export class DashboardWave {
     this.syncFrames();
   }
 
-  /** `backdrop.animate`: false holds a still figure that redraws only on each new reading. */
-  setAnimate(animate: boolean): void {
-    if (animate === this.animate) return;
-    this.animate = animate;
-    this.syncFrames();
-  }
-
+  /** Reduced motion holds a still figure that redraws only on each new reading. */
   private moving(): boolean {
-    return this.running && this.animate && !this.reducedMotion.matches;
+    return this.running && !this.reducedMotion.matches;
   }
 
   private syncFrames(): void {

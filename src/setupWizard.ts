@@ -757,6 +757,7 @@ export class SetupWizard {
       ui: this.ui,
       getSettings: () => this.callbacks.getSettings(),
       save: (path, value, revert) => this.save(path, value, revert),
+      fail: (message) => this.setError(message),
       autoColors: { get: () => this.autoColors, set: (next) => (this.autoColors = next) },
     });
   }

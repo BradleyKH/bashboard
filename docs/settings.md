@@ -69,16 +69,18 @@ Ctrl+Alt+1 through Ctrl+Alt+8 to it:
 Keys that type text (`sendInput`) are added in the file; the guide lists them but has no field
 for their text.
 
-The background (the backdrop) has three styles, chosen with `backdrop.style` or the Background
+The background (the backdrop) has five styles, chosen with `backdrop.style` or the Background
 select in the Background section of the Settings tab: `lights` (Swirling Lights, the
-default, a living colony simulation), `matrix` (Matrix, falling glyph rain), and `none` (nothing is
-drawn behind the panes). A missing or invalid value falls back to `lights` with a notice. The
-choice applies live. `backdrop.animate` applies to both drawn styles and starts `false`, a frozen
-still frame; set it to `true` to run the background. Ctrl+Shift+A pauses or resumes whichever style
-is showing and saves the choice to `backdrop.animate`; it does nothing under None. The dialog shows
-only the fields that apply to the chosen style. Brightness (the inverse of `scrim.opacity`, which
-dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 1) apply to
-both drawn styles. Blur softens the whole background, including the gaps between panes, and
+default, a living colony simulation), `matrix` (Matrix, falling glyph rain), `image` (Image, a
+picture from your disk), `slideshow` (Slideshow, the pictures in a folder in turn), and `none`
+(nothing is drawn behind the panes). A missing or invalid value falls back to `lights` with a
+notice. The choice applies live. `backdrop.animate` applies to Swirling Lights and Matrix and starts
+`false`, a frozen still frame; set it to `true` to run the background. Ctrl+Shift+A pauses or
+resumes either one and saves the choice to `backdrop.animate`; it does nothing under Image,
+Slideshow, or None, and the dialog shows Animate only for the two styles it affects. The dialog
+shows only the fields that apply to the chosen style. Brightness (the inverse of `scrim.opacity`,
+which dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 1) apply to
+every style but None. Blur softens the whole background, including the gaps between panes, and
 stays on when Ctrl+Shift+B turns the scrim off; it costs some GPU time while the background
 animates.
 
@@ -110,6 +112,28 @@ An invalid `color`, `zoom`, `speed`, or `density` falls back to its default with
 (or while Windows animation effects are off) Matrix shows a still frame of rain that is already
 falling, not an empty screen.
 
+**Image** and **Slideshow** draw pictures from your disk (PNG, JPEG, WebP, AVIF, BMP, or GIF; a GIF
+shows its first frame). Their fields live under `backdrop.image`:
+
+- `file` is Image's picture and `folder` is Slideshow's folder. Both may contain `%VARS%` and start
+  empty; the Settings tab has a Browse button beside each. Nothing is drawn until one is set.
+- `fit` is how the picture fills the window, as in the Windows wallpaper settings: `fill` (the
+  default; covers the window, cropping the overflow), `fit` (the whole picture, with bars),
+  `stretch`, `center` (actual size), or `tile`. Bars and empty space take the app's background
+  color.
+- `intervalSeconds` (5 to 86400, default 600) is how long Slideshow shows each picture. The dialog
+  offers 30 seconds to 1 day; another value set in the file shows as Custom.
+- `crossfadeSeconds` (0 to 5, default 2.5) is how long Slideshow takes to fade from one picture to
+  the next; 0 switches with no fade.
+- `shuffle` (default `true`) shows the folder in random order, every picture once before any
+  repeats; off, it goes in name order. `includeSubfolders` (default `false`) also takes pictures
+  from the folders inside it.
+
+Slideshow fades between pictures (and switches instantly while Windows animation effects are off),
+reads the folder again before each change so added and removed pictures are picked up, and
+holds its place while the window is minimized. A picture that cannot be shown (missing, unreadable,
+or over 100 MB) raises a notice; Slideshow skips it and moves on.
+
 ```jsonc
 "backdrop": {
   "style": "lights",
@@ -119,7 +143,8 @@ falling, not an empty screen.
   "mutationRate": 0.2,
   "zoom": 2,
   "waitingPulse": false,
-  "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 }
+  "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 },
+  "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 2.5, "shuffle": true, "includeSubfolders": false }
 }
 ```
 
@@ -154,7 +179,7 @@ drops the Launch menu. A settings file that still has `sections.folder` and no `
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Ship section lists what needs you across the repos pinned to the Ship Overview (a red health branch, your own pull request with changes requested or failing checks, or up to 5 pull requests awaiting your review), then the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. `backdrop.animate` also decides whether the Wave moves or holds still. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Ship section lists what needs you across the repos pinned to the Ship Overview (a red health branch, your own pull request with changes requested or failing checks, or up to 5 pull requests awaiting your review), then the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and

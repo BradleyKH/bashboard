@@ -1,4 +1,5 @@
 import { ACCENT_PRESETS } from './accent';
+import { IMAGE_FITS } from './backdrop/image/imageFit';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
@@ -26,6 +27,10 @@ export interface SettingsField {
   allowEmpty?: boolean;
   /** Select fields only: the accepted values. */
   options?: { value: string; label: string }[];
+  /** Select fields only: the setting is a number, so the chosen value is saved as one. */
+  numeric?: boolean;
+  /** Text fields only: a Browse button beside the field opens the native picker for this. */
+  browse?: 'imageFile' | 'folder';
   /** Select fields only: each option's value is a #rrggbb color, drawn as a square beside its label. */
   swatches?: boolean;
   /** Swatch fields only: the color for an option whose value is not itself a color. */
@@ -64,6 +69,21 @@ const WHILE_ANIMATED: ShownWhen = { path: ['backdrop', 'animate'], value: true }
 const IS_LIGHTS: ShownWhen = { path: ['backdrop', 'style'], value: 'lights' };
 const IS_MATRIX: ShownWhen = { path: ['backdrop', 'style'], value: 'matrix' };
 const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'matrix'] };
+const IS_IMAGE: ShownWhen = { path: ['backdrop', 'style'], value: 'image' };
+const IS_SLIDESHOW: ShownWhen = { path: ['backdrop', 'style'], value: 'slideshow' };
+const IS_PICTURE: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['image', 'slideshow'] };
+const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'matrix', 'image', 'slideshow'] };
+
+const SLIDESHOW_INTERVALS = [
+  { value: '30', label: '30 seconds' },
+  { value: '60', label: '1 minute' },
+  { value: '300', label: '5 minutes' },
+  { value: '600', label: '10 minutes' },
+  { value: '1800', label: '30 minutes' },
+  { value: '3600', label: '1 hour' },
+  { value: '21600', label: '6 hours' },
+  { value: '86400', label: '1 day' },
+];
 
 /** Ranges mirror try_parse_settings in src-tauri/src/settings.rs so a saved value always loads. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -164,6 +184,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'none', label: 'None' },
           { value: 'lights', label: 'Swirling Lights' },
           { value: 'matrix', label: 'Matrix' },
+          { value: 'image', label: 'Image' },
+          { value: 'slideshow', label: 'Slideshow' },
         ],
         applies: 'live',
         half: true,
@@ -183,9 +205,37 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
       },
+      { path: ['backdrop', 'image', 'file'], label: 'Image', kind: 'text', allowEmpty: true, browse: 'imageFile', hint: 'May contain %VARS%', applies: 'live', shownWhen: IS_IMAGE },
+      { path: ['backdrop', 'image', 'folder'], label: 'Folder', kind: 'text', allowEmpty: true, browse: 'folder', hint: 'May contain %VARS%', applies: 'live', shownWhen: IS_SLIDESHOW },
+      { path: ['backdrop', 'image', 'fit'], label: 'Fit', kind: 'select', options: IMAGE_FITS, applies: 'live', shownWhen: IS_PICTURE, half: true },
+      {
+        path: ['backdrop', 'image', 'intervalSeconds'],
+        label: 'Change every',
+        kind: 'select',
+        options: SLIDESHOW_INTERVALS,
+        numeric: true,
+        unit: 's',
+        applies: 'live',
+        shownWhen: IS_SLIDESHOW,
+        half: true,
+      },
+      {
+        path: ['backdrop', 'image', 'crossfadeSeconds'],
+        label: 'Crossfade',
+        kind: 'slider',
+        min: 0,
+        max: 5,
+        step: 0.5,
+        unit: 's',
+        hint: '0 switches with no fade',
+        applies: 'live',
+        shownWhen: IS_SLIDESHOW,
+      },
+      { path: ['backdrop', 'image', 'shuffle'], label: 'Shuffle', kind: 'toggle', applies: 'live', shownWhen: IS_SLIDESHOW, half: true },
+      { path: ['backdrop', 'image', 'includeSubfolders'], label: 'Include subfolders', kind: 'toggle', applies: 'live', shownWhen: IS_SLIDESHOW, half: true },
       // Stored as the scrim's opacity, so 1 here is fully dimmed and the slider reads as brightness.
-      { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live', shownWhen: IS_DRAWN },
-      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live', shownWhen: IS_DRAWN },
+      { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live', shownWhen: IS_SHOWN },
+      { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live', shownWhen: IS_SHOWN },
       { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: [IS_LIGHTS, WHILE_ANIMATED] },
       { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live', shownWhen: IS_LIGHTS },
       {
@@ -374,7 +424,8 @@ export function parseInput(field: SettingsField, raw: string | boolean): ParseRe
     return { ok: true, value: raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '') };
   }
   if (field.kind === 'select') {
-    return field.options?.some((o) => o.value === raw) ? { ok: true, value: raw } : { ok: false, error: 'Choose one of the listed options' };
+    if (!field.options?.some((o) => o.value === raw)) return { ok: false, error: 'Choose one of the listed options' };
+    return { ok: true, value: field.numeric ? Number(raw) : raw };
   }
   if (field.kind === 'text') {
     const value = raw.trim();
@@ -431,9 +482,10 @@ export function installedChoices(
  * A select's options, plus the saved value when it is none of them (a hand-edited accentColor),
  * so the dialog shows what is in effect instead of a blank select.
  */
-export function selectChoices(options: { value: string; label: string }[], saved: unknown): { value: string; label: string }[] {
-  if (typeof saved !== 'string' || options.some((o) => o.value === saved)) return options;
-  return [...options, { value: saved, label: `Custom (${saved})` }];
+export function selectChoices(options: { value: string; label: string }[], saved: unknown, unit?: string): { value: string; label: string }[] {
+  const value = typeof saved === 'number' ? String(saved) : saved;
+  if (typeof value !== 'string' || options.some((o) => o.value === value)) return options;
+  return [...options, { value, label: `Custom (${unit ? `${value} ${unit}` : value})` }];
 }
 
 export function appliesNote(field: SettingsField): string {

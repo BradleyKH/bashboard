@@ -79,6 +79,7 @@ describe('isShown', () => {
         'backdrop.matrix.zoom',
         'backdrop.matrix.speed',
         'backdrop.matrix.density',
+        ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
         'dashboard.clockStyle',
       ].sort(),
     );
@@ -86,7 +87,15 @@ describe('isShown', () => {
 
   it('shows every Swirling Lights field while the backdrop animates and the clock is on, and none of the Matrix fields', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(true, true))).map((f) => f.path.join('.'));
-    expect(hidden.sort()).toEqual(['backdrop.matrix.color', 'backdrop.matrix.density', 'backdrop.matrix.speed', 'backdrop.matrix.zoom']);
+    expect(hidden.sort()).toEqual(
+      [
+        'backdrop.matrix.color',
+        'backdrop.matrix.density',
+        'backdrop.matrix.speed',
+        'backdrop.matrix.zoom',
+        ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
+      ].sort(),
+    );
   });
 
   it('points every condition at a field the dialog has', () => {
@@ -133,6 +142,37 @@ describe('isShown', () => {
       'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.matrix.color', 'backdrop.matrix.zoom', 'backdrop.matrix.density',
     ]);
   });
+
+  it('shows the picture controls for Image and Slideshow, never Animate, whatever backdrop.animate says', () => {
+    for (const animate of [true, false]) {
+      expect(shownBackdrop('image', animate)).toEqual(['backdrop.style', 'backdrop.image.file', 'backdrop.image.fit', 'scrim.opacity', 'scrim.blurPx']);
+      expect(shownBackdrop('slideshow', animate)).toEqual([
+        'backdrop.style', 'backdrop.image.folder', 'backdrop.image.fit', 'backdrop.image.intervalSeconds', 'backdrop.image.crossfadeSeconds',
+        'backdrop.image.shuffle',
+        'backdrop.image.includeSubfolders', 'scrim.opacity', 'scrim.blurPx',
+      ]);
+    }
+  });
+});
+
+describe('Image and Slideshow settings', () => {
+  it('saves the slideshow interval as a number and labels a hand-edited one as custom seconds', () => {
+    const interval = byPath('backdrop.image.intervalSeconds');
+    expect(parseInput(interval, '600')).toEqual({ ok: true, value: 600 });
+    expect(parseInput(interval, '45').ok).toBe(false);
+    expect(selectChoices(interval.options ?? [], 600, interval.unit)).toBe(interval.options);
+    expect(selectChoices(interval.options ?? [], 45, interval.unit).slice(-1)[0]).toEqual({ value: '45', label: 'Custom (45 s)' });
+  });
+
+  it('offers the five fits, led by the default', () => {
+    expect(byPath('backdrop.image.fit').options?.map((o) => o.value)).toEqual([DEFAULT_SETTINGS.backdrop.image.fit, 'fit', 'stretch', 'center', 'tile']);
+  });
+
+  it('lets the file and folder be empty, the unset state, and offers a Browse button for each', () => {
+    expect(parseInput(byPath('backdrop.image.file'), '')).toEqual({ ok: true, value: '' });
+    expect(byPath('backdrop.image.file').browse).toBe('imageFile');
+    expect(byPath('backdrop.image.folder').browse).toBe('folder');
+  });
 });
 
 describe('Matrix settings', () => {
@@ -166,9 +206,9 @@ describe('Matrix settings', () => {
     expect(parseInput(density, '4.5').ok).toBe(false);
   });
 
-  it('accepts the three background styles and rejects anything else', () => {
+  it('accepts the five background styles and rejects anything else', () => {
     const style = byPath('backdrop.style');
-    for (const v of ['none', 'lights', 'matrix']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
+    for (const v of ['none', 'lights', 'matrix', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
     expect(parseInput(style, 'rain').ok).toBe(false);
   });
 });

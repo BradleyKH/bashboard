@@ -19,6 +19,9 @@ export class ShipOverview {
   private readonly list: HTMLElement;
   private readonly empty: HTMLElement;
   private readonly addRepo = new ShipAddRepo();
+  private readonly addButton: HTMLButtonElement;
+  /** Whether the Add box shows while repos are pinned; with none pinned it always shows. */
+  private addOpen = false;
   private readonly unsubscribe: () => void;
   private tick: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
@@ -48,7 +51,13 @@ export class ShipOverview {
     accountsButton.textContent = 'Accounts';
     accountsButton.title = 'Manage code host accounts';
     accountsButton.addEventListener('click', () => this.handlers.onOpenAccounts(null));
-    bar.append(status, accountsButton, this.refreshButton);
+    this.addButton = document.createElement('button');
+    this.addButton.type = 'button';
+    this.addButton.className = 'ship-chip';
+    this.addButton.textContent = 'Add';
+    this.addButton.title = 'Pin a repo to the Overview';
+    this.addButton.addEventListener('click', () => this.setAddOpen(!this.addOpen));
+    bar.append(status, this.addButton, accountsButton, this.refreshButton);
 
     this.list = document.createElement('div');
     this.list.className = 'ship-ov-list';
@@ -56,7 +65,15 @@ export class ShipOverview {
     this.empty.className = 'ship-note';
     this.empty.textContent = 'No repos on the Overview yet. Pin a repo from its Ship view, or add one here.';
 
-    this.el.append(bar, this.list, this.empty, this.addRepo.el);
+    this.addRepo.el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || shipOverviewStore.rows().length === 0) return;
+      e.preventDefault();
+      this.setAddOpen(false);
+      this.addButton.focus();
+    });
+
+    // With no pins the list is empty, so the box sits under the note; with pins it opens under the bar.
+    this.el.append(bar, this.empty, this.addRepo.el, this.list);
     this.unsubscribe = shipOverviewStore.subscribe(() => this.render());
     this.render();
   }
@@ -82,6 +99,12 @@ export class ShipOverview {
     this.addRepo.dispose();
   }
 
+  private setAddOpen(open: boolean): void {
+    this.addOpen = open;
+    this.render();
+    if (open) this.addRepo.focus();
+  }
+
   private async refresh(): Promise<void> {
     this.refreshButton.disabled = true;
     try {
@@ -100,6 +123,11 @@ export class ShipOverview {
     setText(this.slowed, slowedMs === null ? '' : bitbucketSlowedText(slowedMs));
     this.empty.hidden = entries.length > 0;
     this.refreshButton.hidden = entries.length === 0;
+    // The first pin made from the inline box leaves it open, so several suggestions can be pinned in a row.
+    if (entries.length === 0) this.addOpen = true;
+    this.addButton.hidden = entries.length === 0;
+    this.addButton.setAttribute('aria-pressed', String(this.addOpen));
+    this.addRepo.el.hidden = !this.addOpen;
 
     const seen = new Set<string>();
     const ordered: HTMLElement[] = [];
