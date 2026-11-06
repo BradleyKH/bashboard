@@ -1,6 +1,6 @@
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
-import { noticeFor, relativeTime, statusInfo, type ShipTab } from './shipModel';
+import { noticeFor, prNounOf, relativeTime, statusInfo, type ShipTab } from './shipModel';
 import { runningCount, targetKey } from './shipOverviewModel';
 import { providerBadge, pullSummary, repoLabel, runningSummary } from './shipOverviewText';
 import { shipOverviewStore, type OverviewEntry } from './shipOverviewStore';
@@ -13,7 +13,7 @@ export interface OverviewRowHandlers {
   onOpenUrl: (url: string) => void;
   onCopy: (text: string) => void;
   /** Opens the Accounts tab on `host`; null leaves the choice of host to the tab. */
-  onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
+  onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
 }
 
 function setText(el: HTMLElement, text: string): void {
@@ -34,6 +34,7 @@ export class ShipOverviewRow {
   private readonly openButton: HTMLButtonElement;
   private readonly terminalButton: HTMLButtonElement;
   private readonly copyButton: HTMLButtonElement;
+  private readonly pullsButton: HTMLButtonElement;
   // What the health and error areas last drew, so an update that changed nothing touches no DOM.
   private healthKey = '';
   private errorKey = '';
@@ -102,9 +103,10 @@ export class ShipOverviewRow {
     this.openButton = makeButton('Open', 'Open in browser', () => this.openInBrowser());
     this.terminalButton = makeButton('Terminal', 'Open a terminal in the local clone', () => this.openTerminal());
     this.copyButton = makeButton('Copy link', 'Copy the link to this repo', () => this.copyLink());
+    this.pullsButton = makeButton('Pull requests', 'Open Pull requests', () => this.drill('pulls'));
     actions.append(
       makeButton('Pipelines', 'Open Pipelines', () => this.drill('pipelines')),
-      makeButton('Pull requests', 'Open Pull requests', () => this.drill('pulls')),
+      this.pullsButton,
       this.openButton,
       this.terminalButton,
       this.copyButton,
@@ -122,6 +124,13 @@ export class ShipOverviewRow {
     this.update(entry, Date.now());
   }
 
+  /** "Merge requests" for GitLab; the badge stands in for the provider until the repo resolves. */
+  private pullsLabel(): string {
+    const repo = this.current.row?.overview.repo;
+    const noun = repo ? prNounOf(repo) : providerBadge(this.current.pin.repo)?.name === 'GitLab' ? 'merge request' : 'pull request';
+    return `${noun.charAt(0).toUpperCase()}${noun.slice(1)}s`;
+  }
+
   get repo(): string {
     return this.current.pin.repo;
   }
@@ -137,6 +146,9 @@ export class ShipOverviewRow {
     this.badge.title = badge?.name ?? '';
     setText(this.name, repoLabel(pin.repo));
     this.name.title = pin.repo;
+    const pullsLabel = this.pullsLabel();
+    setText(this.pullsButton, pullsLabel);
+    this.pullsButton.title = `Open ${pullsLabel}`;
 
     if (row) {
       const pulls = row.overview.pulls.items;
@@ -228,7 +240,7 @@ export class ShipOverviewRow {
       button.addEventListener('click', (e) => {
         e.stopPropagation();
         if (action.kind === 'runTerminal') this.handlers.onRunTerminal(action.argv);
-        else this.handlers.onOpenAccounts(action.host, { openTokenForm: action.openTokenForm });
+        else this.handlers.onOpenAccounts(action.host, { openTokenForm: action.openTokenForm, org: action.org });
       });
       nodes.push(button);
     }
@@ -264,7 +276,7 @@ export class ShipOverviewRow {
     const resolved = this.webUrl() !== null;
     const entries: MenuEntry[] = [
       { kind: 'item', label: 'Open Pipelines', run: () => this.drill('pipelines') },
-      { kind: 'item', label: 'Open Pull requests', run: () => this.drill('pulls') },
+      { kind: 'item', label: `Open ${this.pullsLabel()}`, run: () => this.drill('pulls') },
       { kind: 'item', label: 'Open in browser', enabled: resolved, run: () => this.openInBrowser() },
     ];
     if (pin.root) {

@@ -495,3 +495,70 @@
 .accounts-test[hidden] {
   display: none;
 }
+
+.accounts-test {
+  white-space: pre-line;
+}
+
+.accounts-rows[hidden],
+.accounts-actions[hidden],
+.accounts-undetected[hidden],
+.accounts-more[hidden],
+.accounts-more-toggle[hidden] {
+  display: none;
+}
+
+.accounts-org-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #7f8c94;
+}
+
+.accounts-org-input {
+  flex: 0 1 220px;
+}
+
+.accounts-undetected {
+  color: #7f8c94;
+  font-size: 12px;
+}
+
+.accounts-card-undetected {
+  opacity: 0.6;
+}
+
+.accounts-card-undetected:focus-within,
+.accounts-card-undetected:hover {
+  opacity: 1;
+}
+
+.accounts-more-toggle {
+  align-self: flex-start;
+  margin: 12px 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #7f8c94;
+  font: inherit;
+  cursor: pointer;
+}
+
+.accounts-more-toggle:hover,
+.accounts-more-toggle:focus-visible {
+  color: #eef3f5;
+}
+
+.accounts-more-toggle:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
+.accounts-more-toggle::before {
+  content: '\25B8';
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.accounts-more-toggle[aria-expanded='true']::before {
+  content: '\25BE';
+}

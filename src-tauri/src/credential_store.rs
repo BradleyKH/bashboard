@@ -6,6 +6,11 @@
 pub const BITBUCKET_TARGET: &str = "bashboard:bitbucket.org";
 /// The user name is informational; the reader ignores it.
 pub const BITBUCKET_USER: &str = "x-bitbucket-api-token-auth";
+/// Azure DevOps tokens are stored per organization under this prefix plus the lowercased
+/// organization name, since a PAT is scoped to one organization.
+pub const AZURE_DEVOPS_PREFIX: &str = "bashboard:dev.azure.com/";
+/// The user name is informational; the reader ignores it.
+pub const AZURE_DEVOPS_USER: &str = "x-azure-devops-pat";
 /// Credential Manager rejects a blob over `CRED_MAX_CREDENTIAL_BLOB_SIZE`.
 pub const MAX_TOKEN_BYTES: usize = 2560;
 
@@ -19,6 +24,37 @@ pub fn clean_token(raw: &str) -> Result<String, String> {
         return Err(format!("the token is over {MAX_TOKEN_BYTES} bytes"));
     }
     Ok(token.to_string())
+}
+
+/// The target an organization's Azure DevOps PAT lives under. The name is lowercased because
+/// organization names are case-insensitive; an empty name, or one with a `/`, whitespace, or a
+/// control character, could not be an organization and would make the target ambiguous.
+pub fn azure_devops_target(org: &str) -> Result<String, String> {
+    let org = org.trim();
+    if org.is_empty() {
+        return Err("the organization name is empty".into());
+    }
+    if org
+        .chars()
+        .any(|c| c == '/' || c.is_whitespace() || c.is_control())
+    {
+        return Err(format!(
+            "\"{org}\" is not a valid organization name (no slashes, spaces, or control characters)"
+        ));
+    }
+    Ok(format!("{AZURE_DEVOPS_PREFIX}{}", org.to_lowercase()))
+}
+
+/// The name after `prefix` in a target, or `None` when the target does not start with the prefix
+/// (compared case-insensitively, as Credential Manager matches target names) or nothing follows
+/// it.
+pub fn name_from_target(target: &str, prefix: &str) -> Option<String> {
+    let head = target.get(..prefix.len())?;
+    if !head.eq_ignore_ascii_case(prefix) {
+        return None;
+    }
+    let rest = &target[prefix.len()..];
+    (!rest.is_empty()).then(|| rest.to_string())
 }
 
 /// Overwrites a secret's bytes before freeing them. Best effort: copies made before this
@@ -55,8 +91,8 @@ pub fn decode_blob(bytes: &[u8]) -> Option<String> {
 mod imp {
     use windows::Win32::Foundation::ERROR_NOT_FOUND;
     use windows::Win32::Security::Credentials::{
-        CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC, CREDENTIALW, CredDeleteW, CredFree,
-        CredReadW, CredWriteW,
+        CRED_ENUMERATE_FLAGS, CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC, CREDENTIALW,
+        CredDeleteW, CredEnumerateW, CredFree, CredReadW, CredWriteW,
     };
     use windows::core::{PCWSTR, PWSTR};
 
@@ -97,6 +133,37 @@ mod imp {
             CredFree(cred as *const _);
         }
         true
+    }
+
+    /// The names of the generic credentials whose target starts with `prefix`. Only target
+    /// names are copied out, never a blob. Empty when none match or the enumeration fails.
+    pub fn list_targets(prefix: &str) -> Vec<String> {
+        let filter = wide(&format!("{prefix}*"));
+        let mut count: u32 = 0;
+        let mut creds: *mut *mut CREDENTIALW = std::ptr::null_mut();
+        let mut names = Vec::new();
+        // SAFETY: `filter` is NUL-terminated and outlives the call; on success `creds` points to
+        // `count` credential pointers, released by one CredFree after the names are copied out.
+        unsafe {
+            if CredEnumerateW(
+                PCWSTR(filter.as_ptr()),
+                Some(CRED_ENUMERATE_FLAGS(0)),
+                &mut count,
+                &mut creds,
+            )
+            .is_err()
+            {
+                return names;
+            }
+            for c in std::slice::from_raw_parts(creds, count as usize) {
+                let name = (**c).TargetName;
+                if !name.is_null() {
+                    names.push(String::from_utf16_lossy(name.as_wide()));
+                }
+            }
+            CredFree(creds as *const _);
+        }
+        names
     }
 
     pub fn write(target: &str, user: &str, blob: &[u8]) -> Result<(), String> {
@@ -143,6 +210,10 @@ mod imp {
         false
     }
 
+    pub fn list_targets(_prefix: &str) -> Vec<String> {
+        Vec::new()
+    }
+
     pub fn write(_target: &str, _user: &str, _blob: &[u8]) -> Result<(), String> {
         Err(UNSUPPORTED.into())
     }
@@ -152,7 +223,7 @@ mod imp {
     }
 }
 
-pub use imp::{delete, exists, read, write};
+pub use imp::{delete, exists, list_targets, read, write};
 
 #[cfg(test)]
 mod tests {
@@ -177,6 +248,47 @@ mod tests {
         assert!(clean_token("  \r\n").is_err());
         assert!(clean_token(&"a".repeat(MAX_TOKEN_BYTES)).is_ok());
         assert!(clean_token(&"a".repeat(MAX_TOKEN_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn azure_devops_targets() {
+        assert_eq!(
+            azure_devops_target("Contoso").unwrap(),
+            "bashboard:dev.azure.com/contoso"
+        );
+        assert_eq!(
+            azure_devops_target("  my-org ").unwrap(),
+            "bashboard:dev.azure.com/my-org"
+        );
+        for bad in ["", "   ", "a/b", "a b", "a\tb", "a\x07b", "org/"] {
+            assert!(
+                azure_devops_target(bad).is_err(),
+                "{bad:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn names_come_back_from_targets() {
+        let p = AZURE_DEVOPS_PREFIX;
+        assert_eq!(
+            name_from_target("bashboard:dev.azure.com/contoso", p),
+            Some("contoso".into())
+        );
+        assert_eq!(
+            name_from_target("Bashboard:Dev.Azure.com/contoso", p),
+            Some("contoso".into())
+        );
+        assert_eq!(name_from_target(p, p), None);
+        assert_eq!(name_from_target("bashboard:bitbucket.org", p), None);
+        assert_eq!(name_from_target("short", p), None);
+        // A multi-byte character straddling the prefix length must not panic.
+        assert_eq!(name_from_target("bashboard:dev.azure.com\u{e9}", p), None);
+    }
+
+    #[test]
+    fn listing_an_unused_prefix_is_empty() {
+        assert!(list_targets("bashboard:test-never-stored-prefix/").is_empty());
     }
 
     #[test]

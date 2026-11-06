@@ -1,4 +1,4 @@
-import type { Notice, NoticeAction, ScopeLine } from './shipModel';
+import { scopePurposeText, type Notice, type NoticeAction, type ScopeLine } from './shipModel';
 
 export interface ShipNoticeHandlers {
   /** Runs `argv` in a new terminal pane. */
@@ -8,7 +8,7 @@ export interface ShipNoticeHandlers {
   /** Opens the account menu under `anchor`. */
   onPickAccount: (anchor: HTMLElement) => void;
   /** Opens the Accounts tab on `host`, with the token form open when asked. */
-  onOpenAccounts: (host: string, opts?: { openTokenForm?: boolean }) => void;
+  onOpenAccounts: (host: string, opts?: { openTokenForm?: boolean; org?: string }) => void;
   onRetry: () => void;
 }
 
@@ -90,7 +90,7 @@ export class ShipNotice {
       const li = document.createElement('li');
       const code = document.createElement('code');
       code.textContent = s.scope;
-      li.append(code, ` ${s.purpose}`);
+      li.append(code, ` ${scopePurposeText(s)}`);
       ul.append(li);
     }
     return ul;
@@ -116,7 +116,7 @@ export class ShipNotice {
           this.handlers.onPickAccount(btn);
           break;
         case 'openAccounts':
-          this.handlers.onOpenAccounts(action.host, { openTokenForm: action.openTokenForm });
+          this.handlers.onOpenAccounts(action.host, { openTokenForm: action.openTokenForm, org: action.org });
           break;
         case 'retry':
           this.handlers.onRetry();

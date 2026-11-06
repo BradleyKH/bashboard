@@ -219,11 +219,14 @@ Settings tab.
 
 `ship.hosts` (default `{}`) tells Bashboard which provider a self-hosted host runs. It maps a
 host name, such as `ghe.example.com`, to `github`, `gitlab`, `bitbucket`, or `azureDevOps`. Use it
-for a self-hosted GitHub Enterprise Server host the GitHub CLI (`gh`) is not signed in to; a host
-you are signed in to with `gh` is found without an entry. Of the four kinds, only `github` is served
-for a self-hosted host. GitLab and Azure DevOps hosts are recognized and report "not yet supported",
-and the Bitbucket provider speaks only Bitbucket Cloud (bitbucket.org), so any other Bitbucket host
-is refused with "Bitbucket Data Center isn't supported yet" before a request is sent. Host names are
+for a self-hosted GitHub Enterprise Server host the GitHub CLI (`gh`) is not signed in to, or a
+self-managed GitLab host that GitLab CLI's (`glab`) config does not list; a host you are signed in
+to with `gh` or `glab` is found without an entry. Of the four kinds, `github` and `gitlab` are
+served for a self-hosted host. `azureDevOps` names Azure DevOps Services (dev.azure.com), whose
+clone URLs are recognized without an entry; an entry for another host does not make Azure
+DevOps Server work, since Bashboard calls dev.azure.com only. The Bitbucket provider speaks only
+Bitbucket Cloud (bitbucket.org), so any other Bitbucket host is refused with "Bitbucket Data Center
+isn't supported yet" before a request is sent. Host names are
 lowercased when the file loads, so their case does not matter. An entry with any other kind is
 dropped with a notice, and the other entries still apply. The map has no field in the Settings tab;
 edit it in the file. See [Code hosts](setup.md#code-hosts) for what the Ship pane needs.

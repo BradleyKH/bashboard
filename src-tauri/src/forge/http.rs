@@ -76,6 +76,28 @@ pub fn map_status_at(status: u16, headers: &[(String, String)], now: u64) -> Opt
     Some(err)
 }
 
+/// A 2xx reply to a JSON request that is an HTML page instead. Azure DevOps answers an expired
+/// or wrong-organization token with its sign-in page (often a 203) rather than a 401, so this is
+/// `signedOut`, which lets `decorate` say the token was rejected.
+pub fn html_instead_of_json(
+    status: u16,
+    headers: &[(String, String)],
+    body: &str,
+) -> Option<ForgeError> {
+    if !(200..300).contains(&status) {
+        return None;
+    }
+    let html = header(headers, "content-type")
+        .is_some_and(|t| t.to_ascii_lowercase().starts_with("text/html"))
+        || body.trim_start().starts_with('<');
+    html.then(|| {
+        ForgeError::new(
+            ForgeErrorKind::SignedOut,
+            "The code host answered with a sign-in page, so it did not accept the sign-in.",
+        )
+    })
+}
+
 /// A short, stable hash, so cache keys can tell tokens apart without holding one.
 fn token_hash(auth: Option<&str>) -> String {
     let mut h = DefaultHasher::new();
@@ -274,14 +296,19 @@ impl Http {
         Ok(reply)
     }
 
+    /// Every caller sent a JSON request, so an HTML page in a 2xx reply is a sign-in page.
     fn read_body(mut reply: Reply, url: &str) -> Result<String, ForgeError> {
         if let Some(e) = map_status(reply.status, &reply.headers) {
             return Err(Self::with_forbidden_body(e, &mut reply));
         }
-        reply
+        let body = reply
             .body
             .read_to_string()
-            .map_err(|e| network_error(url, &e))
+            .map_err(|e| network_error(url, &e))?;
+        match html_instead_of_json(reply.status, &reply.headers, &body) {
+            Some(e) => Err(e),
+            None => Ok(body),
+        }
     }
 
     /// A `forbidden` error gains the scopes the body says are missing.
@@ -388,6 +415,11 @@ impl Http {
         }
         if let Some(e) = map_status(reply.status, &reply.headers) {
             return Err(Self::with_forbidden_body(e, &mut reply));
+        }
+        // Only the content type decides here: a log may well start with `<`, and a cut tail
+        // doesn't hold the body's start anyway.
+        if let Some(e) = html_instead_of_json(reply.status, &reply.headers, "") {
+            return Err(e);
         }
         let mut reader = reply.body.into_with_config().limit(u64::MAX).reader();
         let (bytes, truncated) = read_tail(&mut reader, max_bytes).map_err(|e| {
@@ -664,6 +696,24 @@ mod tests {
             let base = map_status_at(403, &[], 0).unwrap();
             assert_eq!(name_missing_scopes(base.clone(), body), base);
         }
+    }
+
+    #[test]
+    fn html_in_a_success_reply_is_signed_out() {
+        let page = "<!DOCTYPE html><html><head><title>Sign in</title></head></html>";
+        let html = h(&[("Content-Type", "text/html; charset=utf-8")]);
+        let json = h(&[("content-type", "application/json")]);
+        for status in [200, 203] {
+            let e = html_instead_of_json(status, &html, page).unwrap();
+            assert_eq!(e.kind, K::SignedOut);
+            // A body that looks like HTML counts even when the content type says otherwise.
+            assert!(html_instead_of_json(status, &json, page).is_some());
+        }
+        assert!(html_instead_of_json(200, &json, r#"{"a": 1}"#).is_none());
+        assert!(html_instead_of_json(204, &json, "").is_none());
+        // Error statuses are `map_status`'s to decide.
+        assert!(html_instead_of_json(401, &html, page).is_none());
+        assert!(html_instead_of_json(500, &html, page).is_none());
     }
 
     #[test]

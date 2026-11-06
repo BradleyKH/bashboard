@@ -168,14 +168,17 @@ transcript (with anything private redacted) to an issue from the agent report te
 
 The Ship pane shows a repo's pipeline runs, job logs, and open pull requests. It reads them from
 the code host's API with a sign-in you already have, so each host needs a one-time setup. Bashboard
-never runs a sign-in flow of its own and keeps tokens in memory only; the one thing it stores is a
-Bitbucket API token, in Windows Credential Manager. Open the pane from any pane's kind menu (see
+never runs a sign-in flow of its own and keeps tokens in memory only; the only things it stores are
+a Bitbucket API token and a personal access token for each Azure DevOps organization, in Windows
+Credential Manager. Open the pane from any pane's kind menu (see
 the [user guide](user-guide.md#ship-pane)); when something is missing, the pane shows the same
 steps with buttons that do them.
 
 The dialog's **Accounts** tab is the place to do the setup below. It has a card for each code
 host showing where its token comes from (never the token itself), and buttons for signing in,
-switching or removing an account, and adding, replacing, or removing a Bitbucket token. Open it
+switching or removing an account, signing out of GitLab, and adding, replacing, or removing a
+Bitbucket token or an Azure DevOps token. It lists the hosts it detected on this machine first and
+folds the other public hosts under **More hosts**. Open it
 from the **Accounts** button in the Ship pane's bar, from a Ship notice's buttons, or from the
 command palette ("Manage code host accounts"). Each step below also has a command that does the
 same from a terminal.
@@ -278,3 +281,100 @@ replaces the stored one.
 
 **Rate limits.** Bitbucket allows 1,000 requests an hour per user, so Bashboard polls Bitbucket more
 slowly than GitHub, and pull request checks are fetched again only when a pull request changes.
+
+### GitLab
+
+Bashboard reads GitLab through the GitLab CLI (`glab`), then falls back to Git Credential Manager's
+token. It serves gitlab.com and self-managed GitLab hosts, and its pane says "merge request" where
+GitHub says "pull request".
+
+1. Install the GitLab CLI. In the Accounts tab, the GitLab card's **Install GitLab CLI** runs
+   `winget install --id GLab.GLab -e` in a terminal pane. Restart any terminals that were open, so
+   they see it.
+2. Sign in. In the Accounts tab, choose **Sign in** on the GitLab card; it closes the dialog and
+   runs `glab auth login --hostname gitlab.com` in a terminal pane, where you follow the prompts.
+   From a terminal, run `glab auth login --hostname <host>`.
+3. Check. The card names the signed-in user, and **Test** asks GitLab who the token belongs to.
+
+A self-managed host listed in `glab`'s config is recognized without any setting, and gets its own
+card. One that `glab` is not signed in to needs an entry in `ship.hosts` naming it `gitlab` (see
+[Settings](settings.md#settings)).
+
+**Signing out.** **Sign out** on the card (after a confirmation) runs `glab auth logout --hostname
+<host>`; it removes the sign-in for every app that uses the GitLab CLI.
+
+**Scopes.** Re-run and Cancel need a token with write access to the API (the `api` scope, which a
+`glab auth login` token has). A read-only token (`read_api`) lists pipelines, jobs, logs, and merge
+requests, and refuses those two. A merge request's approvals and pipeline status appear one poll
+after the list does.
+
+**Troubleshooting.** "GitLab CLI isn't installed" right after installing it: Bashboard looks in the
+CLI's install folders too, so the pane finds it, but a terminal that was open before the install
+does not have it on its `PATH`. Open a new pane.
+
+### Azure DevOps
+
+Bashboard serves Azure DevOps Services (dev.azure.com). A clone URL from `dev.azure.com`,
+`ssh.dev.azure.com`, `vs-ssh.visualstudio.com`, or `<org>.visualstudio.com` reads as the same host.
+Azure DevOps Server is not served. Each organization has its own token, so the pane looks for one
+for the organization the repo is in, trying these in order and using the first that yields one:
+
+1. A personal access token (PAT) stored for the organization, which the Accounts tab and `bb auth
+   azure-devops <org>` save.
+2. The `AZURE_DEVOPS_EXT_PAT` environment variable, which holds one PAT for every organization.
+3. The Azure CLI: `az login` makes an Entra token, and the pane asks `az` for one.
+4. Git Credential Manager's credential for the organization, a PAT or an Entra token.
+
+A PAT is sent as Basic credentials and an Entra token as Bearer. PATs are per organization because
+a PAT made for "All accessible organizations" stops working on January 27, 2027. A stored or
+environment PAT that Azure DevOps refuses is reported as rejected; the pane does not pass over it
+for the Azure CLI, so a stale PAT never hides behind another identity.
+
+To make and store a PAT:
+
+1. Open `https://dev.azure.com/<org>/_usersSettings/tokens`, or choose **Open the token page** on
+   the Azure DevOps card, and choose **New Token**.
+2. Name it "Bashboard", pick the organization and an expiry. Note the date, since the token stops
+   working then.
+3. Choose **Custom defined scopes** and tick each scope in the table below.
+4. Choose **Create** and copy the token. It is shown once and cannot be read again.
+5. In the Accounts tab, choose **Add token** on the Azure DevOps card, type the organization, paste
+   the token into the password field, and choose **Save**. Or, in a terminal, run `bb auth
+   azure-devops <org>` and paste the token when asked; the input is hidden there too, and it also
+   reads standard input. `bb auth azure-devops <org> --clear` removes it. The command works in any
+   terminal, not only a Bashboard pane.
+6. Choose **Test** on the card. It checks each organization you have a stored token for, and each
+   one a Ship pane or pinned repo is in, and shows the name the token signs in as, or the error.
+
+| Scope | What it is for |
+| --- | --- |
+| Code (Read) | Find the repository and list pull requests |
+| Build (Read & execute) | List builds, jobs, and logs, and Cancel and Re-run builds |
+
+Reading builds alone needs only Build (Read); Cancel and Re-run report that the token is missing
+Build (Read & execute) when it has less. Scopes cannot be added to an existing token, so make a new
+one with the full list and store it with **Replace** on the organization's row (or `bb auth
+azure-devops <org>` again). A running Bashboard picks the replacement up at once.
+
+**Where it goes.** The token is saved in Windows Credential Manager as the generic credential
+`bashboard:dev.azure.com/<org>` (the organization lowercased, with the user name
+`x-azure-devops-pat`), for this machine only. Check it with `cmdkey
+/list:bashboard:dev.azure.com/*`, and remove it with **Remove** on the organization's row (after a
+confirmation) or `bb auth azure-devops <org> --clear`. Bashboard sends it to dev.azure.com only,
+and the Accounts tab never shows it again after you save it.
+
+**Environment variable.** To use `AZURE_DEVOPS_EXT_PAT`, set it as a user environment variable
+(System Properties, Environment Variables, or `setx AZURE_DEVOPS_EXT_PAT <token>`) and restart
+Bashboard, since it reads the environment it was started with. A variable set only in another
+tool's configuration, such as another terminal's profile, an IDE's run settings, or a pipeline
+file, does not reach Bashboard.
+
+**Azure CLI and Git Credential Manager.** With `az login`, an organization in another tenant is
+answered as if you had no access; run `az login --tenant <tenant>`. Git Credential Manager serves a
+PAT or, when `credential.azreposCredentialType` is `oauth`, an Entra token; either works.
+
+**Re-run.** Azure DevOps re-runs a finished build's failed stages only, so the pane offers Re-run
+failed and not a plain Re-run.
+
+**Renewing.** When a token expires, the pane says Azure DevOps rejected it. Make a new one and
+choose **Replace** on the organization's row, or run `bb auth azure-devops <org>` again.

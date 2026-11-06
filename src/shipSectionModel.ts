@@ -2,6 +2,7 @@
 import type { Run, RunStatus } from './forgeApi';
 import { relativeTime, statusInfo, type ShipTab } from './shipModel';
 import { isBitbucketPin, targetKey, type DashboardItem, type OverviewRow } from './shipOverviewModel';
+import { providerBadge } from './shipOverviewText';
 import type { OverviewEntry } from './shipOverviewStore';
 
 /** Review requests past this many are counted on the pull request line instead of getting rows. */
@@ -123,8 +124,25 @@ export interface SignInLine {
   text: string;
   title: string;
   host: string | null;
-  /** Bitbucket signs in with a pasted API token, so its row opens straight to that form. */
+  /** Bitbucket and Azure DevOps sign in with a pasted token, so their row opens straight to that form. */
   openTokenForm: boolean;
+  /** The Azure DevOps organization the pins share, so the form can prefill it. */
+  org?: string;
+}
+
+const AZURE_DEVOPS_HOST = 'dev.azure.com';
+
+/** The organization of an Azure DevOps pin id: `dev.azure.com/<org>/...`, or the subdomain of a legacy host. */
+function azureOrgOfPin(repoId: string): string | null {
+  const [host, first] = repoId.split('/');
+  const lower = host.toLowerCase();
+  const org = lower.endsWith('.visualstudio.com') ? host.slice(0, -'.visualstudio.com'.length) : first;
+  if (!org) return null;
+  try {
+    return decodeURIComponent(org);
+  } catch {
+    return org;
+  }
 }
 
 /**
@@ -135,13 +153,18 @@ export interface SignInLine {
 export function signInLine(entries: readonly OverviewEntry[]): SignInLine | null {
   const out = entries.filter((e) => e.error?.kind === 'signedOut' || e.error?.kind === 'notInstalled');
   if (out.length === 0) return null;
+  // Azure DevOps pins may sit on a legacy `<org>.visualstudio.com` host, but the card is one host.
+  const azure = out.every((e) => providerBadge(e.pin.repo)?.name === 'Azure DevOps');
   const hosts = [...new Set(out.map((e) => e.pin.repo.split('/')[0].toLowerCase()))];
-  const host = hosts.length === 1 ? hosts[0] : null;
+  const host = azure ? AZURE_DEVOPS_HOST : hosts.length === 1 ? hosts[0] : null;
   const what = out.length === 1 ? repoLabel(out[0].pin.repo) : plural(out.length, 'pinned repo');
+  const orgs = azure ? [...new Set(out.map((e) => azureOrgOfPin(e.pin.repo)))] : [];
+  const org = orgs.length === 1 ? orgs[0] : null;
   return {
     text: host ? `Sign in to ${host} for ${what}` : `Sign in for ${what}`,
     title: 'Open the Accounts tab',
     host,
-    openTokenForm: host !== null && out.every((e) => isBitbucketPin(e.pin.repo)),
+    openTokenForm: host !== null && (azure || out.every((e) => isBitbucketPin(e.pin.repo))),
+    ...(org ? { org } : {}),
   };
 }

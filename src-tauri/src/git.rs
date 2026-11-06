@@ -258,10 +258,25 @@ pub(crate) fn publish_remote(remotes: &[String]) -> Option<&str> {
     }
 }
 
-/// Runs `cmd` to completion, killing it once `timeout` passes.
-fn run_with_deadline(mut cmd: Command, timeout: Duration) -> Result<Output, String> {
+/// Runs `cmd` to completion, killing it once `timeout` passes. `stdin`, when given, is fed to
+/// the child; otherwise the caller's stdin setting stands.
+fn run_with_deadline(
+    mut cmd: Command,
+    stdin: Option<&[u8]>,
+    timeout: Duration,
+) -> Result<Output, String> {
+    if stdin.is_some() {
+        cmd.stdin(Stdio::piped());
+    }
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = cmd.spawn().map_err(|e| format!("could not run git: {e}"))?;
+    if let Some(bytes) = stdin {
+        let mut pipe = child.stdin.take().expect("stdin is piped");
+        let bytes = bytes.to_vec();
+        thread::spawn(move || {
+            let _ = pipe.write_all(&bytes);
+        });
+    }
     fn drain(mut pipe: impl Read + Send + 'static) -> thread::JoinHandle<Vec<u8>> {
         thread::spawn(move || {
             let mut buf = Vec::new();
@@ -429,20 +444,26 @@ impl Git {
         self.exec(self.command(false, args), None, None)
     }
 
-    /// A read that feeds `stdin` to git and adds `envs`, for `git credential fill`.
+    /// A read that feeds `stdin` to git, adds `envs`, and drops `removed` from the inherited
+    /// environment, for `git credential fill`. Killed once `timeout` passes.
     pub(crate) fn read_input<I, S>(
         &self,
         args: I,
         stdin: &[u8],
         envs: &[(&str, &str)],
+        removed: &[&str],
+        timeout: Duration,
     ) -> Result<Output, String>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
         let mut cmd = self.command(true, args);
+        for name in removed {
+            cmd.env_remove(name);
+        }
         cmd.envs(envs.iter().copied());
-        self.exec(cmd, Some(stdin), None)
+        run_with_deadline(cmd, Some(stdin), timeout)
     }
 
     /// Succeeds only when git does, giving its trimmed stdout.
@@ -510,7 +531,7 @@ impl Git {
         let mut cmd = self.remote_command(background, &["fetch", "--prune"]);
         let out = if background {
             cmd.stdin(Stdio::null());
-            run_with_deadline(cmd, BACKGROUND_FETCH_TIMEOUT)?
+            run_with_deadline(cmd, None, BACKGROUND_FETCH_TIMEOUT)?
         } else {
             self.exec(cmd, None, None)?
         };
@@ -1382,7 +1403,7 @@ mod tests {
         let mut cmd = g.command(true, ["cat-file", "--batch"]);
         cmd.stdin(Stdio::piped());
         let start = Instant::now();
-        let Err(err) = run_with_deadline(cmd, Duration::from_millis(300)) else {
+        let Err(err) = run_with_deadline(cmd, None, Duration::from_millis(300)) else {
             panic!("a hung git should time out");
         };
         assert!(err.contains("timed out"), "{err}");

@@ -11,7 +11,7 @@ use std::time::Duration;
 #[path = "../credential_store.rs"]
 mod credential_store;
 
-use credential_store::{BITBUCKET_TARGET, BITBUCKET_USER, clean_token};
+use credential_store::{AZURE_DEVOPS_USER, BITBUCKET_TARGET, BITBUCKET_USER, clean_token};
 
 /// The command reference, shared with the app dialog's CLI tab.
 const REFERENCE: &str = include_str!("../../cli-commands.json");
@@ -31,7 +31,7 @@ struct Entry {
 
 fn help_text() -> String {
     let r: Reference = serde_json::from_str(REFERENCE).expect("cli-commands.json is valid");
-    let line = |e: &Entry| format!("  {:<26}{}\n", e.usage, e.summary);
+    let line = |e: &Entry| format!("  {:<28}{}\n", e.usage, e.summary);
     let mut text = format!("{}\n\nUsage:\n", r.intro);
     r.commands.iter().for_each(|e| text.push_str(&line(e)));
     text.push_str("\nOptions:\n");
@@ -117,37 +117,99 @@ enum AuthAction {
     Clear,
 }
 
-fn parse_auth(rest: &[String]) -> Result<AuthAction, String> {
-    let usage = "usage: bb auth bitbucket [--clear]";
-    let Some((provider, flags)) = rest.split_first() else {
-        return Err(usage.into());
-    };
-    if provider != "bitbucket" {
-        return Err(format!("unknown provider \"{provider}\" ({usage})"));
-    }
+#[derive(Debug, PartialEq)]
+enum AuthProvider {
+    Bitbucket,
+    /// The organization as typed; its credential target is built by `azure_devops_target`.
+    AzureDevOps(String),
+}
+
+const AUTH_USAGE: &str =
+    "usage: bb auth bitbucket [--clear] | bb auth azure-devops <org> [--clear]";
+
+fn parse_flags(flags: &[String]) -> Result<AuthAction, String> {
     match flags {
         [] => Ok(AuthAction::Store),
         [f] if f == "--clear" => Ok(AuthAction::Clear),
-        _ => Err(usage.into()),
+        _ => Err(AUTH_USAGE.into()),
+    }
+}
+
+fn parse_auth(rest: &[String]) -> Result<(AuthProvider, AuthAction), String> {
+    let Some((provider, args)) = rest.split_first() else {
+        return Err(AUTH_USAGE.into());
+    };
+    match provider.as_str() {
+        "bitbucket" => Ok((AuthProvider::Bitbucket, parse_flags(args)?)),
+        "azure-devops" => {
+            // A leading dash is a flag in the wrong place, not an organization.
+            let Some((org, flags)) = args.split_first().filter(|(o, _)| !o.starts_with('-'))
+            else {
+                return Err(AUTH_USAGE.into());
+            };
+            credential_store::azure_devops_target(org)?;
+            Ok((AuthProvider::AzureDevOps(org.clone()), parse_flags(flags)?))
+        }
+        other => Err(format!("unknown provider \"{other}\" ({AUTH_USAGE})")),
     }
 }
 
 fn auth(rest: &[String]) -> Result<(), String> {
-    match parse_auth(rest)? {
+    let (provider, action) = parse_auth(rest)?;
+    let (target, user, prompt) = match &provider {
+        AuthProvider::Bitbucket => (
+            BITBUCKET_TARGET.to_string(),
+            BITBUCKET_USER,
+            "Bitbucket API token: ".to_string(),
+        ),
+        AuthProvider::AzureDevOps(org) => (
+            credential_store::azure_devops_target(org)?,
+            AZURE_DEVOPS_USER,
+            format!("Azure DevOps PAT for {org}: "),
+        ),
+    };
+    match action {
         AuthAction::Clear => {
-            if credential_store::delete(BITBUCKET_TARGET)? {
-                println!("Removed the stored Bitbucket token.");
+            if credential_store::delete(&target)? {
+                println!("{}", removed_message(&provider));
             } else {
-                println!("No Bitbucket token was stored.");
+                println!("{}", not_stored_message(&provider));
             }
         }
         AuthAction::Store => {
-            let token = clean_token(&read_secret("Bitbucket API token: ")?)?;
-            credential_store::write(BITBUCKET_TARGET, BITBUCKET_USER, token.as_bytes())?;
-            println!("Stored the Bitbucket token in Windows Credential Manager.");
+            let token = clean_token(&read_secret(&prompt)?)?;
+            credential_store::write(&target, user, token.as_bytes())?;
+            println!("{}", stored_message(&provider));
         }
     }
     Ok(())
+}
+
+fn stored_message(provider: &AuthProvider) -> String {
+    match provider {
+        AuthProvider::Bitbucket => {
+            "Stored the Bitbucket token in Windows Credential Manager.".into()
+        }
+        AuthProvider::AzureDevOps(org) => {
+            format!("Stored the Azure DevOps token for {org} in Windows Credential Manager.")
+        }
+    }
+}
+
+fn removed_message(provider: &AuthProvider) -> String {
+    match provider {
+        AuthProvider::Bitbucket => "Removed the stored Bitbucket token.".into(),
+        AuthProvider::AzureDevOps(org) => {
+            format!("Removed the stored Azure DevOps token for {org}.")
+        }
+    }
+}
+
+fn not_stored_message(provider: &AuthProvider) -> String {
+    match provider {
+        AuthProvider::Bitbucket => "No Bitbucket token was stored.".into(),
+        AuthProvider::AzureDevOps(org) => format!("No Azure DevOps token was stored for {org}."),
+    }
 }
 
 /// Reads one line with console echo off, or standard input when it is not a terminal.
@@ -338,17 +400,41 @@ mod tests {
         ] {
             assert!(text.contains(name), "{name} missing from help");
         }
-        assert!(text.contains("  bb edit <path>[:<line>]   Open the file"));
+        assert!(text.contains("  bb edit <path>[:<line>]     Open the file"));
     }
 
     #[test]
     fn auth_arguments() {
-        assert_eq!(parse_auth(&strings(&["bitbucket"])), Ok(AuthAction::Store));
+        use AuthAction::{Clear, Store};
+        use AuthProvider::{AzureDevOps, Bitbucket};
+        assert_eq!(
+            parse_auth(&strings(&["bitbucket"])),
+            Ok((Bitbucket, Store))
+        );
         assert_eq!(
             parse_auth(&strings(&["bitbucket", "--clear"])),
-            Ok(AuthAction::Clear)
+            Ok((Bitbucket, Clear))
         );
-        assert!(parse_auth(&[]).is_err());
+        assert_eq!(
+            parse_auth(&strings(&["azure-devops", "Contoso"])),
+            Ok((AzureDevOps("Contoso".into()), Store))
+        );
+        assert_eq!(
+            parse_auth(&strings(&["azure-devops", "contoso", "--clear"])),
+            Ok((AzureDevOps("contoso".into()), Clear))
+        );
+        assert_eq!(parse_auth(&[]).unwrap_err(), AUTH_USAGE);
+        // A missing organization, a bad one, and bad flags all fail with the usage or a reason.
+        assert_eq!(parse_auth(&strings(&["azure-devops"])).unwrap_err(), AUTH_USAGE);
+        assert_eq!(
+            parse_auth(&strings(&["azure-devops", "--clear"])).unwrap_err(),
+            AUTH_USAGE
+        );
+        assert!(parse_auth(&strings(&["azure-devops", "a/b"])).is_err());
+        assert!(parse_auth(&strings(&["azure-devops", "a b"])).is_err());
+        assert!(parse_auth(&strings(&["azure-devops", "contoso", "--wat"])).is_err());
+        assert!(parse_auth(&strings(&["azure-devops", "contoso", "--clear", "x"])).is_err());
+        assert!(parse_auth(&strings(&["azure-devops", "--clear", "contoso"])).is_err());
         assert!(
             parse_auth(&strings(&["github"]))
                 .unwrap_err()

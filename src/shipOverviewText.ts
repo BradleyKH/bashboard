@@ -1,6 +1,6 @@
 // Wording and input rules for the Ship Overview rows and Add repo box (docs/design.md section 4.20).
 // Pure, no DOM.
-import type { PullRequest } from './forgeApi';
+import type { ProviderKind, PullRequest } from './forgeApi';
 import { relativeTime } from './shipModel';
 
 /** "PR" for "pull request", "MR" for "merge request": the host's noun as initials. */
@@ -55,7 +55,26 @@ export function providerBadge(repoId: string): ProviderBadge | null {
   const host = repoId.split('/')[0].toLowerCase();
   if (host.includes('github')) return { letters: 'GH', name: 'GitHub' };
   if (host.includes('bitbucket')) return { letters: 'BB', name: 'Bitbucket' };
+  if (host.includes('gitlab')) return { letters: 'GL', name: 'GitLab' };
+  if (host === 'dev.azure.com' || host.endsWith('.visualstudio.com')) return { letters: 'AZ', name: 'Azure DevOps' };
   return null;
+}
+
+const KIND_BY_BADGE: Record<string, ProviderKind> = {
+  GitHub: 'github',
+  Bitbucket: 'bitbucket',
+  GitLab: 'gitlab',
+  'Azure DevOps': 'azureDevOps',
+};
+
+/**
+ * The provider and host of a pin id, guessed from the host's name, for deciding which Accounts
+ * cards are in use before a pin has polled. Null for a host whose name gives nothing away, such as
+ * a self-managed `git.example.com`.
+ */
+export function pinProvider(repoId: string): { provider: ProviderKind; host: string } | null {
+  const badge = providerBadge(repoId);
+  return badge ? { provider: KIND_BY_BADGE[badge.name], host: repoId.split('/')[0].toLowerCase() } : null;
 }
 
 /** `owner/name` of a pin id, without its host. */

@@ -6,9 +6,9 @@ import type { MenuEntry } from './contextMenuModel';
 import { copyText } from './copyText';
 import { samePath } from './favorites';
 import { ShipAccountChip } from './shipAccountChip';
-import { asForgeError, type ForgeError, type PullRequest, type Run } from './forgeApi';
+import { asForgeError, type ForgeError, type ProviderKind, type PullRequest, type Run } from './forgeApi';
 import { accountMenuItems, pullMenuItems, runMenuItems, type RunActionKey } from './shipMenus';
-import { finishToast, noticeFor, pullLimitNote, type ShipTab } from './shipModel';
+import { finishToast, noticeFor, prNounOf, pullLimitNote, type ShipTab } from './shipModel';
 import { ShipNotice } from './shipNotice';
 import { ShipOverview } from './shipOverview';
 import { shipOverviewStore } from './shipOverviewStore';
@@ -49,7 +49,7 @@ export interface ShipPaneOptions {
   /** Opens a terminal in a pinned repo's clone, from the Overview. */
   onOpenTerminal: (root: string) => void;
   /** Opens the Accounts tab on `host` (null leaves the choice to the tab), with the token form open when asked. */
-  onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
+  onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
   /** The tab the pane opens on; absent means Pipelines. */
   tab?: ShipTab;
   /** Whether Pipelines lists only the checked-out branch; absent means every branch. */
@@ -280,6 +280,18 @@ export class ShipPane implements PaneView {
   /** The local repo root; null on the Overview or a remote-only repo, which have no folder. */
   get folder(): string | null {
     return this.localRoot();
+  }
+
+  /** The drilled repo's provider and host once it has resolved; null on the Overview or before then. */
+  knownHost(): { provider: ProviderKind; host: string } | null {
+    const repo = this.store?.repo;
+    return repo ? { provider: repo.provider, host: repo.host } : null;
+  }
+
+  /** The resolved repo as `<host>/<owner>/<name>`, the shape pins use; null until it resolves. */
+  knownRepoId(): string | null {
+    const repo = this.store?.repo;
+    return repo ? `${repo.host}/${repo.owner}/${repo.name}` : null;
   }
 
   /** The drilled target (a local root or `remote:<repo>`); null on the Overview. */
@@ -581,12 +593,12 @@ export class ShipPane implements PaneView {
     if (this.scopeText.textContent !== text) this.scopeText.textContent = text;
     this.openLabel.hidden = pipelines;
     this.openBox.checked = this.openOnly;
-    const what = pipelines ? 'runs on' : `${repo?.capabilities.prNoun ?? 'pull request'}s from`;
+    const what = pipelines ? 'runs on' : `${prNounOf(repo)}s from`;
     this.scopeLabel.title = remote
       ? 'This repo has no clone here, so there is no checked-out branch'
       : `Only ${what} ${branch ?? 'the checked-out branch'}; clear to show every branch`;
+    this.tabStrip.setPrNoun(prNounOf(repo));
     if (repo) {
-      this.tabStrip.setPrNoun(repo.capabilities.prNoun);
       const name = `${repo.owner}/${repo.name}`;
       if (this.repoLink.textContent !== name) this.repoLink.textContent = name;
       this.repoLink.title = `Open ${repo.webUrl}`;
@@ -633,14 +645,14 @@ export class ShipPane implements PaneView {
   private pullsLimitText(): string | null {
     const store = this.store;
     if (!store) return null;
-    const noun = store.repo?.capabilities.prNoun ?? 'pull request';
+    const noun = prNounOf(store.repo);
     return pullLimitNote(store.pulls.length, store.pullsTotal, noun, this.openOnly);
   }
 
   private pullsEmptyText(): string {
     const store = this.store;
     if (!store || !store.pullsReady) return 'Loading…';
-    const noun = store.repo?.capabilities.prNoun ?? 'pull request';
+    const noun = prNounOf(store.repo);
     const branch = store.repo?.branch;
     if (store.pullsBranchScope === 'branch' && branch) {
       return this.openOnly ? `No open ${noun}s from ${branch}.` : `No ${noun}s from ${branch}.`;

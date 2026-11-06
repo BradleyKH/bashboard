@@ -59,6 +59,8 @@ import { SetupWizard } from './setupWizard';
 import { HookInstallDialog } from './hookInstallDialog';
 import { moveItem, parseFavorites, samePath, type Favorite } from './favorites';
 import { shipOverviewStore } from './shipOverviewStore';
+import { pinProvider } from './shipOverviewText';
+import type { ProviderKind } from './forgeApi';
 import { pinTarget } from './filesRouting';
 import { layoutFromSnapshot, parseLayouts, upsertLayout, type NamedLayout } from './layouts';
 import { BackdropHost } from './backdrop/backdropHost';
@@ -858,6 +860,29 @@ const helpTab = new HelpTab(
 );
 const cliTab = new CliTab();
 const aboutTab = new AboutTab({ onCheckForUpdates: checkForUpdatesNow });
+/**
+ * Where the user has code to read, for the Accounts tab's detection of cards in use: Overview pins
+ * (the resolved repo when a pin has polled, else its host's name) and open Ship panes' hosts, plus
+ * the folders of open terminals. Deduplicated; a pin on a host that can't be told apart is left out.
+ */
+function knownForgeRepos(): { hosts: { provider: ProviderKind; host: string }[]; dirs: string[]; repos: string[] } {
+  const found = workspace.knownForgeSources();
+  const hosts = [...found.hosts];
+  for (const entry of shipOverviewStore.rows()) {
+    const repo = entry.row?.overview.repo;
+    const known = repo ? { provider: repo.provider, host: repo.host } : pinProvider(entry.pin.repo);
+    if (known) hosts.push(known);
+  }
+  const seen = new Set<string>();
+  return {
+    hosts: hosts.filter((h) => {
+      const key = `${h.provider} ${h.host.toLowerCase()}`;
+      return seen.has(key) ? false : (seen.add(key), true);
+    }),
+    dirs: [...new Set(found.dirs)],
+    repos: [...new Set(found.repos)],
+  };
+}
 const accountsTab = new AccountsTab({
   // The dialog is modal, so close it first or the sign-in device code opens hidden behind it.
   onRunTerminal: (argv) => {
@@ -866,6 +891,7 @@ const accountsTab = new AccountsTab({
   },
   onOpenUrl: (url) => void invoke('open_url', { url }).catch((e: unknown) => console.warn('open_url failed', e)),
   confirm: (o) => confirmDialog.open(o),
+  known: knownForgeRepos,
 });
 const appDialog: AppDialog = new AppDialog(
   {
@@ -902,7 +928,7 @@ const openDialog = async (tab: DialogTab): Promise<void> => {
   appDialog.open(tab);
 };
 
-const openAccounts = (host: string | null, opts?: { openTokenForm?: boolean }): void =>
+const openAccounts = (host: string | null, opts?: { openTokenForm?: boolean; org?: string }): void =>
   void openDialog('accounts').then(() => {
     if (host) accountsTab.focusHost(host, opts);
   });

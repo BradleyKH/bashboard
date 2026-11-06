@@ -254,17 +254,19 @@ terminal. Only open Git panes on repos you trust.
 A Ship pane shows how your repos' CI and pull requests are doing, from their code hosts, so you
 can watch a build or see what awaits review without leaving Bashboard. It opens on an
 [Overview](#overview) of the repos you have pinned, and a click on one shows that repo's own CI runs
-and open pull requests. It supports GitHub (github.com and GitHub Enterprise Server) and Bitbucket
-Cloud. The command palette's Open the Ship tab, the Ship section's button on the dashboard, and
+and open pull requests. It supports GitHub (github.com and GitHub Enterprise Server), GitLab
+(gitlab.com and self-managed hosts), Bitbucket Cloud, and Azure DevOps Services. The command palette's Open the Ship tab, the Ship section's button on the dashboard, and
 **Ship** in the kind menu of a pane with no folder show the Overview. Click Ship in Launch, or
 choose **Ship** in the kind menu of a pane with a folder, and the pane opens on the repo of that
 folder, found from the repo's remote. A Ship pane comes back on relaunch where you left it, and
 layouts keep it. Its title is the repo's name while it shows a repo, and "Ship" on the Overview.
 In a folder outside a repo, or in a repo with no remote, it shows a notice.
 
-It reads the host with a sign-in you already have: the GitHub CLI (`gh`) for GitHub, and a Bitbucket
-API token you add once in the dialog's [Accounts tab](#help-settings-and-shortcuts) (or with
-`bb auth bitbucket` in a terminal). When one is missing, the pane says so and its buttons do the
+It reads the host with a sign-in you already have: the GitHub CLI (`gh`) for GitHub, the GitLab CLI
+(`glab`) for GitLab, a Bitbucket API token you add once in the dialog's
+[Accounts tab](#help-settings-and-shortcuts) (or with `bb auth bitbucket` in a terminal), and for
+Azure DevOps a personal access token for each organization, added the same way (or with
+`bb auth azure-devops <org>`), or else the Azure CLI. When one is missing, the pane says so and its buttons do the
 next step (install, sign in, add a token, open the token page, copy the scopes, or manage accounts),
 with the notice in place of the list it could not fill. Install and sign-in commands run in a
 terminal split off the pane, in the repo folder; the split closes when the command exits cleanly, and one still open when
@@ -274,8 +276,8 @@ pane looks again on its own, unless the error is a rate limit. The full steps ar
 
 ### Overview
 
-The Overview has one row per pinned repo, across GitHub and Bitbucket, ordered by what needs you
-first. A row shows the repo's `owner/name` with a GH or BB badge, a summary of its open pull
+The Overview has one row per pinned repo, across GitHub, GitLab, Bitbucket, and Azure DevOps,
+ordered by what needs you first. A row shows the repo's `owner/name` with a GH, GL, BB, or AZ badge, a summary of its open pull
 requests ("3 PRs open, 1 draft, 1 needs you", highlighted while a review is waiting on you), the number of
 pipelines queued or running on any branch ("2 pipelines running", shown only while some are), and a status icon
 for each of its **health branches**: the repo's default branch, the branches its open pull requests
@@ -312,8 +314,8 @@ pinned). The box under the rows adds a repo without opening it (its **?** button
 forms with examples): type `owner/name` (github.com, or
 bitbucket.org when every pin is on Bitbucket), `host/owner/name`, or paste a link, which can be an
 https or ssh remote URL or the address of a page in the repo, and press Enter or **Pin to
-Overview**. Below the box, the folders in your repos list and favorites that are on GitHub or
-Bitbucket are offered as one-click pins, and pinning one records the folder as the repo's local
+Overview**. Below the box, the folders in your repos list and favorites that are on a host the Ship
+pane supports are offered as one-click pins, and pinning one records the folder as the repo's local
 clone. Pins are saved as `ship.pinnedRepos` in `settings.json`, where you can also list extra
 `branches` for the health row (see [Settings](settings.md#settings)).
 
@@ -325,7 +327,7 @@ open pull requests that aren't drafts, adding how many await your review when th
 no repo pinned yet, it shows a Pin repos row that opens the Overview, and when a pinned repo needs
 a sign-in, a row leading the section opens the Accounts tab for it. The setup wizard's Favorites
 step can pin repos too: tick "Also pin them to the Ship Overview" before adding, an option shown
-when some listed repo is on GitHub or Bitbucket. Click a row to open that
+when some listed repo is on a host the Ship pane supports. Click a row to open that
 repo's Pipelines (for a branch or a run) or Pull requests (for a pull request), or the Overview
 for a count across repos; the button in the section's header opens the Overview. Turn the
 section off with `dashboard.sections.ship`.
@@ -344,27 +346,35 @@ state, with merged and closed ones marked. The pane remembers these choices acro
 
 - **Pipelines** lists the latest 20 runs, newest first: a status icon, the commit message or run
   title, the workflow or pipeline name, number, branch, and who started it, then how long ago and
-  how long it took, which redraw every second. Click a run to expand its jobs, each with its duration and, on GitHub, its steps
-  with failed ones marked. **Show log** loads a job's log (the last 1 MiB of it), scrolled to the
+  how long it took, which redraw every second. Click a run to expand its jobs, each with its duration and, on GitHub and Azure DevOps, its steps
+  with failed ones marked (an Azure DevOps job's steps are its tasks, and a job in a named stage
+  starts with the stage's name; a GitLab job has no step list). **Show log** loads a job's log (the last 1 MiB of it), scrolled to the
   end, where a failure usually is. The buttons at the right of each run open it in the browser,
-  **Re-run** it, **Re-run failed** jobs (GitHub only), **Cancel** it, or **Copy link**; one that
+  **Re-run** it, **Re-run failed** jobs (GitHub, GitLab, and Azure DevOps), **Cancel** it, or **Copy link**; one that
   does not apply to the run right now is greyed. Right-click a run for the same actions.
   In a narrow pane the buttons are hidden and the right-click menu has them all. Cancel asks first, with a
-  button that reads "Cancel workflow run" or "Cancel pipeline"; Re-run does not ask. A Bitbucket
+  button that reads "Cancel workflow run", "Cancel pipeline", or "Cancel build"; Re-run does not ask. A Bitbucket
   pipeline's jobs are its steps and have no per-command list. Re-run and Cancel on Bitbucket need
-  the optional `write:pipeline:bitbucket` scope.
+  the optional `write:pipeline:bitbucket` scope. On Azure DevOps, Re-run failed re-runs the build's
+  failed stages and there is no plain Re-run, and Re-run and Cancel need the Build (Read & execute)
+  scope. On GitLab, Re-run and Re-run failed both retry the pipeline's failed jobs, and with Cancel
+  they need a token with the `api` scope.
 - **Pull requests** lists pull requests in groups: **Review requested** (you are a requested
   reviewer who has not reviewed), **Yours**, and **Others**, each row with its author, branches,
   review state, checks, and last update. Click one to open it in the browser, or right-click to
   copy its link or branch name. The list holds the 50 most recently updated, and a note below the
   groups, such as "Showing the latest 50 of 60 open pull requests.", says when the repo has more. Bitbucket pull requests need the
-  `read:user:bitbucket` scope, which sorts them into these groups.
+  `read:user:bitbucket` scope, which sorts them into these groups. GitLab calls them merge requests,
+  and a merge request's approvals and pipeline status appear one poll after the list does. On Azure
+  DevOps, a reviewer's Approved or Approved with suggestions vote reads as approved, and Waiting for
+  the author or Rejected as changes requested.
 
 A finished run raises a toast, such as "Workflow run passed: CI on main", whose **Open** action
 opens the run. Several Ship panes on one repo share their requests and each finished run toasts
 once. A pane showing a repo polls only while it is expanded: runs every 15 seconds while one is
 queued or running and every minute otherwise, and pull requests only while their tab is showing. Bitbucket is
-polled more slowly, since it allows 1,000 requests an hour per user. Polling pauses while the
+polled more slowly, since it allows 1,000 requests an hour per user, and Azure DevOps is never
+polled faster than every 20 seconds (its pull requests every 80). Polling pauses while the
 window is hidden.
 
 **Accounts.** When you are signed in to several GitHub accounts on one host, the bar shows
@@ -377,7 +387,8 @@ color: the pane is following whichever account `gh auth switch` last chose.
 
 A host Bashboard does not recognize shows a notice; for a self-hosted GitHub Enterprise Server host
 that `gh` is not signed in to, add it to `ship.hosts` (see [Settings](settings.md#settings)).
-GitLab and Azure DevOps remotes are recognized and report that they are not supported yet.
+A self-managed GitLab host is recognized when GitLab CLI's config lists it or `ship.hosts` names it.
+Azure DevOps Server is not served; only Azure DevOps Services (dev.azure.com) is.
 
 ## Code search
 
@@ -779,18 +790,29 @@ again closes the dialog, and Escape or a click outside closes it too.
 - **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the
   list. The window behind it stays undimmed, so color and brightness changes show as they will look.
 - **Accounts** shows, for each code host, where the Ship pane gets its token, and manages it. It
-  has a card for GitHub (and each GitHub Enterprise Server host you use) and one for Bitbucket. A
-  card shows status only, never a token. A GitHub card says whether the GitHub CLI is installed
+  has a card for GitHub (and each GitHub Enterprise Server host you use), GitLab (and each
+  self-managed host), Bitbucket, and Azure DevOps. The hosts it detected on this machine come first
+  (a CLI signed in to them, a stored token, or a pinned repo, open Ship pane, or terminal pane on
+  them; hover a card to see why), and the other public hosts fold under a **More hosts (N)**
+  toggle, which reveals them dimmed. A card shows status only, never a token. A GitHub card says whether the GitHub CLI is installed
   and lists its signed-in accounts, with the active one marked. **Sign in** (or **Sign in another
   account**) runs `gh auth login` in a new terminal pane and closes the dialog so you can see it,
   **Install GitHub CLI** runs `winget` the same way, **Make active** switches accounts, and
   **Sign out** asks first and then signs that account out of the GitHub CLI for every app that
+  uses it. The GitLab card says whether the GitLab CLI is installed and who is signed in;
+  **Sign in** runs `glab auth login` in a new terminal pane the same way, **Install GitLab CLI**
+  runs `winget`, and **Sign out** asks first and then signs out of the GitLab CLI for every app that
   uses it. The Bitbucket card says whether an API token is stored; **Add token** (or **Replace
   token**) opens a password field, **Save** stores the token in Windows Credential Manager, and
   **Remove token** asks first and deletes it. It also lists the scopes the token needs, with
-  **Open the API token page** and **Copy scopes**. **Test** asks the host who the credential
-  belongs to and shows the login, the granted scopes on GitHub, or the error, which for Bitbucket
-  names a missing scope. On GitHub it tests each account in turn. The tab refreshes when you
+  **Open the API token page** and **Copy scopes**. The Azure DevOps card has one row for each
+  organization with a stored personal access token, each with **Replace**, **Remove** (which asks
+  first), and **Test**; **Add token** opens a form with an organization field and a password
+  field, **Sign in with Azure CLI** appears when `az` is installed, and **Open the token page**
+  and **Copy scopes** help make the token. **Test** asks the host who the credential belongs to
+  and shows the login, the granted scopes on GitHub, or the error, which for Bitbucket names a
+  missing scope. On GitHub it tests each account in turn, and on Azure DevOps each organization
+  with a stored token plus each one a pinned repo or open Ship pane is in. The tab refreshes when you
   return to the window, so a sign-in finished in a terminal shows up. Open it from the Ship pane's
   **Accounts** button, the account menu's **Manage accounts**, a Ship notice, or the command
   palette ("Manage code host accounts").
@@ -812,6 +834,7 @@ opens a pane splits the pane that ran it, in that pane's tab, and focus moves to
 | `bb search [<query>]`         | Opens a Search pane for the current folder's repo, with the query filled in   |
 | `bb scratch [<text>]`         | Opens a scratch pad holding the text, or the piped standard input             |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
+| `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
 
 Add `--collapsed` anywhere in a command to open the pane collapsed. Relative paths resolve
@@ -821,9 +844,9 @@ src/main.ts:40` splits a trailing `:<digits>` off as the line number, which must
 the current folder. `bb scratch` uses its arguments as the text when it has any and otherwise
 reads standard input, up to 1 MiB.
 
-`bb auth bitbucket` never talks to Bashboard, so it works in any terminal. It asks for the token with the input hidden (or reads it from standard
-input), saves it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and does not open a pane. `bb auth bitbucket
---clear` removes it. See [Code hosts](setup.md#bitbucket-cloud).
+`bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
+input), save it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
+Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
 
 ```sh
 bb open docs

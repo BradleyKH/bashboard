@@ -9,8 +9,10 @@
 
 pub mod accounts;
 pub mod auth;
+pub mod azure_devops;
 pub mod bitbucket;
 pub mod github;
+pub mod gitlab;
 pub mod http;
 pub mod remote;
 pub mod types;
@@ -39,6 +41,9 @@ const MAX_PULLS: usize = 50;
 const GH_INSTALL_URL: &str = "https://cli.github.com";
 const BITBUCKET_TOKEN_URL: &str = "https://id.atlassian.com/manage-profile/security/api-tokens";
 pub const BITBUCKET_CREDENTIAL: &str = crate::credential_store::BITBUCKET_TARGET;
+const GLAB_INSTALL_URL: &str = "https://gitlab.com/gitlab-org/cli";
+/// The variable the Azure CLI's devops extension reads a PAT from.
+pub const AZURE_DEVOPS_PAT_VAR: &str = "AZURE_DEVOPS_EXT_PAT";
 
 /// What a provider call gets besides the repo: the shared client and the resolved token.
 pub struct Cx<'a> {
@@ -93,21 +98,32 @@ pub trait ForgeProvider: Send + Sync {
 
 static GITHUB: github::GitHub = github::GitHub;
 static BITBUCKET: bitbucket::Bitbucket = bitbucket::Bitbucket;
+static GITLAB: gitlab::GitLab = gitlab::GitLab;
+static AZURE_DEVOPS: azure_devops::AzureDevOps = azure_devops::AzureDevOps;
 
-/// `None` for the hosts the remote parser knows but no provider serves yet.
+/// `None` for a host the remote parser knows but no provider serves; every kind has one today.
 pub fn provider(kind: ProviderKind) -> Option<&'static dyn ForgeProvider> {
     match kind {
         ProviderKind::Github => Some(&GITHUB),
         ProviderKind::Bitbucket => Some(&BITBUCKET),
-        ProviderKind::Gitlab | ProviderKind::AzureDevOps => None,
+        ProviderKind::Gitlab => Some(&GITLAB),
+        ProviderKind::AzureDevOps => Some(&AZURE_DEVOPS),
     }
 }
 
-/// Where each provider's token comes from, in order.
-pub fn token_sources(kind: ProviderKind, host: &str, account: Option<&str>) -> Vec<TokenSource> {
+/// Where each provider's token comes from, in order. `org` is the Azure DevOps organization,
+/// which picks its stored PAT and Git Credential Manager's per-path credential; other providers
+/// ignore it.
+pub fn token_sources(
+    kind: ProviderKind,
+    host: &str,
+    account: Option<&str>,
+    org: Option<&str>,
+) -> Vec<TokenSource> {
     let git_credential = TokenSource::GitCredential {
         host: host.to_string(),
         username: account.map(str::to_string),
+        path: None,
     };
     match kind {
         ProviderKind::Github => {
@@ -134,8 +150,52 @@ pub fn token_sources(kind: ProviderKind, host: &str, account: Option<&str>) -> V
             },
             git_credential,
         ],
-        ProviderKind::Gitlab | ProviderKind::AzureDevOps => vec![git_credential],
+        ProviderKind::Gitlab => vec![
+            TokenSource::Glab {
+                host: bare_host(host).to_string(),
+            },
+            TokenSource::GitCredential {
+                host: host.to_string(),
+                username: None,
+                path: None,
+            },
+        ],
+        ProviderKind::AzureDevOps => {
+            let org = org.map(str::trim).filter(|o| !o.is_empty());
+            // A name that can't be an organization has no stored PAT to read.
+            let stored = org
+                .and_then(|o| crate::credential_store::azure_devops_target(o).ok())
+                .map(|target| TokenSource::CredentialManager { target });
+            stored
+                .into_iter()
+                .chain([
+                    TokenSource::Env {
+                        var: AZURE_DEVOPS_PAT_VAR.into(),
+                    },
+                    TokenSource::AzCli,
+                    TokenSource::GitCredential {
+                        host: host.to_string(),
+                        username: None,
+                        path: org.map(str::to_string),
+                    },
+                ])
+                .collect()
+        }
     }
+}
+
+/// The Azure DevOps organization a repo is in, lowercased as its stored PAT's target is.
+fn azure_org(r: &Resolved) -> Option<String> {
+    (r.repo.provider == ProviderKind::AzureDevOps)
+        .then(|| r.repo.path.first().map(|o| o.to_lowercase()))
+        .flatten()
+}
+
+/// The `account` slot of the token cache key. Azure DevOps has no account picker but a token
+/// per organization, so its organization goes there; it stays out of `Resolved::account`,
+/// which the pane shows as the account chip.
+fn token_account(r: &Resolved) -> Option<String> {
+    azure_org(r).or_else(|| r.account.clone())
 }
 
 /// A repo resolved from its remote, with the account its token is fetched for.
@@ -412,18 +472,17 @@ impl ForgeState {
     }
 
     fn token(&self, git: &Git, r: &Resolved, fresh: bool) -> Result<Token, ForgeError> {
-        let (kind, host, account) = (
-            r.repo.provider,
-            bare_host(&r.repo.host),
-            r.account.as_deref(),
-        );
+        let (kind, host) = (r.repo.provider, bare_host(&r.repo.host));
+        let key = token_account(r);
         if !fresh {
-            if let Some(t) = self.tokens.get(kind, host, account) {
+            if let Some(t) = self.tokens.get(kind, host, key.as_deref()) {
                 return Ok(t);
             }
         }
-        let token = auth::resolve(git, &token_sources(kind, &r.repo.host, account))?;
-        self.tokens.put(kind, host, account, token.clone());
+        let org = azure_org(r);
+        let sources = token_sources(kind, &r.repo.host, r.account.as_deref(), org.as_deref());
+        let token = auth::resolve(git, &sources)?;
+        self.tokens.put(kind, host, key.as_deref(), token.clone());
         Ok(token)
     }
 }
@@ -432,6 +491,9 @@ impl ForgeState {
 /// host with several accounts at the account picker.
 fn decorate(mut e: ForgeError, r: &Resolved, token: Option<&Token>) -> ForgeError {
     let host = bare_host(&r.repo.host);
+    if r.repo.provider == ProviderKind::AzureDevOps {
+        e.az_cli = Some(auth::locate_program("az").is_some());
+    }
     match (e.kind, r.repo.provider) {
         (ForgeErrorKind::SignedOut, ProviderKind::Github) => match auth::locate_program("gh") {
             Some(gh) => {
@@ -478,6 +540,40 @@ fn decorate(mut e: ForgeError, r: &Resolved, token: Option<&Token>) -> ForgeErro
             e.url = Some(BITBUCKET_TOKEN_URL.into());
             e.sign_in = Some(["bb", "auth", "bitbucket"].map(String::from).to_vec());
         }
+        (ForgeErrorKind::SignedOut, ProviderKind::Gitlab) => match auth::locate_program("glab") {
+            Some(_) => {
+                e.message = format!(
+                    "Sign in to GitLab CLI for {host} to see this repo's pipelines and merge requests."
+                );
+                e.sign_in = Some(
+                    ["glab", "auth", "login", "--hostname", host]
+                        .map(String::from)
+                        .to_vec(),
+                );
+            }
+            None => {
+                e.kind = ForgeErrorKind::NotInstalled;
+                e.message = "GitLab CLI isn't installed. Install it, then sign in.".into();
+                e.url = Some(GLAB_INSTALL_URL.into());
+                e.sign_in = Some(
+                    ["winget", "install", "--id", "GLab.GLab", "-e"]
+                        .map(String::from)
+                        .to_vec(),
+                );
+            }
+        },
+        (ForgeErrorKind::SignedOut | ForgeErrorKind::Forbidden, ProviderKind::AzureDevOps) => {
+            let org = azure_org(r).unwrap_or_default();
+            if e.kind == ForgeErrorKind::SignedOut {
+                e.message = azure_signed_out_message(&org, token.map(|t| &t.source));
+            }
+            e.url = Some(azure_devops::token_page_url(&org));
+            e.sign_in = Some(
+                ["bb", "auth", "azure-devops", org.as_str()]
+                    .map(String::from)
+                    .to_vec(),
+            );
+        }
         (ForgeErrorKind::NotFound, ProviderKind::Github) if r.accounts.len() > 1 => {
             e.message = format!(
                 "GitHub could not find this repo as {}. It may belong to another account; pick one from the account menu.",
@@ -487,6 +583,31 @@ fn decorate(mut e: ForgeError, r: &Resolved, token: Option<&Token>) -> ForgeErro
         _ => {}
     }
     e
+}
+
+/// A refused or missing Azure DevOps sign-in, by the source that failed. A rejected PAT says
+/// "rejected", which the notice keys on to offer Replace token, and is reported rather than
+/// passed over for the Azure CLI, so a stale PAT never hides behind another identity.
+fn azure_signed_out_message(org: &str, source: Option<&TokenSource>) -> String {
+    match source {
+        None => format!(
+            "No Azure DevOps sign-in was found for {org}. Add a personal access token in the Accounts tab, or run bb auth azure-devops {org}."
+        ),
+        Some(TokenSource::CredentialManager { .. }) => format!(
+            "The stored Azure DevOps token for {org} was rejected: it may have expired, been revoked, or been made for another organization."
+        ),
+        Some(TokenSource::Env { var }) => format!(
+            "The {var} token was rejected by {org}: it may have expired, been revoked, or been made for another organization."
+        ),
+        // A wrong tenant answers the same as no access at all, and Azure CLI picks the tenant
+        // at sign-in.
+        Some(TokenSource::AzCli) => format!(
+            "Azure DevOps did not accept the Azure CLI sign-in for {org}. If the organization belongs to another tenant, run az login --tenant <tenant>."
+        ),
+        Some(_) => format!(
+            "Azure DevOps did not accept Git Credential Manager's sign-in for {org}. Add a personal access token in the Accounts tab."
+        ),
+    }
 }
 
 /// Whether a refused call is worth repeating after re-resolving the token: only a `forbidden`
@@ -539,7 +660,7 @@ fn with_provider_in<T>(
                 let host = bare_host(&r.repo.host);
                 state
                     .tokens
-                    .drop_one(r.repo.provider, host, r.account.as_deref());
+                    .drop_one(r.repo.provider, host, token_account(r).as_deref());
                 if fresh {
                     return Err(decorate(e, r, Some(&token)));
                 }
@@ -549,7 +670,7 @@ fn with_provider_in<T>(
                 let host = bare_host(&r.repo.host);
                 state
                     .tokens
-                    .drop_one(r.repo.provider, host, r.account.as_deref());
+                    .drop_one(r.repo.provider, host, token_account(r).as_deref());
                 // A failed re-resolve leaves the original 403 as the answer.
                 match state.token(git, r, true) {
                     Ok(next) if retry_after_refresh(e.kind, &token, &next) => {
@@ -779,8 +900,19 @@ mod tests {
 
     #[test]
     fn providers_and_capabilities() {
-        assert!(provider(ProviderKind::Gitlab).is_none());
-        assert!(provider(ProviderKind::AzureDevOps).is_none());
+        let gl = provider(ProviderKind::Gitlab).unwrap();
+        assert_eq!(gl.kind(), ProviderKind::Gitlab);
+        let c = gl.capabilities();
+        assert!(c.rerun && c.rerun_failed && c.cancel && c.job_logs && c.drafts && !c.accounts);
+        assert_eq!(
+            (c.pr_noun.as_str(), c.run_noun.as_str(), c.min_poll_secs),
+            ("merge request", "pipeline", 10)
+        );
+        let ado = provider(ProviderKind::AzureDevOps).unwrap();
+        assert_eq!(ado.kind(), ProviderKind::AzureDevOps);
+        let c = ado.capabilities();
+        assert!(!c.rerun && c.rerun_failed && c.cancel && !c.accounts);
+        assert_eq!((c.run_noun.as_str(), c.min_poll_secs), ("build", 20));
         let gh = provider(ProviderKind::Github).unwrap();
         assert_eq!(gh.kind(), ProviderKind::Github);
         let c = gh.capabilities();
@@ -823,7 +955,7 @@ mod tests {
 
     #[test]
     fn token_sources_per_provider() {
-        let gh = token_sources(ProviderKind::Github, "github.com", Some("bob"));
+        let gh = token_sources(ProviderKind::Github, "github.com", Some("bob"), Some("x"));
         assert_eq!(
             gh[0],
             TokenSource::Cli {
@@ -837,10 +969,11 @@ mod tests {
             gh[1],
             TokenSource::GitCredential {
                 host: "github.com".into(),
-                username: Some("bob".into())
+                username: Some("bob".into()),
+                path: None,
             }
         );
-        let bb = token_sources(ProviderKind::Bitbucket, "bitbucket.org", None);
+        let bb = token_sources(ProviderKind::Bitbucket, "bitbucket.org", None, None);
         assert_eq!(
             bb[0],
             TokenSource::CredentialManager {
@@ -848,6 +981,180 @@ mod tests {
             }
         );
         assert!(matches!(bb[1], TokenSource::GitCredential { .. }));
+        assert_eq!(bb.len(), 2);
+    }
+
+    #[test]
+    fn token_sources_for_gitlab() {
+        let gl = token_sources(
+            ProviderKind::Gitlab,
+            "gitlab.example.com:8443",
+            Some("ignored"),
+            Some("ignored"),
+        );
+        assert_eq!(
+            gl,
+            vec![
+                TokenSource::Glab {
+                    host: "gitlab.example.com".into()
+                },
+                TokenSource::GitCredential {
+                    host: "gitlab.example.com:8443".into(),
+                    username: None,
+                    path: None,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn token_sources_for_azure_devops() {
+        let ado = token_sources(
+            ProviderKind::AzureDevOps,
+            "dev.azure.com",
+            None,
+            Some("Contoso"),
+        );
+        assert_eq!(
+            ado,
+            vec![
+                TokenSource::CredentialManager {
+                    target: "bashboard:dev.azure.com/contoso".into()
+                },
+                TokenSource::Env {
+                    var: "AZURE_DEVOPS_EXT_PAT".into()
+                },
+                TokenSource::AzCli,
+                TokenSource::GitCredential {
+                    host: "dev.azure.com".into(),
+                    username: None,
+                    path: Some("Contoso".into()),
+                },
+            ]
+        );
+        // No usable organization: no stored PAT to read, and GCM gets no path.
+        for org in [None, Some(""), Some("bad/org")] {
+            let ado = token_sources(ProviderKind::AzureDevOps, "dev.azure.com", None, org);
+            assert_eq!(
+                ado[0],
+                TokenSource::Env {
+                    var: "AZURE_DEVOPS_EXT_PAT".into()
+                }
+            );
+            assert_eq!(ado[1], TokenSource::AzCli);
+            assert!(matches!(ado[2], TokenSource::GitCredential { .. }));
+            assert_eq!(ado.len(), 3, "{org:?}");
+        }
+    }
+
+    fn azure_resolved() -> Resolved {
+        Resolved {
+            repo: RepoRef {
+                provider: ProviderKind::AzureDevOps,
+                host: "dev.azure.com".into(),
+                path: vec!["Contoso".into(), "Proj".into(), "repo".into()],
+                web_url: String::new(),
+            },
+            branch: None,
+            account: None,
+            account_source: AccountSource::None,
+            accounts: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn azure_devops_caches_by_organization() {
+        let r = azure_resolved();
+        assert_eq!(token_account(&r).as_deref(), Some("contoso"));
+        // Not the account chip.
+        assert_eq!(forge_repo_of(&r).account, None);
+        let gh = resolved(ProviderKind::Github, &["alice"]);
+        assert_eq!(token_account(&gh).as_deref(), Some("alice"));
+    }
+
+    fn azure_token(source: TokenSource) -> Token {
+        Token {
+            value: "fake".into(),
+            source,
+            expires: None,
+        }
+    }
+
+    #[test]
+    fn signed_out_azure_devops_says_which_source() {
+        let r = azure_resolved();
+        let signed_out = || ForgeError::new(ForgeErrorKind::SignedOut, "x");
+        let e = decorate(signed_out(), &r, None);
+        assert!(
+            e.message.contains("No Azure DevOps sign-in"),
+            "{}",
+            e.message
+        );
+        assert_eq!(
+            e.sign_in,
+            Some(
+                ["bb", "auth", "azure-devops", "contoso"]
+                    .map(String::from)
+                    .to_vec()
+            )
+        );
+        assert_eq!(
+            e.url.as_deref(),
+            Some("https://dev.azure.com/contoso/_usersSettings/tokens")
+        );
+        let stored = azure_token(TokenSource::CredentialManager {
+            target: "bashboard:dev.azure.com/contoso".into(),
+        });
+        let e = decorate(signed_out(), &r, Some(&stored));
+        assert_eq!(e.kind, ForgeErrorKind::SignedOut);
+        assert_eq!(
+            e.message,
+            "The stored Azure DevOps token for contoso was rejected: it may have expired, been revoked, or been made for another organization."
+        );
+        let env = azure_token(TokenSource::Env {
+            var: "AZURE_DEVOPS_EXT_PAT".into(),
+        });
+        let e = decorate(signed_out(), &r, Some(&env));
+        assert!(e.message.contains("rejected"), "{}", e.message);
+        assert!(e.message.contains("AZURE_DEVOPS_EXT_PAT"));
+        let e = decorate(signed_out(), &r, Some(&azure_token(TokenSource::AzCli)));
+        assert_eq!(e.kind, ForgeErrorKind::SignedOut);
+        assert!(e.message.contains("az login --tenant"), "{}", e.message);
+        assert!(!e.message.contains("rejected"));
+        // A missing scope keeps the provider's message and gains the way to a new token.
+        let forbidden = azure_devops::missing_scope(azure_devops::SCOPE_BUILD_EXECUTE);
+        let e = decorate(forbidden.clone(), &r, Some(&stored));
+        assert_eq!(
+            (e.kind, &e.message),
+            (ForgeErrorKind::Forbidden, &forbidden.message)
+        );
+        assert!(e.message.contains("Build (Read & execute)"));
+        assert!(e.sign_in.is_some());
+    }
+
+    #[test]
+    fn signed_out_gitlab_signs_in_or_installs() {
+        let mut r = resolved(ProviderKind::Gitlab, &[]);
+        r.repo.host = "gitlab.example.com".into();
+        let e = decorate(ForgeError::new(ForgeErrorKind::SignedOut, "x"), &r, None);
+        match auth::locate_program("glab") {
+            Some(_) => {
+                assert_eq!(e.kind, ForgeErrorKind::SignedOut);
+                assert_eq!(
+                    e.sign_in,
+                    Some(
+                        ["glab", "auth", "login", "--hostname", "gitlab.example.com"]
+                            .map(String::from)
+                            .to_vec()
+                    )
+                );
+            }
+            None => {
+                assert_eq!(e.kind, ForgeErrorKind::NotInstalled);
+                assert_eq!(e.url.as_deref(), Some(GLAB_INSTALL_URL));
+                assert!(e.sign_in.unwrap().contains(&"GLab.GLab".to_string()));
+            }
+        }
     }
 
     fn resolved(kind: ProviderKind, accounts: &[&str]) -> Resolved {
@@ -963,19 +1270,15 @@ mod tests {
             (r.account.as_deref(), r.account_source),
             (Some("carol"), AccountSource::RepoConfig)
         );
-        // A host nobody serves yet.
+        // GitLab resolves; its stub provider answers calls until it is served.
         sh(
             g.root(),
             &["remote", "set-url", "upstream", "git@gitlab.com:g/p.git"],
         );
-        let e = resolve_repo(&g, &none).unwrap_err();
+        let r = resolve_repo(&g, &none).unwrap();
         assert_eq!(
-            (e.kind, e.message.as_str(), e.url.as_deref()),
-            (
-                ForgeErrorKind::UnsupportedHost,
-                "GitLab isn't supported yet",
-                Some("https://gitlab.com")
-            )
+            (r.repo.provider, r.repo.path.clone()),
+            (ProviderKind::Gitlab, vec!["g".into(), "p".into()])
         );
     }
 
@@ -994,7 +1297,12 @@ mod tests {
         assert_eq!(r.repo.provider, ProviderKind::Github);
         let token = auth::resolve(
             &git,
-            &token_sources(r.repo.provider, &r.repo.host, r.account.as_deref()),
+            &token_sources(
+                r.repo.provider,
+                &r.repo.host,
+                r.account.as_deref(),
+                azure_org(&r).as_deref(),
+            ),
         )
         .unwrap();
         assert!(!token.value.is_empty());
@@ -1038,14 +1346,12 @@ mod tests {
             (r.repo.host.as_str(), r.account.as_deref(), r.account_source),
             ("ghe.example.com:8443", Some("carol"), AccountSource::Only)
         );
-        let e = resolve_remote("gitlab.com/g/s/p", &none, yml).unwrap_err();
+        let r = resolve_remote("gitlab.com/g/s/p", &none, yml).unwrap();
         assert_eq!(
-            (e.kind, e.message.as_str()),
-            (
-                ForgeErrorKind::UnsupportedHost,
-                "GitLab isn't supported yet"
-            )
+            (r.repo.provider, r.repo.path.len(), r.account.as_deref()),
+            (ProviderKind::Gitlab, 3, None)
         );
+        assert_eq!(forge_repo_of(&r).capabilities.pr_noun, "merge request");
         let e = resolve_remote("https://user:secret@unknown.example/a/b", &none, yml).unwrap_err();
         assert_eq!(e.kind, ForgeErrorKind::UnsupportedHost);
         assert!(!e.message.contains("secret"));

@@ -273,10 +273,11 @@ pub fn run() {
             forge::forge_set_account,
             forge::accounts::forge_auth_status,
             forge::accounts::forge_auth_test,
-            forge::accounts::forge_bitbucket_set_token,
-            forge::accounts::forge_bitbucket_clear_token,
+            forge::accounts::forge_set_token,
+            forge::accounts::forge_clear_token,
             forge::accounts::forge_gh_switch,
             forge::accounts::forge_gh_logout,
+            forge::accounts::forge_glab_logout,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -73,7 +73,7 @@ export interface DashboardCallbacks
   /** The Ship section opens the Overview, drilled into `target` on `tab` when given. */
   onOpenShip?: (target: string | null, tab?: ShipTab) => void;
   /** The Ship section's sign-in row opens the Accounts tab on `host`. */
-  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
+  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
   /** A Panes card's menu collapses or expands its pane. */
   onToggleCollapse?: (paneId: string) => void;
   onCardDragStart?: (paneId: string, e: PointerEvent) => void;

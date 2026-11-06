@@ -22,7 +22,7 @@ export interface ShipSectionCallbacks {
   /** Open the Ship Overview, drilled into `target` on `tab` when given; null opens the Overview itself. */
   onOpenShip(target: string | null, tab?: ShipTab): void;
   /** Open the Accounts tab on `host`; null leaves the choice of host to the tab. */
-  onOpenAccounts(host: string | null, opts?: { openTokenForm?: boolean }): void;
+  onOpenAccounts(host: string | null, opts?: { openTokenForm?: boolean; org?: string }): void;
 }
 
 /** The dashboard's Ship section: what needs the viewer, then what is moving, across the pinned repos (docs/design.md section 4.6). */
@@ -61,7 +61,7 @@ export class ShipSection {
     const signInRows = signIn
       ? [
           this.renderRow('failure', null, signIn.text, signIn.title, () =>
-            this.callbacks.onOpenAccounts(signIn.host, { openTokenForm: signIn.openTokenForm }),
+            this.callbacks.onOpenAccounts(signIn.host, { openTokenForm: signIn.openTokenForm, org: signIn.org }),
           ),
         ]
       : [];

@@ -186,30 +186,52 @@ export function cleanLog(text: string): string {
 // Notices.
 
 /** Scopes for a Bitbucket API token, with what each is for. Unconfirmed names are fixed here once checked. */
-export const BITBUCKET_SCOPE_INFO: readonly { scope: string; purpose: string }[] = [
+export const BITBUCKET_SCOPE_INFO: readonly ScopeLine[] = [
   { scope: 'read:repository:bitbucket', purpose: 'find the repository' },
   { scope: 'read:pullrequest:bitbucket', purpose: 'list pull requests' },
   { scope: 'read:pipeline:bitbucket', purpose: 'list pipeline runs, steps, and logs' },
-  { scope: 'write:pipeline:bitbucket', purpose: 'optional: re-run and stop pipelines' },
+  { scope: 'write:pipeline:bitbucket', purpose: 're-run and stop pipelines', optional: true },
   { scope: 'read:user:bitbucket', purpose: 'tell which pull requests are yours or await your review' },
 ];
 
 export const BITBUCKET_SCOPES: readonly string[] = BITBUCKET_SCOPE_INFO.map((s) => s.scope);
 
+/** Scopes for an Azure DevOps personal access token, with what each is for. */
+export const AZURE_DEVOPS_SCOPE_INFO: readonly ScopeLine[] = [
+  { scope: 'Code (Read)', purpose: 'find the repository, list pull requests, and read their policy checks' },
+  { scope: 'Build (Read & execute)', purpose: 'list builds, steps, and logs, and cancel or re-run them' },
+];
+
+export const AZURE_DEVOPS_SCOPES: readonly string[] = AZURE_DEVOPS_SCOPE_INFO.map((s) => s.scope);
+
 export const BITBUCKET_TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens';
 const GITHUB_CLI_URL = 'https://cli.github.com';
+const GITLAB_CLI_URL = 'https://gitlab.com/gitlab-org/cli';
 
 export type NoticeAction =
   | { kind: 'runTerminal'; label: string; argv: string[] }
   | { kind: 'openUrl'; label: string; url: string }
   | { kind: 'copyText'; label: string; text: string }
   | { kind: 'pickAccount'; label: string }
-  | { kind: 'openAccounts'; label: string; host: string; openTokenForm?: boolean }
+  | { kind: 'openAccounts'; label: string; host: string; openTokenForm?: boolean; org?: string }
   | { kind: 'retry'; label: string };
 
 export interface ScopeLine {
   scope: string;
+  /** A verb phrase that finishes "to ...", for example "list pull requests". */
   purpose: string;
+  /** Bashboard works without this scope; it only enables an extra. */
+  optional?: boolean;
+}
+
+/** What a host calls a pull request; the plain default until a repo resolves, so a stale host's noun never lingers. */
+export function prNounOf(repo: ForgeRepo | null | undefined): string {
+  return repo?.capabilities.prNoun ?? 'pull request';
+}
+
+/** The text after a scope name: `to <purpose>`, marked when the scope is optional. */
+export function scopePurposeText(s: ScopeLine): string {
+  return `to ${s.purpose}${s.optional ? ' (optional)' : ''}`;
 }
 
 export interface Notice {
@@ -234,16 +256,46 @@ function notice(title: string, body: string[], actions: NoticeAction[], extra: P
 /** The provider an error belongs to: the repo's when known, else a guess from the sign-in command. */
 function providerOf(err: ForgeError, repo: ForgeRepo | null | undefined): ProviderKind | null {
   if (repo) return repo.provider;
-  const program = err.signIn?.[0]?.toLowerCase();
-  if (program === 'gh' || program === 'winget') return 'github';
-  if (program === 'bb') return 'bitbucket';
+  const argv = err.signIn ?? [];
+  const program = argv[0]?.toLowerCase();
+  // `bb` serves both Bitbucket and Azure DevOps; its provider argument says which.
+  if (program === 'bb') {
+    if (argv[2] === 'bitbucket') return 'bitbucket';
+    if (argv[2] === 'azure-devops') return 'azureDevOps';
+    return null;
+  }
+  if (program === 'glab') return 'gitlab';
+  if (program === 'az') return 'azureDevOps';
+  // The same winget argv shape installs either CLI; the package id tells them apart.
+  if (program === 'winget') return argv.includes('GLab.GLab') ? 'gitlab' : 'github';
+  if (program === 'gh') return 'github';
   return null;
 }
 
 function hostOf(err: ForgeError, repo: ForgeRepo | null | undefined): string {
   if (repo) return repo.host;
   const i = err.signIn?.indexOf('--hostname') ?? -1;
-  return (i >= 0 ? err.signIn?.[i + 1] : undefined) ?? 'github.com';
+  const named = i >= 0 ? err.signIn?.[i + 1] : undefined;
+  return named ?? (providerOf(err, repo) === 'gitlab' ? 'gitlab.com' : 'github.com');
+}
+
+/**
+ * The Azure DevOps organization the error is about: the sign-in argv names it, else the repo's web
+ * URL does (`dev.azure.com/<org>/...` or `<org>.visualstudio.com`). Null when neither is known.
+ */
+function azureOrgOf(err: ForgeError, repo: ForgeRepo | null | undefined): string | null {
+  const argv = err.signIn;
+  if (argv?.[0]?.toLowerCase() === 'bb' && argv[3]) return argv[3];
+  if (!repo?.webUrl) return null;
+  try {
+    const url = new URL(repo.webUrl);
+    const host = url.hostname.toLowerCase();
+    if (host.endsWith('.visualstudio.com')) return host.slice(0, -'.visualstudio.com'.length) || null;
+    const first = url.pathname.split('/').filter(Boolean)[0];
+    return first ? decodeURIComponent(first) : null;
+  } catch {
+    return null;
+  }
 }
 
 function hostOfUrl(url: string | null): string | null {
@@ -271,6 +323,39 @@ function bitbucketActions(lead: 'Add token' | 'Replace token'): NoticeAction[] {
     { kind: 'copyText', label: 'Copy scopes', text: BITBUCKET_SCOPES.join(' ') },
     RETRY,
   ];
+}
+
+const AZURE_DEVOPS_HOST = 'dev.azure.com';
+const AZ_LOGIN: NoticeAction = { kind: 'runTerminal', label: 'Sign in with Azure CLI', argv: ['az', 'login'] };
+
+// The Azure CLI sign-in is offered only when the core found `az`; otherwise the button would open a
+// terminal that fails.
+function azureDevOpsActions(
+  lead: 'Add token' | 'Replace token',
+  org: string | null,
+  azCli: boolean,
+): NoticeAction[] {
+  const tokenUrl = org ? `https://dev.azure.com/${encodeURIComponent(org)}/_usersSettings/tokens` : 'https://dev.azure.com';
+  return [
+    { kind: 'openAccounts', label: lead, host: AZURE_DEVOPS_HOST, openTokenForm: true, ...(org ? { org } : {}) },
+    { kind: 'openUrl', label: 'Open the token page', url: tokenUrl },
+    { kind: 'copyText', label: 'Copy scopes', text: AZURE_DEVOPS_SCOPES.join(', ') },
+    ...(azCli ? [AZ_LOGIN] : []),
+    RETRY,
+  ];
+}
+
+function azureDevOpsSteps(org: string | null): string[] {
+  return [
+    'Open the token page and choose New Token.',
+    'Name it "Bashboard" and pick the organization and an expiry.',
+    'Choose Custom defined scopes and tick the scopes listed below.',
+    `Create it, copy it, and choose Add token here (or run bb auth azure-devops ${org ?? '<organization>'} in a terminal).`,
+  ];
+}
+
+function azureDevOpsScopes(): ScopeLine[] {
+  return AZURE_DEVOPS_SCOPE_INFO.map((s) => ({ ...s }));
 }
 
 const BITBUCKET_STEPS = [
@@ -306,6 +391,37 @@ function signedOutNotice(err: ForgeError, repo: ForgeRepo | null | undefined): N
       { steps: BITBUCKET_STEPS, scopes: bitbucketScopes() },
     );
   }
+  if (provider === 'azureDevOps') {
+    const org = azureOrgOf(err, repo);
+    // The Rust side words the two cases differently; a stored token that was refused says "rejected".
+    if (/rejected/i.test(err.message)) {
+      return notice(
+        'Azure DevOps rejected the token.',
+        [err.message, 'It may have expired, been made for another organization, or be missing a scope.'],
+        azureDevOpsActions('Replace token', org, err.azCli === true),
+        { steps: azureDevOpsSteps(org), scopes: azureDevOpsScopes(), collapsedLabel: 'How to make a new one' },
+      );
+    }
+    return notice(
+      'Azure DevOps needs a personal access token.',
+      [
+        err.message,
+        'Bashboard sends the token to the Azure DevOps REST API and keeps it in Windows Credential Manager.' +
+          (err.azCli === true ? ' Signing in with the Azure CLI also works.' : ''),
+      ],
+      azureDevOpsActions('Add token', org, err.azCli === true),
+      { steps: azureDevOpsSteps(org), scopes: azureDevOpsScopes() },
+    );
+  }
+  if (provider === 'gitlab') {
+    const host = hostOf(err, repo);
+    const argv = err.signIn ?? ['glab', 'auth', 'login', '--hostname', host];
+    return notice(`Sign in to ${host} with the GitLab CLI.`, [err.message], [
+      { kind: 'runTerminal', label: 'Sign in', argv },
+      { kind: 'openAccounts', label: 'Manage accounts', host },
+      RETRY,
+    ]);
+  }
   if (provider === 'github') {
     const host = hostOf(err, repo);
     const argv = err.signIn ?? ['gh', 'auth', 'login', '--hostname', host, '--web'];
@@ -326,6 +442,23 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
   const provider = providerOf(err, repo);
   switch (err.kind) {
     case 'notInstalled': {
+      if (provider === 'gitlab') {
+        const glabActions: NoticeAction[] = [];
+        if (err.signIn) glabActions.push({ kind: 'runTerminal', label: 'Install with winget', argv: err.signIn });
+        glabActions.push(
+          { kind: 'openUrl', label: 'Open the GitLab CLI page', url: err.url ?? GITLAB_CLI_URL },
+          { kind: 'openAccounts', label: 'Manage accounts', host: hostOf(err, repo) },
+          RETRY,
+        );
+        return notice(
+          'Bashboard reads GitLab through the GitLab CLI.',
+          [
+            'The GitLab CLI (glab) was not found. Install it, then restart your terminals so they see it.',
+            'After installing, sign in once with glab auth login.',
+          ],
+          glabActions,
+        );
+      }
       const actions: NoticeAction[] = [];
       if (err.signIn) actions.push({ kind: 'runTerminal', label: 'Install with winget', argv: err.signIn });
       actions.push(
@@ -375,15 +508,16 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
       // The repo never resolves for an unsupported host, so the host comes from the error's URL.
       const host = repo?.host ?? hostOfUrl(err.url);
       const title = host ? `${host} isn't supported` : "This host isn't supported";
-      // The Rust side says "isn't supported yet" for a host it recognized as GitLab, Azure DevOps,
-      // or Bitbucket Data Center, where mapping the host to github would be wrong advice.
+      // The Rust side says "isn't supported yet" for a host it recognized as Bitbucket Data Center,
+      // where naming a provider for the host would be wrong advice.
       if (/isn't supported yet/i.test(err.message)) return notice(title, [err.message], [RETRY]);
-      const snippet = `"ship": { "hosts": { "${host ?? 'git.example.com'}": "github" } }`;
+      const kind = repo?.provider === 'gitlab' ? 'gitlab' : 'github';
+      const snippet = `"ship": { "hosts": { "${host ?? 'git.example.com'}": "${kind}" } }`;
       return notice(
         title,
         [
           err.message,
-          'If it is a self-hosted GitHub Enterprise Server host, add it to settings.json as a github host. Bitbucket support covers Bitbucket Cloud only, and GitLab and Azure DevOps are not supported yet:',
+          'If it is a GitHub Enterprise or self-managed GitLab host, add it to settings.json under ship.hosts and name its provider: github or gitlab. Azure DevOps Server and Bitbucket Data Center are not served.',
           snippet,
         ],
         [{ kind: 'copyText', label: 'Copy setting', text: snippet }, RETRY],
@@ -396,6 +530,15 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
           [err.message, 'The API token may be missing a scope.'],
           bitbucketActions('Replace token'),
           { steps: BITBUCKET_STEPS, scopes: bitbucketScopes(), collapsedLabel: 'How to make a new one' },
+        );
+      }
+      if (provider === 'azureDevOps') {
+        const org = azureOrgOf(err, repo);
+        return notice(
+          'Azure DevOps denied the request',
+          [err.message, 'The personal access token may be missing a scope.'],
+          azureDevOpsActions('Replace token', org, err.azCli === true),
+          { steps: azureDevOpsSteps(org), scopes: azureDevOpsScopes(), collapsedLabel: 'How to make a new one' },
         );
       }
       return notice('Access denied', [err.message], [RETRY]);

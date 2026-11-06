@@ -149,6 +149,8 @@ export interface ForgeError {
   /** Argv to run in a new terminal pane. */
   signIn: string[] | null;
   retryAfterSecs: number | null;
+  /** True when the Azure CLI (`az`) is installed; set on Azure DevOps sign-in errors. */
+  azCli?: boolean;
 }
 
 const ERROR_KINDS: ReadonlySet<string> = new Set<ForgeErrorKind>([
@@ -176,6 +178,7 @@ export function asForgeError(err: unknown): ForgeError {
         url: typeof e.url === 'string' ? e.url : null,
         signIn: Array.isArray(e.signIn) ? e.signIn.map(String) : null,
         retryAfterSecs: typeof e.retryAfterSecs === 'number' ? e.retryAfterSecs : null,
+        ...(typeof e.azCli === 'boolean' ? { azCli: e.azCli } : {}),
       };
     }
   }
@@ -263,26 +266,49 @@ export function forgeOverviewRepo(target: string): Promise<OverviewRepo> {
 // Accounts tab: the credentials behind the pane.
 
 /** The providers that have credentials to manage. */
-export type AuthProvider = Extract<ProviderKind, 'github' | 'bitbucket'>;
+export type AuthProvider = ProviderKind;
 
 /** Where the token the pane would use comes from. */
-export type TokenSourceKind = 'ghCli' | 'gitCredentialManager' | 'bashboardCredential';
+export type TokenSourceKind =
+  | 'ghCli'
+  | 'glabCli'
+  | 'azCli'
+  | 'gitCredentialManager'
+  | 'bashboardCredential'
+  | 'environment';
 
-/** One host's sign-in state. Ordered github.com, other GitHub hosts, then bitbucket.org. */
+/** A token Bashboard stored; `org` is the Azure DevOps organization, null for Bitbucket. */
+export interface StoredToken {
+  org: string | null;
+}
+
+/** One host's sign-in state. Ordered GitHub hosts, GitLab hosts, bitbucket.org, then dev.azure.com. */
 export interface HostAuth {
   provider: AuthProvider;
   host: string;
-  /** Whether `gh` was found, on PATH or in its install folders; meaningful for GitHub hosts only. */
-  ghInstalled: boolean;
-  /** Accounts GitHub CLI holds for this host; empty for Bitbucket. */
+  /** Whether the provider's CLI (gh, glab, or az) was found, on PATH or in its install folders. */
+  cliInstalled: boolean;
+  /** Accounts the CLI holds for this host (several for gh, at most one for glab and az); empty for Bitbucket. */
   accounts: string[];
   activeAccount: string | null;
   /** The source that would supply the token, null when there is none. */
   tokenSource: TokenSourceKind | null;
-  /** Whether the `bashboard:bitbucket.org` credential exists; false for GitHub hosts. */
-  bitbucketTokenStored: boolean;
+  /** Tokens Bashboard stored for this host: one per Azure DevOps organization, at most one for Bitbucket. */
+  storedTokens: StoredToken[];
   /** Name (never the value) of the environment variable `gh` would use for this host; null when none is set. */
   ghEnvToken: string | null;
+  /** Some signal says the host is used on this machine; undetected cards fold under More hosts. */
+  detected: boolean;
+  /** Human-readable reasons behind `detected`; empty when undetected. */
+  detectedBy: string[];
+  /** Azure DevOps organizations the core knows of (stored tokens, pins, Ship panes, terminal folders); empty for other providers. */
+  knownOrgs: string[];
+}
+
+/** What the front end knows that the core does not: hosts of pins and open Ship panes, and open terminals' folders. */
+export interface KnownTargets {
+  hosts: { provider: ProviderKind; host: string }[];
+  dirs: string[];
 }
 
 /** The result of asking the host who the stored token belongs to. */
@@ -294,21 +320,23 @@ export interface AuthCheck {
   message: string | null;
 }
 
-export function forgeAuthStatus(): Promise<HostAuth[]> {
-  return invoke<HostAuth[]>('forge_auth_status');
+export function forgeAuthStatus(known: KnownTargets): Promise<HostAuth[]> {
+  return invoke<HostAuth[]>('forge_auth_status', { known });
 }
 
-export function forgeAuthTest(provider: AuthProvider, host: string, account?: string): Promise<AuthCheck> {
-  return invoke<AuthCheck>('forge_auth_test', { provider, host, account });
+/** `org` names the Azure DevOps organization to test against. */
+export function forgeAuthTest(provider: AuthProvider, host: string, account?: string, org?: string): Promise<AuthCheck> {
+  return invoke<AuthCheck>('forge_auth_test', { provider, host, account, org });
 }
 
-export function forgeBitbucketSetToken(token: string): Promise<void> {
-  return invoke<void>('forge_bitbucket_set_token', { token });
+/** Stores a token for Bitbucket (`org` null) or one Azure DevOps organization. */
+export function forgeSetToken(provider: AuthProvider, org: string | null, token: string): Promise<void> {
+  return invoke<void>('forge_set_token', { provider, org, token });
 }
 
 /** False when nothing was stored. */
-export function forgeBitbucketClearToken(): Promise<boolean> {
-  return invoke<boolean>('forge_bitbucket_clear_token');
+export function forgeClearToken(provider: AuthProvider, org: string | null): Promise<boolean> {
+  return invoke<boolean>('forge_clear_token', { provider, org });
 }
 
 export function forgeGhSwitch(host: string, user: string): Promise<void> {
@@ -317,6 +345,10 @@ export function forgeGhSwitch(host: string, user: string): Promise<void> {
 
 export function forgeGhLogout(host: string, user: string): Promise<void> {
   return invoke<void>('forge_gh_logout', { host, user });
+}
+
+export function forgeGlabLogout(host: string): Promise<void> {
+  return invoke<void>('forge_glab_logout', { host });
 }
 
 /** Fires when a credential for `host` changed, from here or from outside the app. */

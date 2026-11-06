@@ -1,5 +1,6 @@
 //! Turning a git remote URL into a `RepoRef` (docs/design.md section 3.20). Pure apart from
-//! `gh_hosts`, which reads GitHub CLI's `hosts.yml`.
+//! `gh_hosts` and `read_glab_hosts`, which read GitHub CLI's `hosts.yml` and GitLab CLI's
+//! `config.yml`.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -156,6 +157,8 @@ fn normalize_azure(mut p: ParsedRemote) -> Option<ParsedRemote> {
             [org, proj, git, repo] if git == "_git" => {
                 ado(&mut p, org.clone(), proj.clone(), repo.clone())
             }
+            // Azure DevOps names a project after its first repo, so the project may be omitted.
+            [org, git, repo] if git == "_git" => ado(&mut p, org.clone(), repo.clone(), repo.clone()),
             _ => return None,
         },
         "ssh.dev.azure.com" | "vs-ssh.visualstudio.com" => match path.as_slice() {
@@ -172,6 +175,7 @@ fn normalize_azure(mut p: ParsedRemote) -> Option<ParsedRemote> {
             };
             match rest {
                 [proj, git, repo] if git == "_git" => ado(&mut p, org, proj.clone(), repo.clone()),
+                [git, repo] if git == "_git" => ado(&mut p, org, repo.clone(), repo.clone()),
                 _ => return None,
             }
         }
@@ -199,33 +203,43 @@ fn web_host(host: &str) -> &str {
     }
 }
 
+/// `glab_hosts` is called only for a host nothing else names, so a known host never reads
+/// glab's config file.
 fn kind_of(
     host: &str,
     hosts: &HashMap<String, ProviderKind>,
     gh_hosts: &[String],
+    glab_hosts: impl FnOnce() -> Vec<String>,
 ) -> Option<ProviderKind> {
+    let listed = |list: &[String]| list.iter().any(|h| h.eq_ignore_ascii_case(host));
     hosts
         .get(host)
         .copied()
         .or_else(|| builtin_kind(host))
-        .or_else(|| {
-            gh_hosts
-                .iter()
-                .any(|h| h.eq_ignore_ascii_case(host))
-                .then_some(ProviderKind::Github)
-        })
+        .or_else(|| listed(gh_hosts).then_some(ProviderKind::Github))
+        .or_else(|| listed(&glab_hosts()).then_some(ProviderKind::Gitlab))
 }
 
 /// Picks the provider: the `ship.hosts` setting (keys already lowercased) wins, then the
-/// well-known hosts, then a host GitHub CLI is signed in to is GitHub Enterprise Server.
+/// well-known hosts, then a host GitHub CLI is signed in to is GitHub Enterprise Server, then a
+/// host in GitLab CLI's config is self-managed GitLab.
 /// `None` when the host is unknown or the path does not fit the provider.
 pub fn classify(
     parsed: &ParsedRemote,
     hosts: &HashMap<String, ProviderKind>,
     gh_hosts: &[String],
 ) -> Option<RepoRef> {
+    classify_with(parsed, hosts, gh_hosts, read_glab_hosts)
+}
+
+fn classify_with(
+    parsed: &ParsedRemote,
+    hosts: &HashMap<String, ProviderKind>,
+    gh_hosts: &[String],
+    glab_hosts: impl FnOnce() -> Vec<String>,
+) -> Option<RepoRef> {
     let host = web_host(&parsed.host);
-    let kind = kind_of(host, hosts, gh_hosts)?;
+    let kind = kind_of(host, hosts, gh_hosts, glab_hosts)?;
     let authority = match parsed.port {
         Some(p) => format!("{host}:{p}"),
         None => host.to_string(),
@@ -282,12 +296,19 @@ pub fn parse_repo_input(
         .strip_prefix("http://")
         .map(|rest| format!("https://{rest}"))
         .unwrap_or_else(|| input.to_string());
-    let mut parsed = if input.contains("://") || is_scp_form(&input) {
+    let mut parsed = if let Some(path) = azure_pin_path(&input) {
+        ParsedRemote {
+            host: "dev.azure.com".into(),
+            port: None,
+            user: None,
+            path,
+        }
+    } else if input.contains("://") || is_scp_form(&input) {
         parse_remote(&input)?
     } else {
         parse_remote(&format!("https://{input}"))?
     };
-    match kind_of(web_host(&parsed.host), hosts, gh_hosts)? {
+    match kind_of(web_host(&parsed.host), hosts, gh_hosts, read_glab_hosts)? {
         ProviderKind::Github | ProviderKind::Bitbucket => parsed.path.truncate(2),
         // GitLab puts every repo page under a `-` segment.
         ProviderKind::Gitlab => {
@@ -298,6 +319,29 @@ pub fn parse_repo_input(
         ProviderKind::AzureDevOps => {}
     }
     classify(&parsed, hosts, gh_hosts)
+}
+
+/// The Azure DevOps pin form `dev.azure.com/<org>/<project>/<repo>`, with or without `https://`.
+/// Segments are the raw names a pin stores, so they may hold spaces, which `parse_remote`
+/// rejects; percent-encoded names from a pasted address decode the same way. A leading `_` marks
+/// a web page (`_git`, `_build`) rather than a name.
+fn azure_pin_path(input: &str) -> Option<Vec<String>> {
+    const HOST: &str = "dev.azure.com/";
+    let rest = input.strip_prefix("https://").unwrap_or(input);
+    let rest = rest.get(HOST.len()..).filter(|_| {
+        rest.get(..HOST.len())
+            .is_some_and(|h| h.eq_ignore_ascii_case(HOST))
+    })?;
+    let segs: Vec<String> = rest
+        .trim_end_matches('/')
+        .split('/')
+        .map(percent_decode)
+        .collect();
+    let ok = segs.len() == 3
+        && segs
+            .iter()
+            .all(|s| !s.trim().is_empty() && !s.starts_with('_') && s != "." && s != "..");
+    ok.then_some(segs)
 }
 
 /// `host:path` rather than `host:port/path`: the text after the first colon is not a port.
@@ -345,6 +389,66 @@ pub fn read_gh_hosts_yml() -> Option<String> {
 pub fn gh_hosts() -> Vec<String> {
     read_gh_hosts_yml()
         .map(|t| parse_gh_hosts(&t))
+        .unwrap_or_default()
+}
+
+/// The keys under the top-level `hosts:` of GitLab CLI's `config.yml`, lowercased and deduped.
+/// Only key names are read, never a `token:` value.
+pub fn parse_glab_hosts(text: &str) -> Vec<String> {
+    let indent = |l: &str| l.len() - l.trim_start().len();
+    let lines: Vec<&str> = text
+        .lines()
+        .filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
+        .collect();
+    let Some(start) = lines
+        .iter()
+        .position(|l| indent(l) == 0 && l.trim_end() == "hosts:")
+    else {
+        return Vec::new();
+    };
+    let block = lines[start + 1..].iter().take_while(|l| indent(l) > 0);
+    let Some(child) = lines.get(start + 1).map(|l| indent(l)).filter(|&n| n > 0) else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for line in block.filter(|l| indent(l) == child) {
+        let Some(key) = line.trim_end().strip_suffix(':') else {
+            continue;
+        };
+        let key = unquote(key).to_ascii_lowercase();
+        if !key.is_empty() && !out.contains(&key) {
+            out.push(key);
+        }
+    }
+    out
+}
+
+/// GitLab CLI's config folder, as glab resolves it: `GLAB_CONFIG_DIR`, then the legacy
+/// `~/.config/glab-cli` when it holds a `config.yml`, then `glab-cli` under the XDG config home,
+/// which on Windows is `XDG_CONFIG_HOME` or else `%LOCALAPPDATA%`.
+pub fn glab_config_dir() -> Option<PathBuf> {
+    let var = |name: &str| {
+        std::env::var_os(name)
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+    };
+    if let Some(d) = var("GLAB_CONFIG_DIR") {
+        return Some(d);
+    }
+    if let Some(legacy) = var("USERPROFILE").map(|h| h.join(".config").join("glab-cli")) {
+        if legacy.join("config.yml").is_file() {
+            return Some(legacy);
+        }
+    }
+    var("XDG_CONFIG_HOME")
+        .or_else(|| var("LOCALAPPDATA"))
+        .map(|d| d.join("glab-cli"))
+}
+
+pub fn read_glab_hosts() -> Vec<String> {
+    glab_config_dir()
+        .and_then(|d| std::fs::read_to_string(d.join("config.yml")).ok())
+        .map(|t| parse_glab_hosts(&t))
         .unwrap_or_default()
 }
 
@@ -443,6 +547,69 @@ mod tests {
         assert_eq!(r.provider, ProviderKind::AzureDevOps);
         assert_eq!(r.web_url, "https://dev.azure.com/o/My%20Project/_git/r");
         assert_eq!(p("https://dev.azure.com/o/p/r"), None);
+    }
+
+    #[test]
+    fn azure_devops_without_a_project_repeats_the_repo() {
+        for url in [
+            "https://dev.azure.com/contoso/_git/Repo",
+            "https://contoso@dev.azure.com/contoso/_git/Repo",
+            "https://contoso.visualstudio.com/_git/Repo",
+            "https://contoso.visualstudio.com/DefaultCollection/_git/Repo",
+        ] {
+            let r = p(url).unwrap_or_else(|| panic!("{url}"));
+            assert_eq!(r.host, "dev.azure.com", "{url}");
+            assert_eq!(r.path, v(&["contoso", "Repo", "Repo"]), "{url}");
+        }
+        let r = cls("https://dev.azure.com/contoso/_git/Repo").unwrap();
+        assert_eq!(r.web_url, "https://dev.azure.com/contoso/Repo/_git/Repo");
+        // Near misses: no repo, or a stray segment, still reject.
+        for url in [
+            "https://dev.azure.com/contoso/_git",
+            "https://dev.azure.com/contoso/_git/",
+            "https://contoso.visualstudio.com/_git",
+            "https://dev.azure.com/contoso/_build/Repo",
+        ] {
+            assert_eq!(p(url), None, "{url}");
+        }
+    }
+
+    #[test]
+    fn azure_devops_pin_form() {
+        // A pin is `host/owner/name` with the raw, decoded names, so spaces are literal.
+        for s in [
+            "dev.azure.com/my org/My Project/my repo",
+            "https://dev.azure.com/my org/My Project/my repo",
+            "dev.azure.com/my%20org/My%20Project/my%20repo",
+            "DEV.AZURE.COM/my org/My Project/my repo/",
+        ] {
+            let r = input(s).unwrap_or_else(|| panic!("{s}"));
+            assert_eq!(r.provider, ProviderKind::AzureDevOps, "{s}");
+            assert_eq!(r.host, "dev.azure.com", "{s}");
+            assert_eq!(r.path, v(&["my org", "My Project", "my repo"]), "{s}");
+            assert_eq!(
+                r.web_url, "https://dev.azure.com/my%20org/My%20Project/_git/my%20repo",
+                "{s}"
+            );
+        }
+        let r = input("dev.azure.com/o/p/r").unwrap();
+        assert_eq!(r.path, v(&["o", "p", "r"]));
+        // Round trip through the id the front end builds from the resolved repo.
+        assert_eq!(
+            repo_key(&input("dev.azure.com/my org/My Project/my repo").unwrap()),
+            "dev.azure.com/my org/My Project/my repo"
+        );
+        // Near misses: two segments, four segments that are not `_git`, and web pages.
+        for s in [
+            "dev.azure.com/o/p",
+            "dev.azure.com/o",
+            "dev.azure.com/o/p/r/extra",
+            "dev.azure.com/o/p/_git",
+            "dev.azure.com/o/p/_build",
+            "dev.azure.com/o//r",
+        ] {
+            assert_eq!(input(s), None, "{s}");
+        }
     }
 
     #[test]
@@ -649,5 +816,57 @@ mod tests {
     fn gh_hosts_output_never_holds_a_token() {
         let out = parse_gh_hosts(super::super::auth::tests::SAMPLE_HOSTS_YML).join("\n");
         assert!(!out.contains("gho_"));
+    }
+
+    /// A glab `config.yml` with two hosts (one repeated in another case); the tokens are fake.
+    const SAMPLE_GLAB_CONFIG: &str = "\
+# What protocol to use when performing Git operations.
+git_protocol: ssh
+editor:
+hosts:
+    gitlab.com:
+        # Your GitLab access token.
+        token: glpat-FAKEgitlabToken00
+        api_host: gitlab.com
+        user: alice
+    gitlab.example.com:
+        token: glpat-FAKEselfManaged0
+        api_protocol: https
+    GitLab.Example.com:
+        token: glpat-FAKEduplicate000
+no_prompt: false
+";
+
+    #[test]
+    fn parses_glab_hosts() {
+        assert_eq!(
+            parse_glab_hosts(SAMPLE_GLAB_CONFIG),
+            v(&["gitlab.com", "gitlab.example.com"])
+        );
+        assert!(parse_glab_hosts("").is_empty());
+        assert!(parse_glab_hosts("git_protocol: ssh\nhosts:\n").is_empty());
+    }
+
+    #[test]
+    fn glab_hosts_output_never_holds_a_token() {
+        let out = parse_glab_hosts(SAMPLE_GLAB_CONFIG).join("\n");
+        assert!(!out.contains("glpat"), "{out}");
+        assert!(!out.contains("token"), "{out}");
+    }
+
+    #[test]
+    fn self_managed_gitlab_from_glab_hosts() {
+        let glab = || v(&["gitlab.example.com"]);
+        let parsed = p("git@gitlab.example.com:group/sub/app.git").unwrap();
+        let r = classify_with(&parsed, &none(), &[], glab).unwrap();
+        assert_eq!(r.provider, ProviderKind::Gitlab);
+        assert_eq!(r.web_url, "https://gitlab.example.com/group/sub/app");
+        let mut hosts = none();
+        hosts.insert("gitlab.example.com".into(), ProviderKind::Github);
+        let parsed = p("https://gitlab.example.com/team/app.git").unwrap();
+        let r = classify_with(&parsed, &hosts, &[], glab).unwrap();
+        assert_eq!(r.provider, ProviderKind::Github, "ship.hosts wins");
+        let parsed = p("https://other.example.com/team/app.git").unwrap();
+        assert_eq!(classify_with(&parsed, &none(), &[], glab), None);
     }
 }

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Capabilities, ForgeError, ForgeErrorKind, ForgeRepo, PullRequest, Run, RunStatus } from './forgeApi';
 import { asForgeError } from './forgeApi';
 import {
+  AZURE_DEVOPS_SCOPE_INFO,
+  AZURE_DEVOPS_SCOPES,
+  BITBUCKET_SCOPE_INFO,
   BITBUCKET_SCOPES,
   cleanLog,
   duration,
@@ -12,8 +15,10 @@ import {
   noticeFor,
   pollSecs,
   pullLimitNote,
+  prNounOf,
   pullPollSecs,
   relativeTime,
+  scopePurposeText,
   statusInfo,
   withPullChecks,
   type NoticeAction,
@@ -335,7 +340,37 @@ describe('asForgeError', () => {
     expect(asForgeError('plain string')).toMatchObject({ kind: 'other', message: 'plain string' });
     expect(asForgeError({ kind: 'bogus', message: 'x' })).toMatchObject({ kind: 'other' });
     expect(asForgeError(undefined).kind).toBe('other');
+    expect(asForgeError({ kind: 'signedOut', message: 'x', azCli: true }).azCli).toBe(true);
+    expect(asForgeError({ kind: 'signedOut', message: 'x' }).azCli).toBeUndefined();
     expect(asForgeError(null).message).not.toBe('');
+  });
+});
+
+describe('scopePurposeText', () => {
+  it('reads as a sentence tail for every scope, with optional ones marked', () => {
+    const write = BITBUCKET_SCOPE_INFO.find((s) => s.scope === 'write:pipeline:bitbucket');
+    expect(write && scopePurposeText(write)).toBe('to re-run and stop pipelines (optional)');
+    for (const s of [...BITBUCKET_SCOPE_INFO, ...AZURE_DEVOPS_SCOPE_INFO]) {
+      expect(scopePurposeText(s)).toMatch(/^to [a-z]/);
+      expect(scopePurposeText(s)).not.toContain('optional:');
+    }
+    expect(scopePurposeText({ scope: 'x', purpose: 'list things' })).toBe('to list things');
+  });
+});
+
+describe('prNounOf', () => {
+  it('uses the repo host noun, and the default when there is no resolved repo', () => {
+    const gitlab = repo({ provider: 'gitlab', capabilities: { ...GITHUB_CAPS, prNoun: 'merge request' } });
+    expect(prNounOf(gitlab)).toBe('merge request');
+    expect(prNounOf(null)).toBe('pull request');
+    expect(prNounOf(undefined)).toBe('pull request');
+  });
+});
+
+describe('AZURE_DEVOPS_SCOPES', () => {
+  it('lists Code (Read) and Build (Read & execute), each with a purpose', () => {
+    expect(AZURE_DEVOPS_SCOPES).toEqual(['Code (Read)', 'Build (Read & execute)']);
+    expect(AZURE_DEVOPS_SCOPE_INFO.every((s) => s.purpose !== '')).toBe(true);
   });
 });
 
@@ -419,7 +454,7 @@ describe('noticeFor', () => {
       expect(n.steps[3]).toContain('choose Add token');
       expect(n.steps[3]).toContain('bb auth bitbucket');
       expect(n.scopes.map((s) => s.scope)).toEqual([...BITBUCKET_SCOPES]);
-      expect(n.scopes.find((s) => s.scope === 'write:pipeline:bitbucket')?.purpose).toContain('optional');
+      expect(n.scopes.find((s) => s.scope === 'write:pipeline:bitbucket')?.optional).toBe(true);
       expect(n.collapsedLabel).toBeNull();
       expect(n.actions).toEqual([
         { kind: 'openAccounts', label: 'Add token', host: 'bitbucket.org', openTokenForm: true },
@@ -462,6 +497,138 @@ describe('noticeFor', () => {
     });
   });
 
+  describe('Azure DevOps', () => {
+    const azure = repo({
+      provider: 'azureDevOps',
+      host: 'dev.azure.com',
+      owner: 'acme',
+      webUrl: 'https://dev.azure.com/acme/My%20Project/_git/widgets',
+      accounts: [],
+    });
+
+    it('signedOut with no token leads with Add token carrying the organization', () => {
+      const n = noticeFor(err('signedOut', { message: 'No Azure DevOps token is available.', azCli: true }), azure);
+      expect(n.title).toBe('Azure DevOps needs a personal access token.');
+      expect(n.collapsedLabel).toBeNull();
+      expect(n.steps).toHaveLength(4);
+      expect(n.steps[3]).toContain('bb auth azure-devops acme');
+      expect(n.scopes.map((s) => s.scope)).toEqual([...AZURE_DEVOPS_SCOPES]);
+      expect(n.actions).toEqual([
+        { kind: 'openAccounts', label: 'Add token', host: 'dev.azure.com', openTokenForm: true, org: 'acme' },
+        { kind: 'openUrl', label: 'Open the token page', url: 'https://dev.azure.com/acme/_usersSettings/tokens' },
+        { kind: 'copyText', label: 'Copy scopes', text: AZURE_DEVOPS_SCOPES.join(', ') },
+        { kind: 'runTerminal', label: 'Sign in with Azure CLI', argv: ['az', 'login'] },
+        { kind: 'retry', label: 'Retry' },
+      ]);
+    });
+
+    it('offers Sign in with Azure CLI only when az is installed', () => {
+      const without = noticeFor(err('signedOut'), azure);
+      const unknown = noticeFor(err('signedOut', { azCli: false }), azure);
+      for (const n of [without, unknown]) {
+        expect(labels(n.actions)).not.toContain('Sign in with Azure CLI');
+        expect(n.body.join(' ')).not.toContain('Azure CLI');
+      }
+      const withAz = noticeFor(err('signedOut', { azCli: true }), azure);
+      expect(labels(withAz.actions)).toContain('Sign in with Azure CLI');
+      expect(withAz.body.join(' ')).toContain('Azure CLI');
+      expect(labels(noticeFor(err('forbidden'), azure).actions)).not.toContain('Sign in with Azure CLI');
+      expect(labels(noticeFor(err('forbidden', { azCli: true }), azure).actions)).toContain('Sign in with Azure CLI');
+    });
+
+    it('signedOut with a rejected token says so and collapses the steps', () => {
+      const n = noticeFor(
+        err('signedOut', { message: 'Azure DevOps rejected the personal access token.', azCli: true }),
+        azure,
+      );
+      expect(n.title).toBe('Azure DevOps rejected the token.');
+      expect(n.collapsedLabel).toBe('How to make a new one');
+      expect(labels(n.actions)).toEqual([
+        'Replace token',
+        'Open the token page',
+        'Copy scopes',
+        'Sign in with Azure CLI',
+        'Retry',
+      ]);
+      expect(n.actions[0]).toMatchObject({ kind: 'openAccounts', host: 'dev.azure.com', openTokenForm: true, org: 'acme' });
+    });
+
+    it('forbidden points at the missing scope and replaces the token', () => {
+      const n = noticeFor(err('forbidden'), azure);
+      expect(n.title).toBe('Azure DevOps denied the request');
+      expect(n.body.join(' ')).toContain('missing a scope');
+      expect(n.scopes.find((s) => s.scope === 'Build (Read & execute)')).toBeDefined();
+      expect(labels(n.actions)[0]).toBe('Replace token');
+    });
+
+    it('reads the organization from a legacy visualstudio.com web URL', () => {
+      const legacy = repo({ ...azure, host: 'acme.visualstudio.com', webUrl: 'https://acme.visualstudio.com/proj/_git/widgets' });
+      expect(noticeFor(err('signedOut'), legacy).actions[0]).toMatchObject({ org: 'acme' });
+    });
+
+    it('takes the organization from the sign-in argv when there is no repo yet', () => {
+      const n = noticeFor(err('signedOut', { signIn: ['bb', 'auth', 'azure-devops', 'my org'] }), null);
+      expect(n.title).toBe('Azure DevOps needs a personal access token.');
+      expect(n.actions[0]).toMatchObject({ kind: 'openAccounts', host: 'dev.azure.com', org: 'my org' });
+      expect(n.actions[1]).toMatchObject({ url: 'https://dev.azure.com/my%20org/_usersSettings/tokens' });
+      expect(n.steps[3]).toContain('bb auth azure-devops my org');
+    });
+
+    it('omits the organization when none is known', () => {
+      const n = noticeFor(err('signedOut', { signIn: ['bb', 'auth', 'azure-devops'] }), null);
+      expect(n.actions[0]).toEqual({ kind: 'openAccounts', label: 'Add token', host: 'dev.azure.com', openTokenForm: true });
+      expect(n.actions[1]).toMatchObject({ url: 'https://dev.azure.com' });
+      expect(n.steps[3]).toContain('<organization>');
+    });
+
+    it('recognizes the provider from az and from bb with the azure-devops argument', () => {
+      expect(noticeFor(err('signedOut', { signIn: ['az', 'login'] }), null).title).toBe(
+        'Azure DevOps needs a personal access token.',
+      );
+      expect(noticeFor(err('signedOut', { signIn: ['bb', 'auth', 'bogus'] }), null).title).toBe('Not signed in');
+    });
+  });
+
+  describe('GitLab', () => {
+    const gl = repo({ provider: 'gitlab', host: 'gitlab.com', accounts: [] });
+
+    it('signedOut signs in with glab and offers Manage accounts', () => {
+      const argv = ['glab', 'auth', 'login', '--hostname', 'gitlab.example.com'];
+      const n = noticeFor(err('signedOut', { signIn: argv }), repo({ ...gl, host: 'gitlab.example.com' }));
+      expect(n.title).toBe('Sign in to gitlab.example.com with the GitLab CLI.');
+      expect(n.actions).toEqual([
+        { kind: 'runTerminal', label: 'Sign in', argv },
+        { kind: 'openAccounts', label: 'Manage accounts', host: 'gitlab.example.com' },
+        { kind: 'retry', label: 'Retry' },
+      ]);
+    });
+
+    it('signedOut with no repo yet reads the host from the argv, defaulting to gitlab.com', () => {
+      const argv = ['glab', 'auth', 'login', '--hostname', 'gl.corp.test'];
+      expect(noticeFor(err('signedOut', { signIn: argv }), null).title).toBe('Sign in to gl.corp.test with the GitLab CLI.');
+      expect(noticeFor(err('signedOut', { signIn: ['glab', 'auth', 'login'] }), null).title).toBe(
+        'Sign in to gitlab.com with the GitLab CLI.',
+      );
+    });
+
+    it('notInstalled offers install, the CLI page, Manage accounts, and Retry', () => {
+      const winget = ['winget', 'install', '--id', 'GLab.GLab', '-e'];
+      const n = noticeFor(err('notInstalled', { signIn: winget }), gl);
+      expect(n.title).toBe('Bashboard reads GitLab through the GitLab CLI.');
+      expect(n.body.join(' ')).toContain('glab auth login');
+      expect(labels(n.actions)).toEqual(['Install with winget', 'Open the GitLab CLI page', 'Manage accounts', 'Retry']);
+      expect(n.actions[2]).toEqual({ kind: 'openAccounts', label: 'Manage accounts', host: 'gitlab.com' });
+    });
+
+    it('notInstalled before the repo resolves tells GitLab from GitHub by the winget package id', () => {
+      const winget = ['winget', 'install', '--id', 'GLab.GLab', '-e'];
+      expect(noticeFor(err('notInstalled', { signIn: winget }), null).title).toBe('Bashboard reads GitLab through the GitLab CLI.');
+      expect(noticeFor(err('notInstalled', { signIn: ['winget', 'install', '--id', 'GitHub.cli', '-e'] }), null).title).toBe(
+        'Bashboard reads GitHub through the GitHub CLI.',
+      );
+    });
+  });
+
   it('ssoRequired authorizes through the error url', () => {
     const n = noticeFor(err('ssoRequired', { url: 'https://github.com/orgs/acme/sso?token=1' }), repo());
     expect(n.actions).toEqual([
@@ -482,12 +649,22 @@ describe('noticeFor', () => {
     const n = noticeFor(err('unsupportedHost'), repo({ provider: 'gitlab', host: 'gitlab.example.com' }));
     expect(n.title).toBe("gitlab.example.com isn't supported");
     const text = n.body.join('\n');
-    expect(text).toContain('"ship": { "hosts": { "gitlab.example.com": "github" } }');
+    // The repo's own provider fills the snippet's value.
+    expect(text).toContain('"ship": { "hosts": { "gitlab.example.com": "gitlab" } }');
     // Bitbucket hosts other than bitbucket.org are refused, so the notice never offers `bitbucket`.
-    expect(text).toContain('self-hosted GitHub Enterprise Server host');
+    expect(text).toContain('GitHub Enterprise or self-managed GitLab host');
+    expect(text).toContain('github or gitlab');
+    expect(text).toContain('Azure DevOps Server');
+    expect(text).not.toContain('azureDevOps');
     expect(text).not.toContain('"bitbucket"');
-    expect(text).not.toMatch(/github, bitbucket/);
+    expect(text).not.toMatch(/not supported yet/);
     expect(n.actions[0]).toMatchObject({ kind: 'copyText', label: 'Copy setting' });
+  });
+
+  it('unsupportedHost never suggests azureDevOps, even for an Azure DevOps repo', () => {
+    const n = noticeFor(err('unsupportedHost'), repo({ provider: 'azureDevOps', host: 'tfs.corp.test' }));
+    expect(n.body.join('\n')).toContain('"tfs.corp.test": "github"');
+    expect(n.body.join('\n')).not.toContain('"azureDevOps"');
   });
 
   it('unsupportedHost without a repo still shows a usable setting', () => {
@@ -502,10 +679,13 @@ describe('noticeFor', () => {
     expect(n.body.join('\n')).toContain('"ship": { "hosts": { "git.corp.test": "github" } }');
   });
 
-  it('unsupportedHost for a recognized provider not served yet offers no ship.hosts setting', () => {
-    const n = noticeFor(err('unsupportedHost', { message: "GitLab isn't supported yet", url: 'https://gitlab.com' }), null);
-    expect(n.title).toBe("gitlab.com isn't supported");
-    expect(n.body).toEqual(["GitLab isn't supported yet"]);
+  it('unsupportedHost for a recognized provider not served offers no ship.hosts setting', () => {
+    const n = noticeFor(
+      err('unsupportedHost', { message: "Bitbucket Data Center isn't supported yet", url: 'https://bb.corp.test' }),
+      null,
+    );
+    expect(n.title).toBe("bb.corp.test isn't supported");
+    expect(n.body).toEqual(["Bitbucket Data Center isn't supported yet"]);
     expect(n.actions.map((a) => a.label)).toEqual(['Retry']);
   });
 

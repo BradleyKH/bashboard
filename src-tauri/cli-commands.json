@@ -44,6 +44,13 @@
       "examples": ["bb auth bitbucket", "bb auth bitbucket --clear"]
     },
     {
+      "name": "auth",
+      "usage": "bb auth azure-devops <org>",
+      "summary": "Store an Azure DevOps PAT for one organization",
+      "details": "Prompts for the PAT with echo off, or reads it from standard input, and saves it in Windows Credential Manager under that organization, so each organization needs its own. --clear removes it. Works outside Bashboard too.",
+      "examples": ["bb auth azure-devops contoso", "bb auth azure-devops contoso --clear"]
+    },
+    {
       "name": "help",
       "usage": "bb help",
       "summary": "List the commands",

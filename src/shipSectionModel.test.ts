@@ -134,6 +134,36 @@ describe('signInLine', () => {
     });
   });
 
+  it('opens Azure DevOps on its token form with the shared organization', () => {
+    expect(signInLine([failed('dev.azure.com/acme/proj/web', 'signedOut')])).toEqual({
+      text: 'Sign in to dev.azure.com for acme/proj/web',
+      title: 'Open the Accounts tab',
+      host: 'dev.azure.com',
+      openTokenForm: true,
+      org: 'acme',
+    });
+    const two = signInLine([failed('dev.azure.com/acme/p/a', 'signedOut'), failed('dev.azure.com/acme/q/b', 'signedOut')]);
+    expect(two).toMatchObject({ host: 'dev.azure.com', openTokenForm: true, org: 'acme' });
+  });
+
+  it('leaves the organization out when the Azure DevOps pins span several', () => {
+    const line = signInLine([failed('dev.azure.com/one/p/a', 'signedOut'), failed('dev.azure.com/two/p/b', 'signedOut')]);
+    expect(line).toMatchObject({ host: 'dev.azure.com', openTokenForm: true });
+    expect(line).not.toHaveProperty('org');
+  });
+
+  it('reads the organization from a legacy visualstudio.com pin', () => {
+    expect(signInLine([failed('acme.visualstudio.com/proj/web', 'signedOut')])).toMatchObject({
+      host: 'dev.azure.com',
+      openTokenForm: true,
+      org: 'acme',
+    });
+  });
+
+  it('does not open the token form for GitLab pins', () => {
+    expect(signInLine([failed('gitlab.com/g/p', 'signedOut')])).toMatchObject({ host: 'gitlab.com', openTokenForm: false });
+  });
+
   it('counts the repos on one GitHub host, without the token form', () => {
     const line = signInLine([failed('github.com/a/b', 'signedOut'), failed('github.com/a/c', 'notInstalled')]);
     expect(line).toMatchObject({ text: 'Sign in to github.com for 2 pinned repos', host: 'github.com', openTokenForm: false });

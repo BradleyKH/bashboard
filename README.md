@@ -20,9 +20,10 @@ Windows terminal built around Claude Code: split terminal panes, a live status b
   an agent on a local model from the Launch menu.
 - **CI and reviews beside the code.** The Ship pane's Overview ranks your pinned repos by what
   needs you: a failed deploy branch, a review waiting, a pull request to fix. Click in for a repo's
-  pipeline runs, job logs, and open pull requests from GitHub or Bitbucket, using the sign-in your
-  terminal already has. An Accounts tab shows each host's sign-in and manages it: switch GitHub
-  accounts, or add and replace a Bitbucket token.
+  pipeline runs, job logs, and open pull requests from GitHub, GitLab, Bitbucket, or Azure DevOps,
+  using the sign-in your terminal already has. An Accounts tab shows each host's sign-in and manages
+  it: switch GitHub accounts, sign out of GitLab, or add and replace a Bitbucket token or an Azure
+  DevOps token for each organization.
 - **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
 - **No forgotten servers.** The Ports list shows every dev server listening, which pane started
   it, and stops it from a right-click.
@@ -86,7 +87,7 @@ from **Settings > Apps > Installed apps**.
   containers, ports, the Ship pane, attention, and the `bb` pane CLI.
 - [Shell and coding agent setup](docs/setup.md): the `~/.bashrc` and PowerShell lines that let
   new panes open in the current folder, the hooks for Claude Code, Codex, and Copilot, and signing
-  in to GitHub and Bitbucket for the Ship pane.
+  in to GitHub, GitLab, Bitbucket, and Azure DevOps for the Ship pane.
 - [Settings](docs/settings.md): the settings file and what each setting does.
 - [Development](docs/development.md): building from source, releasing, and debugging input.
 - [Design](docs/design.md): the spec, for anyone changing Bashboard itself.

@@ -631,7 +631,7 @@ export class SetupWizard {
       pin.append(pinBox, pinText);
       this.content.append(
         pin,
-        this.note('Only the repos on GitHub or Bitbucket are pinned. Private ones need a sign-in, which the dashboard and the Ship Overview ask for.'),
+        this.note('Only repos on a supported code host (GitHub, GitLab, Bitbucket, or Azure DevOps) are pinned. Private ones need a sign-in, which the dashboard and the Ship Overview ask for.'),
       );
     }
     syncAdd();

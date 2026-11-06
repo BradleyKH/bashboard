@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PullRequest } from './forgeApi';
-import { bitbucketSlowedText, normalizeRepoInput, providerBadge, pullSummary, repoLabel, runningSummary, updatedText } from './shipOverviewText';
+import { bitbucketSlowedText, normalizeRepoInput, pinProvider, providerBadge, pullSummary, repoLabel, runningSummary, updatedText } from './shipOverviewText';
 
 const pull = (over: Partial<PullRequest>): PullRequest => ({ state: 'open', reviewRequested: false, ...over }) as PullRequest;
 
@@ -57,7 +57,19 @@ describe('providerBadge and repoLabel', () => {
   it('reads the host', () => {
     expect(providerBadge('github.com/a/b')?.name).toBe('GitHub');
     expect(providerBadge('bitbucket.org/a/b')?.name).toBe('Bitbucket');
-    expect(providerBadge('gitlab.com/a/b')).toBeNull();
+    expect(providerBadge('gitlab.com/a/b')).toEqual({ letters: 'GL', name: 'GitLab' });
+    expect(providerBadge('gitlab.example.com/g/sub/b')?.name).toBe('GitLab');
+    expect(providerBadge('dev.azure.com/org/proj/repo')).toEqual({ letters: 'AZ', name: 'Azure DevOps' });
+    expect(providerBadge('acme.visualstudio.com/proj/repo')?.name).toBe('Azure DevOps');
+    expect(providerBadge('git.example.com/a/b')).toBeNull();
+    expect(providerBadge('notvisualstudio.com/a/b')).toBeNull();
+  });
+  it('names the provider and host of a pin', () => {
+    expect(pinProvider('GitHub.com/a/b')).toEqual({ provider: 'github', host: 'github.com' });
+    expect(pinProvider('gitlab.example.com/g/b')).toEqual({ provider: 'gitlab', host: 'gitlab.example.com' });
+    expect(pinProvider('dev.azure.com/o/p/r')).toEqual({ provider: 'azureDevOps', host: 'dev.azure.com' });
+    expect(pinProvider('bitbucket.org/a/b')).toEqual({ provider: 'bitbucket', host: 'bitbucket.org' });
+    expect(pinProvider('git.example.com/a/b')).toBeNull();
   });
   it('drops the host', () => {
     expect(repoLabel('github.com/a/b')).toBe('a/b');

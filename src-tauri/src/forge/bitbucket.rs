@@ -1103,6 +1103,7 @@ mod tests {
         let gcm = TokenSource::GitCredential {
             host: HOST.into(),
             username: None,
+            path: None,
         };
         let e = reword(forbidden.clone(), &gcm);
         assert_eq!(e.kind, ForgeErrorKind::SignedOut);

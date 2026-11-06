@@ -743,6 +743,7 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb search [<query>]` | A Search pane for the working directory's repo, starting with the query |
 | `bb scratch [<text>]` | A new scratch pad (4.15) holding the text, or standard input when it is not a terminal (`git diff \| bb scratch`) |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane (3.20), or removes it with `--clear` |
+| `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` |
 | `bb help` | Lists the commands |
 
 `src-tauri/cli-commands.json` holds each command's usage, summary, details, and examples. `bb help`
@@ -763,16 +764,22 @@ tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
   a pane whose pty is alive but which is mid-close drops the command with a console warning.
 - **Outside the app** (no `BASHBOARD_HOOK_URL`), `bb` prints that it only works inside a
   Bashboard pane and exits 1, except `bb auth`.
-- **`bb auth bitbucket`** talks only to Windows Credential Manager, never to the app, so it works in
-  any terminal. It reads the token from a hidden prompt (console echo off), or from standard input
-  when that is not a terminal (up to 1 MiB, first line used), and stores it as the generic
-  credential `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, persisted
-  for the local machine. A token that is empty or over 2,560 bytes (the Credential Manager blob
-  limit) is refused. `--clear` deletes the credential and says when none was stored. The Ship
-  pane's Bitbucket token source (3.20) reads that credential. The command and the app dialog's
-  Accounts tab (4.20) share one store, `credential_store.rs`, which both `bb.exe` and the app
-  compile, so they agree on the target, the user name, the size limit, and how a token is
-  cleaned; nothing else writes it.
+- **`bb auth`** talks only to Windows Credential Manager, never to the app, so it works in
+  any terminal. `bb auth bitbucket` stores a Bitbucket API token, and `bb auth azure-devops <org>`
+  an Azure DevOps personal access token (PAT) for that one organization, so each organization
+  needs its own (a PAT made for all accessible organizations stops working on January 27, 2027).
+  Each reads the token from a hidden prompt (console echo off), or from standard input when that
+  is not a terminal (up to 1 MiB, first line used), and stores it as a generic credential
+  persisted for the local machine: `bashboard:bitbucket.org` with the user name
+  `x-bitbucket-api-token-auth`, or `bashboard:dev.azure.com/<org>`, the organization lowercased,
+  with the user name `x-azure-devops-pat`. A token that is empty or over 2,560 bytes (the
+  Credential Manager blob limit) is refused, as is an organization that is empty, holds a slash,
+  whitespace, or a control character, or is written as a flag. `--clear` follows the provider
+  (and the organization) and deletes the credential, saying when none was stored. The Ship pane's
+  token sources (3.20) read these credentials. The command and the app dialog's Accounts tab
+  (4.20) share one store, `credential_store.rs`, which both `bb.exe` and the app compile, so they
+  agree on the targets, the user names, the size limit, and how a token is cleaned; nothing else
+  writes them.
 - The core emits `cli://command` with the pane id and the resolved request; the front end's
   `Workspace` carries it out exactly as the matching dashboard or keyboard action would, so `bb`
   can do nothing the UI cannot.
@@ -951,43 +958,43 @@ field of every reply is optional on parse, since these APIs are not versioned co
 The Ship pane (4.20) shows a repo's CI runs and open pull requests, and an Overview of every
 pinned repo. The core talks to the code host's REST API, and every host returns the same normalized shapes (section 7), so the front end
 knows a host only through a few capability flags. The module is split by concern: `mod.rs` (the
-commands, repo resolution, and the `ShipProvider` trait), `types.rs` (the shapes), `remote.rs`
+commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shapes), `remote.rs`
 (remote URLs), `auth.rs` (token sources and accounts), `accounts.rs` (the Accounts tab's commands,
-below), `http.rs` (the client), and one file per provider, `github.rs` and `bitbucket.rs`. The
-Windows Credential Manager access sits in `src-tauri/src/credential_store.rs`, outside the module,
-because `bb.exe` compiles it too.
+below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbucket.rs`,
+`gitlab.rs`, and `azure_devops.rs`. The Windows Credential Manager access sits in
+`src-tauri/src/credential_store.rs`, outside the module, because `bb.exe` compiles it too.
 
-- **Provider trait.** `ShipProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
-  `jobs`, `log`, `rerun`, `cancel`, `pulls`, and `default_branch`, each taking a `Cx` (the shared `Http` and the
-  resolved `Token`) and a `RepoRef`. The commands already run on `spawn_blocking`, so the methods
-  are blocking, which keeps the trait object safe with no async trait crate. `provider(kind)`
-  returns the GitHub and Bitbucket providers, and `None` for GitLab and Azure DevOps, which the
-  remote parser and the `ship.hosts` setting already know. `forge_repo` reports those as
-  `unsupportedHost` with "GitLab isn't supported yet" or "Azure DevOps isn't supported yet".
-  `RepoRef` carries the provider, host, a path (GitHub `[owner, repo]`, Bitbucket `[workspace,
-  slug]`, GitLab the full group path, Azure DevOps `[org, project, repo]`), and the repo's web URL.
+- **Provider trait.** `ForgeProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
+  `jobs`, `log`, `rerun`, `cancel`, `pulls`, `pull_checks`, and `default_branch`, each taking a
+  `Cx` (the shared `Http` and the resolved `Token`) and a `RepoRef`. The commands already run on
+  `spawn_blocking`, so the methods are blocking, which keeps the trait object safe with no async
+  trait crate. `provider(kind)` returns the provider for each of the four kinds. `RepoRef`
+  carries the provider, host, a path (GitHub `[owner, repo]`, Bitbucket `[workspace, slug]`,
+  GitLab the full group path, Azure DevOps `[org, project, repo]`), and the repo's web URL.
 - **Commands.** All are async, run their work on a blocking thread, and return a `ForgeError` on
   failure: `forge_repo(root)`, `forge_runs(root, branch)` (newest first, at most 20; a null branch
   means every branch), `forge_jobs(root, runId)`, `forge_log(root, runId, jobId)`,
-  `forge_rerun(root, runId, failedOnly)`, `forge_cancel(root, runId)`, `forge_pulls(root)` (open
-  ones, at most 50, with the host's count of all open ones), `forge_overview_repo(target)` (below),
-  and `forge_set_account(root, user)`. `root` is the pane's folder; a folder that is not a
+  `forge_rerun(root, runId, failedOnly)`, `forge_cancel(root, runId)`,
+  `forge_pulls(root, openOnly, branch)` (at most 50, with the host's count of all that match),
+  `forge_pull_checks(root, pulls)` (below), `forge_overview_repo(target)` (below), and
+  `forge_set_account(root, user)`. `root` is the pane's folder; a folder that is not a
   directory or not inside a repo is `notARepo`.
 - **Remote targets.** Every command takes a target key: a local folder, or `remote:<host>/<path>`
   for a repo with no clone, such as one pinned by typing its address. `parse_repo_input` reads the
   `<host>/<path>` form, an https, ssh, or scp remote URL, and a web URL into the repo (a pull
   request, a pipeline, a file), dropping the trailing page. A remote target has no current branch
   and no repo config, so its account is the one a fresh clone would get (the host's only or active
-  GitHub CLI account; Bitbucket has none), and `git credential fill` runs from the home folder,
-  reading the helpers from global and system config. `forge_set_account` returns an error for it,
-  since there is no repo config to store an account in. A target that does not parse is
+  GitHub CLI account; the other hosts have none), and `git credential fill` runs from the home
+  folder, reading the helpers from global and system config. `forge_set_account` returns an error
+  for it, since there is no repo config to store an account in. A target that does not parse is
   `unsupportedHost`, with a message that leaves the address out, as remote URLs are.
 - **Overview.** `forge_overview_repo(target)` returns an `OverviewRepo` (section 7) in one call: the
   newest 20 runs on every branch, the open pull requests (at most 50), and the default branch,
   fetched in parallel after one token lookup. An error from the runs or the pull requests is the
   call's error; a failed default-branch lookup only leaves `defaultBranch` null.
-- **Default branch.** `default_branch` is GitHub's `default_branch` and Bitbucket's
-  `mainbranch.name`; a provider that does not say returns null. The core caches it per provider,
+- **Default branch.** `default_branch` is GitHub's `default_branch`, Bitbucket's
+  `mainbranch.name`, GitLab's project `default_branch`, and Azure DevOps's repository
+  `defaultBranch`; a provider that does not say returns null. The core caches it per provider,
   host, and path for an hour, and a failed lookup caches nothing.
 - **Remote.** The remote is the current branch's upstream remote (`branch.<name>.remote`, ignoring
   `.`), else the one Publish uses (3.9): `origin`, else the only remote. A repo with no remote is
@@ -995,33 +1002,62 @@ because `bb.exe` compiles it too.
   remote's port (the web and API URLs use it too) and its `user@`, and dropping any password
   unread. Every Azure DevOps form (`dev.azure.com`, `ssh.dev.azure.com`, `vs-ssh.visualstudio.com`,
   and `<org>.visualstudio.com`) normalizes to host `dev.azure.com` and `[org, project, repo]`.
+  A GitLab remote keeps its whole group path, nested groups included, and its port.
   `ssh.github.com` is `github.com`. Remote URLs never appear in messages, since an https remote
   can carry a password.
 - **Host classification.** `classify` picks the provider from the `ship.hosts` setting (section
   8) first, then the well-known hosts (`github.com`, `bitbucket.org`, `gitlab.com`,
   `dev.azure.com`), then treats any host the GitHub CLI is signed in to (a top-level key in its
-  `hosts.yml`) as GitHub Enterprise Server. Anything else is `unsupportedHost`. The Bitbucket
+  `hosts.yml`) as GitHub Enterprise Server, then any host under `hosts:` in GitLab CLI's
+  `config.yml` as self-managed GitLab (only the key names are read, never a token). Anything else
+  is `unsupportedHost`. The Bitbucket
   provider speaks only Bitbucket Cloud (`api.bitbucket.org`): for another host it answers
   `unsupportedHost` with "Bitbucket Data Center isn't supported yet" before sending a request, so a
-  self-hosted host's Git Credential Manager token never goes to Bitbucket Cloud. `ship.hosts` is
-  therefore for GitHub Enterprise Server hosts the CLI is not signed in to, and for GitLab and
-  Azure DevOps hosts once those are served.
-- **Tokens.** Bashboard never runs an OAuth flow, and the one secret it writes is a Bitbucket API
-  token, into Windows Credential Manager (below). Each provider
+  self-hosted host's Git Credential Manager token never goes to Bitbucket Cloud. The Azure DevOps
+  provider speaks only Azure DevOps Services (`dev.azure.com`). `ship.hosts` is therefore for
+  GitHub Enterprise Server hosts the CLI is not signed in to, and for self-managed GitLab hosts
+  that GitLab CLI's config does not list.
+- **Tokens.** Bashboard never runs an OAuth flow, and the secrets it writes are a Bitbucket API
+  token and Azure DevOps personal access tokens (PATs), one per organization, into Windows
+  Credential Manager (below). Each provider
   lists sources in order, and the first that yields a token wins. GitHub: `gh auth token
   --hostname <host>` (with `--user <account>` when an account is chosen), found on `PATH` or in
   GitHub CLI's install folders, since a `gh` installed while Bashboard runs is not on the `PATH` it
   inherited; then `git credential fill`, which reaches Git Credential Manager. Bitbucket: the
   generic Windows credential `bashboard:bitbucket.org`, which the Accounts tab and `bb auth
-  bitbucket` write (3.13); then Git Credential Manager as a fallback. `git credential fill` runs with `GCM_INTERACTIVE=never`
+  bitbucket` write (3.13); then Git Credential Manager as a fallback. GitLab: `glab auth status
+  --hostname <host> --show-token` (glab has no `auth token` command), read from its labeled token
+  line, with a masked value counting as none, found on `PATH` or in glab's install folders and
+  kept for only 10 minutes, since glab refreshes its OAuth tokens itself; then Git Credential
+  Manager for the host. Azure DevOps: the PAT stored for the repo's organization, the generic
+  credential `bashboard:dev.azure.com/<org>` (the organization lowercased, since organization
+  names are case-insensitive); then the `AZURE_DEVOPS_EXT_PAT` environment variable (trimmed, an
+  empty value counting as unset), which the app reads from its own process environment, so a
+  variable set only in another tool's configuration does not reach it; then an Entra token from
+  `az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798` (Azure CLI found on
+  `PATH` or in its install folders, the token cached until 5 minutes before it expires); then Git
+  Credential Manager, asked with the organization as the credential's `path`, since it keeps one
+  Azure DevOps credential per organization. A stored PAT is per organization because a PAT made
+  for all accessible organizations (a global PAT) stops working on January 27, 2027. A stored PAT
+  that Azure DevOps refuses is reported as rejected and is not passed over for the Azure CLI, so a
+  stale PAT never hides behind another identity. `git credential fill` runs with `GCM_INTERACTIVE=never`
   and `GIT_TERMINAL_PROMPT=0`, so it never opens a sign-in window, passes the account as the
   `username` when one is chosen, and its reported expiry is honored. Bashboard never calls
   `approve` or `reject`, since the credential belongs to the user's helper. Tokens are cached in
-  memory by provider, host, and account. A call that answers 401 drops its cached token, resolves
+  memory by provider, host, and account (for Azure DevOps, the organization takes the account's
+  place in the key). A call that answers 401 drops its cached token, resolves
   one fresh, and retries once before the error stands.
+- **Auth header.** GitHub, Bitbucket, and GitLab send the token as `Bearer`. Azure DevOps takes
+  a PAT only as `Basic` (an empty user name, then the token) and an Entra token only as `Bearer`,
+  so the header follows the source: a stored PAT and an environment PAT are `Basic`, an Azure CLI
+  token is `Bearer`, and a Git Credential Manager password is `Bearer` when it has the shape of a
+  JWT (three base64url parts, the first starting `eyJ`, which is what Git Credential Manager
+  returns when `credential.azreposCredentialType` is `oauth`) and `Basic` otherwise.
 - **Accounts.** GitHub is the only host with several signed-in accounts. They come from GitHub
   CLI's `hosts.yml` (the host's `users` names and its active `user`); only those keys are read,
-  never an `oauth_token`. The account a repo uses is, in order: `credential.username` from the
+  never an `oauth_token`. GitLab CLI and Azure CLI hold at most one: the user from glab's "Logged
+  in to <host> as <user>" status line (the token line is never read) or from `az account show
+  --query user.name`. The account a repo uses is, in order: `credential.username` from the
   repo's git config (local, or `credential.<url>.username` for `https://<host>/`), the `user@` of
   an https remote, the host's only account, or the CLI's active account when there are several.
   `ForgeRepo.accountSource` names which (`repoConfig`, `remoteUrl`, `only`, `cliActive`, or
@@ -1029,40 +1065,63 @@ because `bb.exe` compiles it too.
   --local credential.username <user>`, drops that root's repo and token caches, and returns the
   re-resolved repo. That setting is the one that also stops Git Credential Manager asking which
   account to use on every push.
-- **Accounts commands** (`ship/accounts.rs`) serve the Accounts tab (4.20), and none returns a
-  token. `forge_auth_status()` returns one `HostAuth` per host: `github.com` always, every host in
-  GitHub CLI's `hosts.yml`, and every `ship.hosts` entry mapped to `github` (a `hosts.yml` host
-  that `ship.hosts` maps to another provider is left out, since the pane would not treat it as
-  GitHub), then `bitbucket.org` always; lowercased and deduplicated, `github.com` first, the other
-  GitHub hosts alphabetically, then Bitbucket. Each carries whether `gh` is installed (on the
-  `PATH` or in its install folders), the host's `hosts.yml` accounts and active account, the kind
-  of source the Ship pane would take its token from (`TokenSourceKind`: `ghCli`,
-  `gitCredentialManager`, or `bashboardCredential`; null when none yields one), and whether the
-  Bitbucket credential exists. Hosts are inspected side by side, and only the source's kind leaves
+- **Accounts commands** (`forge/accounts.rs`) serve the Accounts tab (4.20), and none returns a
+  token. `forge_auth_status(known)` returns one `HostAuth` per card, each with a signal saying the
+  host is used on this machine (`detected`, with `detectedBy` holding the reasons in words) or not.
+  `github.com`, `gitlab.com`, `bitbucket.org`, and `dev.azure.com` are always listed. Any other host
+  is listed once something detects it: a host in GitHub CLI's `hosts.yml`, a host in GitLab CLI's
+  config, a `ship.hosts` entry mapped to `github` or `gitlab` (a CLI host that `ship.hosts` maps to
+  another provider is left out, since the pane would not treat it as that CLI's), or a host in
+  `known`. `known` is what the front end alone knows: `{ hosts, dirs }`, the provider and host of
+  every pin and open Ship pane, and the folders of open terminal panes, whose repo host comes from
+  the `origin` remote (else the first). A stored Bitbucket token, a stored Azure DevOps PAT, a
+  non-empty `AZURE_DEVOPS_EXT_PAT`, and an installed Azure CLI detect the Bitbucket and Azure DevOps
+  cards. Bitbucket Cloud and Azure DevOps Services are one card each, so every host of theirs (the
+  `<org>.visualstudio.com` forms included) counts toward `bitbucket.org` and `dev.azure.com`. The
+  order is GitHub (`github.com` first, the other GitHub hosts alphabetically), GitLab hosts
+  alphabetically, `bitbucket.org`, then `dev.azure.com`; the front end splits detected cards from
+  the rest without reordering them. A `HostAuth` carries `cliInstalled` (`gh`, `glab`, or `az`
+  found on the `PATH` or in its install folders; false for Bitbucket), the CLI's `accounts` and
+  `activeAccount`, the kind of source the Ship pane would take its token from (`TokenSourceKind`:
+  `ghCli`, `glabCli`, `azCli`, `gitCredentialManager`, `bashboardCredential`, or `environment`;
+  null when none yields one), and `storedTokens`, the tokens Bashboard stored for the host: at most
+  one for Bitbucket, and one per organization for Azure DevOps, found by listing the credentials
+  under `bashboard:dev.azure.com/`. An Azure DevOps card with a stored PAT reports
+  `bashboardCredential`, since a stored PAT wins for its organization and the card has no one
+  organization to resolve for. Hosts are inspected side by side, and only the source's kind leaves
   the lookup. `ghEnvToken` is the name of the environment variable that `gh` in a terminal would use
-  for the host instead of its saved accounts, or null (always null for Bitbucket, and for a GitHub
+  for the host instead of its saved accounts, or null (always null off GitHub, and for a GitHub
   host with none set); only the name leaves the core, never the value. The app's own lookup passes
   `--user`, so it reads the saved account whatever the variable says. GitHub CLI's rules: for `github.com` and `*.ghe.com` hosts, `GH_TOKEN` then
   `GITHUB_TOKEN`; for other hosts, `GH_ENTERPRISE_TOKEN` then `GITHUB_ENTERPRISE_TOKEN`. An empty
-  value counts as unset. `forge_auth_test(provider, host, account)` resolves that token and asks the host who
+  value counts as unset. `forge_auth_test(provider, host, account, org)` resolves that token and asks the host who
   it belongs to, bypassing the ETag cache: GitHub `GET /user`, reading the login and the
-  `X-OAuth-Scopes` header (sent only for classic tokens and OAuth apps), and Bitbucket `GET
-  /2.0/user`. It returns an `AuthCheck` (`ok`, `login`, `scopes`, `message`), and an error comes
+  `X-OAuth-Scopes` header (sent only for classic tokens and OAuth apps), Bitbucket `GET
+  /2.0/user`, GitLab `GET /api/v4/user` (the username), and Azure DevOps `GET
+  /<org>/_apis/connectionData` (the signed-in display name), using the sources of that
+  organization, which `org` names; with no `org` it answers `ok: false`, asking for an Azure DevOps repo
+  to be opened first, and a reply that names nobody fails the test. It returns an `AuthCheck` (`ok`, `login`, `scopes`, `message`), and an error comes
   back as `ok: false` with its message, so a Bitbucket 403 names the missing scope.
-  `forge_bitbucket_set_token(token)` stores the credential and `forge_bitbucket_clear_token()`
-  deletes it (false when none was stored). `forge_gh_switch(host, user)` and
+  `forge_set_token(provider, org, token)` stores a token in Windows Credential Manager and
+  `forge_clear_token(provider, org)` deletes it (false when none was stored). Bitbucket's is the
+  credential `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, and ignores
+  `org`; an Azure DevOps organization's is `bashboard:dev.azure.com/<org>` with the user name
+  `x-azure-devops-pat`, and `org` is required: it is trimmed and lowercased, and an empty name, or
+  one holding a slash, whitespace, or a control character, is refused. Any other provider is
+  refused. `forge_gh_switch(host, user)` and
   `forge_gh_logout(host, user)` run `gh auth switch` and `gh auth logout` with `--hostname` and
   `--user`; they refuse a user who is not among that host's `hosts.yml` accounts, run with a hidden
   console, `GH_PROMPT_DISABLED=1`, and no standard input, so `gh` never prompts, and report its
   standard error on failure. Both remove `GH_TOKEN`, `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN`, and
   `GITHUB_ENTERPRISE_TOKEN` from `gh`'s environment, since `gh` refuses to switch or log out while
-  one applies to the host. Every successful change drops the host's cached tokens and resolved
+  one applies to the host. `forge_glab_logout(host)` runs `glab auth logout --hostname <host>` the
+  same way; glab holds one account per host, so it names none. Every successful change drops the host's cached tokens and resolved
   repos and emits `forge://auth-changed` with `{ provider, host }`; Ship panes (`ShipStore`),
   the Overview store, and an open Accounts tab refresh on it. A sign-in finished in a terminal
   pane changes `hosts.yml` without passing through the core, so the tab also reloads when it is
   shown and when the window regains focus.
-- **Token handling.** A Bitbucket token enters the core only from the Accounts tab's password
-  field, as the one argument of `forge_bitbucket_set_token`, or from `bb auth bitbucket` in a
+- **Token handling.** A Bitbucket token or an Azure DevOps PAT enters the core only from the
+  Accounts tab's password field, as an argument of `forge_set_token`, or from `bb auth` in a
   separate process. It is never sent from the core to the page, never logged, never put in an
   error message, and never written anywhere but Windows Credential Manager. The core overwrites
   its copies after the write; that is best effort, since the buffers the IPC layer fills while
@@ -1070,7 +1129,10 @@ because `bb.exe` compiles it too.
   wiped from memory.
 - **Errors.** Providers and the HTTP layer return `ForgeError { kind, message, url, signIn,
   retryAfterSecs }`. `message` is plain text and never holds a token or a header; the HTTP layer
-  builds messages from status codes and host names only. A 401 is `signedOut`; a 403 with GitHub's
+  builds messages from status codes and host names only. A 401 is `signedOut`, and so is a 2xx
+  reply to a JSON request that is an HTML page (Azure DevOps answers a refused or wrong-organization
+  token with its sign-in page, often a 203; a log fetch decides on the content type alone, since a
+  log may begin with `<`); a 403 with GitHub's
   `X-GitHub-SSO` header is `ssoRequired`, carrying the authorize URL; a 429, or a 403 with
   `Retry-After` or an exhausted `X-RateLimit-Remaining`, is `rateLimited` with the seconds to wait;
   any other 403 is `forbidden`, and a 404 is `notFound`. A Bitbucket 403 body names the scopes the
@@ -1083,9 +1145,19 @@ because `bb.exe` compiles it too.
   (re-run, cancel) never repeats with the same token. `signedOut` is finished in `mod.rs` into the next
   step. For GitHub with `gh` installed, `signIn` is `gh auth login --hostname <host> --web`; with
   `gh` missing, the kind becomes `notInstalled`, `url` is cli.github.com, and `signIn` is `winget
-  install --id GitHub.cli -e`. For Bitbucket the message says whether no token is stored or the
+  install --id GitHub.cli -e`. For GitLab the same split applies with `glab`: `signIn` is `glab
+  auth login --hostname <host>`, or, with `glab` missing, the kind becomes `notInstalled`, `url` is
+  GitLab CLI's page, and `signIn` is `winget install --id GLab.GLab -e`. For Bitbucket the message says whether no token is stored or the
   stored token was rejected (it may have expired or lack a scope), `url` is the Atlassian token
-  page, and `signIn` is `bb auth bitbucket`, and the message names the Accounts tab first. A GitHub `notFound` on a host with several accounts
+  page, and `signIn` is `bb auth bitbucket`, and the message names the Accounts tab first. For
+  Azure DevOps, `signedOut` and `forbidden` both carry the organization's token page
+  (`https://dev.azure.com/<org>/_usersSettings/tokens`) as `url` and `bb auth azure-devops <org>`
+  as `signIn`, and a `signedOut` message says which source failed: none was found (add a PAT in
+  the Accounts tab, or run `bb auth azure-devops <org>`); the stored token was rejected (expired,
+  revoked, or made for another organization); the `AZURE_DEVOPS_EXT_PAT` token was rejected; Azure
+  CLI's sign-in was refused, with the hint to run `az login --tenant <tenant>`, since a wrong tenant
+  answers like no access at all; or Git Credential Manager's sign-in was refused. A message that
+  says "rejected" is what the notice keys on to lead with Replace token. A GitHub `notFound` on a host with several accounts
   points at the account menu. A Git Credential Manager token that Bitbucket refuses gets a message
   saying that its sign-in cannot read pipelines or pull requests.
 - **HTTP.** One `ureq` agent with a 15 second timeout, the system proxy, and the Windows
@@ -1123,11 +1195,74 @@ because `bb.exe` compiles it too.
   fetches them eight at a time, and merges the answers into the rows. The pipelines list carries a commit's hash but not its
   message, so a pipeline titled by neither a commit message nor a pull request takes its commit's
   first line from `/commit/{hash}`, fetched once per hash for the session.
+- **GitLab.** `https://<host>/api/v4`, where the host keeps the port of an https remote, with a
+  Bearer token. A project is addressed by its full path, nested groups included, percent-encoded
+  as one segment (`group%2Fsub%2Frepo`). A pipeline is a run, and a job is a job with no step
+  list, so `steps` is empty; the API lists jobs newest first and the pane shows them oldest first.
+  A job's log is its `trace`, and one that has not started has an empty log. The pipeline list
+  lacks the name, the user, and the times, so each pipeline's detail is fetched, eight at a
+  time, and cached until the list's `updated_at` for it changes; the title is the commit's first
+  line from `/repository/commits/{sha}`, fetched once per commit. A pipeline's `created`,
+  `waiting_for_resource`, `preparing`, `pending`, and `scheduled` are `queued`; `running` and
+  `canceling` are `running`; `manual` is `waiting`; `failed` is `failure`; `canceled` is
+  `cancelled`. Re-run is `POST /pipelines/{id}/retry`, which retries the failed jobs only, so
+  `rerun` and `rerunFailed` are both true and do the same; cancel is `POST /pipelines/{id}/cancel`.
+  Merge requests come from `/merge_requests` (`state=opened`, or `all`; newest update first; 50;
+  `source_branch` for the branch filter), and the total is the `X-Total` header, which GitLab
+  leaves out past 10,000 (then null), so the call is not served from the ETag cache. A `merged`
+  request is merged, `closed` and `locked` are closed, and `draft` is the draft flag. GitLab has
+  no "changes requested": a reviewer who approved is approved, every other reviewer is pending,
+  and anyone else who approved is added as approved. The list carries neither the head pipeline
+  nor the approvals, so its open rows come back `checksPending`, and `forge_pull_checks` fetches
+  each merge request and its approvals (eight at a time), cached until the merge request's
+  `updated_at` changes and asked again while its pipeline is still queued or running. The
+  approvals and the head pipeline therefore show one poll after the list. The viewer's user id
+  comes from `/user` once per host and token, and marks the merge requests that are yours or
+  await your review.
+- **Azure DevOps.** `https://dev.azure.com/{org}`, the path `[org, project, repo]` percent-encoded
+  per segment, with `api-version=7.1` on every call except `7.1-preview` for `connectionData` and
+  policy evaluations, which answer a plain `7.1` with a 400. Every call sends `X-TFS-FedAuthRedirect:
+  Suppress`, since a refused token otherwise gets a 302 to a sign-in page on another host rather
+  than a 401. The repo's id, its project's id, and its default branch come from one repository
+  request, cached on success. A run is a build (`_apis/build/builds` for the repo's id, the newest
+  20, filtered by `refs/heads/<branch>`); a pull request build is attributed to the pull request's
+  source branch, and its title is the commit message's first line, else the pull request's title,
+  else the build number. A build's `notStarted` and `postponed` are `queued`; `inProgress` and
+  `cancelling` are `running`; once `completed`, its result decides: `succeeded` is `success`,
+  `failed` and `partiallySucceeded` are `failure`, and `canceled` is `cancelled`. A build held at a
+  stage approval stays `inProgress`, so it reads as running. Jobs come from the build's timeline,
+  which is flat and unordered: each Job record is a job, named `<stage> / <job>` when it is in a
+  named stage, ordered by the `order` of its ancestors from the stage down, with its Task records
+  as steps. A log is addressed by the record's log id, which exists only once the job has started
+  (before that the log is empty). Re-run re-runs only the failed stages of the same build
+  (`PATCH builds/{id}?retry=true`), so `rerun` is false and `rerunFailed` is true, and a full
+  re-run is refused. Cancel is `PATCH` with `{"status": "cancelling"}`. A 403 on either says the
+  token is missing the Build (Read & execute) scope. Pull requests come from `searchCriteria.status`
+  `active`, or `all` (the newest 50, `searchCriteria.sourceRefName` for the branch filter); `isDraft`
+  is the draft flag, `completed` is merged, and `abandoned` is closed. A reviewer's vote of 10 or 5
+  is approved, -5 or -10 is changes requested, and 0 is pending; a reviewer who declined is not
+  listed. The decision is changes requested when any reviewer asked, else approved when any
+  approved. The list carries no checks, so its open rows come back `checksPending` unless a settled
+  rollup is cached for the same source commit; `forge_pull_checks` fetches policy evaluations one
+  pull request at a time, since Azure DevOps throttles by load per user, and the rollup is the
+  worst of the enabled Build validation and external Status check evaluations, skipping
+  `notApplicable` ones (`rejected` or `broken` is `failure`, then `running`, then `queued`, and
+  all `approved` is `success`). A queued or running rollup is asked again on the next poll. The
+  viewer's identity id comes from `connectionData` once per token and organization, and marks the
+  pull requests that are yours or await your vote. The list has no updated time, so a pull request's
+  `updatedAt` is its closing time or else its creation time, and its total is the page's size when
+  the page is not full, else null.
 - **Capabilities.** GitHub: re-run, re-run failed, cancel, logs, drafts, accounts; nouns "pull
   request" and "workflow run"; minimum poll 10 s. Bitbucket: re-run, cancel, logs, drafts, no
-  failed-only re-run, no accounts; nouns "pull request" and "pipeline"; minimum poll 30 s.
+  failed-only re-run, no accounts; nouns "pull request" and "pipeline"; minimum poll 30 s. GitLab:
+  re-run, re-run failed, cancel, logs, drafts, no accounts; nouns "merge request" and "pipeline";
+  minimum poll 10 s. Azure DevOps: re-run failed (and no plain re-run), cancel, logs, drafts, no
+  accounts; nouns "pull request" and "build"; minimum poll 20 s. Neither GitLab nor Azure DevOps
+  has an Overview request budget; Bitbucket's alone is described in 4.20.
 - **Caching.** The resolved repo (remote, branch, and account) is cached per root for 15 s. Tokens
-  are cached as above, and the ETag, viewer, and checks caches live as long as the app. A change
+  are cached as above, and the ETag, viewer, and checks caches live as long as the app, as do
+  GitLab's pipeline details and commit titles and Azure DevOps's repo ids; a cache that grows
+  past 2,000 entries starts over. A change
   made through an Accounts command drops that host's cached tokens and resolved repos at once.
 
 ## 4. Front end
@@ -1799,10 +1934,11 @@ review"). It is shown when some open pull request is not awaiting the viewer's r
 review requests pass the cap, and opens the Overview. Both count from what each poll already
 fetches, a repo's newest 20 runs and 50 open pull requests.
 
-When a pin's last poll failed for want of an account (signed out, or the GitHub CLI missing), a
+When a pin's last poll failed for want of an account (signed out, or a code host's CLI missing), a
 sign-in row leads the section, "Sign in to bitbucket.org for keysys/kweb" or "Sign in for 3
 pinned repos", naming the host when every such pin shares one. It opens the Accounts tab (4.20)
-on that host, straight to the token form for Bitbucket. The header's button, the Overview icon,
+on that host, straight to the token form for Bitbucket and Azure DevOps (with the organization
+filled in when every such pin shares one). The header's button, the Overview icon,
 opens the Overview. The section is never empty: before any pinned repo has loaded it shows the
 sign-in row or else a dash, and with no repo pinned it shows a "Pin repos" row
 that opens the Overview, since the section is a new user's way into Ship. It reads the Overview's shared store (4.20), which polls only while this
@@ -2628,8 +2764,8 @@ rebuilding the list. The pane saves no state.
 
 ### 4.20 Ship pane
 
-A Ship pane has two views. The **Overview** is the default: one row per pinned repo, across GitHub
-and Bitbucket, showing its deploy branches' health and its open pull requests, ordered by what needs
+A Ship pane has two views. The **Overview** is the default: one row per pinned repo, across GitHub,
+Bitbucket, GitLab, and Azure DevOps, showing its deploy branches' health and its open pull requests, ordered by what needs
 attention. A repo's own view, reached by drilling into a row, shows its CI runs and pull requests
 from the repo's code host (3.20) as two tabs, **Pipelines** and **Pull requests** (the second reads
 "Merge requests" on a host whose `prNoun` says so), with an **Overview** crumb at the start of the
@@ -2665,7 +2801,7 @@ the Accounts tab (below), and a **Refresh** button that polls every pin at once.
 poll is more than 30 s old. With no pins, a note says to pin a repo from its Ship view or add one
 there. Each row holds:
 
-- A provider badge (GH for GitHub, BB for Bitbucket), the repo's `owner/name` (the full
+- A provider badge (GH for GitHub, BB for Bitbucket, GL for GitLab, AZ for Azure DevOps), the repo's `owner/name` (the full
   `<host>/<path>` in its tooltip), with the health branches under it, and beside them a pull
   request summary: "3 PRs open, 1 draft, 1 needs you", "1 PR open", or "No open pull requests"
   (with the host's noun, as initials when counted; the draft and needs-you parts appear only when
@@ -2745,7 +2881,8 @@ resolved; the account chip; the pin toggle; **Accounts**, which opens the Accoun
 host; and **Refresh**, which polls at once. Each tab keeps its own This branch choice: on
 Pipelines it limits the list to runs on the branch, and on Pull requests to pull requests whose
 source branch it is, filtered by the host (GitHub's `headRefName`, Bitbucket's
-`q=source.branch.name="<branch>"`) so the 50-item cap never hides one. Each choice is shared by
+`q=source.branch.name="<branch>"`, GitLab's `source_branch`, Azure DevOps's
+`searchCriteria.sourceRefName`) so the 50-item cap never hides one. Each choice is shared by
 the panes on one repo: a pane that opens on a repo another pane already shows takes that pane's
 choices, and the first pane to open a repo applies its own saved ones. Open is shared the same
 way. This branch follows the repo's current local branch, resolved again on every run poll, so a
@@ -2770,8 +2907,11 @@ Waiting for approval, Passed, Failed, Cancelled, Skipped, or Unknown. Clicking a
 jobs. The list is the latest 20 runs, and an empty list says so.
 
 - **Jobs.** Each job shows its status, name, and duration, then its steps when the host reports
-  them (GitHub does; a Bitbucket step carries no per-command list), with a failed step marked.
-  GitHub's jobs are its workflow jobs and Bitbucket's are the pipeline's steps. **Show log** loads
+  them (GitHub does, and an Azure DevOps job's steps are its tasks; a Bitbucket step carries no
+  per-command list and a GitLab job has no steps), with a failed step marked. GitHub's jobs are
+  its workflow jobs, Bitbucket's are the pipeline's steps, GitLab's are the pipeline's jobs, and
+  Azure DevOps's are the build's timeline jobs, each named with its stage when it has one.
+  **Show log** loads
   the job's log on demand: ANSI escapes, GitHub's per-line timestamps, a byte order mark, and
   carriage returns are removed, a log cut to its last 1 MiB says so, and the view starts scrolled
   to the end, where the failure is. An expanded run's jobs reload when a poll changes its status or
@@ -2784,16 +2924,17 @@ jobs. The list is the latest 20 runs, and an empty list says so.
   title its room; the menu still holds every action. `runActionStates` in `src/shipMenus.ts`
   decides both the buttons and the menu.
 - **Run menu.** Right-click a row: **Open in browser**; **Re-run** (greyed while the run is
-  active); **Re-run failed jobs**, only on a host that has it (GitHub), enabled for a failed run;
+  active); **Re-run failed jobs**, only on a host that has it (GitHub, GitLab, and Azure DevOps, where it
+  re-runs the build's failed stages and is the only re-run offered), enabled for a failed run;
   **Cancel**, only for a queued or running run on a host that can; and **Copy link**. Cancel opens
   a confirmation naming the run and its branch, whose button reads "Cancel <run noun>" ("Cancel
-  workflow run", "Cancel pipeline"); Re-run and Re-run failed jobs do not ask. A re-run or cancel
+  workflow run", "Cancel pipeline", "Cancel build"); Re-run and Re-run failed jobs do not ask. A re-run or cancel
   polls again after 3 s, and a failure of either shows as a toast, since the list stays as it was.
   Entries a host cannot do are left out rather than greyed.
 
 **Pull requests.** The 50 most recently updated pull requests: open ones while **Open** is
 checked, else those in every state (open, merged, and closed, with Bitbucket's declined and
-superseded counted as closed), under group headers with counts: **Review
+superseded, GitLab's locked, and Azure DevOps's abandoned counted as closed), under group headers with counts: **Review
 requested** (the viewer is a requested reviewer who has not reviewed; a request wins over
 ownership), **Yours**, and **Others**; empty groups are left out. Within a group, open ones come
 first, then open drafts, then merged and closed ones, each most recently updated first. A row
@@ -2840,26 +2981,41 @@ plain shell in that folder, since the command is not saved.
 
 | Error | Notice and its buttons |
 | --- | --- |
-| `notInstalled` | "Bashboard reads GitHub through the GitHub CLI." **Install with winget**, **Open cli.github.com**, **Manage accounts**, **Retry** |
+| `notInstalled`, GitHub | "Bashboard reads GitHub through the GitHub CLI." **Install with winget**, **Open cli.github.com**, **Manage accounts**, **Retry** |
+| `notInstalled`, GitLab | "Bashboard reads GitLab through the GitLab CLI." **Install with winget** (`winget install --id GLab.GLab -e`), **Open the GitLab CLI page**, **Manage accounts**, **Retry** |
 | `signedOut`, GitHub | "Sign in to `<host>` with the GitHub CLI." **Sign in** (`gh auth login --hostname <host> --web`), **Manage accounts**, **Retry** |
+| `signedOut`, GitLab | "Sign in to `<host>` with the GitLab CLI." **Sign in** (`glab auth login --hostname <host>`), **Manage accounts**, **Retry** |
 | `signedOut`, Bitbucket, no token | "Bitbucket needs an API token." The reason, the numbered steps, and the scope list, whose last step says to choose Add token here (or run `bb auth bitbucket` in a terminal); **Add token**, **Open the API token page**, **Copy scopes**, **Retry** |
 | `signedOut`, Bitbucket, token refused | "Bitbucket rejected the stored API token." Steps and scopes folded under "How to make a new one"; the same buttons, with **Replace token** in place of Add token |
 | `forbidden`, Bitbucket | "Bitbucket denied the request", with the message naming the missing scope; the same steps, scopes, and buttons as a refused token, so **Replace token** leads |
+| `signedOut`, Azure DevOps, no token | "Azure DevOps needs a personal access token." The core's message naming the organization, the numbered steps and the scope list, whose last step says to choose Add token here (or run `bb auth azure-devops <org>` in a terminal); **Add token**, **Open the token page** (the organization's `_usersSettings/tokens` page), **Copy scopes**, **Sign in with Azure CLI** (`az login`), **Retry** |
+| `signedOut`, Azure DevOps, token refused | "Azure DevOps rejected the token." The message names the source that failed; steps and scopes folded under "How to make a new one"; the same buttons, with **Replace token** in place of Add token |
+| `forbidden`, Azure DevOps | "Azure DevOps denied the request", with the message; the same steps, scopes, and buttons as a refused token, so **Replace token** leads |
 | `notFound`, GitHub, several accounts | "`<owner>/<name>` wasn't found as @`<account>`." **Use another account** (opens the account menu), **Retry** |
 | `ssoRequired` | "Single sign-on needs authorizing", **Authorize** (the host's URL), **Retry** |
 | `rateLimited` | "Rate limit reached", with when polling resumes |
-| `unsupportedHost` | "`<host>` isn't supported", the message, and, for a GitHub Enterprise Server host the CLI is not signed in to, the `ship.hosts` setting to copy; **Copy setting**, **Retry** |
+| `unsupportedHost` | "`<host>` isn't supported", the message, and how the `ship.hosts` setting names a self-managed host's provider, with an example to copy; **Copy setting**, **Retry**. A message ending "isn't supported yet" (Bitbucket Data Center) shows with **Retry** only |
 | `notARepo` | "Not a git repository" |
 | `noRemote`, `network`, `other`, other `forbidden` and `notFound` | A titled notice holding the error's message, with **Retry** |
 
 The Bitbucket scope list comes from `BITBUCKET_SCOPE_INFO` and is shown as a table in
 [setup.md](setup.md#bitbucket-cloud): `read:repository:bitbucket`, `read:pullrequest:bitbucket`,
 `read:pipeline:bitbucket`, `write:pipeline:bitbucket` (optional, for re-run and stop), and
-`read:user:bitbucket`. **Copy scopes** copies them space separated.
+`read:user:bitbucket`. **Copy scopes** copies them space separated. The Azure DevOps scope list
+comes from `AZURE_DEVOPS_SCOPE_INFO`, `Code (Read)` and `Build (Read & execute)`, shown in
+[setup.md](setup.md#azure-devops); its **Copy scopes** copies them comma separated.
 
 **Accounts tab.** The app dialog's Accounts tab (4.18; `accountsTab.ts`, with `forgeHostCard.ts`,
 `forgeTokenForm.ts`, and the pure `forgeAccountsModel.ts`) has one card per code host, from
-`forge_auth_status` (3.20): `github.com`, each other GitHub host, then `bitbucket.org`. A card shows
+`forge_auth_status` (3.20), which the tab asks with what it knows: the hosts of pins and open Ship
+panes, and the folders of open terminal panes. The cards the core marks detected come first, in its
+order: GitHub hosts (`github.com` first), GitLab hosts, `bitbucket.org`, then `dev.azure.com`. Every
+other card folds under a **More hosts (N)** toggle, absent at zero, that reveals them dimmed, each
+marked "Not detected on this machine". `github.com`, `gitlab.com`, `bitbucket.org`, and
+`dev.azure.com` always have a card, so a host can be set up before it is used. A detected card's
+tooltip lists why: GitHub CLI is signed in, GitLab CLI's config names it, the `ship.hosts` setting, a
+pinned repo or open Ship pane, a terminal pane's repo, a stored API token or personal access
+token, `AZURE_DEVOPS_EXT_PAT` is set, or Azure CLI is installed. A card shows
 status and never a token. The tab loads when it is shown, when the window regains focus, and on
 `forge://auth-changed`, so a sign-in finished in a terminal pane appears without a restart.
 
@@ -2875,33 +3031,67 @@ status and never a token. The tab loads when it is shown, when the window regain
   lose this account too.") and then runs `gh auth logout` in the core; and **Test**.
   When the host's `ghEnvToken` is set, a muted note under the status reads "<VAR> is set, so gh in
   a terminal uses that token; Bashboard uses the saved account shown here." Every action stays.
+- **GitLab card.** One per GitLab host, titled "GitLab" for `gitlab.com` and "GitLab (<host>)" for a
+  self-managed one. The status line is the user GitLab CLI is signed in as ("Signed in as @name
+  through GitLab CLI"), else Git Credential Manager's sign-in, else "Not signed in", with ", and
+  GitLab CLI is not installed" when `glab` is missing. Buttons: **Install GitLab CLI** while `glab`
+  is missing, which runs `winget install --id GLab.GLab -e` in a new terminal pane; **Sign in**
+  while it is installed and signed out, which runs `glab auth login --hostname <host>` the same
+  way, closing the dialog first; **Sign out** once it is signed in, which asks first ("Signs @name
+  out of GitLab CLI on <host>. Other apps that use glab lose this sign-in too.") and then runs
+  `glab auth logout` in the core (`forge_glab_logout`); and a card-level **Test** whenever a user
+  or any token source exists.
 - **Bitbucket card.** Whether a `bashboard:bitbucket.org` token is stored, else the source the app
   would use; Git Credential Manager alone warns that it cannot read pipelines or pull requests.
   Buttons: **Add token** (**Replace token** and **Remove token** once one is stored), **Test**,
   **Open the API token page**, and **Copy scopes**, with the scope list and what each is for
   beneath. **Remove token** asks first, and the Bitbucket panes stop working until a token is
   added again. Add and Replace open the token form below the buttons.
+- **Azure DevOps card.** One card for `dev.azure.com`, whatever the organization. The status line
+  lists the organizations with a stored PAT ("Personal access token stored for <orgs>"), since a
+  stored PAT outranks every other source for its organization; else the source the pane would use
+  (the `AZURE_DEVOPS_EXT_PAT` variable, Azure CLI with the user it is signed in as, or Git
+  Credential Manager); else "No personal access token stored", with ", and Azure CLI is not
+  installed" when `az` is missing. Under it, one row per organization with a stored PAT, each
+  with **Replace** (opens the token form with that organization filled in), **Remove** (asks
+  first: "Deletes the personal access token Bashboard stored for the <org> organization. Its Ship
+  panes fall back to the next token source, if there is one."), and **Test**. Buttons: **Add
+  token**, **Sign in with Azure CLI** when `az` is installed (runs `az login` in a new terminal
+  pane), a card-level **Test** when a PAT is stored or any source exists, **Open the token page**,
+  and **Copy scopes**, with the scope list and what each is for beneath. **Open the token page**
+  opens the organization's `_usersSettings/tokens` page for the form's organization, else the
+  suggested one, else the first with a stored PAT; with none known it opens the form and asks for
+  the organization.
 - **Test.** Asks the host who the credential belongs to (3.20) and shows the login and, on GitHub,
   the granted scopes, or the error beside the card; a Bitbucket 403 names the missing scope. On
   GitHub it runs per account, so a signed-in account that is not active can be checked without
-  switching to it. It bypasses the response cache, so it reaches the host every time.
+  switching to it. On Azure DevOps the credential is per organization: the card's Test checks
+  each organization with a stored PAT and then each one a pin or open Ship pane names, one line
+  each ("<org>: Signed in as <display name>."), a row's Test checks only its own organization,
+  and with no organization to check it says to open an Azure DevOps repo first. A test bypasses
+  the response cache, so it reaches the host every time.
 - **Token form.** A password field (`type="password"`, `autocomplete="off"`) with **Save** and
-  **Cancel**, and a hint that `bb auth bitbucket` stores one from a terminal. The value goes to the
-  core once, as the argument of `forge_bitbucket_set_token`, and the page keeps no copy: the field
-  is emptied on save, cancel, when the tab is hidden, and when the dialog closes. Escape cancels an
-  open form before it closes the dialog. A failed save shows its error in the form.
+  **Cancel**, and a hint that `bb auth bitbucket` (or `bb auth azure-devops <org>`) stores one from
+  a terminal. For Azure DevOps a required Organization field, with a `dev.azure.com/` prefix, sits
+  above it: Replace fills it from its row, and Add token with the first
+  organization a pin or open Ship pane names that has no stored PAT. The value goes to the
+  core once, as the argument of `forge_set_token(provider, org, token)`, and the page keeps no copy:
+  the field is emptied on save, cancel, when the tab is hidden, and when the dialog closes. Escape
+  cancels an open form before it closes the dialog. A failed save shows its error in the form.
 - **Changes.** A successful switch, sign-out, save, or removal drops the host's cached credentials
   in the core and emits `forge://auth-changed` (3.20); open Ship panes, the Overview, and the tab
   itself refresh on it. The account chip's per-repo `credential.username` behavior is separate and
   is unchanged.
 - **Entry points.** **Accounts** in a drilled Ship bar and in the Overview bar; **Manage
   accounts** in the account chip's menu (the chip shows only with two or more accounts, and not on
-  a remote pin); the notice buttons **Manage accounts** (GitHub `signedOut` and `notInstalled`),
-  **Add token** (Bitbucket `signedOut`), and **Replace token** (a refused token, and `forbidden`),
-  the last two opening the Bitbucket card with the token form open; the same buttons on an
-  Overview row's error line; and the command palette's "Manage code host accounts"
-  (`showAccounts`, no default key). A button that names a host opens the tab and scrolls that
-  host's card into view; the Overview's bar button leaves the choice to the tab.
+  a remote pin); the notice buttons **Manage accounts** (GitHub and GitLab `signedOut` and
+  `notInstalled`), **Add token** (Bitbucket and Azure DevOps `signedOut`), and **Replace token** (a
+  refused token, and `forbidden`), the last two opening the card with the token form open, and for
+  Azure DevOps with the repo's organization filled in; the same buttons on an Overview row's error
+  line; and the command palette's "Manage code host accounts" (`showAccounts`, no default key). A
+  button that names a host opens the tab, expands More hosts when the card is folded there, and
+  scrolls that host's card into view; a host the core had not listed is asked for, so the request
+  always lands on a card. The Overview's bar button leaves the choice to the tab.
 
 ## 5. Readability
 
@@ -3147,12 +3337,12 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 | `ForgeRepo`, `Capabilities`, `Run`, `Job`, `Step`, `JobLog`, `PullList`, `PullRequest`, `Reviewer`, `OverviewRepo`, `PinnedRepo`, `ForgeError`, `HostAuth`, `AuthCheck`, `TokenSourceKind` | `src/forgeApi.ts` | The `forge_*` commands (3.20) and `forge://auth-changed`; the rules are under Ship payloads |
 | `ShellProfile` | `src/profiles.ts` | `shell_profiles` (3.1) |
 
-**Ship payloads.** The Rust types (`ship/types.rs`) serialize camelCase, with `Option` as null, and
+**Ship payloads.** The Rust types (`forge/types.rs`) serialize camelCase, with `Option` as null, and
 `src/forgeApi.ts` mirrors them field for field. Times are ISO 8601 strings.
 
 - `ProviderKind`: `github`, `bitbucket`, `gitlab`, or `azureDevOps`. `RunStatus`: `queued`,
   `running`, `waiting`, `success`, `failure`, `cancelled`, `skipped`, or `other`; `waiting` means a
-  person must act (GitHub `action_required`, Bitbucket `PAUSED` or `HALTED`). `ReviewState`:
+  person must act (GitHub `action_required`, Bitbucket `PAUSED` or `HALTED`, GitLab `manual`). `ReviewState`:
   `approved`, `changesRequested`, or `pending`. `AccountSource`: `repoConfig`, `remoteUrl`,
   `cliActive`, `only`, or `none`.
 - `Capabilities`: `rerun`, `rerunFailed`, `cancel`, `jobLogs`, and `drafts` (booleans); `prNoun`
@@ -3174,7 +3364,7 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 - `PullRequest`: `id`, `number`, `title`, `author`, `draft`, `sourceBranch`, `targetBranch`,
   `createdAt`, `updatedAt`, `webUrl`, `reviewDecision` (null when the host has no verdict yet),
   `reviewers` (each a `Reviewer` with `login` and `state`), `checks` (null when it has none),
-  `checksPending` (checks not fetched yet; only Bitbucket sets it), `isMine`, and `reviewRequested` (the viewer is a requested reviewer who has not reviewed). Both
+  `checksPending` (checks not fetched yet; Bitbucket, GitLab, and Azure DevOps set it), `isMine`, and `reviewRequested` (the viewer is a requested reviewer who has not reviewed). Both
   flags are false when the viewer cannot be identified.
 - `OverviewRepo`: `repo` (a `ForgeRepo`), `defaultBranch` (null when the host does not say or the
   lookup failed), `runs` (the newest 20 on every branch, newest first), and `pulls` (a `PullList`
@@ -3184,10 +3374,17 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
   `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, or `other`), `message` (plain
   text, never a token or an `Authorization` header), `url` (a page to open), `signIn` (the argv to
   run in a new terminal pane), and `retryAfterSecs`.
-- `HostAuth`: `provider` (`github` or `bitbucket`), `host`, `ghInstalled`, `accounts` (GitHub CLI's
-  users for the host; empty for Bitbucket), `activeAccount` (or null), `ghEnvToken` (the variable's name, or null; see 3.20), `tokenSource` (a
-  `TokenSourceKind`: `ghCli`, `gitCredentialManager`, or `bashboardCredential`; null when no source
-  has a token), and `bitbucketTokenStored`. It never holds a token. `AuthCheck`: `ok`, `login`,
+- `HostAuth`: `provider` (a `ProviderKind`), `host`, `cliInstalled` (`gh`, `glab`, or `az` was
+  found; false for Bitbucket), `accounts` (the users the CLI holds for the host: several for GitHub
+  CLI, at most one for GitLab CLI and Azure CLI; empty for Bitbucket), `activeAccount` (or null),
+  `tokenSource` (a `TokenSourceKind`: `ghCli`, `glabCli`, `azCli`, `gitCredentialManager`,
+  `bashboardCredential`, or `environment`; null when no source has a token), `storedTokens` (the
+  tokens Bashboard stored for the host, each `{ org }`: at most one for Bitbucket, with `org` null,
+  and one per Azure DevOps organization), `ghEnvToken` (the variable's name, or null; see 3.20),
+  `detected` (some signal says the host is used on this machine), and `detectedBy` (the reasons, in
+  words; empty when undetected). It never holds a token. `Known`, the argument of
+  `forge_auth_status`, is `{ hosts, dirs }`: `hosts` holds `{ provider, host }` for each pin and
+  open Ship pane, and `dirs` the folders of open terminal panes. `AuthCheck`: `ok`, `login`,
   `scopes` (the granted scopes when the host reports them), and `message`. The
   `forge://auth-changed` payload is `{ provider, host }`.
 
@@ -3325,9 +3522,10 @@ it with no pins, and Automatic omits it.
   // models section warns (4.6); 0 turns the warning off.
   "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 },
   // Host name to provider (github, gitlab, bitbucket, or azureDevOps) for a self-hosted host,
-  // matched without regard to case (3.20). Only a GitHub Enterprise Server host is served today; a
-  // GitLab or Azure DevOps host reports "not yet supported", and the Bitbucket provider refuses
-  // any host but bitbucket.org. Hosts the GitHub CLI is signed in to need no entry. An entry with
+  // matched without regard to case (3.20). A GitHub Enterprise Server host and a self-managed
+  // GitLab host are served; the Bitbucket provider refuses any host but bitbucket.org, and the
+  // Azure DevOps provider serves dev.azure.com only. Hosts the GitHub CLI is signed in to, and
+  // hosts in GitLab CLI's config, need no entry. An entry with
   // another kind is dropped with a warning. No Settings tab field; edit the file.
   // pinnedRepos lists the repos on the Ship Overview (4.20), in order: repo is
   // "<host>/<path segments>" and is the pin's identity, root (optional) is a local clone, and
@@ -3383,18 +3581,21 @@ toast, until the file is fixed.
   `DOMPurify`, with no remote images and links opened only through `open_url` (4.12).
 - The file commands (3.8) normalize every path, write only to existing files, and create or
   delete only the app's own scratch files.
-- Ship tokens (3.20) stay in the core's memory. They are read only from `gh auth token`, Git
-  Credential Manager (`git credential fill`, never `approve` or `reject`, never interactive), or
-  the `bashboard:bitbucket.org` credential that the Accounts tab and `bb auth` write. They never
+- Ship tokens (3.20) stay in the core's memory. They are read only from `gh auth token`, `glab
+  auth status --show-token`, `az account get-access-token`, the `AZURE_DEVOPS_EXT_PAT` variable,
+  Git Credential Manager (`git credential fill`, never `approve` or `reject`, never interactive),
+  or the credentials that the Accounts tab and `bb auth` write: `bashboard:bitbucket.org` and one
+  `bashboard:dev.azure.com/<org>` per Azure DevOps organization. They never
   reach the page, a log, or an error message, and `Token`'s `Debug` output hides the value. The one
   way a secret enters the core is the Accounts tab's password field, which sends a Bitbucket token
-  to `forge_bitbucket_set_token` as a single argument; the core writes it to Windows Credential
+  or an Azure DevOps personal access token to `forge_set_token` as a single argument; the core writes it to Windows Credential
   Manager and nowhere else, and overwrites its copies afterward on a best effort basis, since the
   IPC layer's own buffers are outside the app's control. The field is emptied on save, cancel, and
   when the dialog closes. A redirect to another
-  host drops the `Authorization` header, and the Bitbucket provider refuses any host but
-  bitbucket.org before it sends anything, so a self-hosted host's token is never sent to Bitbucket
-  Cloud. `bb auth` hides its input and never prints the token, and the Accounts tab's status and
+  host drops the `Authorization` header, the Bitbucket provider refuses any host but
+  bitbucket.org before it sends anything, and the Azure DevOps provider calls only dev.azure.com,
+  so a self-hosted host's token is never sent to Bitbucket Cloud or Azure DevOps. `bb auth` hides
+  its input and never prints the token, and the Accounts tab's status and
   test results carry no token.
 - `git`, `docker`, and `podman` run with argument lists, never through a shell, and paths come
   after `--` where the CLI accepts it. `open_in_editor` runs only a detected editor or the
@@ -3408,16 +3609,20 @@ folders, temp repos, captured CLI output, and a spawned pty. Keys are the except
 reaches the shell through WebView2 and xterm.js can only be checked by hand, with the keyboard
 checklist in [development.md](development.md#releasing) before each release.
 
-The Ship module's providers map captured JSON to the normalized shapes in pure functions, so the
-GitHub and Bitbucket mappings, remote parsing and host classification, status-code mapping, the ETag
-cache, account choice, and token-source order are all tested without a network, and `bb auth`'s
-argument and token handling the same. The Accounts tab's host ordering, source kinds, and
-signed-in check are Rust tests in `ship/accounts.rs`, and its cards are a Vitest module
-(`forgeAccountsModel.test.ts`). The notices and menus, polling intervals, grouping, and log
-cleanup are Vitest cases in `shipModel.test.ts` and `shipMenus.test.ts`. Live checks against a
-real repo are `#[ignore]` tests, run by hand with `cargo test ship::github -- --ignored` (it uses
-`gh auth token`), `cargo test ship::bitbucket -- --ignored` (it uses the token stored by `bb auth
-bitbucket`), and `cargo test ship::http -- --ignored` (TLS through the Windows certificate store).
+The Ship module's providers map captured JSON to the normalized shapes in pure functions, and
+build the requests that change a build or pipeline apart from sending them, so the GitHub,
+Bitbucket, GitLab, and Azure DevOps mappings, remote parsing and host classification, status-code
+mapping, the ETag cache, account choice, the Azure DevOps header scheme by token source, and
+token-source order are all tested without a network, and `bb auth`'s argument and token handling
+the same. The Accounts tab's host ordering and detection, source kinds, and signed-in check are
+Rust tests in `forge/accounts.rs`, and its cards, including the folding of undetected hosts, are a
+Vitest module (`forgeAccountsModel.test.ts`). The notices and menus, polling intervals, grouping,
+and log cleanup are Vitest cases in `shipModel.test.ts` and `shipMenus.test.ts`. Live checks
+against a real repo are `#[ignore]` tests, run by hand with `cargo test forge::github --
+--ignored` (it uses `gh auth token`), `cargo test forge::bitbucket -- --ignored` (it uses the
+token stored by `bb auth bitbucket`), `cargo test forge::azure_devops -- --ignored` (read-only
+requests; it needs `BASHBOARD_ADO_LIVE=<org>/<project>/<repo>` and `AZURE_DEVOPS_EXT_PAT`), and
+`cargo test forge::http -- --ignored` (TLS through the Windows certificate store).
 
 CI: a GitHub Actions workflow (`.github/workflows/ci.yml`) on `windows-latest` runs the type
 check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS installer as the

@@ -29,6 +29,7 @@ import {
 } from './docking';
 import { FindBar } from './findBar';
 import type { ShipTab } from './shipModel';
+import type { ProviderKind } from './forgeApi';
 import { ShipPane } from './shipPane';
 import { GitPane } from './gitPane';
 import type { OpenInHandler } from './openMenu';
@@ -162,7 +163,7 @@ export interface WorkspaceHooks {
   /** Opens the Help, Settings, Accounts, Shortcuts, CLI, and About dialog on the given tab. */
   onOpenDialog?: (tab: DialogTab) => void;
   /** Opens the dialog's Accounts tab, on `host`'s card when given, optionally with its token form open. */
-  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
+  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
   onToggleBackdrop?: () => void;
   onToggleFullscreen?: () => void;
   /** Called whenever a pane's attention is newly raised (docs/design.md section 4.7). */
@@ -2174,6 +2175,27 @@ export class Workspace {
 
   private losesWork(p: PaneCardInput): boolean {
     return p.kind === 'terminal' ? isBusy(p, this.sessions) : p.confirmClose;
+  }
+
+  /**
+   * What the Accounts tab treats as known repos, across every tab: the host of each resolved Ship
+   * pane's repo, and the working folder of each terminal (the core reads those folders' remotes).
+   */
+  knownForgeSources(): { hosts: { provider: ProviderKind; host: string }[]; dirs: string[]; repos: string[] } {
+    const hosts: { provider: ProviderKind; host: string }[] = [];
+    const dirs: string[] = [];
+    const repos: string[] = [];
+    for (const pane of this.paneViews.values()) {
+      if (pane instanceof ShipPane) {
+        const known = pane.knownHost();
+        if (known) hosts.push(known);
+        const id = pane.knownRepoId();
+        if (id) repos.push(id);
+      } else if (pane instanceof TerminalPane && pane.cwd) {
+        dirs.push(pane.cwd);
+      }
+    }
+    return { hosts, dirs, repos };
   }
 
   /** The focused pane's folder, else that of the active tab's most recent terminal. */

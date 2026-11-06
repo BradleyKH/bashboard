@@ -1,6 +1,4 @@
-import type { ShipTab } from './shipModel';
-
-const DEFAULT_PR_NOUN = 'pull request';
+import { prNounOf, type ShipTab } from './shipModel';
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -32,7 +30,7 @@ export class ShipTabStrip {
     this.el.append(crumb);
     const labels: ReadonlyArray<{ tab: ShipTab; label: string }> = [
       { tab: 'pipelines', label: 'Pipelines' },
-      { tab: 'pulls', label: pullsTabLabel(DEFAULT_PR_NOUN) },
+      { tab: 'pulls', label: pullsTabLabel(prNounOf(null)) },
     ];
     for (const t of labels) {
       const btn = document.createElement('button');

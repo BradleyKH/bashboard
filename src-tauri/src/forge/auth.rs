@@ -1,5 +1,6 @@
 //! Finding a token for a code host (docs/design.md section 3.20). Bashboard never runs an
-//! OAuth flow: it asks GitHub CLI, Git Credential Manager, or the Bitbucket credential in
+//! OAuth flow: it asks GitHub CLI, GitLab CLI, Azure CLI, an environment variable, Git
+//! Credential Manager, or the Bitbucket credential in
 //! Windows Credential Manager that `bb auth bitbucket` or the Accounts tab stores
 //! (`crate::credential_store`). Tokens stay in this process's memory, are never serialized or
 //! logged, and never reach the page. The one inbound path is the Accounts tab's Bitbucket token
@@ -21,41 +22,70 @@ pub enum TokenSource {
     Cli { program: String, args: Vec<String> },
     /// `git credential fill`, which reaches Git Credential Manager. A `username` makes GCM
     /// return that account's token without showing its account picker.
+    /// `path` reaches GCM as a `path=` line: it sets `credential.useHttpPath` for
+    /// `dev.azure.com`, so a credential there is stored per organization path.
     GitCredential {
         host: String,
         username: Option<String>,
+        path: Option<String>,
     },
     /// A generic credential in Windows Credential Manager.
     CredentialManager { target: String },
+    /// An environment variable's trimmed value, such as `AZURE_DEVOPS_EXT_PAT`.
+    Env { var: String },
+    /// An Entra token for Azure DevOps from `az account get-access-token`.
+    AzCli,
+    /// `glab auth status --show-token`, since glab has no `auth token` command.
+    Glab { host: String },
 }
 
-/// `<program>.exe` on `PATH`, then GitHub CLI's install folders for `gh`: a `gh` installed while
-/// Bashboard runs is not on the `PATH` it inherited until it restarts, the same reason git.rs
-/// falls back to the folder beside Git Bash.
+/// The Azure DevOps resource id that `az account get-access-token` mints tokens for.
+const AZURE_DEVOPS_RESOURCE: &str = "499b84ac-1321-427f-aa17-267ca6975798";
+
+/// `<program>.exe` (`az.cmd` for `az`) on `PATH`, then the CLI's install folders: a CLI
+/// installed while Bashboard runs is not on the `PATH` it inherited until it restarts, the same
+/// reason git.rs falls back to the folder beside Git Bash.
 pub fn locate_program(program: &str) -> Option<PathBuf> {
-    let exe = if program.ends_with(".exe") {
-        program.to_string()
+    let name = program.strip_suffix(".exe").unwrap_or(program);
+    let file = if name == "az" {
+        "az.cmd".to_string()
     } else {
-        format!("{program}.exe")
+        format!("{name}.exe")
     };
     let on_path = std::env::var_os("PATH").and_then(|p| {
         std::env::split_paths(&p)
-            .map(|d| d.join(&exe))
+            .map(|d| d.join(&file))
             .find(|p| p.is_file())
     });
-    if on_path.is_some() || program != "gh" {
+    if on_path.is_some() {
         return on_path;
     }
     let env_dir = |var: &str, rel: &[&str]| {
         std::env::var_os(var).map(|d| rel.iter().fold(PathBuf::from(d), |p, s| p.join(s)))
     };
-    [
-        env_dir("ProgramFiles", &["GitHub CLI", "gh.exe"]),
-        env_dir("LOCALAPPDATA", &["Programs", "GitHub CLI", "gh.exe"]),
-    ]
-    .into_iter()
-    .flatten()
-    .find(|p| p.is_file())
+    let az = ["Microsoft SDKs", "Azure", "CLI2", "wbin", "az.cmd"];
+    let candidates = match name {
+        "gh" => vec![
+            env_dir("ProgramFiles", &["GitHub CLI", "gh.exe"]),
+            env_dir("LOCALAPPDATA", &["Programs", "GitHub CLI", "gh.exe"]),
+        ],
+        // The 64-bit and 32-bit MSI folders; the MSI does not let the user choose.
+        "az" => vec![
+            env_dir("ProgramFiles", &az),
+            env_dir("ProgramFiles(x86)", &az),
+        ],
+        // The Inno installer's per-user and machine folders, then winget's links folder.
+        "glab" => vec![
+            env_dir("LOCALAPPDATA", &["Programs", "glab", "glab.exe"]),
+            env_dir("ProgramFiles", &["glab", "glab.exe"]),
+            env_dir(
+                "LOCALAPPDATA",
+                &["Microsoft", "WinGet", "Links", "glab.exe"],
+            ),
+        ],
+        _ => Vec::new(),
+    };
+    candidates.into_iter().flatten().find(|p| p.is_file())
 }
 
 /// Whether `gh` is reachable by name from a new terminal pane, or only by its full path.
@@ -64,25 +94,182 @@ pub fn gh_on_path() -> bool {
         .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join("gh.exe").is_file()))
 }
 
-fn run_cli(program: &str, args: &[String]) -> Option<String> {
+/// Runs a located CLI with no console and no stdin, returning (success, stdout, stderr); `None`
+/// when the program isn't found or won't start. A
+/// `.cmd` such as `az.cmd` goes through the standard library's batch-file handling, which runs
+/// it under `cmd.exe` with safe quoting; a hand-built `cmd /C` mangles a path holding `(x86)`.
+fn run_program(program: &str, args: &[String]) -> Option<(bool, String, String)> {
     let exe = locate_program(program)?;
     let mut cmd = Command::new(exe);
     cmd.args(args)
         .env("GH_PROMPT_DISABLED", "1")
+        .env("NO_COLOR", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
     crate::editors::hide_console(&mut cmd);
     let out = cmd.output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let token = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    (!token.is_empty()).then_some(token)
+    Some((
+        out.status.success(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    ))
 }
 
-pub fn credential_input(host: &str, username: Option<&str>) -> String {
+fn run_cli(program: &str, args: &[String]) -> Option<String> {
+    let (ok, stdout, _) = run_program(program, args)?;
+    let token = stdout.trim().to_string();
+    (ok && !token.is_empty()).then_some(token)
+}
+
+/// `glab auth status --hostname <host>`'s stdout and stderr together (glab has printed the
+/// status to either), without `--show-token`, so the text never holds a token. `None` when
+/// glab isn't installed.
+pub(crate) fn glab_status(host: &str) -> Option<String> {
+    let args = ["auth", "status", "--hostname", host].map(String::from);
+    let (_, stdout, stderr) = run_program("glab", &args)?;
+    Some(format!("{stdout}\n{stderr}"))
+}
+
+/// The user Azure CLI is signed in as, or `None` when it isn't installed or signed in.
+pub(crate) fn az_user() -> Option<String> {
+    let args = ["account", "show", "--query", "user.name", "-o", "tsv"].map(String::from);
+    run_cli("az", &args)
+}
+
+/// Runs `glab auth logout --hostname <host>`, which takes no input: it has no confirmation, and
+/// the host flag leaves nothing to pick.
+pub(crate) fn glab_logout(host: &str) -> Result<(), String> {
+    let args = ["auth", "logout", "--hostname", host].map(String::from);
+    let (ok, _, stderr) =
+        run_program("glab", &args).ok_or_else(|| "GitLab CLI isn't installed.".to_string())?;
+    if ok {
+        return Ok(());
+    }
+    let stderr = stderr.trim();
+    Err(if stderr.is_empty() {
+        "glab auth logout failed.".to_string()
+    } else {
+        format!("glab auth logout failed: {stderr}")
+    })
+}
+
+fn env_token(var: &str) -> Option<String> {
+    trimmed(&std::env::var(var).ok()?)
+}
+
+fn trimmed(value: &str) -> Option<String> {
+    let value = value.trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+fn az_cli() -> Option<(String, Option<Instant>)> {
+    let args = [
+        "account",
+        "get-access-token",
+        "--resource",
+        AZURE_DEVOPS_RESOURCE,
+        "-o",
+        "json",
+    ]
+    .map(String::from);
+    let (ok, stdout, _) = run_program("az", &args)?;
+    if !ok {
+        return None;
+    }
+    let (token, expires_on) = az_token(&stdout)?;
+    let expires = expiry_instant(expires_on);
+    let early = expires
+        .checked_sub(Duration::from_secs(5 * 60))
+        .unwrap_or_else(Instant::now);
+    Some((token, Some(early)))
+}
+
+/// glab refreshes its OAuth tokens itself, so a copy is kept only briefly.
+fn glab_cli(host: &str) -> Option<(String, Option<Instant>)> {
+    let args = ["auth", "status", "--hostname", host, "--show-token"].map(String::from);
+    let (ok, stdout, stderr) = run_program("glab", &args)?;
+    if !ok {
+        return None;
+    }
+    let token = glab_token(&stdout).or_else(|| glab_token(&stderr))?;
+    Some((token, Some(Instant::now() + Duration::from_secs(10 * 60))))
+}
+
+/// `accessToken` and `expires_on` (epoch seconds) from `az account get-access-token -o json`.
+/// Releases before `expires_on` existed have only `expiresOn`, a local time string; then the
+/// token is taken to last the hour Entra issues it for.
+pub(crate) fn az_token(json: &str) -> Option<(String, u64)> {
+    let v: serde_json::Value = serde_json::from_str(json.trim()).ok()?;
+    let token = v.get("accessToken")?.as_str()?.trim();
+    if token.is_empty() {
+        return None;
+    }
+    let expires = match v.get("expires_on") {
+        Some(e) => e.as_u64().or_else(|| e.as_str()?.trim().parse().ok())?,
+        None => SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs() + 3600,
+    };
+    Some((token.to_string(), expires))
+}
+
+/// A `glab auth status` line without color codes or its leading status icon.
+fn glab_line(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for c in chars.by_ref() {
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out.trim_start_matches(|c: char| !c.is_alphanumeric())
+        .trim_end()
+        .to_string()
+}
+
+/// The user from glab's "Logged in to <host> as <user> (<source>)" line for `host`. Reads only
+/// that line, never the token line.
+pub(crate) fn glab_status_user(text: &str, host: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        let line = glab_line(line);
+        let rest = line.strip_prefix("Logged in to ")?;
+        let (h, rest) = rest.split_once(" as ")?;
+        if !h.trim().eq_ignore_ascii_case(host) {
+            return None;
+        }
+        let user = rest.split_whitespace().next()?;
+        Some(user.to_string())
+    })
+}
+
+/// The token from `glab auth status --show-token`: older releases print "Token: <t>", newer
+/// ones "Token found in <where>: <t>". The value follows the last ": ", since <where> can be a
+/// Windows path with a drive colon. A masked value (all asterisks) is no token.
+pub(crate) fn glab_token(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        let line = glab_line(line);
+        if !(line.starts_with("Token:") || line.starts_with("Token found in ")) {
+            return None;
+        }
+        let (_, value) = line.rsplit_once(": ")?;
+        let value = value.trim();
+        (!value.is_empty() && !value.chars().all(|c| c == '*')).then(|| value.to_string())
+    })
+}
+
+pub fn credential_input(host: &str, username: Option<&str>, path: Option<&str>) -> String {
     let mut s = format!("protocol=https\nhost={host}\n");
+    if let Some(p) = path {
+        s.push_str(&format!("path={p}\n"));
+    }
     if let Some(u) = username {
         s.push_str(&format!("username={u}\n"));
     }
@@ -112,18 +299,38 @@ fn expiry_instant(epoch: u64) -> Instant {
     Instant::now() + Duration::from_secs(epoch.saturating_sub(now))
 }
 
+/// How long a credential helper may take before the probe gives up on it.
+const CREDENTIAL_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Git's askpass fallbacks: Git Bash exports `SSH_ASKPASS` (git-askpass.exe), and git falls
+/// through to it when a helper has no credential, opening a window nobody is there to answer.
+const ASKPASS_VARS: [&str; 2] = ["GIT_ASKPASS", "SSH_ASKPASS"];
+
+/// Arguments of `git credential fill`. An empty `core.askPass` overrides any configured helper.
+const CREDENTIAL_ARGS: [&str; 4] = ["-c", "core.askPass=", "credential", "fill"];
+
+/// Environment `git credential fill` runs with: never a prompt of any kind.
+const CREDENTIAL_ENV: [(&str, &str); 3] = [
+    ("GCM_INTERACTIVE", "never"),
+    ("GIT_TERMINAL_PROMPT", "0"),
+    ("SSH_ASKPASS_REQUIRE", "never"),
+];
+
 /// Never `approve` or `reject`: the credential belongs to the user's helper, not to us.
 fn git_credential(
     git: &Git,
     host: &str,
     username: Option<&str>,
+    path: Option<&str>,
 ) -> Option<(String, Option<Instant>)> {
-    let input = credential_input(host, username);
+    let input = credential_input(host, username, path);
     let out = git
         .read_input(
-            ["credential", "fill"],
+            CREDENTIAL_ARGS,
             input.as_bytes(),
-            &[("GCM_INTERACTIVE", "never"), ("GIT_TERMINAL_PROMPT", "0")],
+            &CREDENTIAL_ENV,
+            &ASKPASS_VARS,
+            CREDENTIAL_TIMEOUT,
         )
         .ok()?;
     if !out.ok {
@@ -138,12 +345,17 @@ pub fn resolve(git: &Git, sources: &[TokenSource]) -> Result<Token, ForgeError> 
     for source in sources {
         let found = match source {
             TokenSource::Cli { program, args } => run_cli(program, args).map(|t| (t, None)),
-            TokenSource::GitCredential { host, username } => {
-                git_credential(git, host, username.as_deref())
-            }
+            TokenSource::GitCredential {
+                host,
+                username,
+                path,
+            } => git_credential(git, host, username.as_deref(), path.as_deref()),
             TokenSource::CredentialManager { target } => {
                 crate::credential_store::read(target).map(|t| (t, None))
             }
+            TokenSource::Env { var } => env_token(var).map(|t| (t, None)),
+            TokenSource::AzCli => az_cli(),
+            TokenSource::Glab { host } => glab_cli(host),
         };
         if let Some((value, expires)) = found {
             return Ok(Token {
@@ -323,6 +535,16 @@ ghe.example.com:
 ";
 
     #[test]
+    fn credential_fill_can_never_prompt() {
+        assert_eq!(&CREDENTIAL_ARGS[..2], ["-c", "core.askPass="]);
+        assert_eq!(&CREDENTIAL_ARGS[2..], ["credential", "fill"]);
+        assert!(ASKPASS_VARS.contains(&"SSH_ASKPASS"));
+        assert!(ASKPASS_VARS.contains(&"GIT_ASKPASS"));
+        assert!(CREDENTIAL_ENV.contains(&("GIT_TERMINAL_PROMPT", "0")));
+        assert!(CREDENTIAL_ENV.contains(&("GCM_INTERACTIVE", "never")));
+    }
+
+    #[test]
     fn reads_accounts_per_host() {
         let (users, active) = gh_accounts(SAMPLE_HOSTS_YML, "github.com");
         assert_eq!(users, vec!["alice", "bob"]);
@@ -387,12 +609,16 @@ ghe.example.com:
     #[test]
     fn credential_io() {
         assert_eq!(
-            credential_input("github.com", None),
+            credential_input("github.com", None, None),
             "protocol=https\nhost=github.com\n\n"
         );
         assert_eq!(
-            credential_input("github.com", Some("bob")),
+            credential_input("github.com", Some("bob"), None),
             "protocol=https\nhost=github.com\nusername=bob\n\n"
+        );
+        assert_eq!(
+            credential_input("dev.azure.com", None, Some("contoso")),
+            "protocol=https\nhost=dev.azure.com\npath=contoso\n\n"
         );
         let out = "protocol=https\nhost=github.com\nusername=bob\npassword=fake-pass\npassword_expiry_utc=1700000000\n";
         assert_eq!(
@@ -401,6 +627,95 @@ ghe.example.com:
         );
         assert_eq!(parse_credential_output("protocol=https\n"), None);
         assert_eq!(parse_credential_output("password=\n"), None);
+    }
+
+    /// `glab auth status --show-token` output from an older release (with color) and a newer
+    /// one; the tokens are fake.
+    const GLAB_STATUS_OLD: &str = "\
+gitlab.com
+  \u{1b}[0;32m\u{2713}\u{1b}[0m Logged in to gitlab.com as \u{1b}[1malice\u{1b}[0m (C:\\Users\\alice\\.config\\glab-cli\\config.yml)
+  \u{2713} Git operations for gitlab.com configured to use ssh protocol.
+  \u{2713} REST API Endpoint: https://gitlab.com/api/v4/
+  \u{2713} Token: glpat-FAKEoldToken000
+";
+    const GLAB_STATUS_NEW: &str = "\
+gitlab.example.com
+  \u{2713} Logged in to gitlab.example.com as bob (keyring)
+  \u{2713} REST API Endpoint: https://gitlab.example.com/api/v4/
+  \u{2713} Token found in config file C:\\Users\\bob\\AppData\\Local\\glab-cli\\config.yml: glpat-FAKEnewToken000
+";
+
+    #[test]
+    fn glab_status_parsers() {
+        assert_eq!(
+            glab_status_user(GLAB_STATUS_OLD, "GitLab.com").as_deref(),
+            Some("alice")
+        );
+        assert_eq!(
+            glab_status_user(GLAB_STATUS_NEW, "gitlab.example.com").as_deref(),
+            Some("bob")
+        );
+        assert_eq!(glab_status_user(GLAB_STATUS_NEW, "gitlab.com"), None);
+        assert_eq!(
+            glab_token(GLAB_STATUS_OLD).as_deref(),
+            Some("glpat-FAKEoldToken000")
+        );
+        assert_eq!(
+            glab_token(GLAB_STATUS_NEW).as_deref(),
+            Some("glpat-FAKEnewToken000")
+        );
+        assert_eq!(
+            glab_token("  \u{2713} Token found in keyring: ********\n"),
+            None
+        );
+        assert_eq!(glab_token("  \u{2713} Token: ********\n"), None);
+        let env = "! Token is from environment variable GITLAB_TOKEN. This takes precedence.\n";
+        assert_eq!(glab_token(env), None);
+        assert_eq!(glab_token(""), None);
+    }
+
+    #[test]
+    fn glab_user_never_holds_a_token() {
+        for (text, host) in [
+            (GLAB_STATUS_OLD, "gitlab.com"),
+            (GLAB_STATUS_NEW, "gitlab.example.com"),
+        ] {
+            let user = glab_status_user(text, host).unwrap_or_default();
+            assert!(!user.contains("glpat"), "{user}");
+        }
+    }
+
+    #[test]
+    fn az_token_parses() {
+        let json = r#"{
+  "accessToken": "eyFAKE.az.token",
+  "expiresOn": "2026-11-05 13:00:00.000000",
+  "expires_on": 1793970000,
+  "subscription": "00000000-0000-0000-0000-000000000000",
+  "tenant": "00000000-0000-0000-0000-000000000000",
+  "tokenType": "Bearer"
+}"#;
+        assert_eq!(
+            az_token(json),
+            Some(("eyFAKE.az.token".into(), 1_793_970_000))
+        );
+        assert_eq!(
+            az_token(r#"{"accessToken": "t", "expires_on": "1793970000"}"#),
+            Some(("t".into(), 1_793_970_000))
+        );
+        assert!(az_token(r#"{"accessToken": "t", "expiresOn": "x"}"#).is_some());
+        assert_eq!(az_token(r#"{"accessToken": "", "expires_on": 1}"#), None);
+        assert_eq!(
+            az_token("ERROR: Please run 'az login' to setup account."),
+            None
+        );
+    }
+
+    #[test]
+    fn env_source_reads_a_trimmed_value() {
+        assert_eq!(trimmed("  fake-pat \r\n").as_deref(), Some("fake-pat"));
+        assert_eq!(trimmed("   "), None);
+        assert_eq!(env_token("BASHBOARD_TEST_UNSET_TOKEN_VARIABLE"), None);
     }
 
     #[test]

@@ -263,6 +263,10 @@ pub struct ForgeError {
     /// The argv to run in a new terminal pane to sign in.
     pub sign_in: Option<Vec<String>>,
     pub retry_after_secs: Option<u64>,
+    /// Whether Azure CLI is installed, set only on Azure DevOps errors so the notice offers
+    /// Azure CLI sign-in only when it can run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub az_cli: Option<bool>,
 }
 
 impl ForgeError {
@@ -273,6 +277,7 @@ impl ForgeError {
             url: None,
             sign_in: None,
             retry_after_secs: None,
+            az_cli: None,
         }
     }
 
@@ -291,8 +296,21 @@ impl ForgeError {
 pub enum TokenSourceKind {
     GhCli,
     GitCredentialManager,
-    /// The `bashboard:bitbucket.org` credential in Windows Credential Manager.
+    /// A token Bashboard stored in Windows Credential Manager (Bitbucket's, or an Azure DevOps
+    /// organization's).
     BashboardCredential,
+    GlabCli,
+    AzCli,
+    /// A token from an environment variable such as `AZURE_DEVOPS_EXT_PAT`.
+    Environment,
+}
+
+/// A token Bashboard stored for a host; `org` is the Azure DevOps organization, `None` for
+/// Bitbucket.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredToken {
+    pub org: Option<String>,
 }
 
 /// One host's sign-in state for the Accounts tab. Never carries a token.
@@ -301,17 +319,44 @@ pub enum TokenSourceKind {
 pub struct HostAuth {
     pub provider: ProviderKind,
     pub host: String,
-    pub gh_installed: bool,
-    /// GitHub CLI's accounts for the host, from `hosts.yml`; empty for Bitbucket.
+    /// Whether the provider's CLI (gh, glab, or az) was found; false for Bitbucket.
+    pub cli_installed: bool,
+    /// The accounts the CLI holds for the host: several for gh, at most one for glab and az.
     pub accounts: Vec<String>,
     pub active_account: Option<String>,
     /// `None` when no source has a token.
     pub token_source: Option<TokenSourceKind>,
-    /// Whether the Bitbucket credential exists; false for GitHub hosts.
-    pub bitbucket_token_stored: bool,
+    /// One per Azure DevOps organization, at most one for Bitbucket, none for the others.
+    pub stored_tokens: Vec<StoredToken>,
     /// Name (never the value) of the environment variable GitHub CLI would use for the host
-    /// instead of its saved accounts; `None` for Bitbucket and when none is set.
+    /// instead of its saved accounts; `None` for other providers and when none is set.
     pub gh_env_token: Option<String>,
+    /// Some signal says the host is used on this machine.
+    pub detected: bool,
+    /// Human-readable reasons behind `detected`; empty when undetected.
+    pub detected_by: Vec<String>,
+    /// Azure DevOps organizations known from stored tokens, pins, Ship panes, and terminal
+    /// folders, so the card can test each; empty for other providers.
+    pub known_orgs: Vec<String>,
+}
+
+/// A host the front end knows a repo on: a pin or an open Ship pane.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownHost {
+    pub provider: ProviderKind,
+    pub host: String,
+}
+
+/// What the front end knows that the core does not: pin and Ship pane hosts, and the folders
+/// open terminal panes are in.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Known {
+    #[serde(default)]
+    pub hosts: Vec<KnownHost>,
+    #[serde(default)]
+    pub dirs: Vec<String>,
 }
 
 /// Who the host says a token belongs to.
@@ -395,6 +440,13 @@ mod tests {
         let v = serde_json::to_value(&e).unwrap();
         assert!(v.get("retryAfterSecs").is_some());
         assert!(v.get("signIn").is_some());
+        assert!(v.get("azCli").is_none());
+        let e = ForgeError {
+            az_cli: Some(false),
+            ..e
+        };
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v.get("azCli"), Some(&serde_json::Value::Bool(false)));
     }
 
     #[test]
