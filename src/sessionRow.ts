@@ -4,7 +4,6 @@ import { formatAge, lastFolder } from './dashboardModel';
 import { folderButton, openFolder } from './folderButton';
 import { openInMenuItems, openMenuButton, type OpenInHandler } from './openMenu';
 import { sessionRowMenuItems } from './paneCardMenus';
-import { hueCss, sessionHue } from './sessionHue';
 import type { Session, SessionStatus } from './sessions';
 import { waitingText } from './terminalStatus';
 import { showToast } from './toast';
@@ -12,8 +11,6 @@ import { showToast } from './toast';
 export interface SessionRowOptions {
   now: number;
   expanded: boolean;
-  /** Shows the session's hue swatch; off when the backdrop draws no session lineages. */
-  showSwatch: boolean;
   onToggle: (sessionId: string) => void;
   /** Open menu beside the folder button; omitted, the row shows none. */
   onOpenIn?: OpenInHandler;
@@ -90,15 +87,7 @@ export function renderSessionRow(session: Session, opts: SessionRowOptions): HTM
   age.className = 'session-age';
   age.textContent = formatAge(opts.now - session.statusChangedAt);
 
-  head.append(dot);
-  if (opts.showSwatch) {
-    const swatch = document.createElement('span');
-    swatch.className = 'hue-swatch';
-    swatch.style.background = hueCss(sessionHue(session));
-    swatch.title = 'Session color';
-    head.append(swatch);
-  }
-  head.append(name);
+  head.append(dot, name);
   if (session.cwd) head.append(folderButton(session.cwd));
   if (session.cwd && opts.onOpenIn) head.append(openMenuButton(session.cwd, opts.onOpenIn));
   head.append(age);

@@ -7,7 +7,6 @@ import { openInMenuItems, openMenuButton, type OpenInHandler } from './openMenu'
 import { paneCardMenuItems } from './paneCardMenus';
 import { paneKindInfo } from './paneKinds';
 import { profileBadge } from './profiles';
-import { hueCss } from './sessionHue';
 
 export interface PaneCardOptions {
   now: number;
@@ -15,8 +14,6 @@ export interface PaneCardOptions {
   agentLine: string | null;
   /** Shows the folder path under the title; hidden, the path moves into the title's tooltip. */
   showPath: boolean;
-  /** Shows the session's hue swatch; off when the backdrop draws no session lineages. */
-  showSwatch: boolean;
   /** True while the card shows its inline close confirmation. */
   confirming: boolean;
   onFocus: (paneId: string) => void;
@@ -187,25 +184,14 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     setPathText(path, card.path);
     el.append(path);
   }
-  const hue = card.kind === 'terminal' && opts.showSwatch ? card.hue : null;
-  // The swatch rides on the model line, which shows with just the swatch until the model is known.
-  if (opts.agentLine !== null || hue !== null) {
+  if (opts.agentLine !== null) {
     const line = document.createElement('div');
     line.className = 'card-agent';
-    if (hue !== null) {
-      const swatch = document.createElement('span');
-      swatch.className = 'hue-swatch';
-      swatch.style.background = hueCss(hue);
-      swatch.title = 'Session color';
-      line.append(swatch);
-    }
-    if (opts.agentLine !== null) {
-      const text = document.createElement('span');
-      text.className = 'card-agent-text';
-      text.textContent = opts.agentLine;
-      text.title = opts.agentLine;
-      line.append(text);
-    }
+    const text = document.createElement('span');
+    text.className = 'card-agent-text';
+    text.textContent = opts.agentLine;
+    text.title = opts.agentLine;
+    line.append(text);
     el.append(line);
   }
   return el;

@@ -58,9 +58,10 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |
 | 6.2 Backdrop API | [backdrop.md](backdrop.md) |
-| 6.3 Sessions as organisms | [backdrop.md](backdrop.md) |
+| 6.3 Colony upkeep | [backdrop.md](backdrop.md) |
 | 6.4 Performance | [backdrop.md](backdrop.md) |
 | 6.5 Image and Slideshow | [backdrop.md](backdrop.md) |
+| 6.6 Galaxy | [backdrop.md](backdrop.md) |
 | 7 Data model | [data.md](data.md) |
 | 8 Settings | [data.md](data.md) |
 | 9 Security | [README.md](README.md) |
@@ -73,8 +74,8 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
   the shell; copy, paste, resizing, colors, and box drawing behave as they do in Windows Terminal.
 - **A live simulation as the backdrop.** The real simulation, not a video or shader approximation, renders
   behind transparent terminals at full frame rate. One instance fills the window behind every
-  terminal. Swirling Lights is the default backdrop style; Matrix and None are
-  alternatives (section 6).
+  terminal. Swirling Lights is the default backdrop style; Galaxy, Matrix, Image,
+  Slideshow, and None are alternatives (section 6).
 - **A terminal dashboard.** Open, collapse, and arrange terminals in tabs. Within a tab,
   expanded terminals tile the window as Windows Terminal style panes, with the same keybindings
   as the current Windows Terminal setup; collapsed terminals keep running as cards in a side

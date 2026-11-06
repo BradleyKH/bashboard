@@ -113,7 +113,7 @@ addons, bound to one pty. Font defaults to the bundled `JetBrainsMono Nerd Font 
 with `Cascadia Mono` as the fallback, 14 px.
 
 **WebGL context budget.** Chromium allows roughly 16 live WebGL contexts per page, and the backdrop uses
-one while the Swirling Lights style is mounted (none under Matrix or None). Only expanded terminals in the active tab count: each uses the WebGL renderer until 8 are
+one while the Swirling Lights or Galaxy style is mounted (none under Matrix or None). Only expanded terminals in the active tab count: each uses the WebGL renderer until 8 are
 on screen, and past that, newly shown ones use the DOM renderer. Collapsing a terminal, or
 switching away from its tab, disposes the WebGL addon, freeing its context; expanding it or
 switching back attaches one again if the budget allows. If the browser drops a WebGL context
@@ -257,5 +257,5 @@ terminal becomes the pane being looked at, and a command mark also clears on the
 newer mark replaces the old. `failed` is a still cross in the error color, where `done` is a
 still check mark.
 
-`done` and `failed` are display state only; the session stays `idle`, and the backdrop never sees
-them (6.3). They are not saved, so restored terminals start without them.
+`done` and `failed` are display state only; the session stays `idle`. They are not saved, so
+restored terminals start without them.

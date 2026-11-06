@@ -407,7 +407,3 @@ A peek overlays the panes from the panel's side without narrowing them. It ends 
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends
 it too.
 
-Under the Swirling Lights background, every row tied to an agent session has a hue swatch
-matching that session's lineage color in the backdrop (6.3), which is how the backdrop and the
-dashboard stay readable as one system. A pane card carries it on the model line, aligned under
-the title. Matrix and None draw no lineages, so the swatches hide.

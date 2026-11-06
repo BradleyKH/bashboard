@@ -10,7 +10,6 @@ import { HOME_DISTANCE, Viewport } from './render/viewport';
 import type { StyleBackdrop } from './backdropHandle';
 import { FramePacer } from './framePacer';
 import { Motion } from './sim/motion';
-import { SimSessionColony, type SessionColony } from './sim/sessionColony';
 import { Simulation } from './sim/simulation';
 import { Stage } from './sim/stages';
 
@@ -29,8 +28,6 @@ export interface BackdropOptions {
   mutationRate: number;
   /** Divides the camera's home distance; above 1 fills more of the window with the colony. */
   zoom: number;
-  /** Brightness pulse on a waiting session's organisms (docs/design/backdrop.md section 6.2). */
-  waitingPulse: boolean;
 }
 
 export interface BackdropHandle extends StyleBackdrop {
@@ -38,8 +35,6 @@ export interface BackdropHandle extends StyleBackdrop {
   setMaxFps(maxFps: number): void;
   /** The simulation and camera settings (`backdrop.*`). */
   setOptions(options: BackdropOptions): void;
-  /** Session organisms planted in the sim (docs/design/backdrop.md section 6.2). */
-  colony: SessionColony;
 }
 
 export function mountBackdrop(canvas: HTMLCanvasElement): BackdropHandle {
@@ -53,7 +48,6 @@ type Renderable = Object3D & { geometry: { dispose(): void }; material: Material
 class BackdropLoop implements BackdropHandle {
   private readonly viewport: Viewport;
   private readonly sim = new Simulation({ capacity: 1000, mutationRate: 0.2 });
-  readonly colony = new SimSessionColony(this.sim);
   private readonly motion = new Motion();
   private readonly organisms = new OrganismLayer();
   private readonly threads = new ThreadLayer();
@@ -75,7 +69,6 @@ class BackdropLoop implements BackdropHandle {
   private tickDebt = 0;
   private time = 0;
   private homeDistance = HOME_DISTANCE;
-  private waitingPulse = false;
   private warmed = false;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -117,7 +110,6 @@ class BackdropLoop implements BackdropHandle {
   setOptions(options: BackdropOptions): void {
     this.sim.settings.capacity = options.capacity;
     this.sim.settings.mutationRate = options.mutationRate;
-    this.waitingPulse = options.waitingPulse;
     const { minDistance, maxDistance } = this.viewport.controls;
     this.homeDistance = Math.min(Math.max(HOME_DISTANCE / options.zoom, minDistance), maxDistance);
     // The host passes options before the first frame, so the pre-warm grows the colony at the configured capacity.
@@ -199,7 +191,7 @@ class BackdropLoop implements BackdropHandle {
     if (ticks === MAX_TICKS_PER_FRAME) this.tickDebt = 0;
     this.motion.step(this.sim.organisms, dt, this.time);
 
-    this.organisms.update(this.sim.organisms, dt, this.time, 1 / GENS_PER_SECOND, true, this.waitingPulse ? this.colony.pulsingLineages() : undefined);
+    this.organisms.update(this.sim.organisms, dt, this.time, 1 / GENS_PER_SECOND, true);
     this.threads.update(this.sim.organisms, (id) => this.organisms.visualOf(id)?.born ?? Infinity);
     this.sparks.update(dt);
     this.snow.update(this.time);
@@ -213,7 +205,6 @@ class BackdropLoop implements BackdropHandle {
 
   private advance(): void {
     const result = this.sim.tick();
-    this.colony.afterTick();
     playTickEffects(result, this.organisms, this.sparks, 1 / GENS_PER_SECOND);
     if (result.newEpoch) this.organisms.clear();
   }

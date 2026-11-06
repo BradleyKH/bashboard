@@ -639,14 +639,10 @@ card after the session and shows when it is working, usually within about 10 sec
 Copilot keep no such file, so their sessions come from their hooks and appear in the pane where
 the agent sent its first hook.
 
-With the Swirling Lights background, each live agent session also appears in the backdrop as its
-own colored lineage. It blooms while the session is busy and thins while it is idle; set
-`backdrop.waitingPulse` to `true` to also make it pulse while it waits for you. The color
-matches the swatch beside the session in the dashboard. The other backgrounds (Matrix, Image,
-Slideshow, and None) show no lineages, so the dashboard hides those swatches; switching back to Swirling Lights brings each live session's lineage back as a fresh
-founder. The Background choice in the Settings tab picks the style (see
-[Settings](settings.md#settings)), including Image and Slideshow, which show your own pictures,
-and Ctrl+Shift+A pauses or resumes Swirling Lights or Matrix. Ctrl+Shift+B cycles
+The Background choice in the Settings tab picks what draws behind the panes (see
+[Settings](settings.md#settings)): Swirling Lights, a drifting colony simulation; Galaxy, a
+slowly turning swirl of stars; Matrix; Image and Slideshow, which show your own pictures; or None.
+Ctrl+Shift+A pauses or resumes Swirling Lights, Galaxy, or Matrix. Ctrl+Shift+B cycles
 the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
 Brightness in the Settings tab; the blur stays as set there.
 

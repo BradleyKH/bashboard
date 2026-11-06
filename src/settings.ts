@@ -9,7 +9,7 @@ import type { DashboardSide } from './dashboardResize';
 import { ELEMENT_SHOWN_BY_DEFAULT, type DashboardElement } from './dashboardSections';
 import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
 
-export type BackdropStyle = 'none' | 'lights' | 'matrix' | 'image' | 'slideshow';
+export type BackdropStyle = 'none' | 'lights' | 'galaxy' | 'matrix' | 'image' | 'slideshow';
 
 export type ForgeKind = 'github' | 'gitlab' | 'bitbucket' | 'azureDevOps';
 
@@ -29,7 +29,6 @@ export interface Settings {
     capacity: number;
     mutationRate: number;
     zoom: number;
-    waitingPulse: boolean;
     /** color is a mode; the rain's #rrggbb is derived from it and the accent. */
     matrix: { color: MatrixColorMode; zoom: number; speed: number; density: number };
     /** `file` is the Image style's, the rest the Slideshow's, and `fit` both. Paths may contain %VARS%. */
@@ -89,7 +88,6 @@ export const DEFAULT_SETTINGS: Settings = {
     capacity: 1000,
     mutationRate: 0.2,
     zoom: 2,
-    waitingPulse: false,
     matrix: { color: DEFAULT_MATRIX_COLOR_MODE, zoom: 1, speed: 10, density: 3 },
     image: { file: '', folder: '', fit: 'fill', intervalSeconds: 600, crossfadeSeconds: 5, shuffle: true, includeSubfolders: false },
   },

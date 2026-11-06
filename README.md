@@ -30,9 +30,9 @@ or a browser for into one window, so you stop juggling apps while Claude works.
   `bb` CLI opens panes from any prompt, so Claude can use it too.
 - **Draft prompts properly.** Scratch pads hold longer prompts and notes, then send them to the
   terminal for a final look.
-- **A backdrop that's alive.** Swirling Lights is a colony simulation drifting behind your panes,
-  and each live agent session grows its own colored lineage that blooms while it works. Prefer
-  something else? Pick Matrix, your own image, or a slideshow of a folder, and dim it to taste.
+- **A backdrop that's alive.** Swirling Lights is a colony simulation drifting behind your
+  panes. Prefer something else? Pick a slowly turning Galaxy, Matrix, your own image, or a
+  slideshow of a folder, and dim it to taste.
 - **More than Claude Code.** Preview support for OpenAI Codex and GitHub Copilot CLI brings the
   same status, cards, notifications, and resume on relaunch. The Local AI models section shows
   what Ollama and LM Studio have loaded, warns when a model's context is too small for an agent,

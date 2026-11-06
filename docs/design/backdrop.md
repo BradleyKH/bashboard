@@ -1,8 +1,9 @@
 # Backdrop
 
-The backdrop has five styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
-default), `matrix` (Matrix), `image` (Image), `slideshow` (Slideshow), and `none`. Swirling Lights
-is the colony simulation drawn by Three.js, and the one that shows sessions as organisms (6.3).
+The backdrop has six styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
+default), `galaxy` (Galaxy), `matrix` (Matrix), `image` (Image), `slideshow` (Slideshow), and
+`none`. Swirling Lights is the colony simulation drawn by Three.js. Galaxy is a fixed swirling
+starfield on the same Three.js viewport and settings (6.6).
 Matrix is falling glyph rain drawn with Canvas 2D. Image and Slideshow draw local pictures with
 Canvas 2D (6.5). None mounts nothing, so z0 is empty. Exactly one style is mounted at a time, and
 changing the setting swaps it live.
@@ -17,6 +18,9 @@ The backdrop code lives in `src/backdrop/`.
 - `src/backdrop/sim/` is the colony simulation, with its Vitest suite, and `src/backdrop/render/` is
   the Three.js renderer. Neither touches the DOM. `backdrop.ts` mounts the two as the Swirling
   Lights style.
+- `src/backdrop/galaxy/` is the Galaxy style (6.6): pure modules for the disc's shape, the
+  starfield, the color drift, and the baked textures (each unit tested), the
+  Three.js layers that draw them, and `galaxyBackdrop.ts`, which mounts them.
 - `src/backdrop/matrix/` is the Matrix style: `matrixModel.ts` is the pure, DOM-free rain model
   (unit tested), and `matrixBackdrop.ts` draws it on a canvas and runs its step clock.
 - `src/backdrop/image/` is the Image and Slideshow styles: `imageFit.ts` (where a picture is drawn
@@ -24,8 +28,7 @@ The backdrop code lives in `src/backdrop/`.
   `imageBackdrop.ts` loads, draws, crossfades, and times the pictures. The core's
   `backdrop_image.rs` reads and lists the files (6.5).
 - `backdropHandle.ts` holds `StyleBackdrop`, the interface every style exposes. `backdropHost.ts`
-  is the `BackdropHost`, which owns the canvas and the mounted style, and `colonyRelay.ts` is the
-  `ColonyRelay` that carries sessions across style switches (6.2).
+  is the `BackdropHost`, which owns the canvas and the mounted style (6.2).
 - The backdrop has no HUD, controls, or pointer handling; it never shows an interface or takes
   input.
 
@@ -33,8 +36,7 @@ The backdrop code lives in `src/backdrop/`.
 
 The rest of the app talks only to `BackdropHost` (`src/backdrop/backdropHost.ts`). It owns the
 `#backdrop` canvas and the mounted style, and exposes `apply(settings.backdrop)`,
-`setVisible(visible)`, `setAnimated(animated)`, the requested `style`, and a `colony` for
-`ColonySync`. `apply` mounts the style when it differs from the one requested before, and otherwise
+`setVisible(visible)`, `setAnimated(animated)`, and the requested `style`. `apply` mounts the style when it differs from the one requested before, and otherwise
 only pushes the new options to the mounted style; it rejects only when the latest requested style
 fails to mount, which shows a "Could not start the background animation" toast.
 
@@ -43,19 +45,13 @@ fails to mount, which shows a "Could not start the background animation" toast.
   a WebGL context cannot give a 2D one, and Matrix sets a mirror transform (6.4) on its canvas,
   which Swirling Lights must not inherit.
 - **Lazy loading.** Each style is loaded with a dynamic import when it is first mounted, so
-  Three.js and the simulation are parsed only when Swirling Lights is shown; Matrix and None never
+  Three.js is parsed only when Swirling Lights or Galaxy is shown, and the simulation only for
+  Swirling Lights; Matrix and None never
   load them. A mount that finishes after a later switch discards its result.
 - **When it mounts.** Loading settings starts before the rest of startup, and the backdrop mounts
   as soon as they arrive, overlapping the font and stale-terminal work that follows. The saved
   style is therefore the first one shown, never a different one that is swapped out. If settings
   fail to load, the defaults apply, which is Swirling Lights.
-- **The colony relay.** `ColonySync` reports session changes only as they happen, so a colony
-  mounted after sessions exist would never hear of them. The `ColonyRelay` is the colony the
-  app holds: it records each live session's hue and latest mood, forwards to the Swirling Lights
-  colony while one is mounted, and replays every recorded session into a newly mounted colony.
-  Switching away and back therefore returns each session's lineage, as a fresh founder (the
-  organisms themselves are not preserved). While Matrix or None is mounted, the relay keeps
-  recording and forwards nothing.
 
 Every style implements this interface, and each adds its own options:
 
@@ -70,22 +66,16 @@ export interface StyleBackdrop {
 
 // Swirling Lights, src/backdrop/backdrop.ts
 export interface BackdropHandle extends StyleBackdrop {
-  colony: SessionColony;
   /** `backdrop.maxFps`; 0 is uncapped. */
   setMaxFps(maxFps: number): void;
-  /** `backdrop.capacity`, `mutationRate`, `zoom`, and `waitingPulse`. */
+  /** `backdrop.capacity`, `mutationRate`, and `zoom`. */
   setOptions(options: BackdropOptions): void;
 }
 
-export interface SessionColony {
-  /** Founds a lineage for a session, or returns the existing one. */
-  ensure(sessionId: string, hue: number): void;
-  setMood(sessionId: string, mood: 'busy' | 'idle' | 'waiting'): void;
-  /** Lets the lineage die out naturally instead of vanishing. */
-  release(sessionId: string): void;
-}
-
 export function mountBackdrop(canvas: HTMLCanvasElement): BackdropHandle;
+
+// Galaxy, src/backdrop/galaxy/galaxyBackdrop.ts; the same handle (6.6)
+export function mountGalaxy(canvas: HTMLCanvasElement): BackdropHandle;
 
 // Matrix, src/backdrop/matrix/matrixBackdrop.ts
 export interface MatrixBackdrop extends StyleBackdrop {
@@ -107,14 +97,13 @@ export function mountImage(canvas: HTMLCanvasElement, options: ImageOptions, onE
 Swirling Lights' simulation runs at a fixed 12 generations per second, and the camera orbits
 slowly, holding still while the OS asks for reduced motion. Its simulation and camera controls are
 settings (section 8), all hot-reloaded: population capacity (300 to 5000, default 1000; "Density"
-in the dialog) and mutation rate (0 to 4, default 0.2; "Color drift"). Two more: zoom
-(0.5 to 3, default 2) divides the camera's home distance, so the colony fills more of the window,
-and the camera glides to a changed value; `waitingPulse` (default off) turns on the waiting
-pulse below.
+in the dialog) and mutation rate (0 to 4, default 0.2; "Color drift"). Zoom (0.5 to 3, default
+2) divides the camera's home distance, so the colony fills more of the window, and the camera
+glides to a changed value.
 
 The Settings tab groups the backdrop's settings, and the scrim, under "Background
 Animation"; the UI calls the backdrop the background animation. It opens with a Background select
-(None, Swirling Lights, Matrix, Image, Slideshow) and shows only the fields that apply to the
+(None, Swirling Lights, Galaxy, Matrix, Image, Slideshow) and shows only the fields that apply to the
 chosen style. The
 scrim's controls are labeled "Brightness" (shown as 1 minus `scrim.opacity`, so the far left is
 fully dimmed) and "Blur".
@@ -122,7 +111,8 @@ fully dimmed) and "Blur".
 | Style | Always shown | Also shown while `backdrop.animate` is on |
 | --- | --- | --- |
 | None | Background | (nothing) |
-| Swirling Lights | Background, Animate, Brightness, Blur, Zoom | Frame rate cap, Density, Color drift, Pulse waiting sessions |
+| Swirling Lights | Background, Animate, Brightness, Blur, Zoom | Frame rate cap, Density, Color drift |
+| Galaxy | Background, Animate, Brightness, Blur, Zoom | Frame rate cap, Density, Color drift |
 | Matrix | Background, Animate, Brightness, Blur, Color, Zoom, Density | Speed |
 | Image | Background, Image, Fit, Brightness, Blur | (the same) |
 | Slideshow | Background, Folder, Fit, Change every, Crossfade, Shuffle, Include subfolders, Brightness, Blur | (the same) |
@@ -130,39 +120,18 @@ fully dimmed) and "Blur".
 While `backdrop.animate` is off, the fields a still frame can't show are hidden. Zoom, Brightness,
 and Blur still change the frozen view, and so do Matrix's Color and Density, which redraw the still
 frame. Matrix has its own Zoom
-(`backdrop.matrix.zoom`), separate from Swirling Lights' (`backdrop.zoom`).
+(`backdrop.matrix.zoom`), separate from the `backdrop.zoom` that Swirling Lights and Galaxy share.
 
-## 6.3 Sessions as organisms
+## 6.3 Colony upkeep
 
-These apply to the Swirling Lights style; Matrix and None show no lineages.
+Swirling Lights' colony tends itself so the window never sits empty for long
+(`src/backdrop/sim/simulation.ts`):
 
-The background colony keeps living as it does today. Each live session additionally owns a
-lineage:
-
-| Session state | In the simulation |
-| --- | --- |
-| Appears | A founder spore drifts in near the colony's center |
-| `busy` | Lineage fertility raised; it blooms and spreads |
-| `idle` | Fertility lowered; it thins toward a few drifting adults |
-| `waiting` | Render-level brightness pulse on all its organisms while `backdrop.waitingPulse` is on (no sim change) |
-| Ends | Lineage released; its organisms age out normally |
-
-A terminal's `done` status (4.8) is not a session state; its lineage behaves as `idle`.
-
-- **Hue** is a stable FNV-1a hash of the session name, or of its lowercased cwd when unnamed, so
-  a session keeps its color across restarts. The lineage keeps its founder's hue, and children
-  inherit it unmutated, so every organism in the lineage matches the session's swatch in the
-  dashboard panel.
-- **Persistence.** A session lineage is protected from blights and is re-founded if its last
-  organism dies while the session lives.
-- **Background floor.** Since session lineages keep the colony from ever emptying, the
-  background (non-session) colony is tended on its own: when its living count falls below 15
-  percent of capacity, a founder spore is planted near the colony's center every 120 generations
-  until it recovers, and 6 generations after it dies out entirely.
-- **Changes to the copied code:** per-lineage fertility multipliers, blight immunity, and the
-  background floor in
-  `src/backdrop/sim/simulation.ts`, a per-lineage pulse attribute in the organism shader, and the
-  `SessionColony` bookkeeping. All of it stays render-free in `src/backdrop/sim` except the pulse.
+- **Sparse floor.** While the living count is below 15 percent of capacity, a founder spore is
+  planted near the colony's center every 120 generations until it recovers, so a thinned colony
+  regrows rather than waiting out a full extinction.
+- **Extinction.** 6 generations after the colony dies out entirely, a new epoch begins from a
+  single founding spore at the center.
 
 ## 6.4 Performance
 
@@ -185,6 +154,16 @@ A terminal's `done` status (4.8) is not a session state; its lineage behaves as 
   terminals composite over it through normal CSS stacking, with no readback. Disposing it forces
   its WebGL context to be lost, since Chromium caps live contexts and would otherwise keep the
   context until garbage collection.
+
+**Galaxy**
+
+- It shares Swirling Lights' viewport, bloom, frame pacing, `maxFps`, and handling of
+  `backdrop.animate`, and opens straight at its configured zoom. It has no pre-warm, since
+  nothing in it grows.
+- The CPU does almost nothing per frame: the stars' positions are static attributes, and the
+  vertex shader applies the turn and the color drift from a handful of uniforms. The
+  gas plate and the sky are textures baked once at mount, so their per-pixel noise is never run on
+  the GPU.
 
 **Matrix**
 
@@ -260,3 +239,46 @@ Ctrl+Shift+A does nothing while either is shown.
 - **Errors.** An empty path is the unset state and draws only the background color. Anything that
   cannot be shown raises a "Could not show the background image" toast through the `onError`
   callback the `BackdropHost` passes in, since a picture can fail long after the style mounted.
+
+## 6.6 Galaxy
+
+Galaxy draws a swirling galaxy behind the panes with Three.js, on Swirling Lights' viewport and
+settings. Unlike Swirling Lights it runs no simulation: the stars are a fixed field that turns as
+one, so nothing is born or dies and the population never changes.
+
+- **The disc.** Stars fill the whole disc around a small, pale bulge (`galaxyShape.ts`),
+  crowding into short streaks that wind with the spiral, so the disc reads as one swirl. Three
+  broad arms are only suggested: a loose scatter of stars about each spine, and a slightly fuller
+  swirl near them. The streaks are nine thin spiral strands whose phase is wiggled by noise, which
+  breaks them into fragments; built on a sine rather than a noise threshold, every ring of the
+  disc averages the same density.
+- **Even light.** The backdrop sits behind text, so the disc's light is even from the core to
+  the rim rather than peaking at the center: stars are placed uniformly by area, the bulge is a
+  small share of them and only a little brighter than the disc, the gas has a faint haze under
+  the whole disc instead of a core glow, and only the outer quarter of the radius fades. A panel
+  over the core therefore reads like one over the rim at the same Brightness, and since the light
+  per unit of screen does not depend on distance, Zoom changes how close the swirl looks rather
+  than how bright it is. The whole disc
+  turns rigidly, about one turn every nine minutes, with the swirl trailing; turning by radius
+  would wind it tighter over a long session. The bulge adds a slow swirl of its own on top. A
+  camera 45 degrees off overhead looks at the center, swaying a few degrees over five minutes, and
+  holds still while the OS asks for reduced motion.
+- **Stars.** `capacity` sets the count, 8 stars per unit, at most 40,000 (`galaxyStars.ts`). Each
+  star is seeded from its own index, so a new Density adds or removes stars without moving the
+  rest. Colors come from Swirling Lights' palette: most disc stars take the founders' blue-green
+  hues with the larva and adult tints, a few bright giants carry the bloom pink, the bulge is the
+  pale spore tint, and an older, dimmer share of the disc the elder violet. Each star's
+  brightness falls about as fast as the count rises (`starGain`), so Density changes how fine the
+  field is, not how bright: the summed light stays near steady, leaning slightly toward denser
+  fields since the bloom favors a few bright stars over many dim ones. Stars smaller than a pixel are
+  held at 1.5 px and dimmed by the area they lost, so they do not shimmer.
+- **Gas, dust, and sky.** At mount, the gas plate (glowing gas following the swirl and, more
+  faintly, the arms, over a haze that reaches a little past the rim; thin dust lanes along the
+  swirl; and pink star-forming clumps in the densest streaks) is baked into a 512 by 512 texture, and the far sky
+  (a faint band of distant light with violet wisps) into a 512 by 256 equirectangular one
+  (`galaxyBake.ts`). Stars in a dust lane are dimmed by the same dust field. 2,500 faint distant
+  stars sit on the sky, which follows the camera so it stays at infinity.
+- **Color drift.** `mutationRate` wanders the hues of the stars and the gas across the disc
+  through a slowly moving field (`galaxyDrift.ts`). Its reach grows with the square root of the
+  rate, to half the wheel either way at 4, and so does its speed; 0 holds the colors still. A
+  change eases in rather than snapping.

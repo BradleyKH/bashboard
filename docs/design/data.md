@@ -199,11 +199,12 @@ it with no pins, and Automatic omits it.
   // #e6e6e6 and as accent otherwise; any other value falls back to accent with a notice.
   "contentTextColor": "accent",
   "scrim": { "opacity": 0.5, "blurPx": 1 },
-  // style is none, lights (Swirling Lights), matrix, image, or slideshow; a missing or invalid
-  // value falls back to lights. animate false freezes lights and matrix on a still frame (6.4);
-  // the other styles ignore it.
-  // maxFps, capacity, mutationRate, zoom, and waitingPulse apply to lights only: maxFps 0 renders
-  // at the display's refresh rate, and the rest are the simulation and camera controls (6.2).
+  // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, image, or slideshow; a
+  // missing or invalid value falls back to lights. animate false freezes lights, galaxy, and matrix
+  // on a still frame (6.4); the other styles ignore it.
+  // maxFps, capacity, mutationRate, and zoom apply to lights and galaxy only: maxFps
+  // 0 renders at the display's refresh rate, and the rest are the simulation and camera controls
+  // (6.2, 6.6).
   // matrix.color is green (#00ff41) or accent: accentColor at full brightness with its HSV
   // saturation raised by half, so a gray accent stays gray. A #rrggbb value loads as green when it
   // is #00ff41 and as accent otherwise. matrix.zoom is 0.5 to 3 (the base cell is 20 px);
@@ -219,7 +220,6 @@ it with no pins, and Automatic omits it.
     "capacity": 1000,
     "mutationRate": 0.2,
     "zoom": 2,
-    "waitingPulse": false,
     "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 },
     "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 5, "shuffle": true, "includeSubfolders": false }
   },

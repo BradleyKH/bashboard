@@ -17,7 +17,6 @@ const terminal: TerminalCard = {
   busy: true,
   collapsed: false,
   attention: false,
-  hue: null,
   containerName: null,
 };
 

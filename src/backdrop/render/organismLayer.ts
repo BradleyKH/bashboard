@@ -16,8 +16,6 @@ import { organismFragment, organismVertex } from './shaders/organism';
 
 const MAX_ORGANISMS = 12000;
 
-const EMPTY: ReadonlySet<number> = new Set();
-
 /** World-space sprite size per stage; the sprite includes the halo, so it is larger than the body. */
 const SIZE = [1.0, 1.8, 2.9, 4.4, 3.2, 0.9];
 const GLOW = [0.9, 1.0, 1.1, 1.45, 0.6, 0.2];
@@ -35,8 +33,6 @@ interface Visual {
   glow: number;
   color: Color;
   phase: number;
-  /** 0..1 eased toward 1 while the organism's lineage is pulsing. */
-  pulse: number;
   /** Seconds since visibly born (negative while its stagger delay runs), for the grow-in and thread glow. */
   born: number;
 }
@@ -55,7 +51,6 @@ export class OrganismLayer {
   private readonly stage = new Float32Array(MAX_ORGANISMS);
   private readonly husk = new Float32Array(MAX_ORGANISMS);
   private readonly phase = new Float32Array(MAX_ORGANISMS);
-  private readonly pulse = new Float32Array(MAX_ORGANISMS);
 
   constructor() {
     this.geometry.setAttribute('position', new BufferAttribute(this.position, 3));
@@ -65,7 +60,6 @@ export class OrganismLayer {
     this.geometry.setAttribute('aStage', new BufferAttribute(this.stage, 1));
     this.geometry.setAttribute('aHusk', new BufferAttribute(this.husk, 1));
     this.geometry.setAttribute('aPhase', new BufferAttribute(this.phase, 1));
-    this.geometry.setAttribute('aPulse', new BufferAttribute(this.pulse, 1));
     // Positions change every frame; a fixed bound avoids recomputing it.
     this.geometry.boundingSphere = new Sphere(new Vector3(), 400);
 
@@ -100,16 +94,8 @@ export class OrganismLayer {
   /**
    * @param genSeconds Real-time length of a generation at the current speed.
    * @param running False while paused, so husks hold still instead of dissolving.
-   * @param pulsing Lineages whose organisms pulse; render-only.
    */
-  update(
-    organisms: Organism[],
-    dt: number,
-    time: number,
-    genSeconds: number,
-    running: boolean,
-    pulsing: ReadonlySet<number> = EMPTY,
-  ): void {
+  update(organisms: Organism[], dt: number, time: number, genSeconds: number, running: boolean): void {
     this.material.uniforms.uTime.value = time;
     const ease = 1 - Math.exp(-dt * 2.4);
     const colorEase = 1 - Math.exp(-dt * 2);
@@ -130,7 +116,6 @@ export class OrganismLayer {
           glow: 0,
           color: organismColor(o.genome.hue, o.stage, new Color()),
           phase: (o.id * 0.6180339887) % 1,
-          pulse: 0,
           born: -delay,
         };
         this.visuals.set(o.id, v);
@@ -154,7 +139,6 @@ export class OrganismLayer {
       const dissolve = isHusk ? Math.max(0, 1 - v.huskAge / (HUSK_GENERATIONS - 1)) : 1;
       v.glow += (GLOW[shown] * dissolve * visible - v.glow) * ease;
       v.color.lerp(organismColor(o.genome.hue, shown, target), colorEase);
-      v.pulse += ((pulsing.has(o.lineage) ? 1 : 0) - v.pulse) * colorEase;
 
       this.position[i * 3] = o.x;
       this.position[i * 3 + 1] = o.y;
@@ -167,7 +151,6 @@ export class OrganismLayer {
       this.stage[i] = v.stage;
       this.husk[i] = v.husk;
       this.phase[i] = v.phase;
-      this.pulse[i] = v.pulse;
     }
 
     // Thousands of additive halos sum to a white fog, so the crowd dims as it grows.
@@ -176,7 +159,7 @@ export class OrganismLayer {
     uniform.value += (gain - uniform.value) * colorEase;
 
     this.geometry.setDrawRange(0, count);
-    for (const name of ['position', 'aColor', 'aSize', 'aGlow', 'aStage', 'aHusk', 'aPhase', 'aPulse']) {
+    for (const name of ['position', 'aColor', 'aSize', 'aGlow', 'aStage', 'aHusk', 'aPhase']) {
       const attr = this.geometry.getAttribute(name) as BufferAttribute;
       attr.clearUpdateRanges();
       attr.addUpdateRange(0, count * attr.itemSize);

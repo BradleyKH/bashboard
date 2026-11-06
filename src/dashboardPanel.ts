@@ -199,8 +199,6 @@ export class DashboardPanel {
   private localModelsStore: LocalModelsStore | null = null;
   private unsubscribeLocalModels: (() => void) | null = null;
   private minContext = 64000;
-  /** Session swatches match the backdrop's lineages, which only Swirling Lights draws (section 6.3). */
-  private showSwatches = true;
   private readonly terminalList: HTMLElement;
   private readonly sessionList: HTMLElement;
 
@@ -453,13 +451,10 @@ export class DashboardPanel {
 
   /**
    * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle`
-   * (docs/design/dashboard.md section 4.6); `backdrop.style` decides whether session swatches show.
+   * (docs/design/dashboard.md section 4.6).
    */
-  applyDashboardSettings(d: Settings['dashboard'], backdrop: Settings['backdrop'], minContext: number): void {
+  applyDashboardSettings(d: Settings['dashboard'], minContext: number): void {
     this.shown = { ...d.sections };
-    const showSwatches = backdrop.style === 'lights';
-    const swatchesChanged = showSwatches !== this.showSwatches;
-    this.showSwatches = showSwatches;
     this.minContext = minContext;
     this.localModelsSection.update(this.localModelsStore?.current() ?? null, minContext);
     this.clockStyle = d.clockStyle;
@@ -467,7 +462,6 @@ export class DashboardPanel {
     this.setSide(d.side);
     this.layoutElements();
     this.syncTimers();
-    if (swatchesChanged) this.render();
   }
 
   /** Applies a saved placement without firing `onOrderChange`; absent parts keep their defaults. */
@@ -859,7 +853,6 @@ export class DashboardPanel {
             )
           : null,
       showPath: this.showPanePaths,
-      showSwatch: this.showSwatches,
       confirming: this.confirming.has(card.paneId),
       onFocus: this.callbacks.onFocus,
       onToggleCollapse: this.callbacks.onToggleCollapse,
@@ -901,7 +894,6 @@ export class DashboardPanel {
         renderSessionRow(s, {
           now,
           expanded: this.expanded.has(s.sessionId),
-          showSwatch: this.showSwatches,
           onOpenIn: this.callbacks.onOpenIn,
           onToggle: (id) => {
             if (!this.expanded.delete(id)) this.expanded.add(id);

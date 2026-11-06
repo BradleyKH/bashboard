@@ -20,7 +20,6 @@ import { onCliCommand } from './cli';
 import { onNotificationActivated, showNotification } from './notificationsApi';
 import { onSecondLaunch } from './secondLaunch';
 import { runCliCommand, type CliTarget } from './cliDispatch';
-import { ColonySync } from './colonySync';
 import { setHomeDir } from './displayPath';
 import { containerAction, startEngine, type Engine } from './containers';
 import { engineLabel, groupContainers, type DashboardGroupRow } from './containerGroups';
@@ -122,7 +121,6 @@ installTextFieldMenu();
 const backdrop = new BackdropHost(document.getElementById('backdrop') as HTMLCanvasElement, (message) =>
   showToast(`Could not show the background image: ${message}`),
 );
-const colonySync = new ColonySync(backdrop.colony);
 // Tracked here rather than read from the settings so quick repeated toggles don't act on a
 // value the file watcher hasn't reported back yet.
 let backdropAnimated = true;
@@ -166,7 +164,7 @@ try {
 
 function toggleBackdrop(): void {
   // Only the drawn styles animate; Image and Slideshow ignore backdrop.animate.
-  if (backdrop.style !== 'lights' && backdrop.style !== 'matrix') return;
+  if (backdrop.style !== 'lights' && backdrop.style !== 'galaxy' && backdrop.style !== 'matrix') return;
   backdropAnimated = !backdropAnimated;
   backdrop.setAnimated(backdropAnimated);
   saveSetting(['backdrop', 'animate'], backdropAnimated).catch((err: unknown) =>
@@ -981,7 +979,7 @@ panel.setContainersStore(containers);
 panel.setPortsStore(ports);
 panel.setLocalModelsStore(localModels);
 void containers.start();
-panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.backdrop, payload.settings.localModels.minContext);
+panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.localModels.minContext);
 shipOverviewStore.applySettings(payload.settings);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
@@ -1049,7 +1047,6 @@ listenFileDrops({
   drop: (id, paths) => void workspace.insertPaths(id, paths),
 });
 workspace.setSessions(sessions);
-colonySync.update(sessions);
 
 const saver = new DebouncedSaver(
   () => ({
@@ -1090,7 +1087,6 @@ onAgentContext((ctx) => workspace.setSessionModel(ctx.sessionId, ctx.model)).cat
 );
 onSessionsChanged((next) => {
   sessions = next;
-  colonySync.update(next);
   workspace.setSessions(next);
   refreshPanel();
   saver.schedule();
@@ -1186,6 +1182,6 @@ onSettingsChanged((p) => {
   applyBackdropSettings(p.settings);
   workspace.applySettings(p);
   shipOverviewStore.applySettings(p.settings);
-  panel.applyDashboardSettings(p.settings.dashboard, p.settings.backdrop, p.settings.localModels.minContext);
+  panel.applyDashboardSettings(p.settings.dashboard, p.settings.localModels.minContext);
   void refreshProfiles().then(() => settingsTab.update(latestPayload));
 }).catch((e) => console.warn('settings hot reload unavailable:', e));

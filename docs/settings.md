@@ -69,15 +69,15 @@ Ctrl+Alt+1 through Ctrl+Alt+8 to it:
 Keys that type text (`sendInput`) are added in the file; the guide lists them but has no field
 for their text.
 
-The background (the backdrop) has five styles, chosen with `backdrop.style` or the Background
+The background (the backdrop) has six styles, chosen with `backdrop.style` or the Background
 select in the Background section of the Settings tab: `lights` (Swirling Lights, the
-default, a living colony simulation), `matrix` (Matrix, falling glyph rain), `image` (Image, a
+default, a living colony simulation), `galaxy` (Galaxy, a slowly turning spiral galaxy), `matrix` (Matrix, falling glyph rain), `image` (Image, a
 picture from your disk), `slideshow` (Slideshow, the pictures in a folder in turn), and `none`
 (nothing is drawn behind the panes). A missing or invalid value falls back to `lights` with a
-notice. The choice applies live. `backdrop.animate` applies to Swirling Lights and Matrix and starts
+notice. The choice applies live. `backdrop.animate` applies to Swirling Lights, Galaxy, and Matrix and starts
 `false`, a frozen still frame; set it to `true` to run the background. Ctrl+Shift+A pauses or
-resumes either one and saves the choice to `backdrop.animate`; it does nothing under Image,
-Slideshow, or None, and the dialog shows Animate only for the two styles it affects. The dialog
+resumes any of them and saves the choice to `backdrop.animate`; it does nothing under Image,
+Slideshow, or None, and the dialog shows Animate only for the three styles it affects. The dialog
 shows only the fields that apply to the chosen style. Brightness (the inverse of `scrim.opacity`,
 which dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 1) apply to
 every style but None. Blur softens the whole background, including the gaps between panes, and
@@ -89,10 +89,18 @@ animates.
 camera orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
 population it sustains, 300 to 5000; Density in the Settings tab), `mutationRate` (how far
 offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
-above 1 brings the colony closer so it fills more of the window), and `waitingPulse` (a steady
-brightness pulse on a waiting Claude session's organisms, off by default). These apply to
-Swirling Lights only. While `backdrop.animate` is off, the dialog hides the frame
-rate cap, Density, Color drift, and the pulse toggle, which a still frame cannot show.
+above 1 brings the colony closer so it fills more of the window). These apply to Swirling
+Lights and Galaxy. While `backdrop.animate` is off, the dialog hides the frame rate cap, Density,
+and Color drift, which a still frame cannot show.
+
+**Galaxy** shares Swirling Lights' settings, read for a fixed starfield: `capacity` sets how many
+stars there are (8 per unit, up to 40,000), `mutationRate` how fast and how far hues wander across
+the disc (0 holds them still; 4 wanders the whole color wheel), and `zoom` how close the camera
+sits. The stars fill the disc in a swirl with only a hint of spiral arms, and its light is even
+from the center to the rim, so text reads the same wherever a pane sits. Density and Zoom change
+how fine and how close the field looks, not how bright it is. The disc turns
+slowly under a camera tilted 45 degrees from overhead, which sways a little unless Windows
+animation effects are off.
 
 **Matrix** draws digital rain, one falling column of half-width katakana, digits, and symbols per
 cell column, in the `MS Gothic` or `Yu Gothic` font that ships with Windows. Its fields live under
@@ -142,7 +150,6 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
   "capacity": 1000,
   "mutationRate": 0.2,
   "zoom": 2,
-  "waitingPulse": false,
   "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 },
   "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 5, "shuffle": true, "includeSubfolders": false }
 }

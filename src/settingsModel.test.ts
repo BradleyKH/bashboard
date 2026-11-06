@@ -74,7 +74,7 @@ describe('isShown', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(false))).map((f) => f.path.join('.'));
     expect(hidden.sort()).toEqual(
       [
-        ...['maxFps', 'capacity', 'mutationRate', 'waitingPulse'].map((k) => `backdrop.${k}`),
+        ...['maxFps', 'capacity', 'mutationRate'].map((k) => `backdrop.${k}`),
         'backdrop.matrix.color',
         'backdrop.matrix.zoom',
         'backdrop.matrix.speed',
@@ -128,9 +128,14 @@ describe('isShown', () => {
   it('shows the Swirling Lights controls for lights, and trims the loop-only ones when frozen', () => {
     expect(shownBackdrop('lights', true)).toEqual([
       'backdrop.style', 'backdrop.animate', 'backdrop.maxFps', 'scrim.opacity', 'scrim.blurPx', 'backdrop.capacity',
-      'backdrop.zoom', 'backdrop.mutationRate', 'backdrop.waitingPulse',
+      'backdrop.zoom', 'backdrop.mutationRate',
     ]);
     expect(shownBackdrop('lights', false)).toEqual(['backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.zoom']);
+  });
+
+  it('shows Galaxy the same controls as Swirling Lights, since it reads the same settings', () => {
+    expect(shownBackdrop('galaxy', true)).toEqual(shownBackdrop('lights', true));
+    expect(shownBackdrop('galaxy', false)).toEqual(shownBackdrop('lights', false));
   });
 
   it('shows the Matrix controls for matrix, hiding speed when frozen and never the lights density, drift, or pulse', () => {
@@ -208,7 +213,7 @@ describe('Matrix settings', () => {
 
   it('accepts the five background styles and rejects anything else', () => {
     const style = byPath('backdrop.style');
-    for (const v of ['none', 'lights', 'matrix', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
+    for (const v of ['none', 'lights', 'galaxy', 'matrix', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
     expect(parseInput(style, 'rain').ok).toBe(false);
   });
 });

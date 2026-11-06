@@ -56,7 +56,6 @@ pub struct Backdrop {
     pub mutation_rate: f64,
     /// Divides the camera's home distance.
     pub zoom: f64,
-    pub waiting_pulse: bool,
     pub matrix: MatrixBackdrop,
     pub image: ImageBackdrop,
 }
@@ -91,7 +90,7 @@ pub struct ImageBackdrop {
 }
 
 /// Ids `backdrop.style` accepts (docs/design/data.md section 8).
-pub const BACKDROP_STYLES: [&str; 5] = ["none", "lights", "matrix", "image", "slideshow"];
+pub const BACKDROP_STYLES: [&str; 6] = ["none", "lights", "galaxy", "matrix", "image", "slideshow"];
 
 /// Ids `backdrop.image.fit` accepts, the Windows wallpaper modes less Span.
 pub const IMAGE_FITS: [&str; 5] = ["fill", "fit", "stretch", "center", "tile"];
@@ -419,7 +418,6 @@ impl Default for Settings {
                 capacity: 1000,
                 mutation_rate: 0.2,
                 zoom: 2.0,
-                waiting_pulse: false,
                 matrix: MatrixBackdrop { color: "green".into(), zoom: 1.0, speed: 10, density: 3.0 },
                 image: ImageBackdrop {
                     file: String::new(),
@@ -856,7 +854,6 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             |v| number(v).filter(|n| (0.5..=3.0).contains(n)),
             d.backdrop.zoom,
         ),
-        waiting_pulse: pick(&root, &["backdrop", "waitingPulse"], &mut w, boolean, d.backdrop.waiting_pulse),
         matrix: MatrixBackdrop {
             color: pick(
                 &root,
@@ -1456,6 +1453,10 @@ mod tests {
         assert_eq!(s.backdrop.style, "lights");
         assert!(w.is_empty(), "{w:?}");
 
+        let (s, w) = parse_settings(r#"{ "backdrop": { "style": "galaxy" } }"#);
+        assert_eq!(s.backdrop.style, "galaxy");
+        assert!(w.is_empty(), "{w:?}");
+
         let (s, w) = parse_settings(
             r#"{ "backdrop": { "style": "matrix", "matrix": { "color": "accent", "zoom": 2.5, "speed": 25, "density": 2.5 } } }"#,
         );
@@ -1501,18 +1502,17 @@ mod tests {
     #[test]
     fn simulation_values_parse_and_out_of_range_ones_fall_back() {
         let (s, w) = parse_settings(
-            r#"{ "backdrop": { "capacity": 800, "mutationRate": 1.5, "zoom": 2.5, "waitingPulse": true } }"#,
+            r#"{ "backdrop": { "capacity": 800, "mutationRate": 1.5, "zoom": 2.5 } }"#,
         );
         assert_eq!((s.backdrop.capacity, s.backdrop.mutation_rate, s.backdrop.zoom), (800, 1.5, 2.5));
-        assert!(s.backdrop.waiting_pulse);
         assert!(w.is_empty(), "{w:?}");
         let (s, w) = parse_settings(
-            r#"{ "backdrop": { "capacity": 5001, "mutationRate": -1, "zoom": 4, "waitingPulse": "yes" } }"#,
+            r#"{ "backdrop": { "capacity": 5001, "mutationRate": -1, "zoom": 4 } }"#,
         );
         let d = Settings::default().backdrop;
         assert_eq!((s.backdrop.capacity, s.backdrop.mutation_rate), (d.capacity, d.mutation_rate));
-        assert_eq!((s.backdrop.zoom, s.backdrop.waiting_pulse), (d.zoom, d.waiting_pulse));
-        for field in ["backdrop.capacity", "backdrop.mutationRate", "backdrop.zoom", "backdrop.waitingPulse"] {
+        assert_eq!(s.backdrop.zoom, d.zoom);
+        for field in ["backdrop.capacity", "backdrop.mutationRate", "backdrop.zoom"] {
             assert!(w.iter().any(|m| m.starts_with(field)), "missing warning for {field}: {w:?}");
         }
     }

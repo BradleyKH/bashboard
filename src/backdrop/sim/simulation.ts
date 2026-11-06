@@ -51,13 +51,6 @@ export interface Blight {
   killed: number;
 }
 
-export interface LineageTraits {
-  /** Multiplier on reproduction success for every organism of the lineage. */
-  fertility: number;
-  /** Children keep this hue instead of mutating it, so the lineage matches its dashboard swatch. */
-  hue: number;
-}
-
 export interface Snapshot {
   counts: number[];
   living: number;
@@ -70,7 +63,7 @@ const LOCAL_CAPACITY = 22;
 /** Generations of darkness between an extinction and the next founding spore. */
 const REFOUND_DELAY = 6;
 /**
- * Below this share of capacity the background (untraited) colony counts as sparse, and a new
+ * Below this share of capacity the colony counts as sparse, and a new
  * founder spore is planted every SPARSE_RESEED_DELAY generations until it recovers.
  */
 const SPARSE_FLOOR = 0.15;
@@ -91,8 +84,6 @@ export class Simulation {
   epoch = 1;
   peak = 0;
   readonly history: Snapshot[] = [];
-  /** Lineages listed here are blight-immune, scaled in fertility, and hue-pinned. */
-  readonly lineageTraits = new Map<number, LineageTraits>();
   settings: SimSettings;
 
   private nextId = 1;
@@ -193,10 +184,8 @@ export class Simulation {
       const deathChance =
         STAGES[o.stage].deathChance * fragilityOf(o.genome) + crowding * crowding * o.genome.strategy * 0.12;
 
-      const traits = this.lineageTraits.get(o.lineage);
       const blighted =
         blight !== null &&
-        !traits &&
         (o.x - blight.x) ** 2 + (o.y - blight.y) ** 2 + (o.z - blight.z) ** 2 < blightR2 &&
         this.rng() < BLIGHT_LETHALITY;
       if (blighted) blight.killed++;
@@ -213,7 +202,7 @@ export class Simulation {
       if (spawn) {
         const roll = this.rng();
         const count = spawn.find(([, p]) => roll < p)?.[0] ?? 0;
-        const success = fertilityOf(o.genome) * (traits?.fertility ?? 1) * globalRoom * (1 - crowding);
+        const success = fertilityOf(o.genome) * globalRoom * (1 - crowding);
         for (let i = 0; i < count; i++) {
           if (this.rng() >= success) continue;
           const child = this.spawnChild(o);
@@ -245,7 +234,7 @@ export class Simulation {
         result.newEpoch = true;
       }
     } else {
-      this.tendBackground();
+      this.tendSparse();
     }
 
     this.peak = Math.max(this.peak, this.livingCount());
@@ -285,14 +274,10 @@ export class Simulation {
   }
 
   /**
-   * Session lineages are immune to blights and re-founded when they die, so while any session
-   * lives the total never reaches zero and the extinction path above never refounds. This keeps
-   * the background colony from dwindling to nothing beside a few idle session lineages: once it
-   * is gone, a spore is planted after REFOUND_DELAY; while it is merely sparse, one every
-   * SPARSE_RESEED_DELAY, so it regrows rather than popping back in.
+   * Plants a spore beside a colony that has thinned below SPARSE_FLOOR, one every
+   * SPARSE_RESEED_DELAY, so it regrows rather than waiting out a full extinction.
    */
-  private tendBackground(): void {
-    let background = 0;
+  private tendSparse(): void {
     let x = 0;
     let y = 0;
     let z = 0;
@@ -303,22 +288,20 @@ export class Simulation {
       y += o.y;
       z += o.z;
       living++;
-      if (!this.lineageTraits.has(o.lineage)) background++;
     }
-    if (background >= this.settings.capacity * SPARSE_FLOOR) {
+    if (living >= this.settings.capacity * SPARSE_FLOOR) {
       this.sparseFor = 0;
       return;
     }
     this.sparseFor++;
-    const delay = background === 0 ? REFOUND_DELAY : SPARSE_RESEED_DELAY;
-    if (this.sparseFor < delay) return;
+    if (this.sparseFor < SPARSE_RESEED_DELAY) return;
     this.sparseFor = 0;
     const [dx, dy, dz] = randomUnitVector(this.rng);
     this.found(x / living + dx * RESEED_SPREAD, y / living + dy * RESEED_SPREAD, z / living + dz * RESEED_SPREAD);
   }
 
   private pickBlightSite(): Blight | null {
-    const living = this.organisms.filter((o) => o.stage !== Stage.Husk && !this.lineageTraits.has(o.lineage));
+    const living = this.organisms.filter((o) => o.stage !== Stage.Husk);
     const origin = living[Math.floor(this.rng() * living.length)];
     return origin ? { x: origin.x, y: origin.y, z: origin.z, radius: BLIGHT_RADIUS, killed: 0 } : null;
   }
@@ -333,8 +316,6 @@ export class Simulation {
     const dist = 1.2 + this.rng() * 1.8;
     const kick = 2.5 + this.rng() * 2.5;
     const genome = mutate(parent.genome, this.settings.mutationRate, this.rng);
-    const traits = this.lineageTraits.get(parent.lineage);
-    if (traits) genome.hue = traits.hue;
     return {
       id: this.nextId++,
       lineage: parent.lineage,

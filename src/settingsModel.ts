@@ -63,16 +63,17 @@ export interface SettingsSection {
   fields: SettingsField[];
 }
 
-// A frozen backdrop redraws only for zoom (both styles) and the Matrix color and density, so the rest would do
+// A frozen backdrop redraws only for zoom (every drawn style) and the Matrix color and density, so the rest would do
 // nothing while it is still.
 const WHILE_ANIMATED: ShownWhen = { path: ['backdrop', 'animate'], value: true };
-const IS_LIGHTS: ShownWhen = { path: ['backdrop', 'style'], value: 'lights' };
+// Galaxy shares Swirling Lights' settings, read as stars rather than organisms.
+const IS_LIGHTS_OR_GALAXY: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy'] };
 const IS_MATRIX: ShownWhen = { path: ['backdrop', 'style'], value: 'matrix' };
-const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'matrix'] };
+const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix'] };
 const IS_IMAGE: ShownWhen = { path: ['backdrop', 'style'], value: 'image' };
 const IS_SLIDESHOW: ShownWhen = { path: ['backdrop', 'style'], value: 'slideshow' };
 const IS_PICTURE: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['image', 'slideshow'] };
-const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'matrix', 'image', 'slideshow'] };
+const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'image', 'slideshow'] };
 
 const SLIDESHOW_INTERVALS = [
   { value: '30', label: '30 seconds' },
@@ -183,6 +184,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         options: [
           { value: 'none', label: 'None' },
           { value: 'lights', label: 'Swirling Lights' },
+          { value: 'galaxy', label: 'Galaxy' },
           { value: 'matrix', label: 'Matrix' },
           { value: 'image', label: 'Image' },
           { value: 'slideshow', label: 'Slideshow' },
@@ -203,7 +205,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         minNonZero: 20,
         hint: '0 uses the display refresh rate; otherwise 20 to 240',
         applies: 'live',
-        shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
+        shownWhen: [IS_LIGHTS_OR_GALAXY, WHILE_ANIMATED],
       },
       { path: ['backdrop', 'image', 'file'], label: 'Image', kind: 'text', allowEmpty: true, browse: 'imageFile', hint: 'May contain %VARS%', applies: 'live', shownWhen: IS_IMAGE },
       { path: ['backdrop', 'image', 'folder'], label: 'Folder', kind: 'text', allowEmpty: true, browse: 'folder', hint: 'May contain %VARS%', applies: 'live', shownWhen: IS_SLIDESHOW },
@@ -236,8 +238,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       // Stored as the scrim's opacity, so 1 here is fully dimmed and the slider reads as brightness.
       { path: ['scrim', 'opacity'], label: 'Brightness', kind: 'slider', min: 0, max: 1, step: 0.05, inverted: true, applies: 'live', shownWhen: IS_SHOWN },
       { path: ['scrim', 'blurPx'], label: 'Blur', kind: 'slider', min: 0, max: 20, step: 1, unit: 'px', applies: 'live', shownWhen: IS_SHOWN },
-      { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: [IS_LIGHTS, WHILE_ANIMATED] },
-      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live', shownWhen: IS_LIGHTS },
+      { path: ['backdrop', 'capacity'], label: 'Density', kind: 'slider', min: 300, max: 5000, step: 100, integer: true, applies: 'live', shownWhen: [IS_LIGHTS_OR_GALAXY, WHILE_ANIMATED] },
+      { path: ['backdrop', 'zoom'], label: 'Zoom', kind: 'slider', min: 0.5, max: 3, step: 0.1, unit: 'x', applies: 'live', shownWhen: IS_LIGHTS_OR_GALAXY },
       {
         path: ['backdrop', 'mutationRate'],
         label: 'Color drift',
@@ -246,14 +248,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         max: 4,
         step: 0.1,
         applies: 'live',
-        shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
-      },
-      {
-        path: ['backdrop', 'waitingPulse'],
-        label: 'Pulse waiting sessions',
-        kind: 'toggle',
-        applies: 'live',
-        shownWhen: [IS_LIGHTS, WHILE_ANIMATED],
+        shownWhen: [IS_LIGHTS_OR_GALAXY, WHILE_ANIMATED],
       },
       {
         path: ['backdrop', 'matrix', 'color'],

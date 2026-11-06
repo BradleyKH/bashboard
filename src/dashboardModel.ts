@@ -1,5 +1,4 @@
 import type { PaneKind } from './paneKinds';
-import { sessionHue } from './sessionHue';
 import type { Session, SessionStatus } from './sessions';
 import { terminalStatus, waitingText, type ShellStatus, type TerminalStatus } from './terminalStatus';
 
@@ -59,7 +58,6 @@ export interface TerminalCard {
   busy: boolean;
   collapsed: boolean;
   attention: boolean;
-  hue: number | null;
   containerName: string | null;
 }
 
@@ -136,7 +134,6 @@ function terminalCard(t: TerminalCardInput, sessions: Session[]): TerminalCard {
     busy: isBusy(t, sessions),
     collapsed: t.collapsed,
     attention: t.attention,
-    hue: session ? sessionHue(session) : null,
     containerName: t.containerName ?? null,
   };
 }

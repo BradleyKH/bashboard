@@ -799,7 +799,7 @@ body.dashboard-resizing {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  /* Lines the session swatch up under the title: the status dot's 4px margins, 8px width, and the head's 6px gap. */
+  /* Lines the model line up under the title: the status dot's 4px margins, 8px width, and the head's 6px gap. */
   margin: 1px 0 0 22px;
   color: #6c777e;
   font-size: 11px;
@@ -892,14 +892,6 @@ body.dashboard-resizing {
   height: 8px;
   border-radius: 50%;
   background: #56626a;
-}
-
-.hue-swatch {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
 }
 
 .status-dot.working {

@@ -13,7 +13,6 @@ attribute float aGlow;
 attribute float aStage;
 attribute float aHusk;
 attribute float aPhase;
-attribute float aPulse;
 
 varying vec3 vColor;
 varying float vGlow;
@@ -42,7 +41,6 @@ void main() {
   vGlow = aGlow * uDensityGain * (1.0 - depth * 0.7) * smoothstep(0.6, 3.0, px);
   // Organisms brushing the lens would be huge soft blobs; let them slip out of view instead.
   vGlow *= smoothstep(3.0, 12.0, -mv.z);
-  vGlow *= 1.0 + aPulse * (1.0 - aHusk) * 0.8 * (0.5 + 0.5 * sin(uTime * 3.0));
   vColor = aColor;
   vPhase = aPhase;
 }

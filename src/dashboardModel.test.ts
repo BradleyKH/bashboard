@@ -10,7 +10,6 @@ import {
   type TerminalCard,
   type TerminalCardInput,
 } from './dashboardModel';
-import { sessionHue } from './sessionHue';
 import type { ShellStatus } from './terminalStatus';
 import type { Session } from './sessions';
 
@@ -175,13 +174,6 @@ describe('paneCards', () => {
   it('passes attention through', () => {
     const cards = tcards([term({ attention: true }), term({ paneId: 'p2' })], []);
     expect(cards.map((c) => c.attention)).toEqual([true, false]);
-  });
-
-  it('sets hue from the bound session and null when unbound', () => {
-    const s = session({ name: 'Fix bug', paneId: 1 });
-    const cards = tcards([term(), term({ paneId: 'p2', ptyId: 2 })], [s]);
-    expect(cards[0].hue).toBe(sessionHue(s));
-    expect(cards[1].hue).toBeNull();
   });
 
   it('prefers the most recently started session on the same pty', () => {

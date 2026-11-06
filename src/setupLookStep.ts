@@ -25,6 +25,7 @@ export interface LookStepContext {
 const BACKGROUNDS: { value: BackdropStyle; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'lights', label: 'Swirling Lights' },
+  { value: 'galaxy', label: 'Galaxy' },
   { value: 'matrix', label: 'Matrix' },
   { value: 'image', label: 'Image' },
   { value: 'slideshow', label: 'Slideshow' },
@@ -139,7 +140,7 @@ export function renderLookStep(content: HTMLElement, ctx: LookStepContext): (s: 
   // None draws nothing, so there is nothing to animate or dim; a picture dims but never animates.
   function showStyle(style: BackdropStyle): void {
     backgrounds.mark(style);
-    animate.hidden = style !== 'lights' && style !== 'matrix';
+    animate.hidden = style !== 'lights' && style !== 'galaxy' && style !== 'matrix';
     brightness.group.hidden = style === 'none';
   }
 

@@ -2,7 +2,6 @@
 // section 6).
 import type { BackdropStyle, Settings } from '../settings';
 import type { BackdropHandle } from './backdrop';
-import { ColonyRelay } from './colonyRelay';
 import type { ImageBackdrop, ImageOptions } from './image/imageBackdrop';
 import type { MatrixBackdrop, MatrixOptions } from './matrix/matrixBackdrop';
 import { matrixRainColor } from './matrix/rainColor';
@@ -10,12 +9,11 @@ import { matrixRainColor } from './matrix/rainColor';
 type BackdropSettings = Settings['backdrop'];
 type Mounted =
   | { style: 'lights'; handle: BackdropHandle }
+  | { style: 'galaxy'; handle: BackdropHandle }
   | { style: 'matrix'; handle: MatrixBackdrop }
   | { style: 'image' | 'slideshow'; handle: ImageBackdrop };
 
 export class BackdropHost {
-  /** Hand this to ColonySync; it survives style switches and replays sessions into a new colony. */
-  readonly colony = new ColonyRelay();
   private readonly template: HTMLCanvasElement;
   private canvas: HTMLCanvasElement;
   private current: Mounted | undefined;
@@ -68,7 +66,6 @@ export class BackdropHost {
       return;
     }
     this.current = mounted;
-    if (mounted.style === 'lights') this.colony.attach(mounted.handle.colony);
     this.configure();
   }
 
@@ -86,7 +83,7 @@ export class BackdropHost {
     const settings = this.settings;
     const current = this.current;
     if (!settings || !current) return;
-    if (current.style === 'lights') {
+    if (current.style === 'lights' || current.style === 'galaxy') {
       current.handle.setMaxFps(settings.maxFps);
       current.handle.setOptions(settings);
     } else if (current.style === 'matrix') {
@@ -101,10 +98,7 @@ export class BackdropHost {
   private unmount(): void {
     const current = this.current;
     this.current = undefined;
-    if (current) {
-      if (current.style === 'lights') this.colony.detach();
-      current.handle.dispose();
-    }
+    current?.handle.dispose();
     // A canvas that held a WebGL context cannot give a 2D one, and the matrix style flips its
     // canvas with an inline transform, so every style gets a fresh element.
     const fresh = this.template.cloneNode(false) as HTMLCanvasElement;
@@ -129,10 +123,14 @@ async function mount(
   accent: string,
   onError: (message: string) => void,
 ): Promise<Mounted> {
-  // Dynamic imports keep Three.js out of the main bundle; only the lights style loads it.
+  // Dynamic imports keep Three.js out of the main bundle; only the lights and galaxy styles load it.
   if (style === 'lights') {
     const { mountBackdrop } = await import('./backdrop');
     return { style, handle: mountBackdrop(canvas) };
+  }
+  if (style === 'galaxy') {
+    const { mountGalaxy } = await import('./galaxy/galaxyBackdrop');
+    return { style, handle: mountGalaxy(canvas) };
   }
   if (style === 'matrix') {
     const { mountMatrix } = await import('./matrix/matrixBackdrop');
