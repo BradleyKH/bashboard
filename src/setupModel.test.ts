@@ -6,6 +6,7 @@ import {
   editorChoices,
   effectiveProfile,
   favoritesToAdd,
+  pinsToAdd,
   MATRIX_ACCENT,
   scrimPresetFor,
   agentHooksFrom,
@@ -245,5 +246,26 @@ describe('editorChoices', () => {
     expect(editorChoices(core, 'cursor')[0]).toEqual({ value: 'cursor', label: 'cursor (not found)' });
     expect(editorChoices(core, 'mystery')[0]).toEqual({ value: 'mystery', label: 'mystery (not found)' });
     expect(editorChoices(core, 'cursor')).toHaveLength(3);
+  });
+});
+
+describe('pinsToAdd', () => {
+  const pinnable = new Map([
+    ['C:/src/web', 'github.com/me/web'],
+    ['C:/src/web2', 'github.com/me/web'],
+    ['C:/src/kweb', 'bitbucket.org/keysys/kweb'],
+  ]);
+
+  it('pins the checked repos on a supported host, keeping each clone as the root', () => {
+    expect(pinsToAdd(['C:/src/kweb', 'C:/src/notes'], pinnable, () => false)).toEqual([
+      { repo: 'bitbucket.org/keysys/kweb', root: 'C:/src/kweb' },
+    ]);
+  });
+
+  it('pins a repo once across clones and skips ones already pinned', () => {
+    const pinned = (repo: string) => repo === 'bitbucket.org/keysys/kweb';
+    expect(pinsToAdd(['C:/src/web', 'C:/src/web2', 'C:/src/kweb'], pinnable, pinned)).toEqual([
+      { repo: 'github.com/me/web', root: 'C:/src/web' },
+    ]);
   });
 });

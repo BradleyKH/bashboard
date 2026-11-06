@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { OverviewRepo, PullRequest, Run } from './forgeApi';
 import type { DashboardItem, OverviewRow } from './shipOverviewModel';
-import { itemStatus, itemText, pullsLine, repoLabel, runningLine, sectionItems } from './shipSectionModel';
+import type { ForgeError } from './forgeApi';
+import type { OverviewEntry } from './shipOverviewStore';
+import { itemStatus, itemText, pullsLine, repoLabel, runningLine, sectionItems, signInLine } from './shipSectionModel';
 
 const pull = (over: Partial<PullRequest> = {}): PullRequest =>
   ({ number: 7, title: 'Fix it', reviewDecision: null, checks: null, ...over }) as PullRequest;
@@ -107,5 +109,38 @@ describe('pullsLine', () => {
     const tagged = Array.from({ length: 7 }, () => open({ reviewRequested: true }));
     expect(pullsLine([row('github.com/a/b', [], tagged)], 7)?.text).toBe('7 open PRs, 7 need your review');
     expect(pullsLine([row('github.com/a/b', [], [...tagged.slice(0, 5), open()])], 5)?.text).toBe('6 open PRs');
+  });
+});
+
+describe('signInLine', () => {
+  const failed = (repo: string, kind: ForgeError['kind'] | null): OverviewEntry => ({
+    pin: { repo },
+    row: null,
+    error: kind ? { kind, message: '', url: null, signIn: null, retryAfterSecs: null } : null,
+    loading: false,
+    updatedAt: null,
+  });
+
+  it('is null when no pin lacks an account', () => {
+    expect(signInLine([failed('github.com/a/b', null), failed('github.com/a/c', 'network')])).toBeNull();
+  });
+
+  it('names the one repo and opens Bitbucket on its token form', () => {
+    expect(signInLine([failed('bitbucket.org/keysys/kweb', 'signedOut')])).toEqual({
+      text: 'Sign in to bitbucket.org for keysys/kweb',
+      title: 'Open the Accounts tab',
+      host: 'bitbucket.org',
+      openTokenForm: true,
+    });
+  });
+
+  it('counts the repos on one GitHub host, without the token form', () => {
+    const line = signInLine([failed('github.com/a/b', 'signedOut'), failed('github.com/a/c', 'notInstalled')]);
+    expect(line).toMatchObject({ text: 'Sign in to github.com for 2 pinned repos', host: 'github.com', openTokenForm: false });
+  });
+
+  it('leaves the host to the Accounts tab when the repos span hosts', () => {
+    const line = signInLine([failed('github.com/a/b', 'signedOut'), failed('bitbucket.org/k/w', 'signedOut')]);
+    expect(line).toMatchObject({ text: 'Sign in for 2 pinned repos', host: null, openTokenForm: false });
   });
 });

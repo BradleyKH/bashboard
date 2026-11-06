@@ -179,6 +179,12 @@ export class ShipOverviewStore {
     await this.write(next);
   }
 
+  /** Pins each repo not already pinned, in one settings write; pins already there are left alone. */
+  async pinAll(list: readonly PinnedRepo[]): Promise<void> {
+    const add = list.filter((p, i) => !this.pins.some((q) => q.repo === p.repo) && list.findIndex((q) => q.repo === p.repo) === i);
+    if (add.length > 0) await this.write([...this.pins, ...add]);
+  }
+
   async unpin(repo: string): Promise<void> {
     if (!this.pins.some((p) => p.repo === repo)) return;
     await this.write(this.pins.filter((p) => p.repo !== repo));

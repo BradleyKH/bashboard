@@ -1799,8 +1799,12 @@ review"). It is shown when some open pull request is not awaiting the viewer's r
 review requests pass the cap, and opens the Overview. Both count from what each poll already
 fetches, a repo's newest 20 runs and 50 open pull requests.
 
-The header's button, the Overview icon, opens the Overview. The section is never empty: before
-any pinned repo has loaded it shows a dash, and with no repo pinned it shows a "Pin repos" row
+When a pin's last poll failed for want of an account (signed out, or the GitHub CLI missing), a
+sign-in row leads the section, "Sign in to bitbucket.org for keysys/kweb" or "Sign in for 3
+pinned repos", naming the host when every such pin shares one. It opens the Accounts tab (4.20)
+on that host, straight to the token form for Bitbucket. The header's button, the Overview icon,
+opens the Overview. The section is never empty: before any pinned repo has loaded it shows the
+sign-in row or else a dash, and with no repo pinned it shows a "Pin repos" row
 that opens the Overview, since the section is a new user's way into Ship. It reads the Overview's shared store (4.20), which polls only while this
 section is shown by `dashboard.sections.ship`, expanded, and on screen with the window shown.
 
@@ -2497,7 +2501,12 @@ has Back, Next, and Skip setup.
    listing its subfolders that are git repos with checkboxes. The subfolders come from
    `setup_repo_candidates(dir?)` (`src-tauri/src/setup.rs`), which lists the direct subfolders
    holding `.git`, as a folder or as a worktree's file. Add appends the checked ones to
-   favorites, skipping any already there.
+   favorites, skipping any already there. When some listed repo's remote is on a code host Ship
+   reads (`forge_repo`, 3.20), an unchecked-by-default box under the list, "Also pin them to the
+   Ship Overview, for pull request and pipeline alerts", makes Add (reading **Add and pin**) also
+   pin the checked ones that are, in one write to `ship.pinnedRepos` with each clone as the
+   pin's `root` (4.20), skipping repos already pinned. Pins cost polling and, on Bitbucket, the
+   request budget, so pinning is a choice rather than a side effect of favoriting.
 6. **Agents.** Shown while a detected agent (3.2) lacks the hooks; lists each detected agent
    with its hook state (Codex and Copilot marked as a preview), explains the hooks, and runs each
    agent's install with its confirmation (3.3). An installed Codex hook that is not yet trusted

@@ -632,6 +632,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onOpenShip: (target, tab) => workspace.openShip(target, tab),
+  onOpenAccounts: (host, opts) => openAccounts(host, opts),
   ports: {
     onOpenPorts: (key, showAll): void => workspace.openPorts(key, showAll),
     ownerTitle: (ptyId): string | null => workspace.titleForPty(ptyId),
@@ -900,6 +901,11 @@ const openDialog = async (tab: DialogTab): Promise<void> => {
   if (tab === 'settings' || tab === 'help') await refreshProfiles();
   appDialog.open(tab);
 };
+
+const openAccounts = (host: string | null, opts?: { openTokenForm?: boolean }): void =>
+  void openDialog('accounts').then(() => {
+    if (host) accountsTab.focusHost(host, opts);
+  });
 const setupWizard = new SetupWizard({
   onClose: focusTerminal,
   onSave: saveSetting,
@@ -962,10 +968,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenLaunchMenu: () => void openLaunchMenu(),
   onOpenPalette: () => openPalette(),
   onOpenDialog: (tab) => void openDialog(tab),
-  onOpenAccounts: (host, opts) =>
-    void openDialog('accounts').then(() => {
-      if (host) accountsTab.focusHost(host, opts);
-    }),
+  onOpenAccounts: (host, opts) => openAccounts(host, opts),
   onToggleBackdrop: toggleBackdrop,
   onToggleFullscreen: toggleFullscreen,
   onAttention: (paneId, cause) => {

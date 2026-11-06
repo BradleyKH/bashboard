@@ -107,6 +107,24 @@ export function favoritesToAdd(checkedPaths: string[], favorites: Favorite[]): F
   return out;
 }
 
+/**
+ * Ship pins for the checked repo paths: those `pinnable` maps to a pin identity (`host/owner/name`),
+ * skipping identities already pinned or repeated, as when two clones share one repo.
+ */
+export function pinsToAdd(
+  checkedPaths: readonly string[],
+  pinnable: ReadonlyMap<string, string>,
+  isPinned: (repo: string) => boolean,
+): { repo: string; root: string }[] {
+  const out: { repo: string; root: string }[] = [];
+  for (const root of checkedPaths) {
+    const repo = pinnable.get(root);
+    if (repo === undefined || isPinned(repo) || out.some((p) => p.repo === repo)) continue;
+    out.push({ repo, root });
+  }
+  return out;
+}
+
 /** The preset whose opacity is exactly `opacity`; null for a custom value between presets. */
 export function scrimPresetFor(opacity: number): keyof typeof SCRIM_PRESETS | null {
   const names = Object.keys(SCRIM_PRESETS) as (keyof typeof SCRIM_PRESETS)[];

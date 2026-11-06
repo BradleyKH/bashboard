@@ -322,7 +322,10 @@ pinned repos: a health branch that failed, your own pull request with changes re
 failing checks, and up to 5 pull requests awaiting your review. Below them, one line shows the
 pipelines running (the run itself when there is just one, else a count), and another counts the
 open pull requests that aren't drafts, adding how many await your review when that passes 5. With
-no repo pinned yet, it shows a Pin repos row that opens the Overview. Click a row to open that
+no repo pinned yet, it shows a Pin repos row that opens the Overview, and when a pinned repo needs
+a sign-in, a row leading the section opens the Accounts tab for it. The setup wizard's Favorites
+step can pin repos too: tick "Also pin them to the Ship Overview" before adding, an option shown
+when some listed repo is on GitHub or Bitbucket. Click a row to open that
 repo's Pipelines (for a branch or a run) or Pull requests (for a pull request), or the Overview
 for a count across repos; the button in the section's header opens the Overview. Turn the
 section off with `dashboard.sections.ship`.

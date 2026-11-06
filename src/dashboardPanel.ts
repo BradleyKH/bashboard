@@ -72,6 +72,8 @@ export interface DashboardCallbacks
   ports?: PortsSectionCallbacks;
   /** The Ship section opens the Overview, drilled into `target` on `tab` when given. */
   onOpenShip?: (target: string | null, tab?: ShipTab) => void;
+  /** The Ship section's sign-in row opens the Accounts tab on `host`. */
+  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean }) => void;
   /** A Panes card's menu collapses or expands its pane. */
   onToggleCollapse?: (paneId: string) => void;
   onCardDragStart?: (paneId: string, e: PointerEvent) => void;
@@ -329,7 +331,10 @@ export class DashboardPanel {
       },
     );
     this.addSection('ports', this.portsSection.el, this.portsSection.head);
-    this.shipSection = new ShipSection({ onOpenShip: (target, tab) => this.callbacks.onOpenShip?.(target, tab) });
+    this.shipSection = new ShipSection({
+      onOpenShip: (target, tab) => this.callbacks.onOpenShip?.(target, tab),
+      onOpenAccounts: (host, opts) => this.callbacks.onOpenAccounts?.(host, opts),
+    });
     this.addSection('ship', this.shipSection.el, this.shipSection.head);
     this.addSection('localModels', this.localModelsSection.el, this.localModelsSection.head);
     this.sessionList = this.section('external', 'External sessions');

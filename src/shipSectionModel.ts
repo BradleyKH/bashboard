@@ -1,7 +1,8 @@
 // What the dashboard's Ship section shows (docs/design.md section 4.6). Pure, no DOM.
 import type { Run, RunStatus } from './forgeApi';
 import { relativeTime, statusInfo, type ShipTab } from './shipModel';
-import { targetKey, type DashboardItem, type OverviewRow } from './shipOverviewModel';
+import { isBitbucketPin, targetKey, type DashboardItem, type OverviewRow } from './shipOverviewModel';
+import type { OverviewEntry } from './shipOverviewStore';
 
 /** Review requests past this many are counted on the pull request line instead of getting rows. */
 export const REVIEW_ROW_CAP = 5;
@@ -114,5 +115,33 @@ export function pullsLine(rows: readonly OverviewRow[], reviewCount: number): Su
     text: `${plural(open.length, 'open PR')}${overflow}`,
     title: 'Open pull requests across the pinned repos, drafts left out',
     target: null,
+  };
+}
+
+/** The sign-in row: which host the Accounts tab opens on, null to let the tab choose. */
+export interface SignInLine {
+  text: string;
+  title: string;
+  host: string | null;
+  /** Bitbucket signs in with a pasted API token, so its row opens straight to that form. */
+  openTokenForm: boolean;
+}
+
+/**
+ * A row asking the viewer to sign in, when some pin's last poll failed for want of an account
+ * (signed out, or the GitHub CLI missing). Null when none did. Names the repo when it is the only
+ * one, and the host when every such pin shares one.
+ */
+export function signInLine(entries: readonly OverviewEntry[]): SignInLine | null {
+  const out = entries.filter((e) => e.error?.kind === 'signedOut' || e.error?.kind === 'notInstalled');
+  if (out.length === 0) return null;
+  const hosts = [...new Set(out.map((e) => e.pin.repo.split('/')[0].toLowerCase()))];
+  const host = hosts.length === 1 ? hosts[0] : null;
+  const what = out.length === 1 ? repoLabel(out[0].pin.repo) : plural(out.length, 'pinned repo');
+  return {
+    text: host ? `Sign in to ${host} for ${what}` : `Sign in for ${what}`,
+    title: 'Open the Accounts tab',
+    host,
+    openTokenForm: host !== null && out.every((e) => isBitbucketPin(e.pin.repo)),
   };
 }

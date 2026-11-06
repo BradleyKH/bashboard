@@ -2,6 +2,7 @@ import './setupWizard.css';
 import { agentName, isPreviewAgent } from './agentNames';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
+import { forgeRepo } from './forgeApi';
 import type { ShellProfile } from './profiles';
 import type { AgentId } from './savedWorkspace';
 import { repoCandidates } from './repoCandidates';
@@ -12,6 +13,7 @@ import {
   editorChoices,
   effectiveProfile,
   favoritesToAdd,
+  pinsToAdd,
   setupSteps,
   type AgentHooks,
   type AutoColors,
@@ -21,6 +23,8 @@ import {
   type SetupStepUi,
 } from './setupModel';
 import { renderShellIntegrationStep } from './setupShellIntegrationStep';
+import { repoId } from './shipOverviewModel';
+import { shipOverviewStore } from './shipOverviewStore';
 import {
   isIntegrationShell,
   type IntegrationShell,
@@ -60,12 +64,15 @@ interface Repo {
   path: string;
 }
 
+/** How many repos resolve their remote at once; each runs git. */
+const RESOLVE_PARALLEL = 4;
+
 const STEP_TEXT: Record<SetupStep, { title: string; intro: string }> = {
   git: { title: 'Git', intro: 'Install Git for Windows, which brings Git Bash.' },
   shell: { title: 'Shell', intro: 'The shell new panes open with.' },
   shellIntegration: { title: 'Shell integration', intro: "A few lines in your shell's startup file that report each prompt to the app." },
   editor: { title: 'Editor', intro: 'Where files and folders open from the Files pane, the Git pane, and search.' },
-  favorites: { title: 'Favorites', intro: 'Pin the repos you work in, so they are one click away in the dashboard.' },
+  favorites: { title: 'Favorites', intro: 'The repos you work in, one click away in the dashboard.' },
   agents: { title: 'Coding agents', intro: 'Let the dashboard follow your coding agent sessions.' },
   look: { title: 'Look', intro: 'The background behind the panes, and the colors the app draws with.' },
 };
@@ -99,6 +106,9 @@ export class SetupWizard {
   private listedFolder: string | null = null;
   private checked = new Set<string>();
   private added: string[] = [];
+  /** Listed repo path to its Ship pin identity, for the repos on a supported code host. */
+  private pinnable = new Map<string, string>();
+  private pinOn = false;
 
   private hooksDone = new Set<AgentId>();
   /** The agent whose install is running. */
@@ -151,6 +161,8 @@ export class SetupWizard {
     this.listedFolder = null;
     this.checked = new Set();
     this.added = [];
+    this.pinnable = new Map();
+    this.pinOn = false;
     this.hooksDone = new Set();
     this.installing = null;
 
@@ -545,16 +557,28 @@ export class SetupWizard {
       favorites.some((f) => samePath(f.path, path)) || this.added.some((p) => samePath(p, path));
     const list = document.createElement('div');
     list.className = 'setup-wizard-repos';
+    // The pin choice is offered only when some listed repo is on a host Ship can read.
+    const offerPin = this.pinnable.size > 0;
     const add = this.button('Add to favorites', () => {
       const paths = this.repos?.filter((r) => this.checked.has(r.path)).map((r) => r.path) ?? [];
       const list = favoritesToAdd(paths, this.callbacks.getFavorites());
       if (list.length > 0) this.callbacks.addFavorites(list);
+      if (offerPin && this.pinOn) {
+        const pins = pinsToAdd(paths, this.pinnable, (repo) => shipOverviewStore.isPinned(repo));
+        if (pins.length > 0) {
+          shipOverviewStore.pinAll(pins).catch((err: unknown) => this.setError(`Could not pin: ${errorText(err)}`));
+        }
+      }
       this.added.push(...paths);
       this.checked.clear();
       this.rerender('favorites');
     });
     add.classList.add('setup-wizard-primary');
-    const syncAdd = () => (add.disabled = ![...this.checked].some((p) => !isFavorite(p)));
+    const syncAdd = () => {
+      add.disabled = ![...this.checked].some((p) => !isFavorite(p));
+      const pinning = offerPin && this.pinOn && [...this.checked].some((p) => !isFavorite(p) && this.pinnable.has(p));
+      add.textContent = pinning ? 'Add and pin' : 'Add to favorites';
+    };
 
     for (const repo of this.repos) {
       const already = isFavorite(repo.path);
@@ -587,11 +611,52 @@ export class SetupWizard {
       }
       list.append(row);
     }
-    syncAdd();
     const actions = document.createElement('div');
     actions.className = 'setup-wizard-actions';
     actions.append(add);
-    this.content.append(list, actions);
+    this.content.append(list);
+    if (offerPin) {
+      const pin = document.createElement('label');
+      pin.className = 'setup-wizard-choice';
+      const pinBox = document.createElement('input');
+      pinBox.type = 'checkbox';
+      pinBox.id = 'setup-wizard-pin';
+      pinBox.checked = this.pinOn;
+      pinBox.addEventListener('change', () => {
+        this.pinOn = pinBox.checked;
+        syncAdd();
+      });
+      const pinText = document.createElement('span');
+      pinText.textContent = 'Also pin them to the Ship Overview, for pull request and pipeline alerts';
+      pin.append(pinBox, pinText);
+      this.content.append(
+        pin,
+        this.note('Only the repos on GitHub or Bitbucket are pinned. Private ones need a sign-in, which the dashboard and the Ship Overview ask for.'),
+      );
+    }
+    syncAdd();
+    this.content.append(actions);
+  }
+
+  /** Finds which listed repos Ship can pin, for the latest listing only. */
+  private async resolvePinnable(seq: number, owner: HTMLElement | null): Promise<void> {
+    this.pinnable = new Map();
+    const queue = [...(this.repos ?? [])];
+    const found = new Map<string, string>();
+    const worker = async (): Promise<void> => {
+      for (let repo = queue.shift(); repo !== undefined; repo = queue.shift()) {
+        if (seq !== this.repoSeq || this.backdrop !== owner) return;
+        try {
+          found.set(repo.path, repoId(await forgeRepo(repo.path)));
+        } catch {
+          // No remote, or not on a supported host; it simply is not pinnable.
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: RESOLVE_PARALLEL }, worker));
+    if (seq !== this.repoSeq || this.backdrop !== owner || found.size === 0) return;
+    this.pinnable = found;
+    this.rerender('favorites');
   }
 
   /** Lists the repos under `raw`, or under the core's default folder when `raw` is undefined. */
@@ -616,6 +681,7 @@ export class SetupWizard {
         this.folder = result.dir ?? '';
         this.listedFolder = this.folder;
       }
+      void this.resolvePinnable(seq, owner);
     } catch (err) {
       if (seq !== this.repoSeq || this.backdrop !== owner) return;
       this.repos = [];
