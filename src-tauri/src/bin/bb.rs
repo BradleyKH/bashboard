@@ -31,7 +31,9 @@ struct Entry {
 
 fn help_text() -> String {
     let r: Reference = serde_json::from_str(REFERENCE).expect("cli-commands.json is valid");
-    let line = |e: &Entry| format!("  {:<28}{}\n", e.usage, e.summary);
+    // Pads to the longest usage, so a long one never runs into its summary.
+    let width = r.commands.iter().chain(&r.options).map(|e| e.usage.len()).max().unwrap_or(0) + 2;
+    let line = |e: &Entry| format!("  {:<width$}{}\n", e.usage, e.summary);
     let mut text = format!("{}\n\nUsage:\n", r.intro);
     r.commands.iter().for_each(|e| text.push_str(&line(e)));
     text.push_str("\nOptions:\n");
@@ -95,7 +97,10 @@ fn is_help(command: &str) -> bool {
 
 /// Standard input feeds `scratch` only when no text was given on the command line.
 fn wants_stdin(command: &str, rest: &[String]) -> bool {
-    command == "scratch" && rest.iter().all(|a| a == "--collapsed")
+    command == "scratch"
+        && rest
+            .iter()
+            .all(|a| matches!(a.as_str(), "--collapsed" | "--tab" | "-t" | "--"))
 }
 
 fn read_stdin() -> Result<String, String> {
@@ -394,13 +399,23 @@ mod tests {
             "git",
             "search",
             "scratch",
+            "term",
+            "ship",
+            "ports",
+            "containers",
             "auth",
             "help",
             "--collapsed",
+            "--tab",
         ] {
             assert!(text.contains(name), "{name} missing from help");
         }
-        assert!(text.contains("  bb edit <path>[:<line>]     Open the file"));
+        // Every summary starts in one column, past the longest usage.
+        let column = |summary: &str| {
+            text.lines().find_map(|l| l.find(summary)).unwrap()
+        };
+        assert_eq!(column("Open the file in"), column("Store an Azure DevOps PAT"));
+        assert!(text.contains("<org> [--clear]  Store"));
     }
 
     #[test]
@@ -456,6 +471,8 @@ mod tests {
     fn stdin_only_for_bare_scratch() {
         assert!(wants_stdin("scratch", &[]));
         assert!(wants_stdin("scratch", &strings(&["--collapsed"])));
+        assert!(wants_stdin("scratch", &strings(&["-t", "--tab", "--"])));
+        assert!(!wants_stdin("scratch", &strings(&["--", "hello"])));
         assert!(!wants_stdin("scratch", &strings(&["hello"])));
         assert!(!wants_stdin("scratch", &strings(&["--collapsed", "hello"])));
         assert!(!wants_stdin("git", &[]));

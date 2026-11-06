@@ -8,12 +8,18 @@ export type CliAction =
   | { kind: 'edit'; path: string; line?: number | null }
   | { kind: 'git'; root: string }
   | { kind: 'search'; root: string; query?: string | null }
-  | { kind: 'scratch'; text: string };
+  | { kind: 'scratch'; text: string }
+  | { kind: 'term'; cwd: string; command?: string | null }
+  | { kind: 'ship'; root?: string | null }
+  | { kind: 'ports' }
+  | { kind: 'containers' };
 
 /** Payload of `cli://command`; `ptyId` is the core's pty id, not a `p<n>` pane id. */
 export interface CliCommand {
   ptyId: number;
   collapsed: boolean;
+  /** Opens the pane alone in a new tab instead of as a split of the calling pane. */
+  tab: boolean;
   action: CliAction;
 }
 

@@ -131,6 +131,21 @@ the `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, and `SessionEnd`
 { "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/bashboard-hook.sh", "timeout": 5 } ] }
 ```
 
+## Telling an agent about `bb`
+
+An agent running in a pane can use the [pane CLI](user-guide.md#pane-cli) as any shell can, but
+it only reaches for `bb` when it knows the command exists. Add a few lines to your global
+`~/.claude/CLAUDE.md` (or the `AGENTS.md` another agent reads):
+
+```markdown
+## Bashboard
+
+When `BASHBOARD_PANE_ID` is set, I am running in a Bashboard pane, and `bb` drives the app:
+`bb term --tab -- <command>` runs a long-lived command (a dev server, a test watcher) in its own
+tab, `bb edit <path>:<line>` opens a file in the editor, and `<command> | bb scratch` shows
+output in a scratch pad. `bb help` lists the rest.
+```
+
 ## Agent hooks
 
 Claude Code's hooks are described [above](#claude-code-hooks). Codex and Copilot use the same

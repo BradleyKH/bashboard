@@ -14,6 +14,8 @@ use std::path::{Path, PathBuf};
 pub struct CliCommand {
     pub pty_id: u32,
     pub collapsed: bool,
+    /// Opens the pane as the only pane of a new tab instead of a split of the calling pane.
+    pub tab: bool,
     pub action: CliAction,
 }
 
@@ -42,6 +44,19 @@ pub enum CliAction {
     Scratch {
         text: String,
     },
+    /// The working directory's repo root, or none for the Overview outside a repo.
+    Ship {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        root: Option<String>,
+    },
+    Ports,
+    Containers,
+    Term {
+        cwd: String,
+        /// Typed into the new shell followed by Enter, as text, so it follows that shell's syntax.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        command: Option<String>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -63,16 +78,33 @@ pub fn parse(body: &[u8], pty_id: u32) -> Result<CliCommand, String> {
     }
 
     let mut collapsed = false;
+    let mut tab = false;
     let mut args = Vec::new();
-    for arg in req.args {
-        if arg == "--collapsed" {
-            collapsed = true;
-        } else if arg.starts_with("--") {
-            return Err(format!("unknown option: {arg}"));
-        } else {
-            args.push(arg);
+    // Everything after `--` is an argument, so `bb term -- npm test -- --watch` keeps its flags.
+    let mut rest: Option<Vec<String>> = None;
+    let mut iter = req.args.into_iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--collapsed" => collapsed = true,
+            "--tab" | "-t" => tab = true,
+            "--" => {
+                rest = Some(iter.collect());
+                break;
+            }
+            _ if arg.starts_with("--") => return Err(format!("unknown option: {arg}")),
+            _ => args.push(arg),
         }
     }
+    if collapsed && tab {
+        return Err("--collapsed and --tab cannot be combined".into());
+    }
+    // Only `term` tells its own arguments from the command after `--`; the others take both.
+    let command_words = if req.command == "term" {
+        rest
+    } else {
+        args.extend(rest.unwrap_or_default());
+        None
+    };
 
     let action = match req.command.as_str() {
         "open" => open(&cwd, &args)?,
@@ -89,12 +121,38 @@ pub fn parse(body: &[u8], pty_id: u32) -> Result<CliCommand, String> {
                 args.join(" ")
             },
         },
+        "term" => term(&cwd, &args, command_words)?,
+        "ship" => {
+            no_args("ship", &args)?;
+            let info = find_repo(&display(&cwd))?;
+            CliAction::Ship {
+                root: info.is_git.then_some(info.root),
+            }
+        }
+        "ports" => {
+            no_args("ports", &args)?;
+            CliAction::Ports
+        }
+        "containers" => {
+            no_args("containers", &args)?;
+            CliAction::Containers
+        }
         other => return Err(format!("unknown command: {other}")),
     };
+    // These show the app's existing pane wherever it is, or open a tab of their own, as the
+    // keyboard does; they never split the calling pane, so there is nothing to collapse.
+    let app_wide = matches!(
+        action,
+        CliAction::Ship { .. } | CliAction::Ports | CliAction::Containers
+    );
+    if collapsed && app_wide {
+        return Err(format!("--collapsed does not apply to bb {}", req.command));
+    }
 
     Ok(CliCommand {
         pty_id,
         collapsed,
+        tab,
         action,
     })
 }
@@ -168,6 +226,34 @@ fn git(cwd: &Path, args: &[String]) -> Result<CliAction, String> {
         return Err("not a git repository".into());
     }
     Ok(CliAction::Git { root: info.root })
+}
+
+fn no_args(command: &str, args: &[String]) -> Result<(), String> {
+    if args.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("usage: bb {command}"))
+    }
+}
+
+fn term(cwd: &Path, args: &[String], command: Option<Vec<String>>) -> Result<CliAction, String> {
+    const USAGE: &str = "usage: bb term [<folder>] [-- <command>]";
+    let dir = match args {
+        [] => cwd.to_path_buf(),
+        [arg] => resolve_existing(cwd, arg)?,
+        _ => return Err(USAGE.into()),
+    };
+    if !dir.is_dir() {
+        return Err(format!("not a folder: {}", display(&dir)));
+    }
+    let command = command.map(|words| words.join(" "));
+    if command.as_deref().is_some_and(|c| c.trim().is_empty()) {
+        return Err(USAGE.into());
+    }
+    Ok(CliAction::Term {
+        cwd: display(&dir),
+        command,
+    })
 }
 
 #[cfg(test)]
@@ -413,6 +499,7 @@ mod tests {
         for args in [vec!["--collapsed", "src"], vec!["src", "--collapsed"]] {
             let cmd = run("open", &args, &dir).unwrap();
             assert!(cmd.collapsed);
+            assert!(!cmd.tab);
             assert!(matches!(cmd.action, CliAction::Open { is_dir: true, .. }));
         }
         assert!(run("git", &["--collapsed"], &dir).unwrap().collapsed);
@@ -423,6 +510,116 @@ mod tests {
                 query: Some("a b".into())
             }
         );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn tab_takes_either_spelling_and_excludes_collapsed() {
+        let dir = repo("tab");
+        assert!(run("git", &["--tab"], &dir).unwrap().tab);
+        assert!(run("open", &["-t", "src"], &dir).unwrap().tab);
+        assert!(!run("git", &[], &dir).unwrap().tab);
+        assert_eq!(
+            run("git", &["-t", "--collapsed"], &dir).unwrap_err(),
+            "--collapsed and --tab cannot be combined"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn double_dash_ends_options_for_every_command() {
+        let dir = repo("dashdash");
+        assert_eq!(
+            run("search", &["--", "--collapsed"], &dir).unwrap().action,
+            CliAction::Search {
+                root: abs(&dir),
+                query: Some("--collapsed".into())
+            }
+        );
+        let cmd = run("scratch", &["-t", "--", "-t", "x"], &dir).unwrap();
+        assert!(cmd.tab);
+        assert_eq!(cmd.action, CliAction::Scratch { text: "-t x".into() });
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn term_opens_in_cwd_or_a_folder_with_an_optional_command() {
+        let dir = repo("term");
+        assert_eq!(
+            run("term", &[], &dir).unwrap().action,
+            CliAction::Term {
+                cwd: abs(&dir),
+                command: None
+            }
+        );
+        assert_eq!(
+            run("term", &["src", "--", "npm", "test", "--", "--watch", "--tab"], &dir)
+                .unwrap()
+                .action,
+            CliAction::Term {
+                cwd: abs(&dir.join("src")),
+                command: Some("npm test -- --watch --tab".into())
+            }
+        );
+        let cmd = run("term", &["--tab", "--", "npm run dev"], &dir).unwrap();
+        assert!(cmd.tab);
+        assert_eq!(
+            cmd.action,
+            CliAction::Term {
+                cwd: abs(&dir),
+                command: Some("npm run dev".into())
+            }
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn term_rejects_files_missing_folders_and_empty_commands() {
+        let dir = repo("term-bad");
+        assert!(run("term", &["src/a.rs"], &dir).unwrap_err().starts_with("not a folder"));
+        assert!(run("term", &["nope"], &dir).unwrap_err().contains("no such"));
+        assert!(run("term", &["a", "b"], &dir).unwrap_err().starts_with("usage: bb term"));
+        assert!(run("term", &["--"], &dir).unwrap_err().starts_with("usage: bb term"));
+        assert!(run("term", &["--", " "], &dir).unwrap_err().starts_with("usage: bb term"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn ship_targets_the_repo_or_the_overview() {
+        let dir = repo("ship");
+        assert_eq!(
+            run("ship", &[], &dir.join("src")).unwrap().action,
+            CliAction::Ship {
+                root: Some(abs(&dir))
+            }
+        );
+        let plain = temp_dir("ship-plain");
+        if !find_repo(&display(&plain)).unwrap().is_git {
+            assert_eq!(
+                run("ship", &[], &plain).unwrap().action,
+                CliAction::Ship { root: None }
+            );
+        }
+        assert!(run("ship", &["x"], &dir).unwrap_err().starts_with("usage: bb ship"));
+        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&plain);
+    }
+
+    #[test]
+    fn ports_and_containers_take_no_arguments_and_refuse_collapsed() {
+        let dir = repo("ports");
+        assert_eq!(run("ports", &[], &dir).unwrap().action, CliAction::Ports);
+        assert_eq!(
+            run("containers", &["-t"], &dir).unwrap().action,
+            CliAction::Containers
+        );
+        assert!(run("ports", &["x"], &dir).unwrap_err().starts_with("usage: bb ports"));
+        for command in ["ship", "ports", "containers"] {
+            assert_eq!(
+                run(command, &["--collapsed"], &dir).unwrap_err(),
+                format!("--collapsed does not apply to bb {command}")
+            );
+        }
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -477,6 +674,7 @@ mod tests {
         let open = CliCommand {
             pty_id: 3,
             collapsed: true,
+            tab: false,
             action: CliAction::Open {
                 path: "p".into(),
                 is_dir: false,
@@ -488,6 +686,7 @@ mod tests {
             json!({
                 "ptyId": 3,
                 "collapsed": true,
+                "tab": false,
                 "action": { "kind": "open", "path": "p", "isDir": false, "root": "r" }
             })
         );
@@ -511,5 +710,19 @@ mod tests {
         assert_eq!(git, json!({ "kind": "git", "root": "r" }));
         let scratch = serde_json::to_value(CliAction::Scratch { text: "t".into() }).unwrap();
         assert_eq!(scratch, json!({ "kind": "scratch", "text": "t" }));
+        let term = CliAction::Term {
+            cwd: "c".into(),
+            command: None,
+        };
+        assert_eq!(serde_json::to_value(&term).unwrap(), json!({ "kind": "term", "cwd": "c" }));
+        assert_eq!(
+            serde_json::to_value(CliAction::Ship { root: None }).unwrap(),
+            json!({ "kind": "ship" })
+        );
+        assert_eq!(serde_json::to_value(CliAction::Ports).unwrap(), json!({ "kind": "ports" }));
+        assert_eq!(
+            serde_json::to_value(CliAction::Containers).unwrap(),
+            json!({ "kind": "containers" })
+        );
     }
 }

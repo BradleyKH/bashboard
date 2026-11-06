@@ -19,12 +19,16 @@ function fake(paneId: string | null = 'p3') {
     showGit: rec('showGit'),
     showSearch: rec('showSearch'),
     openScratch: rec('openScratch'),
+    openTerminal: rec('openTerminal'),
     openInEditor: rec('openInEditor'),
+    openShip: rec('openShip'),
+    openPorts: rec('openPorts'),
+    openContainers: rec('openContainers'),
   };
   return { target, calls };
 }
 
-const cmd = (action: CliAction, collapsed = false): CliCommand => ({ ptyId: 7, collapsed, action });
+const cmd = (action: CliAction, collapsed = false, tab = false): CliCommand => ({ ptyId: 7, collapsed, tab, action });
 
 describe('runCliCommand', () => {
   it('opens a folder in Files without a selection', () => {
@@ -88,6 +92,29 @@ describe('runCliCommand', () => {
     ]);
   });
 
+  it('opens a terminal in the folder, with the command when given', () => {
+    const a = fake();
+    runCliCommand(cmd({ kind: 'term', cwd: 'C:/r' }), a.target);
+    expect(a.calls).toEqual([
+      ['terminalForPty', 7],
+      ['anchorOn', 'p3'],
+      ['openTerminal', 'C:/r', undefined, { collapsed: false }],
+    ]);
+    const b = fake();
+    runCliCommand(cmd({ kind: 'term', cwd: 'C:/r', command: 'npm run dev' }, true), b.target);
+    expect(b.calls[b.calls.length - 1]).toEqual(['openTerminal', 'C:/r', 'npm run dev', { collapsed: true }]);
+  });
+
+  it('asks for a new tab instead of a split when tab is set', () => {
+    const { target, calls } = fake();
+    runCliCommand(cmd({ kind: 'git', root: 'C:/r' }, false, true), target);
+    expect(calls).toEqual([
+      ['terminalForPty', 7],
+      ['anchorOn', 'p3'],
+      ['showGit', 'C:/r', { tab: true }],
+    ]);
+  });
+
   it('drops pane-opening commands for an unknown pty', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     for (const action of [
@@ -95,13 +122,23 @@ describe('runCliCommand', () => {
       { kind: 'git', root: 'C:/r' },
       { kind: 'search', root: 'C:/r' },
       { kind: 'scratch', text: 'x' },
+      { kind: 'term', cwd: 'C:/r' },
     ] as CliAction[]) {
       const { target, calls } = fake(null);
       runCliCommand(cmd(action), target);
       expect(calls).toEqual([['terminalForPty', 7]]);
     }
-    expect(warn).toHaveBeenCalledTimes(4);
+    expect(warn).toHaveBeenCalledTimes(5);
     warn.mockRestore();
+  });
+
+  it('opens Ship, Ports, and Containers app-wide, even for an unknown pty', () => {
+    const { target, calls } = fake(null);
+    runCliCommand(cmd({ kind: 'ship', root: 'C:/r' }), target);
+    runCliCommand(cmd({ kind: 'ship' }), target);
+    runCliCommand(cmd({ kind: 'ports' }), target);
+    runCliCommand(cmd({ kind: 'containers' }), target);
+    expect(calls).toEqual([['openShip', 'C:/r'], ['openShip', null], ['openPorts'], ['openContainers']]);
   });
 
   it('still runs edit when the pty is unknown', () => {

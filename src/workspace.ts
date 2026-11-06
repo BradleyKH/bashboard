@@ -226,6 +226,8 @@ const LAUNCH_PREVIEW_ID = '__launch-preview';
 export interface OpenPaneOptions {
   collapsed?: boolean;
   dock?: DockTarget;
+  /** Opens the pane as the only pane of a new tab; `collapsed` and `dock` then do nothing. */
+  tab?: boolean;
 }
 
 export interface OpenTerminalOptions extends OpenPaneOptions {
@@ -400,11 +402,18 @@ export class Workspace {
   }
 
   /**
-   * Design 4.11 Opening: a pane of any kind, collapsed, docked at a target, or split from the
-   * focused pane; with no room it opens collapsed.
+   * Design 4.11 Opening: a pane of any kind, alone in a new tab, collapsed, docked at a target,
+   * or split from the focused pane; with no room it opens collapsed.
    */
   openPane(spec: PaneSpec, opts: OpenPaneOptions = {}): void {
     const id = this.takeIdFor(spec.kind);
+    if (opts.tab) {
+      const prev = this.store.active;
+      this.store.state = addTab(this.store.state, this.store.emptyTab());
+      this.hideTab(prev);
+      this.mount(id, { kind: 'pane', paneId: id }, spec);
+      return;
+    }
     if (opts.collapsed) {
       this.openCollapsed(id, spec);
       return;
@@ -1109,7 +1118,8 @@ export class Workspace {
       return pane instanceof FilesPane ? [{ paneId: id, root: pane.root(), folder: pane.folder }] : [];
     });
     const route = routeFilesRequest(panes, req);
-    if ('reuse' in route) {
+    // A pane asked for in a new tab is a new pane, whatever the current tab holds.
+    if ('reuse' in route && !opts.tab) {
       const pane = this.paneViews.get(route.reuse) as FilesPane;
       if (this.store.isCollapsed(route.reuse)) this.expandPane(route.reuse);
       else this.focusPane(route.reuse);
@@ -1129,7 +1139,7 @@ export class Workspace {
       return pane instanceof GitPane ? [{ paneId: id, root: pane.root() }] : [];
     });
     const route = routeGitRequest(panes, root);
-    if ('reuse' in route) {
+    if ('reuse' in route && !opts.tab) {
       if (this.store.isCollapsed(route.reuse)) this.expandPane(route.reuse);
       else this.focusPane(route.reuse);
       return;

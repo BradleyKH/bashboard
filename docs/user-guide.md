@@ -860,8 +860,12 @@ again closes the dialog, and Escape or a click outside closes it too.
 ## Pane CLI
 
 `bb` is a small console program that lets a shell in a pane drive Bashboard. The app dialog's
-CLI tab lists the same commands, with examples to copy. Each command that
-opens a pane splits the pane that ran it, in that pane's tab, and focus moves to the new pane.
+CLI tab lists the same commands, with examples to copy. A command that opens a pane splits the
+pane that ran it, in that pane's tab, and focus moves to the new pane. `bb open` and `bb git`
+first look for a Files or Git pane for the same repo in that tab and, when there is one, show the
+folder in it or focus it instead. `bb ship`, `bb ports`, and `bb containers` work as their keys
+do: they show the existing pane wherever it is, or open a tab of their own, so `--collapsed` does
+not apply to them. `bb edit` opens no pane.
 
 | Command                       | What it does                                                                  |
 | ----------------------------- | ----------------------------------------------------------------------------- |
@@ -870,16 +874,28 @@ opens a pane splits the pane that ran it, in that pane's tab, and focus moves to
 | `bb git`                      | Opens the Git pane for the current folder's repo                              |
 | `bb search [<query>]`         | Opens a Search pane for the current folder's repo, with the query filled in   |
 | `bb scratch [<text>]`         | Opens a scratch pad holding the text, or the piped standard input             |
+| `bb term [<folder>] [-- <command>]` | Opens a terminal in the current folder or `<folder>`, and runs the command when given |
+| `bb ship`                     | Shows the current folder's repo in the Ship pane, or the Overview outside a repo |
+| `bb ports`                    | Shows the Ports pane                                                          |
+| `bb containers`               | Shows the Containers pane                                                     |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
 
-Add `--collapsed` anywhere in a command to open the pane collapsed. Relative paths resolve
-against the folder `bb` runs in, and `open` and `edit` need the path to exist. `bb edit
+Add `--collapsed` anywhere in a command to open the pane collapsed, or `--tab` (`-t`) to open
+it as the only pane of a new tab. With `--tab`, `bb open` and `bb git` always open a new pane.
+The two cannot be combined. A `--` ends the options: every word after it is an argument, so
+`bb search -- --tab` searches for `--tab`. Relative paths resolve against the folder `bb` runs
+in, and `open`, `edit`, and `term` need the path to exist. `bb edit
 src/main.ts:40` splits a trailing `:<digits>` off as the line number, which must be 1 or more.
 `bb git` reports "not a git repository" outside a repo, while `bb search` outside a repo searches
 the current folder. `bb scratch` uses its arguments as the text when it has any and otherwise
 reads standard input, up to 1 MiB.
+
+`bb term` opens a terminal with your default shell profile. The words after `--` are typed into
+it as one line followed by Enter, the way you would type them, so they follow that shell's
+syntax and the shell stays open after the command ends. `bb term --tab -- pnpm dev` gives a dev
+server a tab of its own.
 
 `bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
 input), save it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
@@ -891,6 +907,7 @@ bb edit src/main.ts:40
 git diff | bb scratch
 bb search TODO
 bb git --collapsed
+bb term -- pnpm test --watch
 ```
 
 `bb` works in all four shells because Bashboard puts the folder holding `bb.exe` first on every

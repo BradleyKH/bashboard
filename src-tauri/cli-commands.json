@@ -37,15 +37,43 @@
       "examples": ["bb scratch \"remember to rebase\"", "git diff | bb scratch", "ls -la | bb scratch --collapsed"]
     },
     {
+      "name": "term",
+      "usage": "bb term [<folder>] [-- <command>]",
+      "summary": "Open a terminal in this folder or another, optionally running a command",
+      "details": "The terminal uses the default shell profile. The words after -- are typed into it as one line, followed by Enter, so they follow that shell's syntax.",
+      "examples": ["bb term", "bb term ../api", "bb term -- pnpm dev", "bb term --tab -- pnpm test --watch"]
+    },
+    {
+      "name": "ship",
+      "usage": "bb ship",
+      "summary": "Show this folder's repo in the Ship pane",
+      "details": "Outside a repo it shows the Overview. Like ports and containers, it shows the existing pane wherever it is or opens a tab of its own, so --collapsed does not apply.",
+      "examples": ["bb ship"]
+    },
+    {
+      "name": "ports",
+      "usage": "bb ports",
+      "summary": "Show the Ports pane",
+      "details": "Shows the existing Ports pane, or opens a Ports tab.",
+      "examples": ["bb ports"]
+    },
+    {
+      "name": "containers",
+      "usage": "bb containers",
+      "summary": "Show the Containers pane",
+      "details": "Shows the existing Containers pane, or opens a Containers tab.",
+      "examples": ["bb containers"]
+    },
+    {
       "name": "auth",
-      "usage": "bb auth bitbucket",
+      "usage": "bb auth bitbucket [--clear]",
       "summary": "Store a Bitbucket API token for the Ship pane",
       "details": "Prompts for the token with echo off, or reads it from standard input, and saves it in Windows Credential Manager. --clear removes it. Works outside Bashboard too.",
       "examples": ["bb auth bitbucket", "bb auth bitbucket --clear"]
     },
     {
       "name": "auth",
-      "usage": "bb auth azure-devops <org>",
+      "usage": "bb auth azure-devops <org> [--clear]",
       "summary": "Store an Azure DevOps PAT for one organization",
       "details": "Prompts for the PAT with echo off, or reads it from standard input, and saves it in Windows Credential Manager under that organization, so each organization needs its own. --clear removes it. Works outside Bashboard too.",
       "examples": ["bb auth azure-devops contoso", "bb auth azure-devops contoso --clear"]
@@ -65,6 +93,20 @@
       "summary": "Open the new pane collapsed",
       "details": "Goes anywhere in the command.",
       "examples": ["bb git --collapsed"]
+    },
+    {
+      "name": "--tab",
+      "usage": "--tab, -t",
+      "summary": "Open the new pane alone in a new tab",
+      "details": "Goes anywhere in the command. bb open and bb git then open a new pane even when the current tab has one for the repo. Cannot be combined with --collapsed.",
+      "examples": ["bb git --tab", "bb term --tab -- pnpm dev"]
+    },
+    {
+      "name": "--",
+      "usage": "-- <arguments>",
+      "summary": "End the options; everything after is an argument",
+      "details": "Lets a command, search, or scratch text hold words like --tab. For bb term, the words after it are the command to run.",
+      "examples": ["bb term -- pnpm test -- --watch", "bb search -- --collapsed"]
     }
   ]
 }

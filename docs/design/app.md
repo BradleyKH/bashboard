@@ -19,6 +19,10 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb git` | The Git pane for the working directory's repo, focusing an existing one (4.11) |
 | `bb search [<query>]` | A Search pane for the working directory's repo, starting with the query |
 | `bb scratch [<text>]` | A new scratch pad (4.15) holding the text, or standard input when it is not a terminal (`git diff \| bb scratch`) |
+| `bb ship` | The Ship pane (4.20) on the working directory's repo, or the Overview outside a repo |
+| `bb ports` | The Ports pane (4.19) |
+| `bb containers` | The Containers pane (4.16) |
+| `bb term [<folder>] [-- <command>]` | A terminal of the default profile in the working directory or `<folder>`, typing the command after `--` as one line once its shell is ready |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane (3.20), or removes it with `--clear` |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` |
 | `bb help` | Lists the commands |
@@ -28,7 +32,13 @@ prints the usage and summary lines from it (embedded at build time), and the app
 (4.18) shows all of it, so the two cannot drift.
 
 New panes open as a split of the calling pane, as a favorite does (4.6), in the calling pane's
-tab, and focus moves to them. `--collapsed` opens a pane collapsed instead.
+tab, and focus moves to them. `--collapsed` opens a pane collapsed instead, and `--tab` (`-t`)
+opens it as the only pane of a new tab, where `bb open` and `bb git` skip their reuse of the
+tab's Files or Git pane; the core refuses the two together, since a tab holding only a collapsed
+pane has nothing to type into. `bb ship`, `bb ports`, and `bb containers` instead show the
+existing pane in any tab or append a tab for it, as their keys do, so the core refuses
+`--collapsed` for them and `--tab` changes nothing. `--` ends the options, and for `bb term` separates the folder
+from the command; for the other commands the words after it are ordinary arguments.
 
 - **Transport.** `bb` reads `BASHBOARD_HOOK_URL`, `BASHBOARD_HOOK_TOKEN`, and
   `BASHBOARD_PANE_ID`, and posts `{ command, args, cwd, stdin? }` to `/cli` on the hook receiver

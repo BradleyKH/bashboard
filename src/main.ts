@@ -1103,7 +1103,12 @@ const cliTarget: CliTarget = {
   showGit: (root, opts) => workspace.showGit(root, opts),
   showSearch: (root, query, opts) => workspace.showSearch(root, query, opts),
   openScratch: (text, opts) => workspace.openPane({ kind: 'scratch', text }, opts),
+  openTerminal: (cwd, command, opts) =>
+    command === undefined ? workspace.openTerminal(cwd, opts) : workspace.openTerminalWithCommand(cwd, command, opts),
   openInEditor: (path, line) => void openInEditor(path, line),
+  openShip: (root) => workspace.openShip(root),
+  openPorts: () => workspace.openPorts(),
+  openContainers: () => workspace.openContainers(),
 };
 onCliCommand((cmd) => runCliCommand(cmd, cliTarget)).catch((e) => console.warn('pane CLI unavailable:', e));
 onSecondLaunch((folder) => {
