@@ -75,21 +75,26 @@ exact transitions as they happen.
 
   ```sh
   #!/usr/bin/env bash
-  # bashboard-hook-version: 1
+  # bashboard-hook-version: 2
   # Forwards an agent hook event to Bashboard. Silent no-op outside a Bashboard pane.
   # Usage: bashboard-hook.sh [agent]   (agent defaults to claude)
   [ -n "$BASHBOARD_HOOK_URL" ] || exit 0
   agent="${1:-claude}"
-  payload=$(cat)
+  post() {
+    curl -s -m 1 -X POST \
+      -H "X-Bashboard-Token: $BASHBOARD_HOOK_TOKEN" \
+      -H "X-Bashboard-Pane: $BASHBOARD_PANE_ID" \
+      -H "X-Bashboard-Agent: $agent" \
+      --data-binary @- "$BASHBOARD_HOOK_URL/hook" >/dev/null 2>&1
+  }
   if [ -n "$BASHBOARD_HOOK_LOG" ]; then
-    printf -- '--- %s agent=%s\n%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$payload" \
-      >>"$BASHBOARD_HOOK_LOG" 2>/dev/null || true
+    printf -- '--- %s agent=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" \
+      >>"$BASHBOARD_HOOK_LOG" 2>/dev/null
+    tee -a "$BASHBOARD_HOOK_LOG" 2>/dev/null | post
+    echo >>"$BASHBOARD_HOOK_LOG" 2>/dev/null
+  else
+    post
   fi
-  printf '%s' "$payload" | curl -s -m 1 -X POST \
-    -H "X-Bashboard-Token: $BASHBOARD_HOOK_TOKEN" \
-    -H "X-Bashboard-Pane: $BASHBOARD_PANE_ID" \
-    -H "X-Bashboard-Agent: $agent" \
-    --data-binary @- "$BASHBOARD_HOOK_URL/hook" >/dev/null 2>&1 || true
   exit 0
   ```
 
@@ -235,8 +240,8 @@ newest model, the context tokens, and the context window when the transcript rep
   newest `token_count` event's `last_token_usage.total_tokens`, with its `model_context_window`
   as the window.
 - **Copilot** (`transcript/copilot.rs`). `session-state/<id>/events.jsonl` under the Copilot
-  home. The model is the newest `session.model_change` event's `newModel`, else `session.start`'s
-  `selectedModel`. Copilot never writes token counts to disk, so there is no context reading.
+  home. The model is the newest of `session.model_change`'s `newModel` and the `selectedModel` of
+  `session.start` or `session.resume`. Copilot never writes token counts to disk, so there is no context reading.
 
 The core reads only a Claude file's last 64 KiB, widening to the whole file, streamed line by
 line, when the tail holds no qualifying line; the other formats are read whole in batches. A

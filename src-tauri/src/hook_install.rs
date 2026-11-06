@@ -17,7 +17,7 @@ use crate::settings::SettingsState;
 const SCRIPT: &str = include_str!("../../hooks/bashboard-hook.sh");
 const SCRIPT_NAME: &str = "bashboard-hook.sh";
 /// Must match the `# bashboard-hook-version:` line in `SCRIPT`; a test holds them together.
-const HOOK_VERSION: u32 = 1;
+const HOOK_VERSION: u32 = 2;
 const VERSION_MARKER: &str = "# bashboard-hook-version:";
 const COMMAND: &str = "bash ~/.claude/hooks/bashboard-hook.sh";
 const EVENTS: [&str; 5] = [

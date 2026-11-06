@@ -269,7 +269,9 @@ fn handle(
         return (400, None);
     };
     let field = |name: &str| json.get(name).and_then(|v| v.as_str()).map(str::to_owned);
-    let Some(session_id) = field("session_id") else {
+    // Copilot's documented `Notification` payload carries camelCase `sessionId` beside its
+    // snake_case fields, unlike its other PascalCase events.
+    let Some(session_id) = field("session_id").or_else(|| field("sessionId")) else {
         return (400, None);
     };
     let ev = HookEvent {
@@ -523,6 +525,20 @@ mod tests {
         assert_eq!(post_as(Some(" copilot "), body).1.unwrap().agent, AgentId::Copilot);
         assert_eq!(post_as(Some("gemini"), body), (400, None));
         assert_eq!(post_as(Some(""), body), (400, None));
+    }
+
+    #[test]
+    fn copilot_notification_session_id_is_camel_case() {
+        // The documented Copilot `Notification` input, camelCase id beside snake_case fields.
+        let body = r#"{"sessionId":"c1","timestamp":"2026-11-06T00:00:00Z","cwd":"C:\\r",
+            "hook_event_name":"Notification","message":"Allow shell?","title":"Permission",
+            "notification_type":"permission_prompt"}"#;
+        let ev = post_as(Some("copilot"), body).1.unwrap();
+        assert_eq!(ev.session_id, "c1");
+        assert_eq!(ev.notification_type.as_deref(), Some("permission_prompt"));
+        // snake_case wins when both are present.
+        let both = r#"{"session_id":"s1","sessionId":"c1"}"#;
+        assert_eq!(post_as(Some("copilot"), both).1.unwrap().session_id, "s1");
     }
 
     #[test]

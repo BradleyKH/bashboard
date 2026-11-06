@@ -1,0 +1,6 @@
+# Discoveries
+
+Things found but not fixed. Format and rules: one line per finding, appended, with a required evidence field.
+- 2026-11-05 | forge-gitlab-azdo step 4.2 | Real-app checks still unverified: Azure DevOps pull request checks (no open pull request in the only Azure DevOps repo here), the Azure CLI token source (az not installed), and GitLab against a real host (no glab or GitLab account); rerun only these when an open pull request, az, or a GitLab account is available | cmd: target/debug/bashboard.exe driven over CDP on 9222 | ticket-worthy: no | open
+- 2026-11-06 | agents-codex-copilot | The Copilot transcript reader parses an events.jsonl shape taken from the Copilot SDK's generated event types, never from a real file, so a Copilot card with no model line points here before the hook path | src-tauri/src/transcript/copilot.rs newest_reading | ticket-worthy: no | open
+- 2026-11-06 | discoveries triage | Copilot can archive events.jsonl to events.N.jsonl and replace it with checkpoint events (copilot-sdk docs/session-management.md), and the SDK says to use the session's returned sessionStatePath rather than rebuilding the path from the Copilot home; whether the reader copes with either was not checked | src-tauri/src/transcript/copilot.rs events_path | ticket-worthy: no | open

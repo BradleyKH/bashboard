@@ -280,7 +280,10 @@ below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbuck
   else the build number. A build's `notStarted` and `postponed` are `queued`; `inProgress` and
   `cancelling` are `running`; once `completed`, its result decides: `succeeded` is `success`,
   `failed` and `partiallySucceeded` are `failure`, and `canceled` is `cancelled`. A build held at a
-  stage approval stays `inProgress`, so it reads as running. Jobs come from the build's timeline,
+  stage approval stays `inProgress` (for weeks, if no one answers it), so each `inProgress` build's
+  timeline is read too: an `inProgress` Checkpoint.Approval record with no Job record in progress
+  makes the build `waiting`, and a pending job in the stage that approval gates is `waiting` as
+  well. A failed timeline read leaves the build `running`. Jobs come from the build's timeline,
   which is flat and unordered: each Job record is a job, named `<stage> / <job>` when it is in a
   named stage, ordered by the `order` of its ancestors from the stage down, with its Task records
   as steps. A log is addressed by the record's log id, which exists only once the job has started

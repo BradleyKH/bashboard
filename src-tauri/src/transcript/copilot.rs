@@ -9,25 +9,25 @@ use serde_json::Value;
 
 use super::AgentReading;
 
-/// The newest `session.model_change` model, else `session.start`'s selected model.
+/// The model named by the newest `session.start`, `session.resume`, or `session.model_change`.
+/// A resume names the model selected at resume time, which can differ from the start's.
 pub fn newest_reading<'a>(lines: impl IntoIterator<Item = &'a str>) -> AgentReading {
-    let mut changed: Option<String> = None;
-    let mut started: Option<String> = None;
+    let mut model: Option<String> = None;
     for line in lines {
         let Ok(v) = serde_json::from_str::<Value>(line) else {
             continue;
         };
-        let (slot, key) = match v["type"].as_str() {
-            Some("session.model_change") => (&mut changed, "newModel"),
-            Some("session.start") => (&mut started, "selectedModel"),
+        let key = match v["type"].as_str() {
+            Some("session.model_change") => "newModel",
+            Some("session.start" | "session.resume") => "selectedModel",
             _ => continue,
         };
         if let Some(m) = v["data"][key].as_str().filter(|m| !m.is_empty()) {
-            *slot = Some(m.to_string());
+            model = Some(m.to_string());
         }
     }
     AgentReading {
-        model: changed.or(started),
+        model,
         ..AgentReading::default()
     }
 }
@@ -62,6 +62,19 @@ mod tests {
         assert_eq!(r.model.as_deref(), Some("gpt-5.1"));
         // A tail that starts after session.start still reads the change.
         assert_eq!(newest_reading([CHANGE]).model.as_deref(), Some("gpt-5"));
+    }
+
+    #[test]
+    fn resume_model_wins_over_earlier_events() {
+        let resume = r#"{"type":"session.resume","data":{"selectedModel":"gpt-5.2"}}"#;
+        let r = newest_reading([START, CHANGE, resume]);
+        assert_eq!(r.model.as_deref(), Some("gpt-5.2"));
+        // A resume without a model leaves the earlier one.
+        let bare = r#"{"type":"session.resume","data":{}}"#;
+        assert_eq!(
+            newest_reading([START, bare]).model.as_deref(),
+            Some("claude-sonnet-4.5")
+        );
     }
 
     #[test]

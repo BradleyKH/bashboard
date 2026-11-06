@@ -1,8 +1,9 @@
 Bashboard
 =========
 
-**A beautiful terminal that enhances productivity and reduces friction.** Bashboard is a
-Windows terminal built around Claude Code: split terminal panes, a live status board, and the Git, file, and search views you'd otherwise leave for an IDE, so you stop jumping between apps while Claude works.
+**A beautiful terminal for running Claude Code on Windows.** Bashboard puts your terminal panes, a live
+board of every agent session, and the Git, file, search, and CI views you'd otherwise open an IDE
+or a browser for into one window, so you stop juggling apps while Claude works.
 
 ## Why Bashboard
 
@@ -11,76 +12,68 @@ Windows terminal built around Claude Code: split terminal panes, a live status b
   Terminal or VS Code show up too.
 - **Never miss a prompt.** A session that needs permission or finishes its turn pulses its pane
   and tab, flashes the taskbar, and says why. Ctrl+Shift+N jumps to the next one, across tabs.
-  Long shell commands get the same done/failed marks.
-- **Pick up where you left off.** Tabs, splits, and pads come back on relaunch; named layouts
-  rebuild a whole workspace in one click. A command palette (Ctrl+Shift+P) reaches everything.
-- **More than Claude Code.** Preview support for OpenAI Codex and GitHub Copilot CLI: the same
-  status, cards, notifications, and resume on relaunch. A Local AI models section shows what Ollama
-  and LM Studio have loaded, warns when a model's context is too small for an agent, and launches
-  an agent on a local model from the Launch menu.
-- **CI and reviews beside the code.** The Ship pane's Overview ranks your pinned repos by what
-  needs you: a failed deploy branch, a review waiting, a pull request to fix. Click in for a repo's
-  pipeline runs, job logs, and open pull requests from GitHub, GitLab, Bitbucket, or Azure DevOps,
-  using the sign-in your terminal already has. An Accounts tab shows each host's sign-in and manages
-  it: switch GitHub accounts, sign out of GitLab, or add and replace a Bitbucket token or an Azure
-  DevOps token for each organization.
-- **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
+  Long shell commands get the same done and failed marks.
+- **Git without leaving the terminal.** The Git pane stages, commits, fetches, pulls, pushes, and
+  manages branches beside the diff. A Files pane browses and previews a repo, and code search
+  finds a line across it, honoring `.gitignore`.
+- **CI and reviews beside the code.** The Ship pane ranks your pinned repos by what needs you: a
+  failed deploy branch, a review waiting, an approved pull request ready to merge. Click in for
+  pipeline runs, job logs, and pull requests from GitHub, GitLab, Bitbucket, or Azure DevOps,
+  using the sign-in your terminal already has.
 - **No forgotten servers.** The Ports list shows every dev server listening, which pane started
-  it, and stops it from a right-click.
+  it, and a Stop button to end it and everything it started.
+- **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
+- **Pick up where you left off.** Tabs, splits, and scratch pads come back on relaunch; named
+  layouts rebuild a whole workspace in one click. A command palette (Ctrl+Shift+P) reaches
+  everything.
 - **Drive it from the shell.** `bb edit src/main.ts:40`, `git diff | bb scratch`, `bb git`: the
   `bb` CLI opens panes from any prompt, so Claude can use it too.
 - **Draft prompts properly.** Scratch pads hold longer prompts and notes, then send them to the
   terminal for a final look.
+- **A backdrop that's alive.** Swirling Lights is a colony simulation drifting behind your panes,
+  and each live agent session grows its own colored lineage that blooms while it works. Prefer
+  something else? Pick Matrix, your own image, or a slideshow of a folder, and dim it to taste.
+- **More than Claude Code.** Preview support for OpenAI Codex and GitHub Copilot CLI brings the
+  same status, cards, notifications, and resume on relaunch. The Local AI models section shows
+  what Ollama and LM Studio have loaded, warns when a model's context is too small for an agent,
+  and launches an agent on a local model.
 
 ## Installing
 
-Bashboard ships as a single installer, `Bashboard_<version>_x64-setup.exe`. Download it from the
-[latest release](https://github.com/BradleyKH/bashboard/releases/latest), or build it yourself
-(see [Releasing](docs/development.md#releasing)). The installer holds everything Bashboard needs: the app, the `bb`
-pane CLI, and the terminal font. It installs for the current user without admin rights, adds
-Bashboard to the Start menu, and offers a desktop shortcut on its last page.
+Download `Bashboard_<version>_x64-setup.exe` from the
+[latest release](https://github.com/BradleyKH/bashboard/releases/latest) and run it. It installs
+for the current user without admin rights and includes everything Bashboard needs: the app, the
+`bb` pane CLI, and the terminal font. Bashboard checks for new releases at launch and updates
+itself from inside the app.
 
 The installer is not code-signed, so Windows SmartScreen shows "Windows protected your PC" the
 first time. Click **More info**, then **Run anyway**.
 
-Once installed, Bashboard checks for a newer release at launch and offers it in a banner; the
-update installs from inside the app. **Check for updates** in the About tab (F1, then About) or the command
-palette (Ctrl+Shift+P) checks on demand.
-
 Bashboard runs the tools you already use:
 
-1. **Git for Windows**, which provides Git Bash, the default shell. When Git Bash is missing, the
-   setup wizard offers to install it for you with winget (no admin rights needed). To install it
-   yourself:
+1. **Git for Windows**, which provides Git Bash, the default shell. If it's missing, the setup
+   wizard offers to install it with winget (no admin rights needed), or install it yourself:
 
    ```sh
    winget install --id Git.Git -e
    ```
 
-   Without Git, panes open in PowerShell or Command Prompt instead. A per-user Git install is
-   found automatically; anywhere else, set `shell.path` (see [Settings](docs/settings.md#settings)).
+   Without Git, panes open in PowerShell or Command Prompt instead.
 
-2. **Claude Code**, for the session status, attention badges, and dashboard. Run `claude` once
-   before starting Bashboard so the setup wizard offers to install the hooks
-   (see [Claude Code hooks](docs/setup.md#claude-code-hooks)). OpenAI Codex and GitHub Copilot CLI
-   work the same way, as a preview (see [Agent hooks](docs/setup.md#agent-hooks)).
+2. **Claude Code**, for session status, attention, and the dashboard. Run `claude` once before
+   starting Bashboard so the setup wizard offers to install its hooks
+   (see [Claude Code hooks](docs/setup.md#claude-code-hooks)). Codex and Copilot CLI work the
+   same way, as a preview (see [Agent hooks](docs/setup.md#agent-hooks)).
 
-3. **Optional:** Docker Desktop or Podman for the dashboard's containers list.
+3. **Optional:** Docker Desktop or Podman for the containers list.
 
-On first launch, a setup wizard walks through installing Git when it is missing, the default
-shell, adding the lines that let new panes open in the current folder to that shell's
-`~/.bashrc` or PowerShell profile (see
-[New panes in the current folder](docs/setup.md#new-panes-in-the-current-folder)), the editor,
-favorite repos, coding agent hooks, and the look: the background (including your own picture or a
-slideshow of a folder), its brightness, and the accent
-and text colors. Each choice saves as soon as you make it, and **Run setup** in the Help tab
-(F1) reopens the wizard. The Git step appears only when Git Bash is missing, the shell
-integration step only when the default shell is Git Bash or PowerShell and its file does not
-already hold the current lines, and the Coding agents step only when a coding agent is detected
-and the hooks are not yet installed.
+On first launch, a setup wizard walks you through the shell, the lines that let new panes open in
+the current folder, your editor, favorite repos, coding agent hooks, and the look. Each choice
+saves as you make it, and **Run setup** in the Help tab (F1) brings the wizard back.
 
 WebView2 comes with Windows 11; on a machine without it, the installer downloads it. Uninstall
-from **Settings > Apps > Installed apps**.
+from **Settings > Apps > Installed apps**. To build from source, see
+[Development](docs/development.md).
 
 ## Documentation
 

@@ -558,7 +558,9 @@ mod tests {
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
 
-    const TIMEOUT: Duration = Duration::from_secs(10);
+    // Generous because a Git Bash login shell starts slowly while the rest of `cargo test` runs
+    // in parallel; a deadline only costs time when a test is already failing.
+    const TIMEOUT: Duration = Duration::from_secs(30);
     const DEFAULT_SHELL: &str = crate::settings::DEFAULT_GIT_BASH_PATH;
 
     fn shell() -> Option<String> {

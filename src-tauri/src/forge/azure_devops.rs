@@ -436,6 +436,17 @@ pub fn map_timeline(timeline: &Value, run_web: &str) -> Vec<Job> {
         chain.reverse();
         chain
     };
+    let stage_of = |r: &Value| {
+        ancestry(r)
+            .into_iter()
+            .find(|a| str_at(a, "/type") == Some("Stage"))
+            .and_then(|s| str_at(s, "/id"))
+    };
+    let held: Vec<&str> = records
+        .iter()
+        .filter(|r| is_open_approval(r))
+        .filter_map(|r| stage_of(r))
+        .collect();
     let mut jobs: Vec<(Vec<i64>, Job)> = records
         .iter()
         .filter(|r| str_at(r, "/type") == Some("Job"))
@@ -476,7 +487,12 @@ pub fn map_timeline(timeline: &Value, run_web: &str) -> Vec<Job> {
                         Some(s) => format!("{s} / {name}"),
                         None => name,
                     },
-                    status: record_status(r),
+                    status: match record_status(r) {
+                        RunStatus::Queued if stage_of(r).is_some_and(|s| held.contains(&s)) => {
+                            RunStatus::Waiting
+                        }
+                        status => status,
+                    },
                     started_at: string_at(r, "/startTime"),
                     finished_at: string_at(r, "/finishTime"),
                     web_url: Some(format!("{run_web}&view=logs&j={}", percent_encode(id))),
@@ -487,6 +503,25 @@ pub fn map_timeline(timeline: &Value, run_web: &str) -> Vec<Job> {
         .collect();
     jobs.sort_by(|a, b| a.0.cmp(&b.0));
     jobs.into_iter().map(|(_, j)| j).collect()
+}
+
+fn is_open_approval(r: &Value) -> bool {
+    str_at(r, "/type") == Some("Checkpoint.Approval") && str_at(r, "/state") == Some("inProgress")
+}
+
+/// Whether an in-progress build is held at a stage approval with no job running. The build's own
+/// status stays `inProgress` for as long as the approval waits, which can be weeks.
+pub fn awaiting_approval(timeline: &Value) -> bool {
+    let records = || {
+        timeline
+            .get("records")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+    };
+    records().any(is_open_approval)
+        && !records()
+            .any(|r| str_at(r, "/type") == Some("Job") && str_at(r, "/state") == Some("inProgress"))
 }
 
 /// The log id of a timeline record, which the log endpoint takes instead of the record's id.
@@ -805,13 +840,22 @@ impl ForgeProvider for AzureDevOps {
         let page = get(cx, &builds_url(&org, &proj, &info.id, branch))
             .map_err(|e| self.build_error(cx, repo, SCOPE_BUILD_READ, e))?;
         let web = project_base(&org, &proj);
-        Ok(page
+        let mut runs: Vec<Run> = page
             .get("value")
             .and_then(Value::as_array)
             .into_iter()
             .flatten()
             .filter_map(|v| map_run(v, &web))
-            .collect())
+            .collect();
+        // Only the timeline shows an approval hold. A failed timeline read leaves the run as
+        // running rather than failing the whole list.
+        for run in runs.iter_mut().filter(|r| r.raw_status == "inProgress") {
+            let Ok(id) = build_id(&run.id) else { continue };
+            if get(cx, &timeline_url(&org, &proj, id)).is_ok_and(|t| awaiting_approval(&t)) {
+                run.status = RunStatus::Waiting;
+            }
+        }
+        Ok(runs)
     }
 
     fn jobs(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Vec<Job>, ForgeError> {
@@ -1286,6 +1330,45 @@ mod tests {
         .unwrap()
     }
 
+    /// A held build's timeline as Azure DevOps nests it: the approval under a Checkpoint under the
+    /// gated stage, which has a pending Phase but no Job record yet.
+    fn held_timeline(job_state: &str) -> Value {
+        let result = (job_state == "completed").then_some("succeeded");
+        json!({ "records": [
+            { "id": "s-dev", "parentId": null, "type": "Stage", "name": "Apply to development", "state": "completed", "result": "succeeded", "order": 1 },
+            { "id": "p-dev", "parentId": "s-dev", "type": "Phase", "name": "Apply", "state": "completed", "order": 1 },
+            { "id": "j-dev", "parentId": "p-dev", "type": "Job", "name": "Apply", "state": job_state, "result": result, "order": 1 },
+            { "id": "s-prod", "parentId": null, "type": "Stage", "name": "Apply to production", "state": "pending", "order": 2 },
+            { "id": "c-prod", "parentId": "s-prod", "type": "Checkpoint", "name": "Checkpoint", "state": "inProgress" },
+            { "id": "a-prod", "parentId": "c-prod", "type": "Checkpoint.Approval", "name": "Checkpoint.Approval", "state": "inProgress" },
+            { "id": "p-prod", "parentId": "s-prod", "type": "Phase", "name": "Apply", "state": "pending", "order": 1 }
+        ] })
+    }
+
+    #[test]
+    fn an_open_approval_with_no_running_job_is_waiting() {
+        assert!(awaiting_approval(&held_timeline("completed")));
+        assert!(
+            !awaiting_approval(&timeline()),
+            "a job is still in progress"
+        );
+        assert!(!awaiting_approval(&held_timeline("inProgress")));
+        let mut approved = held_timeline("completed");
+        approved["records"][5]["state"] = json!("completed");
+        assert!(!awaiting_approval(&approved));
+        assert!(!awaiting_approval(&json!({})));
+    }
+
+    #[test]
+    fn a_job_behind_a_nested_approval_is_waiting() {
+        let mut t = held_timeline("completed");
+        t["records"].as_array_mut().unwrap().push(json!(
+            { "id": "j-prod", "parentId": "p-prod", "type": "Job", "name": "Apply", "state": "pending", "order": 1 }
+        ));
+        let statuses: Vec<RunStatus> = map_timeline(&t, "w").iter().map(|j| j.status).collect();
+        assert_eq!(statuses, vec![RunStatus::Success, RunStatus::Waiting]);
+    }
+
     #[test]
     fn a_timeline_maps_to_jobs_and_steps() {
         let run_web = format!("{PROJECT_WEB}/_build/results?buildId=1201");
@@ -1307,10 +1390,11 @@ mod tests {
                     "Apply to development / Apply script",
                     RunStatus::Running
                 ),
+                // Pending behind the production stage's open approval.
                 (
                     "j-prod",
                     "Apply to production / Apply script (production)",
-                    RunStatus::Queued
+                    RunStatus::Waiting
                 ),
                 ("j-final", "Finalize build", RunStatus::Success),
             ]
