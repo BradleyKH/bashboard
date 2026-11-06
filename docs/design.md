@@ -1638,6 +1638,21 @@ the lower list, and the footer. Pins, which follow the focused pane and appear a
 it, sit fixed below whatever elements are in the top slot; the lower list and the footer sit at
 the bottom, so a focus change never shifts them.
 
+**Columns.** Wide enough, the panel shows two columns side by side under the top bar, which alone
+spans both. Each column has its own top slot and its own lower list, laid out as above, and scrolls
+on its own; a thin rule separates them. The width alone decides: the panel switches to two columns
+once it reaches 600 px and back to one below 568 px, so dragging slowly across the threshold
+never flickers between the two. The columns are the same on either side, the left column always
+on the left. Each element belongs to one column, in either slot. Pins belong to one column too,
+always last in its top slot, and the footer sits at the bottom of the left column. In one column,
+the panel shows the left column's top slot, then the right column's top slot, Pins, the left
+column's lower list, and the right column's lower list, so the split between top slot and lower
+list survives. Elements first go to two columns the first time the panel is that wide: Clock,
+Wave, System, Local AI models, Containers, and Ports to the right column, and the rest, with
+Pins, to the left; until then every element is in the left column. A column's scrollbar shows only
+while the pointer or keyboard focus is in it. Keyboard rows run down the left column, then the
+right.
+
 **Top bar.** One line that stays at the panel's top edge while the panel scrolls. On the left,
 a Favorites button shows while the Favorites element is disabled and a Layouts button while
 Layouts is, each dropping the picker its shortcut opens (Ctrl+Shift+O and Ctrl+Shift+R, 4.5) as a
@@ -1671,12 +1686,17 @@ the top slot from Pins below it.
 **Order.** The elements reorder by drag: a section by its header, the clock and Wave by grabbing
 anywhere on them, with the same movement threshold as favorite rows, so a click on a header still
 collapses or expands it. While dragging, a line in the accent color shows where the element
-will land, at whichever gap is nearest the pointer; Pins and the footer offer no drop position.
-Any element can be dropped in the top slot above Pins or the lower list below it, and each slot
-keeps its own order. Dragging is mouse only. The order is saved
-with the workspace as `dashboardSectionOrder`, and which elements are in the top slot as
-`dashboardTopElements` (section 7). A disabled element keeps its place in the order and its
-slot, so enabling it returns it where it was.
+will land, at whichever gap is nearest the pointer in the column under it; Pins and the footer
+offer no drop position. Any element can be dropped in the top slot above Pins or the lower list
+below it, in either column, and each slot keeps its own order. In one column, a dropped element
+joins the column of the shown element just above where it lands in its slot, or just below it at
+the slot's top edge, and keeps its own column in an otherwise empty slot or when dropped where it
+already was. In two columns, Pins drag by their header to the end of either column's top slot;
+in one column they do not drag. Dragging is mouse only. The order is saved with the workspace as
+`dashboardSectionOrder`, which elements are in the top slot as `dashboardTopElements`, which are
+in the right column as `dashboardRightElements`, and the column holding Pins as
+`dashboardPinsColumn` (section 7). A disabled element keeps its place in the order, its slot,
+and its column, so enabling it returns it where it was.
 
 **Clock.** One line with no header, no collapse, and no keyboard row. On the left is a binary
 grid of three rows of six rounded-square dots: hours (24-hour) on top, then minutes, then
@@ -3421,6 +3441,10 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   slot when it is false. When neither list names Launch, it joins the top slot last.
   `dashboardSectionOrder` and `dashboardTopElements` read `folder` and `repo`, Launch's names in
   older files, as `launch`.
+- `dashboardRightElements`: no column split yet, so every element is in the left column until the
+  panel first shows two columns, which applies the default split (4.6). Reading keeps known names
+  once each; a list, even an empty one, means the split has happened.
+- `dashboardPinsColumn`: `left`; any other value reads as absent.
 - `collapsedSections`: none. Reading keeps known names once each; Launch and the clock never
   collapse, so they are dropped.
 - `showPanePaths` (the Panes section's paths toggle, 4.6): false; a non-boolean reads as absent.

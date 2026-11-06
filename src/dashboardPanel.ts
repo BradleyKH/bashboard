@@ -7,7 +7,8 @@ import type { ClockStyle } from './clockModel';
 import { AgentContexts } from './agentContexts';
 import { attachContextMenu } from './contextMenu';
 import { DashboardClock } from './dashboardClock';
-import { attachElementDrag } from './dashboardElementDrag';
+import type { DashboardColumn } from './dashboardColumns';
+import { DashboardColumnsView } from './dashboardColumnsView';
 import { dashboardMenuItems } from './dashboardMenu';
 import { externalSessions, groupCardsByTab, paneCards } from './dashboardModel';
 import type { PaneCardInput } from './dashboardModel';
@@ -23,13 +24,7 @@ import { dashboardRevealHandle } from './dashboardReveal';
 import { withKeys } from './dashboardRevealModel';
 import { DashboardSystem } from './dashboardSystem';
 import { DashboardWave } from './dashboardWave';
-import {
-  DEFAULT_ELEMENT_ORDER,
-  DEFAULT_TOP_ELEMENTS,
-  ELEMENT_SHOWN_BY_DEFAULT,
-  placeElement,
-  toggleSection,
-} from './dashboardSections';
+import { ELEMENT_SHOWN_BY_DEFAULT, toggleSection } from './dashboardSections';
 import type { DashboardElement, DashboardSection } from './dashboardSections';
 import { recentFolders, samePath } from './favorites';
 import type { Favorite } from './favorites';
@@ -86,8 +81,8 @@ export interface DashboardCallbacks
   onPanePathsChange?: (shown: boolean) => void;
   /** The user finished dragging the panel's inner edge. */
   onWidthChange?: (width: number) => void;
-  /** The user dragged an element to a new place; the argument is the whole element order. */
-  onOrderChange?: (order: DashboardElement[]) => void;
+  /** An element or Pins moved, by a drag or the first split into two columns; save the placement. */
+  onOrderChange?: () => void;
   /** The panel's own menu asked to show or hide an element; the setting's reload applies it. */
   onSetElementShown?: (element: DashboardElement, shown: boolean) => void;
   /** The clock's menu picked a style; the setting's reload applies it. */
@@ -143,21 +138,16 @@ function topButton(
 }
 
 /**
- * The dashboard, docked on the left or right side of the window: the top bar, the top slot, Pins,
- * then the lower list; the elements sit in either slot in the user's order, each shown or hidden
- * by its setting (docs/design.md section 4.6).
+ * The dashboard, docked on the left or right side of the window: the top bar over one or two
+ * columns, each with a top slot, Pins in one of them, and a lower list; the elements sit in any
+ * slot in the user's order, each shown or hidden by its setting (docs/design.md section 4.6).
  */
 export class DashboardPanel {
   private open = false;
-  private order: DashboardElement[] = [...DEFAULT_ELEMENT_ORDER];
-  /** The elements in the slot above Pins; the rest sit between Pins and the footer. */
-  private top: DashboardElement[] = [...DEFAULT_TOP_ELEMENTS];
   private shown: Record<DashboardElement, boolean> = { ...ELEMENT_SHOWN_BY_DEFAULT };
   private side: DashboardSide = 'right';
   private windowShown = true;
-  private readonly elements = new Map<DashboardElement, HTMLElement>();
-  private readonly elementList: HTMLElement;
-  private readonly topSlot: HTMLElement;
+  private readonly columns: DashboardColumnsView;
   private readonly clock = new DashboardClock();
   private clockStyle: ClockStyle = 'both';
   private readonly system = new DashboardSystem();
@@ -297,15 +287,26 @@ export class DashboardPanel {
     const top = document.createElement('div');
     top.className = 'dashboard-top';
     top.append(this.favoritesMenuButton, this.layoutsMenuButton, settingsButton, this.launchMenuButton, helpButton, spacer, hideButton);
+    // Only the hooks offer lives here: one button per detected agent without them.
+    const footer = document.createElement('div');
+    footer.className = 'dashboard-footer';
+    this.hooksFooter = footer;
     // Pins follow the focused pane and appear or vanish with it, so they stay fixed between the
     // slots rather than among the elements, and the lower list sits at the bottom, where a focus
     // change that resizes Pins never shifts it.
-    this.elementList = document.createElement('div');
-    this.elementList.className = 'dashboard-elements';
-    this.topSlot = document.createElement('div');
-    this.topSlot.className = 'dashboard-top-slot';
-    this.topSlot.hidden = true;
-    root.append(resizeHandle, top, this.topSlot, this.pinsSection.el, this.elementList);
+    this.columns = new DashboardColumnsView(root, {
+      pins: this.pinsSection.el,
+      pinsHead: this.pinsSection.head,
+      footer,
+      shown: (id) => this.shown[id],
+      keepFocus: (relayout) => {
+        const focus = this.nav.capture();
+        relayout();
+        this.nav.restore(focus);
+      },
+      onChange: () => this.callbacks.onOrderChange?.(),
+    });
+    root.append(resizeHandle, top, this.columns.el);
     this.addElement('launch', this.launchSection.el, this.launchSection.head);
     this.register('pins', this.pinsSection.el, this.pinsSection.head);
     this.addSection('favorites', this.favoritesSection.el, this.favoritesSection.head);
@@ -348,11 +349,6 @@ export class DashboardPanel {
       ),
     }));
     this.addElement('wave', this.wave.el, this.wave.el);
-    // Only the hooks offer lives here: one button per detected agent without them.
-    const footer = document.createElement('div');
-    footer.className = 'dashboard-footer';
-    this.hooksFooter = footer;
-    root.append(footer);
     this.nav = new DashboardNav(root, {
       onLeave: () => this.leave(),
       onKey: (e) => this.callbacks.onKey?.(e) ?? false,
@@ -475,24 +471,31 @@ export class DashboardPanel {
     if (swatchesChanged) this.render();
   }
 
-  /** Applies a saved element order without firing `onOrderChange`. */
-  setSectionOrder(order: DashboardElement[]): void {
-    this.order = [...order];
-    this.layoutElements();
+  /** Applies a saved placement without firing `onOrderChange`; absent parts keep their defaults. */
+  setPlacement(saved: {
+    order?: DashboardElement[];
+    top?: DashboardElement[];
+    right?: DashboardElement[];
+    pinsColumn?: DashboardColumn;
+  }): void {
+    this.columns.setPlacement(saved);
   }
 
   sectionOrder(): DashboardElement[] {
-    return [...this.order];
-  }
-
-  /** Applies the saved top slot elements without firing `onOrderChange`. */
-  setTopElements(top: DashboardElement[]): void {
-    this.top = [...top];
-    this.layoutElements();
+    return this.columns.sectionOrder();
   }
 
   topElements(): DashboardElement[] {
-    return [...this.top];
+    return this.columns.topElements();
+  }
+
+  /** Null until the panel first shows two columns. */
+  rightElements(): DashboardElement[] | null {
+    return this.columns.rightElements();
+  }
+
+  pinsColumn(): DashboardColumn {
+    return this.columns.pinsColumnName();
   }
 
   /** Whether the window is shown (not hidden or minimized); the clock ticks only while it is. */
@@ -541,30 +544,12 @@ export class DashboardPanel {
     this.agentContexts.setEnabled(this.shown.panes);
   }
 
-  /**
-   * Puts the shown elements in their slot (above Pins, or between Pins and the footer) in order
-   * and detaches the rest; a disabled element keeps its place in `order` and its slot, so turning
-   * it back on returns it there.
-   */
   private layoutElements(): void {
     // A hidden section's list stays reachable from the top bar (docs/design.md section 4.6).
     this.favoritesMenuButton.hidden = this.shown.favorites;
     this.layoutsMenuButton.hidden = this.shown.layouts;
     this.launchMenuButton.hidden = this.shown.launch;
-    const shownIn = (atTop: boolean): HTMLElement[] =>
-      this.order
-        .filter((id) => this.shown[id] && this.top.includes(id) === atTop)
-        .map((id) => this.elements.get(id)!);
-    const same = (els: HTMLElement[], parent: HTMLElement): boolean =>
-      els.length === parent.children.length && els.every((el, i) => el === parent.children[i]);
-    const top = shownIn(true);
-    const list = shownIn(false);
-    if (same(top, this.topSlot) && same(list, this.elementList)) return;
-    const focus = this.nav.capture();
-    this.topSlot.replaceChildren(...top);
-    this.topSlot.hidden = top.length === 0;
-    this.elementList.replaceChildren(...list);
-    this.nav.restore(focus);
+    this.columns.layout();
   }
 
   isOpen(): boolean {
@@ -817,26 +802,8 @@ export class DashboardPanel {
     this.addElement(id, section, header);
   }
 
-  /**
-   * `handle` drags the element, a section's header or the whole clock, into either slot.
-   */
   private addElement(id: DashboardElement, el: HTMLElement, handle: HTMLElement): void {
-    el.dataset.element = id;
-    this.elements.set(id, el);
-    const zones = [
-      { zone: 'top' as const, el: this.topSlot },
-      { zone: 'list' as const, el: this.elementList },
-    ];
-    attachElementDrag(handle, zones, this.elementList, id, (zone, before) => {
-      const next = placeElement(this.order, this.top, id, zone, before);
-      const same = (a: DashboardElement[], b: DashboardElement[]): boolean =>
-        a.length === b.length && a.every((e, i) => e === b[i]);
-      if (same(next.order, this.order) && same(next.top, this.top)) return;
-      this.order = next.order;
-      this.top = next.top;
-      this.layoutElements();
-      this.callbacks.onOrderChange?.(this.sectionOrder());
-    });
+    this.columns.add(id, el, handle);
   }
 
   private render(): void {

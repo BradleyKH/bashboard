@@ -415,7 +415,6 @@ body.dashboard-left.dashboard-open #panes {
   flex-direction: column;
   gap: var(--element-space);
   padding: 10px;
-  overflow-y: auto;
   border-radius: 6px;
   background: rgba(6, 12, 18, 0.72);
   /* The content text color for names and values; the grays below it stay UI gray. */
@@ -465,11 +464,6 @@ body.dashboard-left.dashboard-peek:not(.dashboard-open) #dashboard {
   flex: 0 0 auto;
   justify-content: flex-end;
   margin: -6px -4px 0 0;
-  /* Stays at the panel's top edge so the close button survives scrolling; opaque so rows do not show through. The offset cancels the panel's 10px padding, which sticky positioning respects, so rows cannot scroll through a strip above the bar. */
-  position: sticky;
-  top: -10px;
-  z-index: 1;
-  background: #0a1016;
 }
 
 /* Straddles the panel's inner edge; fixed so the panel's scroll never carries it away. */

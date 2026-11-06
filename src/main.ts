@@ -1053,6 +1053,8 @@ const saver = new DebouncedSaver(
     dashboardWidth: panel.width(),
     dashboardSectionOrder: panel.sectionOrder(),
     dashboardTopElements: panel.topElements(),
+    dashboardRightElements: panel.rightElements() ?? undefined,
+    dashboardPinsColumn: panel.pinsColumn(),
     showPanePaths: panel.panePathsShown(),
     textZoom: textZoomSnapshot(),
   }),
@@ -1138,8 +1140,14 @@ try {
   // Collapsed sections, the panel width, and text zoom apply even when restoring panes is switched off.
   if (saved) panel.setCollapsedSections(saved.collapsedSections);
   if (saved?.dashboardWidth !== undefined) panel.setWidth(saved.dashboardWidth);
-  if (saved?.dashboardSectionOrder) panel.setSectionOrder(saved.dashboardSectionOrder);
-  if (saved?.dashboardTopElements) panel.setTopElements(saved.dashboardTopElements);
+  if (saved) {
+    panel.setPlacement({
+      order: saved.dashboardSectionOrder,
+      top: saved.dashboardTopElements,
+      right: saved.dashboardRightElements,
+      pinsColumn: saved.dashboardPinsColumn,
+    });
+  }
   if (saved?.showPanePaths) panel.setShowPanePaths(true);
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {

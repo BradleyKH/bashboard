@@ -679,6 +679,15 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace(v3([]))).not.toHaveProperty('dashboardTopElements');
   });
 
+  it('keeps the right column elements and the Pins column', () => {
+    const saved = (raw: Record<string, unknown>) => parseSavedWorkspace({ ...v3([]), ...raw });
+    expect(saved({ dashboardRightElements: ['clock', 'nope', 'wave'] })?.dashboardRightElements).toEqual(['clock', 'wave']);
+    expect(saved({ dashboardRightElements: [] })?.dashboardRightElements).toEqual([]);
+    expect(saved({})).not.toHaveProperty('dashboardRightElements');
+    expect(saved({ dashboardPinsColumn: 'right' })?.dashboardPinsColumn).toBe('right');
+    expect(saved({ dashboardPinsColumn: 'up' })).not.toHaveProperty('dashboardPinsColumn');
+  });
+
   it('puts Launch last in the top slot of a file saved before it was an element', () => {
     const saved = (raw: Record<string, unknown>) => parseSavedWorkspace({ ...v3([]), ...raw });
     expect(saved({ dashboardClockTop: false })?.dashboardTopElements).toEqual(['launch']);

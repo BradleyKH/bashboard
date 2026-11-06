@@ -7,6 +7,7 @@ import {
   parseTopElements,
   placeElement,
 } from './dashboardSections';
+import { type DashboardColumn, parsePinsColumn, parseRightElements } from './dashboardColumns';
 import { type Layout, close, leaves } from './layout';
 import type { ShipTab } from './shipModel';
 import type { GitTab } from './gitBranchModel';
@@ -105,6 +106,10 @@ export interface SavedWorkspace {
   dashboardSectionOrder?: DashboardElement[];
   /** The elements in the dashboard's slot above Pins; absent means the clock and Folder. */
   dashboardTopElements?: DashboardElement[];
+  /** The elements in the dashboard's right column; absent means not yet split into columns. */
+  dashboardRightElements?: DashboardElement[];
+  /** The dashboard column holding Pins; absent means the left. */
+  dashboardPinsColumn?: DashboardColumn;
   /** Whether the dashboard's Panes cards show folder paths; absent means hidden. */
   showPanePaths?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
@@ -360,6 +365,10 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
     saved.dashboardSectionOrder = next.order;
     saved.dashboardTopElements = next.top;
   }
+  const right = parseRightElements(raw.dashboardRightElements);
+  if (right) saved.dashboardRightElements = right;
+  const pinsColumn = parsePinsColumn(raw.dashboardPinsColumn);
+  if (pinsColumn) saved.dashboardPinsColumn = pinsColumn;
   if (typeof raw.showPanePaths === 'boolean') saved.showPanePaths = raw.showPanePaths;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;

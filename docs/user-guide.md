@@ -451,7 +451,11 @@ small handle sits on that edge of the window, halfway down; click it to bring th
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
 clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,
 F2 renames the focused favorite, layout, pin, or tab group header, and F6 or Escape returns to the pane. Drag its inner
-edge to make it wider or narrower; the width is saved with the workspace. **Panes** has a card for every pane in the order
+edge to make it wider or narrower; the width is saved with the workspace. Drag it past 600 px
+and the panel splits into two columns, each with its own top slot and list and each scrolling on
+its own (a column's scrollbar appears while the pointer or focus is in it); narrower than that,
+the two stack back into one. The first split puts the clock, Wave, System, Local AI models,
+Containers, and Ports on the right, and the rest on the left. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab, or right-click it to rename the tab). A terminal's card shows its status (a green check mark when it is done),
 folder, and time since its status last changed, plus, while a coding agent session runs in it, the model
@@ -464,7 +468,10 @@ the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
 header, or the clock, to put the sections in a different order, in the top slot above Pins or
-the list at the bottom; that is remembered too. Right-click an empty spot or a section header
+the list at the bottom, in either column; that is remembered too. Dragged while the panel shows
+one column, a section joins the column of the section just above where you drop it. With two
+columns, drag the Pins header to move Pins to the other column; they always sit at the end of
+that column's top slot. Right-click an empty spot or a section header
 for a menu that shows or hides each section, or use Settings (see
 [Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
 Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
@@ -496,7 +503,7 @@ action) opens the focused pane's repo in your editor directly, or its folder out
 slot so the sections don't jump as pins come and go. The heading names the folder too, if it
 fits.
 
-The **clock**, which is off by default, is one line at the top of the panel, above Launch: three
+The **clock**, which is off by default, is one line in the top slot: three
 rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
 `h:mm` beside them. Right-click the clock to show just the time or just the dots instead,
 or to hide it; Clock style in the Settings tab does the same. Drag it down among the other sections to move it there, or back to the top.
