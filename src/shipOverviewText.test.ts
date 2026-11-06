@@ -1,10 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { PullRequest } from './forgeApi';
-import { bitbucketSlowedText, normalizeRepoInput, pinProvider, providerBadge, pullSummary, repoLabel, runningSummary, updatedText } from './shipOverviewText';
+import { approvedTooltip, bitbucketSlowedText, normalizeRepoInput, pinProvider, providerBadge, pullSummary, repoLabel, runningSummary, updatedText } from './shipOverviewText';
 
 const pull = (over: Partial<PullRequest>): PullRequest => ({ state: 'open', reviewRequested: false, ...over }) as PullRequest;
 
+describe('approvedTooltip', () => {
+  it("names the approvers of the viewer's own approved pull requests, one per line", () => {
+    const ok = (number: number, login: string) =>
+      pull({ number, isMine: true, reviewDecision: 'approved', reviewers: [{ login, state: 'approved' }] });
+    expect(approvedTooltip([ok(12, 'Andrew Cartwright'), ok(13, 'Ann'), pull({ reviewDecision: 'approved', reviewers: [] })])).toBe(
+      '#12 approved by Andrew Cartwright\n#13 approved by Ann',
+    );
+    expect(approvedTooltip([pull({})])).toBe('');
+  });
+});
+
 describe('pullSummary', () => {
+  it("counts the viewer's own approved pull requests, not others'", () => {
+    const pulls = [pull({ isMine: true, reviewDecision: 'approved' }), pull({ reviewDecision: 'approved' })];
+    expect(pullSummary(pulls, 'pull request')).toBe('2 PRs open, 1 approved');
+  });
+
   it('counts open pull requests and those awaiting the viewer', () => {
     const pulls = [pull({}), pull({ reviewRequested: true }), pull({ state: 'merged', reviewRequested: true })];
     expect(pullSummary(pulls, 'pull request')).toBe('2 PRs open, 1 needs you');

@@ -503,13 +503,14 @@
   color: var(--ship-muted);
 }
 
-/* In a narrow pane the review text would take the whole row and squeeze the title out. */
+/* In a narrow pane the review text would take the whole row and squeeze the title out. Approved
+   stays: it is short, and it is the cue to merge. */
 .ship-pulls {
   container-type: inline-size;
 }
 
 @container (max-width: 320px) {
-  .ship-review {
+  .ship-review:not(.ship-review--approved) {
     display: none;
   }
 }
@@ -774,6 +775,10 @@
 
 .ship-ov-pulls.needs-you {
   color: var(--ship-warn);
+}
+
+.ship-ov-pulls.ready {
+  color: var(--ship-ok);
 }
 
 .ship-ov-running {

@@ -148,6 +148,12 @@ describe('attentionRank', () => {
     expect(rank(overview({ pulls: [pull({ isMine: true, checks: null, checksPending: true })] }))).toBe(5);
   });
 
+  it("ranks the viewer's own approved PR third, but not a draft or someone else's", () => {
+    expect(rank(overview({ pulls: [pull({ isMine: true, reviewDecision: 'approved' })] }))).toBe(3);
+    expect(rank(overview({ pulls: [pull({ isMine: true, draft: true, reviewDecision: 'approved' })] }))).toBe(5);
+    expect(rank(overview({ pulls: [pull({ reviewDecision: 'approved' })] }))).toBe(5);
+  });
+
   it('ranks a running health branch fourth', () => {
     expect(rank(overview({ runs: [run('main', 'running')] }))).toBe(4);
     expect(rank(overview({ runs: [run('main', 'queued')] }))).toBe(4);
@@ -220,6 +226,17 @@ describe('dashboardItems', () => {
       { kind: 'branch', ...base, tab: 'pipelines', branch: 'uat', run: redRun },
       { kind: 'review', ...base, tab: 'pulls', pull: review },
       { kind: 'mine', ...base, tab: 'pulls', pull: mine },
+    ]);
+  });
+
+  it("lists the viewer's own approved PR unless its checks fail, which lists it as needing work", () => {
+    const approved = pull({ isMine: true, reviewDecision: 'approved', checks: null, checksPending: true });
+    const failing = pull({ isMine: true, reviewDecision: 'approved', checks: 'failure' });
+    const theirs = pull({ reviewDecision: 'approved' });
+    const rows = [buildRow(pin('github.com/acme/api'), overview({ pulls: [approved, failing, theirs] }))];
+    expect(dashboardItems(rows).map((i) => [i.kind, i.kind === 'branch' ? null : i.pull])).toEqual([
+      ['approved', approved],
+      ['mine', failing],
     ]);
   });
 

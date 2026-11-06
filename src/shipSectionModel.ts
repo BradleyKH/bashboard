@@ -1,6 +1,6 @@
 // What the dashboard's Ship section shows (docs/design.md section 4.6). Pure, no DOM.
 import type { Run, RunStatus } from './forgeApi';
-import { relativeTime, statusInfo, type ShipTab } from './shipModel';
+import { approvedByText, isReadyToMerge, relativeTime, statusInfo, type ShipTab } from './shipModel';
 import { isBitbucketPin, targetKey, type DashboardItem, type OverviewRow } from './shipOverviewModel';
 import { providerBadge } from './shipOverviewText';
 import type { OverviewEntry } from './shipOverviewStore';
@@ -36,11 +36,13 @@ export function itemText(item: DashboardItem): string {
   if (item.kind === 'branch') return `${item.branch} failed`;
   const n = `#${item.pull.number}`;
   if (item.kind === 'review') return `${n} needs your review`;
+  if (item.kind === 'approved') return `${n} ${approvedByText(item.pull)}`;
   return item.pull.reviewDecision === 'changesRequested' ? `${n} changes requested` : `${n} checks failing`;
 }
 
-/** The status icon's state: every item but a review request is a failure; a review has no state of its own. */
+/** The status icon's state: an approval passed, a review request has no state of its own, the rest failed. */
 export function itemStatus(item: DashboardItem): RunStatus {
+  if (item.kind === 'approved') return 'success';
   return item.kind === 'review' ? 'other' : 'failure';
 }
 
@@ -50,13 +52,15 @@ export function itemTitle(item: DashboardItem): string {
 }
 
 /**
- * The item rows: every failure first, in the order given, then the first `REVIEW_ROW_CAP` review
- * requests. `reviewCount` counts all of them, for the pull request line.
+ * The item rows: every failure first, in the order given, then the viewer's approved pull requests,
+ * then the first `REVIEW_ROW_CAP` review requests. `reviewCount` counts all of them, for the pull
+ * request line.
  */
 export function sectionItems(items: readonly DashboardItem[]): { shown: DashboardItem[]; reviewCount: number } {
-  const reviews = items.filter((i) => i.kind === 'review');
+  const of = (kind: 'review' | 'approved') => items.filter((i) => i.kind === kind);
+  const reviews = of('review');
   return {
-    shown: [...items.filter((i) => i.kind !== 'review'), ...reviews.slice(0, REVIEW_ROW_CAP)],
+    shown: [...items.filter((i) => i.kind !== 'review' && i.kind !== 'approved'), ...of('approved'), ...reviews.slice(0, REVIEW_ROW_CAP)],
     reviewCount: reviews.length,
   };
 }
@@ -103,11 +107,12 @@ export function runningLine(rows: readonly OverviewRow[], now: number): SummaryL
 
 /**
  * Open non-draft pull requests across the rows, with the review request count when some lack a
- * row. Null when every one of them already has a review row. Counts only each repo's newest 50.
+ * row. Null when every one of them already has a review or approved row. Counts only each repo's
+ * newest 50.
  */
 export function pullsLine(rows: readonly OverviewRow[], reviewCount: number): SummaryLine | null {
   const open = rows.flatMap((r) => r.overview.pulls.items).filter((p) => p.state === 'open' && !p.draft);
-  const untagged = open.filter((p) => !p.reviewRequested).length;
+  const untagged = open.filter((p) => !p.reviewRequested && !isReadyToMerge(p)).length;
   if (untagged === 0 && reviewCount <= REVIEW_ROW_CAP) return null;
   const overflow = reviewCount > REVIEW_ROW_CAP ? `, ${reviewCount} need your review` : '';
   return {

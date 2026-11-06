@@ -832,7 +832,23 @@ export class Workspace {
     // The pane or its tab may have changed while the dialog was open.
     const tab = this.store.tabOf(paneId);
     if (!tab || this.paneViews.get(paneId) !== old) return;
-    const spec = this.specForKind(kind, old.folder, tab);
+    this.swapPane(paneId, tab, this.specForKind(kind, old.folder, tab));
+  }
+
+  /**
+   * Design 4.15: a scratch pad saved to a file becomes a Files pane on that file, its preview
+   * filling the pane, and the pad's own copy is deleted, so the file is the only copy.
+   */
+  private scratchSavedAs(paneId: string, path: string): void {
+    const tab = this.store.tabOf(paneId);
+    if (!tab || !(this.paneViews.get(paneId) instanceof ScratchPane)) return;
+    const { folder, select } = pinTarget(path, path, false);
+    this.swapPane(paneId, tab, { kind: 'files', folder, selected: select, expanded: true });
+  }
+
+  /** Replaces the pane with a new one built from `spec`, in the same spot; no confirmation. */
+  private swapPane(paneId: string, tab: TabState, spec: PaneSpec): void {
+    const kind = spec.kind;
     const id = this.takeIdFor(kind);
     const visible = tab.id === this.store.activeId && !tab.collapsed.includes(paneId);
     this.store.replacePane(paneId, id);
@@ -1677,6 +1693,7 @@ export class Workspace {
       onSend: (text) => this.send(id, text),
       save: scratchSave,
       saveAs: scratchSaveAs,
+      onSavedAs: (path) => this.scratchSavedAs(id, path),
     });
     // The pad fills itself first, so its title is current by the time this runs.
     if (spec.text instanceof Promise) spec.text.then(() => this.paneChanged(id), () => {});

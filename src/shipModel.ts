@@ -552,3 +552,17 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
       return notice('Something went wrong', [err.message], [RETRY]);
   }
 }
+
+/** The viewer's own open pull request, approved with no failing checks: it waits only on a merge. */
+export function isReadyToMerge(p: PullRequest): boolean {
+  return p.state === 'open' && p.isMine && !p.draft && p.reviewDecision === 'approved' && p.checks !== 'failure';
+}
+
+/** "approved by Ann", "approved by Ann and Bo", "approved by Ann and 2 others", or "approved" when no approver is listed. */
+export function approvedByText(p: PullRequest): string {
+  const names = p.reviewers.filter((r) => r.state === 'approved').map((r) => r.login);
+  if (names.length === 0) return 'approved';
+  if (names.length === 1) return `approved by ${names[0]}`;
+  if (names.length === 2) return `approved by ${names[0]} and ${names[1]}`;
+  return `approved by ${names[0]} and ${names.length - 1} others`;
+}

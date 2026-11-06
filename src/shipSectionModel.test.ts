@@ -13,6 +13,12 @@ const base = { target: 'remote:x', repo: 'bitbucket.org/keysys/kweb' };
 const branch: DashboardItem = { ...base, kind: 'branch', tab: 'pipelines', branch: 'uat', run };
 const review = (p = pull()): DashboardItem => ({ ...base, kind: 'review', tab: 'pulls', pull: p });
 const mine = (p: PullRequest): DashboardItem => ({ ...base, kind: 'mine', tab: 'pulls', pull: p });
+const approved = (...names: string[]): DashboardItem => ({
+  ...base,
+  kind: 'approved',
+  tab: 'pulls',
+  pull: pull({ reviewDecision: 'approved', reviewers: [{ login: 'Pending Pat', state: 'pending' }, ...names.map((login) => ({ login, state: 'approved' as const }))] }),
+});
 
 const NOW = Date.parse('2026-11-05T12:00:00Z');
 const active = (over: Partial<Run> = {}): Run =>
@@ -38,6 +44,10 @@ describe('itemText', () => {
     expect(itemText(review())).toBe('#7 needs your review');
     expect(itemText(mine(pull({ reviewDecision: 'changesRequested' })))).toBe('#7 changes requested');
     expect(itemText(mine(pull({ checks: 'failure' })))).toBe('#7 checks failing');
+    expect(itemText(approved('Andrew Cartwright'))).toBe('#7 approved by Andrew Cartwright');
+    expect(itemText(approved('Ann', 'Bo'))).toBe('#7 approved by Ann and Bo');
+    expect(itemText(approved('Ann', 'Bo', 'Cy'))).toBe('#7 approved by Ann and 2 others');
+    expect(itemText(approved())).toBe('#7 approved');
   });
 
   it('prefers changes requested when both apply', () => {
@@ -50,6 +60,7 @@ describe('itemStatus', () => {
     expect(itemStatus(branch)).toBe('failure');
     expect(itemStatus(mine(pull({ checks: 'failure' })))).toBe('failure');
     expect(itemStatus(review())).toBe('other');
+    expect(itemStatus(approved('Ann'))).toBe('success');
   });
 });
 
@@ -62,6 +73,13 @@ describe('sectionItems', () => {
     expect(shown).toHaveLength(7);
     expect(shown.slice(0, 2)).toEqual([branch, mineItem]);
     expect(shown.slice(2).every((i) => i.kind === 'review')).toBe(true);
+  });
+
+  it('puts approved pull requests between the failures and the review requests, uncapped', () => {
+    const ok = approved('Ann');
+    const { shown, reviewCount } = sectionItems([review(), ok, branch]);
+    expect(shown).toEqual([branch, ok, review()]);
+    expect(reviewCount).toBe(1);
   });
 });
 
@@ -94,6 +112,10 @@ describe('pullsLine', () => {
 
   it('is absent when every open pull request already has a review row', () => {
     expect(pullsLine([row('github.com/a/b', [], [open({ reviewRequested: true })])], 1)).toBeNull();
+  });
+
+  it('is absent when the only open pull request has an approved row', () => {
+    expect(pullsLine([row('github.com/a/b', [], [open({ isMine: true, reviewDecision: 'approved', checks: 'success' })])], 0)).toBeNull();
   });
 
   it('counts open pull requests across repos, leaving drafts out', () => {

@@ -1,7 +1,7 @@
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import type { PullRequest, ReviewState } from './forgeApi';
-import { relativeTime, statusInfo } from './shipModel';
+import { approvedByText, relativeTime, statusInfo } from './shipModel';
 
 export interface PullRowHandlers {
   onOpen: (pull: PullRequest) => void;
@@ -13,6 +13,10 @@ const REVIEW_LABELS: Record<ReviewState, string> = {
   changesRequested: 'Changes requested',
   pending: 'Review pending',
 };
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 function setText(el: HTMLElement, text: string): void {
   if (el.textContent !== text) el.textContent = text;
@@ -100,6 +104,8 @@ export class ShipPullRow {
     this.review.hidden = review === null;
     this.review.className = `ship-review${review ? ` ship-review--${review}` : ''}`;
     setText(this.review, review ? REVIEW_LABELS[review] : '');
+    const reviewTip = review === 'approved' ? capitalize(approvedByText(pull)) : '';
+    if (this.review.title !== reviewTip) this.review.title = reviewTip;
 
     const checks = pull.checks;
     this.checks.hidden = checks === null && !pull.checksPending;

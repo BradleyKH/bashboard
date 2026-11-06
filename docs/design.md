@@ -1917,10 +1917,13 @@ listening" when the list is empty.
 **Ship.** What needs the viewer across the repos pinned to the Ship Overview (4.20), then
 what is moving there. The item rows come first: a health branch whose newest run failed ("main failed"), a pull request awaiting the
 viewer's review ("#12 needs your review"), and the viewer's own pull request with changes
-requested or failing checks ("#12 changes requested", "#12 checks failing"). Each row shows a
-status icon (a failure icon, or the neutral icon for a review request), the repo's `owner/name`,
-and that text, with the run's or pull request's title in its tooltip. Every failure row comes
-first, in the Overview's attention order, then at most 5 review request rows. Clicking a branch
+requested or failing checks ("#12 changes requested", "#12 checks failing"), and the viewer's own
+open, non-draft pull request that is approved and has no failing checks, so it waits only on a
+merge ("#12 approved by Andrew Cartwright", naming up to two approvers, "and 2 others" past that).
+Each row shows a status icon (a failure icon, the success icon for an approval, or the neutral icon
+for a review request), the repo's `owner/name`, and that text, with the run's or pull request's
+title in its tooltip. Every failure row comes first, in the Overview's attention order, then every
+approved row, then at most 5 review request rows. Clicking a branch
 row opens that repo's Pipelines in a Ship pane, and a pull request row its Pull requests (4.20
 says which pane).
 
@@ -1930,8 +1933,8 @@ repo's Pipelines; otherwise it counts them ("0 pipelines running", "3 pipelines 
 repos"), naming and opening the repo when they share one, else opening the Overview. The pull
 request line counts the open pull requests across the pinned repos, drafts left out ("12 open
 PRs"), and adds the review request count when it passes the row cap ("12 open PRs, 7 need your
-review"). It is shown when some open pull request is not awaiting the viewer's review, or when
-review requests pass the cap, and opens the Overview. Both count from what each poll already
+review"). It is shown when some open pull request has neither a review request row nor an
+approved row, or when review requests pass the cap, and opens the Overview. Both count from what each poll already
 fetches, a repo's newest 20 runs and 50 open pull requests.
 
 When a pin's last poll failed for want of an account (signed out, or a code host's CLI missing), a
@@ -2548,7 +2551,11 @@ half a second after typing stops and comes back on restore.
   bracketed paste without Enter, so a prompt can be drafted here and reviewed before sending,
   then focuses that terminal. It is disabled while the tab has no terminal.
 - **Copy** copies the whole text. **Clear** empties it.
-- **Save as** writes it to a file chosen in the native save dialog, opened from the core.
+- **Save as** writes it to a file chosen in the native save dialog, opened from the core, then
+  turns the pad into a Files pane (4.12) on that file's folder with the file selected and its
+  preview filling the pane, so further edits save to the file through the text editor. The pad's
+  own `scratch/<id>.txt` is deleted, leaving the file as the only copy. Text typed while the
+  dialog was open is not in the file, so the pad then stays a pad.
 - **− and +** at the toolbar's right end, and Ctrl+wheel over the pad, zoom its text as the Files
   pane's buttons do (4.12), saving to `textZoom.scratch`. Layout checks measure the pad at its
   unzoomed size, so zooming does not change which splits fit.
@@ -2803,9 +2810,12 @@ there. Each row holds:
 
 - A provider badge (GH for GitHub, BB for Bitbucket, GL for GitLab, AZ for Azure DevOps), the repo's `owner/name` (the full
   `<host>/<path>` in its tooltip), with the health branches under it, and beside them a pull
-  request summary: "3 PRs open, 1 draft, 1 needs you", "1 PR open", or "No open pull requests"
-  (with the host's noun, as initials when counted; the draft and needs-you parts appear only when
-  nonzero), highlighted while a review is awaited. Under the summary,
+  request summary: "3 PRs open, 1 draft, 1 needs you, 1 approved", "1 PR open", or "No open pull
+  requests" (with the host's noun, as initials when counted; the draft, needs-you, and approved
+  parts appear only when nonzero, and approved counts only the viewer's own pull requests that wait
+  only on a merge, as the dashboard's approved rows do, 4.6), highlighted in the warning color
+  while a review is awaited, else in the success color while one of the viewer's is approved,
+  with each approved one and its approvers in its tooltip ("#12 approved by Andrew Cartwright"). Under the summary,
   "2 pipelines running" counts the queued or running runs among the latest 20 on any branch, and
   is absent when none is.
 - The **health branches**: the repo's default branch (3.20), then the distinct target branches of
@@ -2820,7 +2830,7 @@ there. Each row holds:
 
 **Attention order.** Rows are ordered by the first of these that applies to a repo: a health branch
 whose newest run failed; a pull request awaiting the viewer's review; the viewer's own pull request
-with changes requested or failing checks; a health branch with a queued or running run; then by
+with changes requested or failing checks, or approved and waiting only on a merge; a health branch with a queued or running run; then by
 most recent activity (the newest run or pull request update). The first four ranks keep pin order
 among themselves. A pin that has not loaded follows the loaded rows, in pin order. Ages redraw every
 30 s while the Overview is on screen.
@@ -2941,7 +2951,8 @@ first, then open drafts, then merged and closed ones, each most recently updated
 shows `#<number>`, the title, a Draft badge on an open draft or a Merged or Closed badge, with the
 title dimmed, on one that is not open, the
 author and source and target branches, the review state (Approved, Changes requested, or Review
-pending), the checks status icon (a faint pulsing dot while it loads), and the age of the last update. Clicking a row opens the pull
+pending; Approved names its approvers in its tooltip, and is the one state still shown when the
+pane is narrower than 320 px), the checks status icon (a faint pulsing dot while it loads), and the age of the last update. Clicking a row opens the pull
 request in the browser. The menu holds **Open in browser**, **Copy link**, and **Copy branch
 name**. When the host counts more matching
 pull requests than the 50 listed, a note after the groups reads "Showing the latest 50 of 60 open

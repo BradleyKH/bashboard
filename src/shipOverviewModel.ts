@@ -1,7 +1,7 @@
 // Row building, attention order, dashboard items, and poll timing for the Ship Overview tab
 // (docs/design.md section 4.20). Pure, no DOM.
 import type { ForgeRepo, OverviewRepo, PinnedRepo, PullRequest, Run } from './forgeApi';
-import { statusInfo, type ShipTab } from './shipModel';
+import { isReadyToMerge, statusInfo, type ShipTab } from './shipModel';
 
 /** A branch whose newest run is watched; `run` is null when none of the repo's latest runs is on it. */
 export interface HealthBranch {
@@ -17,7 +17,7 @@ export interface OverviewRow {
 
 export type DashboardItem =
   | { kind: 'branch'; target: string; repo: string; tab: ShipTab; branch: string; run: Run }
-  | { kind: 'review' | 'mine'; target: string; repo: string; tab: ShipTab; pull: PullRequest };
+  | { kind: 'review' | 'mine' | 'approved'; target: string; repo: string; tab: ShipTab; pull: PullRequest };
 
 export const FAST_POLL_MS = 60_000;
 
@@ -69,12 +69,15 @@ export function runningCount(o: OverviewRepo): number {
   return o.runs.filter((r) => statusInfo(r.status).active).length;
 }
 
-/** 1 is most urgent: red branch, review requested, own pull request needing work, branch running, the rest. */
+/**
+ * 1 is most urgent: red branch, review requested, own pull request needing work or ready to merge,
+ * branch running, the rest.
+ */
 export function attentionRank(o: OverviewRepo, health: readonly HealthBranch[]): 1 | 2 | 3 | 4 | 5 {
   const pulls = openPulls(o);
   if (health.some(isRedBranch)) return 1;
   if (pulls.some(needsReview)) return 2;
-  if (pulls.some(mineNeedsWork)) return 3;
+  if (pulls.some((p) => mineNeedsWork(p) || isReadyToMerge(p))) return 3;
   if (health.some((h) => h.run !== null && statusInfo(h.run.status).active)) return 4;
   return 5;
 }
@@ -99,7 +102,10 @@ export function orderRows(rows: readonly OverviewRow[]): OverviewRow[] {
     .map((e) => e.row);
 }
 
-/** What the dashboard shows, row by row in the order given: a row's red branches, then its pull requests to review or fix. */
+/**
+ * What the dashboard shows, row by row in the order given: a row's red branches, then its pull
+ * requests to review, fix, or merge.
+ */
 export function dashboardItems(rows: readonly OverviewRow[]): DashboardItem[] {
   const items: DashboardItem[] = [];
   for (const { pin, overview, health } of rows) {
@@ -112,6 +118,7 @@ export function dashboardItems(rows: readonly OverviewRow[]): DashboardItem[] {
       // A request for the viewer's review wins over ownership, as in the Pull requests tab's groups.
       if (needsReview(pull)) items.push({ kind: 'review', target, repo, tab: 'pulls', pull });
       else if (mineNeedsWork(pull)) items.push({ kind: 'mine', target, repo, tab: 'pulls', pull });
+      else if (isReadyToMerge(pull)) items.push({ kind: 'approved', target, repo, tab: 'pulls', pull });
     }
   }
   return items;

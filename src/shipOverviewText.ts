@@ -1,7 +1,7 @@
 // Wording and input rules for the Ship Overview rows and Add repo box (docs/design.md section 4.20).
 // Pure, no DOM.
 import type { ProviderKind, PullRequest } from './forgeApi';
-import { relativeTime } from './shipModel';
+import { approvedByText, isReadyToMerge, relativeTime } from './shipModel';
 
 /** "PR" for "pull request", "MR" for "merge request": the host's noun as initials. */
 function pullAbbrev(noun: string): string {
@@ -13,7 +13,7 @@ function pullAbbrev(noun: string): string {
 }
 
 /**
- * "3 PRs open, 1 draft, 1 needs you", leaving out a part whose count is zero; "No open pull requests"
+ * "3 PRs open, 1 draft, 1 needs you, 1 approved", leaving out a part whose count is zero; "No open pull requests"
  * when none. Drafts count among the open ones. `noun` is the host's own word for them.
  */
 export function pullSummary(pulls: readonly PullRequest[], noun: string): string {
@@ -25,7 +25,18 @@ export function pullSummary(pulls: readonly PullRequest[], noun: string): string
   if (drafts > 0) parts.push(`${drafts} draft${drafts === 1 ? '' : 's'}`);
   const awaiting = open.filter((p) => p.reviewRequested).length;
   if (awaiting > 0) parts.push(`${awaiting} needs you`);
+  // Only the viewer's own: an approval is a call to merge, which others' pull requests are not.
+  const approved = open.filter(isReadyToMerge).length;
+  if (approved > 0) parts.push(`${approved} approved`);
   return parts.join(', ');
+}
+
+/** One line per approved pull request of the viewer's, "#12 approved by Ann", for the summary's tooltip. */
+export function approvedTooltip(pulls: readonly PullRequest[]): string {
+  return pulls
+    .filter(isReadyToMerge)
+    .map((p) => `#${p.number} ${approvedByText(p)}`)
+    .join('\n');
 }
 
 /** "2 pipelines running"; empty when none, so the row shows nothing. Queued runs count as running. */

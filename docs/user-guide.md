@@ -34,7 +34,9 @@ on relaunch. Its toolbar has four buttons, then a − and + pair at the right th
   terminal.
 - **Copy** puts all of the text on the clipboard.
 - **Clear** empties the pad.
-- **Save as** writes the text to a file.
+- **Save as** writes the text to a file, and the pad becomes a Files pane showing that file,
+  ready to keep editing. Edits from then on save to the file. Esc or the Expand preview button
+  brings back the folder's file list.
 
 Ctrl+wheel over the pad zooms it too, and a new pad starts at the zoom you last chose.
 
@@ -278,7 +280,7 @@ pane looks again on its own, unless the error is a rate limit. The full steps ar
 
 The Overview has one row per pinned repo, across GitHub, GitLab, Bitbucket, and Azure DevOps,
 ordered by what needs you first. A row shows the repo's `owner/name` with a GH, GL, BB, or AZ badge, a summary of its open pull
-requests ("3 PRs open, 1 draft, 1 needs you", highlighted while a review is waiting on you), the number of
+requests ("3 PRs open, 1 draft, 1 needs you, 1 approved", highlighted while a review is waiting on you, or in green while one of your own is approved and ready to merge, with who approved it in the tooltip), the number of
 pipelines queued or running on any branch ("2 pipelines running", shown only while some are), and a status icon
 for each of its **health branches**: the repo's default branch, the branches its open pull requests
 target (usually the deploy branches), and any you list for the pin. Each shows how its newest run
@@ -288,8 +290,8 @@ install command where one applies, or one that opens the Accounts tab (**Manage 
 token**, or **Replace token**).
 
 Rows are ordered by the first of these that applies: a health branch whose latest run failed, a pull
-request awaiting your review, your own pull request with changes requested or failing checks, a
-health branch that is running, and then the rest by most recent activity. Rows tied on one of the
+request awaiting your review, your own pull request with changes requested or failing checks or
+approved and ready to merge, a health branch that is running, and then the rest by most recent activity. Rows tied on one of the
 first four keep the order of your pins.
 
 Click a row or its running count to see its Pipelines, or its pull request summary to see its Pull requests. Right-click
@@ -321,7 +323,8 @@ clone. Pins are saved as `ship.pinnedRepos` in `settings.json`, where you can al
 
 **Dashboard.** The dashboard's Ship section, after Ports, first lists what needs you across the
 pinned repos: a health branch that failed, your own pull request with changes requested or
-failing checks, and up to 5 pull requests awaiting your review. Below them, one line shows the
+failing checks, your own pull request that is approved and ready to merge ("#12 approved by Andrew
+Cartwright"), and up to 5 pull requests awaiting your review. Below them, one line shows the
 pipelines running (the run itself when there is just one, else a count), and another counts the
 open pull requests that aren't drafts, adding how many await your review when that passes 5. With
 no repo pinned yet, it shows a Pin repos row that opens the Overview, and when a pinned repo needs

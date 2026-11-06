@@ -26,6 +26,8 @@ export interface ScratchPaneOptions {
   onSend: (text: string) => void;
   save: (id: string, text: string) => Promise<void>;
   saveAs: (text: string) => Promise<string | null>;
+  /** Save as wrote the pad's current text to `path`; the workspace turns the pad into that file. */
+  onSavedAs: (path: string) => void;
 }
 
 /** A plain text scratch pad (docs/design.md section 4.15). */
@@ -230,9 +232,13 @@ export class ScratchPane implements PaneView {
   }
 
   private async saveToFile(): Promise<void> {
+    const text = this.area.value;
     try {
-      const path = await this.opts.saveAs(this.area.value);
-      if (path) showToast(`Saved to ${path}`);
+      const path = await this.opts.saveAs(text);
+      if (!path || this.disposed) return;
+      // Text typed while the dialog was open is not in the file, so the pad stays a pad.
+      if (this.area.value === text) this.opts.onSavedAs(path);
+      else showToast(`Saved to ${path}`);
     } catch (e) {
       showToast(`Could not save: ${e}`);
     }

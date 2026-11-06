@@ -1,8 +1,8 @@
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
-import { noticeFor, prNounOf, relativeTime, statusInfo, type ShipTab } from './shipModel';
+import { isReadyToMerge, noticeFor, prNounOf, relativeTime, statusInfo, type ShipTab } from './shipModel';
 import { runningCount, targetKey } from './shipOverviewModel';
-import { providerBadge, pullSummary, repoLabel, runningSummary } from './shipOverviewText';
+import { approvedTooltip, providerBadge, pullSummary, repoLabel, runningSummary } from './shipOverviewText';
 import { shipOverviewStore, type OverviewEntry } from './shipOverviewStore';
 
 export interface OverviewRowHandlers {
@@ -155,6 +155,9 @@ export class ShipOverviewRow {
       this.pulls.hidden = false;
       setText(this.pulls, pullSummary(pulls, row.overview.repo.capabilities.prNoun));
       this.pulls.classList.toggle('needs-you', pulls.some((p) => p.state === 'open' && p.reviewRequested));
+      this.pulls.classList.toggle('ready', !this.pulls.classList.contains('needs-you') && pulls.some(isReadyToMerge));
+      const tip = approvedTooltip(pulls);
+      if (this.pulls.title !== tip) this.pulls.title = tip;
       const running = runningSummary(runningCount(row.overview));
       setText(this.running, running);
       this.running.hidden = running === '';
