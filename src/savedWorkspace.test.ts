@@ -56,7 +56,7 @@ describe('parseSavedTab', () => {
       collapsed: false,
       kind: 'browser',
       url: 'http://127.0.0.1:5199/p1',
-      devtools: { open: true, tab: 'network', height: 200 },
+      devtools: { open: true, tab: 'network', height: 200, split: true, splitRatio: 0.4 },
       device: 'phone:rotated',
     };
     const tab = { name: null, panes: [saved], layout: pane('a'), focused: 'a' };
@@ -67,7 +67,7 @@ describe('parseSavedTab', () => {
       collapsed: false,
       kind: 'browser',
       url: null,
-      devtools: { open: false, tab: 'console', height: expect.any(Number) },
+      devtools: { open: false, tab: 'console', height: expect.any(Number), split: false, splitRatio: 0.5 },
       device: '',
     });
   });

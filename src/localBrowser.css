@@ -399,6 +399,44 @@
   border-bottom-color: var(--accent);
 }
 
+.lb-devtools-tab:disabled {
+  cursor: default;
+}
+
+.lb-devtools-split {
+  margin-left: 8px;
+}
+
+.lb-devtools-panels {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-split .lb-devtools-panels {
+  flex-direction: row;
+}
+
+.lb-split .lb-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lb-devtools-divider {
+  flex: none;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 1;
+  cursor: ew-resize;
+  touch-action: none;
+  background: linear-gradient(to right, transparent 2px, var(--lb-border) 2px 3px, transparent 3px);
+}
+
+.lb-devtools-divider:hover {
+  background: linear-gradient(to right, transparent 1px, color-mix(in srgb, var(--accent) 60%, transparent) 1px 4px, transparent 4px);
+}
+
 .lb-spacer {
   flex: 1 1 auto;
 }
@@ -413,6 +451,7 @@
 .lb-panel-bar {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   padding: 4px 6px;

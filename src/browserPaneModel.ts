@@ -10,6 +10,10 @@ export interface DevtoolsState {
   tab: DevtoolsTab;
   /** The drawer's height in CSS pixels. */
   height: number;
+  /** Console and Network side by side, ignoring `tab`. */
+  split: boolean;
+  /** Console's share of the drawer's width while split. */
+  splitRatio: number;
 }
 
 export const DRAWER_MIN = 80;
@@ -17,8 +21,16 @@ const DRAWER_MAX = 2000;
 const DRAWER_DEFAULT = 260;
 /** Room the page keeps above the drawer, so dragging it up never hides the page entirely. */
 const PAGE_MIN = 60;
+const SPLIT_MIN = 0.15;
+const SPLIT_MAX = 0.85;
 
-export const DEFAULT_DEVTOOLS: DevtoolsState = { open: false, tab: 'console', height: DRAWER_DEFAULT };
+export const DEFAULT_DEVTOOLS: DevtoolsState = {
+  open: false,
+  tab: 'console',
+  height: DRAWER_DEFAULT,
+  split: false,
+  splitRatio: 0.5,
+};
 
 /** Saved drawer state with anything missing or out of range replaced by its default. */
 export function normalizeDevtools(saved: Partial<DevtoolsState> | null | undefined): DevtoolsState {
@@ -27,7 +39,15 @@ export function normalizeDevtools(saved: Partial<DevtoolsState> | null | undefin
     open: saved?.open === true,
     tab: saved?.tab === 'network' ? 'network' : 'console',
     height: typeof h === 'number' && Number.isFinite(h) ? Math.round(Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, h))) : DRAWER_DEFAULT,
+    split: saved?.split === true,
+    splitRatio: clampSplitRatio(saved?.splitRatio),
   };
+}
+
+/** Console's share of a split drawer, kept wide enough that neither panel vanishes. */
+export function clampSplitRatio(ratio: unknown): number {
+  if (typeof ratio !== 'number' || !Number.isFinite(ratio)) return DEFAULT_DEVTOOLS.splitRatio;
+  return Math.round(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, ratio)) * 1000) / 1000;
 }
 
 /** The drawer height to show in a pane body `available` pixels tall. */

@@ -757,7 +757,8 @@ by dragging its top edge. **Console** shows what the page logs, with filters for
 and error, a text filter, **Clear**, and **Preserve log** (the console clears whenever the page
 navigates unless it is ticked). **Network** lists each request with its method, status, path, type,
 size, and time, with type and text filters; click a row for its headers and response body (JSON is
-indented).
+indented). **Split** shows Console on the left and Network on the right at the same time;
+drag the line between them to change their widths.
 
 **Device sizes.** The device menu fits the page to Phone, Phone large, Tablet, Laptop, or Desktop
 dimensions, scaled down to fit the pane when it is larger, with **Rotate** to turn it sideways.

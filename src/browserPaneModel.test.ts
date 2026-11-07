@@ -12,6 +12,7 @@ import {
   hostOnly,
   isBlankUrl,
   isErrorPageUrl,
+  clampSplitRatio,
   normalizeDevtools,
   parseDevice,
   prettyBody,
@@ -21,9 +22,25 @@ import {
 describe('normalizeDevtools', () => {
   it('fills defaults and clamps the height', () => {
     expect(normalizeDevtools(undefined)).toEqual(DEFAULT_DEVTOOLS);
-    expect(normalizeDevtools({ open: true, tab: 'network', height: 10 })).toEqual({ open: true, tab: 'network', height: DRAWER_MIN });
+    expect(normalizeDevtools({ open: true, tab: 'network', height: 10 })).toEqual({
+      ...DEFAULT_DEVTOOLS,
+      open: true,
+      tab: 'network',
+      height: DRAWER_MIN,
+    });
     expect(normalizeDevtools({ tab: 'bogus' as never, height: Number.NaN }).tab).toBe('console');
     expect(normalizeDevtools({ height: Number.NaN }).height).toBe(DEFAULT_DEVTOOLS.height);
+  });
+});
+
+describe('split drawer', () => {
+  it('keeps the split flag and clamps the ratio', () => {
+    expect(normalizeDevtools({ split: true, splitRatio: 0.3 })).toMatchObject({ split: true, splitRatio: 0.3 });
+    expect(normalizeDevtools({ split: 'yes' as never }).split).toBe(false);
+    expect(clampSplitRatio(0.01)).toBe(0.15);
+    expect(clampSplitRatio(2)).toBe(0.85);
+    expect(clampSplitRatio(Number.NaN)).toBe(DEFAULT_DEVTOOLS.splitRatio);
+    expect(clampSplitRatio('0.4')).toBe(DEFAULT_DEVTOOLS.splitRatio);
   });
 });
 
