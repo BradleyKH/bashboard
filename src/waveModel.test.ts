@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { WAVE_RATIOS, cpuLevel, ease, netLevel, phaseSpeed, waveLayers, wavePoints } from './waveModel';
+import {
+  WAVE_DETUNE_MAX,
+  WAVE_RATIOS,
+  cpuLevel,
+  detuneAt,
+  detuneSpeed,
+  ease,
+  memLevel,
+  netLevel,
+  spinSpeed,
+  waveExtent,
+  waveFit,
+  waveLayers,
+  wavePoints,
+} from './waveModel';
 
 describe('cpuLevel', () => {
   it('maps percent to 0..1 and clamps', () => {
@@ -84,28 +98,78 @@ describe('waveLayers', () => {
   });
 });
 
-describe('wavePoints', () => {
-  it('returns n points inside the unit square', () => {
-    const pts = wavePoints(WAVE_RATIOS[WAVE_RATIOS.length - 1], 1.2, 50);
-    expect(pts).toHaveLength(50);
-    for (const [x, y] of pts) {
-      expect(Math.abs(x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(y)).toBeLessThanOrEqual(1);
-    }
+describe('memLevel', () => {
+  it('is the used share, clamped', () => {
+    expect(memLevel(4, 16)).toBe(0.25);
+    expect(memLevel(20, 16)).toBe(1);
   });
 
-  it('closes the figure', () => {
+  it('treats an unknown total as empty', () => {
+    expect(memLevel(4, 0)).toBe(0);
+    expect(memLevel(Number.NaN, 16)).toBe(0);
+  });
+});
+
+describe('detune sweep', () => {
+  const sweepSeconds = (mem: number) => Math.PI / detuneSpeed(mem);
+
+  it('takes 20 s at 25% memory and 5 s at 100%', () => {
+    expect(sweepSeconds(0.25)).toBeCloseTo(20);
+    expect(sweepSeconds(1)).toBeCloseTo(5);
+  });
+
+  it('still moves with almost no memory in use', () => {
+    expect(detuneSpeed(0)).toBeGreaterThan(0);
+  });
+
+  it('runs from 0 to the maximum over half a turn and back', () => {
+    expect(detuneAt(0)).toBeCloseTo(0);
+    expect(detuneAt(Math.PI)).toBeCloseTo(WAVE_DETUNE_MAX);
+    expect(detuneAt(Math.PI * 2)).toBeCloseTo(0);
+  });
+});
+
+describe('wavePoints', () => {
+  const pose = { detune: 0.3, spin: 1.1, tilt: 2.3 };
+
+  it('returns n points with depth in -1..1', () => {
+    const pts = wavePoints(WAVE_RATIOS[WAVE_RATIOS.length - 1], pose, 50);
+    expect(pts).toHaveLength(50);
+    for (const [, , depth] of pts) expect(Math.abs(depth)).toBeLessThanOrEqual(1);
+  });
+
+  it('closes the figure without detune and leaves loose ends with it', () => {
     for (const ratio of WAVE_RATIOS) {
-      const pts = wavePoints(ratio, 0.6, 100);
-      expect(pts[99][0]).toBeCloseTo(pts[0][0]);
-      expect(pts[99][1]).toBeCloseTo(pts[0][1]);
+      const closed = wavePoints(ratio, { ...pose, detune: 0 }, 100);
+      expect(closed[99][0]).toBeCloseTo(closed[0][0]);
+      expect(closed[99][1]).toBeCloseTo(closed[0][1]);
+      const open = wavePoints(ratio, { detune: 0.3, spin: 0, tilt: 0 }, 100);
+      expect(Math.abs(open[99][0] - open[0][0])).toBeGreaterThan(0.5);
     }
   });
 });
 
-describe('phaseSpeed', () => {
+describe('waveFit', () => {
+  it('fits every pose inside the box', () => {
+    let fit: number | undefined;
+    for (let k = 0; k < 200; k++) {
+      const figure = wavePoints(WAVE_RATIOS[k % WAVE_RATIOS.length], { detune: (k % 7) / 10, spin: k * 0.37, tilt: k * 0.21 }, 120);
+      fit = waveFit(fit, waveExtent([figure]), 0.05);
+      expect(waveExtent([figure]) * fit).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('shrinks at once and regrows slowly', () => {
+    expect(waveFit(1, 2, 0.05)).toBeLessThan(0.5);
+    const regrown = waveFit(0.5, 1, 0.05);
+    expect(regrown).toBeGreaterThan(0.5);
+    expect(regrown).toBeLessThan(0.55);
+  });
+});
+
+describe('spinSpeed', () => {
   it('drifts at rest and speeds up with traffic', () => {
-    expect(phaseSpeed(0)).toBeGreaterThan(0);
-    expect(phaseSpeed(1)).toBeGreaterThan(phaseSpeed(0));
+    expect(spinSpeed(0)).toBeGreaterThan(0);
+    expect(spinSpeed(1)).toBeGreaterThan(spinSpeed(0));
   });
 });

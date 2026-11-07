@@ -95,18 +95,27 @@ minimum. Its accessible name is the full time with AM or PM. It updates on each 
 boundary only while the panel is on screen and the window is shown, catching up at once on
 show, and no timer runs while it is disabled.
 
-**Wave.** A looping line (a Lissajous figure) 56 px tall across the panel's width, with no
-header, no collapse, and no keyboard row. CPU load climbs a ladder of closed figures whose
+**Wave.** A looping line (a Lissajous figure turning in 3D) 56 px tall across the panel's width,
+with no header, no collapse, and no keyboard row. CPU load climbs a ladder of figures whose
 frequency ratios gain a lobe at each step (1:2, 3:2, 3:4, 5:4), evenly spaced from a calm figure
 eight when idle to a modest weave at full load; between two steps both figures draw whole and
-split the line's opacity.
-Combined network traffic, on a log scale that tops out at 10 MB/s, speeds the slow turn of its
-phase and brightens the line. A faint copy a little behind the main line gives it depth. Both inputs ease toward each new
-reading over about 1.5 s, so the figure morphs rather than jumps. It samples `system_sample`
-every 2 s and draws at most 20 frames a second on a small 2D canvas, only while it is enabled,
-the panel is on screen, and the window is shown. It keeps moving with `backdrop.animate` off; with
-reduced motion requested, it holds a still figure redrawn on each sample. Its tooltip and accessible name give
-the CPU and network readings.
+split the line's opacity. A detune added to each step's horizontal frequency sweeps between 0 and
+0.6 and back, easing at each end; while it is above 0 the figure never quite closes, and its two
+loose ends keep it lopsided. Memory use sets the sweep's pace: one sweep takes 5 s divided by the
+share of memory in use, so 20 s at 25% and 5 s when full, never slower than about a minute.
+The flat figure gains a depth wave at its vertical frequency, spins about the vertical axis, and
+tilts about the horizontal one, drawn in perspective with the near side brighter and thicker.
+The tilt turns one way forever, a full turn every 30 s. Combined network traffic, on a log scale
+that tops out at 10 MB/s, speeds the spin, which also turns the horizontal phase. One faint copy a
+little earlier in the spin gives the line an echo. The figure is scaled to stay inside its box:
+it shrinks at once when a line would cross an edge and regrows over a few seconds, so the zoom
+holds steady through the spin.
+CPU, memory, and network ease toward each new reading over about 1.5 s, so the figure morphs
+rather than jumps. It samples `system_sample` every 2 s and draws at most 20 frames a second on a
+small 2D canvas, only while it is enabled, the panel is on screen, and the window is shown. It
+keeps moving with `backdrop.animate` off; with reduced motion requested, it holds a still figure
+redrawn on each sample. Its tooltip and accessible name give the CPU, memory, and network
+readings.
 
 **Polling.** System, shown by `dashboard.sections.system`, polls the core on timers, and each
 timer runs only while the section is enabled, expanded, and on screen (the panel open or peeking) and the window is shown.

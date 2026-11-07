@@ -558,7 +558,8 @@ or Memory row to see the programs using the most of it, with all of a program's 
 together.
 
 The **Wave**, also off by default, is a slowly turning looped line that reacts to your machine:
-it weaves tighter as CPU load rises and turns faster and brighter with network traffic. Hover it
+it weaves tighter as CPU load rises, spins faster with network traffic, and changes shape faster
+as memory fills, while it slowly tumbles end over end. Hover it
 for the readings. Like the clock it has no header; drag it anywhere on the panel to move it. It
 keeps moving when the background animation is paused (Ctrl+Shift+A), and holds still only when
 Windows asks apps to reduce motion.
