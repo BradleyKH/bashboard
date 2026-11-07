@@ -11,7 +11,7 @@ export interface ContainerRowMenuHandlers extends ContainerGroupMenuHandlers {
   onLogs: () => void;
   onShell: () => void;
   onOpenUrl: (url: string) => void;
-  /** Opens a loopback http URL in a Local Browser pane; omitted where none can open. */
+  /** Opens a loopback URL in a Local Browser pane; omitted where none can open. */
   onOpenLocal?: (url: string) => void;
   onCopyName: (name: string) => void;
 }

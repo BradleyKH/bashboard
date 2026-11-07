@@ -518,7 +518,7 @@ fn nested_blocked(url: &str) -> BrowserEvent {
     BrowserEvent::Console {
         level: "warn".into(),
         text: format!(
-            "Blocked a frame from loading {url}: Local Browser loads only localhost and 127.0.0.1 over http."
+            "Blocked a frame from loading {url}: Local Browser loads only localhost and 127.0.0.1."
         ),
         source: Some("local-browser".into()),
         url: None,

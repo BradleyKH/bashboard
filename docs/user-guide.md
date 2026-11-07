@@ -735,8 +735,8 @@ you. Any pane can also become a Ports pane from its kind menu.
 ## Local Browser
 
 A **Local Browser** pane shows a dev server's page beside the terminal that runs it, with a Console
-and a Network panel one click away. It opens only `localhost` and `127.0.0.1` over plain `http`, on
-any port; anything else is refused, so it is not a general browser. Open one from the
+and a Network panel one click away. It opens only `localhost` and `127.0.0.1`, over `http` or
+`https`, on any port; anything else is refused, so it is not a general browser. Open one from the
 kind menu at the top left of any pane, from the Launch menu (**b**), with `bb browse` (see
 [Pane CLI](#pane-cli)), from a Ports pane row (**Open**, or a double-click), from the **Open in
 Local Browser** entry in the port and container menus, or by Ctrl+clicking a `localhost` link in
@@ -744,11 +744,16 @@ a terminal. Ctrl+Shift+click on such a link, and **Open in system browser** in t
 system browser instead.
 
 **Address bar.** Type a bare port (`5173`), `:5173`, `localhost:3000/app`, or a full URL; a missing
-host means `localhost`. Suggestions list your bookmarks, the ports that are listening, and
+host means `localhost`, and a missing scheme means `http`, so type `https://` for an https server.
+Suggestions list your bookmarks, the ports that are listening, and
 addresses you visited recently; use the arrows and Enter, or Escape to put the page's address back.
 Back, Forward, and Reload sit to its left (Shift+click Reload to bypass the cache), and Home opens
 the `localBrowser.homeUrl` setting, or the start page, a list of listening ports and bookmarks,
-when that is empty. If nothing is listening on the port, the pane says so and offers Retry. In a
+when that is empty. If nothing is listening on the port, the pane says so and offers Retry.
+
+**https.** An https page loads only when Windows trusts its certificate; there is no "proceed
+anyway". When it doesn't, the pane says so and names the fix: for an ASP.NET Core project, run
+`dotnet dev-certs https --trust` once, then Retry. Or use the project's `http` launch profile. In a
 narrow pane the address field takes a row of its own under the buttons.
 
 **Bookmarks.** The star saves or removes the current page, and **Bookmarks** lists them. They are
@@ -951,8 +956,8 @@ src/main.ts:40` splits a trailing `:<digits>` off as the line number, which must
 the current folder. `bb scratch` uses its arguments as the text when it has any and otherwise
 reads standard input, up to 1 MiB.
 
-`bb browse` takes a bare port (`bb browse 5173`), `:port`, `host:port/path`, or a full `http` URL on
-`localhost` or `127.0.0.1`, and refuses any other address. With no address it opens the
+`bb browse` takes a bare port (`bb browse 5173`), `:port`, `host:port/path`, or a full `http` or
+`https` URL on `localhost` or `127.0.0.1`, and refuses any other address. With no address it opens the
 start page. `--tab` and `--collapsed` work as for the other pane commands.
 
 `bb term` opens a terminal with your default shell profile. The words after `--` are typed into

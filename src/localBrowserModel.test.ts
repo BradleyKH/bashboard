@@ -40,6 +40,8 @@ describe('normalizeInput', () => {
   it('keeps full loopback URLs, query and hash included', () => {
     expect(ok('http://localhost:3000/a?b=1#c')).toBe('http://localhost:3000/a?b=1#c');
     expect(ok('HTTP://LOCALHOST:3000')).toBe('http://localhost:3000/');
+    expect(ok('https://localhost:7001/a')).toBe('https://localhost:7001/a');
+    expect(ok('https://127.0.0.1:5001')).toBe('https://127.0.0.1:5001/');
   });
 
   it('refuses empty input, bad ports, and spaces', () => {
@@ -68,8 +70,9 @@ describe('normalizeInput', () => {
     refused('http://[::1]:4000/');
   });
 
-  it('refuses https and other schemes, with an https-specific reason', () => {
-    expect(refused('https://localhost:3000')).toMatch(/https/);
+  it('refuses other schemes and https off loopback', () => {
+    refused('https://example.com');
+    refused('https://app.localhost:7001');
     refused('ftp://localhost');
     refused('file:///C:/x');
     refused('javascript:alert(1)');
@@ -84,6 +87,7 @@ describe('normalizeInput', () => {
     refused('1420');
     refused('http://localhost:1420/anything');
     refused('127.0.0.1:1420');
+    refused('https://localhost:1420');
     expect(ok('1421')).toBe('http://localhost:1421/');
   });
 
@@ -96,7 +100,8 @@ describe('isLoopbackUrl', () => {
   it('matches the policy', () => {
     expect(isLoopbackUrl('http://localhost:3000/x')).toBe(true);
     expect(isLoopbackUrl('http://[::1]:3000')).toBe(false);
-    expect(isLoopbackUrl('https://localhost:3000')).toBe(false);
+    expect(isLoopbackUrl('https://localhost:3000')).toBe(true);
+    expect(isLoopbackUrl('https://u@localhost:3000')).toBe(false);
     expect(isLoopbackUrl('http://a.localhost')).toBe(false);
     expect(isLoopbackUrl('nonsense')).toBe(false);
   });

@@ -1,4 +1,5 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
+import type { TlsProbe } from './browserPaneModel';
 import type { BrowserEvent } from './devtoolsModel';
 
 export interface ResponseBody {
@@ -29,6 +30,11 @@ export function reload(paneId: string, ignoreCache: boolean): Promise<void> {
 
 export function responseBody(paneId: string, requestId: string): Promise<ResponseBody> {
   return invoke<ResponseBody>('browser_response_body', { paneId, requestId });
+}
+
+/** Why an https loopback address failed to load, from a TLS handshake the core makes itself. */
+export function probeTls(url: string): Promise<TlsProbe> {
+  return invoke<TlsProbe>('browser_probe_tls', { url });
 }
 
 /** Which browser pane's frame holds keyboard focus, or null once focus is back in the app. */

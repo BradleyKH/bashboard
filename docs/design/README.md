@@ -181,12 +181,12 @@ constantly redrawing canvas is the most expensive effect here, hence the default
   xterm.js renders terminal output as text, never HTML.
 - Hyperlinks in terminal output, both detected URLs (the xterm web-links addon) and OSC 8
   hyperlinks, open only `http` and `https` URLs, through the system browser, on Ctrl+click; a
-  loopback `http` link opens the Local Browser pane (4.21) instead, and Ctrl+Shift+click sends it to
+  loopback link opens the Local Browser pane (4.21) instead, and Ctrl+Shift+click sends it to
   the system browser.
 - The Local Browser pane (4.21) frames only loopback pages. The CSP `frame-src` lists exactly
-  `http://localhost:* http://127.0.0.1:*`, in both `csp` and `devCsp` (WebView2 rejects an IPv6
-  host such as `[::1]` there, so the pane does not open one), and
-  deliberately omits `*.localhost`: the release app is served from `http://tauri.localhost`, so a
+  `http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*`, in both `csp`
+  and `devCsp` (WebView2 rejects an IPv6 host such as `[::1]` there, so the pane does not open
+  one), and deliberately omits `*.localhost`: the release app is served from `http://tauri.localhost`, so a
   framed copy of it with `allow-same-origin` would share its origin and reach the Tauri IPC bridge.
   The core also refuses the app's own origin, and the dev server's port on every loopback host, for
   typed and in-frame navigations. Frames are sandboxed with `allow-scripts allow-forms

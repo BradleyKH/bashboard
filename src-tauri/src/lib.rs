@@ -2,6 +2,7 @@ mod agents;
 mod backdrop_image;
 mod browser;
 pub mod browser_policy;
+mod browser_tls;
 mod cli;
 mod clipboard;
 mod config_dir;
@@ -187,6 +188,7 @@ pub fn run() {
             browser::browser_response_body,
             browser::browser_focus,
             browser::browser_chords,
+            browser_tls::browser_probe_tls,
             clipboard::clipboard_read_text,
             pty::pty_spawn,
             pty::pty_write,

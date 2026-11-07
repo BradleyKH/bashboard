@@ -7,13 +7,14 @@ import {
   blockedNotice,
   devicePreset,
   formatDevice,
-  hostOnly,
   isBlankUrl,
   isErrorPageUrl,
   normalizeDevtools,
   parseDevice,
+  unreachableMessage,
   type DeviceState,
   type DevtoolsState,
+  type TlsProbe,
 } from './browserPaneModel';
 import { BrowserToolbar } from './browserToolbar';
 import type { BrowserEvent } from './devtoolsModel';
@@ -101,6 +102,8 @@ export class LocalBrowserPane implements PaneView {
   private readonly documentRequests = new Map<string, string>();
   /** The last navigation the bridge blocked, whose error page and failed request are not "nothing is listening". */
   private lastBlocked: { url: string; at: number } | null = null;
+  /** Bumped by each failure and each committed page, so a late TLS probe can't show a stale overlay. */
+  private unreachableSeq = 0;
   private readonly attached: Promise<void>;
   private frameFocused = false;
   private noticeTimer = 0;
@@ -307,6 +310,7 @@ export class LocalBrowserPane implements PaneView {
           return;
         }
         this.errorPage.hidden = true;
+        this.unreachableSeq++;
         this.documentRequests.clear();
         this.devtools.navigated();
         this.pageTitle = '';
@@ -385,11 +389,33 @@ export class LocalBrowserPane implements PaneView {
       this.showPage(url);
       this.opts.onStateChange();
     }
-    const where = url ? hostOnly(url) : 'that address';
+    this.toolbar.setLoading(false);
+    const seq = ++this.unreachableSeq;
+    if (url === null || !url.startsWith('https:')) return this.renderUnreachable(url, null);
+    // Chromium's error page doesn't say why; hide the overlay until the core's own handshake does,
+    // rather than flash "nothing is listening" over a certificate problem.
+    this.errorPage.hidden = true;
+    void browserApi
+      .probeTls(url)
+      .catch(() => null)
+      .then((probe) => {
+        if (!this.disposed && seq === this.unreachableSeq) this.renderUnreachable(url, probe);
+      });
+  }
+
+  private renderUnreachable(url: string | null, probe: TlsProbe | null): void {
+    const message = unreachableMessage(url, probe);
     const heading = document.createElement('h3');
-    heading.textContent = `Nothing is listening on ${where}`;
+    heading.textContent = message.heading;
     const hint = document.createElement('p');
-    hint.textContent = 'Start the dev server, then retry.';
+    hint.textContent = message.hint;
+    const parts: HTMLElement[] = [heading, hint];
+    if (message.command) {
+      const command = document.createElement('code');
+      command.className = 'lb-error-command';
+      command.textContent = message.command;
+      parts.push(command);
+    }
     const retry = document.createElement('button');
     retry.type = 'button';
     retry.className = 'lb-btn lb-primary';
@@ -397,9 +423,8 @@ export class LocalBrowserPane implements PaneView {
     retry.addEventListener('click', () => {
       if (url) this.navigate(url);
     });
-    this.errorPage.replaceChildren(heading, hint, retry);
+    this.errorPage.replaceChildren(...parts, retry);
     this.errorPage.hidden = false;
-    this.toolbar.setLoading(false);
   }
 
   private showNotice(text: string): void {

@@ -277,7 +277,7 @@ it with no pins, and Automatic omits it.
   // For example { "repo": "bitbucket.org/keysys/kweb", "root": "C:/src/kweb", "branches": ["uat"] }.
   "ship": { "hosts": {}, "overviewRefreshMinutes": 5, "pinnedRepos": [] },
   // bookmarks are { "name", "url" } pages for the Local Browser pane, in order. An entry with an
-  // empty or missing name or url, or a url that is not plain http on localhost or 127.0.0.1,
+  // empty or missing name or url, or a url that is not http or https on localhost or 127.0.0.1,
   // is dropped with a warning naming its position. homeUrl is the page a new pane opens
   // on, with the same host rule; empty opens the pane's start page. homeUrl has a Settings tab
   // field; bookmarks does not.

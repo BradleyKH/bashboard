@@ -7,10 +7,11 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 
 The `browser` pane kind (4.11) shows a dev server's page beside the terminals that run it, with
 URL entry, Back, Forward, Reload, Home, bookmarks, device sizes, and a drawer holding a Console
-and a Network panel. It is limited to loopback: plain `http` on `localhost` or `127.0.0.1`, on any
-port. The front end is `src/localBrowserPane.ts` (`LocalBrowserPane`) with its
+and a Network panel. It is limited to loopback: `http` or `https` on `localhost` or `127.0.0.1`, on
+any port. The front end is `src/localBrowserPane.ts` (`LocalBrowserPane`) with its
 chrome in `src/browserToolbar.ts` and `src/browserDevtools.ts`; the core side is
-`src-tauri/src/browser.rs`, `src-tauri/src/browser/chords.rs`, and `src-tauri/src/browser_policy.rs`.
+`src-tauri/src/browser.rs`, `src-tauri/src/browser/chords.rs`, `src-tauri/src/browser_policy.rs`,
+and `src-tauri/src/browser_tls.rs`.
 
 ### Design
 
@@ -64,13 +65,13 @@ shares its loopback rule:
 
 | Class | URLs | Result |
 | --- | --- | --- |
-| Allowed | `http` on `localhost` or `127.0.0.1`, no userinfo, not the app | Loads in the frame |
+| Allowed | `http` or `https` on `localhost` or `127.0.0.1`, no userinfo, not the app | Loads in the frame |
 | External | `http` or `https` on any other host | Failed, then opened in the system browser |
-| Refused | Other schemes, `https` loopback, `*.localhost`, hosts that merely look local, the app's own origin | Failed, with a notice in the pane |
+| Refused | Other schemes, `*.localhost`, hosts that merely look local, the app's own origin | Failed, with a notice in the pane |
 
 The app's origin is read from the Tauri configuration at runtime, never a fixed port, and the
-refusal applies to the app's port on every loopback host, since all of them reach the same dev
-server. The pane's address field applies the same rules (`normalizeInput` in
+refusal applies to the app's port on every loopback host and scheme, since all of them reach the
+same dev server. The pane's address field applies the same rules (`normalizeInput` in
 `src/localBrowserModel.ts`) before it sets the frame's `src`.
 
 At the Request stage of `Fetch.requestPaused` for `Document` resources, the core fails a
@@ -102,6 +103,15 @@ load (a `chrome-error://` frame, or a failed document request) shows a "nothing 
 overlay naming the failed address (the error page's `unreachableUrl`), with a Retry button; the
 address field and the pane's title follow that address.
 
+**https failures.** WebView2 has no click-through for a certificate error in a frame, and only
+Chromium's error page says why the load failed. For an `https` address the pane therefore holds the
+overlay back and calls `browser_probe_tls`, which repeats the TLS handshake from the core with
+`ureq` and the platform verifier, so it trusts the same Windows certificate store WebView2 does.
+The command accepts only `https` loopback URLs. Its answer picks the overlay: `untrusted` (the
+certificate failed verification) names `dotnet dev-certs https --trust` as the fix, `notTls` (the
+port does not speak TLS) suggests the `http` address, and `refused` or `other` keeps "nothing is
+listening". A page that commits, or a later failure, supersedes a probe still in flight.
+
 **Nested frames.** A document request for any other frame in a pane's session, or in a nested
 session, is a frame inside the framed page. It follows the same classes, except that a refused one
 is never opened in the system browser: the core fails it with `Aborted` and sends a `console`
@@ -117,6 +127,10 @@ Response stage: it removes `X-Frame-Options`, drops only the `frame-ancestors` d
 stays), and drops the encoding and length headers, since the body it hands back is already
 decoded. A response with no framing header, a redirect, or a non-loopback URL passes through
 unchanged.
+
+`Strict-Transport-Security` from an `https` loopback page needs no rewriting: WebView2 ignores it
+for `localhost`, so it never upgrades later `http` loopback frames, or the debug app's own origin,
+to `https`.
 
 The rewrite is a fulfill, not a continue: Chromium checks framing against the original response
 headers, so `Fetch.continueResponse` with edited headers has no effect. The core calls
@@ -235,13 +249,15 @@ The kind menu (4.11) and the Launch menu (4.6, key **b**) open a pane on `localB
 `bb browse [<url>] [--tab|-t] [--collapsed]` (3.13) opens one at an address in the same shorthand
 as the address field and refuses a non-loopback address. The Ports pane's Open button and a row's
 double-click open the port in Local Browser, and the port and container menus offer **Open in
-Local Browser** and **Open in system browser**. In a terminal, Ctrl+click on a loopback `http`
+Local Browser** and **Open in system browser**. In a terminal, Ctrl+click on a loopback
 link opens Local Browser beside the terminal, and Ctrl+Shift+click opens the system browser;
 other links open the system browser as before (9).
 
 ### Limits
 
-- Loopback `http` only: no `https`, no remote hosts, no `*.localhost`.
+- Loopback only: no remote hosts, no `*.localhost`.
+- `https` loads only with a certificate Windows trusts; there is no way to proceed past a
+  certificate error.
 - Frames nested in the page load only what the pane's own frame may (see Nested frames).
 - No popups: the sandbox is `allow-scripts allow-forms allow-same-origin allow-modals`, with no
   `allow-popups` and no `allow-top-navigation`, and the frame's referrer policy is `no-referrer`.

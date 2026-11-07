@@ -262,6 +262,7 @@ dependencies = [
  "jsonc-parser",
  "notify",
  "portable-pty",
+ "rustls",
  "serde",
  "serde_json",
  "sysinfo",

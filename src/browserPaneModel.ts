@@ -106,11 +106,40 @@ export function hostOnly(url: string): string {
   }
 }
 
+/** Why an https loopback page failed, from the core's own TLS handshake (`browser_probe_tls`). */
+export type TlsProbe = 'untrusted' | 'notTls' | 'refused' | 'other';
+
+export interface UnreachableMessage {
+  heading: string;
+  hint: string;
+  /** A command that fixes the problem, shown apart so it can be copied. */
+  command?: string;
+}
+
+/** The overlay text for a document that failed to load; `probe` is set only for https. */
+export function unreachableMessage(url: string | null, probe: TlsProbe | null): UnreachableMessage {
+  const where = url ? hostOnly(url) : 'that address';
+  if (probe === 'untrusted') {
+    return {
+      heading: `The certificate for ${where} is not trusted`,
+      hint: 'Local Browser loads https only with a certificate Windows trusts. For an ASP.NET Core development certificate, run this, then retry:',
+      command: 'dotnet dev-certs https --trust',
+    };
+  }
+  if (probe === 'notTls') {
+    return {
+      heading: `${where} did not answer over https`,
+      hint: `If it serves plain http, open http://${where} instead.`,
+    };
+  }
+  return { heading: `Nothing is listening on ${where}`, hint: 'Start the dev server, then retry.' };
+}
+
 /** The pane notice for a navigation the bridge stopped. */
 export function blockedNotice(url: string, external: boolean, appOrigin: string | null): string {
   if (external) return `Opened ${hostOnly(url)} in your browser.`;
   const checked = normalizeInput(url, appOrigin);
-  const reason = checked.ok ? 'Local Browser only opens localhost and 127.0.0.1 over http.' : checked.reason;
+  const reason = checked.ok ? 'Local Browser only opens localhost and 127.0.0.1.' : checked.reason;
   return `Blocked ${hostLabel(url)}. ${reason}`;
 }
 

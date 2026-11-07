@@ -10,6 +10,7 @@ import {
   formatDevice,
   formatDuration,
   hostOnly,
+  unreachableMessage,
   isBlankUrl,
   isErrorPageUrl,
   clampSplitRatio,
@@ -85,6 +86,17 @@ describe('url helpers', () => {
     expect(hostOnly('http://localhost:5173/a')).toBe('localhost:5173');
     expect(urlPath('http://localhost:5173/a/b?x=1#h')).toBe('/a/b?x=1');
     expect(urlPath('data:' + 'x'.repeat(200))).toHaveLength(83);
+  });
+
+  it('words the unreachable overlay by the TLS probe', () => {
+    expect(unreachableMessage('http://localhost:5173/', null).heading).toBe('Nothing is listening on localhost:5173');
+    expect(unreachableMessage('https://localhost:7001/', 'refused').heading).toBe('Nothing is listening on localhost:7001');
+    expect(unreachableMessage('https://localhost:7001/', 'other').command).toBeUndefined();
+    const cert = unreachableMessage('https://localhost:7001/', 'untrusted');
+    expect(cert.heading).toContain('not trusted');
+    expect(cert.command).toBe('dotnet dev-certs https --trust');
+    expect(unreachableMessage('https://localhost:7080/', 'notTls').hint).toContain('http://localhost:7080');
+    expect(unreachableMessage(null, null).heading).toBe('Nothing is listening on that address');
   });
 
   it('words blocked notices', () => {

@@ -298,8 +298,8 @@ is shorter. It applies on save and is also in the Ship section of the Settings t
 ## Local Browser
 
 `localBrowser.bookmarks` (default `[]`) lists the pages saved in the Local Browser pane, in order.
-Each entry is `{ "name": "...", "url": "..." }`. A URL must be plain `http` on `localhost` or
-`127.0.0.1`, with an optional port and path. An entry with an empty or missing name or
+Each entry is `{ "name": "...", "url": "..." }`. A URL must be `http` or `https` on `localhost`
+or `127.0.0.1`, with an optional port and path. An entry with an empty or missing name or
 URL, or a URL outside that rule, is dropped with a notice naming its position, and the other
 entries still apply. The list has no field in the Settings tab; edit the file.
 

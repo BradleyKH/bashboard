@@ -79,9 +79,15 @@ describe('openLink', () => {
     it('keeps non-loopback links on the system browser', () => {
       const onOpenLocal = vi.fn();
       openLink(click({ ctrlKey: true }), 'https://example.com', { onOpenLocal });
-      openLink(click({ ctrlKey: true }), 'https://localhost:3000', { onOpenLocal });
+      openLink(click({ ctrlKey: true }), 'http://app.localhost:3000', { onOpenLocal });
       expect(onOpenLocal).not.toHaveBeenCalled();
       expect(invoke).toHaveBeenCalledTimes(2);
+    });
+
+    it('routes https loopback links to Local Browser', () => {
+      const onOpenLocal = vi.fn();
+      openLink(click({ ctrlKey: true }), 'https://localhost:7001/', { onOpenLocal });
+      expect(onOpenLocal).toHaveBeenCalledWith('https://localhost:7001/');
     });
 
     it('falls back to the system browser without a handler', () => {

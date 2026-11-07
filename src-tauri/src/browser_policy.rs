@@ -6,11 +6,11 @@ use tauri::Url;
 /// What a Local Browser frame may do with a URL.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UrlClass {
-    /// Loopback http that is not the app itself: load it in the frame.
+    /// Loopback http or https that is not the app itself: load it in the frame.
     Allowed,
     /// Non-loopback http(s): never framed, but fine to hand to the system browser.
     External,
-    /// Anything else (other schemes, https loopback, `*.localhost`, the app's own origin).
+    /// Anything else (other schemes, `*.localhost`, the app's own origin).
     Refused,
 }
 
@@ -28,11 +28,12 @@ fn has_userinfo(u: &Url) -> bool {
     !u.username().is_empty() || u.password().is_some()
 }
 
-/// True for `http://localhost` or `http://127.0.0.1` on any port, without userinfo. https is
-/// excluded because the app's `frame-src` lists only http loopback, and WebView2 does not accept
-/// an IPv6 host there, so `[::1]` is excluded too.
+/// True for http or https on `localhost` or `127.0.0.1`, any port, without userinfo. These
+/// match the app's `frame-src`; WebView2 does not accept an IPv6 host there, so `[::1]` is out.
 pub fn is_loopback_url(url: &str) -> bool {
-    parse(url).is_some_and(|u| u.scheme() == "http" && !has_userinfo(&u) && loopback_host(&u))
+    parse(url).is_some_and(|u| {
+        matches!(u.scheme(), "http" | "https") && !has_userinfo(&u) && loopback_host(&u)
+    })
 }
 
 /// True when `url` reaches the app's own dev server. Every loopback host on the app's port
@@ -157,6 +158,8 @@ mod tests {
             "http://localhost/",
             "http://127.0.0.1:8080/x?y#z",
             "http://LOCALHOST:3000",
+            "https://localhost:7001/",
+            "https://127.0.0.1:5001/x",
         ] {
             assert!(is_loopback_url(u), "{u}");
             assert_eq!(classify(u, Some(APP)), UrlClass::Allowed, "{u}");
@@ -166,11 +169,13 @@ mod tests {
     #[test]
     fn not_loopback() {
         for u in [
-            "https://localhost:5173/",
             "http://user@localhost:5173/",
+            "https://user@localhost:7001/",
             "http://a:b@127.0.0.1/",
             "http://foo.localhost:5173/",
+            "https://foo.localhost:5173/",
             "http://tauri.localhost/",
+            "https://tauri.localhost/",
             "http://localhost.evil.com/",
             "http://127.0.0.2/",
             "http://[::1]:3000/",
@@ -190,7 +195,8 @@ mod tests {
             classify("http://foo.localhost:3000/", None),
             UrlClass::Refused
         );
-        assert_eq!(classify("https://localhost:3000/", None), UrlClass::Refused);
+        assert_eq!(classify("https://localhost:3000/", None), UrlClass::Allowed);
+        assert_eq!(classify("https://tauri.localhost/", None), UrlClass::Refused);
         assert_eq!(classify("http://127.0.0.2/", None), UrlClass::Refused);
         assert_eq!(classify("http://0.0.0.0:3000/", None), UrlClass::Refused);
         assert_eq!(classify("http://[::1]:3000/", None), UrlClass::Refused);
@@ -209,7 +215,11 @@ mod tests {
 
     #[test]
     fn app_origin_refused_on_every_loopback_host() {
-        for u in ["http://localhost:1420/", "http://127.0.0.1:1420/x"] {
+        for u in [
+            "http://localhost:1420/",
+            "http://127.0.0.1:1420/x",
+            "https://localhost:1420/",
+        ] {
             assert!(is_app_origin(u, APP), "{u}");
             assert_eq!(classify(u, Some(APP)), UrlClass::Refused, "{u}");
         }

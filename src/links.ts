@@ -22,7 +22,7 @@ export interface OpenLinkOptions {
 
 /**
  * Opens a link. Ctrl+click is required so that a plain click on terminal
- * output keeps selecting text instead of navigating away. A loopback http link
+ * output keeps selecting text instead of navigating away. A loopback link
  * goes to the Local Browser (when the pane supplies one); Ctrl+Shift+click
  * sends it to the system browser instead, like any other link.
  */

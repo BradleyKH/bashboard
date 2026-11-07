@@ -5,7 +5,7 @@ import { canStop, localUrl, processLabel } from './portsModel';
 
 export interface PortMenuHandlers {
   onOpenUrl: (url: string) => void;
-  /** Opens a loopback http URL in a Local Browser pane; omitted where none can open. */
+  /** Opens a loopback URL in a Local Browser pane; omitted where none can open. */
   onOpenLocal?: (url: string) => void;
   onCopy: (text: string, what: string) => void;
   /** Focuses the pane that started it; omitted when none did. */

@@ -243,7 +243,7 @@ fn no_args(command: &str, args: &[String]) -> Result<(), String> {
 }
 
 const BROWSE_USAGE: &str = "usage: bb browse [<url>]";
-const LOOPBACK_ONLY: &str = "Local Browser opens only localhost and 127.0.0.1 over http.";
+const LOOPBACK_ONLY: &str = "Local Browser opens only localhost and 127.0.0.1.";
 
 /// Mirrors `normalizeInput` in `localBrowserModel.ts`: `5173` and `:5173` mean
 /// `http://localhost:5173/`, and a missing scheme means http.
@@ -278,9 +278,6 @@ fn normalize_browse_url(text: &str) -> Result<String, String> {
     };
     let parsed = tauri::Url::parse(&candidate)
         .map_err(|_| format!("{text:?} is not a valid address. {LOOPBACK_ONLY}"))?;
-    if parsed.scheme() == "https" {
-        return Err(format!("https is not supported. {LOOPBACK_ONLY}"));
-    }
     if !crate::browser_policy::is_loopback_url(parsed.as_str()) {
         return Err(LOOPBACK_ONLY.into());
     }
@@ -697,6 +694,7 @@ mod tests {
         assert_eq!(url("localhost:3000/app?x=1"), "http://localhost:3000/app?x=1");
         assert_eq!(url("127.0.0.1:8080"), "http://127.0.0.1:8080/");
         assert_eq!(url("LOCALHOST"), "http://localhost/");
+        assert_eq!(url("https://localhost:7001/x"), "https://localhost:7001/x");
         assert_eq!(
             run("browse", &[], &dir).unwrap().action,
             CliAction::Browse { url: None }
@@ -712,7 +710,7 @@ mod tests {
         for arg in [
             "example.com",
             "http://example.com",
-            "https://localhost:3000",
+            "https://a.localhost:3000",
             "ftp://localhost",
             "0",
             "70000",

@@ -1,6 +1,6 @@
 // URL entry, suggestions, bookmarks, and recent URLs for the Local Browser pane (docs/design/browser.md
-// section 4.21). Pure, no DOM. The loopback rule matches the Rust browser policy: http only, hosts
-// `localhost` and `127.0.0.1`, any port, no credentials.
+// section 4.21). Pure, no DOM. The loopback rule matches the Rust browser policy: http or https,
+// hosts `localhost` and `127.0.0.1`, any port, no credentials.
 import type { Listener } from './ports';
 import { localUrl, processLabel } from './portsModel';
 
@@ -12,15 +12,15 @@ export interface Bookmark {
 export type NormalizeResult = { ok: true; url: string } | { ok: false; reason: string };
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
-const LOOPBACK_ONLY = 'Local Browser only opens localhost and 127.0.0.1 over http.';
+const LOOPBACK_ONLY = 'Local Browser only opens localhost and 127.0.0.1.';
 
 function effectivePort(u: URL): string {
   return u.port || (u.protocol === 'https:' ? '443' : '80');
 }
 
 /**
- * Whether `url` is the app's own dev server. Every loopback host reaches the same server, so the
- * app's port on any of them counts, not just the exact origin.
+ * Whether `url` is the app's own dev server. Every loopback host and scheme reaches the same
+ * server, so the app's port on any of them counts, not just the exact origin.
  */
 export function isAppOrigin(url: string, appOrigin: string | null): boolean {
   if (appOrigin === null) return false;
@@ -33,10 +33,10 @@ export function isAppOrigin(url: string, appOrigin: string | null): boolean {
     return false;
   }
   if (!LOOPBACK_HOSTS.has(app.hostname)) return u.origin === app.origin;
-  return u.protocol === app.protocol && LOOPBACK_HOSTS.has(u.hostname) && effectivePort(u) === effectivePort(app);
+  return LOOPBACK_HOSTS.has(u.hostname) && effectivePort(u) === effectivePort(app);
 }
 
-/** Whether `url` is an http URL on a loopback host with no credentials. */
+/** Whether `url` is an http or https URL on a loopback host with no credentials. */
 export function isLoopbackUrl(url: string): boolean {
   let u: URL;
   try {
@@ -44,7 +44,7 @@ export function isLoopbackUrl(url: string): boolean {
   } catch {
     return false;
   }
-  return u.protocol === 'http:' && LOOPBACK_HOSTS.has(u.hostname) && u.username === '' && u.password === '';
+  return (u.protocol === 'http:' || u.protocol === 'https:') && LOOPBACK_HOSTS.has(u.hostname) && u.username === '' && u.password === '';
 }
 
 /**
@@ -72,8 +72,7 @@ export function normalizeInput(text: string, appOrigin: string | null): Normaliz
   } catch {
     return { ok: false, reason: `"${t}" is not a valid address. ${LOOPBACK_ONLY}` };
   }
-  if (u.protocol === 'https:') return { ok: false, reason: `https is not supported. ${LOOPBACK_ONLY}` };
-  if (u.protocol !== 'http:') return { ok: false, reason: LOOPBACK_ONLY };
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return { ok: false, reason: LOOPBACK_ONLY };
   if (u.username !== '' || u.password !== '') return { ok: false, reason: 'Addresses with a username or password are not allowed.' };
   if (!LOOPBACK_HOSTS.has(u.hostname)) return { ok: false, reason: LOOPBACK_ONLY };
   if (isAppOrigin(u.href, appOrigin)) {

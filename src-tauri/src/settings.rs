@@ -609,25 +609,6 @@ fn parse_pinned_repos(root: &Value, warnings: &mut Vec<String>) -> Vec<PinnedRep
     pins
 }
 
-/// Plain http to a loopback host, the only pages the Local Browser pane loads. Userinfo is
-/// rejected because `http://localhost@evil.test/` names the host after the `@`.
-fn is_loopback_http_url(url: &str) -> bool {
-    let Some(rest) = url.strip_prefix("http://") else {
-        return false;
-    };
-    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
-    let host = match authority.split_once(':') {
-        Some((host, port)) if is_port(port) => host,
-        Some(_) => return false,
-        None => authority,
-    };
-    matches!(host.to_ascii_lowercase().as_str(), "localhost" | "127.0.0.1")
-}
-
-fn is_port(p: &str) -> bool {
-    !p.is_empty() && p.len() <= 5 && p.bytes().all(|b| b.is_ascii_digit())
-}
-
 /// Each bad entry is dropped with a warning naming its index and the rest kept.
 fn parse_bookmarks(root: &Value, warnings: &mut Vec<String>) -> Vec<Bookmark> {
     let Some(v) = get(root, &["localBrowser", "bookmarks"]) else {
@@ -643,8 +624,8 @@ fn parse_bookmarks(root: &Value, warnings: &mut Vec<String>) -> Vec<Bookmark> {
         let name = item.get("name").and_then(nonempty);
         let url = item.get("url").and_then(nonempty);
         match (name, url) {
-            (Some(name), Some(url)) if is_loopback_http_url(&url) => out.push(Bookmark { name, url }),
-            (Some(_), Some(_)) => warnings.push(format!("localBrowser.bookmarks[{i}]: not a loopback http URL, dropped")),
+            (Some(name), Some(url)) if crate::browser_policy::is_loopback_url(&url) => out.push(Bookmark { name, url }),
+            (Some(_), Some(_)) => warnings.push(format!("localBrowser.bookmarks[{i}]: not a loopback http(s) URL, dropped")),
             _ => warnings.push(format!("localBrowser.bookmarks[{i}]: invalid entry, dropped")),
         }
     }
@@ -1110,7 +1091,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             &root,
             &["localBrowser", "homeUrl"],
             &mut w,
-            |v| v.as_str().filter(|s| s.is_empty() || is_loopback_http_url(s)).map(String::from),
+            |v| v.as_str().filter(|s| s.is_empty() || crate::browser_policy::is_loopback_url(s)).map(String::from),
             d.local_browser.home_url.clone(),
         ),
     };
@@ -1828,7 +1809,7 @@ mod tests {
                 { "name": "ok", "url": "http://localhost:1" },
                 { "name": "", "url": "http://localhost:2" },
                 { "name": "no url" },
-                { "name": "https", "url": "https://localhost:3" },
+                { "name": "subdomain", "url": "https://a.localhost:3" },
                 { "name": "remote", "url": "http://example.com/" },
                 { "name": "userinfo", "url": "http://localhost@evil.test/" },
                 { "name": "port", "url": "http://localhost:abc/" },
@@ -1840,6 +1821,8 @@ mod tests {
         for i in 1..=7 {
             assert!(w.iter().any(|m| m.starts_with(&format!("localBrowser.bookmarks[{i}]"))), "{i}: {w:?}");
         }
+        let (s, w) = parse_settings(r#"{ "localBrowser": { "bookmarks": [{ "name": "api", "url": "https://localhost:7001/" }] } }"#);
+        assert_eq!(s.local_browser.bookmarks.len(), 1, "{w:?}");
     }
 
     #[test]
@@ -1855,6 +1838,10 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "localBrowser": { "homeUrl": "http://example.com" } }"#);
         assert!(s.local_browser.home_url.is_empty());
         assert!(w.iter().any(|m| m.starts_with("localBrowser.homeUrl")), "{w:?}");
+        let (s, _) = parse_settings(r#"{ "localBrowser": { "homeUrl": "https://localhost:7001/app" } }"#);
+        assert_eq!(s.local_browser.home_url, "https://localhost:7001/app");
+        let (s, _) = parse_settings(r#"{ "localBrowser": { "homeUrl": "http://localhost@evil.test/" } }"#);
+        assert!(s.local_browser.home_url.is_empty());
     }
 
     #[test]
