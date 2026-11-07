@@ -20,6 +20,7 @@ import type { BrowserEvent } from './devtoolsModel';
 import { fitScale } from './devicePresets';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
+import { KEEP_ALIVE_ATTR } from './layoutView';
 import { hostLabel, isBookmarked, normalizeInput, RecentUrls, toggleBookmark, type Bookmark } from './localBrowserModel';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
@@ -47,8 +48,8 @@ export interface LocalBrowserSavedState {
 export interface LocalBrowserPaneOptions {
   host: HTMLElement;
   paneId: string;
-  /** The page to open, or null for the start page. */
-  url: string | null;
+  /** The page to open, null for the start page, or undefined for `localBrowser.homeUrl`. */
+  url?: string | null;
   devtools?: Partial<DevtoolsState>;
   device?: string;
   settings: Settings;
@@ -120,6 +121,9 @@ export class LocalBrowserPane implements PaneView {
 
     this.host.style.display = 'flex';
     this.host.style.flexDirection = 'column';
+    // Off screen the host waits in a hidden park instead of leaving the document, which would
+    // reload the page from the frame's original src and lose its state.
+    this.host.setAttribute(KEEP_ALIVE_ATTR, '');
     this.body = document.createElement('div');
     this.body.className = 'pane-body lb-body';
     this.body.tabIndex = -1;
@@ -201,7 +205,7 @@ export class LocalBrowserPane implements PaneView {
     this.setExpanded(opts.expanded);
     this.layoutDevice();
     this.showPage(null);
-    const initial = opts.url ?? (opts.settings.localBrowser.homeUrl || null);
+    const initial = opts.url === undefined ? opts.settings.localBrowser.homeUrl || null : opts.url;
     if (initial !== null) this.navigate(initial);
   }
 
@@ -299,7 +303,7 @@ export class LocalBrowserPane implements PaneView {
     switch (ev.kind) {
       case 'navigated':
         if (isErrorPageUrl(ev.url)) {
-          if (!this.recentlyBlocked()) this.showUnreachable(this.requested ?? this.url);
+          if (!this.recentlyBlocked()) this.showUnreachable(ev.unreachableUrl ?? this.requested ?? this.url);
           return;
         }
         this.errorPage.hidden = true;
@@ -374,7 +378,13 @@ export class LocalBrowserPane implements PaneView {
     this.updateStartTimer();
   }
 
+  /** The overlay for a document that failed to load; the address field and title follow `url`. */
   private showUnreachable(url: string | null): void {
+    if (url) {
+      this.pageTitle = '';
+      this.showPage(url);
+      this.opts.onStateChange();
+    }
     const where = url ? hostOnly(url) : 'that address';
     const heading = document.createElement('h3');
     heading.textContent = `Nothing is listening on ${where}`;

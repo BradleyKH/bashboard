@@ -6,7 +6,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 
@@ -29,6 +29,9 @@ pub enum BrowserEvent {
         url: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         title: Option<String>,
+        /// On an error page, the address that failed to load.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        unreachable_url: Option<String>,
     },
     NavigatedInPage {
         url: String,
@@ -64,6 +67,7 @@ pub enum BrowserEvent {
         url: String,
         method: String,
         resource_type: String,
+        headers: Value,
         timestamp: f64,
     },
     Response {
@@ -110,6 +114,32 @@ struct Binding {
     blocked: Option<String>,
     /// The frame is on the error page a blocked navigation left and is going back.
     restoring: bool,
+    /// The frame shows a `chrome-error://` page, whose title is not the page's.
+    error_page: bool,
+    /// A frame inside the framed page, attached only so its documents are policed; it sends the
+    /// pane no events.
+    nested: bool,
+    /// The frame has shown a page, so an error page can be undone by going back to it.
+    has_page: bool,
+    /// Back or Forward was asked for and has not committed yet.
+    traversing: bool,
+}
+
+impl Binding {
+    fn new(pane_id: String, frame_id: String, nested: bool) -> Self {
+        Self {
+            pane_id,
+            frame_id,
+            clock_offset_ms: None,
+            restore_cache: false,
+            blocked: None,
+            restoring: false,
+            error_page: false,
+            nested,
+            has_page: false,
+            traversing: false,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -117,13 +147,16 @@ struct Registry {
     sessions: HashMap<String, Binding>,
     channels: HashMap<String, Channel<BrowserEvent>>,
     focused: Option<String>,
+    /// The chords of the keybindings the front end accepts, in `normalize_chord` form; None
+    /// until it reports them.
+    chords: Option<HashSet<String>>,
 }
 
 impl Registry {
     fn session_for_pane(&self, pane_id: &str) -> Option<String> {
         self.sessions
             .iter()
-            .find(|(_, b)| b.pane_id == pane_id)
+            .find(|(_, b)| b.pane_id == pane_id && !b.nested)
             .map(|(s, _)| s.clone())
     }
 
@@ -159,6 +192,14 @@ impl BrowserState {
     pub fn focused_pane_attached(&self) -> Option<String> {
         let reg = self.lock();
         reg.focused.clone().filter(|p| reg.channels.contains_key(p))
+    }
+
+    /// Whether the front end accepts a binding on `chord`; true until it has said.
+    pub fn accepts_chord(&self, chord: &str) -> bool {
+        self.lock()
+            .chords
+            .as_ref()
+            .is_none_or(|c| c.contains(chord))
     }
 
     fn emit(&self, pane_id: &str, event: BrowserEvent) {
@@ -248,19 +289,26 @@ enum Police {
         url: String,
         external: bool,
     },
-    /// The frame committed the error page of a blocked navigation; send it back.
-    Restore,
+    /// The frame committed the error page of a navigation policy refuses. `report` is the
+    /// `Blocked` event to send, if it has not been sent; `back` returns the frame to its page.
+    Restore {
+        report: Option<BrowserEvent>,
+        back: bool,
+    },
 }
 
 /// The app's CSP `frame-src` rejects a non-loopback navigation before any request exists, so
 /// Fetch never sees it and the frame commits an error page. `frameRequestedNavigation` comes
-/// first, which is where such a navigation is reported; the error page it leaves is then undone.
+/// first, which is where a link or script navigation is reported. A server redirect, or Forward
+/// onto an entry such a navigation left, is known only by the error page it commits, whose
+/// `unreachableUrl` names the refused address. Either way the error page is undone by going back.
 fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&str>) -> Police {
     let root = |frame_id: &Value| frame_id.as_str() == Some(binding.frame_id.as_str());
     match method {
         "Page.frameRequestedNavigation"
             if root(&p["frameId"]) && p["disposition"].as_str() == Some("currentTab") =>
         {
+            binding.traversing = false;
             let url = str_of(&p["url"]);
             match browser_policy::classify(&url, app_origin) {
                 UrlClass::Allowed => {
@@ -277,12 +325,35 @@ fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&st
             }
         }
         "Page.frameNavigated" if root(&p["frame"]["id"]) => {
-            let error_page = p["frame"]["url"]
-                .as_str()
-                .is_some_and(|u| u.starts_with("chrome-error:"));
-            if error_page && binding.blocked.take().is_some() {
-                binding.restoring = true;
-                return Police::Restore;
+            let url = str_of(&p["frame"]["url"]);
+            let traversing = std::mem::take(&mut binding.traversing);
+            if url.starts_with("chrome-error:") {
+                if binding.blocked.take().is_some() {
+                    binding.restoring = true;
+                    return Police::Restore {
+                        report: None,
+                        back: true,
+                    };
+                }
+                if let Some(failed) = opt_str(&p["frame"]["unreachableUrl"]) {
+                    let class = browser_policy::classify(&failed, app_origin);
+                    if class != UrlClass::Allowed {
+                        binding.restoring = true;
+                        // Forward onto a blocked entry was reported when it was first blocked;
+                        // only say why nothing happened, without opening it again.
+                        let report = BrowserEvent::Blocked {
+                            url: failed,
+                            external: class == UrlClass::External && !traversing,
+                        };
+                        // Back from a frame's first entry would leave the frame's own history.
+                        return Police::Restore {
+                            report: Some(report),
+                            back: binding.has_page,
+                        };
+                    }
+                }
+            } else if url != "about:blank" {
+                binding.has_page = true;
             }
             binding.blocked = None;
             binding.restoring = false;
@@ -292,15 +363,30 @@ fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&st
     }
 }
 
+fn headers_object(v: &Value) -> Value {
+    if v.is_object() {
+        v.clone()
+    } else {
+        Value::Object(Default::default())
+    }
+}
+
 /// Translates one child-session CDP event into the events the pane sees. Page events count only
 /// for the session's root frame, not frames nested inside the framed page.
 fn translate(method: &str, p: &Value, binding: &mut Binding) -> Vec<BrowserEvent> {
+    // The error page a blocked navigation left loads its own images; they are not the page's.
+    if binding.restoring && method.starts_with("Network.") {
+        return Vec::new();
+    }
     let root = |frame_id: &Value| frame_id.as_str() == Some(binding.frame_id.as_str());
     match method {
         "Page.frameNavigated" if root(&p["frame"]["id"]) => {
+            let url = str_of(&p["frame"]["url"]);
+            binding.error_page = url.starts_with("chrome-error:");
             vec![BrowserEvent::Navigated {
-                url: str_of(&p["frame"]["url"]),
+                url,
                 title: None,
+                unreachable_url: opt_str(&p["frame"]["unreachableUrl"]),
             }]
         }
         "Page.navigatedWithinDocument" if root(&p["frameId"]) => {
@@ -350,6 +436,7 @@ fn translate(method: &str, p: &Value, binding: &mut Binding) -> Vec<BrowserEvent
                 url: str_of(&p["request"]["url"]),
                 method: str_of(&p["request"]["method"]),
                 resource_type: p["type"].as_str().unwrap_or("Other").to_string(),
+                headers: headers_object(&p["request"]["headers"]),
                 timestamp: network_ms(binding, &p["timestamp"]),
             }]
         }
@@ -360,11 +447,7 @@ fn translate(method: &str, p: &Value, binding: &mut Binding) -> Vec<BrowserEvent
                 status: r["status"].as_f64().unwrap_or(0.0) as u64,
                 status_text: str_of(&r["statusText"]),
                 mime_type: str_of(&r["mimeType"]),
-                headers: if r["headers"].is_object() {
-                    r["headers"].clone()
-                } else {
-                    Value::Object(Default::default())
-                },
+                headers: headers_object(&r["headers"]),
                 timestamp: network_ms(binding, &p["timestamp"]),
             }]
         }
@@ -380,6 +463,67 @@ fn translate(method: &str, p: &Value, binding: &mut Binding) -> Vec<BrowserEvent
             timestamp: network_ms(binding, &p["timestamp"]),
         }],
         _ => Vec::new(),
+    }
+}
+
+/// The Network row for a frame's document as the main session's Fetch sees it. A frame's first
+/// document loads before the frame's own session attaches, so its Network events never arrive.
+/// Fetch's `networkId` is the Network request id, so the frame's session, when it does report
+/// the request, updates this row rather than adding another.
+fn fetched_document(p: &Value) -> Vec<BrowserEvent> {
+    let Some(request_id) = opt_str(&p["networkId"]) else {
+        return Vec::new();
+    };
+    if !p["responseErrorReason"].is_null() {
+        return vec![BrowserEvent::Failed {
+            request_id,
+            error_text: str_of(&p["responseErrorReason"]),
+            canceled: false,
+            timestamp: now_ms(),
+        }];
+    }
+    let Some(status) = p["responseStatusCode"].as_u64() else {
+        return vec![BrowserEvent::Request {
+            request_id,
+            url: str_of(&p["request"]["url"]),
+            method: str_of(&p["request"]["method"]),
+            resource_type: "Document".into(),
+            headers: headers_object(&p["request"]["headers"]),
+            timestamp: now_ms(),
+        }];
+    };
+    let mut headers = serde_json::Map::new();
+    for h in p["responseHeaders"].as_array().into_iter().flatten() {
+        headers.insert(str_of(&h["name"]), h["value"].clone());
+    }
+    let mime_type = headers
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case("content-type"))
+        .and_then(|(_, v)| v.as_str())
+        .map(|v| v.split(';').next().unwrap_or_default().trim().to_string())
+        .unwrap_or_default();
+    vec![BrowserEvent::Response {
+        request_id,
+        status,
+        status_text: str_of(&p["responseStatusText"]),
+        mime_type,
+        headers: Value::Object(headers),
+        timestamp: now_ms(),
+    }]
+}
+
+/// The Console line for a frame inside the framed page that policy kept from loading; unlike the
+/// pane's own frame, it opens nothing in the system browser.
+fn nested_blocked(url: &str) -> BrowserEvent {
+    BrowserEvent::Console {
+        level: "warn".into(),
+        text: format!(
+            "Blocked a frame from loading {url}: Local Browser loads only localhost and 127.0.0.1 over http."
+        ),
+        source: Some("local-browser".into()),
+        url: None,
+        line: None,
+        timestamp: now_ms(),
     }
 }
 
@@ -555,7 +699,7 @@ mod win {
         subscribe(
             core,
             "Target.attachedToTarget",
-            Rc::new(move |core, _, p| on_attached(core, &c, &p)),
+            Rc::new(move |core, parent, p| on_attached(core, &c, &parent, &p)),
         );
         let c = ctx.clone();
         subscribe(
@@ -617,13 +761,18 @@ mod win {
                     "Fetch.enable",
                     serde_json::from_str(FETCH_PATTERNS).unwrap(),
                 );
-                call(
-                    &core2,
-                    MAIN,
-                    "Target.setAutoAttach",
-                    serde_json::json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
-                );
+                auto_attach(&core2, MAIN);
             }),
+        );
+    }
+
+    /// Each out-of-process frame attaches as its own session, paused until it is set up.
+    fn auto_attach(core: &ICoreWebView2, session: &str) {
+        call(
+            core,
+            session,
+            "Target.setAutoAttach",
+            serde_json::json!({ "autoAttach": true, "waitForDebuggerOnStart": true, "flatten": true }),
         );
     }
 
@@ -662,11 +811,34 @@ mod win {
     }
 
     /// Every auto-attached target starts paused, so each one is resumed whatever happens; only
-    /// iframes owned by a Local Browser pane get domains enabled first.
-    fn on_attached(core: &ICoreWebView2, ctx: &Rc<Ctx>, p: &Value) {
+    /// iframes owned by a Local Browser pane get domains enabled first. A frame attached through a
+    /// pane's session sits inside the framed page and is bound to that pane for policing only.
+    fn on_attached(core: &ICoreWebView2, ctx: &Rc<Ctx>, parent: &str, p: &Value) {
         let session = str_of(&p["sessionId"]);
         let target = str_of(&p["targetInfo"]["targetId"]);
         if p["targetInfo"]["type"].as_str() != Some("iframe") {
+            return run(core, &session);
+        }
+        if !parent.is_empty() {
+            let pane = ctx
+                .state
+                .lock()
+                .sessions
+                .get(parent)
+                .map(|b| b.pane_id.clone());
+            if let Some(pane_id) = pane {
+                ctx.state
+                    .lock()
+                    .sessions
+                    .insert(session.clone(), Binding::new(pane_id, target, true));
+                call(
+                    core,
+                    &session,
+                    "Fetch.enable",
+                    serde_json::from_str(FETCH_PATTERNS).unwrap(),
+                );
+                auto_attach(core, &session);
+            }
             return run(core, &session);
         }
         let core2 = core.clone();
@@ -677,17 +849,10 @@ mod win {
             &lookup,
             Box::new(move |pane| {
                 if let Some(pane_id) = pane {
-                    ctx.state.lock().sessions.insert(
-                        session.clone(),
-                        Binding {
-                            pane_id,
-                            frame_id: target,
-                            clock_offset_ms: None,
-                            restore_cache: false,
-                            blocked: None,
-                            restoring: false,
-                        },
-                    );
+                    ctx.state
+                        .lock()
+                        .sessions
+                        .insert(session.clone(), Binding::new(pane_id, target, false));
                     let empty = || Value::Object(Default::default());
                     call(&core2, &session, "Runtime.enable", empty());
                     call(&core2, &session, "Network.enable", empty());
@@ -698,6 +863,7 @@ mod win {
                         "Fetch.enable",
                         serde_json::from_str(FETCH_PATTERNS).unwrap(),
                     );
+                    auto_attach(&core2, &session);
                 }
                 run(&core2, &session);
             }),
@@ -731,17 +897,22 @@ mod win {
             frame_pane(
                 core,
                 &frame_id,
-                Box::new(move |pane| handle_paused(&core2, &ctx, &session, &p, pane)),
+                Box::new(move |pane| handle_paused(&core2, &ctx, &session, &p, pane, false)),
             );
         } else {
+            // A document for any other frame in a pane's session is a frame inside the page.
             let pane = ctx
                 .state
                 .lock()
                 .sessions
                 .get(&session)
-                .filter(|b| b.frame_id == frame_id)
-                .map(|b| b.pane_id.clone());
-            handle_paused(core, ctx, &session, &p, pane);
+                .map(|b| (b.pane_id.clone(), b.nested || b.frame_id != frame_id));
+            match pane {
+                Some((pane_id, nested)) => {
+                    handle_paused(core, ctx, &session, &p, Some(pane_id), nested)
+                }
+                None => continue_request(core, &session, &p["requestId"]),
+            }
         }
     }
 
@@ -751,6 +922,7 @@ mod win {
         session: &str,
         p: &Value,
         pane: Option<String>,
+        nested: bool,
     ) {
         let id = &p["requestId"];
         let Some(pane_id) = pane else {
@@ -759,8 +931,13 @@ mod win {
         let url = str_of(&p["request"]["url"]);
         let response_stage =
             !p["responseStatusCode"].is_null() || !p["responseErrorReason"].is_null();
+        let class = browser_policy::classify(&url, ctx.app_origin.as_deref());
+        if session.is_empty() && !nested && class == UrlClass::Allowed {
+            for event in fetched_document(p) {
+                ctx.state.emit(&pane_id, event);
+            }
+        }
         if !response_stage {
-            let class = browser_policy::classify(&url, ctx.app_origin.as_deref());
             if class == UrlClass::Allowed {
                 return continue_request(core, session, id);
             }
@@ -772,6 +949,9 @@ mod win {
                 "Fetch.failRequest",
                 serde_json::json!({ "requestId": id, "errorReason": "Aborted" }),
             );
+            if nested {
+                return ctx.state.emit(&pane_id, nested_blocked(&url));
+            }
             if ctx.state.lock().take_blocked(&pane_id, &url) {
                 return;
             }
@@ -854,13 +1034,13 @@ mod win {
         if session.is_empty() {
             return;
         }
-        let (pane_id, events, restore_cache, step, restoring) = {
+        let (pane_id, events, restore_cache, step, quiet_title) = {
             let mut reg = ctx.state.lock();
-            let Some(binding) = reg.sessions.get_mut(session) else {
+            let Some(binding) = reg.sessions.get_mut(session).filter(|b| !b.nested) else {
                 return;
             };
             let step = police(method, p, binding, ctx.app_origin.as_deref());
-            let events = if step == Police::Restore {
+            let events = if matches!(step, Police::Restore { .. }) {
                 Vec::new()
             } else {
                 translate(method, p, binding)
@@ -875,7 +1055,7 @@ mod win {
                 events,
                 restore,
                 step,
-                binding.restoring,
+                binding.restoring || binding.error_page,
             )
         };
         match step {
@@ -883,17 +1063,24 @@ mod win {
             Police::Block { url, external } => ctx
                 .state
                 .emit(&pane_id, BrowserEvent::Blocked { url, external }),
-            // The error page sits in its own history entry; Back returns to the page the frame
-            // showed before the blocked navigation.
-            Police::Restore => call(
-                core,
-                session,
-                "Runtime.evaluate",
-                serde_json::json!({ "expression": "history.back()" }),
-            ),
+            Police::Restore { report, back } => {
+                if let Some(event) = report {
+                    ctx.state.emit(&pane_id, event);
+                }
+                // The error page sits in its own history entry; Back returns to the page the
+                // frame showed before the blocked navigation.
+                if back {
+                    call(
+                        core,
+                        session,
+                        "Runtime.evaluate",
+                        serde_json::json!({ "expression": "history.back()" }),
+                    );
+                }
+            }
         }
-        // The error page's title is the blocked host, which the pane must not adopt.
-        let wants_title = !restoring
+        // An error page's title is the failed host, which the pane must not adopt.
+        let wants_title = !quiet_title
             && events.iter().any(|e| {
                 matches!(
                     e,
@@ -1028,6 +1215,17 @@ pub fn browser_focus(state: tauri::State<'_, BrowserState>, pane_id: Option<Stri
     state.lock().focused = pane_id;
 }
 
+/// The `keys` of every keybinding the front end accepts, so a binding it rejects (an unknown
+/// action, or `moveFocus` without a direction) never takes a key from the page.
+#[tauri::command]
+pub fn browser_chords(state: tauri::State<'_, BrowserState>, keys: Vec<String>) {
+    state.lock().chords = Some(
+        keys.iter()
+            .map(|k| crate::settings::normalize_chord(k))
+            .collect(),
+    );
+}
+
 #[tauri::command]
 pub fn browser_history(
     window: tauri::WebviewWindow,
@@ -1038,6 +1236,9 @@ pub fn browser_history(
     #[cfg(windows)]
     {
         let session = session_for(&state, &pane_id)?;
+        if let Some(b) = state.lock().sessions.get_mut(&session) {
+            b.traversing = true;
+        }
         win::evaluate(&window, session, format!("history.go({delta})"))
     }
     #[cfg(not(windows))]
@@ -1122,14 +1323,7 @@ mod tests {
     use serde_json::json;
 
     fn binding() -> Binding {
-        Binding {
-            pane_id: "p1".into(),
-            frame_id: "F".into(),
-            clock_offset_ms: None,
-            restore_cache: false,
-            blocked: None,
-            restoring: false,
-        }
+        Binding::new("p1".into(), "F".into(), false)
     }
 
     #[test]
@@ -1156,6 +1350,7 @@ mod tests {
         let e = BrowserEvent::Navigated {
             url: "u".into(),
             title: None,
+            unreachable_url: None,
         };
         assert_eq!(
             serde_json::to_value(&e).unwrap(),
@@ -1171,7 +1366,8 @@ mod tests {
             translate("Page.frameNavigated", &nav("F"), &mut b),
             vec![BrowserEvent::Navigated {
                 url: "http://127.0.0.1:5199/p2".into(),
-                title: None
+                title: None,
+                unreachable_url: None,
             }]
         );
         assert!(translate("Page.frameNavigated", &nav("NESTED"), &mut b).is_empty());
@@ -1213,7 +1409,10 @@ mod tests {
         let error = nav("chrome-error://chromewebdata/");
         assert_eq!(
             police("Page.frameNavigated", &error, &mut b, None),
-            Police::Restore
+            Police::Restore {
+                report: None,
+                back: true
+            }
         );
         assert!(b.restoring && b.blocked.is_none());
         let back = nav("http://127.0.0.1:5199/p1");
@@ -1233,6 +1432,55 @@ mod tests {
                 url: "http://tauri.localhost/".into(),
                 external: false
             }
+        );
+    }
+
+    #[test]
+    fn an_error_page_for_a_refused_address_is_reported_and_undone() {
+        let mut b = binding();
+        let nav = |url: &str| json!({ "frame": { "id": "F", "url": url } });
+        let error = |failed: &str| json!({ "frame": { "id": "F", "url": "chrome-error://chromewebdata/", "unreachableUrl": failed } });
+        let fwd = "Page.frameNavigated";
+        // A redirect to an outside address on the frame's first page: reported, but no going back.
+        assert_eq!(
+            police(fwd, &error("https://example.com/"), &mut b, None),
+            Police::Restore {
+                report: Some(BrowserEvent::Blocked {
+                    url: "https://example.com/".into(),
+                    external: true
+                }),
+                back: false
+            }
+        );
+        police(fwd, &nav("http://127.0.0.1:5199/p1"), &mut b, None);
+        assert!(b.has_page && !b.restoring);
+        assert_eq!(
+            police(fwd, &error("http://foo.localhost:5199/"), &mut b, None),
+            Police::Restore {
+                report: Some(BrowserEvent::Blocked {
+                    url: "http://foo.localhost:5199/".into(),
+                    external: false
+                }),
+                back: true
+            }
+        );
+        // Forward onto a blocked entry says so but opens nothing.
+        b.traversing = true;
+        assert_eq!(
+            police(fwd, &error("https://example.com/"), &mut b, None),
+            Police::Restore {
+                report: Some(BrowserEvent::Blocked {
+                    url: "https://example.com/".into(),
+                    external: false
+                }),
+                back: true
+            }
+        );
+        assert!(!b.traversing);
+        // A dead loopback port is not blocked.
+        assert_eq!(
+            police(fwd, &error("http://127.0.0.1:5197/"), &mut b, None),
+            Police::Pass
         );
     }
 
@@ -1288,6 +1536,84 @@ mod tests {
                 timestamp: 1_700_000_000_250.0
             }]
         );
+    }
+
+    #[test]
+    fn error_pages_name_the_failed_address_and_hide_their_requests() {
+        let mut b = binding();
+        let error = json!({ "frame": { "id": "F", "url": "chrome-error://chromewebdata/", "unreachableUrl": "http://localhost:5174/x" } });
+        assert_eq!(
+            translate("Page.frameNavigated", &error, &mut b),
+            vec![BrowserEvent::Navigated {
+                url: "chrome-error://chromewebdata/".into(),
+                title: None,
+                unreachable_url: Some("http://localhost:5174/x".into()),
+            }]
+        );
+        assert!(b.error_page);
+        b.restoring = true;
+        let req = json!({ "requestId": "9", "type": "Image", "request": { "url": "data:image/png;base64,x", "method": "GET" } });
+        assert!(translate("Network.requestWillBeSent", &req, &mut b).is_empty());
+        b.restoring = false;
+        let ok = json!({ "frame": { "id": "F", "url": "http://localhost:5173/" } });
+        translate("Page.frameNavigated", &ok, &mut b);
+        assert!(!b.error_page);
+        assert_eq!(
+            translate("Network.requestWillBeSent", &req, &mut b).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn fetched_documents_become_network_rows() {
+        let req = json!({ "networkId": "N1", "request": { "url": "http://localhost:5173/", "method": "GET", "headers": { "Accept": "text/html" } } });
+        let BrowserEvent::Request {
+            request_id,
+            resource_type,
+            headers,
+            ..
+        } = fetched_document(&req)[0].clone()
+        else {
+            panic!()
+        };
+        assert_eq!(
+            (request_id.as_str(), resource_type.as_str()),
+            ("N1", "Document")
+        );
+        assert_eq!(headers, json!({ "Accept": "text/html" }));
+        let res = json!({ "networkId": "N1", "request": { "url": "http://localhost:5173/" }, "responseStatusCode": 200, "responseStatusText": "OK",
+            "responseHeaders": [{ "name": "Content-Type", "value": "text/html; charset=utf-8" }] });
+        let BrowserEvent::Response {
+            status,
+            mime_type,
+            headers,
+            ..
+        } = fetched_document(&res)[0].clone()
+        else {
+            panic!()
+        };
+        assert_eq!((status, mime_type.as_str()), (200, "text/html"));
+        assert_eq!(
+            headers,
+            json!({ "Content-Type": "text/html; charset=utf-8" })
+        );
+        assert!(fetched_document(&json!({ "request": {} })).is_empty());
+    }
+
+    #[test]
+    fn nested_frames_never_stand_in_for_the_pane() {
+        let mut reg = Registry::default();
+        reg.sessions
+            .insert("N".into(), Binding::new("p1".into(), "NF".into(), true));
+        assert_eq!(reg.session_for_pane("p1"), None);
+        reg.sessions.insert("S".into(), binding());
+        assert_eq!(reg.session_for_pane("p1").as_deref(), Some("S"));
+        let BrowserEvent::Console { level, text, .. } = nested_blocked("https://example.com/")
+        else {
+            panic!()
+        };
+        assert_eq!(level, "warn");
+        assert!(text.contains("https://example.com/"));
     }
 
     #[test]

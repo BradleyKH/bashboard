@@ -28,9 +28,17 @@ loopback documents, and stops navigations that leave loopback.
 `lib.rs`: it enables `DOM` on the main session and calls `Target.setAutoAttach` with
 `autoAttach`, `waitForDebuggerOnStart`, and `flatten`. Each out-of-process iframe then attaches
 as its own session. On attach the core enables `Runtime`, `Network`, `Page`, and `Fetch` on that
-session and releases it with `Runtime.runIfWaitingForDebugger`. The pane's attachment must exist
-before the frame's first document is requested, so `LocalBrowserPane` calls `browser_attach`
+session, turns on the same auto-attach for it (so out-of-process frames nested in the page attach
+through it), and releases it with `Runtime.runIfWaitingForDebugger`. The pane's attachment must
+exist before the frame's first document is requested, so `LocalBrowserPane` calls `browser_attach`
 before it sets the frame's `src`. On non-Windows builds the commands return an error.
+
+**Off-screen panes.** An iframe that leaves the document reloads its original `src` when it
+returns, losing the page's state. The pane marks its host `data-keep-alive`, and `LayoutView`
+(`src/layoutView.ts`) never detaches such a host: when a render leaves it out (another tab, a zoom
+on another pane, the pane collapsed), it moves to a hidden park element under `<body>`, and every
+move in or out uses `moveBefore`, Chromium's state-preserving move. A pane opened off screen is
+placed in the park at once, so its page loads before it is shown.
 
 **Debug builds.** The app itself is served from `localhost:1420`, so a `localhost:*` frame is
 same-site with it and may stay in the app's process; no session attaches and no events arrive,
@@ -43,9 +51,11 @@ Every frame carries `data-browser-pane="<paneId>"`. When a session attaches, the
 main session for the frame's owner (`DOM.getFrameOwner`), describes that node (`DOM.describeNode`),
 and reads the attribute from an `iframe` element. That reads the app's own DOM, which the framed
 page cannot forge (`window.name` could be). A session whose frame has no such owner is left
-unmonitored, and its documents pass through untouched. The registry maps sessions to panes and
-panes to their event channels behind one mutex; a detached or destroyed target removes its entry,
-and `browser_detach` drops the channel.
+unmonitored, and its documents pass through untouched. A frame that attaches through a pane's
+session sits inside the framed page; it is bound to the same pane as a nested session, which is
+policed but sends the pane no events. The registry maps sessions to panes and panes to their event
+channels behind one mutex; a detached or destroyed target removes its entry, and `browser_detach`
+drops the channel.
 
 ### Navigation policy
 
@@ -74,13 +84,29 @@ non-loopback address (a link to example.com, or to `http://tauri.localhost`) bef
 exists, so Fetch never sees it and the frame commits a `chrome-error://` page. The core therefore
 also watches `Page.frameRequestedNavigation` on the pane's frame: a non-allowed URL there sends the
 same `blocked` event, and when the error page commits the core runs `history.back()` in the frame,
-returning it to the page it showed, without reporting the error page's URL or title. A navigation
-reported there is remembered, so when Fetch does see it (debug builds) the pane is not told twice.
-The pane also takes an error page or failed document request that follows a `blocked` event within
-a few seconds as that navigation's, not as an unreachable server.
-A document that fails to load (a `chrome-error://` frame, or a failed document request) shows a
-"nothing is listening" overlay with a Retry button. Nested iframes inside the framed page are not
-policed; only the pane's own frame is.
+returning it to the page it showed, without reporting the error page's URL or title or the
+requests it makes. A navigation reported there is remembered, so when Fetch does see it (debug
+builds) the pane is not told twice.
+
+Two other navigations reach the error page with no `frameRequestedNavigation`: a server redirect to
+a non-allowed address, and Forward onto the entry a blocked navigation left. The core recognizes
+them by the error page's `unreachableUrl`, which policy refuses: it sends `blocked` and goes back.
+After Back or Forward (`browser_history`) the event is never `external`, so a blocked address is
+not opened in the system browser a second time. Back is skipped while the frame has shown no page
+of its own, since going back from its first entry would leave its history; the error page stays,
+with the notice.
+
+The pane takes an error page or failed document request that follows a `blocked` event within a
+few seconds as that navigation's, not as an unreachable server. Any other document that fails to
+load (a `chrome-error://` frame, or a failed document request) shows a "nothing is listening"
+overlay naming the failed address (the error page's `unreachableUrl`), with a Retry button; the
+address field and the pane's title follow that address.
+
+**Nested frames.** A document request for any other frame in a pane's session, or in a nested
+session, is a frame inside the framed page. It follows the same classes, except that a refused one
+is never opened in the system browser: the core fails it with `Aborted` and sends a `console`
+warning naming the address. Loopback documents in nested frames are unframed like the pane's own
+(Header rewriting).
 
 ### Header rewriting
 
@@ -108,13 +134,13 @@ The core sends the pane `BrowserEvent` values (`kind` in camelCase) on a Tauri `
 
 | Event | Fields |
 | --- | --- |
-| `navigated` | `url`, `title?` |
+| `navigated` | `url`, `title?`, `unreachableUrl?` (on an error page, the address that failed) |
 | `navigatedInPage` | `url` (a hash or `history.pushState` change) |
 | `title` | `title` (can arrive twice for one navigation; the pane de-duplicates) |
 | `blocked` | `url`, `external` |
 | `console` | `level`, `text`, `source?`, `url?`, `line?`, `timestamp` |
 | `exception` | `text`, `url?`, `line?`, `timestamp` |
-| `request` | `requestId`, `url`, `method`, `resourceType`, `timestamp` |
+| `request` | `requestId`, `url`, `method`, `resourceType`, `headers`, `timestamp` |
 | `response` | `requestId`, `status`, `statusText`, `mimeType`, `headers`, `timestamp` |
 | `finished` | `requestId`, `encodedLength`, `timestamp` |
 | `failed` | `requestId`, `errorText`, `canceled`, `timestamp` |
@@ -123,10 +149,16 @@ The core sends the pane `BrowserEvent` values (`kind` in camelCase) on a Tauri `
 Every `timestamp` is milliseconds since the Unix epoch. Console and exception text is cut at 10
 KB. Page events count only for the frame's root frame, not frames nested in the page.
 
+A frame's first document loads before its own session attaches, so its `Network` events never
+arrive. The main session's Fetch, which intercepts that document, sends its `request` and
+`response` (or `failed`) instead, keyed by Fetch's `networkId`, which is the Network request id, so
+a later report from the frame's session updates the same row.
+
 The commands are `browser_attach(paneId, onEvent)`, `browser_detach(paneId)`,
 `browser_history(paneId, delta)`, `browser_reload(paneId, ignoreCache)`,
-`browser_response_body(paneId, requestId)` (returning the body and whether it is base64), and
-`browser_focus(paneId | null)`, wrapped by `src/browserApi.ts`. A frame target has no navigation
+`browser_response_body(paneId, requestId)` (returning the body and whether it is base64),
+`browser_focus(paneId | null)`, and `browser_chords(keys)` (see App chords), wrapped by
+`src/browserApi.ts`. A frame target has no navigation
 history to query, so Back, Forward, and Reload run `history.go(delta)` and `location.reload()` in
 the frame's session; a hard reload also turns the cache off for that session.
 
@@ -139,7 +171,9 @@ is empty. The address field accepts a bare port (`5173`), `:port`, `host:port/pa
 loopback URL; a missing host means `localhost`. Anything else shows a message by the field saying
 that only loopback addresses open. Suggestions come from bookmarks, listening ports (the Ports
 pane's list, 4.19), and recently visited addresses (kept for the session, at most 50); arrows move
-through them, Enter opens one, and Escape reverts the field.
+through them, Enter opens one, and Escape reverts the field. When the pane is 600 px wide or less
+(a container query on the pane body), the toolbar wraps: the address field takes a row of its own,
+so it and its suggestions span the pane, and the text buttons shrink before they overflow.
 
 The start page, shown while the pane has no page, lists the listening ports as buttons and the
 bookmarks. The star toggles the current page in `localBrowser.bookmarks` through `settings_set`.
@@ -176,7 +210,11 @@ into the same action `keys.ts` would dispatch. Chords with Ctrl or Alt, and boun
 keys, are forwarded; plain typing and unbound keys stay with the page. The `copy`, `paste`, and
 `sendInput` actions are never forwarded, so Ctrl+C, Ctrl+V, and Shift+Enter keep reaching the
 page. The matcher follows the keyboard layout the way the front end does (digits by position,
-other keys by what the layout types), so Dvorak chords match.
+other keys by what the layout types), so Dvorak chords match. The keymap (`buildKeymap` in
+`src/keymap.ts`) skips an invalid binding, such as an unknown action or `moveFocus` without a
+direction, so each time it is built `LiveSettings` sends the core the `keys` of every binding it
+accepted (`browser_chords`); a chord outside that list stays with the page. Until the first report,
+every binding counts.
 
 The pane reports focus by watching the app window blur while its frame is the active element, and
 reports none when focus returns to the app, the pane collapses, or it is disposed.
@@ -185,8 +223,9 @@ reports none when focus returns to the app, the pane collapses, or it is dispose
 
 The workspace saves `{ kind: "browser", url, devtools, device }` per pane (4.9); each field is
 read leniently, with missing or invalid values falling back to the start page, a closed drawer on
-Console, and Responsive. A page reloads when its tab is hidden and shown again. Bookmarks and the
-home page live in settings (8), not in the workspace.
+Console, and Responsive. A pane saved on its start page (a null `url`) reopens on it; only a pane
+created with no `url` at all opens on `localBrowser.homeUrl`. Bookmarks and the home page live in
+settings (8), not in the workspace.
 
 ### Entry points
 
@@ -201,6 +240,7 @@ other links open the system browser as before (9).
 ### Limits
 
 - Loopback `http` only: no `https`, no remote hosts, no `*.localhost`.
+- Frames nested in the page load only what the pane's own frame may (see Nested frames).
 - No popups: the sandbox is `allow-scripts allow-forms allow-same-origin allow-modals`, with no
   `allow-popups` and no `allow-top-navigation`, and the frame's referrer policy is `no-referrer`.
 - No downloads, extensions, or full DevTools window.

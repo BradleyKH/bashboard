@@ -746,7 +746,8 @@ host means `localhost`. Suggestions list your bookmarks, the ports that are list
 addresses you visited recently; use the arrows and Enter, or Escape to put the page's address back.
 Back, Forward, and Reload sit to its left (Shift+click Reload to bypass the cache), and Home opens
 the `localBrowser.homeUrl` setting, or the start page, a list of listening ports and bookmarks,
-when that is empty. If nothing is listening on the port, the pane says so and offers Retry.
+when that is empty. If nothing is listening on the port, the pane says so and offers Retry. In a
+narrow pane the address field takes a row of its own under the buttons.
 
 **Bookmarks.** The star saves or removes the current page, and **Bookmarks** lists them. They are
 kept in `settings.json` under `localBrowser.bookmarks` (see [Settings](settings.md)).
@@ -762,12 +763,15 @@ indented).
 dimensions, scaled down to fit the pane when it is larger, with **Rotate** to turn it sideways.
 Responsive fills the pane.
 
-A link in the page to another site opens in your system browser and the pane stays where it was.
-Pages that forbid framing (`X-Frame-Options` or `frame-ancestors`) still show, since Bashboard
-lifts that restriction for local pages only. Popups and downloads are not supported. Bashboard's
-own keys keep working while the page has focus, except the terminal's copy and paste, which the
-page keeps. The page, drawer, and device size are restored on relaunch, and a page reloads when
-its tab is hidden and shown again.
+A link in the page to another site opens in your system browser and the pane stays where it was;
+so does a page that redirects to one. Frames inside the page load only local addresses too, and
+the Console notes each one it stopped. Pages that forbid framing (`X-Frame-Options` or
+`frame-ancestors`) still show, since Bashboard lifts that restriction for local pages only. Popups
+and downloads are not supported. Bashboard's own keys keep working while the page has focus,
+except the terminal's copy and paste, which the page keeps. A page keeps its state (what you typed,
+where you scrolled) while its tab is hidden, the pane is collapsed, or another pane is zoomed. The
+page, drawer, and device size are restored on relaunch; a pane closed on its start page reopens on
+it.
 
 ## Codex, Copilot, and local AI models (preview)
 

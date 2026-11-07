@@ -64,8 +64,13 @@ fn named_key(vk: u32) -> Option<&'static str> {
 }
 
 /// The binding an app chord runs while a page has focus. Only keys with Ctrl or Alt, and
-/// function keys, are candidates, so plain typing never pays for a lookup.
-pub(crate) fn binding_for<'a>(k: &KeyPress, bindings: &'a [Keybinding]) -> Option<&'a Keybinding> {
+/// function keys, are candidates, so plain typing never pays for a lookup. `accepts` is the
+/// front end's verdict on a chord: a binding it rejected would take the key and do nothing.
+pub(crate) fn binding_for<'a>(
+    k: &KeyPress,
+    bindings: &'a [Keybinding],
+    accepts: impl Fn(&str) -> bool,
+) -> Option<&'a Keybinding> {
     if !(k.ctrl || k.alt || (VK_F1..=VK_F24).contains(&k.vk)) {
         return None;
     }
@@ -73,7 +78,7 @@ pub(crate) fn binding_for<'a>(k: &KeyPress, bindings: &'a [Keybinding]) -> Optio
     bindings
         .iter()
         .find(|b| normalize_chord(&b.keys) == chord)
-        .filter(|b| !PAGE_KEEPS.contains(&b.action.as_str()))
+        .filter(|b| !PAGE_KEEPS.contains(&b.action.as_str()) && accepts(&chord))
 }
 
 #[cfg(windows)]
@@ -157,7 +162,7 @@ mod win {
                     meta: down(VK_LWIN) || down(VK_RWIN),
                 };
                 let settings = target.state::<SettingsState>().current();
-                if let Some(binding) = binding_for(&press, &settings.keybindings) {
+                if let Some(binding) = binding_for(&press, &settings.keybindings, |c| browser.accepts_chord(c)) {
                     args.SetHandled(true)?;
                     let _ = target.emit(
                         "browser://chord",
@@ -195,7 +200,7 @@ mod tests {
     }
 
     fn action(k: KeyPress) -> Option<String> {
-        binding_for(&k, &default_keybindings()).map(|b| b.action.clone())
+        binding_for(&k, &default_keybindings(), |_| true).map(|b| b.action.clone())
     }
 
     #[test]
@@ -250,13 +255,21 @@ mod tests {
         // Bound without Ctrl or Alt and not a function key: never a candidate.
         let mut b = default_keybindings();
         b.push(Keybinding { keys: "shift+w".into(), action: "newTab".into(), direction: None, input: None, index: None });
-        assert!(binding_for(&KeyPress { shift: true, ..press(0x57, Some('W')) }, &b).is_none());
+        assert!(binding_for(&KeyPress { shift: true, ..press(0x57, Some('W')) }, &b, |_| true).is_none());
     }
 
     #[test]
     fn a_user_binding_can_claim_a_page_key() {
         let mut b = default_keybindings();
         b.push(Keybinding { keys: "Ctrl+A".into(), action: "openPalette".into(), direction: None, input: None, index: None });
-        assert_eq!(binding_for(&ctrl(0x41, Some('a')), &b).map(|k| k.action.as_str()), Some("openPalette"));
+        assert_eq!(binding_for(&ctrl(0x41, Some('a')), &b, |_| true).map(|k| k.action.as_str()), Some("openPalette"));
+    }
+
+    #[test]
+    fn a_binding_the_front_end_rejects_leaves_the_key_to_the_page() {
+        let alt_right = KeyPress { alt: true, ..press(0x27, None) };
+        let b = default_keybindings();
+        assert!(binding_for(&alt_right, &b, |c| c != "alt+right").is_none());
+        assert!(binding_for(&alt_right, &b, |c| c == "alt+right").is_some());
     }
 }

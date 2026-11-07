@@ -1497,6 +1497,8 @@ export class Workspace {
     if (spec.kind === 'terminal') this.getSizer().append(host);
     const pane = this.buildPane(id, host, spec, false, onReady);
     host.remove();
+    // A Local Browser page loads while off screen, so it is ready when shown.
+    this.view.keep(host);
     this.startPane(id, pane);
   }
 
@@ -1875,7 +1877,7 @@ export class Workspace {
     return new LocalBrowserPane({
       host,
       paneId: id,
-      url: spec.url ?? null,
+      url: spec.url,
       devtools: spec.devtools,
       device: spec.device,
       settings: this.paneSettings(),
@@ -2453,7 +2455,7 @@ export class Workspace {
     const hidden = this.zoomHidden.get(tabId);
     if (!tree) {
       this.zoomHidden.delete(tabId);
-      this.root.replaceChildren();
+      this.view.clear();
       return;
     }
     if (zoomed !== null) {

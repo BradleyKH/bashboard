@@ -186,6 +186,7 @@ pub fn run() {
             browser::browser_reload,
             browser::browser_response_body,
             browser::browser_focus,
+            browser::browser_chords,
             clipboard::clipboard_read_text,
             pty::pty_spawn,
             pty::pty_write,

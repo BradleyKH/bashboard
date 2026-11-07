@@ -1,3 +1,4 @@
+import { chords as reportChords } from './browserApi';
 import { buildKeymap, type Keymap } from './keymap';
 import type { Settings, SettingsPayload } from './settings';
 import { showToast } from './toast';
@@ -13,9 +14,11 @@ export class LiveSettings {
   }
 
   update(payload: SettingsPayload): void {
-    const { keymap, warnings } = buildKeymap(payload.settings.keybindings);
+    const { keymap, warnings, keys } = buildKeymap(payload.settings.keybindings);
     this.settings = payload.settings;
     this.keymap = keymap;
+    // A Local Browser page's keys are matched in the core, which must skip bindings rejected here.
+    reportChords(keys).catch(() => {});
     for (const w of [...payload.warnings, ...warnings]) {
       if (this.shownWarnings.has(w)) continue;
       this.shownWarnings.add(w);

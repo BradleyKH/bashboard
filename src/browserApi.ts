@@ -35,3 +35,8 @@ export function responseBody(paneId: string, requestId: string): Promise<Respons
 export function setFocus(paneId: string | null): Promise<void> {
   return invoke('browser_focus', { paneId });
 }
+
+/** The `keys` of every keybinding the keymap accepted; the core claims only these from a page. */
+export function chords(keys: string[]): Promise<void> {
+  return invoke('browser_chords', { keys });
+}

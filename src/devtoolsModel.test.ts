@@ -8,6 +8,7 @@ const req = (requestId: string, over: Partial<Extract<BrowserEvent, { kind: 'req
   url: `http://localhost:5173/${requestId}`,
   method: 'GET',
   resourceType: 'Fetch',
+  headers: { Accept: '*/*' },
   timestamp: 10,
   ...over,
 });
@@ -74,7 +75,7 @@ describe('NetworkLog', () => {
   it('assembles a row across request, response, and finished', () => {
     const log = new NetworkLog();
     log.apply(req('a'));
-    expect(log.get('a')).toMatchObject({ status: null, size: null, duration: null });
+    expect(log.get('a')).toMatchObject({ status: null, size: null, duration: null, requestHeaders: { Accept: '*/*' } });
     log.apply({
       kind: 'response',
       requestId: 'a',

@@ -232,9 +232,11 @@ export function actionFromEntry(entry: KeybindingEntry): Action | null {
   return typeof action === 'string' ? null : action;
 }
 
-export function buildKeymap(entries: KeybindingEntry[]): { keymap: Keymap; warnings: string[] } {
+/** The keymap, a warning per skipped entry, and the `keys` of every entry that made it in. */
+export function buildKeymap(entries: KeybindingEntry[]): { keymap: Keymap; warnings: string[]; keys: string[] } {
   const keymap: Keymap = new Map();
   const warnings: string[] = [];
+  const keys: string[] = [];
   entries.forEach((entry, i) => {
     const chord = parseChord(String(entry?.keys ?? ''));
     if (!chord) {
@@ -247,8 +249,9 @@ export function buildKeymap(entries: KeybindingEntry[]): { keymap: Keymap; warni
       return;
     }
     keymap.set(chordId(chord), action);
+    keys.push(String(entry.keys));
   });
-  return { keymap, warnings };
+  return { keymap, warnings, keys };
 }
 
 export function lookup(keymap: Keymap, e: KeyboardEvent): Action | null {

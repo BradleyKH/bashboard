@@ -200,6 +200,7 @@ export class BrowserNetworkPanel {
     this.detail.replaceChildren(
       close,
       this.section('General', this.pairs(general)),
+      this.section('Request headers', this.pairs(r.requestHeaders ?? {})),
       this.section('Response headers', this.pairs(r.responseHeaders)),
       this.section('Response body', bodyBox),
     );

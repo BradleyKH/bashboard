@@ -2,13 +2,21 @@
 // 4.21). Pure, no DOM. `BrowserEvent` mirrors the Rust bridge's event enum.
 
 export type BrowserEvent =
-  | { kind: 'navigated'; url: string; title?: string }
+  | { kind: 'navigated'; url: string; title?: string; unreachableUrl?: string }
   | { kind: 'navigatedInPage'; url: string }
   | { kind: 'title'; title: string }
   | { kind: 'blocked'; url: string; external: boolean }
   | { kind: 'console'; level: string; text: string; source?: string; url?: string; line?: number; timestamp: number }
   | { kind: 'exception'; text: string; url?: string; line?: number; timestamp: number }
-  | { kind: 'request'; requestId: string; url: string; method: string; resourceType: string; timestamp: number }
+  | {
+      kind: 'request';
+      requestId: string;
+      url: string;
+      method: string;
+      resourceType: string;
+      headers: Record<string, string>;
+      timestamp: number;
+    }
   | {
       kind: 'response';
       requestId: string;
@@ -200,6 +208,7 @@ export class NetworkLog {
           existing.method = ev.method;
           existing.url = ev.url;
           existing.start = ev.timestamp;
+          existing.requestHeaders = ev.headers;
           return;
         }
         this.byId.set(ev.requestId, {
@@ -216,6 +225,7 @@ export class NetworkLog {
           failed: false,
           canceled: false,
           errorText: '',
+          requestHeaders: ev.headers,
           responseHeaders: {},
         });
         // Maps iterate in insertion order, so the first key is the oldest row.
