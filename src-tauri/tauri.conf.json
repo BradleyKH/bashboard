@@ -32,6 +32,7 @@
         "object-src": "'none'",
         "base-uri": "'self'",
         "form-action": "'none'",
+        "frame-src": "http://localhost:* http://127.0.0.1:*",
         "frame-ancestors": "'none'"
       },
       "devCsp": {
@@ -44,6 +45,7 @@
         "object-src": "'none'",
         "base-uri": "'self'",
         "form-action": "'none'",
+        "frame-src": "http://localhost:* http://127.0.0.1:*",
         "frame-ancestors": "'none'"
       }
     }

@@ -105,6 +105,20 @@ describe('containerRowMenuItems', () => {
     expect(h.onOpenUrl).toHaveBeenCalledWith('http://localhost:9000');
   });
 
+  it('offers Local Browser and system browser per port when onOpenLocal is given', () => {
+    const h = { ...rowHandlers(), onOpenLocal: vi.fn() };
+    const c = ctr({ ports: [{ host: 8080, container: 80, protocol: 'tcp' }] });
+    const entries = containerRowMenuItems(c, false, h);
+    expect(items(entries).map((i) => i.label).slice(5, 7)).toEqual([
+      'Open localhost:8080 in Local Browser',
+      'Open localhost:8080 in system browser',
+    ]);
+    find(entries, 'Open localhost:8080 in Local Browser').run();
+    expect(h.onOpenLocal).toHaveBeenCalledWith('http://localhost:8080');
+    find(entries, 'Open localhost:8080 in system browser').run();
+    expect(h.onOpenUrl).toHaveBeenCalledWith('http://localhost:8080');
+  });
+
   it('calls handlers', () => {
     const h = rowHandlers();
     const entries = containerRowMenuItems(ctr({ name: 'web-1' }), false, h);

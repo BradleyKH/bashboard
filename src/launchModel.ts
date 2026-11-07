@@ -6,10 +6,10 @@ import { item, submenu, type MenuEntry } from './contextMenuModel';
 import { paneKindInfo, type PaneKind } from './paneKinds';
 import { safeModel, type AgentId } from './savedWorkspace';
 
-export type LaunchKind = Extract<PaneKind, 'terminal' | 'git' | 'files' | 'ship' | 'search' | 'containers' | 'ports' | 'scratch'>;
+export type LaunchKind = Extract<PaneKind, 'terminal' | 'git' | 'files' | 'ship' | 'search' | 'containers' | 'ports' | 'browser' | 'scratch'>;
 
 /** Kinds with no folder: they open as they are, not at the launch root. */
-export type FolderlessLaunchKind = Extract<LaunchKind, 'containers' | 'ports' | 'scratch'>;
+export type FolderlessLaunchKind = Extract<LaunchKind, 'containers' | 'ports' | 'browser' | 'scratch'>;
 
 export interface LaunchOption {
   kind: LaunchKind;
@@ -35,6 +35,7 @@ const OPTIONS: readonly LaunchOption[] = [
   { kind: 'search', label: 'Search', icon: paneKindInfo('search').icon, key: 's', title: 'Search the repo\'s code', action: 'openSearch' },
   { kind: 'containers', label: 'Containers', icon: paneKindInfo('containers').icon, key: 'c', title: 'Docker and Podman containers', menuOnly: true },
   { kind: 'ports', label: 'Ports', icon: paneKindInfo('ports').icon, key: 'r', title: 'Listening dev servers', menuOnly: true },
+  { kind: 'browser', label: 'Local Browser', icon: paneKindInfo('browser').icon, key: 'b', title: 'Browse a local dev server', menuOnly: true },
   { kind: 'scratch', label: 'Scratch', icon: paneKindInfo('scratch').icon, key: 'p', title: 'Scratch pad', action: 'newScratch' },
 ];
 
@@ -59,7 +60,7 @@ export function launchMenuOptions(ctx: LaunchContext): LaunchOption[] {
 }
 
 export function isFolderless(kind: LaunchKind): kind is FolderlessLaunchKind {
-  return kind === 'containers' || kind === 'ports' || kind === 'scratch';
+  return kind === 'containers' || kind === 'ports' || kind === 'browser' || kind === 'scratch';
 }
 
 export function launchLabel(kind: LaunchKind): string {

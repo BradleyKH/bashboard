@@ -295,6 +295,28 @@ is shorter. It applies on save and is also in the Ship section of the Settings t
 }
 ```
 
+## Local Browser
+
+`localBrowser.bookmarks` (default `[]`) lists the pages saved in the Local Browser pane, in order.
+Each entry is `{ "name": "...", "url": "..." }`. A URL must be plain `http` on `localhost` or
+`127.0.0.1`, with an optional port and path. An entry with an empty or missing name or
+URL, or a URL outside that rule, is dropped with a notice naming its position, and the other
+entries still apply. The list has no field in the Settings tab; edit the file.
+
+`localBrowser.homeUrl` (default `""`) is the page a new Local Browser pane opens on, under the same
+URL rule. Empty opens the pane's start page. It applies on save and is also in the Local Browser
+section of the Settings tab.
+
+```jsonc
+"localBrowser": {
+  "homeUrl": "http://localhost:5173",
+  "bookmarks": [
+    { "name": "App", "url": "http://localhost:5173" },
+    { "name": "API health", "url": "http://127.0.0.1:8080/health" }
+  ]
+}
+```
+
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to
 `settings.json`. Bashboard rewrites `workspace.json` itself (version 3, holding every tab);
 `favorites.json`, `layouts.json`, and `repos.json` are plain JSON you can edit by hand, and the

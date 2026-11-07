@@ -185,6 +185,8 @@ built app:
   between its tabs, and F1 again closes it; confirm WebView2 does not take Ctrl+PageUp or
   Ctrl+PageDown
 - a right-click in a terminal shows no browser menu
+- with a Local Browser page focused, typing and Ctrl+A reach the page, and Ctrl+Tab, Ctrl+Shift+Tab,
+  Ctrl+, and the pane focus chords still act on the app
 
 ## Debugging input
 

@@ -54,6 +54,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.18 App dialog | [app.md](app.md) |
 | 4.19 Ports | [containers.md](containers.md) |
 | 4.20 Ship pane | [ship.md](ship.md) |
+| 4.21 Local Browser (`src/localBrowserPane.ts`, `src-tauri/src/browser.rs`) | [browser.md](browser.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |
@@ -179,7 +180,23 @@ constantly redrawing canvas is the most expensive effect here, hence the default
   malicious escape sequence that somehow injected markup could not load remote code.
   xterm.js renders terminal output as text, never HTML.
 - Hyperlinks in terminal output, both detected URLs (the xterm web-links addon) and OSC 8
-  hyperlinks, open only `http` and `https` URLs, through the system browser, on Ctrl+click.
+  hyperlinks, open only `http` and `https` URLs, through the system browser, on Ctrl+click; a
+  loopback `http` link opens the Local Browser pane (4.21) instead, and Ctrl+Shift+click sends it to
+  the system browser.
+- The Local Browser pane (4.21) frames only loopback pages. The CSP `frame-src` lists exactly
+  `http://localhost:* http://127.0.0.1:*`, in both `csp` and `devCsp` (WebView2 rejects an IPv6
+  host such as `[::1]` there, so the pane does not open one), and
+  deliberately omits `*.localhost`: the release app is served from `http://tauri.localhost`, so a
+  framed copy of it with `allow-same-origin` would share its origin and reach the Tauri IPC bridge.
+  The core also refuses the app's own origin, and the dev server's port on every loopback host, for
+  typed and in-frame navigations. Frames are sandboxed with `allow-scripts allow-forms
+  allow-same-origin allow-modals` (no popups, no top navigation) and `no-referrer`, and the app has
+  no `message` listener, so a page has no channel to the app. The bridge drives the frame over the
+  DevTools Protocol without injecting anything. It removes `X-Frame-Options` and `frame-ancestors`
+  only from loopback documents inside a Local Browser frame, never from the app's own documents,
+  and fails any document navigation there to a non-loopback address or the app (an external
+  `http(s)` address goes to the system browser instead). Nested iframes inside a framed page are
+  not policed.
 - Markdown is the only file content rendered as HTML: `markdown-it` with raw HTML off, then
   `DOMPurify`, with no remote images and links opened only through `open_url` (4.12).
 - The file commands (3.8) normalize every path, write only to existing files, and create or

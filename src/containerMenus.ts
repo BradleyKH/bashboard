@@ -1,5 +1,6 @@
 import type { Container, ContainerAction } from './containers';
 import type { ContainerGroup, DashboardContainerRow } from './containerGroups';
+import { isLoopbackUrl } from './localBrowserModel';
 import { item, separator, type MenuEntry } from './contextMenuModel';
 
 export interface ContainerGroupMenuHandlers {
@@ -10,6 +11,8 @@ export interface ContainerRowMenuHandlers extends ContainerGroupMenuHandlers {
   onLogs: () => void;
   onShell: () => void;
   onOpenUrl: (url: string) => void;
+  /** Opens a loopback http URL in a Local Browser pane; omitted where none can open. */
+  onOpenLocal?: (url: string) => void;
   onCopyName: (name: string) => void;
 }
 
@@ -54,7 +57,16 @@ export function containerRowMenuItems(
   if (hostPorts.length > 0) {
     entries.push(separator());
     for (const port of hostPorts) {
-      entries.push(item(`Open localhost:${port}`, () => handlers.onOpenUrl(`http://localhost:${port}`)));
+      const url = `http://localhost:${port}`;
+      const openLocal = handlers.onOpenLocal;
+      if (openLocal && isLoopbackUrl(url)) {
+        entries.push(
+          item(`Open localhost:${port} in Local Browser`, () => openLocal(url)),
+          item(`Open localhost:${port} in system browser`, () => handlers.onOpenUrl(url)),
+        );
+      } else {
+        entries.push(item(`Open localhost:${port}`, () => handlers.onOpenUrl(url)));
+      }
     }
   }
   entries.push(separator(), item('Copy name', () => handlers.onCopyName(container.name)));

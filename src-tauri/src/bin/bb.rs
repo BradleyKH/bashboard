@@ -403,6 +403,7 @@ mod tests {
             "ship",
             "ports",
             "containers",
+            "browse",
             "auth",
             "help",
             "--collapsed",

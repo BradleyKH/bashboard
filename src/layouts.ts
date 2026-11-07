@@ -21,6 +21,7 @@ function forLayoutPane(p: SavedPane): SavedPane {
     case 'search':
     case 'containers':
     case 'ports':
+    case 'browser':
       return p;
   }
 }

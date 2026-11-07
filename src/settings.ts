@@ -59,6 +59,11 @@ export interface Settings {
     overviewRefreshMinutes: number;
     pinnedRepos: { repo: string; root?: string; branches?: string[] }[];
   };
+  /**
+   * Local Browser pane: `bookmarks` are http pages on localhost or 127.0.0.1;
+   * `homeUrl` is where a new pane opens, empty for its start page (docs/settings.md).
+   */
+  localBrowser: { bookmarks: { name: string; url: string }[]; homeUrl: string };
   keybindings: KeybindingEntry[];
 }
 
@@ -99,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
   git: { autoFetchMinutes: 5 },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
   ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [] },
+  localBrowser: { bookmarks: [], homeUrl: '' },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

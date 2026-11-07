@@ -61,6 +61,8 @@ export interface TerminalPaneOptions {
   command?: string[];
   keyHandler: PaneKeyHandler;
   onFocus: () => void;
+  /** Opens a loopback URL in a Local Browser pane beside this one. */
+  onOpenLocal?: (url: string) => void;
   onExit: (code: number) => void;
   /** Fires when OSC 9;9 or OSC 7 reports a directory different from the last one. */
   onCwdChange?: () => void;
@@ -165,12 +167,12 @@ export class TerminalPane implements PaneView {
       // Focus sits in the find bar while it steps through matches, so the active match is drawn
       // with the inactive selection color.
       theme: this.theme(),
-      linkHandler: { activate: (e, text) => openLink(e, text), allowNonHttpProtocols: false },
+      linkHandler: { activate: (e, text) => openLink(e, text, { onOpenLocal: opts.onOpenLocal }), allowNonHttpProtocols: false },
     });
     this.term.loadAddon(this.fit);
     this.term.loadAddon(this.search);
     this.term.loadAddon(this.serializer);
-    this.term.loadAddon(new WebLinksAddon((e, uri) => openLink(e, uri)));
+    this.term.loadAddon(new WebLinksAddon((e, uri) => openLink(e, uri, { onOpenLocal: opts.onOpenLocal })));
     this.term.loadAddon(new Unicode11Addon());
     this.term.unicode.activeVersion = '11';
     this.term.attachCustomKeyEventHandler((e) => opts.keyHandler(e, this.term, (data) => this.write(data)));

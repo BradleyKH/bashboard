@@ -65,6 +65,13 @@
       "examples": ["bb containers"]
     },
     {
+      "name": "browse",
+      "usage": "bb browse [<url>]",
+      "summary": "Open a Local Browser pane on a localhost address",
+      "details": "Accepts a bare port (5173 or :5173), host:port/path, or a full http URL; a missing scheme means http. Only localhost and 127.0.0.1 are allowed. Without a URL it opens the start page.",
+      "examples": ["bb browse 5173", "bb browse localhost:3000/docs", "bb browse --tab 8080", "bb browse"]
+    },
+    {
       "name": "auth",
       "usage": "bb auth bitbucket [--clear]",
       "summary": "Store a Bitbucket API token for the Ship pane",

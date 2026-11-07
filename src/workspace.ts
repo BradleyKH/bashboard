@@ -9,6 +9,8 @@ import { shellCommand, type Container } from './containers';
 import { ContainersPane } from './containersPane';
 import { ContainersStore } from './containersStore';
 import { PortsPane } from './portsPane';
+import { LocalBrowserPane } from './localBrowserPane';
+import type { DevtoolsState } from './browserPaneModel';
 import { PortsStore } from './portsStore';
 import { boundSession, isBusy, lastFolder, type PaneCardInput } from './dashboardModel';
 import { DockOverlay } from './dockOverlay';
@@ -266,7 +268,9 @@ export type PaneSpec =
     }
   | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' }
-  | { kind: 'ports' };
+  | { kind: 'ports' }
+  /** No `url` opens the start page. */
+  | { kind: 'browser'; url?: string | null; devtools?: Partial<DevtoolsState>; device?: string };
 
 /**
  * Owns the tabs, each with its own split tree, focus, and collapsed panes, plus every pane of
@@ -1001,6 +1005,7 @@ export class Workspace {
       if (pane instanceof SearchPane) return { key: id, collapsed, kind: 'search', ...pane.saved() };
       if (pane instanceof ContainersPane) return { key: id, collapsed, kind: 'containers' };
       if (pane instanceof PortsPane) return { key: id, collapsed, kind: 'ports' };
+      if (pane instanceof LocalBrowserPane) return { key: id, collapsed, kind: 'browser', ...pane.state() };
       return null;
     });
   }
@@ -1571,6 +1576,8 @@ export class Workspace {
         return { kind: 'containers' };
       case 'ports':
         return { kind: 'ports' };
+      case 'browser':
+        return { kind: 'browser', url: p.url, devtools: p.devtools, device: p.device };
     }
   }
 
@@ -1598,6 +1605,8 @@ export class Workspace {
         return { kind: 'containers' };
       case 'ports':
         return { kind: 'ports' };
+      case 'browser':
+        return { kind: 'browser' };
     }
   }
 
@@ -1651,6 +1660,9 @@ export class Workspace {
       case 'ports':
         pane = this.createPorts(id, host, expanded);
         break;
+      case 'browser':
+        pane = this.createBrowser(id, host, spec, expanded);
+        break;
     }
     this.paneViews.set(id, pane);
     strip.setActions(pane.stripActions ?? null);
@@ -1680,6 +1692,7 @@ export class Workspace {
       keyHandler: (e, term, send) =>
         handleKey(e, { keymap: () => this.config.keymap, term, send, dispatch: (a) => this.dispatch(a) }),
       onFocus: () => this.setFocused(id),
+      onOpenLocal: (url) => this.openLocalBrowser(url, { fromPaneId: id }),
       onExit: (code) => {
         // Matches Windows Terminal: a clean exit closes the pane, a failure stays readable.
         if (code === 0) this.closePane(id);
@@ -1831,6 +1844,7 @@ export class Workspace {
       keymap: () => this.config.keymap,
       dispatch: (a) => this.dispatch(a),
       onFocus: () => this.setFocused(id),
+      onOpenLocal: (url) => this.openLocalBrowser(url, { fromPaneId: id }),
       // Without a store from the app (a browser-only run) the pane shows no engines.
       store: this.hooks.containers ?? (this.emptyContainers ??= new ContainersStore()),
       onShell: (c) => this.openContainerShell(id, c),
@@ -1847,12 +1861,47 @@ export class Workspace {
       keymap: () => this.config.keymap,
       dispatch: (a) => this.dispatch(a),
       onFocus: () => this.setFocused(id),
+      onOpenLocal: (url) => this.openLocalBrowser(url, { fromPaneId: id }),
       // Without a store from the app (a browser-only run) the pane lists nothing.
       store: this.hooks.ports ?? (this.emptyPorts ??= new PortsStore()),
       ownerTitle: (ptyId) => this.titleForPty(ptyId),
       onGoToPane: (ptyId) => this.revealPty(ptyId),
       confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
     });
+  }
+
+  private createBrowser(id: string, host: HTMLElement, spec: Extract<PaneSpec, { kind: 'browser' }>, expanded: boolean): LocalBrowserPane {
+    const store = this.hooks.ports ?? (this.emptyPorts ??= new PortsStore());
+    return new LocalBrowserPane({
+      host,
+      paneId: id,
+      url: spec.url ?? null,
+      devtools: spec.devtools,
+      device: spec.device,
+      settings: this.paneSettings(),
+      expanded,
+      keymap: () => this.config.keymap,
+      dispatch: (a) => this.dispatch(a),
+      onFocus: () => this.setFocused(id),
+      listeners: () => store.current(),
+      onOpenExternal: (url) => {
+        invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err));
+      },
+      onStateChange: () => this.paneChanged(id),
+      onWantPorts: (wanted) => store.setWanted(`pane:${id}`, wanted),
+    });
+  }
+
+  /**
+   * Design 4.21: a Local Browser pane on `url` (null for its start page), split beside `fromPaneId`
+   * or the focused pane; `tab` opens it alone in a new tab, `collapsed` opens it collapsed.
+   */
+  openLocalBrowser(url: string | null, opts: { tab?: boolean; collapsed?: boolean; fromPaneId?: string } = {}): void {
+    const { fromPaneId, ...place } = opts;
+    if (fromPaneId && !place.tab && !this.store.isCollapsed(fromPaneId) && this.paneViews.has(fromPaneId)) {
+      this.focusPane(fromPaneId);
+    }
+    this.openPane({ kind: 'browser', url }, place);
   }
 
   /** Design 4.16: a shell inside the container, split off its Containers pane. */
@@ -2207,6 +2256,9 @@ export class Workspace {
     if (pane instanceof PortsPane) {
       return { ...common, kind: 'ports', title: pane.title(), folder: null, confirmClose: false };
     }
+    if (pane instanceof LocalBrowserPane) {
+      return { ...common, kind: 'browser', title: pane.title(), folder: null, confirmClose: false };
+    }
     return null;
   }
 
@@ -2301,7 +2353,8 @@ export class Workspace {
       pane instanceof ShipPane ||
       pane instanceof SearchPane ||
       pane instanceof ContainersPane ||
-      pane instanceof PortsPane
+      pane instanceof PortsPane ||
+      pane instanceof LocalBrowserPane
     ) {
       return pane.title();
     }

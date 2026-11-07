@@ -17,6 +17,7 @@ import { bindWindowVisibility } from './windowVisibility';
 import { gitFetchVisible } from './gitApi';
 import { syncGitFetchRoots } from './gitFetchRoots';
 import { onCliCommand } from './cli';
+import { onBrowserChord } from './browserChords';
 import { onNotificationActivated, showNotification } from './notificationsApi';
 import { onSecondLaunch, takeStartupFolder } from './secondLaunch';
 import { runCliCommand, type CliTarget } from './cliDispatch';
@@ -1114,8 +1115,12 @@ const cliTarget: CliTarget = {
   openShip: (root) => workspace.openShip(root),
   openPorts: () => workspace.openPorts(),
   openContainers: () => workspace.openContainers(),
+  openLocalBrowser: (url, paneId, opts) => workspace.openLocalBrowser(url, { ...opts, fromPaneId: paneId }),
 };
 onCliCommand((cmd) => runCliCommand(cmd, cliTarget)).catch((e) => console.warn('pane CLI unavailable:', e));
+onBrowserChord((action) => workspace.runAction(action)).catch((e) =>
+  console.warn('app keys in Local Browser pages unavailable:', e),
+);
 onSecondLaunch((folder) => {
   if (folder) workspace.newTab(folder);
 }).catch((e) => console.warn('second-launch handoff unavailable:', e));

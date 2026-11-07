@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { isLoopbackUrl } from './localBrowserModel';
 import type { Container, ContainerAction, ContainerPort, ContainerStats } from './containers';
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
@@ -13,6 +14,8 @@ export interface ContainerRowOptions {
   onAction: (action: ContainerAction) => void;
   onLogs: () => void;
   onShell: () => void;
+  /** Opens a published port in a Local Browser pane; the link uses the system browser without it. */
+  onOpenLocal?: (url: string) => void;
   /** Entries for the row's context menu, read when it opens. */
   menuItems: () => MenuEntry[];
 }
@@ -31,7 +34,7 @@ function button(label: string, title: string, disabled: boolean, onClick: () => 
   return b;
 }
 
-function portLink(p: ContainerPort): HTMLElement {
+function portLink(p: ContainerPort, onOpenLocal?: (url: string) => void): HTMLElement {
   const text = `${p.host}:${p.container}${p.protocol === 'tcp' ? '' : `/${p.protocol}`}`;
   // Only TCP ports can serve http; a UDP mapping is shown but not linked.
   if (p.protocol !== 'tcp') {
@@ -49,6 +52,10 @@ function portLink(p: ContainerPort): HTMLElement {
   a.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (onOpenLocal && isLoopbackUrl(url)) {
+      onOpenLocal(url);
+      return;
+    }
     invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err));
   });
   return a;
@@ -94,7 +101,7 @@ export function renderContainerRow(c: Container, opts: ContainerRowOptions): HTM
   status.className = 'ctr-meta ctr-status';
   status.textContent = c.statusText;
   detail.append(status);
-  for (const p of c.ports) detail.append(portLink(p));
+  for (const p of c.ports) detail.append(portLink(p, opts.onOpenLocal));
   if (running && opts.stats) {
     const u = containerUsage(opts.stats);
     if (u) {

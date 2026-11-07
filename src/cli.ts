@@ -12,7 +12,8 @@ export type CliAction =
   | { kind: 'term'; cwd: string; command?: string | null }
   | { kind: 'ship'; root?: string | null }
   | { kind: 'ports' }
-  | { kind: 'containers' };
+  | { kind: 'containers' }
+  | { kind: 'browse'; url?: string | null };
 
 /** Payload of `cli://command`; `ptyId` is the core's pty id, not a `p<n>` pane id. */
 export interface CliCommand {

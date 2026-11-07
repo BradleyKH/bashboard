@@ -24,6 +24,7 @@ function fake(paneId: string | null = 'p3') {
     openShip: rec('openShip'),
     openPorts: rec('openPorts'),
     openContainers: rec('openContainers'),
+    openLocalBrowser: rec('openLocalBrowser'),
   };
   return { target, calls };
 }
@@ -139,6 +140,23 @@ describe('runCliCommand', () => {
     runCliCommand(cmd({ kind: 'ports' }), target);
     runCliCommand(cmd({ kind: 'containers' }), target);
     expect(calls).toEqual([['openShip', 'C:/r'], ['openShip', null], ['openPorts'], ['openContainers']]);
+  });
+
+  it('opens a Local Browser beside the calling pane, or in a tab', () => {
+    const { target, calls } = fake();
+    runCliCommand(cmd({ kind: 'browse', url: 'http://localhost:5199/' }, true), target);
+    runCliCommand(cmd({ kind: 'browse' }, false, true), target);
+    expect(calls.filter((c) => c[0] === 'openLocalBrowser')).toEqual([
+      ['openLocalBrowser', 'http://localhost:5199/', 'p3', { collapsed: true }],
+      ['openLocalBrowser', null, 'p3', { tab: true }],
+    ]);
+  });
+
+  it('drops browse when no pane runs the pty', () => {
+    const { target, calls } = fake(null);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    runCliCommand(cmd({ kind: 'browse', url: 'http://localhost:1/' }), target);
+    expect(calls.some((c) => c[0] === 'openLocalBrowser')).toBe(false);
   });
 
   it('still runs edit when the pty is unknown', () => {

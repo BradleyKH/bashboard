@@ -22,6 +22,9 @@ or a browser for into one window, so you stop juggling apps while Claude works.
   using the sign-in your terminal already has.
 - **No forgotten servers.** The Ports list shows every dev server listening, which pane started
   it, and a Stop button to end it and everything it started.
+- **Preview your dev server in place.** A Local Browser pane frames `localhost` pages beside the
+  terminal, with bookmarks, device sizes, and a Console and Network drawer; the Ports list,
+  `bb browse`, and Ctrl+click on a terminal link open it.
 - **Containers on the side.** Start, stop, tail logs, and shell into Docker or Podman containers.
 - **Pick up where you left off.** Tabs, splits, and scratch pads come back on relaunch; named
   layouts rebuild a whole workspace in one click. A command palette (Ctrl+Shift+P) reaches

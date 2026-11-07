@@ -233,6 +233,21 @@ pub struct Ship {
     pub pinned_repos: Vec<PinnedRepo>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalBrowser {
+    /// Saved pages for the Local Browser pane, in file order.
+    pub bookmarks: Vec<Bookmark>,
+    /// Page a new Local Browser pane opens on; empty opens its start page.
+    pub home_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Bookmark {
+    pub name: String,
+    pub url: String,
+}
+
 /// `repo` (`<host>/<path segments>`) is the pin's identity.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -304,6 +319,7 @@ pub struct Settings {
     pub git: GitSettings,
     pub local_models: LocalModels,
     pub ship: Ship,
+    pub local_browser: LocalBrowser,
     pub keybindings: Vec<Keybinding>,
 }
 
@@ -456,6 +472,7 @@ impl Default for Settings {
             git: GitSettings { auto_fetch_minutes: 5 },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
             ship: Ship { hosts: HashMap::new(), overview_refresh_minutes: 5, pinned_repos: Vec::new() },
+            local_browser: LocalBrowser { bookmarks: Vec::new(), home_url: String::new() },
             keybindings: default_keybindings(),
         }
     }
@@ -502,7 +519,7 @@ fn chord_alias(part: String) -> String {
 }
 
 /// Modifier order, case, and aliases do not matter: `shift+Ctrl+V` equals `ctrl+shift+v`.
-fn normalize_chord(keys: &str) -> String {
+pub(crate) fn normalize_chord(keys: &str) -> String {
     // A trailing "+" is the plus key itself ("ctrl++").
     let (mods, plus) = match keys.trim().strip_suffix('+') {
         Some(rest) if rest.is_empty() || rest.ends_with('+') => (rest.trim_end_matches('+'), true),
@@ -590,6 +607,48 @@ fn parse_pinned_repos(root: &Value, warnings: &mut Vec<String>) -> Vec<PinnedRep
         }
     }
     pins
+}
+
+/// Plain http to a loopback host, the only pages the Local Browser pane loads. Userinfo is
+/// rejected because `http://localhost@evil.test/` names the host after the `@`.
+fn is_loopback_http_url(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("http://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = match authority.split_once(':') {
+        Some((host, port)) if is_port(port) => host,
+        Some(_) => return false,
+        None => authority,
+    };
+    matches!(host.to_ascii_lowercase().as_str(), "localhost" | "127.0.0.1")
+}
+
+fn is_port(p: &str) -> bool {
+    !p.is_empty() && p.len() <= 5 && p.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// Each bad entry is dropped with a warning naming its index and the rest kept.
+fn parse_bookmarks(root: &Value, warnings: &mut Vec<String>) -> Vec<Bookmark> {
+    let Some(v) = get(root, &["localBrowser", "bookmarks"]) else {
+        return Vec::new();
+    };
+    let Some(items) = v.as_array() else {
+        warnings.push("localBrowser.bookmarks: invalid value, using default".into());
+        return Vec::new();
+    };
+    let nonempty = |v: &Value| v.as_str().filter(|s| !s.is_empty()).map(String::from);
+    let mut out = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        let name = item.get("name").and_then(nonempty);
+        let url = item.get("url").and_then(nonempty);
+        match (name, url) {
+            (Some(name), Some(url)) if is_loopback_http_url(&url) => out.push(Bookmark { name, url }),
+            (Some(_), Some(_)) => warnings.push(format!("localBrowser.bookmarks[{i}]: not a loopback http URL, dropped")),
+            _ => warnings.push(format!("localBrowser.bookmarks[{i}]: invalid entry, dropped")),
+        }
+    }
+    out
 }
 
 fn parse_keybindings(root: &Value, warnings: &mut Vec<String>) -> Vec<Keybinding> {
@@ -1045,6 +1104,16 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
         ),
         pinned_repos: parse_pinned_repos(&root, &mut w),
     };
+    let local_browser = LocalBrowser {
+        bookmarks: parse_bookmarks(&root, &mut w),
+        home_url: pick(
+            &root,
+            &["localBrowser", "homeUrl"],
+            &mut w,
+            |v| v.as_str().filter(|s| s.is_empty() || is_loopback_http_url(s)).map(String::from),
+            d.local_browser.home_url.clone(),
+        ),
+    };
     let keybindings = parse_keybindings(&root, &mut w);
 
     Ok((
@@ -1063,6 +1132,7 @@ fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
             git,
             local_models,
             ship,
+            local_browser,
             keybindings,
         },
         w,
@@ -1110,6 +1180,13 @@ fn default_file_text() -> String {
         "  \"git\": {",
         "  // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
   \"git\": {",
+    )
+    .replace(
+        "  \"localBrowser\": {",
+        "  // bookmarks are { \"name\", \"url\" } pages for the Local Browser pane; only http URLs on
+  // localhost or 127.0.0.1 are kept. homeUrl is the page a new pane opens on, empty for
+  // its start page.
+  \"localBrowser\": {",
     )
     .replace(
         "  \"keybindings\": []",
@@ -1717,6 +1794,67 @@ mod tests {
         assert!(s.ship.hosts.is_empty());
         assert_eq!(w.len(), 1, "{w:?}");
         assert!(w[0].starts_with("ship.hosts"), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_defaults_and_is_in_default_file() {
+        let b = Settings::default().local_browser;
+        assert!(b.bookmarks.is_empty() && b.home_url.is_empty());
+        let text = default_file_text();
+        assert!(text.contains("\"localBrowser\"") && text.contains("\"bookmarks\": []"));
+        let (s, w) = parse_settings(&text);
+        assert_eq!(s.local_browser, b);
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_bookmarks_parse_valid_entries() {
+        let (s, w) = parse_settings(
+            r#"{ "localBrowser": { "homeUrl": "http://localhost:3000/", "bookmarks": [
+                { "name": "App", "url": "http://localhost:5173" },
+                { "name": "Api", "url": "http://127.0.0.1:8080/health?x=1" }
+            ] } }"#,
+        );
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.local_browser.home_url, "http://localhost:3000/");
+        let urls: Vec<&str> = s.local_browser.bookmarks.iter().map(|b| b.url.as_str()).collect();
+        assert_eq!(urls, ["http://localhost:5173", "http://127.0.0.1:8080/health?x=1"]);
+    }
+
+    #[test]
+    fn local_browser_bookmarks_drop_bad_entries_with_their_index_and_keep_the_rest() {
+        let (s, w) = parse_settings(
+            r#"{ "localBrowser": { "bookmarks": [
+                { "name": "ok", "url": "http://localhost:1" },
+                { "name": "", "url": "http://localhost:2" },
+                { "name": "no url" },
+                { "name": "https", "url": "https://localhost:3" },
+                { "name": "remote", "url": "http://example.com/" },
+                { "name": "userinfo", "url": "http://localhost@evil.test/" },
+                { "name": "port", "url": "http://localhost:abc/" },
+                7
+            ] } }"#,
+        );
+        let names: Vec<&str> = s.local_browser.bookmarks.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(names, ["ok"]);
+        for i in 1..=7 {
+            assert!(w.iter().any(|m| m.starts_with(&format!("localBrowser.bookmarks[{i}]"))), "{i}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn local_browser_bookmarks_reject_a_non_array() {
+        let (s, w) = parse_settings(r#"{ "localBrowser": { "bookmarks": { "name": "a", "url": "http://localhost" } } }"#);
+        assert!(s.local_browser.bookmarks.is_empty());
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].starts_with("localBrowser.bookmarks"), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_home_url_must_be_empty_or_loopback() {
+        let (s, w) = parse_settings(r#"{ "localBrowser": { "homeUrl": "http://example.com" } }"#);
+        assert!(s.local_browser.home_url.is_empty());
+        assert!(w.iter().any(|m| m.starts_with("localBrowser.homeUrl")), "{w:?}");
     }
 
     #[test]

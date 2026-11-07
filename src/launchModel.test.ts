@@ -19,12 +19,12 @@ describe('launchOptions', () => {
 describe('launchMenuOptions', () => {
   it('adds Containers and Ports to the row options, in kind menu order', () => {
     expect(launchMenuOptions(GIT).map((o) => o.kind)).toEqual([
-      'terminal', 'git', 'files', 'ship', 'search', 'containers', 'ports', 'scratch',
+      'terminal', 'git', 'files', 'ship', 'search', 'containers', 'ports', 'browser', 'scratch',
     ]);
   });
 
   it('keeps Containers and Ports outside a git repo', () => {
-    expect(launchMenuOptions(NO_GIT).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'containers', 'ports', 'scratch']);
+    expect(launchMenuOptions(NO_GIT).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'containers', 'ports', 'browser', 'scratch']);
   });
 
   it('drops Containers while no container engine is installed', () => {
@@ -69,9 +69,9 @@ describe('launchMenuItems local models', () => {
   const labels = (e: ReturnType<typeof launchMenuItems>) => e.map((x) => ('label' in x ? x.label : ''));
 
   it('adds nothing without local state or without models', () => {
-    expect(launchMenuItems(GIT, noop, noop)).toHaveLength(8);
-    expect(launchMenuItems(GIT, noop, noop, { agents: ['claude'], models: [], onRun: noop })).toHaveLength(8);
-    expect(launchMenuItems(GIT, noop, noop, { agents: [], models: ['m'], onRun: noop })).toHaveLength(8);
+    expect(launchMenuItems(GIT, noop, noop)).toHaveLength(9);
+    expect(launchMenuItems(GIT, noop, noop, { agents: ['claude'], models: [], onRun: noop })).toHaveLength(9);
+    expect(launchMenuItems(GIT, noop, noop, { agents: [], models: ['m'], onRun: noop })).toHaveLength(9);
   });
 
   it('adds one submenu per agent listing the models, running the command', () => {

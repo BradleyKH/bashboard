@@ -50,6 +50,28 @@ describe('parseSavedTab', () => {
     expect(parseSavedTab(tab)).toEqual(tab);
   });
 
+  it('round-trips a Local Browser pane and repairs bad fields', () => {
+    const saved = {
+      key: 'a',
+      collapsed: false,
+      kind: 'browser',
+      url: 'http://127.0.0.1:5199/p1',
+      devtools: { open: true, tab: 'network', height: 200 },
+      device: 'phone:rotated',
+    };
+    const tab = { name: null, panes: [saved], layout: pane('a'), focused: 'a' };
+    expect(parseSavedTab(tab)).toEqual(tab);
+    const bad = { key: 'a', collapsed: false, kind: 'browser', url: 5, devtools: 'x', device: 3 };
+    expect(parseSavedTab({ panes: [bad], layout: pane('a'), focused: 'a' })?.panes[0]).toEqual({
+      key: 'a',
+      collapsed: false,
+      kind: 'browser',
+      url: null,
+      devtools: { open: false, tab: 'console', height: expect.any(Number) },
+      device: '',
+    });
+  });
+
   it('round-trips a Files pane, defaulting selected to null', () => {
     const tab = {
       name: null,

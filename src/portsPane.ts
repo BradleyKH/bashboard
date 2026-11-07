@@ -8,6 +8,7 @@ import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
+import { isLoopbackUrl } from './localBrowserModel';
 import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
 import {
@@ -38,6 +39,8 @@ export interface PortsPaneOptions {
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
+  /** Opens a loopback URL in a Local Browser pane beside this one. */
+  onOpenLocal?: (url: string) => void;
   store: PortsStore;
   ownerTitle: (ptyId: number) => string | null;
   onGoToPane: (ptyId: number) => void;
@@ -279,7 +282,7 @@ export class PortsPane implements PaneView {
     const actions = document.createElement('span');
     actions.className = 'ports-actions';
     actions.append(
-      this.button('Open', `Open ${url}`, true, () => this.openUrl(url)),
+      this.button('Open', `Open ${url}`, true, () => this.openDefault(url)),
       // Present but disabled when no pane started it, so every row's buttons line up.
       this.button('Go to pane', owner ? `Go to ${owner}` : 'Not started from a pane', ptyId !== null, () => {
         if (ptyId !== null) this.opts.onGoToPane(ptyId);
@@ -307,12 +310,13 @@ export class PortsPane implements PaneView {
       el.classList.add('selected');
     });
     el.addEventListener('dblclick', (e) => {
-      if (!(e.target instanceof Element && e.target.closest('button'))) this.openUrl(url);
+      if (!(e.target instanceof Element && e.target.closest('button'))) this.openDefault(url);
     });
     attachContextMenu(el, () => ({
       target: el,
       entries: portMenuItems(l, {
         onOpenUrl: (u) => this.openUrl(u),
+        onOpenLocal: this.opts.onOpenLocal,
         onCopy: (text, what) => void copyText(text, what),
         onGoToPane: ptyId === null ? undefined : () => this.opts.onGoToPane(ptyId),
         onStop: stop,
@@ -360,6 +364,12 @@ export class PortsPane implements PaneView {
     el.className = className;
     el.textContent = text;
     return el;
+  }
+
+  /** The Open button and double-click: Local Browser when it can take the URL, else the system browser. */
+  private openDefault(url: string): void {
+    if (this.opts.onOpenLocal && isLoopbackUrl(url)) this.opts.onOpenLocal(url);
+    else this.openUrl(url);
   }
 
   private openUrl(url: string): void {

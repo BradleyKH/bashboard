@@ -36,6 +36,7 @@ const REPLACE_LOSES: Record<PaneKind, string> = {
   search: 'closes it',
   containers: 'closes it',
   ports: 'closes it',
+  browser: 'closes it',
 };
 
 /** The undo dialog for the newest commit (docs/design/git.md section 4.13). */

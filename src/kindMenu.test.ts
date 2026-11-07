@@ -5,7 +5,7 @@ import type { PaneKind } from './paneKinds';
 describe('kindMenuItems', () => {
   it('leaves out filtered kinds', () => {
     const items = kindMenuItems('terminal', vi.fn(), (k) => k !== 'containers' && k !== 'scratch');
-    expect(items.map((i) => i.label)).toEqual(['Terminal', 'Files', 'Git', 'Ship', 'Search', 'Ports']);
+    expect(items.map((i) => i.label)).toEqual(['Terminal', 'Files', 'Git', 'Ship', 'Search', 'Ports', 'Local Browser']);
   });
 
   it('always lists the current kind, checked', () => {

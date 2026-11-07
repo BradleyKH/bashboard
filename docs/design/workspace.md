@@ -192,8 +192,9 @@ Every leaf of a tab's split tree is a pane of one kind:
 | `scratch` | A plain text scratch pad | 4.15 |
 | `containers` | Docker and Podman containers grouped by Compose project | 4.16 |
 | `ports` | Listening TCP ports, their processes, and the panes that started them | 4.19 |
+| `browser` | A dev server's page on localhost, with a Console and Network drawer | 4.21 |
 
-Every kind but `scratch`, `containers`, and `ports` has a folder: a terminal's working directory, or the
+Every kind but `scratch`, `containers`, `ports`, and `browser` has a folder: a terminal's working directory, or the
 folder another pane was opened for. A pane's repo is the repo (3.8) of its folder.
 
 - **Ids.** Pane ids come from a front-end counter: `p<n>` for terminals and `v<n>` for other

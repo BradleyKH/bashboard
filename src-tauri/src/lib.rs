@@ -1,5 +1,7 @@
 mod agents;
 mod backdrop_image;
+mod browser;
+pub mod browser_policy;
 mod cli;
 mod clipboard;
 mod config_dir;
@@ -153,6 +155,7 @@ pub fn run() {
         .manage(ports::PortsState::default())
         .manage(transcript::Transcripts::default())
         .manage(forge::ForgeState::default())
+        .manage(browser::BrowserState::default())
         .manage(second_instance::StartupFolder::from_args())
         .setup(|app| {
             let window = create_main_window(app.handle())?;
@@ -166,6 +169,8 @@ pub fn run() {
             containers::init(app.handle());
             #[cfg(windows)]
             disable_browser_accelerators(&window);
+            #[cfg(windows)]
+            browser::init(&window);
             #[cfg(not(windows))]
             let _ = window;
             Ok(())
@@ -175,6 +180,12 @@ pub fn run() {
             backdrop_image::backdrop_image_read,
             backdrop_image::backdrop_image_list,
             backdrop_image::backdrop_image_pick,
+            browser::browser_attach,
+            browser::browser_detach,
+            browser::browser_history,
+            browser::browser_reload,
+            browser::browser_response_body,
+            browser::browser_focus,
             clipboard::clipboard_read_text,
             pty::pty_spawn,
             pty::pty_write,

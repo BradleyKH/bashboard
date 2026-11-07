@@ -37,6 +37,8 @@ export interface ContainersPaneOptions {
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
+  /** Opens a loopback URL in a Local Browser pane beside this one. */
+  onOpenLocal?: (url: string) => void;
   /** The snapshot every Containers pane and the dashboard share. */
   store: ContainersStore;
   /** The Shell button: open a terminal in this container beside the pane. */
@@ -335,6 +337,7 @@ export class ContainersPane implements PaneView {
           onAction: (action) => void this.act(key, c.engine, [c], action, c.name),
           onLogs: () => this.openLogs(c),
           onShell: () => this.opts.onShell(c),
+          onOpenLocal: this.opts.onOpenLocal,
           menuItems: () =>
             containerRowMenuItems(c, this.busy.has(key) || this.busy.has(g.key), {
               onAction: (action) => void this.act(key, c.engine, [c], action, c.name),
@@ -342,6 +345,7 @@ export class ContainersPane implements PaneView {
               onShell: () => this.opts.onShell(c),
               onOpenUrl: (url) =>
                 void invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err)),
+              onOpenLocal: this.opts.onOpenLocal,
               onCopyName: (name) => copyText(name, 'name'),
             }),
         });

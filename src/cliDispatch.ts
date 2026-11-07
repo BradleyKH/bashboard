@@ -19,6 +19,8 @@ export interface CliTarget {
   openShip(root: string | null): void;
   openPorts(): void;
   openContainers(): void;
+  /** A Local Browser pane on `url` (its start page for null), split beside the calling pane. */
+  openLocalBrowser(url: string | null, paneId: string, opts: OpenPaneOptions): void;
 }
 
 export function runCliCommand(cmd: CliCommand, target: CliTarget): void {
@@ -64,6 +66,9 @@ export function runCliCommand(cmd: CliCommand, target: CliTarget): void {
       break;
     case 'term':
       target.openTerminal(action.cwd, action.command ?? undefined, opts);
+      break;
+    case 'browse':
+      target.openLocalBrowser(action.url ?? null, paneId, opts);
       break;
   }
 }

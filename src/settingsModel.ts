@@ -365,6 +365,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     ],
   },
   {
+    title: 'Local Browser',
+    fields: [
+      { path: ['localBrowser', 'homeUrl'], label: 'Home page', kind: 'text', allowEmpty: true, hint: 'An http URL on localhost or 127.0.0.1; empty opens the start page', applies: 'live' },
+    ],
+  },
+  {
     title: 'Local AI models',
     fields: [
       { path: ['localModels', 'ollamaUrl'], label: 'Ollama URL', kind: 'text', allowEmpty: true, hint: 'Empty uses http://localhost:11434', applies: 'live' },

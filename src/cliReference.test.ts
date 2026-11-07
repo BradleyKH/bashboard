@@ -3,7 +3,7 @@ import { CLI_COMMANDS, CLI_OPTIONS } from './cliReference';
 
 describe('the bb reference', () => {
   it('covers every command the core dispatches, plus help', () => {
-    expect(CLI_COMMANDS.map((c) => c.name)).toEqual(['open', 'edit', 'git', 'search', 'scratch', 'term', 'ship', 'ports', 'containers', 'auth', 'auth', 'help']);
+    expect(CLI_COMMANDS.map((c) => c.name)).toEqual(['open', 'edit', 'git', 'search', 'scratch', 'term', 'ship', 'ports', 'containers', 'browse', 'auth', 'auth', 'help']);
     expect(CLI_OPTIONS.map((o) => o.name)).toEqual(['--collapsed', '--tab', '--']);
   });
 

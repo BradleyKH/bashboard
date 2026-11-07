@@ -51,6 +51,11 @@ pub enum CliAction {
     },
     Ports,
     Containers,
+    /// A Local Browser pane; `url` is a normalized loopback http URL, or none for its start page.
+    Browse {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        url: Option<String>,
+    },
     Term {
         cwd: String,
         /// Typed into the new shell followed by Enter, as text, so it follows that shell's syntax.
@@ -137,6 +142,7 @@ pub fn parse(body: &[u8], pty_id: u32) -> Result<CliCommand, String> {
             no_args("containers", &args)?;
             CliAction::Containers
         }
+        "browse" => browse(&args)?,
         other => return Err(format!("unknown command: {other}")),
     };
     // These show the app's existing pane wherever it is, or open a tab of their own, as the
@@ -234,6 +240,62 @@ fn no_args(command: &str, args: &[String]) -> Result<(), String> {
     } else {
         Err(format!("usage: bb {command}"))
     }
+}
+
+const BROWSE_USAGE: &str = "usage: bb browse [<url>]";
+const LOOPBACK_ONLY: &str = "Local Browser opens only localhost and 127.0.0.1 over http.";
+
+/// Mirrors `normalizeInput` in `localBrowserModel.ts`: `5173` and `:5173` mean
+/// `http://localhost:5173/`, and a missing scheme means http.
+fn browse(args: &[String]) -> Result<CliAction, String> {
+    let url = match args {
+        [] => None,
+        [arg] => Some(normalize_browse_url(arg.trim())?),
+        _ => return Err(BROWSE_USAGE.into()),
+    };
+    Ok(CliAction::Browse { url })
+}
+
+fn normalize_browse_url(text: &str) -> Result<String, String> {
+    if text.is_empty() {
+        return Err(BROWSE_USAGE.into());
+    }
+    if text.chars().any(char::is_whitespace) {
+        return Err("a URL cannot contain spaces".into());
+    }
+    let digits = text.strip_prefix(':').unwrap_or(text);
+    let candidate = if (1..=5).contains(&digits.len()) && digits.bytes().all(|b| b.is_ascii_digit())
+    {
+        let port: u32 = digits.parse().unwrap_or(0);
+        if !(1..=65535).contains(&port) {
+            return Err("ports run from 1 to 65535".into());
+        }
+        format!("http://localhost:{port}/")
+    } else if has_scheme(text) {
+        text.to_string()
+    } else {
+        format!("http://{text}")
+    };
+    let parsed = tauri::Url::parse(&candidate)
+        .map_err(|_| format!("{text:?} is not a valid address. {LOOPBACK_ONLY}"))?;
+    if parsed.scheme() == "https" {
+        return Err(format!("https is not supported. {LOOPBACK_ONLY}"));
+    }
+    if !crate::browser_policy::is_loopback_url(parsed.as_str()) {
+        return Err(LOOPBACK_ONLY.into());
+    }
+    Ok(parsed.to_string())
+}
+
+/// True for a leading `scheme://`, so `localhost:3000` (a host and port) is not read as a scheme.
+fn has_scheme(text: &str) -> bool {
+    let Some((scheme, _)) = text.split_once("://") else {
+        return false;
+    };
+    scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
 }
 
 fn term(cwd: &Path, args: &[String], command: Option<Vec<String>>) -> Result<CliAction, String> {
@@ -621,6 +683,60 @@ mod tests {
             );
         }
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn browse_normalizes_shorthand_to_loopback_urls() {
+        let dir = repo("browse");
+        let url = |arg: &str| match run("browse", &[arg], &dir).unwrap().action {
+            CliAction::Browse { url } => url.unwrap(),
+            other => panic!("unexpected {other:?}"),
+        };
+        assert_eq!(url("5199"), "http://localhost:5199/");
+        assert_eq!(url(":5199"), "http://localhost:5199/");
+        assert_eq!(url("localhost:3000/app?x=1"), "http://localhost:3000/app?x=1");
+        assert_eq!(url("127.0.0.1:8080"), "http://127.0.0.1:8080/");
+        assert_eq!(url("LOCALHOST"), "http://localhost/");
+        assert_eq!(
+            run("browse", &[], &dir).unwrap().action,
+            CliAction::Browse { url: None }
+        );
+        assert!(run("browse", &["--tab", "5199"], &dir).unwrap().tab);
+        assert!(run("browse", &["--collapsed", "5199"], &dir).unwrap().collapsed);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn browse_refuses_non_loopback_and_bad_input() {
+        let dir = repo("browse-refuse");
+        for arg in [
+            "example.com",
+            "http://example.com",
+            "https://localhost:3000",
+            "ftp://localhost",
+            "0",
+            "70000",
+            "a.localhost",
+            "http://u:p@localhost",
+        ] {
+            assert!(run("browse", &[arg], &dir).is_err(), "{arg} should be refused");
+        }
+        assert!(run("browse", &["a", "b"], &dir).unwrap_err().starts_with("usage: bb browse"));
+        assert!(run("browse", &["a b"], &dir).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn serializes_browse() {
+        assert_eq!(
+            serde_json::to_value(CliAction::Browse { url: Some("http://localhost:1/".into()) })
+                .unwrap(),
+            json!({ "kind": "browse", "url": "http://localhost:1/" })
+        );
+        assert_eq!(
+            serde_json::to_value(CliAction::Browse { url: None }).unwrap(),
+            json!({ "kind": "browse" })
+        );
     }
 
     #[test]

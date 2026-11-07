@@ -1,6 +1,6 @@
 // Pane kinds (docs/design/workspace.md section 4.11). Pure data, no DOM.
 
-export type PaneKind = 'terminal' | 'scratch' | 'files' | 'git' | 'ship' | 'search' | 'containers' | 'ports';
+export type PaneKind = 'terminal' | 'scratch' | 'files' | 'git' | 'ship' | 'search' | 'containers' | 'ports' | 'browser';
 
 export interface PaneKindInfo {
   kind: PaneKind;
@@ -21,6 +21,8 @@ export const PANE_KINDS: readonly PaneKindInfo[] = [
   { kind: 'search', label: 'Search', icon: '⌕', hasFolder: true },
   { kind: 'containers', label: 'Containers', icon: '⬡', hasFolder: false },
   { kind: 'ports', label: 'Ports', icon: '⇄', hasFolder: false },
+  // U+FE0E keeps the globe a text glyph rather than a color emoji.
+  { kind: 'browser', label: 'Local Browser', icon: '\u{1F310}︎', hasFolder: false },
   { kind: 'scratch', label: 'Scratch', icon: '▤', hasFolder: false },
 ];
 

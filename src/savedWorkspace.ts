@@ -12,6 +12,7 @@ import { type Layout, close, leaves } from './layout';
 import type { ShipTab } from './shipModel';
 import type { GitTab } from './gitBranchModel';
 import type { PaneKind } from './paneKinds';
+import { normalizeDevtools, type DevtoolsState } from './browserPaneModel';
 import { parseFilesSort, type FilesSort } from './filesModel';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
@@ -75,6 +76,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
   | { kind: 'containers' }
   /** The Ports pane saves no state; its ports come from the OS. */
   | { kind: 'ports' }
+  /** `url` is the page, null on the start page; `device` is a preset id, with `:rotated` when on its side. */
+  | { kind: 'browser'; url: string | null; devtools: DevtoolsState; device: string }
 );
 
 export type SavedTerminalPane = Extract<SavedPane, { kind: 'terminal' }>;
@@ -240,6 +243,13 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
   },
   containers: (_raw, base) => ({ ...base, kind: 'containers' }),
   ports: (_raw, base) => ({ ...base, kind: 'ports' }),
+  browser: (raw, base) => ({
+    ...base,
+    kind: 'browser',
+    url: typeof raw.url === 'string' && raw.url !== '' ? raw.url : null,
+    devtools: normalizeDevtools(isRecord(raw.devtools) ? (raw.devtools as Partial<DevtoolsState>) : null),
+    device: typeof raw.device === 'string' ? raw.device : '',
+  }),
 };
 
 /** `kind` overrides the entry's own, for version 1 and 2 `terminals` entries, which have none. */

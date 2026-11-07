@@ -15,6 +15,7 @@
   - [Layouts](#layouts)
   - [Containers](#containers)
   - [Ports](#ports)
+- [Local Browser](#local-browser)
 - [Codex, Copilot, and local AI models (preview)](#codex-copilot-and-local-ai-models-preview)
   - [Local AI models](#local-ai-models)
 - [Attention and status](#attention-and-status)
@@ -533,7 +534,7 @@ not collapse.
 Ctrl+Shift+L (the `openLaunch` action) opens the same choices, plus Containers and Ports, as a
 menu over the focused pane, outlined in your accent color with the rest of the window dimmed:
 press a letter (**t** Terminal, **g** Git, **f** Files, **o** Ship, **s** Search, **c**
-Containers, **r** Ports, **p** Scratch), or use the arrows and Enter, with the same preview as you
+Containers, **r** Ports, **b** Local Browser, **p** Scratch), or use the arrows and Enter, with the same preview as you
 move. Containers appears once Docker or Podman is installed. While Launch is turned
 off, a **+** button in the top bar, left of **?**, drops this menu. Ctrl+Shift+X (the `openEditor`
 action) opens the focused pane's repo in your editor directly, or its folder outside a repo.
@@ -720,14 +721,53 @@ it, address, process id, and uptime), sorted by port; click a column header to s
 again to reverse. The Pane column is left out when no listed port was started from a pane. Each
 port's folder gets its own column when the pane is wide enough, and sits beneath the row
 otherwise; tick **Command lines** to show each full command line under its folder. Each row has
-**Open**, **Go to pane**, and **Stop** buttons, a double-click opens it in your browser, and a
-right-click gives the dashboard's menu.
+**Open**, **Go to pane**, and **Stop** buttons, a double-click opens it in a [Local Browser](#local-browser) pane
+beside the Ports pane, and a right-click gives a menu like the dashboard's, with **Open in Local Browser** and **Open in system browser**.
 
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
 clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
 started; untick it to see everything else, and tick **Windows services** to include the system's
 own ports, dimmed. Opening the pane from the dashboard on a port no pane started unticks it for
 you. Any pane can also become a Ports pane from its kind menu.
+
+## Local Browser
+
+A **Local Browser** pane shows a dev server's page beside the terminal that runs it, with a Console
+and a Network panel one click away. It opens only `localhost` and `127.0.0.1` over plain `http`, on
+any port; anything else is refused, so it is not a general browser. Open one from the
+kind menu at the top left of any pane, from the Launch menu (**b**), with `bb browse` (see
+[Pane CLI](#pane-cli)), from a Ports pane row (**Open**, or a double-click), from the **Open in
+Local Browser** entry in the port and container menus, or by Ctrl+clicking a `localhost` link in
+a terminal. Ctrl+Shift+click on such a link, and **Open in system browser** in the menus, use your
+system browser instead.
+
+**Address bar.** Type a bare port (`5173`), `:5173`, `localhost:3000/app`, or a full URL; a missing
+host means `localhost`. Suggestions list your bookmarks, the ports that are listening, and
+addresses you visited recently; use the arrows and Enter, or Escape to put the page's address back.
+Back, Forward, and Reload sit to its left (Shift+click Reload to bypass the cache), and Home opens
+the `localBrowser.homeUrl` setting, or the start page, a list of listening ports and bookmarks,
+when that is empty. If nothing is listening on the port, the pane says so and offers Retry.
+
+**Bookmarks.** The star saves or removes the current page, and **Bookmarks** lists them. They are
+kept in `settings.json` under `localBrowser.bookmarks` (see [Settings](settings.md)).
+
+**DevTools.** The **DevTools** button, with a badge counting errors, opens a drawer you can resize
+by dragging its top edge. **Console** shows what the page logs, with filters for log, info, warn,
+and error, a text filter, **Clear**, and **Preserve log** (the console clears whenever the page
+navigates unless it is ticked). **Network** lists each request with its method, status, path, type,
+size, and time, with type and text filters; click a row for its headers and response body (JSON is
+indented).
+
+**Device sizes.** The device menu fits the page to Phone, Phone large, Tablet, Laptop, or Desktop
+dimensions, scaled down to fit the pane when it is larger, with **Rotate** to turn it sideways.
+Responsive fills the pane.
+
+A link in the page to another site opens in your system browser and the pane stays where it was.
+Pages that forbid framing (`X-Frame-Options` or `frame-ancestors`) still show, since Bashboard
+lifts that restriction for local pages only. Popups and downloads are not supported. Bashboard's
+own keys keep working while the page has focus, except the terminal's copy and paste, which the
+page keeps. The page, drawer, and device size are restored on relaunch, and a page reloads when
+its tab is hidden and shown again.
 
 ## Codex, Copilot, and local AI models (preview)
 
@@ -812,7 +852,9 @@ previous. Esc closes the bar and returns focus to the terminal. The bar also clo
 pane closes or collapses, or when focus moves to another pane.
 
 Ctrl+click a link in terminal output to open it in your browser. Only `http` and `https` links
-open; other schemes are ignored.
+open; other schemes are ignored. A link to `localhost` or `127.0.0.1` opens a
+[Local Browser](#local-browser) pane beside the terminal instead, and Ctrl+Shift+click sends it to
+your system browser.
 
 ## Font size
 
@@ -887,6 +929,7 @@ not apply to them. `bb edit` opens no pane.
 | `bb ship`                     | Shows the current folder's repo in the Ship pane, or the Overview outside a repo |
 | `bb ports`                    | Shows the Ports pane                                                          |
 | `bb containers`               | Shows the Containers pane                                                     |
+| `bb browse [<url>]`           | Opens a Local Browser pane at a localhost address, or on its start page       |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
@@ -900,6 +943,10 @@ src/main.ts:40` splits a trailing `:<digits>` off as the line number, which must
 `bb git` reports "not a git repository" outside a repo, while `bb search` outside a repo searches
 the current folder. `bb scratch` uses its arguments as the text when it has any and otherwise
 reads standard input, up to 1 MiB.
+
+`bb browse` takes a bare port (`bb browse 5173`), `:port`, `host:port/path`, or a full `http` URL on
+`localhost` or `127.0.0.1`, and refuses any other address. With no address it opens the
+start page. `--tab` and `--collapsed` work as for the other pane commands.
 
 `bb term` opens a terminal with your default shell profile. The words after `--` are typed into
 it as one line followed by Enter, the way you would type them, so they follow that shell's

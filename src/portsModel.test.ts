@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
 import {
@@ -202,6 +202,19 @@ describe('portMenuItems', () => {
       '-',
       'Stop node…',
     ]);
+  });
+
+  it('offers Local Browser first, then the system browser, when onOpenLocal is given', () => {
+    const onOpenLocal = vi.fn();
+    const onOpenUrl = vi.fn();
+    const entries = portMenuItems(l({}), { onOpenUrl, onOpenLocal, onCopy: noop, onStop: noop });
+    const [first, second] = entries;
+    expect(first.kind === 'item' && first.label).toBe('Open in Local Browser');
+    expect(second.kind === 'item' && second.label).toBe('Open in system browser');
+    if (first.kind === 'item') first.run();
+    expect(onOpenLocal).toHaveBeenCalledWith('http://localhost:5173');
+    if (second.kind === 'item') second.run();
+    expect(onOpenUrl).toHaveBeenCalledWith('http://localhost:5173');
   });
 
   it('leaves out copies it has nothing for', () => {

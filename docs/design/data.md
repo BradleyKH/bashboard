@@ -276,6 +276,12 @@ it with no pins, and Automatic omits it.
   // a repo with a run in progress. It has a Settings tab field; pinnedRepos does not.
   // For example { "repo": "bitbucket.org/keysys/kweb", "root": "C:/src/kweb", "branches": ["uat"] }.
   "ship": { "hosts": {}, "overviewRefreshMinutes": 5, "pinnedRepos": [] },
+  // bookmarks are { "name", "url" } pages for the Local Browser pane, in order. An entry with an
+  // empty or missing name or url, or a url that is not plain http on localhost or 127.0.0.1,
+  // is dropped with a warning naming its position. homeUrl is the page a new pane opens
+  // on, with the same host rule; empty opens the pane's start page. homeUrl has a Settings tab
+  // field; bookmarks does not.
+  "localBrowser": { "bookmarks": [], "homeUrl": "" },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
   // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in

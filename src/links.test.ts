@@ -60,4 +60,40 @@ describe('openLink', () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  describe('loopback routing', () => {
+    it('routes Ctrl+click on a loopback URL to onOpenLocal', () => {
+      const onOpenLocal = vi.fn();
+      openLink(click({ ctrlKey: true }), 'http://127.0.0.1:5199/p1', { onOpenLocal });
+      expect(onOpenLocal).toHaveBeenCalledWith('http://127.0.0.1:5199/p1');
+      expect(invoke).not.toHaveBeenCalled();
+    });
+
+    it('sends Ctrl+Shift+click to the system browser', () => {
+      const onOpenLocal = vi.fn();
+      openLink(click({ ctrlKey: true, shiftKey: true }), 'http://localhost:3000', { onOpenLocal });
+      expect(onOpenLocal).not.toHaveBeenCalled();
+      expect(invoke).toHaveBeenCalledWith('open_url', { url: 'http://localhost:3000' });
+    });
+
+    it('keeps non-loopback links on the system browser', () => {
+      const onOpenLocal = vi.fn();
+      openLink(click({ ctrlKey: true }), 'https://example.com', { onOpenLocal });
+      openLink(click({ ctrlKey: true }), 'https://localhost:3000', { onOpenLocal });
+      expect(onOpenLocal).not.toHaveBeenCalled();
+      expect(invoke).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to the system browser without a handler', () => {
+      openLink(click({ ctrlKey: true }), 'http://localhost:3000');
+      expect(invoke).toHaveBeenCalledWith('open_url', { url: 'http://localhost:3000' });
+    });
+
+    it('does nothing without Ctrl', () => {
+      const onOpenLocal = vi.fn();
+      openLink(click({}), 'http://localhost:3000', { onOpenLocal });
+      expect(onOpenLocal).not.toHaveBeenCalled();
+      expect(invoke).not.toHaveBeenCalled();
+    });
+  });
 });

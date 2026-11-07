@@ -18,8 +18,10 @@ describe('SETTINGS_SECTIONS', () => {
 
   it('covers every non-keybinding leaf exactly once', () => {
     const { keybindings: _keybindings, ...rest } = DEFAULT_SETTINGS;
-    // Pins are edited from the Ship pane, so the list has no Settings tab field.
-    const expected = leaves(rest).filter((p) => p !== 'ship.pinnedRepos');
+    // Pins are edited from the Ship pane and bookmarks from the Local Browser pane, so neither
+    // list has a Settings tab field.
+    const listsWithoutFields = ['ship.pinnedRepos', 'localBrowser.bookmarks'];
+    const expected = leaves(rest).filter((p) => !listsWithoutFields.includes(p));
     expect(fields.map((f) => f.path.join('.')).sort()).toEqual(expected.sort());
   });
 
