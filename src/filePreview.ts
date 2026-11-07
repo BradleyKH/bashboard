@@ -1,6 +1,7 @@
 import './filePreview.css';
 import { BinaryNotice } from './binaryNotice';
 import { CsvView } from './csvView';
+import { canOpenWithDefaultApp, openWithDefaultApp } from './editors';
 import { ExpandPreviewButton } from './expandPreviewButton';
 import { previewKind } from './filesModel';
 import { ImageView } from './imageView';
@@ -134,8 +135,7 @@ export class FilePreview {
     const name = path.split(/[\\/]/).pop() ?? path;
     const kind = previewKind(name, size);
     if (kind === 'binary') {
-      this.setNotice(path, name, size, 'Too large to preview.');
-      this.opts.onShown?.(false);
+      await this.setNotice(gen, path, name, size, 'tooLarge');
       return;
     }
     try {
@@ -163,9 +163,11 @@ export class FilePreview {
     } catch (err) {
       if (gen !== this.generation) return;
       const failure = classifyReadError(err);
-      if (failure === 'binary') this.setNotice(path, name, size, 'Binary file.');
-      else if (failure === 'tooLarge') this.setNotice(path, name, size, 'Too large to preview.');
-      else this.setError(err);
+      if (failure === 'binary' || failure === 'tooLarge') {
+        await this.setNotice(gen, path, name, size, failure);
+        return;
+      }
+      this.setError(err);
       this.opts.onShown?.(false);
     }
   }
@@ -296,10 +298,25 @@ export class FilePreview {
     return this.nameEl;
   }
 
-  private setNotice(path: string, name: string, size: number, reason: string): void {
-    const view = new BinaryNotice(name, size, reason, () => this.opts.onOpenInEditor(path));
+  private async setNotice(
+    gen: number,
+    path: string,
+    name: string,
+    size: number,
+    why: 'binary' | 'tooLarge',
+  ): Promise<void> {
+    const canOpen = await canOpenWithDefaultApp(path);
+    if (gen !== this.generation) return;
+    const view = new BinaryNotice({
+      name,
+      size,
+      reason: why === 'binary' ? 'Binary file.' : 'Too large to preview.',
+      onOpenInEditor: () => this.opts.onOpenInEditor(path),
+      onOpenWithDefaultApp: canOpen ? () => void openWithDefaultApp(path) : undefined,
+    });
     this.current = { kind: 'notice', path, view };
     this.el.replaceChildren(view.el);
+    this.opts.onShown?.(false);
   }
 
   private setError(err: unknown): void {

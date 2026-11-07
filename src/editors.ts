@@ -20,3 +20,17 @@ export async function openInEditor(path: string, line?: number): Promise<void> {
     showToast(err instanceof Error ? err.message : String(err));
   }
 }
+
+/** Whether the file can open in its default app: it exists and would not run as a program. */
+export function canOpenWithDefaultApp(path: string): Promise<boolean> {
+  return invoke<boolean>('can_open_with_default_app', { path }).catch(() => false);
+}
+
+/** Opens a file in the app Windows associates with it, toasting on failure. */
+export async function openWithDefaultApp(path: string): Promise<void> {
+  try {
+    await invoke('open_with_default_app', { path });
+  } catch (err) {
+    showToast(err instanceof Error ? err.message : String(err));
+  }
+}

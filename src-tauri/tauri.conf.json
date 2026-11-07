@@ -76,6 +76,7 @@
         "headerImage": "installer/header.bmp",
         "sidebarImage": "installer/sidebar.bmp",
         "installMode": "currentUser",
+        "installerHooks": "installer/hooks.nsh",
         "displayLanguageSelector": false
       }
     }

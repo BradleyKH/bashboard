@@ -18,7 +18,7 @@ import { gitFetchVisible } from './gitApi';
 import { syncGitFetchRoots } from './gitFetchRoots';
 import { onCliCommand } from './cli';
 import { onNotificationActivated, showNotification } from './notificationsApi';
-import { onSecondLaunch } from './secondLaunch';
+import { onSecondLaunch, takeStartupFolder } from './secondLaunch';
 import { runCliCommand, type CliTarget } from './cliDispatch';
 import { setHomeDir } from './displayPath';
 import { containerAction, startEngine, type Engine } from './containers';
@@ -1176,7 +1176,9 @@ try {
 } catch (err) {
   showToast(`Could not restore the workspace: ${String(err)}`);
 }
-if (!restored) workspace.addPane();
+const startupFolder = await takeStartupFolder().catch(() => null);
+if (!restored) workspace.addPane(startupFolder ?? undefined);
+else if (startupFolder) workspace.newTab(startupFolder);
 trackRepo();
 syncGitFetchRoots(workspace.panes());
 if (payload.firstRun) void showSetup();

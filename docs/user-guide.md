@@ -42,6 +42,10 @@ front instead of starting a second copy; launched from a shell or a folder (for 
 `start bashboard` in Git Bash, or the exe run from Explorer's address bar), it also opens a new
 tab in that folder. The Start menu and taskbar shortcuts just bring the window forward.
 
+The installer also adds **Open in Bashboard** to Explorer's right-click menu, on a folder, a
+drive, or the empty space inside a folder. It opens a new tab in that folder, starting Bashboard
+first if it isn't running. On Windows 11 it is under **Show more options** (or Shift+F10).
+
 ## Scratch pads
 
 A scratch pad is a plain text pane for drafting a prompt or keeping notes beside your terminals.
@@ -110,7 +114,9 @@ The preview depends on the file:
   size and scroll around; click again, or Fit, to fit it back. Transparent areas show a
   checkerboard, and the image updates when the file changes on disk.
 - **Binary and large files** (other files over 2 MiB, or text containing NUL bytes) show a notice with the name and
-  size and an Open in editor button.
+  size, an Open with default app button (the app Windows uses for that file type, such as a PDF
+  reader), and an Open in editor button. Programs, scripts, installers, and shortcuts get only
+  Open in editor, so a click in the preview never runs them.
 
 Text previews have a Find button (or Ctrl+Shift+F in the Files pane) that searches the file,
 ignoring case, and highlights every match. Enter and Shift+Enter step through them, and Esc
@@ -465,7 +471,8 @@ the tab's Files pane for the repo (opening one if there is none), and ↗, **Ope
 in your preferred editor at the line. Enter and a double click on a matching line also open it in
 your editor. A file's group header has the same two buttons, which act on the file with no line.
 Right-click a row for the same two items plus Copy path and Insert path. A file the preview cannot
-show, because it is binary or over 2 MiB, shows a notice with an Open in editor button. The − and +
+show, because it is binary or over 2 MiB, shows the same notice as the Files pane, with Open with
+default app and Open in editor buttons. The − and +
 buttons above the preview, or Ctrl+wheel over it, zoom its text, and a new Search pane starts at
 the zoom you last chose.
 

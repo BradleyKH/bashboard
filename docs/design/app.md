@@ -195,12 +195,25 @@ workspace, since xterm.js measures its character cell when a terminal opens.
 
 Release builds register `tauri-plugin-single-instance` before every other plugin. A second
 launch finds the running app through a named mutex keyed on the app identifier, hands it its
-working directory, and exits. The running app unminimizes, shows, and focuses the main window,
-then emits `instance://launched` with the folder for a new tab, or `null` when the working
-directory is empty, missing, the exe's own folder (where Start menu and taskbar shortcuts start),
-or the Windows folder or below. On a folder, the front end opens a new tab there (4.10). Debug
-builds skip the plugin, since they share the identifier and a dev run starts beside the
-installed app; their saved state is already separate (3.6).
+arguments and working directory, and exits. The running app unminimizes, shows, and focuses the
+main window, then emits `instance://launched` with the folder for a new tab, or `null`. The
+folder is the first argument that names an existing folder; without one, it is the working
+directory, unless that is empty, missing, the exe's own folder (where Start menu and taskbar
+shortcuts start), or the Windows folder or below. On a folder, the front end opens a new tab
+there (4.10). Debug builds skip the plugin, since they share the identifier and a dev run starts
+beside the installed app; their saved state is already separate (3.6).
+
+A first launch keeps its own folder argument (working directory alone does not count) for the
+front end, which takes it once through `startup_folder_take` after restoring the workspace: it
+opens a new tab there, or starts the first pane there when nothing was restored. Taking clears
+it, so a page reload does not repeat the tab.
+
+The installer adds "Open in Bashboard" to Explorer's context menu through `installer/hooks.nsh`:
+per-user verbs under `HKCU\Software\Classes` for `Directory\Background`, `Directory`, and
+`Drive`, each running `bashboard.exe "%V"`, removed on uninstall. Explorer quotes a drive root as
+`"C:\"`, which reaches the app as `C:"`; the folder check repairs that to `C:\`. On Windows 11
+these verbs sit in the classic menu ("Show more options"), since the top-level menu takes only
+shell extensions registered by a signed package.
 
 ## 4.17 Setup wizard
 

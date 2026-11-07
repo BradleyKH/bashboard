@@ -1,4 +1,5 @@
-//! Editor detection and `open_in_editor` (docs/design/files.md section 3.12).
+//! Editor detection, `open_in_editor`, and `open_with_default_app` (docs/design/files.md
+//! section 3.12).
 //!
 //! Every editor runs from its `.exe` with an argument list, never through a shell (section 9).
 //! VS Code, Cursor, Windsurf, VS Code Insiders, and VSCodium put only `.cmd` shims on `PATH`, so a
@@ -458,6 +459,30 @@ pub fn open_in_editor(
     })
 }
 
+/// Whether `open_with_default_app` would open `path`: an existing file that does not run when
+/// opened.
+#[tauri::command]
+pub fn can_open_with_default_app(path: String) -> bool {
+    normalize_existing(&path).is_ok_and(|p| opens_safely(&p))
+}
+
+/// Opens a file in the app Windows associates with it. Refuses anything that would run as a
+/// program, since this is a click in a preview, not a launch.
+#[tauri::command]
+pub fn open_with_default_app(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let path = normalize_existing(&path)?;
+    if !opens_safely(&path) {
+        return Err(format!("{} would run as a program, so it was not opened", path.display()));
+    }
+    app.opener()
+        .open_path(path.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+fn opens_safely(path: &Path) -> bool {
+    path.is_file() && !runs_when_opened(path, &std::env::var("PATHEXT").unwrap_or_default())
+}
+
 /// Extensions Windows executes, or hands to an installer or script host, on a plain open.
 const RUNNABLE: &[&str] = &[
     "appinstaller", "application", "appref-ms", "appx", "appxbundle", "bat", "chm", "cmd", "com",
@@ -514,6 +539,19 @@ mod tests {
         for name in ["README.md", "main.rs", "photo.png", "notes", "report.pdf"] {
             assert!(!runs_when_opened(Path::new(name), pathext), "{name}");
         }
+    }
+
+    #[test]
+    fn default_app_opens_only_files_that_do_not_run() {
+        let root = temp_dir("default-app");
+        for name in ["report.pdf", "setup.exe", "go.lnk"] {
+            touch(&root.join(name));
+        }
+        assert!(opens_safely(&root.join("report.pdf")));
+        assert!(!opens_safely(&root.join("setup.exe")));
+        assert!(!opens_safely(&root.join("go.lnk")));
+        assert!(!opens_safely(&root));
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

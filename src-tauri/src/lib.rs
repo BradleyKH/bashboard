@@ -131,8 +131,8 @@ pub fn run() {
     // and a dev run has to start beside the installed app. Registered first so a second
     // launch exits before any other plugin starts.
     #[cfg(not(debug_assertions))]
-    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, cwd| {
-        second_instance::on_second_launch(app, cwd)
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        second_instance::on_second_launch(app, args, cwd)
     }));
     builder
         .plugin(tauri_plugin_opener::init())
@@ -153,6 +153,7 @@ pub fn run() {
         .manage(ports::PortsState::default())
         .manage(transcript::Transcripts::default())
         .manage(forge::ForgeState::default())
+        .manage(second_instance::StartupFolder::from_args())
         .setup(|app| {
             let window = create_main_window(app.handle())?;
             settings::init(app.handle());
@@ -182,6 +183,7 @@ pub fn run() {
             pty::pty_list,
             profiles::shell_profiles,
             close_window,
+            second_instance::startup_folder_take,
             shell_integration::shell_integration_preview,
             shell_integration::shell_integration_install,
             git_install::git_install_status,
@@ -221,6 +223,8 @@ pub fn run() {
             files::fs_unwatch,
             editors::editors,
             editors::open_in_editor,
+            editors::can_open_with_default_app,
+            editors::open_with_default_app,
             fonts::fonts,
             git::git_status,
             git::git_stage,

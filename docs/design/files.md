@@ -97,6 +97,10 @@ or one Windows hands to a script host, installer, or shortcut (`.lnk`, `.url`, `
 `.msi`, `.reg`, and the like; `RUNNABLE` in `editors.rs`). Those open in Notepad instead, so
 double-clicking a file from a cloned repo never executes it.
 
+`open_with_default_app(path)` opens a file in its default app directly, for the binary notice
+(4.12), and refuses the same runnable files with an error; `can_open_with_default_app(path)`
+answers whether it would open one, so the notice can leave its button out.
+
 ## 4.12 Files and pins
 
 A Files pane shows one folder: on the left, a list with folders first and then files, under a
@@ -135,7 +139,9 @@ The preview depends on the file:
 - **Plain text** (`.txt`, or no extension) opens in the text editor, with long lines wrapped.
 - **Other text files** (code, JSON, YAML, HTML, and so on) open in the text editor with a
   line-number gutter; lines do not wrap and scroll sideways instead.
-- **Binary files, and other files over 2 MiB,** show their name, size, and an Open in editor button.
+- **Binary files, and other files over 2 MiB,** show their name, size, an Open with default app
+  button, and an Open in editor button. Open with default app is left out for a file that would
+  run as a program when opened (3.12).
 
 **Find** (`previewFind.ts`): every text preview has a Find button on its toolbar, beside Edit
 for markdown and CSV; an image has none. Ctrl+Shift+F anywhere in the Files pane does the same. It opens a bar in the

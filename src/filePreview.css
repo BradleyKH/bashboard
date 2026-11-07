@@ -26,6 +26,12 @@
   overflow: auto;
 }
 
+.preview-notice .notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .preview-notice .notice-name {
   font-size: 14px;
   color: #e6e6e6;
