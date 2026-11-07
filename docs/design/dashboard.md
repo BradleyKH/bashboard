@@ -96,10 +96,12 @@ boundary only while the panel is on screen and the window is shown, catching up 
 show, and no timer runs while it is disabled.
 
 **Wave.** A looping line (a Lissajous figure) 56 px tall across the panel's width, with no
-header, no collapse, and no keyboard row. CPU load sets its horizontal frequency against a fixed
-vertical one, from a calm loop when idle to a tighter weave when busy; combined network traffic,
-on a log scale that tops out at 10 MB/s, speeds the slow turn of its phase and brightens the line.
-A faint copy a little behind the main line gives it depth. Both inputs ease toward each new
+header, no collapse, and no keyboard row. CPU load climbs a ladder of closed figures whose
+frequency ratios gain a lobe at each step (1:2, 3:2, 3:4, 5:4), evenly spaced from a calm figure
+eight when idle to a modest weave at full load; between two steps both figures draw whole and
+split the line's opacity.
+Combined network traffic, on a log scale that tops out at 10 MB/s, speeds the slow turn of its
+phase and brightens the line. A faint copy a little behind the main line gives it depth. Both inputs ease toward each new
 reading over about 1.5 s, so the figure morphs rather than jumps. It samples `system_sample`
 every 2 s and draws at most 20 frames a second on a small 2D canvas, only while it is enabled,
 the panel is on screen, and the window is shown. It keeps moving with `backdrop.animate` off; with
@@ -133,6 +135,16 @@ then, and every row reads `-` when the core cannot be reached. GPU utilization a
 signal are not shown: Windows offers GPU load only through costly counters or vendor libraries,
 and the Wi-Fi values need the WLAN API for little benefit. `system_sample(includeDisks)` returns
 the rows; the front end passes `includeDisks` on its 60 second beat.
+
+Hovering the CPU or Memory row for a moment opens a popup of the six busiest programs by that
+measure. Processes are grouped by executable name (`.exe` dropped, case ignored), so a browser's
+dozens of processes read as one line with a `×24` count. CPU is each group's share of the whole
+machine, on the same scale as the row; memory is the group's summed working sets, which counts
+pages shared between its processes more than once. `system_top_processes(limit)` returns both
+lists; the popup asks on opening and every 2 s while open, and nothing reads processes otherwise.
+Per-process CPU is a delta like the machine's, so when the last process read is more than 5 s
+old the command reads twice, 200 ms apart, and the first popup already shows CPU. The popup takes
+no pointer events and closes when the pointer leaves the row or the section stops polling.
 
 **Keyboard.** F6 moves focus into the panel, onto the row focused there last, else the focused
 pane's card, else the first row; F6 again, or Escape, returns focus to the focused pane. While the

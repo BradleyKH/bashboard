@@ -105,3 +105,45 @@ const RATE_SCALE_FLOOR = 256 * 1024;
 export function rateScale(values: readonly number[]): number {
   return Math.max(RATE_SCALE_FLOOR, ...values);
 }
+
+/** One program in the top-processes popup: every process sharing an executable name, summed. */
+export interface ProcessGroup {
+  name: string;
+  count: number;
+  /** Share of the whole machine, on the same scale as `SystemSample.cpuPercent`. */
+  cpuPercent: number;
+  memoryBytes: number;
+}
+
+/** Payload of the `system_top_processes` command. */
+export interface TopProcesses {
+  byCpu: ProcessGroup[];
+  byMemory: ProcessGroup[];
+}
+
+export type ProcessMetric = 'cpu' | 'memory';
+
+/** How many programs the popup lists. */
+export const TOP_PROCESS_LIMIT = 6;
+
+export interface ProcessLine {
+  name: string;
+  /** "×12" when several processes share the name, else empty. */
+  count: string;
+  value: string;
+}
+
+/** The popup's lines for one metric: under 1% of CPU reads "<1%" rather than "0%". */
+export function processLines(top: TopProcesses, metric: ProcessMetric): ProcessLine[] {
+  const groups = metric === 'cpu' ? top.byCpu : top.byMemory;
+  return groups.map((g) => ({
+    name: g.name,
+    count: g.count > 1 ? `×${g.count}` : '',
+    value:
+      metric === 'cpu'
+        ? g.cpuPercent < 0.5
+          ? '<1%'
+          : `${Math.round(g.cpuPercent)}%`
+        : formatBytes(g.memoryBytes),
+  }));
+}

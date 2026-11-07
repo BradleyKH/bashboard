@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cpuLevel, ease, netLevel, phaseSpeed, wavePoints } from './waveModel';
+import { WAVE_RATIOS, cpuLevel, ease, netLevel, phaseSpeed, waveLayers, wavePoints } from './waveModel';
 
 describe('cpuLevel', () => {
   it('maps percent to 0..1 and clamps', () => {
@@ -43,9 +43,50 @@ describe('ease', () => {
   });
 });
 
+describe('waveLayers', () => {
+  it('draws the calm figure alone at idle', () => {
+    expect(waveLayers(0)).toEqual([{ ratio: WAVE_RATIOS[0], weight: 1 }]);
+    expect(waveLayers(-1)).toEqual(waveLayers(0));
+  });
+
+  it('draws the last figure alone at full load', () => {
+    expect(waveLayers(1)).toEqual([{ ratio: WAVE_RATIOS[WAVE_RATIOS.length - 1], weight: 1 }]);
+    expect(waveLayers(2)).toEqual(waveLayers(1));
+  });
+
+  it('splits the opacity between neighboring steps and never runs past the last', () => {
+    for (let cpu = 0; cpu <= 1; cpu += 0.01) {
+      const layers = waveLayers(cpu);
+      const total = layers.reduce((sum, l) => sum + l.weight, 0);
+      expect(total).toBeCloseTo(1);
+      for (const l of layers) expect(WAVE_RATIOS).toContain(l.ratio);
+    }
+  });
+
+  it('climbs linearly with load', () => {
+    const half = waveLayers(0.5);
+    const mid = (WAVE_RATIOS.length - 1) / 2;
+    const lo = Math.floor(mid);
+    expect(half[0].ratio).toEqual(WAVE_RATIOS[lo]);
+    expect(half[1]?.weight ?? 0).toBeCloseTo(mid - lo);
+  });
+
+  it('climbs through coprime, unequal ratios with more lobes each step', () => {
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    WAVE_RATIOS.forEach(([a, b], i) => {
+      expect(a).not.toBe(b);
+      expect(gcd(a, b)).toBe(1);
+      if (i > 0) {
+        const [pa, pb] = WAVE_RATIOS[i - 1];
+        expect(a + b).toBeGreaterThan(pa + pb);
+      }
+    });
+  });
+});
+
 describe('wavePoints', () => {
   it('returns n points inside the unit square', () => {
-    const pts = wavePoints(0.4, 1.2, 50);
+    const pts = wavePoints(WAVE_RATIOS[WAVE_RATIOS.length - 1], 1.2, 50);
     expect(pts).toHaveLength(50);
     for (const [x, y] of pts) {
       expect(Math.abs(x)).toBeLessThanOrEqual(1);
@@ -53,8 +94,12 @@ describe('wavePoints', () => {
     }
   });
 
-  it('changes shape with load', () => {
-    expect(wavePoints(0, 0, 20)).not.toEqual(wavePoints(1, 0, 20));
+  it('closes the figure', () => {
+    for (const ratio of WAVE_RATIOS) {
+      const pts = wavePoints(ratio, 0.6, 100);
+      expect(pts[99][0]).toBeCloseTo(pts[0][0]);
+      expect(pts[99][1]).toBeCloseTo(pts[0][1]);
+    }
   });
 });
 

@@ -56,3 +56,55 @@
   flex-direction: column;
   gap: 4px;
 }
+
+/* The CPU and Memory rows' top-processes popup. */
+.system-popup {
+  position: fixed;
+  /* Above dialogs and drag overlays (1000), below the context menu (9000). */
+  z-index: 8000;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.96);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  pointer-events: none;
+}
+
+.system-popup[hidden] {
+  display: none;
+}
+
+.system-popup-title {
+  margin-bottom: 4px;
+  color: #7f8c94;
+}
+
+.system-popup-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.system-popup-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-popup-count {
+  color: #7f8c94;
+}
+
+.system-popup-value {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.system-popup-note {
+  grid-column: 1 / -1;
+  color: #7f8c94;
+}

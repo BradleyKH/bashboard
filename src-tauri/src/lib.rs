@@ -276,6 +276,7 @@ pub fn run() {
             search::search_cancel,
             setup::setup_repo_candidates,
             system::system_sample,
+            system::system_top_processes,
             ports::ports_list,
             model_servers::model_servers_poll,
             model_servers::model_servers_ollama_models,

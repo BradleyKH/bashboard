@@ -5,13 +5,17 @@
 //! `None` rather than averaged over the gap.
 
 use std::{
+    collections::HashMap,
     path::Path,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use serde::Serialize;
-use sysinfo::{Disks, Networks, System};
+use sysinfo::{
+    Disks, Networks, Pid, ProcessRefreshKind, ProcessesToUpdate, System,
+    MINIMUM_CPU_UPDATE_INTERVAL,
+};
 use tauri::State;
 
 /// A delta over a longer gap than this is stale (the section was hidden or collapsed).
@@ -55,11 +59,31 @@ pub struct SystemSample {
     pub disks: Option<Vec<DiskRow>>,
 }
 
+/// One program in the top-processes popup: every process sharing an executable name, summed.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessGroup {
+    pub name: String,
+    pub count: u32,
+    /// Share of the whole machine, on the same 0 to 100 scale as `SystemSample::cpu_percent`.
+    pub cpu_percent: f32,
+    /// Summed working sets, so pages shared between the group's processes count more than once.
+    pub memory_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopProcesses {
+    pub by_cpu: Vec<ProcessGroup>,
+    pub by_memory: Vec<ProcessGroup>,
+}
+
 pub struct SystemSampler {
     sys: System,
     networks: Networks,
     disks: Option<Disks>,
     last_cpu_net: Option<Instant>,
+    last_processes: Option<Instant>,
 }
 
 impl Default for SystemSampler {
@@ -69,6 +93,7 @@ impl Default for SystemSampler {
             networks: Networks::new(),
             disks: None,
             last_cpu_net: None,
+            last_processes: None,
         }
     }
 }
@@ -100,7 +125,96 @@ fn drive_root(mount: &Path) -> Option<String> {
         .then(|| s[..2].to_ascii_uppercase())
 }
 
+/// `chrome.exe` as `chrome`; grouping ignores case, keeping the first spelling seen.
+fn group_name(name: &str) -> &str {
+    let n = name.len();
+    if n > 4 && name[n - 4..].eq_ignore_ascii_case(".exe") {
+        &name[..n - 4]
+    } else {
+        name
+    }
+}
+
+/// Sums processes into groups by name and returns the `limit` busiest by CPU and by memory.
+fn top_groups(
+    procs: impl Iterator<Item = (String, f32, u64)>,
+    cpu_count: usize,
+    limit: usize,
+) -> TopProcesses {
+    let mut groups: HashMap<String, ProcessGroup> = HashMap::new();
+    let cores = cpu_count.max(1) as f32;
+    for (name, cpu, mem) in procs {
+        let display = group_name(&name);
+        let g = groups
+            .entry(display.to_lowercase())
+            .or_insert_with(|| ProcessGroup {
+                name: display.to_string(),
+                count: 0,
+                cpu_percent: 0.0,
+                memory_bytes: 0,
+            });
+        g.count += 1;
+        // sysinfo reports a process's CPU as a share of one core.
+        g.cpu_percent += cpu / cores;
+        g.memory_bytes += mem;
+    }
+    let all: Vec<ProcessGroup> = groups.into_values().collect();
+
+    let mut by_cpu: Vec<ProcessGroup> = all
+        .iter()
+        .filter(|g| g.cpu_percent > 0.0)
+        .cloned()
+        .collect();
+    by_cpu.sort_by(|a, b| {
+        b.cpu_percent
+            .total_cmp(&a.cpu_percent)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    by_cpu.truncate(limit);
+
+    let mut by_memory = all;
+    by_memory.sort_by(|a, b| {
+        b.memory_bytes
+            .cmp(&a.memory_bytes)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    by_memory.truncate(limit);
+
+    TopProcesses { by_cpu, by_memory }
+}
+
 impl SystemSampler {
+    /// Process CPU is a delta like the machine's: without a fresh previous refresh, this takes
+    /// two refreshes a moment apart so the first call after a pause still reports CPU.
+    pub fn top_processes(&mut self, limit: usize) -> TopProcesses {
+        let kind = ProcessRefreshKind::nothing().with_cpu().with_memory();
+        if fresh(self.last_processes, Instant::now()).is_none() {
+            self.sys
+                .refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
+            std::thread::sleep(MINIMUM_CPU_UPDATE_INTERVAL);
+        }
+        self.sys
+            .refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
+        self.last_processes = Some(Instant::now());
+        if self.sys.cpus().is_empty() {
+            self.sys.refresh_cpu_usage();
+        }
+        let procs = self
+            .sys
+            .processes()
+            .iter()
+            // The idle process's "CPU" is the machine's idle time.
+            .filter(|(pid, _)| **pid != Pid::from(0))
+            .map(|(_, p)| {
+                (
+                    p.name().to_string_lossy().into_owned(),
+                    p.cpu_usage(),
+                    p.memory(),
+                )
+            });
+        top_groups(procs, self.sys.cpus().len(), limit)
+    }
+
     pub fn sample(&mut self, include_disks: bool, now: Instant) -> SystemSample {
         self.sys.refresh_cpu_usage();
         self.sys.refresh_memory();
@@ -165,6 +279,20 @@ pub async fn system_sample(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+pub async fn system_top_processes(
+    state: State<'_, SystemState>,
+    limit: usize,
+) -> Result<TopProcesses, String> {
+    let sampler = state.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut s = sampler.lock().map_err(|e| e.to_string())?;
+        Ok(s.top_processes(limit))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,5 +351,48 @@ mod tests {
         let mut sorted = mounts.clone();
         sorted.sort();
         assert_eq!(mounts, sorted);
+    }
+
+    #[test]
+    fn groups_by_name_and_ranks() {
+        let procs = vec![
+            ("chrome.exe".to_string(), 40.0, 300),
+            ("Chrome.EXE".to_string(), 20.0, 200),
+            ("code.exe".to_string(), 80.0, 100),
+            ("idle-thing".to_string(), 0.0, 50),
+        ];
+        let top = top_groups(procs.into_iter(), 4, 5);
+        let cpu: Vec<_> = top
+            .by_cpu
+            .iter()
+            .map(|g| (g.name.as_str(), g.count, g.cpu_percent))
+            .collect();
+        assert_eq!(cpu, vec![("code", 1, 20.0), ("chrome", 2, 15.0)]);
+        let mem: Vec<_> = top
+            .by_memory
+            .iter()
+            .map(|g| (g.name.as_str(), g.memory_bytes))
+            .collect();
+        assert_eq!(
+            mem,
+            vec![("chrome", 500), ("code", 100), ("idle-thing", 50)]
+        );
+        assert_eq!(top_groups(Vec::new().into_iter(), 0, 5).by_memory.len(), 0);
+        let one = top_groups(
+            vec![("a".to_string(), 1.0, 2), ("b".to_string(), 2.0, 1)].into_iter(),
+            1,
+            1,
+        );
+        assert_eq!(one.by_cpu[0].name, "b");
+        assert_eq!(one.by_memory[0].name, "a");
+    }
+
+    #[test]
+    fn real_processes_report_cpu_and_memory() {
+        let mut s = SystemSampler::default();
+        let top = s.top_processes(5);
+        assert!(!top.by_memory.is_empty() && top.by_memory.len() <= 5);
+        assert!(top.by_memory[0].memory_bytes > 0);
+        assert!(top.by_cpu.iter().all(|g| g.cpu_percent <= 100.5));
     }
 }

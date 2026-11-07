@@ -2,7 +2,7 @@ import './dashboardWave.css';
 import { DEFAULT_ACCENT } from './accent';
 import { systemSample } from './systemApi';
 import { formatNetwork, formatPercent, type SystemSample } from './systemModel';
-import { WAVE_FPS, cpuLevel, ease, netLevel, phaseSpeed, wavePoints } from './waveModel';
+import { WAVE_FPS, cpuLevel, ease, netLevel, phaseSpeed, waveLayers, wavePoints } from './waveModel';
 
 const POLL_MS = 2000;
 const FRAME_MS = 1000 / WAVE_FPS;
@@ -125,18 +125,28 @@ export class DashboardWave {
     ctx.clearRect(0, 0, w, h);
     ctx.lineJoin = 'round';
     ctx.strokeStyle = this.color;
-    // A faint echo a little behind the main line gives the figure some depth.
-    this.stroke(ctx, w, h, this.phase - 0.35, 0.22, 1);
-    this.stroke(ctx, w, h, this.phase, 0.5 + 0.4 * this.net, 1.4);
+    for (const { ratio, weight } of waveLayers(this.cpu)) {
+      // A faint echo a little behind the main line gives the figure some depth.
+      this.stroke(ctx, w, h, ratio, this.phase - 0.35, 0.22 * weight, 1);
+      this.stroke(ctx, w, h, ratio, this.phase, (0.5 + 0.4 * this.net) * weight, 1.4);
+    }
   }
 
-  private stroke(ctx: CanvasRenderingContext2D, w: number, h: number, phase: number, alpha: number, width: number): void {
+  private stroke(
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    ratio: readonly [number, number],
+    phase: number,
+    alpha: number,
+    width: number,
+  ): void {
     const rx = w / 2 - 3;
     const ry = h / 2 - 3;
     ctx.globalAlpha = alpha;
     ctx.lineWidth = width;
     ctx.beginPath();
-    wavePoints(this.cpu, phase).forEach(([x, y], i) => {
+    wavePoints(ratio, phase).forEach(([x, y], i) => {
       const px = w / 2 + x * rx;
       const py = h / 2 + y * ry;
       if (i === 0) ctx.moveTo(px, py);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   Sparkline,
   rateScale,
+  processLines,
   formatBytes,
   formatDiskFree,
   formatMemory,
@@ -100,5 +101,26 @@ describe('rateScale', () => {
 
   it('follows the busiest reading above the floor', () => {
     expect(rateScale([1_000, 5_000_000, 20_000])).toBe(5_000_000);
+  });
+});
+
+describe('processLines', () => {
+  const top = {
+    byCpu: [
+      { name: 'code', count: 14, cpuPercent: 12.6, memoryBytes: 1024 },
+      { name: 'svchost', count: 1, cpuPercent: 0.2, memoryBytes: 0 },
+    ],
+    byMemory: [{ name: 'chrome', count: 1, cpuPercent: 0, memoryBytes: 1.5 * 1024 ** 3 }],
+  };
+
+  it('formats CPU shares, marking groups of several processes', () => {
+    expect(processLines(top, 'cpu')).toEqual([
+      { name: 'code', count: '×14', value: '13%' },
+      { name: 'svchost', count: '', value: '<1%' },
+    ]);
+  });
+
+  it('formats memory in binary units', () => {
+    expect(processLines(top, 'memory')).toEqual([{ name: 'chrome', count: '', value: '1.5 GB' }]);
   });
 });

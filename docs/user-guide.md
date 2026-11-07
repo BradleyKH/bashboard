@@ -553,7 +553,9 @@ The **System** section is off by default; turn it on under "Show on the
 dashboard" in Settings. It shows CPU use with a 60 second sparkline, memory used of total,
 network receive and send rates with a sparkline for each, and free space on each fixed drive, with bars that turn amber at
 80% and red at 90%. CPU and network fill in on the second sample after the section starts. It
-samples only while it is expanded, the panel is on screen, and the window is shown.
+samples only while it is expanded, the panel is on screen, and the window is shown. Hover the CPU
+or Memory row to see the programs using the most of it, with all of a program's processes added
+together.
 
 The **Wave**, also off by default, is a slowly turning looped line that reacts to your machine:
 it weaves tighter as CPU load rises and turns faster and brighter with network traffic. Hover it

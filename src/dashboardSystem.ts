@@ -1,7 +1,8 @@
 import './dashboardSystem.css';
-import { PollTimer, type PollGate } from './pollTimer';
+import { PollTimer, shouldPoll, type PollGate } from './pollTimer';
 import { SparkCanvas } from './sparkCanvas';
 import { systemSample } from './systemApi';
+import { SystemProcessPopup } from './systemProcessPopup';
 import {
   Sparkline,
   formatDiskFree,
@@ -34,6 +35,8 @@ export class DashboardSystem {
   private readonly rxHistory = new Sparkline();
   private readonly txHistory = new Sparkline();
   private readonly timer = new PollTimer(POLL_MS, () => void this.poll());
+  private readonly popup = new SystemProcessPopup();
+  private gate: PollGate = { enabled: false, expanded: false, onScreen: false, windowShown: true };
   private disks: DiskRow[] = [];
   private lastDisks: number | undefined;
 
@@ -68,6 +71,9 @@ export class DashboardSystem {
     this.diskBox = document.createElement('div');
     this.diskBox.className = 'system-disks';
 
+    this.popup.attach(cpu.row, 'cpu');
+    this.popup.attach(mem.row, 'memory');
+
     this.list.append(cpu.row, mem.row, net.row, this.diskBox);
     this.el.append(this.head, this.list);
     this.render(null);
@@ -75,6 +81,9 @@ export class DashboardSystem {
 
   setGate(partial: Partial<PollGate>): void {
     this.timer.setGate(partial);
+    this.gate = { ...this.gate, ...partial };
+    // The panel can slide away or the window hide without a mouseleave on the row.
+    if (!shouldPoll(this.gate)) this.popup.hide();
   }
 
   private row(label: string): { row: HTMLElement; value: HTMLElement } {
