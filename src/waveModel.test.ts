@@ -45,7 +45,7 @@ describe('netLevel', () => {
 
 describe('ease', () => {
   it('approaches the target without overshooting', () => {
-    const v = ease(0, 1, 1.5);
+    const v = ease(0, 1, 1);
     expect(v).toBeGreaterThan(0.6);
     expect(v).toBeLessThan(0.7);
     expect(ease(0, 1, 100)).toBeCloseTo(1);

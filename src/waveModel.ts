@@ -8,7 +8,7 @@ const NET_FULL_BYTES_PER_SEC = 10 * 1024 * 1024;
 export const WAVE_FPS = 20;
 
 /** Seconds for an eased input to cover about two thirds of the way to a new reading. */
-export const WAVE_EASE_SECONDS = 1.5;
+export const WAVE_EASE_SECONDS = 1;
 
 /** Points along one drawing of the figure, enough to keep the densest step smooth. */
 export const WAVE_POINTS = 480;

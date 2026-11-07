@@ -110,7 +110,7 @@ that tops out at 10 MB/s, speeds the spin, which also turns the horizontal phase
 little earlier in the spin gives the line an echo. The figure is scaled to stay inside its box:
 it shrinks at once when a line would cross an edge and regrows over a few seconds, so the zoom
 holds steady through the spin.
-CPU, memory, and network ease toward each new reading over about 1.5 s, so the figure morphs
+CPU, memory, and network ease toward each new reading over about 1 s, so the figure morphs
 rather than jumps. It samples `system_sample` every 2 s and draws at most 20 frames a second on a
 small 2D canvas, only while it is enabled, the panel is on screen, and the window is shown. It
 keeps moving with `backdrop.animate` off; with reduced motion requested, it holds a still figure
