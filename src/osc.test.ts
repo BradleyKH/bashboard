@@ -23,6 +23,17 @@ describe('parseOsc9', () => {
     expect(parseOsc9('9;')).toBeNull();
   });
 
+  it('returns null for UNC, device, and other non-drive paths', () => {
+    expect(parseOsc9('9;\\\\attacker\\share')).toBeNull();
+    expect(parseOsc9('9;"\\\\attacker\\share\\repo"')).toBeNull();
+    expect(parseOsc9('9;//attacker/share')).toBeNull();
+    expect(parseOsc9('9;\\\\?\\UNC\\attacker\\share')).toBeNull();
+    expect(parseOsc9('9;\\\\.\\C:\\x')).toBeNull();
+    expect(parseOsc9('9;HKLM:\\Software')).toBeNull();
+    expect(parseOsc9('9;relative\\dir')).toBeNull();
+    expect(parseOsc9('9;C:')).toBeNull();
+  });
+
   it('returns null for an empty path or a missing separator', () => {
     expect(parseOsc9('9;')).toBeNull();
     expect(parseOsc9('9;""')).toBeNull();

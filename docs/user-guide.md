@@ -103,7 +103,13 @@ The preview depends on the file:
   extension) wrap long lines; every other text file (code, JSON, YAML, HTML, and so on) shows line
   numbers and scrolls sideways instead. A file that is not valid UTF-8 (an older encoding such as
   Latin-1) opens read-only, so saving can't mangle its characters.
-- **Binary and large files** (over 2 MiB, or containing NUL bytes) show a notice with the name and
+- **CSV and TSV files** show as a table with the first row as a sticky header. Edit switches to
+  the text editor and Done back to the table. Very long files show their first 5000 rows.
+- **Images** (PNG, JPEG, GIF, WebP, BMP, ICO, AVIF, and SVG, up to 32 MiB) are fitted to the
+  preview, with their size on the toolbar. Click the image, or Actual size, to see it at full
+  size and scroll around; click again, or Fit, to fit it back. Transparent areas show a
+  checkerboard, and the image updates when the file changes on disk.
+- **Binary and large files** (other files over 2 MiB, or text containing NUL bytes) show a notice with the name and
   size and an Open in editor button.
 
 Text previews have a Find button (or Ctrl+Shift+F in the Files pane) that searches the file,
@@ -472,7 +478,7 @@ The panel opens on the right (or the left, with `dashboard.side`) on start (set
 `dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+D toggles it. Its top
 bar holds the **⚙** (Settings, also Ctrl+,) and **?** (Help, also F1) buttons, which open the
 [app dialog](#help-settings-and-shortcuts) on those tabs, and
-the × at its right end hides the panel too, with a notice naming the ways back. While it is hidden, a
+the × at its right end hides the panel too, the first time with a notice naming the ways back. While it is hidden, a
 small handle sits on that edge of the window, halfway down; click it to bring the panel back. F6 moves focus
 into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
 clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,

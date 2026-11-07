@@ -265,7 +265,14 @@ pub(crate) fn glab_token(text: &str) -> Option<String> {
     })
 }
 
-pub fn credential_input(host: &str, username: Option<&str>, path: Option<&str>) -> String {
+/// The request `git credential fill` reads on stdin, or `None` when a value would break out of its
+/// line: the username can come from a repo's config or remote URL, and a newline in it could add
+/// a `host=` line that asks the helper for another host's credential.
+pub fn credential_input(host: &str, username: Option<&str>, path: Option<&str>) -> Option<String> {
+    let unsafe_value = |v: &str| v.contains(['\n', '\r', '\0']);
+    if unsafe_value(host) || username.is_some_and(unsafe_value) || path.is_some_and(unsafe_value) {
+        return None;
+    }
     let mut s = format!("protocol=https\nhost={host}\n");
     if let Some(p) = path {
         s.push_str(&format!("path={p}\n"));
@@ -274,7 +281,7 @@ pub fn credential_input(host: &str, username: Option<&str>, path: Option<&str>) 
         s.push_str(&format!("username={u}\n"));
     }
     s.push('\n');
-    s
+    Some(s)
 }
 
 /// `password=` and `password_expiry_utc=` from `git credential fill`'s output.
@@ -323,7 +330,7 @@ fn git_credential(
     username: Option<&str>,
     path: Option<&str>,
 ) -> Option<(String, Option<Instant>)> {
-    let input = credential_input(host, username, path);
+    let input = credential_input(host, username, path)?;
     let out = git
         .read_input(
             CREDENTIAL_ARGS,
@@ -609,17 +616,21 @@ ghe.example.com:
     #[test]
     fn credential_io() {
         assert_eq!(
-            credential_input("github.com", None, None),
-            "protocol=https\nhost=github.com\n\n"
+            credential_input("github.com", None, None).as_deref(),
+            Some("protocol=https\nhost=github.com\n\n")
         );
         assert_eq!(
-            credential_input("github.com", Some("bob"), None),
-            "protocol=https\nhost=github.com\nusername=bob\n\n"
+            credential_input("github.com", Some("bob"), None).as_deref(),
+            Some("protocol=https\nhost=github.com\nusername=bob\n\n")
         );
         assert_eq!(
-            credential_input("dev.azure.com", None, Some("contoso")),
-            "protocol=https\nhost=dev.azure.com\npath=contoso\n\n"
+            credential_input("dev.azure.com", None, Some("contoso")).as_deref(),
+            Some("protocol=https\nhost=dev.azure.com\npath=contoso\n\n")
         );
+        assert_eq!(credential_input("github.com", Some("bob\nhost=evil.example"), None), None);
+        assert_eq!(credential_input("github.com", Some("bob\r"), None), None);
+        assert_eq!(credential_input("github.com", None, Some("org\0")), None);
+        assert_eq!(credential_input("github.com\nhost=x", None, None), None);
         let out = "protocol=https\nhost=github.com\nusername=bob\npassword=fake-pass\npassword_expiry_utc=1700000000\n";
         assert_eq!(
             parse_credential_output(out),

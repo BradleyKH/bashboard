@@ -410,3 +410,98 @@
 .preview-file-name[hidden] {
   display: none;
 }
+
+.csv-view,
+.image-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.csv-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  outline: 0;
+  font: calc(12px * var(--preview-zoom, 1)) / 1.4 system-ui, sans-serif;
+  user-select: text;
+}
+
+.csv-body.editing {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.csv-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.csv-table th,
+.csv-table td {
+  max-width: 40ch;
+  padding: 2px 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Opaque so rows scrolling under the header do not show through it. */
+.csv-table th {
+  position: sticky;
+  top: 0;
+  background: #262b30;
+  color: #e6e6e6;
+  font-weight: 600;
+}
+
+.csv-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.csv-note {
+  padding: 6px 8px;
+  color: var(--content-muted);
+}
+
+.image-info {
+  flex: 0 1 auto;
+  padding: 0 4px;
+  font: 11px system-ui, sans-serif;
+  color: var(--content-muted);
+  white-space: nowrap;
+}
+
+/* A checkerboard shows where an image is transparent. */
+.image-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  outline: 0;
+  display: grid;
+  /* Safe, so an image larger than the pane scrolls from its top-left corner rather than being cut off. */
+  place-items: safe center;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.06) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+
+.image-body img {
+  cursor: zoom-out;
+}
+
+.image-body.fit {
+  overflow: hidden;
+}
+
+/* Absolute, so the percentages resolve against the body's height, which a grid track does not give. */
+.image-body.fit img {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  cursor: zoom-in;
+}

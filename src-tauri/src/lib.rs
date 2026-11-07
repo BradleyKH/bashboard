@@ -213,6 +213,7 @@ pub fn run() {
             files::repo_root,
             files::fs_list,
             files::fs_read_text,
+            files::fs_read_bytes,
             files::fs_write_text,
             files::fs_move,
             files::fs_rename,

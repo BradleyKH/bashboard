@@ -209,18 +209,31 @@ export function forward(h: History): History {
   return canForward(h) ? { entries: h.entries, index: h.index + 1 } : h;
 }
 
-export type PreviewKind = 'markdown' | 'plain' | 'code' | 'binary';
+export type PreviewKind = 'markdown' | 'plain' | 'code' | 'csv' | 'image' | 'binary';
+
+/** Images over this size are not previewed; it matches the core's `fs_read_bytes` cap. */
+export const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+
+/** Formats WebView2 decodes in an `<img>`. SVG is safe there: an image never runs its scripts. */
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif', 'svg']);
+
+/** The MIME type an image's blob needs, which matters only for SVG. */
+export function imageMime(name: string): string {
+  return extension(name) === 'svg' ? 'image/svg+xml' : '';
+}
 
 /**
- * How a file previews: `.md` renders, `.txt` or no extension edits as wrapped plain text, other
- * names edit as code with line numbers, and anything over 2 MiB is binary. A NUL byte also makes a file binary, but only the
- * read can tell.
+ * How a file previews: `.md` renders, `.csv` and `.tsv` show as a table, images show as images
+ * up to 32 MiB, `.txt` or no extension edits as wrapped plain text, other names edit as code
+ * with line numbers, and any other file over 2 MiB is binary. A NUL byte also makes a text file
+ * binary, but only the read can tell.
  */
 export function previewKind(name: string, size: number): PreviewKind {
+  const ext = extension(name);
+  if (IMAGE_EXTS.has(ext)) return size > MAX_IMAGE_BYTES ? 'binary' : 'image';
   if (size > MAX_TEXT_BYTES) return 'binary';
-  const dot = name.lastIndexOf('.');
-  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
   if (ext === 'md') return 'markdown';
+  if (ext === 'csv' || ext === 'tsv') return 'csv';
   if (ext === '' || ext === 'txt') return 'plain';
   return 'code';
 }

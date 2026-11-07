@@ -21,10 +21,14 @@ use std::{
 
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
-use tauri::{State, ipc::Channel};
+use tauri::{
+    State,
+    ipc::{Channel, Response},
+};
 
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
 const BINARY_PROBE_BYTES: usize = 8 * 1024;
+const MAX_IMAGE_BYTES: u64 = 32 * 1024 * 1024;
 const WATCH_DEBOUNCE: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -188,6 +192,28 @@ fn read_text(path: &str) -> Result<TextFile, String> {
     })
 }
 
+fn read_bytes(path: &str) -> Result<Vec<u8>, String> {
+    let path = normalize(path)?;
+    let name = display(&path);
+    let file = File::open(&path).map_err(|e| format!("{name}: {e}"))?;
+    let meta = file.metadata().map_err(|e| format!("{name}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!("not a file: {name}"));
+    }
+    if meta.len() > MAX_IMAGE_BYTES {
+        return Err(format!("tooLarge: {name} is over 32 MiB"));
+    }
+    let mut bytes = Vec::new();
+    // Capped again here, since the file can grow between the metadata call and the read.
+    file.take(MAX_IMAGE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("{name}: {e}"))?;
+    if bytes.len() as u64 > MAX_IMAGE_BYTES {
+        return Err(format!("tooLarge: {name} is over 32 MiB"));
+    }
+    Ok(bytes)
+}
+
 fn write_text(path: &str, text: &str, expected_modified: u64) -> Result<Written, String> {
     let path = normalize(path)?;
     let name = display(&path);
@@ -282,6 +308,11 @@ pub async fn fs_list(dir: String) -> Result<Vec<Entry>, String> {
 #[tauri::command]
 pub async fn fs_read_text(path: String) -> Result<TextFile, String> {
     read_text(&path)
+}
+
+#[tauri::command]
+pub async fn fs_read_bytes(path: String) -> Result<Response, String> {
+    read_bytes(&path).map(Response::new)
 }
 
 #[tauri::command]
@@ -499,6 +530,21 @@ mod tests {
         fs::write(&late, bytes).unwrap();
         assert!(read_text(&s(&late)).is_ok());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_bytes_returns_any_file_and_refuses_oversized_ones() {
+        let dir = temp_dir("bytes");
+        let small = dir.join("a.png");
+        fs::write(&small, [0u8, 1, 2, 255]).unwrap();
+        assert_eq!(read_bytes(&s(&small)).unwrap(), vec![0u8, 1, 2, 255]);
+        let big = dir.join("big.png");
+        let f = File::create(&big).unwrap();
+        f.set_len(MAX_IMAGE_BYTES + 1).unwrap();
+        drop(f);
+        assert!(read_bytes(&s(&big)).unwrap_err().starts_with("tooLarge:"));
+        assert!(read_bytes(&s(&dir)).is_err());
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

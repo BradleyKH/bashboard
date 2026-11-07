@@ -184,6 +184,14 @@ describe('previewKind', () => {
     expect(previewKind('main.rs', 10)).toBe('code');
     expect(previewKind('big.md', 2 * 1024 * 1024 + 1)).toBe('binary');
     expect(previewKind('exact.txt', 2 * 1024 * 1024)).toBe('plain');
+    expect(previewKind('data.CSV', 10)).toBe('csv');
+    expect(previewKind('data.tsv', 10)).toBe('csv');
+    expect(previewKind('big.csv', 2 * 1024 * 1024 + 1)).toBe('binary');
+    expect(previewKind('shot.PNG', 10)).toBe('image');
+    expect(previewKind('logo.svg', 10)).toBe('image');
+    expect(previewKind('photo.jpg', 20 * 1024 * 1024)).toBe('image');
+    expect(previewKind('huge.png', 32 * 1024 * 1024 + 1)).toBe('binary');
+    expect(previewKind('.png', 10)).toBe('plain');
   });
 });
 

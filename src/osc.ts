@@ -16,8 +16,12 @@ export function parseOsc9(data: string): string | null {
   if (path.length >= 2 && path.startsWith('"') && path.endsWith('"')) {
     path = path.slice(1, -1);
   }
-  return path === '' ? null : path;
+  // Any program's output can send this, and the folder is probed on disk as soon as it lands,
+  // so a UNC path (`\\host\share`) would make Windows authenticate to that host over SMB.
+  return DRIVE_PATH.test(path) ? path : null;
 }
+
+const DRIVE_PATH = /^[A-Za-z]:[\\/]/;
 
 /**
  * Parses a `file://host/path` URL into a Windows path. The host is ignored. Only

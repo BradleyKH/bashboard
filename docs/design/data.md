@@ -146,6 +146,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 - `collapsedSections`: none. Reading keeps known names once each; Launch and the clock never
   collapse, so they are dropped.
 - `showPanePaths` (the Panes section's paths toggle, 4.6): false; a non-boolean reads as absent.
+- `dashboardHideNoticeShown` (whether hiding the dashboard with × has shown its toast, 4.6):
+  false; anything but `true` reads as absent.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.

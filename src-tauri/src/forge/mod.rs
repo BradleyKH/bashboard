@@ -431,8 +431,8 @@ impl ForgeState {
     /// The repo a target key names, with the `Git` its token is resolved through. A local
     /// target's `Git` runs in its clone. A `remote:` target has no clone, so its `Git` runs in
     /// the home folder only for `git credential fill`, which then reads the credential helpers
-    /// from global and system config. No token source reads a repo's own config (`gh` and
-    /// Windows Credential Manager run no git at all), so this finds what a clone would.
+    /// from global and system config, the same helpers a clone's `git credential fill` sees
+    /// unless the clone's own config adds one (`gh` and Windows Credential Manager run no git).
     fn target(
         &self,
         settings: &SettingsState,

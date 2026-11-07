@@ -1,7 +1,9 @@
 import './filePreview.css';
 import { BinaryNotice } from './binaryNotice';
+import { CsvView } from './csvView';
 import { ExpandPreviewButton } from './expandPreviewButton';
 import { previewKind } from './filesModel';
+import { ImageView } from './imageView';
 import type { Action, Keymap } from './keymap';
 import { samePath } from './markdownRender';
 import { MarkdownView } from './markdownView';
@@ -43,6 +45,8 @@ export interface FilePreviewOptions {
 type Current =
   | { kind: 'markdown'; path: string; view: MarkdownView }
   | { kind: 'plain' | 'code'; path: string; view: TextEditor; find: PreviewFind }
+  | { kind: 'csv'; path: string; view: CsvView }
+  | { kind: 'image'; path: string; view: ImageView }
   | { kind: 'notice'; path: string; view: BinaryNotice };
 
 /** The right half of a Files pane: shows the selected file (docs/design/files.md section 4.12). */
@@ -75,7 +79,7 @@ export class FilePreview {
       (zoom) => {
         this.el.style.setProperty('--preview-zoom', String(zoom));
         const c = this.current;
-        if (c?.kind === 'code') c.view.relayout();
+        if (c?.kind === 'code' || c?.kind === 'csv') c.view.relayout();
       },
       this.el,
     );
@@ -87,10 +91,10 @@ export class FilePreview {
     this.showEmpty();
   }
 
-  /** True when the current file is a text preview that can fill the pane. */
+  /** True when the current file has a preview that can fill the pane (anything but a notice). */
   get expandable(): boolean {
     const k = this.current?.kind;
-    return k === 'markdown' || k === 'plain' || k === 'code';
+    return k !== undefined && k !== 'notice';
   }
 
   /** Shows the file name and the Show file list button, or the Expand preview button. */
@@ -135,6 +139,19 @@ export class FilePreview {
       return;
     }
     try {
+      if (kind === 'image') {
+        const view = await ImageView.open(path);
+        if (gen !== this.generation) {
+          view.dispose();
+          return;
+        }
+        view.toolbar.prepend(this.fileName(path));
+        view.toolbar.append(...this.expandButton());
+        this.current = { kind, path, view };
+        this.el.replaceChildren(view.el);
+        this.opts.onShown?.(true);
+        return;
+      }
       const file = await fsReadText(path);
       if (gen !== this.generation) return;
       this.mount(path, this.opts.source ? 'code' : kind, file);
@@ -162,7 +179,8 @@ export class FilePreview {
   diskChanged(modified: number): void {
     const c = this.current;
     if (!c) return;
-    if (c.kind === 'markdown') void c.view.diskChanged(modified);
+    if (c.kind === 'markdown' || c.kind === 'csv') void c.view.diskChanged(modified);
+    else if (c.kind === 'image') c.view.diskChanged();
     else if (c.kind !== 'notice') c.view.diskChanged(modified);
   }
 
@@ -174,7 +192,7 @@ export class FilePreview {
   /** Whether the preview has a find bar (a text preview). */
   get findable(): boolean {
     const c = this.current;
-    return c !== null && c.kind !== 'notice';
+    return c !== null && c.kind !== 'notice' && c.kind !== 'image';
   }
 
   /** The page's selected text when the selection lies inside the preview, else ''. */
@@ -188,21 +206,21 @@ export class FilePreview {
   /** Opens the find bar on a text preview; false when the preview has none. */
   openFind(): boolean {
     const c = this.current;
-    if (!c || c.kind === 'notice') return false;
-    (c.kind === 'markdown' ? c.view.find : c.find).open();
+    if (!c || c.kind === 'notice' || c.kind === 'image') return false;
+    (c.kind === 'markdown' || c.kind === 'csv' ? c.view.find : c.find).open();
     return true;
   }
 
   applySettings(settings: Settings): void {
     this.settings = settings;
     const c = this.current;
-    if (c && c.kind !== 'notice') c.view.applySettings(settings);
+    if (c && c.kind !== 'notice' && c.kind !== 'image') c.view.applySettings(settings);
   }
 
   /** Saves pending edits; resolves once nothing is in flight. */
   async flush(): Promise<void> {
     const c = this.current;
-    if (c && c.kind !== 'notice') await c.view.flush();
+    if (c && c.kind !== 'notice' && c.kind !== 'image') await c.view.flush();
   }
 
   dispose(): void {
@@ -211,7 +229,7 @@ export class FilePreview {
     this.el.remove();
   }
 
-  private mount(path: string, kind: 'markdown' | 'plain' | 'code', file: FileText): void {
+  private mount(path: string, kind: 'markdown' | 'csv' | 'plain' | 'code', file: FileText): void {
     const { keymap, dispatch } = this.opts;
     const { text, modified, lossy } = file;
     if (kind === 'markdown') {
@@ -228,6 +246,12 @@ export class FilePreview {
           this.opts.onOpenFile(target);
         },
       });
+      view.toolbar.prepend(this.fileName(path));
+      view.toolbar.append(this.zoom.el, ...this.expandButton());
+      this.current = { kind, path, view };
+      this.el.replaceChildren(view.el);
+    } else if (kind === 'csv') {
+      const view = new CsvView({ path, text, modified, lossy, settings: this.settings, keymap, dispatch, onSaved: this.opts.onSaved });
       view.toolbar.prepend(this.fileName(path));
       view.toolbar.append(this.zoom.el, ...this.expandButton());
       this.current = { kind, path, view };

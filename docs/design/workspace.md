@@ -68,7 +68,9 @@ directory, read from OSC 9;9 (what Windows Terminal uses) or OSC 7 sequences tha
 handlers capture. Git Bash emits neither by default, so the `~/.bashrc` lines in
 [setup.md](../setup.md#new-panes-in-the-current-folder) (installed by 3.14) emit OSC 9;9 along with
 the OSC 133 command markers terminal status uses (4.8). Without them, new panes start in the home
-directory.
+directory. Only a drive-letter path is taken from OSC 9;9, as OSC 7 already requires: any program's
+output can send one, and the folder is probed on disk as it arrives, so a UNC path would have
+Windows authenticate to that host over SMB. A pane in a network share keeps its last local folder.
 
 ## 4.3 Collapsing
 

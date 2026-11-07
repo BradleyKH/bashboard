@@ -226,6 +226,9 @@ try {
   console.warn('layouts unavailable:', err);
 }
 
+/** Set once hiding the dashboard with × has shown its notice; restored from the saved workspace. */
+let hideNoticeShown = false;
+
 let repos: ReposFile = [];
 try {
   repos = parseRepos(await reposLoad());
@@ -673,7 +676,12 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onShowHelp: () => void openDialog('help'),
   onShowSettings: () => void openDialog('settings'),
   onHide: () => {
-    showToast(hiddenNotice(toggleKeys(), currentSettings.dashboard.side));
+    // The notice teaches the ways back once; after that it is noise on every ×.
+    if (!hideNoticeShown) {
+      hideNoticeShown = true;
+      showToast(hiddenNotice(toggleKeys(), currentSettings.dashboard.side));
+      saver.schedule();
+    }
     focusTerminal();
   },
   onReveal: () => focusTerminal(),
@@ -1058,6 +1066,7 @@ const saver = new DebouncedSaver(
     dashboardRightElements: panel.rightElements() ?? undefined,
     dashboardPinsColumn: panel.pinsColumn(),
     showPanePaths: panel.panePathsShown(),
+    dashboardHideNoticeShown: hideNoticeShown || undefined,
     textZoom: textZoomSnapshot(),
   }),
   workspaceSave,
@@ -1155,6 +1164,7 @@ try {
     });
   }
   if (saved?.showPanePaths) panel.setShowPanePaths(true);
+  if (saved?.dashboardHideNoticeShown) hideNoticeShown = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, {

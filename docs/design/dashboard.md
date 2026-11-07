@@ -8,8 +8,9 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 A collapsible panel docked on the side `dashboard.side` names (`right` by default, or `left`;
 an unknown value falls back to `right` with a warning), open on start by default, toggled with
 Ctrl+Shift+D, hidden by the × button at the right end of its top bar (which also ends a peek),
-and peeking open briefly while hidden when a terminal starts waiting. Hiding it with × shows a
-toast naming the toggle's current keys and the edge handle. While the panel is neither open nor
+and peeking open briefly while hidden when a terminal starts waiting. The first time it is hidden
+with ×, a toast names the toggle's current keys and the edge handle; `dashboardHideNoticeShown`
+in the saved workspace (section 8) keeps it from repeating. While the panel is neither open nor
 peeking, the edge handle, a pill in the 8 px gutter on the panel's side at mid-height that widens
 to a chevron on hover, opens it on click, so a user who never learned the shortcut is not stranded. Open, it narrows the panes
 from its side. Dragging its inner edge (its left edge when docked right, its right edge when

@@ -444,12 +444,45 @@ pub fn open_in_editor(
             }
         }
     }
-    app.opener()
-        .open_path(path.display().to_string(), None::<&str>)
-        .map_err(|e| e.to_string())?;
+    // The default app for a script, shortcut, or program is to run it, so those open as text.
+    let pathext = std::env::var("PATHEXT").unwrap_or_default();
+    if path.is_file() && runs_when_opened(&path, &pathext) {
+        launch(&notepad(), &[path.display().to_string()])?;
+    } else {
+        app.opener()
+            .open_path(path.display().to_string(), None::<&str>)
+            .map_err(|e| e.to_string())?;
+    }
     Ok(Opened {
         fallback: editor.preferred != "default",
     })
+}
+
+/// Extensions Windows executes, or hands to an installer or script host, on a plain open.
+const RUNNABLE: &[&str] = &[
+    "appinstaller", "application", "appref-ms", "appx", "appxbundle", "bat", "chm", "cmd", "com",
+    "cpl", "diagcab", "exe", "gadget", "hta", "inf", "jar", "js", "jse", "library-ms", "lnk",
+    "msc", "msi", "msix", "msixbundle", "msp", "pif", "ps1", "psc1", "reg", "scf", "scr",
+    "search-ms", "settingcontent-ms", "sys", "url", "vb", "vbe", "vbs", "website", "ws", "wsc",
+    "wsf", "wsh", "xll",
+];
+
+/// Whether opening `path` with its default app would run it: a listed extension or one in
+/// `PATHEXT` (`;`-separated, with dots, as Windows sets it).
+fn runs_when_opened(path: &Path, pathext: &str) -> bool {
+    let Some(ext) = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()) else {
+        return false;
+    };
+    RUNNABLE.contains(&ext.as_str())
+        || pathext
+            .split(';')
+            .any(|p| p.trim().trim_start_matches('.').eq_ignore_ascii_case(&ext))
+}
+
+/// Notepad by full path, so a `notepad.exe` in the working folder or early on `PATH` is not run.
+fn notepad() -> PathBuf {
+    let root = std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into());
+    PathBuf::from(root).join("System32").join("notepad.exe")
 }
 
 #[cfg(test)]
@@ -470,6 +503,18 @@ mod tests {
     }
 
     const FILE: &str = r"C:\repo\src\main file.rs";
+
+    #[test]
+    fn runnable_files_are_not_opened_with_their_default_app() {
+        let pathext = ".COM;.EXE;.BAT;.CMD;.VBS;.JS;.WSF;.MSC;.PY";
+        for name in ["setup.exe", "run.BAT", "x.cmd", "a.lnk", "b.url", "c.hta", "d.ps1", "e.py"] {
+            assert!(runs_when_opened(Path::new(name), pathext), "{name}");
+        }
+        assert!(runs_when_opened(Path::new("x.Lnk"), ""));
+        for name in ["README.md", "main.rs", "photo.png", "notes", "report.pdf"] {
+            assert!(!runs_when_opened(Path::new(name), pathext), "{name}");
+        }
+    }
 
     #[test]
     fn table_args_with_a_line() {

@@ -15,6 +15,7 @@ Branches tab lists them together through the worktree commands in 3.9.
 | `repo_root(path) -> { root, isGit, branch? }` | The repo a folder belongs to |
 | `fs_list(dir) -> Entry[]` | Folders, then files, each with name, size, and modified time |
 | `fs_read_text(path) -> { text, modified, lossy }` | Up to 2 MiB; a file with a NUL byte in its first 8 KiB is refused as binary. Invalid UTF-8 decodes with U+FFFD in place of the bad bytes and sets `lossy` |
+| `fs_read_bytes(path) -> bytes` | A file's raw bytes, up to 32 MiB (`tooLarge:` past that), sent as binary IPC rather than JSON; the image preview's source |
 | `fs_write_text(path, text, expectedModified)` | Writes through a temp file and a rename; refused when the file's modified time differs from `expectedModified`, so a save never overwrites a change made on disk since the read, and refused when the file on disk is not valid UTF-8 |
 | `fs_move(path, toDir)` | Moves a file into another folder; refused when the target name exists |
 | `fs_rename(path, newName) -> path` | Renames a file or folder within its folder; refused (`invalid:`) for a name Windows forbids and (`exists:`) when another entry has the name, though a change of case alone goes through |
@@ -91,6 +92,11 @@ A non-empty `editor.command` replaces the table: it is split into arguments, wit
 `{line}` filled in (an absent line fills `1`). When the preferred editor is not found, the file
 opens in its default app and a toast says so.
 
+The default app is never used for a file whose default action runs it: an extension in `PATHEXT`
+or one Windows hands to a script host, installer, or shortcut (`.lnk`, `.url`, `.hta`, `.ps1`,
+`.msi`, `.reg`, and the like; `RUNNABLE` in `editors.rs`). Those open in Notepad instead, so
+double-clicking a file from a cloned repo never executes it.
+
 ## 4.12 Files and pins
 
 A Files pane shows one folder: on the left, a list with folders first and then files, under a
@@ -115,13 +121,24 @@ The preview depends on the file:
 - **Markdown** (`.md`) renders through `markdown-it` with raw HTML off, then `DOMPurify`. Links
   to `http` and `https` open in the browser; a relative link to another file opens it in the
   same pane. Images are not loaded. An Edit toggle switches to the text editor below.
+- **CSV and TSV** (`.csv`, `.tsv`) show as a table (`csvModel.ts`, `csvView.ts`): the first
+  row is a sticky header, short rows are padded, and quoted fields may hold the delimiter,
+  newlines, and doubled quotes. Past 5000 rows the table stops with a note giving the total. An
+  Edit toggle switches to the text editor with line numbers, as for markdown.
+- **Images** (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, `.ico`, `.avif`, `.svg`) up to
+  32 MiB show fitted to the preview over a checkerboard, with their pixel size and file size
+  on the toolbar (`imageView.ts`). Clicking the image, or the toolbar's Actual size and Fit
+  button, toggles between fitted and actual size. The bytes come through `fs_read_bytes` into
+  a `blob:` URL, the only image source the CSP allows besides the app's own files; an SVG runs
+  no script as an `<img>`. A change on disk reloads the image. A file that does not decode
+  shows the binary notice.
 - **Plain text** (`.txt`, or no extension) opens in the text editor, with long lines wrapped.
 - **Other text files** (code, JSON, YAML, HTML, and so on) open in the text editor with a
   line-number gutter; lines do not wrap and scroll sideways instead.
-- **Binary files, and files over 2 MiB,** show their name, size, and an Open in editor button.
+- **Binary files, and other files over 2 MiB,** show their name, size, and an Open in editor button.
 
 **Find** (`previewFind.ts`): every text preview has a Find button on its toolbar, beside Edit
-for markdown; Ctrl+Shift+F anywhere in the Files pane does the same. It opens a bar in the
+for markdown and CSV; an image has none. Ctrl+Shift+F anywhere in the Files pane does the same. It opens a bar in the
 toolbar that works like the terminal's (4.4): case-insensitive, literal, as you type, Enter for
 the next match and Shift+Enter for the previous, "n of m" or "No results". Matches are painted
 with the CSS Custom Highlight API, so the rendered markdown's DOM is never rewritten; past 5000
@@ -142,8 +159,8 @@ preview (4.14), scratch pads (4.15), and the Containers logs panel (4.16) zoom t
 each under its own `textZoom` key.
 
 **Expand.** The Expand preview button after the − and + buttons fills the pane with the
-preview on every text preview (markdown, plain text, and code); a binary or
-too-large file has no button. Its icon is a side panel with a left-pointing arrow, kept
+preview on every preview but the binary notice (markdown, CSV, images, plain text, and code);
+a binary or too-large file has no button. Its icon is a side panel with a left-pointing arrow, kept
 distinct from the title strip's zoom icon (4.2) since both show at once, and the two combine
 into a full-window reader. Expanded, the list, breadcrumb, and divider hide, and the toolbar
 shows the file's name, since the breadcrumb that located it is hidden. The button then reads
@@ -155,7 +172,7 @@ it had, with the previewed file selected and the list focused, so Up and Down br
 there. An open find bar takes the first Esc, so with the bar open it takes two presses.
 Showing a folder in the pane (a pin, `bb open` on a folder, 3.13) also brings the list back;
 selecting a file the same way (a pinned file, `bb open` on a file, a markdown link) keeps the
-preview expanded. A file that cannot be previewed as text shows the list.
+preview expanded. A file that shows the binary notice shows the list.
 
 **Text editor.** A monospaced text area. It saves one second after typing stops, on blur, and
 on Ctrl+S, through `fs_write_text` with the modified time it last read. When the file changes on

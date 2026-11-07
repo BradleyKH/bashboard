@@ -613,6 +613,12 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace(v3([]))?.showPanePaths).toBeUndefined();
   });
 
+  it('keeps only a true dashboard hide-notice flag', () => {
+    expect(parseSavedWorkspace({ ...v3([]), dashboardHideNoticeShown: true })?.dashboardHideNoticeShown).toBe(true);
+    expect(parseSavedWorkspace({ ...v3([]), dashboardHideNoticeShown: false })).not.toHaveProperty('dashboardHideNoticeShown');
+    expect(parseSavedWorkspace({ ...v3([]), dashboardHideNoticeShown: 1 })).not.toHaveProperty('dashboardHideNoticeShown');
+  });
+
   it('keeps a saved element order and cleans it', () => {
     const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'ship', 'localModels'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);

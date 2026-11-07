@@ -13,7 +13,8 @@ launch, and `shell.*` applies to panes opened after the change.
 `goland`, `clion`, `phpstorm`, `windsurf`, `vscodeInsiders`, `vscodium`, or `default` (the file's
 default app). JetBrains IDEs installed through the Toolbox App or the standalone installer are both
 found. If the chosen editor is not installed or will not start, the file opens in the default
-app and a toast says so.
+app and a toast says so. Scripts, programs, and shortcuts (`.bat`, `.exe`, `.lnk`, `.ps1`, and
+the like) open in Notepad rather than their default app, which would run them.
 `editor.command` replaces the editor with your own command line, for example
 `code.cmd -g "{path}:{line}"`. Double quotes group an argument, and no shell runs it, so the
 program name must include its extension when it is a shim such as `code.cmd`. `{path}` and
