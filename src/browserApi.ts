@@ -37,6 +37,11 @@ export function probeTls(url: string): Promise<TlsProbe> {
   return invoke<TlsProbe>('browser_probe_tls', { url });
 }
 
+/** `url` as https when it is an http loopback URL whose port speaks TLS; otherwise unchanged. */
+export function preferTls(url: string): Promise<string> {
+  return invoke<string>('browser_prefer_tls', { url });
+}
+
 /** Which browser pane's frame holds keyboard focus, or null once focus is back in the app. */
 export function setFocus(paneId: string | null): Promise<void> {
   return invoke('browser_focus', { paneId });

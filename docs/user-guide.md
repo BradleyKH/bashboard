@@ -744,7 +744,9 @@ a terminal. Ctrl+Shift+click on such a link, and **Open in system browser** in t
 system browser instead.
 
 **Address bar.** Type a bare port (`5173`), `:5173`, `localhost:3000/app`, or a full URL; a missing
-host means `localhost`, and a missing scheme means `http`, so type `https://` for an https server.
+host means `localhost`, and a missing scheme means `http`. An `http` address on a port that only
+speaks https opens as `https`, so a port tile or a bare port works for an https server too; the
+same goes for **Open in system browser**.
 Suggestions list your bookmarks, the ports that are listening, and
 addresses you visited recently; use the arrows and Enter, or Escape to put the page's address back.
 Back, Forward, and Reload sit to its left (Shift+click Reload to bypass the cache), and Home opens

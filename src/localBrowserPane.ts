@@ -104,6 +104,8 @@ export class LocalBrowserPane implements PaneView {
   private lastBlocked: { url: string; at: number } | null = null;
   /** Bumped by each failure and each committed page, so a late TLS probe can't show a stale overlay. */
   private unreachableSeq = 0;
+  /** Bumped by each navigate, so a slow scheme check can't load an address typed before a newer one. */
+  private navigateSeq = 0;
   private readonly attached: Promise<void>;
   private frameFocused = false;
   private noticeTimer = 0;
@@ -234,14 +236,22 @@ export class LocalBrowserPane implements PaneView {
       this.toolbar.setMessage(r.reason);
       return;
     }
+    const seq = ++this.navigateSeq;
     this.requested = r.url;
     this.showPage(r.url);
     this.errorPage.hidden = true;
-    recent.add(r.url);
-    void this.attached.then(() => {
-      if (this.disposed) return;
+    // A port tile, a bare port, or a printed http link may name a server that speaks only https.
+    const resolved = r.url.startsWith('http:') ? browserApi.preferTls(r.url).catch(() => r.url) : Promise.resolve(r.url);
+    void Promise.all([resolved, this.attached]).then(([url]) => {
+      if (this.disposed || seq !== this.navigateSeq) return;
+      if (url !== r.url) {
+        this.requested = url;
+        this.showPage(url);
+        this.opts.onStateChange();
+      }
+      recent.add(url);
       // Setting src navigates even when it equals the current value, which Retry relies on.
-      this.frame.src = r.url;
+      this.frame.src = url;
     });
     queueMicrotask(() => {
       if (!this.disposed) this.opts.onStateChange();

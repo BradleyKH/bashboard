@@ -103,6 +103,16 @@ load (a `chrome-error://` frame, or a failed document request) shows a "nothing 
 overlay naming the failed address (the error page's `unreachableUrl`), with a Retry button; the
 address field and the pane's title follow that address.
 
+**Scheme.** Port tiles, Ports pane rows, container ports, a bare port, and printed links all
+name `http`, though a dev server may speak only `https`. Before the pane loads an `http` loopback
+address it calls `browser_prefer_tls` (`src-tauri/src/browser_tls.rs`), which connects to the port,
+writes a rustls ClientHello, and reads two bytes: a TLS record header (handshake or alert)
+means the port speaks TLS, and the pane loads the `https` form instead, keeping the port and
+path. Plain http answers with something else, and a server that waits for a full request line
+times out after 0.8 s, so either way the address stays `http`. No certificate is checked and no
+HTTP request is sent. Only the address the pane is given is checked; navigations inside the page
+are not. `open_url` applies the same rule to the system browser.
+
 **https failures.** WebView2 has no click-through for a certificate error in a frame, and only
 Chromium's error page says why the load failed. For an `https` address the pane therefore holds the
 overlay back and calls `browser_probe_tls`, which repeats the TLS handshake from the core with

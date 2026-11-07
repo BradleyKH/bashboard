@@ -87,7 +87,8 @@ Behavior:
   `navigator.clipboard.writeText`, which needs no prompt.
 - **Links.** `open_url` (`src-tauri/src/links.rs`) opens a URL in the system browser through
   `tauri-plugin-opener`, called from Rust. It accepts only `http` and `https` and returns an
-  error for anything else. The page gets no opener permission, so it cannot launch other
+  error for anything else. An `http` loopback URL on a port that speaks TLS opens as `https`
+  (`prefer_tls`, 4.21). The page gets no opener permission, so it cannot launch other
   programs or schemes directly.
 - **Attention.** `window.request_user_attention` flashes the taskbar button when a session in
   an unfocused window starts waiting.

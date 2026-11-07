@@ -189,6 +189,7 @@ pub fn run() {
             browser::browser_focus,
             browser::browser_chords,
             browser_tls::browser_probe_tls,
+            browser_tls::browser_prefer_tls,
             clipboard::clipboard_read_text,
             pty::pty_spawn,
             pty::pty_write,

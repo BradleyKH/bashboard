@@ -17,14 +17,20 @@ fn is_openable(url: &str) -> bool {
     !host.is_empty() && !host.starts_with('@') && !url.chars().any(char::is_control)
 }
 
-/// Opens an http(s) URL in the default browser; rejects every other scheme.
+/// Opens an http(s) URL in the default browser; rejects every other scheme. An http loopback
+/// URL on a port that speaks TLS opens as https, since http could never load it.
 #[tauri::command]
-pub fn open_url(app: AppHandle, url: String) -> Result<(), String> {
+pub async fn open_url(app: AppHandle, url: String) -> Result<(), String> {
     if !is_openable(&url) {
         return Err("only http and https links can be opened".into());
     }
+    let url = tauri::async_runtime::spawn_blocking(move || {
+        crate::browser_tls::prefer_tls(url.trim())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     app.opener()
-        .open_url(url.trim(), None::<&str>)
+        .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())
 }
 
