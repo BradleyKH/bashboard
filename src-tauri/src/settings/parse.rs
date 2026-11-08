@@ -341,6 +341,43 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
                 d.backdrop.matrix.density,
             ),
         },
+        lissajous: LissajousBackdrop {
+            color: pick(
+                &root,
+                &["backdrop", "lissajous", "color"],
+                &mut w,
+                |v| v.as_str().filter(|s| LISSAJOUS_COLOR_MODES.contains(s)).map(String::from),
+                d.backdrop.lissajous.color,
+            ),
+            size: pick(
+                &root,
+                &["backdrop", "lissajous", "size"],
+                &mut w,
+                |v| number(v).filter(|n| (0.3..=1.0).contains(n)),
+                d.backdrop.lissajous.size,
+            ),
+            speed: pick(
+                &root,
+                &["backdrop", "lissajous", "speed"],
+                &mut w,
+                |v| number(v).filter(|n| (0.1..=3.0).contains(n)),
+                d.backdrop.lissajous.speed,
+            ),
+            line_width: pick(
+                &root,
+                &["backdrop", "lissajous", "lineWidth"],
+                &mut w,
+                |v| number(v).filter(|n| (1.0..=8.0).contains(n)),
+                d.backdrop.lissajous.line_width,
+            ),
+            echoes: pick(
+                &root,
+                &["backdrop", "lissajous", "echoes"],
+                &mut w,
+                |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n <= 8),
+                d.backdrop.lissajous.echoes,
+            ),
+        },
         image: ImageBackdrop {
             file: pick(&root, &["backdrop", "image", "file"], &mut w, string, d.backdrop.image.file),
             folder: pick(&root, &["backdrop", "image", "folder"], &mut w, string, d.backdrop.image.folder),
@@ -639,6 +676,35 @@ mod tests {
             let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "image": {{ "{key}": {bad} }} }} }}"#));
             assert_eq!(s.backdrop.image, Settings::default().backdrop.image, "{key}: {bad}");
             assert!(w.iter().any(|m| m.starts_with(&format!("backdrop.image.{key}"))), "{key}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn backdrop_lissajous_values_parse_and_invalid_ones_fall_back() {
+        let (s, w) = parse_settings(
+            r#"{ "backdrop": { "style": "lissajous", "lissajous": { "color": "spectrum", "size": 0.6, "speed": 1.5, "lineWidth": 5, "echoes": 0 } } }"#,
+        );
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.backdrop.style, "lissajous");
+        assert_eq!(
+            s.backdrop.lissajous,
+            LissajousBackdrop { color: "spectrum".into(), size: 0.6, speed: 1.5, line_width: 5.0, echoes: 0 }
+        );
+        for (key, bad) in [
+            ("color", r#""green""#),
+            ("size", "0.2"),
+            ("size", "1.1"),
+            ("speed", "0"),
+            ("speed", "3.5"),
+            ("lineWidth", "0.5"),
+            ("lineWidth", "9"),
+            ("echoes", "9"),
+            ("echoes", "2.5"),
+            ("echoes", "\"4\""),
+        ] {
+            let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "lissajous": {{ "{key}": {bad} }} }} }}"#));
+            assert_eq!(s.backdrop.lissajous, Settings::default().backdrop.lissajous, "{key}: {bad}");
+            assert!(w.iter().any(|m| m.starts_with(&format!("backdrop.lissajous.{key}"))), "{key}: {w:?}");
         }
     }
 

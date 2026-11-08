@@ -1,10 +1,11 @@
 # Backdrop
 
-The backdrop has six styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
-default), `galaxy` (Galaxy), `matrix` (Matrix), `image` (Image), `slideshow` (Slideshow), and
-`none`. Swirling Lights is the colony simulation drawn by Three.js. Galaxy is a fixed swirling
+The backdrop has seven styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
+default), `galaxy` (Galaxy), `matrix` (Matrix), `lissajous` (Lissajous), `image` (Image),
+`slideshow` (Slideshow), and `none`. Swirling Lights is the colony simulation drawn by Three.js. Galaxy is a fixed swirling
 starfield on the same Three.js viewport and settings (6.6).
-Matrix is falling glyph rain drawn with Canvas 2D. Image and Slideshow draw local pictures with
+Matrix is falling glyph rain drawn with Canvas 2D. Lissajous is the dashboard's Wave drawn across
+the window with Canvas 2D (6.7). Image and Slideshow draw local pictures with
 Canvas 2D (6.5). None mounts nothing, so z0 is empty. Exactly one style is mounted at a time, and
 changing the setting swaps it live.
 
@@ -23,6 +24,10 @@ The backdrop code lives in `src/backdrop/`.
   Three.js layers that draw them, and `galaxyBackdrop.ts`, which mounts them.
 - `src/backdrop/matrix/` is the Matrix style: `matrixModel.ts` is the pure, DOM-free rain model
   (unit tested), and `matrixBackdrop.ts` draws it on a canvas and runs its step clock.
+- `src/backdrop/lissajous/` is the Lissajous style (6.7): `lissajousColor.ts` resolves the color
+  mode (unit tested), and `lissajousBackdrop.ts` samples the system and draws the figure. The
+  figure itself comes from the Wave's `src/waveModel.ts` and `src/waveDraw.ts`, shared with the
+  dashboard.
 - `src/backdrop/image/` is the Image and Slideshow styles: `imageFit.ts` (where a picture is drawn
   for each fit) and `slideshowOrder.ts` (which picture is next) are pure and unit tested, and
   `imageBackdrop.ts` loads, draws, crossfades, and times the pictures. The core's
@@ -46,7 +51,7 @@ fails to mount, which shows a "Could not start the background animation" toast.
   which Swirling Lights must not inherit.
 - **Lazy loading.** Each style is loaded with a dynamic import when it is first mounted, so
   Three.js is parsed only when Swirling Lights or Galaxy is shown, and the simulation only for
-  Swirling Lights; Matrix and None never
+  Swirling Lights; Matrix, Lissajous, and None never
   load them. A mount that finishes after a later switch discards its result.
 - **When it mounts.** Loading settings starts before the rest of startup, and the backdrop mounts
   as soon as they arrive, overlapping the font and stale-terminal work that follows. The saved
@@ -85,6 +90,14 @@ export interface MatrixBackdrop extends StyleBackdrop {
 
 export function mountMatrix(canvas: HTMLCanvasElement, options: MatrixOptions): MatrixBackdrop;
 
+// Lissajous, src/backdrop/lissajous/lissajousBackdrop.ts
+export interface LissajousBackdrop extends StyleBackdrop {
+  /** `backdrop.lissajous` with its color resolved, plus `backdrop.maxFps`. */
+  setOptions(options: LissajousOptions): void;
+}
+
+export function mountLissajous(canvas: HTMLCanvasElement, options: LissajousOptions): LissajousBackdrop;
+
 // Image and Slideshow, src/backdrop/image/imageBackdrop.ts
 export interface ImageBackdrop extends StyleBackdrop {
   /** `backdrop.image`, plus which of the two styles is mounted. setAnimated does nothing. */
@@ -103,7 +116,7 @@ glides to a changed value.
 
 The Settings tab groups the backdrop's settings, and the scrim, under "Background
 Animation"; the UI calls the backdrop the background animation. It opens with a Background select
-(None, Swirling Lights, Galaxy, Matrix, Image, Slideshow) and shows only the fields that apply to the
+(None, Swirling Lights, Galaxy, Matrix, Lissajous, Image, Slideshow) and shows only the fields that apply to the
 chosen style. The
 scrim's controls are labeled "Brightness" (shown as 1 minus `scrim.opacity`, so the far left is
 fully dimmed) and "Blur".
@@ -114,12 +127,13 @@ fully dimmed) and "Blur".
 | Swirling Lights | Background, Animate, Brightness, Blur, Zoom | Frame rate cap, Density, Color drift |
 | Galaxy | Background, Animate, Brightness, Blur, Zoom | Frame rate cap, Density, Color drift |
 | Matrix | Background, Animate, Brightness, Blur, Color, Zoom, Density | Speed |
+| Lissajous | Background, Animate, Brightness, Blur, Color, Size, Line width, Echoes | Frame rate cap, Speed |
 | Image | Background, Image, Fit, Brightness, Blur | (the same) |
 | Slideshow | Background, Folder, Fit, Change every, Crossfade, Shuffle, Include subfolders, Brightness, Blur | (the same) |
 
 While `backdrop.animate` is off, the fields a still frame can't show are hidden. Zoom, Brightness,
 and Blur still change the frozen view, and so do Matrix's Color and Density, which redraw the still
-frame. Matrix has its own Zoom
+frame, and Lissajous's Color, Size, Line width, and Echoes. Matrix has its own Zoom
 (`backdrop.matrix.zoom`), separate from the `backdrop.zoom` that Swirling Lights and Galaxy share.
 
 ## 6.3 Colony upkeep
@@ -201,7 +215,8 @@ Swirling Lights' colony tends itself so the window never sits empty for long
 
 - `setVisible(false)` on minimize, and when the window is fully covered (Tauri window events
   plus the page's `visibilitychange`), so it costs nothing while out of sight. The dashboard
-  clock, Wave, and System section (4.6) pause on the same signal, and Matrix stops its loop on it too.
+  clock, Wave, and System section (4.6) pause on the same signal, and Matrix and Lissajous stop
+  their loops on it too (Lissajous its sampling as well).
 - Ctrl+Shift+A pauses or resumes the mounted style and saves `backdrop.animate`; under None it
   does nothing and saves nothing.
 - None mounts nothing: no renderer, no frame loop, and no Three.js load.
@@ -282,3 +297,37 @@ one, so nothing is born or dies and the population never changes.
   through a slowly moving field (`galaxyDrift.ts`). Its reach grows with the square root of the
   rate, to half the wheel either way at 4, and so does its speed; 0 holds the colors still. A
   change eases in rather than snapping.
+
+## 6.7 Lissajous
+
+Lissajous draws the dashboard's Wave (4.6) across the whole window: the same Lissajous figure
+turning in 3D, on the same ladder of figures, driven the same way by CPU (the weave), memory (the
+detune sweep's pace), and network traffic (the spin). `waveModel.ts` holds the figure and its
+motion (`stepWave`) and `waveDraw.ts` strokes it, so the two cannot drift apart; only the look and
+the sizing differ.
+
+- **Sampling.** It samples `system_sample` every 2 s while it is shown and `backdrop.animate` is
+  on, easing toward each reading over about 1 s, and stops while the window is hidden. Frozen, it
+  samples once so the still figure shows the current load; with reduced motion requested it keeps
+  sampling and holds a still figure redrawn on each reading, as the dashboard Wave does. Without
+  the core (a browser-only run) it idles at rest as a figure eight.
+- **Drawing.** A Canvas 2D canvas at the device pixel ratio, sized to the window and redrawn
+  on resize, with a transparent background so the body's color shows behind the line. Each line
+  has 1200 points, enough to stay smooth at full-window size. The main line is stroked a segment
+  at a time, brighter and thicker on its near side, from `lineWidth` down to about a third of it,
+  with butt caps so the translucent segments do not overlap into beads at each joint. Echoes are
+  copies further back in the spin by 0.12 radians each, at half the line width, the nearest at 22
+  percent opacity and each one behind it fainter by an equal step.
+- **Fit.** The figure fills `size` of the window's half-width and half-height, so it stretches to
+  the window's shape as the dashboard Wave does to its strip. It shrinks at once when a line
+  would cross an edge and regrows over a few seconds, the Wave's rule; a new `size` or
+  `lineWidth` refits at once.
+- **Color.** `accent` strokes the accent at full brightness with its saturation raised, as the
+  Matrix's accent mode does (`accentRain`); `white` strokes `#e6e6e6`; `spectrum` runs the hue
+  once around the wheel along the line and turns the wheel a full turn every 30 s at speed 1.
+  Echoes in the spectrum are stroked in 24-point pieces, each in its own hue.
+- **Pace.** `speed` scales the spin, the tilt, the detune sweep, and the spectrum's turn
+  together, but not the easing, so a slow figure still follows load promptly. The default of 0.5
+  halves the Wave's pace, since the same angular speed covers far more of the screen at full size.
+- **Frame rate.** It renders at up to `backdrop.maxFps` through the shared `FramePacer`, and each
+  frame's step is clamped to 250 ms so a throttled window does not jump the figure.

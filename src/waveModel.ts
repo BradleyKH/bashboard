@@ -1,5 +1,8 @@
 // The dashboard's Wave element: a looping figure shaped by machine load (docs/design/dashboard.md
-// section 4.6). Pure, no DOM.
+// section 4.6), also drawn large as the Lissajous backdrop (docs/design/backdrop.md section 6.7).
+// Pure, no DOM.
+
+import type { SystemSample } from './systemModel';
 
 /** Network rate that reads as full activity; the scale is logarithmic below it. */
 const NET_FULL_BYTES_PER_SEC = 10 * 1024 * 1024;
@@ -66,6 +69,15 @@ export function netLevel(rx: number | null, tx: number | null): number {
 export function memLevel(used: number, total: number): number {
   if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) return 0;
   return Math.min(1, Math.max(0, used / total));
+}
+
+/** A system sample as the readings the figure follows. */
+export function waveReading(s: SystemSample): WaveReading {
+  return {
+    cpu: cpuLevel(s.cpuPercent),
+    net: netLevel(s.netRxPerSec, s.netTxPerSec),
+    mem: memLevel(s.memoryUsedBytes, s.memoryTotalBytes),
+  };
 }
 
 /** Moves `current` toward `target` over `dt` seconds with exponential easing. */
@@ -171,4 +183,69 @@ export function waveFit(current: number | undefined, extent: number, dt: number)
   const need = WAVE_FIT / (extent > 0 ? extent : 1);
   if (current === undefined || need < current) return need;
   return need + (current - need) * Math.exp(-Math.max(0, dt) / WAVE_FIT_REGROW_SECONDS);
+}
+
+/** The load readings the figure follows, each 0..1. */
+export interface WaveReading {
+  cpu: number;
+  net: number;
+  mem: number;
+}
+
+/** The eased readings and the angles they drive; advanced by `stepWave`. */
+export interface WaveMotion extends WaveReading {
+  spin: number;
+  tilt: number;
+  detunePhase: number;
+}
+
+/** The figure at rest: idle readings and a slight tilt, so it opens as a figure eight seen at an angle. */
+export function restingWave(): WaveMotion {
+  return { cpu: 0, net: 0, mem: 0, spin: 0, tilt: 0.4, detunePhase: 0 };
+}
+
+/**
+ * Eases `m` toward `target` over `dt` seconds and turns its angles. `pace` scales the spin, tilt,
+ * and detune sweep together, never the easing, so a slower figure still follows load as promptly.
+ */
+export function stepWave(m: WaveMotion, target: WaveReading, dt: number, pace = 1): void {
+  m.cpu = ease(m.cpu, target.cpu, dt);
+  m.net = ease(m.net, target.net, dt);
+  m.mem = ease(m.mem, target.mem, dt);
+  const turn = Math.PI * 2;
+  m.spin = (m.spin + spinSpeed(m.net) * pace * dt) % turn;
+  m.tilt = (m.tilt + WAVE_TILT_SPEED * pace * dt) % turn;
+  m.detunePhase = (m.detunePhase + detuneSpeed(m.mem) * pace * dt) % turn;
+}
+
+/** Jumps straight to `target`, for a still figure that redraws on each reading. */
+export function settleWave(m: WaveMotion, target: WaveReading): void {
+  m.cpu = target.cpu;
+  m.net = target.net;
+  m.mem = target.mem;
+}
+
+/** One figure on the ladder: its main line, the faint copies trailing it in the spin, and its opacity share. */
+export interface WaveFigure {
+  weight: number;
+  main: WavePoint[];
+  /** Nearest first; each trails the one before by `echoLag` more radians of spin. */
+  echoes: WavePoint[][];
+}
+
+/** Every figure `m` draws, each with `echoes` trailing copies, `n` points to a line. */
+export function waveFigures(m: WaveMotion, echoes: number, echoLag: number, n = WAVE_POINTS): WaveFigure[] {
+  const detune = detuneAt(m.detunePhase);
+  return waveLayers(m.cpu).map(({ ratio, weight }) => ({
+    weight,
+    main: wavePoints(ratio, { detune, spin: m.spin, tilt: m.tilt }, n),
+    echoes: Array.from({ length: echoes }, (_, k) =>
+      wavePoints(ratio, { detune, spin: m.spin - echoLag * (k + 1), tilt: m.tilt }, n),
+    ),
+  }));
+}
+
+/** Every line of `figures`, for `waveExtent`. */
+export function figureLines(figures: readonly WaveFigure[]): WavePoint[][] {
+  return figures.flatMap((f) => [f.main, ...f.echoes]);
 }

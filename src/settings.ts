@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { DEFAULT_ACCENT } from './accent';
 import type { ImageFit } from './backdrop/image/imageFit';
+import { DEFAULT_LISSAJOUS_COLOR_MODE, type LissajousColorMode } from './backdrop/lissajous/lissajousColor';
 import { DEFAULT_MATRIX_COLOR_MODE, type MatrixColorMode } from './backdrop/matrix/rainColor';
 import { DEFAULT_CONTENT_TEXT_MODE, type ContentTextMode } from './contentText';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -9,7 +10,7 @@ import type { DashboardSide } from './dashboardResize';
 import { ELEMENT_SHOWN_BY_DEFAULT, type DashboardElement } from './dashboardSections';
 import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
 
-export type BackdropStyle = 'none' | 'lights' | 'galaxy' | 'matrix' | 'image' | 'slideshow';
+export type BackdropStyle = 'none' | 'lights' | 'galaxy' | 'matrix' | 'lissajous' | 'image' | 'slideshow';
 
 export type ForgeKind = 'github' | 'gitlab' | 'bitbucket' | 'azureDevOps';
 
@@ -31,6 +32,8 @@ export interface Settings {
     zoom: number;
     /** color is a mode; the rain's #rrggbb is derived from it and the accent. */
     matrix: { color: MatrixColorMode; zoom: number; speed: number; density: number };
+    /** color is a mode, resolved like the Matrix's; lineWidth is CSS pixels on the line's near side. */
+    lissajous: { color: LissajousColorMode; size: number; speed: number; lineWidth: number; echoes: number };
     /** `file` is the Image style's, the rest the Slideshow's, and `fit` both. Paths may contain %VARS%. */
     image: { file: string; folder: string; fit: ImageFit; intervalSeconds: number; crossfadeSeconds: number; shuffle: boolean; includeSubfolders: boolean };
   };
@@ -94,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
     mutationRate: 0.2,
     zoom: 2,
     matrix: { color: DEFAULT_MATRIX_COLOR_MODE, zoom: 1, speed: 10, density: 3 },
+    lissajous: { color: DEFAULT_LISSAJOUS_COLOR_MODE, size: 0.85, speed: 0.5, lineWidth: 3, echoes: 4 },
     image: { file: '', folder: '', fit: 'fill', intervalSeconds: 600, crossfadeSeconds: 5, shuffle: true, includeSubfolders: false },
   },
   scrollback: 10000,

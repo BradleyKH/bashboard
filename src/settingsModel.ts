@@ -1,5 +1,6 @@
 import { ACCENT_PRESETS } from './accent';
 import { IMAGE_FITS } from './backdrop/image/imageFit';
+import { LISSAJOUS_COLOR_MODES, lissajousSwatch } from './backdrop/lissajous/lissajousColor';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
@@ -63,17 +64,20 @@ export interface SettingsSection {
   fields: SettingsField[];
 }
 
-// A frozen backdrop redraws only for zoom (every drawn style) and the Matrix color and density, so the rest would do
-// nothing while it is still.
+// A frozen backdrop redraws only for zoom (every drawn style), the Matrix color and density, and the Lissajous
+// look, so the rest would do nothing while it is still.
 const WHILE_ANIMATED: ShownWhen = { path: ['backdrop', 'animate'], value: true };
 // Galaxy shares Swirling Lights' settings, read as stars rather than organisms.
 const IS_LIGHTS_OR_GALAXY: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy'] };
 const IS_MATRIX: ShownWhen = { path: ['backdrop', 'style'], value: 'matrix' };
-const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix'] };
+const IS_LISSAJOUS: ShownWhen = { path: ['backdrop', 'style'], value: 'lissajous' };
+// The styles that run on the shared frame rate cap; Matrix steps on its own clock.
+const IS_FRAME_CAPPED: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'lissajous'] };
+const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'lissajous'] };
 const IS_IMAGE: ShownWhen = { path: ['backdrop', 'style'], value: 'image' };
 const IS_SLIDESHOW: ShownWhen = { path: ['backdrop', 'style'], value: 'slideshow' };
 const IS_PICTURE: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['image', 'slideshow'] };
-const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'image', 'slideshow'] };
+const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'lissajous', 'image', 'slideshow'] };
 
 const SLIDESHOW_INTERVALS = [
   { value: '30', label: '30 seconds' },
@@ -186,6 +190,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'lights', label: 'Swirling Lights' },
           { value: 'galaxy', label: 'Galaxy' },
           { value: 'matrix', label: 'Matrix' },
+          { value: 'lissajous', label: 'Lissajous' },
           { value: 'image', label: 'Image' },
           { value: 'slideshow', label: 'Slideshow' },
         ],
@@ -205,7 +210,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         minNonZero: 20,
         hint: '0 uses the display refresh rate; otherwise 20 to 240',
         applies: 'live',
-        shownWhen: [IS_LIGHTS_OR_GALAXY, WHILE_ANIMATED],
+        shownWhen: [IS_FRAME_CAPPED, WHILE_ANIMATED],
       },
       { path: ['backdrop', 'image', 'file'], label: 'Image', kind: 'text', allowEmpty: true, browse: 'imageFile', hint: 'May contain %VARS%', applies: 'live', shownWhen: IS_IMAGE },
       { path: ['backdrop', 'image', 'folder'], label: 'Folder', kind: 'text', allowEmpty: true, browse: 'folder', hint: 'May contain %VARS%', applies: 'live', shownWhen: IS_SLIDESHOW },
@@ -285,6 +290,64 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         hint: 'How often new drops start',
         applies: 'live',
         shownWhen: IS_MATRIX,
+      },
+      {
+        path: ['backdrop', 'lissajous', 'color'],
+        label: 'Color',
+        kind: 'select',
+        options: LISSAJOUS_COLOR_MODES,
+        swatches: true,
+        swatchColor: (mode, s) => lissajousSwatch(mode, s.accentColor),
+        hint: 'The line',
+        applies: 'live',
+        shownWhen: IS_LISSAJOUS,
+      },
+      {
+        path: ['backdrop', 'lissajous', 'size'],
+        label: 'Size',
+        kind: 'slider',
+        min: 0.3,
+        max: 1,
+        step: 0.05,
+        hint: 'Share of the window the figure fills',
+        applies: 'live',
+        shownWhen: IS_LISSAJOUS,
+      },
+      {
+        path: ['backdrop', 'lissajous', 'speed'],
+        label: 'Speed',
+        kind: 'slider',
+        min: 0.1,
+        max: 3,
+        step: 0.1,
+        unit: 'x',
+        hint: 'How fast it turns',
+        applies: 'live',
+        shownWhen: [IS_LISSAJOUS, WHILE_ANIMATED],
+      },
+      {
+        path: ['backdrop', 'lissajous', 'lineWidth'],
+        label: 'Line width',
+        kind: 'slider',
+        min: 1,
+        max: 8,
+        step: 0.5,
+        unit: 'px',
+        hint: 'On the near side',
+        applies: 'live',
+        shownWhen: IS_LISSAJOUS,
+      },
+      {
+        path: ['backdrop', 'lissajous', 'echoes'],
+        label: 'Echoes',
+        kind: 'slider',
+        min: 0,
+        max: 8,
+        step: 1,
+        integer: true,
+        hint: 'Faint copies trailing the line',
+        applies: 'live',
+        shownWhen: IS_LISSAJOUS,
       },
     ],
   },

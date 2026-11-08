@@ -6,6 +6,12 @@ import {
   detuneAt,
   detuneSpeed,
   ease,
+  figureLines,
+  restingWave,
+  settleWave,
+  stepWave,
+  waveFigures,
+  waveReading,
   memLevel,
   netLevel,
   spinSpeed,
@@ -171,5 +177,49 @@ describe('spinSpeed', () => {
   it('drifts at rest and speeds up with traffic', () => {
     expect(spinSpeed(0)).toBeGreaterThan(0);
     expect(spinSpeed(1)).toBeGreaterThan(spinSpeed(0));
+  });
+});
+
+describe('stepWave', () => {
+  it('eases toward the reading and turns the angles by pace', () => {
+    const slow = restingWave();
+    const fast = restingWave();
+    const target = { cpu: 1, net: 0.5, mem: 0.5 };
+    stepWave(slow, target, 0.5, 0.5);
+    stepWave(fast, target, 0.5, 1);
+    expect(slow.cpu).toBeCloseTo(fast.cpu, 10);
+    expect(slow.cpu).toBeGreaterThan(0);
+    expect(slow.cpu).toBeLessThan(1);
+    expect(slow.spin).toBeCloseTo(fast.spin / 2, 10);
+    expect(slow.tilt - 0.4).toBeCloseTo((fast.tilt - 0.4) / 2, 10);
+    expect(slow.detunePhase).toBeCloseTo(fast.detunePhase / 2, 10);
+  });
+
+  it('settles straight onto a reading without turning', () => {
+    const m = restingWave();
+    settleWave(m, { cpu: 0.3, net: 0.2, mem: 0.9 });
+    expect(m).toEqual({ ...restingWave(), cpu: 0.3, net: 0.2, mem: 0.9 });
+  });
+});
+
+describe('waveReading', () => {
+  it('maps a system sample onto the three levels', () => {
+    const s = { cpuPercent: 50, memoryUsedBytes: 4, memoryTotalBytes: 16, netRxPerSec: 0, netTxPerSec: 0 };
+    expect(waveReading(s as Parameters<typeof waveReading>[0])).toEqual({ cpu: 0.5, net: 0, mem: 0.25 });
+  });
+});
+
+describe('waveFigures', () => {
+  it('draws each figure with the asked-for echoes, each trailing further in the spin', () => {
+    const m = { ...restingWave(), cpu: 0.5, spin: 1 };
+    const figures = waveFigures(m, 3, 0.2, 50);
+    expect(figures.map((f) => f.echoes.length)).toEqual(figures.map(() => 3));
+    const f = figures[0];
+    expect(f.echoes[1]).toEqual(wavePoints(waveLayers(0.5)[0].ratio, { detune: detuneAt(0), spin: 1 - 0.4, tilt: 0.4 }, 50));
+    expect(figureLines(figures)).toHaveLength(figures.length * 4);
+  });
+
+  it('draws no echoes when asked for none', () => {
+    expect(waveFigures(restingWave(), 0, 0.2, 10).every((f) => f.echoes.length === 0)).toBe(true);
   });
 });

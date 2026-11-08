@@ -81,13 +81,14 @@ describe('isShown', () => {
         'backdrop.matrix.zoom',
         'backdrop.matrix.speed',
         'backdrop.matrix.density',
+        ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.lissajous.${k}`),
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
         'dashboard.clockStyle',
       ].sort(),
     );
   });
 
-  it('shows every Swirling Lights field while the backdrop animates and the clock is on, and none of the Matrix fields', () => {
+  it('shows every Swirling Lights field while the backdrop animates and the clock is on, and none of the Matrix or Lissajous fields', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(true, true))).map((f) => f.path.join('.'));
     expect(hidden.sort()).toEqual(
       [
@@ -95,6 +96,7 @@ describe('isShown', () => {
         'backdrop.matrix.density',
         'backdrop.matrix.speed',
         'backdrop.matrix.zoom',
+        ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.lissajous.${k}`),
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
       ].sort(),
     );
@@ -138,6 +140,17 @@ describe('isShown', () => {
   it('shows Galaxy the same controls as Swirling Lights, since it reads the same settings', () => {
     expect(shownBackdrop('galaxy', true)).toEqual(shownBackdrop('lights', true));
     expect(shownBackdrop('galaxy', false)).toEqual(shownBackdrop('lights', false));
+  });
+
+  it('shows the Lissajous controls for lissajous, hiding the frame rate cap and speed when frozen', () => {
+    expect(shownBackdrop('lissajous', true)).toEqual([
+      'backdrop.style', 'backdrop.animate', 'backdrop.maxFps', 'scrim.opacity', 'scrim.blurPx', 'backdrop.lissajous.color',
+      'backdrop.lissajous.size', 'backdrop.lissajous.speed', 'backdrop.lissajous.lineWidth', 'backdrop.lissajous.echoes',
+    ]);
+    expect(shownBackdrop('lissajous', false)).toEqual([
+      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.lissajous.color', 'backdrop.lissajous.size',
+      'backdrop.lissajous.lineWidth', 'backdrop.lissajous.echoes',
+    ]);
   });
 
   it('shows the Matrix controls for matrix, hiding speed when frozen and never the lights density, drift, or pulse', () => {
@@ -213,10 +226,31 @@ describe('Matrix settings', () => {
     expect(parseInput(density, '4.5').ok).toBe(false);
   });
 
-  it('accepts the five background styles and rejects anything else', () => {
+  it('accepts the seven background styles and rejects anything else', () => {
     const style = byPath('backdrop.style');
-    for (const v of ['none', 'lights', 'galaxy', 'matrix', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
+    for (const v of ['none', 'lights', 'galaxy', 'matrix', 'lissajous', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
     expect(parseInput(style, 'rain').ok).toBe(false);
+  });
+});
+
+describe('Lissajous settings', () => {
+  it('offers Accent, White, and Spectrum, led by the default, with the spectrum swatch a gradient', () => {
+    const color = byPath('backdrop.lissajous.color');
+    expect(color.options?.map((o) => o.value)).toEqual([DEFAULT_SETTINGS.backdrop.lissajous.color, 'white', 'spectrum']);
+    const violet = { ...DEFAULT_SETTINGS, accentColor: '#a68bff' };
+    expect(color.swatchColor?.('accent', violet)).toBe('#7a51ff');
+    expect(color.swatchColor?.('white', violet)).toBe('#e6e6e6');
+    expect(color.swatchColor?.('spectrum', violet)).toMatch(/^linear-gradient\(/);
+  });
+
+  it('bounds size, speed, line width, and whole-number echoes', () => {
+    const cases: [string, string, boolean][] = [
+      ['size', '0.25', false], ['size', '0.3', true], ['size', '1', true], ['size', '1.1', false],
+      ['speed', '0', false], ['speed', '0.1', true], ['speed', '3', true], ['speed', '3.5', false],
+      ['lineWidth', '0.5', false], ['lineWidth', '1', true], ['lineWidth', '8', true], ['lineWidth', '9', false],
+      ['echoes', '-1', false], ['echoes', '0', true], ['echoes', '8', true], ['echoes', '9', false], ['echoes', '2.5', false],
+    ];
+    for (const [key, input, ok] of cases) expect(parseInput(byPath(`backdrop.lissajous.${key}`), input).ok, `${key} ${input}`).toBe(ok);
   });
 });
 

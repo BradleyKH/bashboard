@@ -658,8 +658,9 @@ the agent sent its first hook.
 
 The Background choice in the Settings tab picks what draws behind the panes (see
 [Settings](settings.md#settings)): Swirling Lights, a drifting colony simulation; Galaxy, a
-slowly turning swirl of stars; Matrix; Image and Slideshow, which show your own pictures; or None.
-Ctrl+Shift+A pauses or resumes Swirling Lights, Galaxy, or Matrix. Ctrl+Shift+B cycles
+slowly turning swirl of stars; Matrix; Lissajous, a large version of the dashboard's Wave that
+follows your machine's load; Image and Slideshow, which show your own pictures; or None.
+Ctrl+Shift+A pauses or resumes Swirling Lights, Galaxy, Matrix, or Lissajous. Ctrl+Shift+B cycles
 the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
 Brightness in the Settings tab; the blur stays as set there.
 
