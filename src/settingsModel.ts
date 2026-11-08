@@ -17,7 +17,7 @@ export interface SettingsField {
   max?: number;
   step?: number;
   unit?: string;
-  /** Number and slider fields: the loader rejects fractions (unsigned integers in settings.rs). */
+  /** Number and slider fields: the loader rejects fractions (unsigned integers in the settings structs). */
   integer?: boolean;
   /** Slider fields only: the slider runs max to min, showing min + max - value. */
   inverted?: boolean;
@@ -86,7 +86,7 @@ const SLIDESHOW_INTERVALS = [
   { value: '86400', label: '1 day' },
 ];
 
-/** Ranges mirror try_parse_settings in src-tauri/src/settings.rs so a saved value always loads. */
+/** Ranges mirror try_parse_settings in src-tauri/src/settings/parse.rs so a saved value always loads. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Terminal',

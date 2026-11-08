@@ -4,7 +4,7 @@
 export const DEFAULT_ACCENT = '#4fb3c8';
 
 /**
- * Mirrors ACCENT_MIN_LUMINANCE in src-tauri/src/settings.rs. The accent is drawn as text and
+ * Mirrors ACCENT_MIN_LUMINANCE in src-tauri/src/settings/parse.rs. The accent is drawn as text and
  * borders on near-black panes and sits behind dark text (#06121a) in find highlights; at 0.2
  * both keep at least 4.5:1 contrast.
  */

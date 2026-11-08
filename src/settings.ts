@@ -74,7 +74,7 @@ export interface SettingsPayload {
   firstRun: boolean;
 }
 
-/** Mirrors Settings::default() in src-tauri/src/settings.rs; used when settings_get fails. */
+/** Mirrors Settings::default() in src-tauri/src/settings/model.rs; used when settings_get fails. */
 export const DEFAULT_SETTINGS: Settings = {
   shell: {
     path: 'C:\\Program Files\\Git\\bin\\bash.exe',

@@ -10,49 +10,49 @@ keydown, keypress, and keyup alike, since xterm.js acts on the keypress that fol
 
 Defaults mirror the current Windows Terminal settings:
 
-| Keys | Action |
-| --- | --- |
-| Ctrl+Shift+Right | Split right (duplicate) |
-| Ctrl+Shift+Down | Split down (duplicate) |
-| Ctrl+Shift+Left | Split left (duplicate) |
-| Ctrl+Shift+Up | Split up (duplicate) |
-| Alt+Shift+D | Split auto (duplicate) |
-| Ctrl+W | Close pane |
-| Ctrl+Shift+M | Collapse pane |
-| Ctrl+Shift+Z | Zoom or unzoom the focused pane (4.2) |
-| Ctrl+Shift+O | Open a favorite (picker; Enter opens it as a split, Ctrl+Enter opens it collapsed) |
-| Ctrl+Shift+R | Open a named layout (picker; opens it as a new tab, 4.6) |
-| Ctrl+Shift+L | Open the Launch menu over the focused pane (4.6) |
-| Ctrl+Shift+P | Open the command palette (below) |
-| Alt+Shift+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) |
-| Ctrl+Shift+T | New tab (4.10) |
-| Ctrl+Shift+W | Close tab |
-| Ctrl+Shift+S | New scratch pad (4.15) |
-| Ctrl+Shift+E | Files pane for the focused pane's repo (4.12) |
-| Ctrl+Shift+G | Git pane for the focused pane's repo (4.13) |
-| Ctrl+Shift+H | Search pane for the focused pane's repo (4.14) |
-| Ctrl+Shift+X | Open the focused pane's repo in the preferred editor, or its folder outside a repo (3.12) |
-| Ctrl+Tab, Ctrl+Shift+Tab | Next tab, previous tab (wrapping) |
-| Ctrl+Alt+1 to Ctrl+Alt+8 | Switch to that tab |
-| Ctrl+Alt+9 | Switch to the last tab |
-| Alt+Arrow | Move focus |
-| Alt+Shift+Arrow | Resize pane |
-| Ctrl+Shift+F | Find in scrollback, or in the file preview of a Files pane (4.12) |
-| Ctrl+C | Copy if there's a selection, otherwise pass ^C |
-| Ctrl+Shift+C | Copy |
-| Ctrl+V, Ctrl+Shift+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image |
-| Shift+Enter | Send ESC+CR (Claude Code's newline) |
-| Ctrl+Shift+D | Toggle dashboard panel |
-| F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) |
-| Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) |
-| Ctrl+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None |
-| Ctrl+Shift+N | Focus the next terminal that needs you, across all tabs (4.7) |
-| Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
-| Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) |
-| Ctrl+0 | Reset the terminal font size to the default, 14 px (saved to `font.size`; applies to every terminal) |
-| F1 | Open the app dialog on its Help tab (4.18) |
-| Ctrl+, | Open the app dialog on its Settings tab |
-| F11 | Toggle full screen |
+| Keys | Action | Name |
+| --- | --- | --- |
+| Ctrl+Shift+Right | Split right (duplicate) | `splitRight` |
+| Ctrl+Shift+Down | Split down (duplicate) | `splitDown` |
+| Ctrl+Shift+Left | Split left (duplicate) | `splitLeft` |
+| Ctrl+Shift+Up | Split up (duplicate) | `splitUp` |
+| Alt+Shift+D | Split auto (duplicate) | `splitAuto` |
+| Ctrl+W | Close pane | `closePane` |
+| Ctrl+Shift+M | Collapse pane | `collapsePane` |
+| Ctrl+Shift+Z | Zoom or unzoom the focused pane (4.2) | `togglePaneZoom` |
+| Ctrl+Shift+O | Open a favorite (picker; Enter opens it as a split, Ctrl+Enter opens it collapsed) | `openFavorite` |
+| Ctrl+Shift+R | Open a named layout (picker; opens it as a new tab, 4.6) | `openLayout` |
+| Ctrl+Shift+L | Open the Launch menu over the focused pane (4.6) | `openLaunch` |
+| Ctrl+Shift+P | Open the command palette (below) | `openPalette` |
+| Alt+Shift+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) | `splitWithProfile` |
+| Ctrl+Shift+T | New tab (4.10) | `newTab` |
+| Ctrl+Shift+W | Close tab | `closeTab` |
+| Ctrl+Shift+S | New scratch pad (4.15) | `newScratch` |
+| Ctrl+Shift+E | Files pane for the focused pane's repo (4.12) | `openFiles` |
+| Ctrl+Shift+G | Git pane for the focused pane's repo (4.13) | `openGit` |
+| Ctrl+Shift+H | Search pane for the focused pane's repo (4.14) | `openSearch` |
+| Ctrl+Shift+X | Open the focused pane's repo in the preferred editor, or its folder outside a repo (3.12) | `openEditor` |
+| Ctrl+Tab, Ctrl+Shift+Tab | Next tab, previous tab (wrapping) | `nextTab`, `prevTab` |
+| Ctrl+Alt+1 to Ctrl+Alt+8 | Switch to that tab | `switchToTab` |
+| Ctrl+Alt+9 | Switch to the last tab | `switchToLastTab` |
+| Alt+Arrow | Move focus | `moveFocus` |
+| Alt+Shift+Arrow | Resize pane | `resizePane` |
+| Ctrl+Shift+F | Find in scrollback, or in the file preview of a Files pane (4.12) | `find` |
+| Ctrl+C | Copy if there's a selection, otherwise pass ^C | `copy` |
+| Ctrl+Shift+C | Copy | `copy` |
+| Ctrl+V, Ctrl+Shift+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image | `paste` |
+| Shift+Enter | Send ESC+CR (Claude Code's newline) | `sendInput` |
+| Ctrl+Shift+D | Toggle dashboard panel | `toggleDashboard` |
+| F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) | `focusDashboard` |
+| Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) | `cycleScrim` |
+| Ctrl+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None | `toggleBackdrop` |
+| Ctrl+Shift+N | Focus the next terminal that needs you, across all tabs (4.7) | `nextAttention` |
+| Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) | `increaseFontSize` |
+| Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) | `decreaseFontSize` |
+| Ctrl+0 | Reset the terminal font size to the default, 14 px (saved to `font.size`; applies to every terminal) | `resetFontSize` |
+| F1 | Open the app dialog on its Help tab (4.18) | `showHelp` |
+| Ctrl+, | Open the app dialog on its Settings tab | `openSettings` |
+| F11 | Toggle full screen | `toggleFullscreen` |
 
 Four more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
 open the app dialog on its Accounts, Shortcuts, CLI, and About tabs.
@@ -105,7 +105,7 @@ several) as "Move it back?", and Cancel resets nothing. Reset all, in the footer
 then empties the `keybindings` array, with the same notice and Undo.
 
 The tab never writes the merged keymap. It sends ops to `settings_keybindings_edit` (in
-`settings.rs`), which applies them to the raw `keybindings` array in settings.json under the
+`settings/mod.rs`), which applies them to the raw `keybindings` array in settings.json under the
 settings write lock:
 
 | Op | Effect on the array |

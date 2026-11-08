@@ -1,3 +1,4 @@
+import { ACTION_REGISTRY, HELP_SECTION_TITLES, actionArg, type ActionRow } from './actionRegistry';
 import { type Chord, type Direction } from './keymap';
 
 export interface HelpRow {
@@ -13,73 +14,19 @@ export interface HelpSection {
 
 const CLAUDE_NEWLINE = '\u001b\r';
 
-export const HELP_SECTIONS: { title: string; actions: string[] }[] = [
-  {
-    title: 'Panes',
-    actions: ['splitRight', 'splitDown', 'splitLeft', 'splitUp', 'splitAuto', 'closePane', 'newScratch', 'openFiles', 'openGit', 'openSearch', 'openEditor', 'collapsePane', 'togglePaneZoom', 'moveFocus', 'resizePane'],
-  },
-  {
-    title: 'Tabs',
-    actions: ['newTab', 'closeTab', 'nextTab', 'prevTab', 'switchToTab', 'switchToLastTab'],
-  },
-  {
-    title: 'Terminal',
-    actions: ['copy', 'paste', 'find', 'sendInput', 'increaseFontSize', 'decreaseFontSize', 'resetFontSize'],
-  },
-  { title: 'Workspace', actions: ['openPalette', 'nextAttention', 'toggleDashboard', 'focusDashboard', 'openLaunch', 'openFavorite', 'openLayout', 'splitWithProfile', 'cycleScrim', 'toggleBackdrop', 'toggleFullscreen', 'showHelp', 'openSettings', 'showAccounts', 'showShortcuts', 'showCli', 'showAbout'] },
-];
+export const HELP_SECTIONS: { title: string; actions: string[] }[] = HELP_SECTION_TITLES.map((title) => ({
+  title,
+  actions: ACTION_REGISTRY.filter((r) => r.section === title).map((r) => r.name),
+}));
 
-export const ACTION_LABELS: Record<string, string> = {
-  splitRight: 'Split right',
-  splitDown: 'Split down',
-  splitLeft: 'Split left',
-  splitUp: 'Split up',
-  splitAuto: 'Split along the longer side',
-  closePane: 'Close pane',
-  newScratch: 'New scratch pad',
-  openFiles: 'Open files for the repo',
-  openGit: 'Git pane for this repo',
-  openSearch: 'Search the repo\'s code',
-  openEditor: 'Open the repo in the editor',
-  collapsePane: 'Collapse pane',
-  togglePaneZoom: 'Zoom or unzoom pane',
-  moveFocus: 'Move focus',
-  resizePane: 'Resize pane',
-  copy: 'Copy selection',
-  paste: 'Paste',
-  find: 'Find in scrollback or file preview',
-  toggleDashboard: 'Toggle dashboard',
-  focusDashboard: 'Move focus to the dashboard and back',
-  openFavorite: 'Open a favorite folder',
-  openLayout: 'Open a saved layout',
-  openLaunch: 'Launch a pane or the editor',
-  openPalette: 'Command palette',
-  nextAttention: 'Jump to the next terminal that needs you',
-  splitWithProfile: 'Split with a chosen shell',
-  cycleScrim: 'Cycle background brightness',
-  toggleBackdrop: 'Pause or resume the background animation',
-  showHelp: 'Help',
-  openSettings: 'Settings',
-  showAccounts: 'Manage code host accounts',
-  showShortcuts: 'Keyboard shortcuts',
-  showCli: 'Pane CLI reference',
-  showAbout: 'About Bashboard',
-  toggleFullscreen: 'Toggle full screen',
-  newTab: 'New tab',
-  closeTab: 'Close tab',
-  nextTab: 'Next tab',
-  prevTab: 'Previous tab',
-  switchToTab: 'Go to tab 1 to 8',
-  switchToLastTab: 'Go to the last tab',
-  increaseFontSize: 'Increase font size',
-  decreaseFontSize: 'Decrease font size',
-  resetFontSize: 'Reset font size',
-};
+export const ACTION_LABELS: Record<string, string> = Object.fromEntries(
+  ACTION_REGISTRY.flatMap((r: ActionRow) => (r.label === undefined ? [] : [[r.name, r.label]])),
+);
 
 /** The F1 label for an action; directional actions append the direction. */
 export function actionLabel(action: string, direction?: Direction): string | undefined {
   const base = ACTION_LABELS[action];
-  if (base !== undefined && direction && (action === 'moveFocus' || action === 'resizePane')) return `${base} ${direction}`;
+  if (base !== undefined && direction && actionArg(action) === 'direction') return `${base} ${direction}`;
   return base;
 }
 
@@ -88,10 +35,9 @@ export function actionOrder(): string[] {
   return HELP_SECTIONS.flatMap((s) => s.actions);
 }
 
-export const ACTION_NOTES: Record<string, string> = {
-  copy: 'With nothing selected, the key goes to the shell',
-  paste: 'With no text on the clipboard, the key goes to the shell so Claude Code can paste an image',
-};
+export const ACTION_NOTES: Record<string, string> = Object.fromEntries(
+  ACTION_REGISTRY.flatMap((r: ActionRow) => (r.note === undefined ? [] : [[r.name, r.note]])),
+);
 
 /** Keys handled inside overlays, which are not part of the keymap. */
 export const FIXED_SECTION: HelpSection = {

@@ -52,6 +52,8 @@ pub struct Cx<'a> {
 }
 
 pub trait ForgeProvider: Send + Sync {
+    // Only the provider-selection tests read it.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn kind(&self) -> ProviderKind;
     fn capabilities(&self) -> Capabilities;
     fn runs(&self, cx: &Cx, repo: &RepoRef, branch: Option<&str>) -> Result<Vec<Run>, ForgeError>;

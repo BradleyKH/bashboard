@@ -27,6 +27,9 @@ export function handleKey(e: KeyboardEvent, ctx: KeyContext): boolean {
   return false;
 }
 
+/** Actions keys.ts handles itself instead of dispatching to the workspace. */
+type SpecialAction = 'copy' | 'paste' | 'sendInput';
+
 function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
   const down = e.type === 'keydown';
   switch (action.type) {
@@ -47,57 +50,17 @@ function isHandled(e: KeyboardEvent, action: Action, ctx: KeyContext): boolean {
     case 'sendInput':
       if (down) ctx.send(action.input);
       return true;
-    case 'splitRight':
-    case 'splitDown':
-    case 'splitLeft':
-    case 'splitUp':
-    case 'splitAuto':
-    case 'closePane':
-    case 'moveFocus':
-    case 'resizePane':
-    case 'cycleScrim':
-    case 'toggleBackdrop':
-    case 'toggleDashboard':
-    case 'focusDashboard':
-    case 'collapsePane':
-    case 'togglePaneZoom':
-    case 'openFavorite':
-    case 'openLayout':
-    case 'openLaunch':
-    case 'openPalette':
-    case 'nextAttention':
-    case 'splitWithProfile':
-    case 'showHelp':
-    case 'openSettings':
-    case 'showAccounts':
-    case 'showShortcuts':
-    case 'showCli':
-    case 'showAbout':
-    case 'toggleFullscreen':
-    case 'newTab':
-    case 'newScratch':
-    case 'openFiles':
-    case 'openGit':
-    case 'openSearch':
-    case 'openEditor':
-    case 'closeTab':
-    case 'nextTab':
-    case 'prevTab':
-    case 'switchToTab':
-    case 'switchToLastTab':
-    case 'increaseFontSize':
-    case 'decreaseFontSize':
-    case 'resetFontSize':
-    case 'find': {
+    default: {
+      // Every other action goes to the workspace. Each SpecialAction needs a case above, or
+      // this assignment stops compiling.
+      const workspaceAction: Exclude<Action, { type: SpecialAction }> = action;
       if (down) {
-        const handled = ctx.dispatch(action);
+        const handled = ctx.dispatch(workspaceAction);
         dispatched.set(e.code, handled);
         return handled;
       }
       return verdictForRest(e, true);
     }
-    default:
-      return false;
   }
 }
 

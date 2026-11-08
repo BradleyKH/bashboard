@@ -1,0 +1,355 @@
+//! The settings types, their defaults, and the ids each enumerated field accepts.
+
+use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+
+use super::keybindings::default_keybindings;
+
+pub const DEFAULT_GIT_BASH_PATH: &str = r"C:\Program Files\Git\bin\bash.exe";
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Shell {
+    pub path: String,
+    pub args: Vec<String>,
+    pub starting_directory: String,
+    /// Profile id normal splits run; see `profiles.rs`.
+    pub default_profile: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Font {
+    pub family: String,
+    pub size: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Scrim {
+    pub opacity: f64,
+    pub blur_px: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Backdrop {
+    /// One of `BACKDROP_STYLES`.
+    pub style: String,
+    pub animate: bool,
+    pub max_fps: u32,
+    pub capacity: u32,
+    pub mutation_rate: f64,
+    /// Divides the camera's home distance.
+    pub zoom: f64,
+    pub matrix: MatrixBackdrop,
+    pub image: ImageBackdrop,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatrixBackdrop {
+    /// One of `MATRIX_COLOR_MODES`; see `parse_matrix_color`.
+    pub color: String,
+    pub zoom: f64,
+    /// Rain steps per second.
+    pub speed: u32,
+    /// Scales how often an idle column starts a new drop.
+    pub density: f64,
+}
+
+/// The Image and Slideshow styles' settings; `file` is Image's, the rest Slideshow's, and `fit`
+/// both.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageBackdrop {
+    /// May contain `%VARS%`; empty until the user picks one.
+    pub file: String,
+    pub folder: String,
+    /// One of `IMAGE_FITS`.
+    pub fit: String,
+    pub interval_seconds: u32,
+    /// 0 swaps pictures with no fade.
+    pub crossfade_seconds: f64,
+    pub shuffle: bool,
+    pub include_subfolders: bool,
+}
+
+/// Ids `backdrop.style` accepts (docs/design/data.md section 8).
+pub const BACKDROP_STYLES: [&str; 6] = ["none", "lights", "galaxy", "matrix", "image", "slideshow"];
+
+/// Ids `backdrop.image.fit` accepts, the Windows wallpaper modes less Span.
+pub const IMAGE_FITS: [&str; 5] = ["fill", "fit", "stretch", "center", "tile"];
+
+/// The front end derives the rain's color from the mode and the accent
+/// (src/backdrop/matrix/rainColor.ts).
+pub const MATRIX_COLOR_MODES: [&str; 2] = ["green", "accent"];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Dashboard {
+    pub visible_on_start: bool,
+    pub peek_on_waiting: bool,
+    /// One of `DASHBOARD_SIDES`.
+    pub side: String,
+    pub sections: DashboardSections,
+    /// One of `CLOCK_STYLES`.
+    pub clock_style: String,
+}
+
+pub const DEFAULT_ACCENT: &str = "#4fb3c8";
+
+/// The front end derives the color from the mode and the accent (src/contentText.ts).
+pub const CONTENT_TEXT_MODES: [&str; 2] = ["accent", "white"];
+pub const DEFAULT_CONTENT_TEXT_MODE: &str = "accent";
+
+/// Ids `dashboard.side` accepts (docs/design/dashboard.md section 4.6).
+pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
+
+/// Ids `dashboard.clockStyle` accepts (docs/design/dashboard.md section 4.6).
+pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
+
+/// Which dashboard elements show; fields follow the panel's default element order.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardSections {
+    pub launch: bool,
+    pub favorites: bool,
+    pub layouts: bool,
+    pub panes: bool,
+    pub containers: bool,
+    pub ports: bool,
+    pub ship: bool,
+    pub local_models: bool,
+    pub external: bool,
+    pub system: bool,
+    pub wave: bool,
+    pub clock: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Restore {
+    pub enabled: bool,
+    pub resume_sessions: bool,
+    pub scrollback: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModels {
+    /// Empty means the default `http://localhost:11434`.
+    pub ollama_url: String,
+    /// Empty means the default `http://localhost:1234`.
+    pub lm_studio_url: String,
+    /// Context length below which a loaded model is flagged; 0 turns the warning off.
+    pub min_context: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitSettings {
+    /// Minutes between background fetches of repos with an open Git pane; 0 turns it off.
+    pub auto_fetch_minutes: u32,
+}
+
+/// Forge kinds `ship.hosts` accepts.
+pub const FORGE_KINDS: [&str; 4] = ["github", "gitlab", "bitbucket", "azureDevOps"];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ship {
+    /// Lowercased host name to one of `FORGE_KINDS`; see `parse_ship_hosts`.
+    pub hosts: HashMap<String, String>,
+    /// Minutes between Overview refreshes; 0 turns the heartbeat off.
+    pub overview_refresh_minutes: u32,
+    /// Repos pinned to the Ship Overview, in file order.
+    pub pinned_repos: Vec<PinnedRepo>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalBrowser {
+    /// Saved pages for the Local Browser pane, in file order.
+    pub bookmarks: Vec<Bookmark>,
+    /// Page a new Local Browser pane opens on; empty opens its start page.
+    pub home_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Bookmark {
+    pub name: String,
+    pub url: String,
+}
+
+/// `repo` (`<host>/<path segments>`) is the pin's identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PinnedRepo {
+    pub repo: String,
+    /// A local clone of the repo.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root: Option<String>,
+    /// Branches shown in the health row beyond the automatic ones.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branches: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Terminal {
+    /// Shell commands running at least this many seconds mark the terminal done or failed; 0 turns it off.
+    pub done_after_seconds: u32,
+    /// Shows a Windows notification when a terminal starts waiting while the window is unfocused.
+    pub notify_when_waiting: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Editor {
+    /// One of `EDITOR_IDS`.
+    pub preferred: String,
+    /// When non-empty, replaces the editor's built-in arguments; see docs/design/files.md
+    /// section 3.12.
+    pub command: String,
+}
+
+/// Ids `editor.preferred` accepts (docs/design/files.md section 3.12).
+pub const EDITOR_IDS: [&str; 18] = [
+    "zed", "vscode", "cursor", "visualStudio", "notepadpp", "sublime", "rider", "intellij",
+    "webstorm", "pycharm", "rustrover", "goland", "clion", "phpstorm", "windsurf",
+    "vscodeInsiders", "vscodium", "default",
+];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Keybinding {
+    pub keys: String,
+    pub action: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    pub shell: Shell,
+    pub font: Font,
+    /// `#rrggbb`; see `parse_accent`.
+    pub accent_color: String,
+    /// One of `CONTENT_TEXT_MODES`; see `parse_content_text`.
+    pub content_text_color: String,
+    pub scrim: Scrim,
+    pub backdrop: Backdrop,
+    pub scrollback: u32,
+    pub terminal: Terminal,
+    pub dashboard: Dashboard,
+    pub restore: Restore,
+    pub editor: Editor,
+    pub git: GitSettings,
+    pub local_models: LocalModels,
+    pub ship: Ship,
+    pub local_browser: LocalBrowser,
+    pub keybindings: Vec<Keybinding>,
+}
+
+impl Settings {
+    /// Host names lowercased, so a lookup by a remote's host matches however the file cased it.
+    pub(crate) fn forge_hosts(&self) -> HashMap<String, String> {
+        self.ship.hosts.iter().map(|(host, kind)| (host.to_lowercase(), kind.clone())).collect()
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsPayload {
+    pub settings: Settings,
+    pub warnings: Vec<String>,
+    /// True when this launch created settings.json (docs/design/app.md section 4.17).
+    pub first_run: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            shell: Shell {
+                path: DEFAULT_GIT_BASH_PATH.into(),
+                args: vec!["--login".into(), "-i".into()],
+                starting_directory: "%USERPROFILE%".into(),
+                default_profile: crate::profiles::GIT_BASH.into(),
+            },
+            font: Font {
+                family: "JetBrainsMono Nerd Font Mono, Cascadia Mono".into(),
+                size: 14.0,
+            },
+            accent_color: DEFAULT_ACCENT.into(),
+            content_text_color: DEFAULT_CONTENT_TEXT_MODE.into(),
+            scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
+            backdrop: Backdrop {
+                style: "lights".into(),
+                animate: false,
+                max_fps: 20,
+                capacity: 1000,
+                mutation_rate: 0.2,
+                zoom: 2.0,
+                matrix: MatrixBackdrop { color: "green".into(), zoom: 1.0, speed: 10, density: 3.0 },
+                image: ImageBackdrop {
+                    file: String::new(),
+                    folder: String::new(),
+                    fit: "fill".into(),
+                    interval_seconds: 600,
+                    crossfade_seconds: 5.0,
+                    shuffle: true,
+                    include_subfolders: false,
+                },
+            },
+            scrollback: 10000,
+            terminal: Terminal { done_after_seconds: 30, notify_when_waiting: true },
+            dashboard: Dashboard {
+                visible_on_start: true,
+                peek_on_waiting: true,
+                side: "right".into(),
+                sections: DashboardSections {
+                    launch: true,
+                    favorites: false,
+                    layouts: false,
+                    panes: true,
+                    containers: true,
+                    ports: true,
+                    ship: true,
+                    local_models: true,
+                    external: true,
+                    system: false,
+                    wave: false,
+                    clock: false,
+                },
+                clock_style: "both".into(),
+            },
+            restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
+            editor: Editor { preferred: "default".into(), command: String::new() },
+            git: GitSettings { auto_fetch_minutes: 5 },
+            local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
+            ship: Ship { hosts: HashMap::new(), overview_refresh_minutes: 5, pinned_repos: Vec::new() },
+            local_browser: LocalBrowser { bookmarks: Vec::new(), home_url: String::new() },
+            keybindings: default_keybindings(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn payload_serializes_first_run_in_camel_case() {
+        let payload = SettingsPayload { settings: Settings::default(), warnings: Vec::new(), first_run: true };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert_eq!(json["firstRun"], true);
+        assert!(json.get("first_run").is_none());
+    }
+}

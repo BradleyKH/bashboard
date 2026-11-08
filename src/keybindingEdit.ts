@@ -8,6 +8,7 @@ import {
   type Direction,
   type KeybindingEntry,
 } from './keymap';
+import { actionArg } from './actionRegistry';
 import { ACTION_LABELS, ACTION_NOTES, HELP_SECTIONS, formatChord, sendInputLabel } from './helpModel';
 import type { KeybindingOp } from './settings';
 
@@ -77,10 +78,16 @@ export function shellNoteFor(keys: string): string | undefined {
 }
 
 function argsOf(entry: KeybindingEntry): EditArgs {
-  if (entry.action === 'moveFocus' || entry.action === 'resizePane') return { direction: entry.direction };
-  if (entry.action === 'switchToTab') return { index: entry.index };
-  if (entry.action === 'sendInput') return { input: entry.input };
-  return {};
+  switch (actionArg(entry.action)) {
+    case 'direction':
+      return { direction: entry.direction };
+    case 'index':
+      return { index: entry.index };
+    case 'input':
+      return { input: entry.input };
+    default:
+      return {};
+  }
 }
 
 function rowId(action: string, args: EditArgs): string {
@@ -119,16 +126,21 @@ function rowLabel(action: string, args: EditArgs): string {
 }
 
 function rowArgs(action: string, live: Map<string, Bound>): EditArgs[] {
-  if (action === 'moveFocus' || action === 'resizePane') return DIRECTIONS.map((direction) => ({ direction }));
-  if (action === 'switchToTab') return Array.from({ length: 8 }, (_, i) => ({ index: i + 1 }));
-  if (action === 'sendInput') {
-    const inputs: string[] = [];
-    for (const b of [...DEFAULTS.values(), ...live.values()]) {
-      if (b.entry.action === 'sendInput' && !inputs.includes(b.entry.input!)) inputs.push(b.entry.input!);
+  switch (actionArg(action)) {
+    case 'direction':
+      return DIRECTIONS.map((direction) => ({ direction }));
+    case 'index':
+      return Array.from({ length: 8 }, (_, i) => ({ index: i + 1 }));
+    case 'input': {
+      const inputs: string[] = [];
+      for (const b of [...DEFAULTS.values(), ...live.values()]) {
+        if (b.entry.action === action && !inputs.includes(b.entry.input!)) inputs.push(b.entry.input!);
+      }
+      return inputs.map((input) => ({ input }));
     }
-    return inputs.map((input) => ({ input }));
+    default:
+      return [{}];
   }
-  return [{}];
 }
 
 function sameSet(a: string[], b: string[]): boolean {

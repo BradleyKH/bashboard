@@ -6,7 +6,7 @@ import { relativeLuminance } from './accent';
 
 export type ContentTextMode = 'accent' | 'white';
 
-/** Mirrors CONTENT_TEXT_MODES in src-tauri/src/settings.rs. */
+/** Mirrors CONTENT_TEXT_MODES in src-tauri/src/settings/model.rs. */
 export const DEFAULT_CONTENT_TEXT_MODE: ContentTextMode = 'accent';
 
 export const CONTENT_TEXT_MODES: { value: ContentTextMode; label: string }[] = [

@@ -1,276 +1,63 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { DialogTab } from './appDialogModel';
 import { applyAccent } from './accent';
 import { applyContentText, contentTextColor } from './contentText';
-import type { AttentionCause } from './attention';
 import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
-import type { ConfirmOptions } from './confirmDialog';
-import { shellCommand, type Container } from './containers';
-import { ContainersPane } from './containersPane';
-import { ContainersStore } from './containersStore';
-import { PortsPane } from './portsPane';
-import { LocalBrowserPane } from './localBrowserPane';
-import type { DevtoolsState } from './browserPaneModel';
-import { PortsStore } from './portsStore';
-import { boundSession, isBusy, lastFolder, type PaneCardInput } from './dashboardModel';
-import { DockOverlay } from './dockOverlay';
-import { openInEditor } from './editors';
-import { DoneTracker } from './doneStatus';
-import { samePath } from './favorites';
+import type { PaneCardInput } from './dashboardModel';
 import { FilesPane } from './filesPane';
-import type { FilesSort } from './filesModel';
-import { pathInsertText, pathProfileFor, pinTarget, routeFilesRequest, type FilesRequest } from './filesRouting';
-import {
-  applyDock,
-  dropZones,
-  expandInto,
-  focusAfterRemoval,
-  type DockTarget,
-  type DragSource,
-  type DropTarget,
-} from './docking';
+import { pinTarget, type FilesRequest } from './filesRouting';
+import { applyDock, expandInto, focusAfterRemoval, type DockTarget, type DragSource } from './docking';
 import { FindBar } from './findBar';
 import type { ShipTab } from './shipModel';
 import type { ProviderKind } from './forgeApi';
-import { ShipPane } from './shipPane';
 import { GitPane } from './gitPane';
-import type { OpenInHandler } from './openMenu';
-import type { Worktree } from './worktreeApi';
-import { routeGitRequest } from './gitModel';
-import type { GitTab } from './gitBranchModel';
 import { forget, recentTerminal, touch } from './focusHistory';
-import { DEFAULT_FONT_SIZE, stepFontSize } from './fontSize';
 import { lookup, type Action } from './keymap';
-import { handleKey } from './keys';
-import {
-  autoDir,
-  clampRatio,
-  close,
-  computeRects,
-  findPath,
-  insertAtEdge,
-  leaves,
-  neighbor,
-  resizePane,
-  setRatio,
-  type CellSize,
-  type Direction,
-  type DockZone,
-  type Layout,
-  type Rect,
-} from './layout';
-
-type Edge = Exclude<DockZone, 'center'>;
-import { LayoutView } from './layoutView';
+import { autoDir, close, computeRects, findPath, insertAtEdge, neighbor, resizePane } from './layout';
+import type { CellSize, Direction, Layout, Rect } from './layout';
 import { LiveSettings } from './liveSettings';
-import { TerminalPane, type CommandEvent } from './pane';
+import { TerminalPane } from './pane';
 import { PaneAttention } from './paneAttention';
-import { PathDragLayer, sameDropTarget, type PathDrag, type PathDropTarget } from './pathDragLayer';
-import { repoRoot } from './repoFiles';
+import { PaneDrag, type PaneDragContext } from './paneDrag';
+import { PaneFactory, type PaneFactoryContext } from './paneFactory';
+import { knownForgeSources as forgeSourcesOf } from './paneInfo';
+import * as routing from './paneRouting';
+import { specForKind } from './paneSpecModel';
+import { PathDrop, type PathDropContext } from './pathDrop';
+import type { PathDrag } from './pathDragLayer';
 import type { PaneKind } from './paneKinds';
 import type { PaneView } from './paneView';
-import {
-  scratchDelete,
-  scratchLoad,
-  scratchSave,
-  scratchSaveAs,
-  scrollbackLoad,
-  scrollbackSaveAll,
-  type PtyActivity,
-  type ScrollbackEntry,
-} from './persistence';
-import { restoredTab, snapshotTabs } from './savedTabs';
-import { TabStore } from './tabStore';
-import { type AgentId, type SavedPane, type SavedTab, type SavedWorkspace, resumeCommand } from './savedWorkspace';
-import { folderInclude, initialQuery } from './searchModel';
-import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from './searchOptions';
+import { scratchDelete, type PtyActivity } from './persistence';
+import type { SavedTab, SavedWorkspace } from './savedWorkspace';
+import type { SearchOptions } from './searchOptions';
 import { SearchPane } from './searchPane';
-import { newScratchId } from './scratchModel';
 import { ScratchPane } from './scratchPane';
 import { applyScrim, nextScrim, scrimFromSettings, type ScrimState } from './scrim';
 import type { HookEvent, Session } from './sessions';
 import { saveSetting, type Settings, type SettingsPayload } from './settings';
-import { applyActivity } from './sweepTracker';
-import {
-  addTab,
-  closeTab as closeTabState,
-  combinedStatus,
-  nextTab,
-  renameTab as renameTabState,
-  reorderTab as reorderTabState,
-  switchTab as switchTabState,
-  tabAt,
-  tabTitle,
-  type TabState,
-} from './tabs';
-import {
-  shellStatus,
-  terminalStatus,
-  waitingText,
-  type ShellStatus,
-  type SweepState,
-  type TerminalStatus,
-} from './terminalStatus';
-import { TitleStrip } from './titleStrip';
+import { PaneStatus, type PaneStatusContext } from './paneStatus';
+import { TabStore } from './tabStore';
+import { TabView, type TabViewContext } from './tabView';
+import { addTab, closeTab as closeTabState, renameTab as renameTabState, type TabState } from './tabs';
+import { reorderTab as reorderTabState, switchTab as switchTabState } from './tabs';
 import { showToast } from './toast';
-import { PaneZoom } from './zoom';
+import { dispatchAction, type DispatchContext } from './workspaceDispatch';
+import * as persistence from './workspacePersistence';
+import { WorkspaceSessions } from './workspaceSessions';
+import type { Edge, LaunchTarget, OpenPaneOptions, OpenTerminalOptions, PaneSpec } from './workspaceTypes';
+import type { TabInfo, TerminalInfo, WorkspaceHooks } from './workspaceTypes';
 
 export type { DragSource };
+export type { LaunchTarget, OpenPaneOptions, OpenTerminalOptions, PaneSpec, TabInfo, TerminalInfo, WorkspaceHooks };
 
-export interface TerminalInfo {
-  kind: 'terminal';
-  paneId: string;
-  tabId: string;
-  /** Null until the spawn resolves and after the shell exits. */
-  ptyId: number | null;
-  cwd: string | null;
-  /** Resolved shell profile id; the configured default until the spawn resolves. */
-  profile: string;
-  focused: boolean;
-  /** Epoch ms. */
-  openedAt: number;
-  collapsed: boolean;
-  shell: ShellStatus;
-  attention: boolean;
-  /** An unseen `Stop` or long command (docs/design/terminal.md section 4.8). */
-  mark: { status: 'done' | 'failed'; at: number } | null;
-}
-
-/** One tab as the tab strip and dashboard show it (docs/design/workspace.md section 4.10). */
-export interface TabInfo {
-  id: string;
-  /** The fixed name, else the focused pane's title. */
-  title: string;
-  /** Null while the title follows the focused pane. */
-  name: string | null;
-  active: boolean;
-  paneCount: number;
-  /** The most urgent of its terminals' statuses. */
-  status: TerminalStatus;
-  /** True while any of its terminals has attention. */
-  attention: boolean;
-  /** Its `waiting` terminals in pane order, for the tab's tooltip. */
-  waiting: { title: string; reason: string }[];
-}
-
-export interface WorkspaceHooks {
-  onToggleDashboard?: () => void;
-  onFocusDashboard?: () => void;
-  onOpenFavoritePicker?: () => void;
-  onOpenLayoutPicker?: () => void;
-  /** Design 4.6 Launch: the launch menu at the focused pane. */
-  onOpenLaunchMenu?: () => void;
-  onOpenPalette?: () => void;
-  onOpenProfilePicker?: () => void;
-  /** Opens the Help, Settings, Accounts, Shortcuts, CLI, and About dialog on the given tab. */
-  onOpenDialog?: (tab: DialogTab) => void;
-  /** Opens the dialog's Accounts tab, on `host`'s card when given, optionally with its token form open. */
-  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
-  onToggleBackdrop?: () => void;
-  onToggleFullscreen?: () => void;
-  /** Called whenever a pane's attention is newly raised (docs/design/sessions.md section 4.7). */
-  onAttention?: (paneId: string, cause: AttentionCause) => void;
-  /** Pointer position during a pane drag, `null` when it ends. */
-  onDragHover?: (pos: { x: number; y: number } | null) => void;
-  /**
-   * The dashboard tab group under the point during a pane drag (docs/design/dashboard.md
-   * section 4.6).
-   */
-  tabDropAt?: (x: number, y: number) => { tabId: string; rect: DOMRect } | null;
-  /** Asks before closing a tab whose `busy` panes would lose work; true closes it. */
-  onConfirmCloseTab?: (tabId: string, busy: PaneCardInput[]) => Promise<boolean>;
-  /** Asks before Ctrl+W closes a scratch pad that has text; true closes it. */
-  onConfirmClosePane?: (paneId: string) => Promise<boolean>;
-  /** Asks before the kind menu replaces a busy terminal or a pad with text; true replaces it. */
-  onConfirmReplace?: (paneId: string, kind: PaneKind) => Promise<boolean>;
-  /** Shows a confirm dialog for a pane's own question (a Git pane's Undo last commit); true goes ahead. */
-  onConfirm?: (options: ConfirmOptions) => Promise<boolean>;
-  /**
-   * A Files pane pinned a file or folder of the repo at `root` (docs/design/files.md section 4.12).
-   */
-  onPin?: (root: string, absolute: string, isDir: boolean) => void;
-  onUnpin?: (root: string, absolute: string) => void;
-  /** Absolute paths of the existing pinned folders of the repo at `root`. */
-  getPinnedFolders?: (root: string) => string[];
-  /** The Repo section's repo root, which a pane with no folder passes on when replaced (4.11). */
-  getRepoFolder?: () => string | null;
-  /**
-   * The container snapshot every Containers pane shares (docs/design/containers.md section 4.16).
-   */
-  containers?: ContainersStore;
-  /**
-   * The listener list every Ports pane and the dashboard share (docs/design/containers.md
-   * section 4.19).
-   */
-  ports?: PortsStore;
-  /** A Git pane's worktree row opened its folder as another pane kind or in the editor. */
-  onOpenIn?: OpenInHandler;
-  /** Asks, then removes the worktree; resolves to a message to show inline, or null when removed or cancelled. */
-  onDeleteWorktree?: (root: string, w: Worktree) => Promise<string | null>;
-  /** A Git pane's "Compare with" choice; null goes back to automatic. */
-  onSetPrimaryBranch?: (root: string, branch: string | null) => void;
-}
-
-/**
- * Where a launched pane would land (docs/design/dashboard.md section 4.6): a split of the focused
- * pane (`pane` is it now, `kept` and `added` its two halves after), an existing pane brought
- * forward, the whole pane area of an empty tab, or collapsed for want of room.
- */
-export type LaunchTarget =
-  | { kind: 'split'; pane: Rect; kept: Rect; added: Rect }
-  | { kind: 'reuse'; pane: Rect }
-  | { kind: 'fill'; area: Rect }
-  | { kind: 'collapsed'; pane: Rect };
-
-/** Stands in for the launched pane's id while previewing; never mounted. */
-const LAUNCH_PREVIEW_ID = '__launch-preview';
-
-export interface OpenPaneOptions {
-  collapsed?: boolean;
-  dock?: DockTarget;
-  /** Opens the pane as the only pane of a new tab; `collapsed` and `dock` then do nothing. */
-  tab?: boolean;
-}
-
-export interface OpenTerminalOptions extends OpenPaneOptions {
-  /** Shell profile id; omitted uses `shell.defaultProfile`. */
-  profile?: string;
-}
-
-/** What to build for a new pane (docs/design/workspace.md section 4.11). */
-export type PaneSpec =
-  | {
-      kind: 'terminal';
-      cwd?: string;
-      profile?: string;
-      /** Runs in place of the profile's shell. */
-      command?: string[];
-      /** Typed into the shell, with Enter, once it is ready for input. */
-      initialInput?: string;
-      /** Marks a container shell (design 4.16), which is titled by it and never saved. */
-      container?: { name: string };
-      /** The saved terminal's scrollback id, kept so the next save reuses its file. */
-      scrollbackId?: string;
-      /** Saved scrollback to write before the shell starts (design 4.9). */
-      replay?: Promise<string>;
-    }
-  | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
-  | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
-  | { kind: 'git'; root: string; tab?: GitTab }
-  /** No `root` opens on the Overview. */
-  | {
-      kind: 'ship';
-      root?: string;
-      tab?: ShipTab;
-      thisBranch?: boolean;
-      thisBranchPulls?: boolean;
-      allPulls?: boolean;
-    }
-  | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
-  | { kind: 'containers' }
-  | { kind: 'ports' }
-  /** No `url` opens the start page. */
-  | { kind: 'browser'; url?: string | null; devtools?: Partial<DevtoolsState>; device?: string };
+/** Every narrow view of the workspace its helper modules act through, built once by `context`. */
+type WorkspaceContext = PaneFactoryContext &
+  PathDropContext &
+  routing.PaneRoutingContext &
+  DispatchContext &
+  persistence.PersistenceContext &
+  PaneDragContext &
+  TabViewContext &
+  PaneStatusContext;
 
 /**
  * Owns the tabs, each with its own split tree, focus, and collapsed panes, plus every pane of
@@ -282,47 +69,24 @@ export class Workspace {
   private readonly store = new TabStore();
   private readonly paneViews = new Map<string, PaneView>();
   private readonly hosts = new Map<string, HTMLElement>();
-  private readonly strips = new Map<string, TitleStrip>();
-  /** What each terminal's strip last showed; a change in a background tab must still redraw the tab strip. */
-  private readonly stripShown = new Map<string, string>();
   /** Terminals take `p<n>`, every other kind `v<n>`, so saved keys never collide across kinds. */
   private nextId = 1;
   private nextViewId = 1;
   private readonly config: LiveSettings;
-  private readonly view: LayoutView;
-  private readonly overlay: DockOverlay;
-  private readonly pathLayer: PathDragLayer;
-  /** The pane host showing the path drop highlight. */
-  private pathHighlightId: string | null = null;
-  private dropHighlight: PathDropTarget | null = null;
-  private drag: DragSource | null = null;
+  private readonly ctx: WorkspaceContext;
+  private readonly factory: PaneFactory;
+  private readonly pathDrop: PathDrop;
+  private readonly paneDrag: PaneDrag;
+  private readonly tabView: TabView;
+  private readonly status: PaneStatus;
   private scrim: ScrimState;
   /** Tracked locally so quick repeats don't act on a size the file watcher hasn't reported back yet. */
   private fontSize: number;
-  private readonly openedAt = new Map<string, number>();
   private readonly listeners = new Set<() => void>();
-  private sessions: Session[] = [];
-  /** Keyed by pty id. */
-  private sweeps = new Map<number, SweepState>();
-  private sizer: HTMLElement | null = null;
-  /** Sessions from the restored workspace, kept until a session binds to the pane. */
-  private readonly restoredSessions = new Map<
-    string,
-    { sessionId: string; permissionMode?: string; agent?: AgentId; resumeModel?: string }
-  >();
-  /** Newest model per session id, fed from main.ts; only Copilot's resume needs it. */
-  private readonly sessionModels = new Map<string, string>();
+  private readonly sessions = new WorkspaceSessions();
   /** Container shell pane ids to their container's name. */
   private readonly containerShells = new Map<string, string>();
-  private emptyContainers: ContainersStore | undefined;
-  private emptyPorts: PortsStore | undefined;
   private readonly attention: PaneAttention;
-  private readonly done = new DoneTracker();
-  private readonly zoom = new PaneZoom();
-  /** Tab id to the panes that tab's zoom took off screen, restored when the zoom ends. */
-  private readonly zoomHidden = new Map<string, Set<string>>();
-  /** The active tab's zoomed pane as the last render decided it. */
-  private zoomedId: string | null = null;
   private readonly findBar = new FindBar();
   /** Pane ids, most recently focused first; Send targets the newest terminal in the pad's tab. */
   private focusOrder: string[] = [];
@@ -338,45 +102,12 @@ export class Workspace {
     applyScrim(document.documentElement, this.scrim);
     applyAccent(document.documentElement, payload.settings.accentColor);
     applyContentText(document.documentElement, contentTextColor(payload.settings.contentTextColor, payload.settings.accentColor));
-    this.view = new LayoutView(root, {
-      clampRatio: (path, ratio) => {
-        const cell = this.layoutCell();
-        if (!this.store.tree || !cell) return ratio;
-        return clampRatio(this.store.tree, path, ratio, this.containerRect(), cell);
-      },
-      // Panes refit live during the drag through their ResizeObservers; this commits the ratio.
-      onRatioChange: (path, ratio) => {
-        if (!this.store.tree) return;
-        this.store.tree = setRatio(this.store.tree, path, ratio);
-        this.render();
-      },
-    });
-    this.overlay = new DockOverlay(root, {
-      paneRects: () => this.paneRects(),
-      areaRect: () => (this.store.tree ? this.root.getBoundingClientRect() : null),
-      zonesFor: (paneId) => (this.drag ? dropZones(this.drag, paneId) : []),
-      onDrop: (target) => this.onDrop(target),
-      onHover: (pos) => this.hooks.onDragHover?.(pos),
-      tabAt: (x, y) => {
-        if (this.drag?.kind !== 'pane') return null;
-        const hit = this.hooks.tabDropAt?.(x, y) ?? null;
-        return hit && hit.tabId !== this.store.tabOf(this.drag.paneId)?.id ? hit : null;
-      },
-      onCancel: () => {
-        this.drag = null;
-        this.paneViews.get(this.store.focusedId)?.focus();
-      },
-    });
-    this.pathLayer = new PathDragLayer({
-      targetAt: (x, y, drag) => this.dropTargetAt(x, y, drag),
-      highlight: (target) => this.setDropHighlight(target),
-      onHover: (pos) => this.hooks.onDragHover?.(pos),
-      onDrop: (target, drag) => {
-        if (target.kind === 'insert') void this.insertPaths(target.paneId, drag.paths);
-        else void this.moveDropped(drag, target.folder);
-      },
-      onCancel: () => this.paneViews.get(this.store.focusedId)?.focus(),
-    });
+    this.ctx = this.context();
+    this.status = new PaneStatus(this.ctx);
+    this.tabView = new TabView(this.ctx);
+    this.paneDrag = new PaneDrag(this.ctx);
+    this.pathDrop = new PathDrop(this.ctx);
+    this.factory = new PaneFactory(this.ctx);
     this.attention = new PaneAttention({
       isSeen: (id) => this.isSeen(id),
       host: (id) => this.hosts.get(id),
@@ -388,6 +119,92 @@ export class Workspace {
     });
     // Bubble phase, so inputs that stop propagation of their own keys (the favorites picker) win.
     window.addEventListener('keydown', (e) => this.onEmptyLayoutKey(e));
+  }
+
+  /** The one object the helper modules act through; each sees it only as its own narrow context. */
+  private context(): WorkspaceContext {
+    return {
+      store: this.store,
+      paneViews: this.paneViews,
+      hosts: this.hosts,
+      root: this.root,
+      hooks: this.hooks,
+      containerShells: this.containerShells,
+      sessions: this.sessions,
+      findBar: this.findBar,
+      keymap: () => this.config.keymap,
+      paneSettings: () => this.paneSettings(),
+      defaultProfile: () => this.config.settings.shell.defaultProfile,
+      focusOrder: () => this.focusOrder,
+      isBound: (ptyId) => this.sessions.bound(ptyId) !== null,
+      dispatch: (a) => this.dispatch(a),
+      terminal: (id) => this.terminal(id),
+      scratch: (id) => this.scratch(id),
+      folderForNew: () => this.folderForNew(),
+      fontSize: () => this.fontSize,
+      setFontSize: (size) => this.setFontSize(size),
+      cycleScrim: () => this.cycleScrim(),
+      layoutCell: () => this.layoutCell(),
+      paneRects: () => this.tabView.paneRects(),
+      containerRect: () => this.containerRect(),
+      takeId: () => this.takeId(),
+      takeIdFor: (kind) => this.takeIdFor(kind),
+      createHost: (id) => this.factory.createHost(id),
+      render: () => this.tabView.render(),
+      notify: () => this.notify(),
+      mount: (id, tree, spec) => this.mount(id, tree, spec),
+      buildPane: (id, host, spec, expanded, onReady) => this.factory.buildPane(id, host, spec, expanded, onReady),
+      startPane: (id, pane) => this.factory.startPane(id, pane),
+      openOffscreen: (id, spec, onReady) => this.factory.openOffscreen(id, spec, onReady),
+      hideTab: (tab) => this.tabView.hideTab(tab),
+      setFocused: (id) => this.setFocused(id),
+      paneChanged: (id) => this.paneChanged(id),
+      onCommand: (id, ev) =>
+        this.sessions.onCommand(id, ev, this.isSeen(id), this.config.settings.terminal.doneAfterSeconds),
+      onBell: (id) => {
+        if (this.attention.bell(id)) this.notify();
+      },
+      onDragHover: (pos) => this.hooks.onDragHover?.(pos),
+      focusPane: (id) => this.focusPane(id),
+      expandPane: (id) => this.expandPane(id),
+      collapsePane: (id) => this.collapsePane(id),
+      closePane: (id) => this.closePane(id),
+      requestClosePane: (id) => this.requestClosePane(id),
+      requestCloseTab: (id) => this.requestCloseTab(id),
+      toggleZoom: () => this.toggleZoom(),
+      replaceKind: (id, kind) => this.replaceKind(id, kind),
+      startDrag: (source, e) => this.startDrag(source, e),
+      startPathDrag: (paths, e, move) => this.startPathDrag(paths, e, move),
+      insertPathIntoTab: (id, paths, baseRoot) => this.pathDrop.insertPathIntoTab(id, paths, baseRoot),
+      insertTextIntoTab: (id, text) => this.pathDrop.insertTextIntoTab(id, text),
+      send: (padId, text) => this.pathDrop.send(padId, text),
+      scratchSavedAs: (id, path) => this.scratchSavedAs(id, path),
+      split: (side) => this.split(side),
+      moveFocus: (direction) => this.moveFocus(direction),
+      resizePane: (direction) => this.resizePane(direction),
+      newTab: () => this.newTab(),
+      switchTab: (id) => this.switchTab(id),
+      nextAttention: () => this.nextAttention(),
+      openPane: (spec, opts) => this.openPane(spec, opts),
+      openTerminal: (cwd, opts) => this.openTerminal(cwd, opts),
+      openLayout: (saved, name) => this.openLayout(saved, name),
+      openLocalBrowser: (url, opts) => this.openLocalBrowser(url, opts),
+      showFiles: (req, opts) => this.showFiles(req, opts),
+      showGit: (root, opts) => this.showGit(root, opts),
+      showSearch: (root, query, opts, options) => this.showSearch(root, query, opts, options),
+      titleForPty: (ptyId) => this.titleForPty(ptyId),
+      revealPty: (ptyId) => this.revealPty(ptyId),
+      titleOf: (id) => this.status.title(id),
+      markCollapsed: (id) => this.markCollapsed(id),
+      showActive: () => this.tabView.showActive(),
+      forgetZoom: (tabId) => this.tabView.forget(tabId),
+      strip: (id) => this.status.strip(id),
+      paneStatus: () => this.status,
+      keep: (host) => this.tabView.keep(host),
+      hasAttention: (id) => this.attention.has(id),
+      observeAttention: (id, status) => this.attention.observe(id, status),
+      syncFindBar: () => this.syncFindBar(),
+    };
   }
 
   /** Adds the first pane, or splits the focused pane when one exists. */
@@ -414,7 +231,7 @@ export class Workspace {
     if (opts.tab) {
       const prev = this.store.active;
       this.store.state = addTab(this.store.state, this.store.emptyTab());
-      this.hideTab(prev);
+      this.tabView.hideTab(prev);
       this.mount(id, { kind: 'pane', paneId: id }, spec);
       return;
     }
@@ -485,7 +302,10 @@ export class Workspace {
     }
     const id = `p${this.nextId}`;
     const next = insertAtEdge(this.store.tree, this.store.focusedId, id, edge, container, cell);
-    if (next === this.store.tree) return;
+    if (next === this.store.tree) {
+      showToast('Not enough room to split the pane');
+      return;
+    }
     this.takeId();
     this.mount(id, next, { kind: 'terminal', cwd: this.folderForNew() });
   }
@@ -503,7 +323,7 @@ export class Workspace {
     const out: PaneCardInput[] = [];
     for (const tab of this.store.state.tabs) {
       for (const paneId of tab.panes) {
-        const input = this.paneInput(tab, paneId);
+        const input = this.status.cardInput(tab, paneId);
         if (input) out.push(input);
       }
     }
@@ -512,23 +332,12 @@ export class Workspace {
 
   /** Panes that closing would lose work in: busy terminals and scratch pads with text. */
   busyPanes(tabId?: string): PaneCardInput[] {
-    return this.panes().filter((p) => (tabId === undefined || p.tabId === tabId) && this.losesWork(p));
+    return this.panes().filter((p) => (tabId === undefined || p.tabId === tabId) && this.status.losesWork(p));
   }
 
   /** Tabs in strip order. */
   tabs(): TabInfo[] {
-    return this.store.state.tabs.map((tab) => ({
-      id: tab.id,
-      title: tabTitle(tab, this.titleOf(tab.focusedId || (tab.panes[0] ?? ''))),
-      name: tab.name,
-      active: tab.id === this.store.activeId,
-      paneCount: tab.panes.length,
-      status: combinedStatus(tab.panes.filter((id) => this.terminal(id)).map((id) => this.statusOf(id))),
-      attention: tab.panes.some((id) => this.attention.has(id)),
-      waiting: tab.panes
-        .filter((id) => this.terminal(id) && this.statusOf(id) === 'waiting')
-        .map((id) => ({ title: this.titleOf(id), reason: this.waitingReasonOf(id) })),
-    }));
+    return this.store.state.tabs.map((tab) => this.status.tabInfo(tab));
   }
 
   /**
@@ -538,7 +347,7 @@ export class Workspace {
   newTab(cwd: string | undefined = this.folderForNew()): void {
     const prev = this.store.active;
     this.store.state = addTab(this.store.state, this.store.emptyTab());
-    this.hideTab(prev);
+    this.tabView.hideTab(prev);
     const id = this.takeId();
     this.mount(id, { kind: 'pane', paneId: id }, { kind: 'terminal', cwd });
   }
@@ -547,11 +356,11 @@ export class Workspace {
     if (id === this.store.activeId || !this.store.state.tabs.some((t) => t.id === id)) return;
     const prev = this.store.active;
     this.store.state = switchTabState(this.store.state, id);
-    this.hideTab(prev);
-    this.showActive();
+    this.tabView.hideTab(prev);
+    this.tabView.showActive();
     this.notify();
     // A tab switched to mid-drag has different pane rects.
-    this.overlay.refresh();
+    this.paneDrag.refresh();
   }
 
   /**
@@ -563,7 +372,7 @@ export class Workspace {
     for (const tab of this.store.state.tabs) {
       for (const paneId of tab.panes) {
         if (!this.terminal(paneId)) continue;
-        entries.push({ paneId, tabId: tab.id, ...this.resolvedOf(paneId) });
+        entries.push({ paneId, tabId: tab.id, ...this.status.resolved(paneId) });
       }
     }
     const tabOrder = this.store.state.tabs.map((t) => t.id);
@@ -584,7 +393,7 @@ export class Workspace {
 
   /** A terminal's title and why it is waiting, for a notification (design 4.7). */
   waitingNotice(paneId: string): { title: string; reason: string } {
-    return { title: this.titleOf(paneId), reason: this.waitingReasonOf(paneId) };
+    return { title: this.status.title(paneId), reason: this.status.waitingReason(paneId) };
   }
 
   /** Closes every pane in the tab without asking; `requestCloseTab` asks first. */
@@ -593,15 +402,14 @@ export class Workspace {
     if (!tab) return;
     const wasActive = id === this.store.activeId;
     for (const paneId of tab.panes) this.forgetPane(paneId);
-    this.zoom.forget(id);
-    this.zoomHidden.delete(id);
+    this.tabView.forget(id);
     const next = closeTabState(this.store.state, id);
     if (!next) {
       this.closeWindow();
       return;
     }
     this.store.state = next;
-    if (wasActive) this.showActive();
+    if (wasActive) this.tabView.showActive();
     this.notify();
   }
 
@@ -636,26 +444,7 @@ export class Workspace {
    * resuming Claude sessions; its scratch pads open fresh.
    */
   openLayout(saved: SavedTab, name: string): void {
-    const prev = this.store.active;
-    const { tab, ids } = restoredTab(saved, this.store.takeTabId(), name, (p) => this.takeIdFor(p.kind));
-    this.store.state = addTab(this.store.state, tab);
-    this.hideTab(prev);
-    if (saved.panes.length === 0) {
-      const id = this.takeId();
-      this.mount(id, { kind: 'pane', paneId: id }, { kind: 'terminal' });
-      return;
-    }
-    // Every expanded host must be attached and sized before its pane opens, since start() fits to it.
-    for (const p of saved.panes) if (!p.collapsed) this.createHost(ids.get(p.key)!);
-    this.render();
-    this.buildTab(saved, ids, true, { resumeSessions: false, loadScratch: false, loadScrollback: false });
-    // A layout of only collapsed panes would leave nothing to type into.
-    if (!this.store.tree) {
-      this.expandPane(tab.panes[0]);
-      return;
-    }
-    this.paneViews.get(this.store.focusedId)?.focus();
-    this.notify();
+    persistence.openLayout(this.ctx, saved, name);
   }
 
   /** Listeners run after state changes and must not re-render the layout. */
@@ -677,10 +466,7 @@ export class Workspace {
       return;
     }
     // A hidden pane of the zoomed tab (a card click) ends the zoom first.
-    if (this.zoomedId !== null && paneId !== this.zoomedId) {
-      this.zoom.end(tab.id);
-      this.render();
-    }
+    if (this.tabView.zoomedId !== null && paneId !== this.tabView.zoomedId) this.tabView.endZoom(tab.id);
     this.setFocused(paneId);
     pane.focus();
   }
@@ -699,8 +485,8 @@ export class Workspace {
       this.closeWindow();
       return;
     }
-    if (wasActive && this.store.activeId !== tab.id) this.showActive();
-    else if (wasActive && inTree) this.render();
+    if (wasActive && this.store.activeId !== tab.id) this.tabView.showActive();
+    else if (wasActive && inTree) this.tabView.render();
     this.notify();
   }
 
@@ -723,7 +509,7 @@ export class Workspace {
     this.store.tree = close(this.store.tree, paneId);
     this.store.focusedId = this.store.tree ? target : '';
     this.markCollapsed(paneId);
-    this.render();
+    this.tabView.render();
     this.notify();
   }
 
@@ -742,99 +528,26 @@ export class Workspace {
     this.store.tree = next;
     this.store.setCollapsed(paneId, false);
     this.store.focusedId = paneId;
-    this.render();
+    this.tabView.render();
     // After render, so the host is attached when WebGL loads and the refit runs.
     pane.setExpanded(true);
     pane.focus();
     this.notify();
   }
 
-  /**
-   * Design 4.2 docking into the active tab; a null target is only valid while its layout is
-   * empty. A pane from another tab moves into the active one, closing a source tab it empties.
-   */
+  /** Design 4.2 docking into the active tab; a null target is only valid while its layout is empty. */
   dock(paneId: string, target: DockTarget | null): void {
-    const pane = this.paneViews.get(paneId);
-    const source = this.store.tabOf(paneId);
-    if (!pane || !source) return;
-    const fromActive = source.id === this.store.activeId;
-    const inTree = fromActive && this.store.tree !== null && findPath(this.store.tree, paneId) !== null;
-    const cell = this.layoutCell() ?? pane.cellSize();
-    const r = applyDock(this.store.tree, paneId, inTree, target, this.containerRect(), cell);
-    if (r.kind !== 'ok') {
-      if (r.kind === 'noRoom') showToast('Not enough room to dock there');
-      this.paneViews.get(this.store.focusedId)?.focus();
-      return;
-    }
-    this.store.moveToActive(paneId);
-    if (r.displaced) this.markCollapsed(r.displaced);
-    this.store.tree = r.tree;
-    this.store.setCollapsed(paneId, false);
-    this.store.focusedId = paneId;
-    this.render();
-    if (!inTree) pane.setExpanded(true);
-    pane.focus();
-    this.notify();
+    this.paneDrag.dock(paneId, target);
   }
 
-  /**
-   * Design 4.6: a card dropped on another tab's group moves its pane into that tab without
-   * switching to it. A collapsed pane stays collapsed; an expanded one splits that tab's focused
-   * pane as expanding does, or lands collapsed when there is no room. A tab it empties closes.
-   */
+  /** Design 4.6: moves the pane into another tab without switching to it. */
   moveToTab(paneId: string, tabId: string): void {
-    const pane = this.paneViews.get(paneId);
-    const source = this.store.tabOf(paneId);
-    const target = this.store.find(tabId);
-    if (!pane || !source || !target || source.id === tabId) {
-      this.paneViews.get(this.store.focusedId)?.focus();
-      return;
-    }
-    const activeBefore = this.store.activeId;
-    const toActive = tabId === activeBefore;
-    const wasCollapsed = this.store.isCollapsed(paneId);
-    const wasOnScreen = source.id === activeBefore && !wasCollapsed;
-    let next: Layout | null = null;
-    if (!wasCollapsed) {
-      // Every tab fills the same pane area, so the active tab's rect stands in for the target's.
-      const cell = (toActive ? this.layoutCell() : null) ?? pane.cellSize();
-      next = expandInto(target.tree, target.focusedId, paneId, this.containerRect(), cell);
-      if (!next) showToast('Not enough room in that tab, so the pane moved collapsed');
-    }
-    this.store.moveTo(paneId, tabId, next === null);
-    if (next) this.store.update(tabId, { tree: next, focusedId: paneId });
-    else if (!wasCollapsed) this.markCollapsed(paneId);
-
-    if (this.store.activeId !== activeBefore) {
-      // The source was the active tab and the move emptied it.
-      this.zoom.forget(source.id);
-      this.zoomHidden.delete(source.id);
-      if (this.store.activeId !== tabId) {
-        const fallback = this.store.active;
-        this.store.state = switchTabState(this.store.state, tabId);
-        this.hideTab(fallback);
-      }
-      this.showActive();
-    } else if (toActive) {
-      this.render();
-      if (next) {
-        pane.setExpanded(true);
-        pane.focus();
-      }
-    } else {
-      if (wasOnScreen && next) pane.setExpanded(false);
-      if (wasOnScreen) this.render();
-      this.paneViews.get(this.store.focusedId)?.focus();
-    }
-    this.notify();
+    this.paneDrag.moveToTab(paneId, tabId);
   }
 
   /** Starts a pointer drag that docks a pane or opens a folder where it drops. */
   startDrag(source: DragSource, e: PointerEvent): void {
-    if (source.kind === 'pane' && !this.paneViews.has(source.paneId)) return;
-    this.drag = source;
-    const label = source.kind === 'pane' ? this.titleOf(source.paneId) : lastFolder(source.path) || source.path;
-    this.overlay.begin(e, label);
+    this.paneDrag.startDrag(source, e);
   }
 
   /**
@@ -844,8 +557,8 @@ export class Workspace {
   async replaceKind(paneId: string, kind: PaneKind): Promise<void> {
     const old = this.paneViews.get(paneId);
     if (!old || old.kind === kind) return;
-    const input = this.store.tabOf(paneId) ? this.paneInput(this.store.tabOf(paneId)!, paneId) : null;
-    if (input && this.losesWork(input) && this.hooks.onConfirmReplace) {
+    const input = this.store.tabOf(paneId) ? this.status.cardInput(this.store.tabOf(paneId)!, paneId) : null;
+    if (input && this.status.losesWork(input) && this.hooks.onConfirmReplace) {
       const ok = await this.hooks.onConfirmReplace(paneId, kind);
       if (!ok) {
         this.paneViews.get(this.store.focusedId)?.focus();
@@ -855,7 +568,7 @@ export class Workspace {
     // The pane or its tab may have changed while the dialog was open.
     const tab = this.store.tabOf(paneId);
     if (!tab || this.paneViews.get(paneId) !== old) return;
-    this.swapPane(paneId, tab, this.specForKind(kind, old.folder, tab));
+    this.swapPane(paneId, tab, specForKind(kind, old.folder, this.recentTerminalCwd(tab), () => this.hooks.getRepoFolder?.()));
   }
 
   /**
@@ -877,28 +590,28 @@ export class Workspace {
     this.store.replacePane(paneId, id);
     this.forgetPane(paneId);
     if (visible) {
-      const host = this.createHost(id);
+      const host = this.factory.createHost(id);
       this.store.focusedId = id;
-      this.render();
-      const pane = this.buildPane(id, host, spec, true);
+      this.tabView.render();
+      const pane = this.factory.buildPane(id, host, spec, true);
       pane.focus();
       this.notify();
-      this.startPane(id, pane);
+      this.factory.startPane(id, pane);
       return;
     }
-    this.openOffscreen(id, spec);
+    this.factory.openOffscreen(id, spec);
     this.notify();
   }
 
   setSessions(sessions: Session[]): void {
-    this.sessions = sessions;
+    this.sessions.setSessions(sessions);
     let changed = false;
     for (const id of this.paneViews.keys()) {
       const term = this.terminal(id);
-      if (term && boundSession(term.ptyId, sessions)) this.restoredSessions.delete(id);
-      const before = this.stripShown.get(id);
-      if (this.refreshStrip(id)) changed = true;
-      if (this.stripShown.get(id) !== before) changed = true;
+      if (term) this.sessions.settle(id, term.ptyId);
+      const before = this.status.shown(id);
+      if (this.status.refresh(id)) changed = true;
+      if (this.status.shown(id) !== before) changed = true;
     }
     if (changed) this.notify();
   }
@@ -914,7 +627,7 @@ export class Workspace {
   /** The title of the terminal running pty `ptyId`, or null when no pane runs it. */
   titleForPty(ptyId: number): string | null {
     const id = this.terminalForPty(ptyId);
-    return id === null ? null : this.titleOf(id);
+    return id === null ? null : this.status.title(id);
   }
 
   /** Brings forward the terminal running pty `ptyId`, in whatever tab holds it. */
@@ -936,45 +649,16 @@ export class Workspace {
 
   /** Design 4.8: an unseen `Stop` for a terminal's bound session shows `done` on it. */
   onHook(ev: HookEvent): void {
-    if (ev.hookEventName !== 'Stop') return;
-    let match = ev.paneId === null ? null : this.terminalForPty(ev.paneId);
-    if (!match) {
-      for (const id of this.paneViews.keys()) {
-        const pane = this.terminal(id);
-        if (pane && boundSession(pane.ptyId, this.sessions)?.sessionId === ev.sessionId) {
-          match = id;
-          break;
-        }
-      }
-    }
-    if (!match || !this.done.mark(match, ev.sessionId, ev.at, this.isSeen(match))) return;
-    this.refreshStrip(match);
+    const byPty = ev.paneId === null ? null : this.terminalForPty(ev.paneId);
+    const match = this.sessions.onHook(ev, byPty, this.terminalEntries(), (id) => this.isSeen(id));
+    if (!match) return;
+    this.status.refresh(match);
     this.notify();
-  }
-
-  /** The bound session, or the restored one while nothing has bound yet. */
-  private savedSession(
-    id: string,
-    ptyId: number | null,
-  ): { sessionId: string | null; permissionMode?: string; agent?: AgentId; resumeModel?: string } {
-    const bound = boundSession(ptyId, this.sessions);
-    const s = bound ?? this.restoredSessions.get(id);
-    if (!s) return { sessionId: null };
-    const agent = s.agent ?? 'claude';
-    // Copilot drops the model on resume, so keep the newest one seen; a restored pane that has
-    // not heard a fresh model keeps the one it was saved with.
-    const model = agent === 'copilot' ? (this.sessionModels.get(s.sessionId) ?? ('resumeModel' in s ? s.resumeModel : undefined)) : undefined;
-    return {
-      sessionId: s.sessionId,
-      ...(s.permissionMode !== undefined && { permissionMode: s.permissionMode }),
-      ...(agent !== 'claude' && { agent }),
-      ...(model && { resumeModel: model }),
-    };
   }
 
   /** Records a session's newest model (from the agent context stream) for the next save. */
   setSessionModel(sessionId: string, model: string | null): void {
-    if (model) this.sessionModels.set(sessionId, model);
+    this.sessions.setModel(sessionId, model);
   }
 
   /** Opens a terminal in `cwd` and types `command` once its shell is ready, as restore does for a resume. */
@@ -984,30 +668,7 @@ export class Workspace {
 
   /** Design 4.9: layout leaves already hold pane ids, which double as saved keys. */
   snapshot(): SavedWorkspace {
-    return snapshotTabs(this.store.state, (id, collapsed): SavedPane | null => {
-      const pane = this.paneViews.get(id);
-      if (this.containerShells.has(id)) return null;
-      if (pane instanceof TerminalPane) {
-        return {
-          key: id,
-          kind: 'terminal',
-          cwd: pane.cwd ?? '',
-          collapsed,
-          ...this.savedSession(id, pane.ptyId),
-          ...(pane.profile !== undefined && { profile: pane.profile }),
-          scrollbackId: pane.scrollbackId,
-        };
-      }
-      if (pane instanceof ScratchPane) return { key: id, collapsed, kind: 'scratch', scratchId: pane.scratchId };
-      if (pane instanceof FilesPane) return { key: id, collapsed, kind: 'files', ...pane.saved() };
-      if (pane instanceof GitPane) return { key: id, collapsed, kind: 'git', ...pane.saved() };
-      if (pane instanceof ShipPane) return { key: id, collapsed, kind: 'ship', ...pane.saved() };
-      if (pane instanceof SearchPane) return { key: id, collapsed, kind: 'search', ...pane.saved() };
-      if (pane instanceof ContainersPane) return { key: id, collapsed, kind: 'containers' };
-      if (pane instanceof PortsPane) return { key: id, collapsed, kind: 'ports' };
-      if (pane instanceof LocalBrowserPane) return { key: id, collapsed, kind: 'browser', ...pane.state() };
-      return null;
-    });
+    return persistence.snapshot(this.ctx);
   }
 
   /**
@@ -1015,141 +676,37 @@ export class Workspace {
    * saved order. Expects an empty workspace and at least one saved tab.
    */
   restore(saved: SavedWorkspace, opts: { resumeSessions: boolean; scrollback: boolean }): void {
-    if (saved.tabs.length === 0) return;
-    const built = saved.tabs.map((t) => ({
-      saved: t,
-      ...restoredTab(t, this.store.takeTabId(), t.name, (p) => this.takeIdFor(p.kind)),
-    }));
-    const active = built[Math.min(Math.max(saved.activeTab, 0), built.length - 1)];
-    this.store.state = { tabs: built.map((b) => b.tab), activeId: active.tab.id };
-    // Every expanded host must be attached and sized before its pane opens, since start() fits to it.
-    for (const p of active.saved.panes) if (!p.collapsed) this.createHost(active.ids.get(p.key)!);
-    this.render();
-    for (const b of built) {
-      this.buildTab(b.saved, b.ids, b === active, {
-        resumeSessions: opts.resumeSessions,
-        loadScratch: true,
-        loadScrollback: opts.scrollback,
-      });
-    }
-    for (const [hid, host] of this.hosts) host.classList.toggle('focused', hid === this.store.focusedId);
-    this.paneViews.get(this.store.focusedId)?.focus();
-    this.notify();
+    persistence.restore(this.ctx, saved, opts);
   }
 
-  /**
-   * Design 4.9: saves each saved terminal's scrollback for the next launch and removes any other
-   * saved scrollback. Off, it saves none, so stale files go too.
-   */
+  /** Design 4.9: saves the terminals' scrollback for the next launch, or with `enabled` off, none. */
   async saveScrollback(enabled: boolean): Promise<void> {
-    const entries: ScrollbackEntry[] = [];
-    if (enabled) {
-      for (const [id, pane] of this.paneViews) {
-        if (pane instanceof TerminalPane && !this.containerShells.has(id)) {
-          entries.push({ id: pane.scrollbackId, text: pane.serialize() });
-        }
-      }
-    }
-    await scrollbackSaveAll(entries);
+    await persistence.saveScrollback(this.ctx, enabled);
   }
 
   /** Saves every pad's and Files editor's pending text now, for the window closing. */
   async flushPanes(): Promise<void> {
-    const panes = [...this.paneViews.values()].filter(
-      (p): p is ScratchPane | FilesPane | SearchPane =>
-        p instanceof ScratchPane || p instanceof FilesPane || p instanceof SearchPane,
-    );
-    await Promise.all(panes.map((p) => p.flush()));
+    await persistence.flushPanes(this.ctx);
   }
 
   /** The focused pane's box in window coordinates, or null when the tab has none on screen. */
   focusedPaneRect(): DOMRect | null {
-    return this.paneRects().get(this.store.focusedId) ?? null;
+    return this.tabView.paneRects().get(this.store.focusedId) ?? null;
   }
 
-  /**
-   * Design 4.6 Launch: where launching `kind` at `root` would land, in window coordinates, for the
-   * preview. Files and Git reuse the tab's pane for the repo, as `showFiles` and `showGit` do.
-   * Null when there is nothing on screen to show, such as a reused pane that is collapsed.
-   */
+  /** Design 4.6 Launch: where launching `kind` at `root` would land, for the preview. */
   launchTarget(kind: PaneKind, root: string): LaunchTarget | null {
-    const origin = this.root.getBoundingClientRect();
-    const toWindow = (r: Rect): Rect => ({ x: r.x + origin.x, y: r.y + origin.y, width: r.width, height: r.height });
-    const reuse =
-      kind === 'files'
-        ? routeFilesRequest(
-            this.store.active.panes.flatMap((id) => {
-              const pane = this.paneViews.get(id);
-              return pane instanceof FilesPane ? [{ paneId: id, root: pane.root(), folder: pane.folder }] : [];
-            }),
-            { root, folder: root },
-          )
-        : kind === 'git'
-          ? routeGitRequest(
-              this.store.active.panes.flatMap((id) => {
-                const pane = this.paneViews.get(id);
-                return pane instanceof GitPane ? [{ paneId: id, root: pane.root() }] : [];
-              }),
-              root,
-            )
-          : null;
-    if (reuse && 'reuse' in reuse) {
-      if (this.store.isCollapsed(reuse.reuse)) return null;
-      const rect = this.paneRects().get(reuse.reuse);
-      return rect ? { kind: 'reuse', pane: rect } : null;
-    }
-    const tree = this.store.tree;
-    if (!tree) return { kind: 'fill', area: origin };
-    const cell = this.layoutCell();
-    const focused = this.paneRects().get(this.store.focusedId);
-    if (!cell || !focused) return null;
-    const container = this.containerRect();
-    const next = expandInto(tree, this.store.focusedId, LAUNCH_PREVIEW_ID, container, cell);
-    if (!next) return { kind: 'collapsed', pane: focused };
-    const rects = computeRects(next, container);
-    const added = rects.get(LAUNCH_PREVIEW_ID);
-    const kept = rects.get(this.store.focusedId);
-    if (!added || !kept) return null;
-    return { kind: 'split', pane: focused, kept: toWindow(kept), added: toWindow(added) };
+    return routing.launchTarget(this.ctx, kind, root);
   }
 
-  /**
-   * Design 4.12: shows the folder in the active tab's Files pane for that repo, or opens one as
-   * a split of the focused pane.
-   */
+  /** Design 4.12: the folder in the active tab's Files pane for that repo, else a new one. */
   showFiles(req: FilesRequest, opts: OpenPaneOptions = {}): void {
-    const panes = this.store.active.panes.flatMap((id) => {
-      const pane = this.paneViews.get(id);
-      return pane instanceof FilesPane ? [{ paneId: id, root: pane.root(), folder: pane.folder }] : [];
-    });
-    const route = routeFilesRequest(panes, req);
-    // A pane asked for in a new tab is a new pane, whatever the current tab holds.
-    if ('reuse' in route && !opts.tab) {
-      const pane = this.paneViews.get(route.reuse) as FilesPane;
-      if (this.store.isCollapsed(route.reuse)) this.expandPane(route.reuse);
-      else this.focusPane(route.reuse);
-      void pane.showFolder(req.folder, req.select);
-      return;
-    }
-    this.openPane({ kind: 'files', folder: req.folder, selected: req.select ?? null, root: req.root }, opts);
+    routing.showFiles(this.ctx, req, opts);
   }
 
-  /**
-   * Design 4.13: focuses the active tab's Git pane for that repo, or opens one as a split of the
-   * focused pane.
-   */
+  /** Design 4.13: the active tab's Git pane for that repo, else a new one. */
   showGit(root: string, opts: OpenPaneOptions = {}): void {
-    const panes = this.store.active.panes.flatMap((id) => {
-      const pane = this.paneViews.get(id);
-      return pane instanceof GitPane ? [{ paneId: id, root: pane.root() }] : [];
-    });
-    const route = routeGitRequest(panes, root);
-    if ('reuse' in route && !opts.tab) {
-      if (this.store.isCollapsed(route.reuse)) this.expandPane(route.reuse);
-      else this.focusPane(route.reuse);
-      return;
-    }
-    this.openPane({ kind: 'git', root }, opts);
+    routing.showGit(this.ctx, root, opts);
   }
 
   /** Design 4.14: opens a Search pane on the repo as a split of the focused pane, never reusing one. */
@@ -1157,80 +714,24 @@ export class Workspace {
     this.openPane({ kind: 'search', root, query, options }, opts);
   }
 
-  /**
-   * Shows the first pane in tab order that `matches`, expanding it if collapsed, or appends a tab
-   * named `name` holding one `pane`. Returns the pane's id, or undefined if none could be shown.
-   */
-  private showOrAppendTab(
-    matches: (view: PaneView | undefined) => boolean,
-    name: string,
-    pane: SavedPane,
-  ): string | undefined {
-    const find = (tabs: TabState[]) => tabs.flatMap((t) => t.panes).find((id) => matches(this.paneViews.get(id)));
-    const id = find(this.store.state.tabs);
-    if (id) {
-      if (this.store.isCollapsed(id)) this.expandPane(id);
-      else this.focusPane(id);
-      return id;
-    }
-    this.openLayout({ name, panes: [pane], layout: { kind: 'pane', paneId: pane.key }, focused: pane.key }, name);
-    return find([this.store.active]);
-  }
-
-  /**
-   * Design 4.16: shows the first Containers pane in tab order, or appends a Containers tab, then
-   * expands the groups with those `ContainerGroup` keys.
-   */
+  /** Design 4.16: the first Containers pane, else a Containers tab, with those groups expanded. */
   openContainers(groupKeys: string[] = []): void {
-    const id = this.showOrAppendTab((v) => v instanceof ContainersPane, 'Containers', {
-      key: 'c',
-      kind: 'containers',
-      collapsed: false,
-    });
-    const pane = id ? this.paneViews.get(id) : undefined;
-    if (pane instanceof ContainersPane) for (const key of groupKeys) pane.expandGroup(key);
+    routing.openContainers(this.ctx, groupKeys);
   }
 
-  /**
-   * Design 4.20: shows a Ship pane already drilled into `target` (a repo root or
-   * `remote:<repo>`), else the first Ship pane in tab order drilled into it, else appends a
-   * Ship tab on it. A null target shows the first Ship pane as it is, or a new one on the
-   * Overview.
-   */
+  /** Design 4.20: a Ship pane drilled into `target`, or on the Overview when it is null. */
   openShip(target: string | null, tab?: ShipTab): void {
-    // samePath because a pane rewrites a folder inside the repo to the repo's root.
-    const drilledTo = (v: PaneView | undefined) => {
-      const root = v instanceof ShipPane ? v.root() : null;
-      return target !== null && root !== null && samePath(root, target);
-    };
-    const anyShip = (v: PaneView | undefined) => v instanceof ShipPane;
-    const matches = [...this.paneViews.values()].some(drilledTo) ? drilledTo : anyShip;
-    const id = this.showOrAppendTab(matches, 'Ship', {
-      key: 'f',
-      kind: 'ship',
-      ...(target !== null && { root: target }),
-      ...(tab !== undefined && { tab }),
-      collapsed: false,
-    });
-    const pane = id ? this.paneViews.get(id) : undefined;
-    // A null target means the Overview, so an existing pane drilled into a repo backs out to it.
-    if (pane instanceof ShipPane) pane.drill(target, tab);
+    routing.openShip(this.ctx, target, tab);
   }
 
-  /**
-   * Design 4.19: shows the first Ports pane in tab order, or appends a Ports tab, then selects
-   * the row with that `listenerKey`, or, with `showAll`, clears its Started from a pane filter.
-   */
+  /** Design 4.19: the first Ports pane, else a Ports tab, selecting the `listenerKey` row. */
   openPorts(key?: string, showAll = false): void {
-    const id = this.showOrAppendTab((v) => v instanceof PortsPane, 'Ports', {
-      key: 'p',
-      kind: 'ports',
-      collapsed: false,
-    });
-    const pane = id ? this.paneViews.get(id) : undefined;
-    if (!(pane instanceof PortsPane)) return;
-    if (showAll) pane.showAll();
-    if (key !== undefined) pane.highlight(key);
+    routing.openPorts(this.ctx, key, showAll);
+  }
+
+  /** Design 4.21: a Local Browser pane on `url`, null for its start page. */
+  openLocalBrowser(url: string | null, opts: { tab?: boolean; collapsed?: boolean; fromPaneId?: string } = {}): void {
+    routing.openLocalBrowser(this.ctx, url, opts);
   }
 
   /** The repos' pins changed; Files panes refresh their pin buttons. */
@@ -1244,20 +745,15 @@ export class Workspace {
   }
 
   setActivity(list: PtyActivity[]): void {
-    const { next, changed } = applyActivity(this.sweeps, list, Date.now());
-    this.sweeps = next;
-    if (!changed) return;
-    for (const id of this.paneViews.keys()) this.refreshStrip(id);
+    if (!this.sessions.applyActivity(list, Date.now())) return;
+    for (const id of this.paneViews.keys()) this.status.refresh(id);
     this.notify();
   }
 
   moveFocus(direction: Direction): void {
     if (!this.store.tree) return;
     // Design 4.2: the zoom ends first, then focus moves as usual.
-    if (this.zoomedId !== null) {
-      this.zoom.end(this.store.activeId);
-      this.render();
-    }
+    if (this.tabView.zoomedId !== null) this.tabView.endZoom(this.store.activeId);
     const id = neighbor(this.store.tree, this.store.focusedId, direction, this.containerRect());
     if (!id) return;
     this.setFocused(id);
@@ -1266,172 +762,28 @@ export class Workspace {
 
   resizePane(direction: Direction): void {
     const cell = this.layoutCell();
-    if (!this.store.tree || !cell || this.zoomedId !== null) return;
+    if (!this.store.tree || !cell || this.tabView.zoomedId !== null) return;
     const next = resizePane(this.store.tree, this.store.focusedId, direction, this.containerRect(), cell);
     if (next === this.store.tree) return;
     this.store.tree = next;
-    this.render();
+    this.tabView.render();
   }
 
-  /** Every bound workspace action is swallowed, even with no effect, so it never leaks to bash. */
   private dispatch(action: Action): boolean {
-    switch (action.type) {
-      case 'splitRight':
-        this.split('right');
-        return true;
-      case 'splitDown':
-        this.split('bottom');
-        return true;
-      case 'splitLeft':
-        this.split('left');
-        return true;
-      case 'splitUp':
-        this.split('top');
-        return true;
-      case 'splitAuto':
-        this.split('auto');
-        return true;
-      case 'closePane': {
-        // Disposing the pane from inside its own key handler leaves xterm mid-event.
-        const id = this.store.focusedId;
-        queueMicrotask(() => void this.requestClosePane(id));
-        return true;
-      }
-      case 'collapsePane': {
-        // Detaching the host from inside its own key handler leaves xterm mid-event.
-        const id = this.store.focusedId;
-        queueMicrotask(() => this.collapsePane(id));
-        return true;
-      }
-      case 'togglePaneZoom':
-        // Rendering detaches hosts, which leaves xterm mid-event inside its own key handler.
-        queueMicrotask(() => this.toggleZoom());
-        return true;
-      case 'moveFocus':
-        this.moveFocus(action.direction);
-        return true;
-      case 'resizePane':
-        this.resizePane(action.direction);
-        return true;
-      case 'cycleScrim':
-        this.scrim = nextScrim(this.scrim, this.config.settings.scrim.blurPx);
-        applyScrim(document.documentElement, this.scrim);
-        saveSetting(['scrim', 'opacity'], this.scrim.opacity).catch((err: unknown) =>
-          showToast(`Could not save the scrim setting: ${String(err)}`),
-        );
-        return true;
-      case 'increaseFontSize':
-        this.setFontSize(stepFontSize(this.fontSize, 1));
-        return true;
-      case 'decreaseFontSize':
-        this.setFontSize(stepFontSize(this.fontSize, -1));
-        return true;
-      case 'resetFontSize':
-        this.setFontSize(DEFAULT_FONT_SIZE);
-        return true;
-      case 'toggleDashboard':
-        this.hooks.onToggleDashboard?.();
-        return true;
-      case 'focusDashboard':
-        this.hooks.onFocusDashboard?.();
-        return true;
-      case 'openFavorite':
-        this.hooks.onOpenFavoritePicker?.();
-        return true;
-      case 'openLayout':
-        this.hooks.onOpenLayoutPicker?.();
-        return true;
-      case 'openLaunch':
-        this.hooks.onOpenLaunchMenu?.();
-        return true;
-      case 'openPalette':
-        this.hooks.onOpenPalette?.();
-        return true;
-      case 'splitWithProfile':
-        this.hooks.onOpenProfilePicker?.();
-        return true;
-      case 'showHelp':
-        this.hooks.onOpenDialog?.('help');
-        return true;
-      case 'openSettings':
-        this.hooks.onOpenDialog?.('settings');
-        return true;
-      case 'showAccounts':
-        this.hooks.onOpenDialog?.('accounts');
-        return true;
-      case 'showShortcuts':
-        this.hooks.onOpenDialog?.('shortcuts');
-        return true;
-      case 'showCli':
-        this.hooks.onOpenDialog?.('cli');
-        return true;
-      case 'showAbout':
-        this.hooks.onOpenDialog?.('about');
-        return true;
-      case 'toggleBackdrop':
-        this.hooks.onToggleBackdrop?.();
-        return true;
-      case 'toggleFullscreen':
-        this.hooks.onToggleFullscreen?.();
-        return true;
-      case 'newTab':
-        // Detaching the focused host from inside its own key handler leaves xterm mid-event.
-        queueMicrotask(() => this.newTab());
-        return true;
-      case 'newScratch':
-        // Re-rendering from inside the focused pane's key handler leaves xterm mid-event.
-        queueMicrotask(() => this.openPane({ kind: 'scratch' }));
-        return true;
-      case 'openFiles':
-        queueMicrotask(() => void this.openFilesForFocused());
-        return true;
-      case 'openGit':
-        queueMicrotask(() => void this.openGitForFocused());
-        return true;
-      case 'openSearch': {
-        // Read now: the selection can be gone by the time a queued task runs.
-        const query = initialQuery(this.terminal(this.store.focusedId)?.selection() ?? '');
-        queueMicrotask(() => void this.openSearchForFocused(query));
-        return true;
-      }
-      case 'openEditor':
-        void this.openEditorForFocused();
-        return true;
-      case 'nextTab':
-      case 'prevTab': {
-        const id = nextTab(this.store.state, action.type === 'nextTab' ? 1 : -1).activeId;
-        queueMicrotask(() => this.switchTab(id));
-        return true;
-      }
-      case 'switchToTab':
-      case 'switchToLastTab': {
-        const tab = tabAt(this.store.state, action.type === 'switchToTab' ? action.index : 9);
-        if (tab) queueMicrotask(() => this.switchTab(tab.id));
-        return true;
-      }
-      case 'nextAttention':
-        // Switching tabs detaches the focused host, which must not happen inside its key handler.
-        queueMicrotask(() => this.nextAttention());
-        return true;
-      case 'closeTab': {
-        const id = this.store.activeId;
-        queueMicrotask(() => void this.requestCloseTab(id));
-        return true;
-      }
-      case 'find': {
-        const pane = this.terminal(this.store.focusedId);
-        const host = this.hosts.get(this.store.focusedId);
-        if (pane && host) this.findBar.open(pane, host);
-        return true;
-      }
-      default:
-        return false;
-    }
+    return dispatchAction(this.ctx, action);
+  }
+
+  private cycleScrim(): void {
+    this.scrim = nextScrim(this.scrim, this.config.settings.scrim.blurPx);
+    applyScrim(document.documentElement, this.scrim);
+    saveSetting(['scrim', 'opacity'], this.scrim.opacity).catch((err: unknown) =>
+      showToast(`Could not save the scrim setting: ${String(err)}`),
+    );
   }
 
   /** With no expanded pane nothing holds focus, so workspace keys arrive here instead. */
   private onEmptyLayoutKey(e: KeyboardEvent): void {
-    if (this.store.tree || e.defaultPrevented || this.overlay.isActive()) return;
+    if (this.store.tree || e.defaultPrevented || this.paneDrag.isActive()) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (!this.runKey(e)) return;
@@ -1455,740 +807,45 @@ export class Workspace {
     return this.dispatch(action);
   }
 
-  private onDrop(target: DropTarget | null): void {
-    const source = this.drag;
-    this.drag = null;
-    if (!source) return;
-    if (target && 'tabId' in target) {
-      if (source.kind === 'pane') this.moveToTab(source.paneId, target.tabId);
-    } else if (source.kind === 'pane') {
-      this.dock(source.paneId, target);
-    } else if (target) {
-      this.openTerminal(source.path, { dock: target });
-    } else {
-      this.openTerminal(source.path);
-    }
-  }
-
   /** Attaches and sizes the host via render before the pane builds in it, since start() fits to it. */
   private mount(id: string, tree: Layout, spec: PaneSpec): void {
-    const host = this.createHost(id);
+    const host = this.factory.createHost(id);
     this.store.addToActive(id, false);
     this.store.tree = tree;
     this.store.focusedId = id;
-    this.render();
-    const pane = this.buildPane(id, host, spec, true);
+    this.tabView.render();
+    const pane = this.factory.buildPane(id, host, spec, true);
     pane.focus();
     this.notify();
-    this.startPane(id, pane);
+    this.factory.startPane(id, pane);
   }
 
   private openCollapsed(id: string, spec: PaneSpec): void {
     this.store.addToActive(id, true);
-    this.openOffscreen(id, spec);
+    this.factory.openOffscreen(id, spec);
     this.notify();
-  }
-
-  // xterm measures its cell size when it opens, so a terminal that is not on screen (collapsed,
-  // or in a background tab) opens in a hidden sizer and is detached right after. Its pty spawns
-  // at xterm's default size and is refit when it is shown. Other kinds need no measuring.
-  private openOffscreen(id: string, spec: PaneSpec, onReady?: () => void): void {
-    const host = this.createHost(id);
-    if (spec.kind === 'terminal') this.getSizer().append(host);
-    const pane = this.buildPane(id, host, spec, false, onReady);
-    host.remove();
-    // A Local Browser page loads while off screen, so it is ready when shown.
-    this.view.keep(host);
-    this.startPane(id, pane);
-  }
-
-  /** Builds a saved tab's panes; for a visible tab the caller has already attached the expanded hosts. */
-  private buildTab(
-    saved: SavedTab,
-    ids: Map<string, string>,
-    visible: boolean,
-    opts: { resumeSessions: boolean; loadScratch: boolean; loadScrollback: boolean },
-  ): void {
-    for (const p of saved.panes) {
-      const id = ids.get(p.key)!;
-      let onReady: (() => void) | undefined;
-      if (p.kind === 'terminal' && p.sessionId) {
-        const { sessionId, permissionMode, agent, resumeModel } = p;
-        this.restoredSessions.set(id, {
-          sessionId,
-          ...(permissionMode !== undefined && { permissionMode }),
-          ...(agent !== undefined && { agent }),
-          ...(resumeModel !== undefined && { resumeModel }),
-        });
-        if (opts.resumeSessions) {
-          const command = resumeCommand(sessionId, permissionMode, agent, resumeModel);
-          onReady = () => this.terminal(id)?.typeText(`${command}\r`);
-        }
-      }
-      const spec = this.restoredSpec(p, opts);
-      if (visible && !p.collapsed) {
-        this.startPane(id, this.buildPane(id, this.hosts.get(id)!, spec, true, onReady));
-      } else {
-        this.openOffscreen(id, spec, onReady);
-      }
-    }
-  }
-
-  /**
-   * A pad keeps its saved file, and a terminal its saved scrollback, only when restoring the
-   * workspace; layouts and missing ids open fresh.
-   */
-  private restoredSpec(p: SavedPane, opts: { loadScratch: boolean; loadScrollback: boolean }): PaneSpec {
-    switch (p.kind) {
-      case 'terminal':
-        // An empty cwd lets the core fall back to startingDirectory.
-        return {
-          kind: 'terminal',
-          cwd: p.cwd || undefined,
-          profile: p.profile,
-          scrollbackId: p.scrollbackId,
-          ...(opts.loadScrollback && p.scrollbackId && { replay: scrollbackLoad(p.scrollbackId) }),
-        };
-      case 'scratch':
-        if (opts.loadScratch && p.scratchId) return { kind: 'scratch', scratchId: p.scratchId, text: scratchLoad(p.scratchId) };
-        return { kind: 'scratch' };
-      case 'files':
-        return {
-          kind: 'files',
-          folder: p.folder,
-          selected: p.selected,
-          root: p.root,
-          expanded: p.expanded ?? false,
-          sort: p.sort,
-        };
-      case 'git':
-        return { kind: 'git', root: p.root, tab: p.tab };
-      case 'ship':
-        return {
-          kind: 'ship',
-          root: p.root,
-          tab: p.tab,
-          thisBranch: p.thisBranch,
-          thisBranchPulls: p.thisBranchPulls,
-          allPulls: p.allPulls,
-        };
-      case 'search':
-        return { kind: 'search', root: p.root, query: p.query, options: p.options };
-      case 'containers':
-        return { kind: 'containers' };
-      case 'ports':
-        return { kind: 'ports' };
-      case 'browser':
-        return { kind: 'browser', url: p.url, devtools: p.devtools, device: p.device };
-    }
-  }
-
-  /**
-   * Design 4.11 Kind menu: a pane with no folder becoming a terminal opens where the tab's most
-   * recent terminal is, else in the core's startingDirectory, with the default profile; becoming
-   * a Files or Git pane, it falls back last to the Repo section's repo. A Ship pane opens drilled
-   * into `folder` when one is given, else on the Overview.
-   */
-  private specForKind(kind: PaneKind, folder: string | null, tab: TabState): PaneSpec {
-    switch (kind) {
-      case 'terminal':
-        return { kind: 'terminal', cwd: folder ?? this.recentTerminalCwd(tab) };
-      case 'scratch':
-        return { kind: 'scratch' };
-      case 'files':
-        return { kind: 'files', folder: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
-      case 'git':
-        return { kind: 'git', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
-      case 'ship':
-        return folder ? { kind: 'ship', root: folder } : { kind: 'ship' };
-      case 'search':
-        return { kind: 'search', root: folder ?? this.recentTerminalCwd(tab) ?? this.hooks.getRepoFolder?.() ?? '' };
-      case 'containers':
-        return { kind: 'containers' };
-      case 'ports':
-        return { kind: 'ports' };
-      case 'browser':
-        return { kind: 'browser' };
-    }
-  }
-
-  private createHost(id: string): HTMLElement {
-    const host = document.createElement('div');
-    host.className = 'pane';
-    this.hosts.set(id, host);
-    return host;
-  }
-
-  /** The strip goes in first so it sits ahead of the body the pane builds into. */
-  private buildPane(id: string, host: HTMLElement, spec: PaneSpec, expanded: boolean, onReady?: () => void): PaneView {
-    const strip = new TitleStrip(
-      {
-        onCollapse: () => this.collapsePane(id),
-        onClose: () => void this.requestClosePane(id),
-        onZoom: () => {
-          this.focusPane(id);
-          this.toggleZoom();
-        },
-        onChooseKind: (kind) => void this.replaceKind(id, kind),
-        onDragStart: (e) => this.startDrag({ kind: 'pane', paneId: id }, e),
-      },
-      spec.kind,
-    );
-    host.prepend(strip.el);
-    this.strips.set(id, strip);
-    let pane: PaneView;
-    switch (spec.kind) {
-      case 'terminal':
-        pane = this.createTerminal(id, host, spec, expanded, onReady);
-        break;
-      case 'scratch':
-        pane = this.createScratch(id, host, spec);
-        break;
-      case 'files':
-        pane = this.createFiles(id, host, spec);
-        break;
-      case 'git':
-        pane = this.createGit(id, host, spec, expanded);
-        break;
-      case 'ship':
-        pane = this.createShip(id, host, spec, expanded);
-        break;
-      case 'search':
-        pane = this.createSearch(id, host, spec, expanded);
-        break;
-      case 'containers':
-        pane = this.createContainers(id, host, expanded);
-        break;
-      case 'ports':
-        pane = this.createPorts(id, host, expanded);
-        break;
-      case 'browser':
-        pane = this.createBrowser(id, host, spec, expanded);
-        break;
-    }
-    this.paneViews.set(id, pane);
-    strip.setActions(pane.stripActions ?? null);
-    this.openedAt.set(id, Date.now());
-    this.refreshStrip(id);
-    return pane;
-  }
-
-  private createTerminal(
-    id: string,
-    host: HTMLElement,
-    spec: Extract<PaneSpec, { kind: 'terminal' }>,
-    expanded: boolean,
-    onReady?: () => void,
-  ): TerminalPane {
-    if (spec.container) this.containerShells.set(id, spec.container.name);
-    return new TerminalPane({
-      host,
-      paneId: id,
-      settings: this.paneSettings(),
-      cwd: spec.cwd,
-      profile: spec.profile,
-      command: spec.command,
-      scrollbackId: spec.scrollbackId ?? newScratchId(),
-      replay: spec.replay,
-      expanded,
-      keyHandler: (e, term, send) =>
-        handleKey(e, { keymap: () => this.config.keymap, term, send, dispatch: (a) => this.dispatch(a) }),
-      onFocus: () => this.setFocused(id),
-      onOpenLocal: (url) => this.openLocalBrowser(url, { fromPaneId: id }),
-      onExit: (code) => {
-        // Matches Windows Terminal: a clean exit closes the pane, a failure stays readable.
-        if (code === 0) this.closePane(id);
-        else this.paneChanged(id);
-      },
-      onCwdChange: () => this.paneChanged(id),
-      onShellChange: () => this.paneChanged(id),
-      onCommand: (ev) => this.onCommand(id, ev),
-      onBell: () => {
-        if (this.attention.bell(id)) this.notify();
-      },
-      onReady:
-        onReady ??
-        (spec.initialInput !== undefined
-          ? () => this.terminal(id)?.typeText(`${spec.initialInput}\r`)
-          : undefined),
-    });
-  }
-
-  private createScratch(id: string, host: HTMLElement, spec: Extract<PaneSpec, { kind: 'scratch' }>): ScratchPane {
-    const pad = new ScratchPane({
-      host,
-      paneId: id,
-      scratchId: spec.scratchId ?? newScratchId(),
-      settings: this.paneSettings(),
-      text: spec.text,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      onChange: () => this.paneChanged(id),
-      onSend: (text) => this.send(id, text),
-      save: scratchSave,
-      saveAs: scratchSaveAs,
-      onSavedAs: (path) => this.scratchSavedAs(id, path),
-    });
-    // The pad fills itself first, so its title is current by the time this runs.
-    if (spec.text instanceof Promise) spec.text.then(() => this.paneChanged(id), () => {});
-    return pad;
-  }
-
-  private createSearch(
-    id: string,
-    host: HTMLElement,
-    spec: Extract<PaneSpec, { kind: 'search' }>,
-    expanded: boolean,
-  ): SearchPane {
-    return new SearchPane({
-      host,
-      paneId: id,
-      settings: this.paneSettings(),
-      root: spec.root,
-      query: spec.query ?? '',
-      options: spec.options ?? DEFAULT_SEARCH_OPTIONS,
-      expanded,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      onChange: () => this.paneChanged(id),
-      onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
-      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, [absolute], baseRoot),
-      onShowInFiles: (absolute, root) => this.showFiles({ root, ...pinTarget(root, absolute, false) }),
-    });
-  }
-
-  private createGit(
-    id: string,
-    host: HTMLElement,
-    spec: Extract<PaneSpec, { kind: 'git' }>,
-    expanded: boolean,
-  ): GitPane {
-    return new GitPane({
-      host,
-      paneId: id,
-      settings: this.paneSettings(),
-      root: spec.root,
-      expanded,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      onChange: () => this.paneChanged(id),
-      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
-      onPathDragStart: (paths, e) => this.startPathDrag(paths, e),
-      onInsertPath: (absolute, baseRoot) => this.insertPathIntoTab(id, [absolute], baseRoot),
-      onInsertText: (text) => this.insertTextIntoTab(id, text),
-      onOpenGit: (root) => this.showGit(root),
-      onOpenIn: (kind, path) => this.hooks.onOpenIn?.(kind, path),
-      onDeleteWorktree: (root, w) => this.hooks.onDeleteWorktree?.(root, w) ?? Promise.resolve(null),
-      onSetPrimaryBranch: (root, branch) => this.hooks.onSetPrimaryBranch?.(root, branch),
-      tab: spec.tab,
-    });
-  }
-
-  private createShip(
-    id: string,
-    host: HTMLElement,
-    spec: Extract<PaneSpec, { kind: 'ship' }>,
-    expanded: boolean,
-  ): ShipPane {
-    return new ShipPane({
-      host,
-      paneId: id,
-      settings: this.paneSettings(),
-      root: spec.root ?? null,
-      expanded,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      onChange: () => this.paneChanged(id),
-      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
-      onRunTerminal: (argv, cwd) => this.openShipCommand(id, argv, cwd),
-      onOpenAccounts: (host, opts) => this.hooks.onOpenAccounts?.(host, opts),
-      onOpenTerminal: (root) => this.openTerminal(root),
-      tab: spec.tab,
-      thisBranch: spec.thisBranch,
-      thisBranchPulls: spec.thisBranchPulls,
-      allPulls: spec.allPulls,
-    });
-  }
-
-  /**
-   * A Ship pane's sign-in or install command, in a terminal split off it. A clean exit closes
-   * that terminal; one still open at quit is saved, and restored, as a plain shell in `cwd`.
-   */
-  private openShipCommand(shipPaneId: string, argv: string[], cwd: string): void {
-    if (!this.store.isCollapsed(shipPaneId)) this.focusPane(shipPaneId);
-    this.openPane({ kind: 'terminal', cwd: cwd || undefined, command: argv });
-  }
-
-  /** Insert name from a Git pane's branch row: as typed, into the tab's most recently focused terminal. */
-  private insertTextIntoTab(paneId: string, text: string): void {
-    const tab = this.store.tabOf(paneId);
-    const targetId = tab ? recentTerminal(this.focusOrder, tab.panes, (p) => this.terminal(p) !== undefined) : null;
-    const term = targetId ? this.terminal(targetId) : undefined;
-    if (!targetId || !term) {
-      showToast('No terminal in this tab to insert the name into');
-      return;
-    }
-    term.pasteText(text);
-    if (this.store.isCollapsed(targetId)) this.expandPane(targetId);
-    else this.focusPane(targetId);
-  }
-
-  private createContainers(id: string, host: HTMLElement, expanded: boolean): ContainersPane {
-    return new ContainersPane({
-      host,
-      paneId: id,
-      settings: this.paneSettings(),
-      expanded,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      onOpenLocal: (url) => this.openLocalBrowser(url, { fromPaneId: id }),
-      // Without a store from the app (a browser-only run) the pane shows no engines.
-      store: this.hooks.containers ?? (this.emptyContainers ??= new ContainersStore()),
-      onShell: (c) => this.openContainerShell(id, c),
-      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
-    });
-  }
-
-  private createPorts(id: string, host: HTMLElement, expanded: boolean): PortsPane {
-    return new PortsPane({
-      host,
-      paneId: id,
-      settings: this.paneSettings(),
-      expanded,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      onOpenLocal: (url) => this.openLocalBrowser(url, { fromPaneId: id }),
-      // Without a store from the app (a browser-only run) the pane lists nothing.
-      store: this.hooks.ports ?? (this.emptyPorts ??= new PortsStore()),
-      ownerTitle: (ptyId) => this.titleForPty(ptyId),
-      onGoToPane: (ptyId) => this.revealPty(ptyId),
-      confirm: (o) => this.hooks.onConfirm?.(o) ?? Promise.resolve(false),
-    });
-  }
-
-  private createBrowser(id: string, host: HTMLElement, spec: Extract<PaneSpec, { kind: 'browser' }>, expanded: boolean): LocalBrowserPane {
-    const store = this.hooks.ports ?? (this.emptyPorts ??= new PortsStore());
-    return new LocalBrowserPane({
-      host,
-      paneId: id,
-      url: spec.url,
-      devtools: spec.devtools,
-      device: spec.device,
-      settings: this.paneSettings(),
-      expanded,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      listeners: () => store.current(),
-      onOpenExternal: (url) => {
-        invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err));
-      },
-      onStateChange: () => this.paneChanged(id),
-      onWantPorts: (wanted) => store.setWanted(`pane:${id}`, wanted),
-    });
-  }
-
-  /**
-   * Design 4.21: a Local Browser pane on `url` (null for its start page), split beside `fromPaneId`
-   * or the focused pane; `tab` opens it alone in a new tab, `collapsed` opens it collapsed.
-   */
-  openLocalBrowser(url: string | null, opts: { tab?: boolean; collapsed?: boolean; fromPaneId?: string } = {}): void {
-    const { fromPaneId, ...place } = opts;
-    if (fromPaneId && !place.tab && !this.store.isCollapsed(fromPaneId) && this.paneViews.has(fromPaneId)) {
-      this.focusPane(fromPaneId);
-    }
-    this.openPane({ kind: 'browser', url }, place);
-  }
-
-  /** Design 4.16: a shell inside the container, split off its Containers pane. */
-  private openContainerShell(containersPaneId: string, container: Container): void {
-    if (!this.store.isCollapsed(containersPaneId)) this.focusPane(containersPaneId);
-    this.openPane({ kind: 'terminal', command: shellCommand(container), container: { name: container.name } });
-  }
-
-  /** Insert path from a Files, Git, or Search pane: into the tab's most recently focused terminal. */
-  private insertPathIntoTab(paneId: string, paths: string[], baseRoot: string): void {
-    const tab = this.store.tabOf(paneId);
-    const targetId = tab ? recentTerminal(this.focusOrder, tab.panes, (p) => this.terminal(p) !== undefined) : null;
-    if (!targetId) showToast('No terminal in this tab to insert the path into');
-    else void this.insertPaths(targetId, paths, baseRoot);
-  }
-
-  private createFiles(id: string, host: HTMLElement, spec: Extract<PaneSpec, { kind: 'files' }>): FilesPane {
-    // The pane asks for its pins while it is still being constructed.
-    let pane: FilesPane | undefined;
-    const root = () => pane?.root() ?? spec.root ?? spec.folder;
-    pane = new FilesPane({
-      host,
-      paneId: id,
-      settings: this.paneSettings(),
-      folder: spec.folder,
-      selected: spec.selected,
-      root: spec.root,
-      expanded: spec.expanded,
-      sort: spec.sort,
-      keymap: () => this.config.keymap,
-      dispatch: (a) => this.dispatch(a),
-      onFocus: () => this.setFocused(id),
-      onChange: () => this.paneChanged(id),
-      onOpenTerminalHere: (folder) => {
-        this.focusPane(id);
-        this.openTerminal(folder);
-      },
-      onSearchHere: (folder) => void this.searchFolder(id, folder),
-      onInsertPaths: (paths, baseRoot) => this.insertPathIntoTab(id, paths, baseRoot),
-      onPathDragStart: (paths, e, move) => this.startPathDrag(paths, e, move),
-      onPin: (absolute, isDir) => this.hooks.onPin?.(root(), absolute, isDir),
-      onUnpin: (absolute) => this.hooks.onUnpin?.(root(), absolute),
-      getPinnedFolders: () => this.hooks.getPinnedFolders?.(root()) ?? [],
-    });
-    return pane;
-  }
-
-  /**
-   * Search in this folder (design 4.12): a Search pane on the folder's own repo, which can sit
-   * below a Files pane opened outside any repo, limited to the folder.
-   */
-  private async searchFolder(filesPaneId: string, folder: string): Promise<void> {
-    let root = folder;
-    try {
-      root = (await repoRoot(folder)).root;
-    } catch {
-      // Not resolvable: search the folder itself, and let the core report a bad path inline.
-    }
-    this.focusPane(filesPaneId);
-    this.showSearch(root, '', {}, { ...DEFAULT_SEARCH_OPTIONS, include: folderInclude(root, folder) });
-  }
-
-  /** Ctrl+Shift+E: a Files pane at the root of the focused pane's repo. */
-  private async openFilesForFocused(): Promise<void> {
-    const folder = this.folderForNew() ?? this.hooks.getRepoFolder?.() ?? undefined;
-    if (!folder) {
-      showToast('No folder to open');
-      return;
-    }
-    try {
-      const { root } = await repoRoot(folder);
-      this.showFiles({ root, folder: root });
-    } catch (err) {
-      showToast(`Could not open ${folder}: ${String(err)}`);
-    }
-  }
-
-  /** Ctrl+Shift+G: a Git pane for the focused pane's repo (design 4.11, 4.13). */
-  private async openGitForFocused(): Promise<void> {
-    const folder = this.folderForNew() ?? this.hooks.getRepoFolder?.() ?? undefined;
-    if (!folder) {
-      showToast('No folder to open');
-      return;
-    }
-    try {
-      const { root, isGit } = await repoRoot(folder);
-      if (!isGit) {
-        showToast(`${folder} is not in a git repo`);
-        return;
-      }
-      this.showGit(root);
-    } catch (err) {
-      showToast(`Could not open ${folder}: ${String(err)}`);
-    }
-  }
-
-  /** Ctrl+Shift+H: a Search pane for the focused pane's repo, or its folder outside any repo (design 4.14). */
-  private async openSearchForFocused(query: string): Promise<void> {
-    const folder = this.folderForNew() ?? this.hooks.getRepoFolder?.() ?? undefined;
-    if (!folder) {
-      showToast('No folder to open');
-      return;
-    }
-    try {
-      const { root } = await repoRoot(folder);
-      this.showSearch(root, query);
-    } catch (err) {
-      showToast(`Could not open ${folder}: ${String(err)}`);
-    }
-  }
-
-  /** Ctrl+Shift+X: the focused pane's repo in the preferred editor, or its folder outside any repo (design 3.12). */
-  private async openEditorForFocused(): Promise<void> {
-    const folder = this.folderForNew() ?? this.hooks.getRepoFolder?.() ?? undefined;
-    if (!folder) {
-      showToast('No folder to open');
-      return;
-    }
-    try {
-      const { root } = await repoRoot(folder);
-      await openInEditor(root);
-    } catch (err) {
-      showToast(`Could not open ${folder}: ${String(err)}`);
-    }
-  }
-
-  private startPane(id: string, pane: PaneView): void {
-    if (!(pane instanceof TerminalPane)) return;
-    pane.start().then(() => this.paneChanged(id)).catch((err: unknown) => {
-      const msg = `Could not start the shell: ${String(err)}`;
-      pane.notice(`[${msg}]`);
-      showToast(msg);
-    });
   }
 
   /** Starts an in-app path drag (v0.2.0 design section 6) from a row's pointerdown. */
   startPathDrag(paths: string[], e: PointerEvent, move?: PathDrag['move']): void {
-    if (paths.length === 0) return;
-    this.pathLayer.begin(e, { paths, move });
-  }
-
-  /**
-   * The topmost element under the point and the expanded pane in the active tab holding it.
-   * Only the topmost element counts, so the dashboard, a dialog, or the tab strip over a pane
-   * blocks it.
-   */
-  private paneAtPoint(x: number, y: number): { id: string; top: Element } | null {
-    const top = document.elementsFromPoint(x, y).find((el) => !el.closest('.path-drag-layer'));
-    const host = top?.closest('.pane');
-    if (!top || !host) return null;
-    let id: string | null = null;
-    for (const [hid, h] of this.hosts) {
-      if (h === host) {
-        id = hid;
-        break;
-      }
-    }
-    if (!id) return null;
-    const tab = this.store.active;
-    return tab.panes.includes(id) && !tab.collapsed.includes(id) ? { id, top } : null;
+    this.pathDrop.startPathDrag(paths, e, move);
   }
 
   /** The expanded terminal or scratch pad in the active tab under the point, or null. */
   pathTargetAt(x: number, y: number): string | null {
-    const at = this.paneAtPoint(x, y);
-    if (!at) return null;
-    const view = this.paneViews.get(at.id);
-    return view instanceof TerminalPane || view instanceof ScratchPane ? at.id : null;
-  }
-
-  /**
-   * Where an in-app path drag would drop: a folder in a Files pane for files dragged out of one
-   * (other than the folder they are in), else a terminal or scratch pad.
-   */
-  private dropTargetAt(x: number, y: number, drag: PathDrag): PathDropTarget | null {
-    if (drag.move) {
-      const at = this.paneAtPoint(x, y);
-      const view = at ? this.paneViews.get(at.id) : undefined;
-      if (at && view instanceof FilesPane) {
-        const t = view.moveTargetAt(at.top);
-        if (!t || samePath(t.folder, drag.move.folder)) return null;
-        return { kind: 'move', folder: t.folder, el: t.el };
-      }
-    }
-    const id = this.pathTargetAt(x, y);
-    return id ? { kind: 'insert', paneId: id } : null;
-  }
-
-  private setDropHighlight(target: PathDropTarget | null): void {
-    if (sameDropTarget(this.dropHighlight, target)) return;
-    if (this.dropHighlight?.kind === 'move') this.dropHighlight.el.classList.remove('path-move-target');
-    this.dropHighlight = target;
-    this.setPathHighlight(target?.kind === 'insert' ? target.paneId : null);
-    if (target?.kind === 'move') target.el.classList.add('path-move-target');
-  }
-
-  /** Files dropped on a folder move through the Files pane they came from. */
-  private async moveDropped(drag: PathDrag, folder: string): Promise<void> {
-    if (!drag.move) return;
-    const source = this.paneViews.get(drag.move.paneId);
-    if (!(source instanceof FilesPane)) return;
-    await source.movePaths(drag.paths, folder);
-    if (this.store.focusedId === drag.move.paneId) source.focus();
+    return this.pathDrop.pathTargetAt(x, y);
   }
 
   setPathHighlight(id: string | null): void {
-    if (id === this.pathHighlightId) return;
-    if (this.pathHighlightId) this.hosts.get(this.pathHighlightId)?.classList.remove('path-drop-target');
-    this.pathHighlightId = id;
-    if (id) this.hosts.get(id)?.classList.add('path-drop-target');
+    this.pathDrop.setPathHighlight(id);
   }
 
   /**
    * Inserts paths into a terminal (bracketed paste, no Enter) or at a scratch pad's caret, then
-   * shows the target. `baseRoot` undefined makes paths relative to the target terminal's repo, as
-   * a drop does; Insert path passes its Files pane's root.
+   * shows the target. `baseRoot` undefined makes paths relative to the target terminal's repo.
    */
   async insertPaths(targetId: string, paths: string[], baseRoot?: string | null): Promise<void> {
-    if (this.terminal(targetId)) {
-      const text = await this.pathTextFor(targetId, paths, baseRoot);
-      const term = this.terminal(targetId);
-      if (!term) return;
-      term.pasteText(text);
-      if (this.store.isCollapsed(targetId)) this.expandPane(targetId);
-      else this.focusPane(targetId);
-      return;
-    }
-    if (!this.scratch(targetId)) return;
-    const tab = this.store.tabOf(targetId);
-    const termId = tab ? recentTerminal(this.focusOrder, tab.panes, (id) => this.terminal(id) !== undefined) : null;
-    const text = await this.pathTextFor(termId ?? null, paths, baseRoot);
-    const pad = this.scratch(targetId);
-    if (!pad) return;
-    pad.insertAtCaret(text);
-    this.focusPane(targetId);
-  }
-
-  /** Formats paths for a terminal's profile and repo; with no terminal, absolute for the default profile. */
-  private async pathTextFor(terminalId: string | null, paths: string[], baseRoot?: string | null): Promise<string> {
-    const term = terminalId ? this.terminal(terminalId) : undefined;
-    const fallback = this.config.settings.shell.defaultProfile;
-    let root: string | null = baseRoot ?? null;
-    if (baseRoot === undefined && term?.folder) {
-      try {
-        root = (await repoRoot(term.folder)).root;
-      } catch {
-        root = null;
-      }
-    }
-    const profile = term
-      ? pathProfileFor(term.profile, fallback, boundSession(term.ptyId, this.sessions) !== null)
-      : pathProfileFor(undefined, fallback, false);
-    return pathInsertText(paths, root, profile);
-  }
-
-  /**
-   * Design 4.15 Send: pastes into the tab's most recently focused terminal, then focuses it, or
-   * expands it when it is collapsed.
-   */
-  private send(padId: string, text: string): void {
-    const tab = this.store.tabOf(padId);
-    if (tab) this.pasteIntoTab(tab, text);
-  }
-
-  /** Bracketed paste into the tab's most recently focused terminal, then shows it; false with none. */
-  private pasteIntoTab(tab: TabState, text: string): boolean {
-    const targetId = recentTerminal(this.focusOrder, tab.panes, (id) => this.terminal(id) !== undefined);
-    const target = targetId ? this.terminal(targetId) : undefined;
-    if (!targetId || !target) return false;
-    target.pasteText(text);
-    if (this.store.isCollapsed(targetId)) this.expandPane(targetId);
-    else this.focusPane(targetId);
-    return true;
-  }
-
-  private getSizer(): HTMLElement {
-    if (!this.sizer) {
-      this.sizer = document.createElement('div');
-      this.sizer.className = 'pane-sizer';
-      document.body.append(this.sizer);
-    }
-    const r = this.root.getBoundingClientRect();
-    this.sizer.style.width = `${r.width}px`;
-    this.sizer.style.height = `${r.height}px`;
-    return this.sizer;
+    await this.pathDrop.insertPaths(targetId, paths, baseRoot);
   }
 
   /** Drops WebGL and leaves the host to be detached by the next render. */
@@ -2200,7 +857,7 @@ export class Workspace {
   }
 
   private paneChanged(id: string): void {
-    this.refreshStrip(id);
+    this.status.refresh(id);
     this.notify();
   }
 
@@ -2214,79 +871,9 @@ export class Workspace {
     return pane instanceof ScratchPane ? pane : undefined;
   }
 
-  private paneInput(tab: TabState, paneId: string): PaneCardInput | null {
-    const pane = this.paneViews.get(paneId);
-    if (!pane) return null;
-    const common = {
-      paneId,
-      tabId: tab.id,
-      focused: paneId === this.store.focusedId,
-      openedAt: this.openedAt.get(paneId) ?? 0,
-      collapsed: tab.collapsed.includes(paneId),
-    };
-    if (pane instanceof TerminalPane) {
-      return {
-        ...common,
-        kind: 'terminal',
-        ptyId: pane.ptyId,
-        cwd: pane.cwd,
-        profile: pane.profile ?? this.config.settings.shell.defaultProfile,
-        shell: this.shellOf(paneId, pane),
-        attention: this.attention.has(paneId),
-        mark: this.markOf(paneId),
-        ...(this.containerShells.has(paneId) && { containerName: this.containerShells.get(paneId) }),
-      };
-    }
-    if (pane instanceof ScratchPane) {
-      return { ...common, kind: 'scratch', title: pane.title(), folder: null, confirmClose: !pane.isEmpty() };
-    }
-    if (pane instanceof FilesPane) {
-      return { ...common, kind: 'files', title: pane.title(), folder: pane.folder, root: pane.root(), confirmClose: false };
-    }
-    if (pane instanceof GitPane) {
-      return { ...common, kind: 'git', title: pane.title(), folder: pane.root(), confirmClose: false };
-    }
-    if (pane instanceof ShipPane) {
-      return { ...common, kind: 'ship', title: pane.title(), folder: pane.folder, confirmClose: false };
-    }
-    if (pane instanceof SearchPane) {
-      return { ...common, kind: 'search', title: pane.title(), folder: pane.root(), confirmClose: false };
-    }
-    if (pane instanceof ContainersPane) {
-      return { ...common, kind: 'containers', title: pane.title(), folder: null, confirmClose: false };
-    }
-    if (pane instanceof PortsPane) {
-      return { ...common, kind: 'ports', title: pane.title(), folder: null, confirmClose: false };
-    }
-    if (pane instanceof LocalBrowserPane) {
-      return { ...common, kind: 'browser', title: pane.title(), folder: null, confirmClose: false };
-    }
-    return null;
-  }
-
-  private losesWork(p: PaneCardInput): boolean {
-    return p.kind === 'terminal' ? isBusy(p, this.sessions) : p.confirmClose;
-  }
-
-  /**
-   * What the Accounts tab treats as known repos, across every tab: the host of each resolved Ship
-   * pane's repo, and the working folder of each terminal (the core reads those folders' remotes).
-   */
+  /** What the Accounts tab treats as known repos: resolved Ship pane hosts and terminal folders. */
   knownForgeSources(): { hosts: { provider: ProviderKind; host: string }[]; dirs: string[]; repos: string[] } {
-    const hosts: { provider: ProviderKind; host: string }[] = [];
-    const dirs: string[] = [];
-    const repos: string[] = [];
-    for (const pane of this.paneViews.values()) {
-      if (pane instanceof ShipPane) {
-        const known = pane.knownHost();
-        if (known) hosts.push(known);
-        const id = pane.knownRepoId();
-        if (id) repos.push(id);
-      } else if (pane instanceof TerminalPane && pane.cwd) {
-        dirs.push(pane.cwd);
-      }
-    }
-    return { hosts, dirs, repos };
+    return forgeSourcesOf(this.paneViews.values());
   }
 
   /** The focused pane's folder, else that of the active tab's most recent terminal. */
@@ -2304,103 +891,14 @@ export class Workspace {
     return settings.font.size === this.fontSize ? settings : { ...settings, font: { ...settings.font, size: this.fontSize } };
   }
 
-  private shellOf(id: string, pane: TerminalPane): ShellStatus {
-    const sweep = pane.ptyId === null ? null : (this.sweeps.get(pane.ptyId) ?? null);
-    return shellStatus(pane.oscState(), sweep, this.openedAt.get(id) ?? 0);
-  }
-
-  private resolvedOf(id: string): { status: TerminalStatus; changedAt: number } {
-    const pane = this.terminal(id);
-    if (!pane) return { status: 'idle', changedAt: 0 };
-    const session = boundSession(pane.ptyId, this.sessions);
-    return this.done.resolve(id, session, terminalStatus(session, this.shellOf(id, pane)));
-  }
-
-  private statusOf(id: string): TerminalStatus {
-    return this.resolvedOf(id).status;
-  }
-
-  private markOf(id: string): TerminalInfo['mark'] {
-    const { status, changedAt } = this.resolvedOf(id);
-    return status === 'done' || status === 'failed' ? { status, at: changedAt } : null;
-  }
-
-  private waitingReasonOf(id: string): string {
-    const pane = this.terminal(id);
-    return waitingText(pane ? boundSession(pane.ptyId, this.sessions)?.waitingReason : null);
-  }
-
-  /** Design 4.8: a long command that ends unseen marks the terminal `done` or `failed`. */
-  private onCommand(id: string, ev: CommandEvent): void {
-    if (ev.kind === 'start') {
-      this.done.commandStarted(id);
-      return;
-    }
-    this.done.markCommand(id, {
-      durationMs: ev.durationMs,
-      exitCode: ev.exitCode,
-      at: Date.now(),
-      seen: this.isSeen(id),
-      minSeconds: this.config.settings.terminal.doneAfterSeconds,
-    });
-  }
-
-  /** Design 4.11: a tab's name follows this, so a pad's first line names its tab. */
-  private titleOf(id: string): string {
-    const pane = this.paneViews.get(id);
-    if (
-      pane instanceof ScratchPane ||
-      pane instanceof FilesPane ||
-      pane instanceof GitPane ||
-      pane instanceof ShipPane ||
-      pane instanceof SearchPane ||
-      pane instanceof ContainersPane ||
-      pane instanceof PortsPane ||
-      pane instanceof LocalBrowserPane
-    ) {
-      return pane.title();
-    }
-    if (!(pane instanceof TerminalPane)) return '~';
-    const container = this.containerShells.get(id);
-    if (container !== undefined) return container;
-    const session = boundSession(pane.ptyId, this.sessions);
-    return session?.name || (pane.cwd ? lastFolder(pane.cwd) : '') || '~';
-  }
-
-  /** Every status change passes through here, so it also feeds attention; true when raised. */
-  private refreshStrip(id: string): boolean {
-    const strip = this.strips.get(id);
-    const pane = this.paneViews.get(id);
-    if (!strip || !pane) return false;
-    if (!(pane instanceof TerminalPane)) {
-      strip.update({ title: this.titleOf(id), path: pane.folder ?? '' });
-      return false;
-    }
-    const status = this.statusOf(id);
-    const reason = status === 'waiting' ? this.waitingReasonOf(id) : '';
-    strip.update({
-      title: this.titleOf(id),
-      path: this.containerShells.get(id) ?? pane.cwd ?? '',
-      status,
-      ...(status === 'waiting' && { reason }),
-    });
-    this.stripShown.set(id, `${status}|${reason}`);
-    return this.attention.observe(id, status);
+  /** Every terminal pane with its id, for matching a hook to its session. */
+  private *terminalEntries(): Iterable<[string, TerminalPane]> {
+    for (const [id, pane] of this.paneViews) if (pane instanceof TerminalPane) yield [id, pane];
   }
 
   /** The focused pane's cell size for layout checks; its padY already holds the in-flow strip. */
   private layoutCell(): CellSize | null {
     return this.paneViews.get(this.store.focusedId)?.cellSize() ?? null;
-  }
-
-  private paneRects(): Map<string, DOMRect> {
-    const out = new Map<string, DOMRect>();
-    if (!this.store.tree) return out;
-    for (const id of this.zoomedId !== null ? [this.zoomedId] : leaves(this.store.tree)) {
-      const host = this.hosts.get(id);
-      if (host) out.set(id, host.getBoundingClientRect());
-    }
-    return out;
   }
 
   /** Click focus lands here; it must not re-render, since moving hosts blurs the textarea. */
@@ -2422,7 +920,7 @@ export class Workspace {
   private notify(): void {
     this.attention.clearIfSeen(this.store.focusedId);
     this.clearDoneIfSeen();
-    this.syncZoomButtons();
+    this.tabView.syncZoomButtons();
     if (this.store.focusedId) this.focusOrder = touch(this.focusOrder, this.store.focusedId);
     for (const [id, pane] of this.paneViews) {
       if (!(pane instanceof ScratchPane)) continue;
@@ -2440,70 +938,14 @@ export class Workspace {
   /** Design 4.8: `done` lasts until the terminal is the one being looked at. */
   private clearDoneIfSeen(): boolean {
     const id = this.store.focusedId;
-    if (!this.isSeen(id) || !this.done.clear(id)) return false;
-    this.refreshStrip(id);
+    if (!this.isSeen(id) || !this.sessions.clearDone(id)) return false;
+    this.status.refresh(id);
     return true;
-  }
-
-  /** Re-rendering moves hosts and blurs the focused pane, so focus is restored after. */
-  private render(): void {
-    const tree = this.store.tree;
-    const tabId = this.store.activeId;
-    this.syncFindBar();
-    const zoomed = this.zoom.zoomed(tabId, tree, this.store.focusedId);
-    this.zoomedId = zoomed;
-    const hidden = this.zoomHidden.get(tabId);
-    if (!tree) {
-      this.zoomHidden.delete(tabId);
-      this.view.clear();
-      return;
-    }
-    if (zoomed !== null) {
-      this.view.render({ kind: 'pane', paneId: zoomed }, this.hosts, this.store.focusedId);
-      const set = hidden ?? new Set<string>();
-      for (const id of leaves(tree)) {
-        if (id === zoomed || set.has(id)) continue;
-        set.add(id);
-        this.paneViews.get(id)?.setExpanded(false);
-      }
-      this.zoomHidden.set(tabId, set);
-    } else {
-      this.view.render(tree, this.hosts, this.store.focusedId);
-      // After render, so the hosts are attached when WebGL loads and the refit runs.
-      if (hidden) {
-        this.zoomHidden.delete(tabId);
-        const onScreen = leaves(tree);
-        for (const id of hidden) if (onScreen.includes(id)) this.paneViews.get(id)?.setExpanded(true);
-      }
-    }
-    this.syncZoomButtons();
-    if (!this.findBar.isOpen()) this.paneViews.get(this.store.focusedId)?.focus();
   }
 
   /** Design 4.2 Zoom: toggles the active tab's zoom on its focused pane. */
   private toggleZoom(): void {
-    const { activeId, tree, focusedId } = this.store;
-    // An entry a tree or focus change already invalidated shows as zoomed until the next render.
-    const stale = this.zoomedId !== null && this.zoom.zoomed(activeId, tree, focusedId) === null;
-    if (!stale && !this.zoom.toggle(activeId, tree, focusedId)) return;
-    this.render();
-    this.notify();
-  }
-
-  /** The zoom button pulses while a pane its zoom hides has attention (design 4.2). */
-  private syncZoomButtons(): void {
-    const tree = this.store.tree;
-    if (!tree) return;
-    const ids = leaves(tree);
-    const z = this.zoomedId;
-    const hiddenAttention = z !== null && ids.some((o) => o !== z && this.attention.has(o));
-    for (const id of ids) {
-      this.strips.get(id)?.setZoom({
-        available: tree.kind === 'split',
-        zoomed: id === z,
-        attention: id === z && hiddenAttention,
-      });
-    }
+    if (this.tabView.toggleZoom()) this.notify();
   }
 
   /** The find bar only lives on the focused pane; it closes when that pane closes or loses focus. */
@@ -2524,34 +966,14 @@ export class Workspace {
     return kind === 'terminal' ? this.takeId() : `v${this.nextViewId++}`;
   }
 
-  /** The outgoing tab's panes leave the DOM at the next render, releasing WebGL as collapsing does. */
-  private hideTab(tab: TabState): void {
-    this.findBar.close(false);
-    if (!tab.tree) return;
-    for (const id of leaves(tab.tree)) this.paneViews.get(id)?.setExpanded(false);
-  }
-
-  /** Renders the active tab, then takes WebGL and refits once its hosts are attached. */
-  private showActive(): void {
-    this.render();
-    if (this.store.tree) {
-      const onScreen = this.zoomedId !== null ? [this.zoomedId] : leaves(this.store.tree);
-      for (const id of onScreen) this.paneViews.get(id)?.setExpanded(true);
-    }
-    this.paneViews.get(this.store.focusedId)?.focus();
-  }
-
   /** Disposes the pane and drops its per-pane state, deleting a pad's file; the caller updates the tabs. */
   private forgetPane(id: string): void {
     const pane = this.paneViews.get(id);
-    this.restoredSessions.delete(id);
     this.containerShells.delete(id);
     this.hosts.delete(id);
-    this.strips.delete(id);
-    this.stripShown.delete(id);
-    this.openedAt.delete(id);
+    this.status.forget(id);
     this.attention.forget(id);
-    this.done.forget(id);
+    this.sessions.forget(id);
     this.focusOrder = forget(this.focusOrder, id);
     this.paneViews.delete(id);
     // The save starts before dispose, so pending editor text still reaches the disk.

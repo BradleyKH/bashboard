@@ -19,7 +19,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.3 HookReceiver (`src-tauri/src/hooks.rs`) | [sessions.md](sessions.md) |
 | 3.4 Pane to session binding | [sessions.md](sessions.md) |
 | 3.5 Platform glue | [terminal.md](terminal.md) |
-| 3.6 Settings (`src-tauri/src/settings.rs`) | [data.md](data.md) |
+| 3.6 Settings (`src-tauri/src/settings/`) | [data.md](data.md) |
 | 3.7 Workspace and favorites (`src-tauri/src/workspace.rs`) | [data.md](data.md) |
 | 3.8 Repo files (`src-tauri/src/files.rs`) | [files.md](files.md) |
 | 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`) | [git.md](git.md) |

@@ -3,7 +3,7 @@
 
 export type MatrixColorMode = 'green' | 'accent';
 
-/** Mirrors MATRIX_COLOR_MODES in src-tauri/src/settings.rs. */
+/** Mirrors MATRIX_COLOR_MODES in src-tauri/src/settings/model.rs. */
 export const DEFAULT_MATRIX_COLOR_MODE: MatrixColorMode = 'green';
 
 export const MATRIX_COLOR_MODES: { value: MatrixColorMode; label: string }[] = [

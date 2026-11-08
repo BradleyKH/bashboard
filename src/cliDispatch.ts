@@ -2,7 +2,7 @@ import type { CliCommand } from './cli';
 import { pinTarget, type FilesRequest } from './filesRouting';
 import type { OpenPaneOptions } from './workspace';
 
-/** The app actions `bb` commands run through; `main.ts` implements it over `Workspace`. */
+/** The app actions `bb` commands run through; `appEvents.ts` implements it over `Workspace`. */
 export interface CliTarget {
   /** Pane id (`p<n>`) of the terminal running the given pty, or null when none. */
   terminalForPty(ptyId: number): string | null;

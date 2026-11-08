@@ -3,7 +3,7 @@
 Section numbers are ids shared across every file in `docs/design/`, so a citation such as
 "section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
 
-## 3.6 Settings (`src-tauri/src/settings.rs`)
+## 3.6 Settings (`src-tauri/src/settings/`)
 
 Stored at `%APPDATA%\dev.bashboard\settings.json`, watched and hot-reloaded. Schema in
 section 8. Debug builds use the `dev` subfolder for this file and for workspace.json,

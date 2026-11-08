@@ -3,7 +3,7 @@ import type { KeybindingEntry } from './keymap';
 import { chordHint } from './paletteModel';
 
 // The live keybindings, so a button's tooltip names the keys as currently bound rather than the
-// defaults; main.ts sets them at startup and on every settings reload.
+// defaults; main.ts sets them at startup and appEvents.ts on every settings reload.
 let bindings: KeybindingEntry[] = [];
 
 export function setKeyHintBindings(entries: KeybindingEntry[]): void {

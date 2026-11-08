@@ -284,10 +284,6 @@ impl ForgeError {
     pub fn other(message: impl Into<String>) -> Self {
         Self::new(ForgeErrorKind::Other, message)
     }
-
-    pub fn not_implemented() -> Self {
-        Self::other("not implemented")
-    }
 }
 
 /// Where the token the Ship pane would use for a host comes from.

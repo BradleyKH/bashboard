@@ -1,3 +1,5 @@
+import { ACTION_REGISTRY, actionArg, type ActionName } from './actionRegistry';
+import defaultKeybindings from './defaultKeybindings.json';
 import type { Direction } from './layout';
 
 export type { Direction };
@@ -70,50 +72,8 @@ export interface Chord {
 export type Keymap = Map<string, Action>;
 
 const DIRECTIONS: readonly string[] = ['left', 'right', 'up', 'down'];
-export const SIMPLE_ACTIONS = [
-  'splitRight',
-  'splitDown',
-  'splitLeft',
-  'splitUp',
-  'splitAuto',
-  'closePane',
-  'copy',
-  'paste',
-  'find',
-  'toggleDashboard',
-  'focusDashboard',
-  'cycleScrim',
-  'toggleBackdrop',
-  'collapsePane',
-  'togglePaneZoom',
-  'openFavorite',
-  'openLayout',
-  'openLaunch',
-  'openPalette',
-  'nextAttention',
-  'splitWithProfile',
-  'showHelp',
-  'openSettings',
-  'showShortcuts',
-  'showAccounts',
-  'showCli',
-  'showAbout',
-  'toggleFullscreen',
-  'newTab',
-  'newScratch',
-  'openFiles',
-  'openGit',
-  'openSearch',
-  'openEditor',
-  'closeTab',
-  'nextTab',
-  'prevTab',
-  'switchToLastTab',
-  'increaseFontSize',
-  'decreaseFontSize',
-  'resetFontSize',
-] as const;
-export const ARG_ACTIONS = ['moveFocus', 'resizePane', 'switchToTab', 'sendInput'] as const;
+export const SIMPLE_ACTIONS: readonly ActionName[] = ACTION_REGISTRY.filter((r) => r.arg === 'none').map((r) => r.name);
+export const ARG_ACTIONS: readonly ActionName[] = ACTION_REGISTRY.filter((r) => r.arg !== 'none').map((r) => r.name);
 
 /** Every action name toAction accepts. */
 export const ACTION_NAMES: readonly string[] = [...SIMPLE_ACTIONS, ...ARG_ACTIONS];
@@ -202,28 +162,28 @@ export function chordId(c: Chord): string {
 
 function toAction(entry: KeybindingEntry): Action | string {
   const { action } = entry;
-  if ((SIMPLE_ACTIONS as readonly string[]).includes(action)) {
-    return { type: action } as Action;
-  }
-  if (action === 'moveFocus' || action === 'resizePane') {
-    if (!entry.direction || !DIRECTIONS.includes(entry.direction)) {
-      return `${action} needs a direction of left, right, up, or down`;
+  switch (actionArg(action)) {
+    case 'none':
+      return { type: action } as Action;
+    case 'direction':
+      if (!entry.direction || !DIRECTIONS.includes(entry.direction)) {
+        return `${action} needs a direction of left, right, up, or down`;
+      }
+      return { type: action, direction: entry.direction } as Action;
+    case 'index': {
+      const { index } = entry;
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 1 || index > 8) {
+        return `${action} needs an index from 1 to 8`;
+      }
+      return { type: action, index } as Action;
     }
-    return { type: action, direction: entry.direction };
+    case 'input':
+      if (typeof entry.input !== 'string' || entry.input === '') return `${action} needs a non-empty "input"`;
+      return { type: action, input: entry.input } as Action;
+    case undefined:
+      // "unbound" is consumed by the Rust loader and never reaches here; it is treated as unknown.
+      return `unknown action "${action}"`;
   }
-  if (action === 'switchToTab') {
-    const { index } = entry;
-    if (typeof index !== 'number' || !Number.isInteger(index) || index < 1 || index > 8) {
-      return 'switchToTab needs an index from 1 to 8';
-    }
-    return { type: 'switchToTab', index };
-  }
-  if (action === 'sendInput') {
-    if (typeof entry.input !== 'string' || entry.input === '') return 'sendInput needs a non-empty "input"';
-    return { type: 'sendInput', input: entry.input };
-  }
-  // "unbound" is consumed by the Rust loader and never reaches here; it is treated as unknown.
-  return `unknown action "${action}"`;
 }
 
 /** The action a keybinding entry would run, or null when the entry is invalid. */
@@ -260,56 +220,5 @@ export function lookup(keymap: Keymap, e: KeyboardEvent): Action | null {
   return keymap.get(chordId(chord)) ?? null;
 }
 
-/** Mirrors default_keybindings() in src-tauri/src/settings.rs. */
-export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = [
-  { keys: 'ctrl+shift+right', action: 'splitRight' },
-  { keys: 'ctrl+shift+down', action: 'splitDown' },
-  { keys: 'ctrl+shift+left', action: 'splitLeft' },
-  { keys: 'ctrl+shift+up', action: 'splitUp' },
-  { keys: 'alt+shift+d', action: 'splitAuto' },
-  { keys: 'ctrl+w', action: 'closePane' },
-  { keys: 'alt+left', action: 'moveFocus', direction: 'left' },
-  { keys: 'alt+right', action: 'moveFocus', direction: 'right' },
-  { keys: 'alt+up', action: 'moveFocus', direction: 'up' },
-  { keys: 'alt+down', action: 'moveFocus', direction: 'down' },
-  { keys: 'alt+shift+left', action: 'resizePane', direction: 'left' },
-  { keys: 'alt+shift+right', action: 'resizePane', direction: 'right' },
-  { keys: 'alt+shift+up', action: 'resizePane', direction: 'up' },
-  { keys: 'alt+shift+down', action: 'resizePane', direction: 'down' },
-  { keys: 'ctrl+shift+f', action: 'find' },
-  { keys: 'ctrl+c', action: 'copy' },
-  { keys: 'ctrl+shift+c', action: 'copy' },
-  { keys: 'ctrl+v', action: 'paste' },
-  { keys: 'ctrl+shift+v', action: 'paste' },
-  { keys: 'shift+enter', action: 'sendInput', input: '\u001b\r' },
-  { keys: 'ctrl+shift+d', action: 'toggleDashboard' },
-  { keys: 'f6', action: 'focusDashboard' },
-  { keys: 'ctrl+shift+b', action: 'cycleScrim' },
-  { keys: 'ctrl+shift+a', action: 'toggleBackdrop' },
-  { keys: 'ctrl+shift+n', action: 'nextAttention' },
-  { keys: 'ctrl+shift+m', action: 'collapsePane' },
-  { keys: 'ctrl+shift+z', action: 'togglePaneZoom' },
-  { keys: 'ctrl+shift+o', action: 'openFavorite' },
-  { keys: 'ctrl+shift+r', action: 'openLayout' },
-  { keys: 'ctrl+shift+l', action: 'openLaunch' },
-  { keys: 'ctrl+shift+p', action: 'openPalette' },
-  { keys: 'alt+shift+t', action: 'splitWithProfile' },
-  { keys: 'ctrl+shift+t', action: 'newTab' },
-  { keys: 'ctrl+shift+s', action: 'newScratch' },
-  { keys: 'ctrl+shift+e', action: 'openFiles' },
-  { keys: 'ctrl+shift+g', action: 'openGit' },
-  { keys: 'ctrl+shift+h', action: 'openSearch' },
-  { keys: 'ctrl+shift+x', action: 'openEditor' },
-  { keys: 'ctrl+shift+w', action: 'closeTab' },
-  { keys: 'ctrl+tab', action: 'nextTab' },
-  { keys: 'ctrl+shift+tab', action: 'prevTab' },
-  { keys: 'f1', action: 'showHelp' },
-  { keys: 'ctrl+,', action: 'openSettings' },
-  { keys: 'f11', action: 'toggleFullscreen' },
-  ...Array.from({ length: 8 }, (_, i) => ({ keys: `ctrl+alt+${i + 1}`, action: 'switchToTab', index: i + 1 })),
-  { keys: 'ctrl+alt+9', action: 'switchToLastTab' },
-  { keys: 'ctrl+=', action: 'increaseFontSize' },
-  { keys: 'ctrl++', action: 'increaseFontSize' },
-  { keys: 'ctrl+-', action: 'decreaseFontSize' },
-  { keys: 'ctrl+0', action: 'resetFontSize' },
-];
+/** The built-in defaults; default_keybindings() in src-tauri/src/settings/keybindings.rs reads the same file. */
+export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = defaultKeybindings as KeybindingEntry[];

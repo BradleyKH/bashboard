@@ -386,12 +386,6 @@ pub fn read_gh_hosts_yml() -> Option<String> {
     std::fs::read_to_string(gh_config_dir()?.join("hosts.yml")).ok()
 }
 
-pub fn gh_hosts() -> Vec<String> {
-    read_gh_hosts_yml()
-        .map(|t| parse_gh_hosts(&t))
-        .unwrap_or_default()
-}
-
 /// The keys under the top-level `hosts:` of GitLab CLI's `config.yml`, lowercased and deduped.
 /// Only key names are read, never a `token:` value.
 pub fn parse_glab_hosts(text: &str) -> Vec<String> {
