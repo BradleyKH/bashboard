@@ -319,9 +319,10 @@ the sizing differ.
   copies further back in the spin by 0.12 radians each, at half the line width, the nearest at 22
   percent opacity and each one behind it fainter by an equal step.
 - **Fit.** The figure fills `size` of the window's half-width and half-height, so it stretches to
-  the window's shape as the dashboard Wave does to its strip. It shrinks at once when a line
-  would cross an edge and regrows over a few seconds, the Wave's rule; a new `size` or
-  `lineWidth` refits at once.
+  the window's shape as the dashboard Wave does to its strip. `size` runs 0.3 to 2, and above 1
+  the figure spills past the edges and is cropped. The fit follows the Wave's rule before `size`
+  scales it: it shrinks at once when a line would cross the box's edge and regrows over a few
+  seconds. A new `size` or `lineWidth` refits at once.
 - **Color.** `accent` strokes the accent at full brightness with its saturation raised, as the
   Matrix's accent mode does (`accentRain`); `white` strokes `#e6e6e6`; `spectrum` runs the hue
   once around the wheel along the line and turns the wheel a full turn every 30 s at speed 1.

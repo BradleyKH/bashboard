@@ -131,14 +131,14 @@ Echoes in the dialog:
 - `color` is the line's color: `accent` (the default, a vivid, full-brightness version of the
   accent color, as for the Matrix rain), `white`, or `spectrum`, a rainbow running along the line
   that slowly turns.
-- `size` (0.3 to 1, default 0.85) is the share of the window the figure fills. It stretches to
-  the window's shape.
+- `size` (0.3 to 2, default 0.85) is the share of the window the figure fills. It stretches to
+  the window's shape, and above 1 it spills past the edges.
 - `speed` (0.1 to 3, default 0.5) scales how fast it spins, tilts, and sweeps; at 1 it moves at the
   dashboard Wave's pace. Load reshapes it just as quickly at any speed. The dialog hides Speed
   and the frame rate cap while `backdrop.animate` is off.
 - `lineWidth` (1 to 8, default 3) is the line's width in pixels on its near side; the far side
   draws at about a third of that.
-- `echoes` (0 to 8, default 4) is how many faint copies trail the line through its spin.
+- `echoes` (0 to 15, default 4) is how many faint copies trail the line through its spin.
 
 An invalid value falls back to its default with a notice. With `animate` off Lissajous shows a still
 figure shaped by the load when it froze; while Windows animation effects are off it holds still

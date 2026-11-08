@@ -212,10 +212,10 @@ it with no pins, and Automatic omits it.
   // is #00ff41 and as accent otherwise. matrix.zoom is 0.5 to 3 (the base cell is 20 px);
   // matrix.speed is a whole number of rain steps per second, 5 to 30; matrix.density (0.25 to 4)
   // scales how often a new drop starts. lissajous is for the lissajous style (6.7): color is
-  // accent (accentColor brightened as for matrix), white (#e6e6e6), or spectrum; size (0.3 to 1)
-  // is the share of the window the figure fills; speed (0.1 to 3) scales its spin, tilt, and
-  // detune sweep; lineWidth (1 to 8) is CSS pixels on the line's near side; echoes is a whole
-  // number from 0 to 8. image is for the image and slideshow styles (6.5): file
+  // accent (accentColor brightened as for matrix), white (#e6e6e6), or spectrum; size (0.3 to 2)
+  // is the share of the window the figure fills, spilling past it above 1; speed (0.1 to 3)
+  // scales its spin, tilt, and detune sweep; lineWidth (1 to 8) is CSS pixels on the line's near side; echoes is a whole
+  // number from 0 to 15. image is for the image and slideshow styles (6.5): file
   // and folder may contain %VARS% and are empty until set; fit is fill, fit, stretch, center, or
   // tile; intervalSeconds is a whole number from 5 to 86400; crossfadeSeconds is 0 to 10. Out-of-range or invalid values fall
   // back to their defaults.

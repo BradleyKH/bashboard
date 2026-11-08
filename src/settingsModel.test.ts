@@ -245,10 +245,10 @@ describe('Lissajous settings', () => {
 
   it('bounds size, speed, line width, and whole-number echoes', () => {
     const cases: [string, string, boolean][] = [
-      ['size', '0.25', false], ['size', '0.3', true], ['size', '1', true], ['size', '1.1', false],
+      ['size', '0.25', false], ['size', '0.3', true], ['size', '2', true], ['size', '2.1', false],
       ['speed', '0', false], ['speed', '0.1', true], ['speed', '3', true], ['speed', '3.5', false],
       ['lineWidth', '0.5', false], ['lineWidth', '1', true], ['lineWidth', '8', true], ['lineWidth', '9', false],
-      ['echoes', '-1', false], ['echoes', '0', true], ['echoes', '8', true], ['echoes', '9', false], ['echoes', '2.5', false],
+      ['echoes', '-1', false], ['echoes', '0', true], ['echoes', '15', true], ['echoes', '16', false], ['echoes', '2.5', false],
     ];
     for (const [key, input, ok] of cases) expect(parseInput(byPath(`backdrop.lissajous.${key}`), input).ok, `${key} ${input}`).toBe(ok);
   });
