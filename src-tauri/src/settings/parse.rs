@@ -275,6 +275,13 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
         |v| v.as_str().and_then(parse_content_text),
         d.content_text_color,
     );
+    let ui_scale = pick(
+        &root,
+        &["uiScale"],
+        &mut w,
+        |v| number(v).filter(|n| (UI_SCALE_MIN..=UI_SCALE_MAX).contains(n)),
+        d.ui_scale,
+    );
     let scrim = Scrim {
         opacity: pick(
             &root,
@@ -576,6 +583,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             font,
             accent_color,
             content_text_color,
+            ui_scale,
             scrim,
             backdrop,
             scrollback,
@@ -613,6 +621,18 @@ mod tests {
             let (s, w) = parse_settings(&format!(r#"{{ "accentColor": {bad} }}"#));
             assert_eq!(s.accent_color, DEFAULT_ACCENT, "{bad}");
             assert_eq!(w, vec!["accentColor: invalid value, using default"], "{bad}");
+        }
+    }
+
+    #[test]
+    fn ui_scale_stays_in_range() {
+        let (s, w) = parse_settings(r#"{ "uiScale": 1.25 }"#);
+        assert_eq!(s.ui_scale, 1.25);
+        assert!(w.is_empty());
+        for bad in ["0.9", "2.1", r#""big""#] {
+            let (s, w) = parse_settings(&format!(r#"{{ "uiScale": {bad} }}"#));
+            assert_eq!(s.ui_scale, UI_SCALE_MIN, "{bad}");
+            assert_eq!(w, vec!["uiScale: invalid value, using default"], "{bad}");
         }
     }
 

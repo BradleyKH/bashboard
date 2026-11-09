@@ -66,7 +66,7 @@ export function renderFavoriteRow(
 
   const remove = iconButton('×', 'favorite-remove', 'Remove favorite', () => callbacks.onRemove(index));
 
-  const badge = favorite.profile ? profileBadge(favorite.profile) : null;
+  const badge = favorite.profile ? profileBadge(favorite.profile, callbacks.defaultProfile()) : null;
   const openIn = callbacks.onOpenIn;
   attachContextMenu(el, async () => {
     const openItems = openIn ? await openInMenuItems(favorite.path, openIn) : [];

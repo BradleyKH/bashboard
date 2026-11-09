@@ -250,6 +250,7 @@ function focusCard(paneId: string): void {
 const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLElement, {
   onFocus: focusCard,
   onClose: (paneId) => workspace.closePane(paneId),
+  defaultProfile: () => state.settings.shell.defaultProfile,
   onToggleCollapse: (paneId) => {
     if (workspace.panes().find((x) => x.paneId === paneId)?.collapsed) workspace.expandPane(paneId);
     else workspace.collapsePane(paneId);
@@ -259,6 +260,8 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onRenameTab: (tabId, name) => workspace.renameTab(tabId, name),
   onSectionsChange: () => saver.schedule(),
   onPanePathsChange: () => saver.schedule(),
+  onAgentPanesOnlyChange: () => saver.schedule(),
+  onShowStoppedChange: () => saver.schedule(),
   onWidthChange: () => saver.schedule(),
   onOrderChange: () => saver.schedule(),
   onSetElementShown: (el, shown) =>
@@ -427,6 +430,8 @@ const saver = new DebouncedSaver(
     dashboardRightElements: panel.rightElements() ?? undefined,
     dashboardPinsColumn: panel.pinsColumn(),
     showPanePaths: panel.panePathsShown(),
+    agentPanesOnly: panel.agentPanesOnlyShown() || undefined,
+    hideStoppedContainers: !panel.stoppedContainersShown() || undefined,
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
     textZoom: textZoomSnapshot(),
   }),
@@ -466,6 +471,8 @@ try {
     });
   }
   if (saved?.showPanePaths) panel.setShowPanePaths(true);
+  if (saved?.agentPanesOnly) panel.setAgentPanesOnly(true);
+  if (saved?.hideStoppedContainers) panel.setShowStoppedContainers(false);
   if (saved?.dashboardHideNoticeShown) state.hideNoticeShown = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {

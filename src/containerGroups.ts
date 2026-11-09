@@ -104,3 +104,9 @@ export function dashboardRows(snapshot: ContainersSnapshot): DashboardContainerR
     .map((e) => ({ kind: 'unavailable', engine: e.engine, canStart: e.canStart, pending: e.pending }));
   return [...rows, ...unavailable];
 }
+
+/** Drops fully stopped groups unless `showStopped`; a partly running group and engine rows stay. */
+export function visibleDashboardRows(rows: DashboardContainerRow[], showStopped: boolean): DashboardContainerRow[] {
+  if (showStopped) return rows;
+  return rows.filter((r) => r.kind !== 'group' || r.state !== 'stopped');
+}

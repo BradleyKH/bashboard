@@ -28,7 +28,7 @@ export const DEFAULT_DEVTOOLS: DevtoolsState = {
   open: false,
   tab: 'console',
   height: DRAWER_DEFAULT,
-  split: false,
+  split: true,
   splitRatio: 0.5,
 };
 
@@ -39,7 +39,7 @@ export function normalizeDevtools(saved: Partial<DevtoolsState> | null | undefin
     open: saved?.open === true,
     tab: saved?.tab === 'network' ? 'network' : 'console',
     height: typeof h === 'number' && Number.isFinite(h) ? Math.round(Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, h))) : DRAWER_DEFAULT,
-    split: saved?.split === true,
+    split: saved?.split !== false,
     splitRatio: clampSplitRatio(saved?.splitRatio),
   };
 }

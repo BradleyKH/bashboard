@@ -207,7 +207,7 @@ The pane's title is the page's title, or the page's host before it has one, or "
 ### DevTools drawer
 
 A drawer at the pane's bottom, resizable by its top edge, holds two panels, shown one at a time
-by tab or, with Split on, side by side (Console left, Network right) with a draggable divider
+by tab or, with Split on (the default), side by side (Console left, Network right) with a draggable divider
 between them. Its open state, tab, height, split, and Console's share of the split width are
 saved with the pane. Both read the event stream and keep their own buffers
 (`ConsoleLog` holds 2,000 entries, `NetworkLog` 1,000 rows).
@@ -248,7 +248,7 @@ reports none when focus returns to the app, the pane collapses, or it is dispose
 ### Saved state
 
 The workspace saves `{ kind: "browser", url, devtools, device }` per pane (4.9); each field is
-read leniently, with missing or invalid values falling back to the start page, a closed, unsplit
+read leniently, with missing or invalid values falling back to the start page, a closed, split
 drawer on Console, and Responsive. A pane saved on its start page (a null `url`) reopens on it;
 only a pane created with no `url` at all opens on `localBrowser.homeUrl`. Bookmarks and the home page live in
 settings (8), not in the workspace.

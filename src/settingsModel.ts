@@ -2,6 +2,7 @@ import { ACCENT_PRESETS } from './accent';
 import { IMAGE_FITS } from './backdrop/image/imageFit';
 import { WAVE_COLOR_MODES, waveSwatch } from './backdrop/wave/waveColor';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
+import { UI_SCALE_MAX, UI_SCALE_MIN } from './uiScale';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { DEFAULT_ELEMENT_ORDER, ELEMENT_HINTS, ELEMENT_LABELS } from './dashboardSections';
@@ -164,7 +165,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     title: 'Appearance',
     fields: [
       { path: ['font', 'family'], label: 'Font family', kind: 'text', suggestFrom: 'fonts', applies: 'live', inline: true },
-      { path: ['font', 'size'], label: 'Font size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', applies: 'live', inline: true },
+      { path: ['font', 'size'], label: 'Text size', kind: 'number', min: 6, max: 48, step: 1, unit: 'px', hint: 'Terminals and pane text', applies: 'live', inline: true },
       { path: ['accentColor'], label: 'Accent color', kind: 'select', options: ACCENT_PRESETS, swatches: true, applies: 'live', half: true },
       {
         path: ['contentTextColor'],
@@ -175,6 +176,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         swatchColor: (mode, s) => contentTextColor(mode, s.accentColor),
         applies: 'live',
         half: true,
+      },
+      {
+        path: ['uiScale'],
+        label: 'Interface size',
+        kind: 'slider',
+        min: UI_SCALE_MIN,
+        max: UI_SCALE_MAX,
+        step: 0.05,
+        unit: 'x',
+        hint: 'Buttons, bars, titles, and labels; not pane content',
+        applies: 'live',
       },
     ],
   },

@@ -49,7 +49,7 @@ const TOUR: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Look',
     paragraphs: [
-      '{cycleScrim} dims the backdrop behind the panes, and {toggleBackdrop} pauses its animation. {increaseFontSize} and {decreaseFontSize} change the terminal font size. The Settings tab has the rest.',
+      '{cycleScrim} dims the backdrop behind the panes, and {toggleBackdrop} pauses its animation. {increaseFontSize} and {decreaseFontSize} change the text size of terminals and pane content. The Settings tab has the rest.',
     ],
   },
 ];

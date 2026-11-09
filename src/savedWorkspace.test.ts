@@ -67,7 +67,7 @@ describe('parseSavedTab', () => {
       collapsed: false,
       kind: 'browser',
       url: null,
-      devtools: { open: false, tab: 'console', height: expect.any(Number), split: false, splitRatio: 0.5 },
+      devtools: { open: false, tab: 'console', height: expect.any(Number), split: true, splitRatio: 0.5 },
       device: '',
     });
   });
@@ -633,6 +633,15 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace({ ...v3([]), showPanePaths: false })?.showPanePaths).toBe(false);
     expect(parseSavedWorkspace({ ...v3([]), showPanePaths: 'yes' })?.showPanePaths).toBeUndefined();
     expect(parseSavedWorkspace(v3([]))?.showPanePaths).toBeUndefined();
+    expect(parseSavedWorkspace({ ...v3([]), hideStoppedContainers: true })?.hideStoppedContainers).toBe(true);
+    expect(parseSavedWorkspace({ ...v3([]), hideStoppedContainers: 'yes' })?.hideStoppedContainers).toBeUndefined();
+    expect(parseSavedWorkspace(v3([]))?.hideStoppedContainers).toBeUndefined();
+  });
+
+  it('keeps only a true Panes AI filter flag', () => {
+    expect(parseSavedWorkspace({ ...v3([]), agentPanesOnly: true })?.agentPanesOnly).toBe(true);
+    expect(parseSavedWorkspace({ ...v3([]), agentPanesOnly: 'yes' })?.agentPanesOnly).toBeUndefined();
+    expect(parseSavedWorkspace(v3([]))?.agentPanesOnly).toBeUndefined();
   });
 
   it('keeps only a true dashboard hide-notice flag', () => {

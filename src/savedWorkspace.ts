@@ -115,6 +115,10 @@ export interface SavedWorkspace {
   dashboardPinsColumn?: DashboardColumn;
   /** Whether the dashboard's Panes cards show folder paths; absent means hidden. */
   showPanePaths?: boolean;
+  /** Whether the dashboard's Panes section shows only AI session terminals; absent means every pane. */
+  agentPanesOnly?: boolean;
+  /** Whether the dashboard's Containers section hides fully stopped groups; absent means shown. */
+  hideStoppedContainers?: boolean;
   /** Whether hiding the dashboard with × has shown its notice; absent means not yet. */
   dashboardHideNoticeShown?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
@@ -382,6 +386,8 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   const pinsColumn = parsePinsColumn(raw.dashboardPinsColumn);
   if (pinsColumn) saved.dashboardPinsColumn = pinsColumn;
   if (typeof raw.showPanePaths === 'boolean') saved.showPanePaths = raw.showPanePaths;
+  if (raw.agentPanesOnly === true) saved.agentPanesOnly = true;
+  if (raw.hideStoppedContainers === true) saved.hideStoppedContainers = true;
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;

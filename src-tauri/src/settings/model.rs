@@ -123,6 +123,11 @@ pub const DEFAULT_ACCENT: &str = "#4fb3c8";
 pub const CONTENT_TEXT_MODES: [&str; 2] = ["accent", "white"];
 pub const DEFAULT_CONTENT_TEXT_MODE: &str = "accent";
 
+/// `uiScale` bounds: 1 is the compact default, and at 1.5 the dashboard's buttons match
+/// the Launch section's (docs/design/README.md section 5).
+pub const UI_SCALE_MIN: f64 = 1.0;
+pub const UI_SCALE_MAX: f64 = 2.0;
+
 /// Ids `dashboard.side` accepts (docs/design/dashboard.md section 4.6).
 pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
 
@@ -263,6 +268,8 @@ pub struct Settings {
     pub accent_color: String,
     /// One of `CONTENT_TEXT_MODES`; see `parse_content_text`.
     pub content_text_color: String,
+    /// Multiplier on the app's chrome (controls, bars, titles, dialog text), `UI_SCALE_MIN..=UI_SCALE_MAX`.
+    pub ui_scale: f64,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
@@ -308,6 +315,7 @@ impl Default for Settings {
             },
             accent_color: DEFAULT_ACCENT.into(),
             content_text_color: DEFAULT_CONTENT_TEXT_MODE.into(),
+            ui_scale: 1.0,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {
                 style: "lights".into(),

@@ -157,8 +157,8 @@ selects the current match (in the editor, as the caret's selection).
 browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
 the sort button and the pin button. Ctrl+wheel over the list or the preview steps that
 one's level too: a mouse notch is one step, and a touchpad pinch adds up its small deltas so it
-steps a level at a time rather than jumping to either end. Each scales from its base size (the
-terminal font size for code and the text editor) and holds while browsing the pane. Every step is
+steps a level at a time rather than jumping to either end. Each scales from its base size, which
+follows `font.size` (section 5) and holds while browsing the pane. Every step is
 saved to `textZoom.filePreview` or `textZoom.filesList` in workspace.json (section 7), the level
 a new Files pane starts at; other open panes keep their own. The Git diff (4.13), the Search
 preview (4.14), scratch pads (4.15), and the Containers logs panel (4.16) zoom the same way,

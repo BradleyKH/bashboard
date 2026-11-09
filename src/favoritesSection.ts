@@ -17,6 +17,8 @@ export interface FavoritesCallbacks {
   onDragStart(path: string, e: PointerEvent): void;
   /** Open menu on a favorite or recent folder; the row shows no menu button without it. */
   onOpenIn?: OpenInHandler;
+  /** `shell.defaultProfile`; a favorite recording it shows no profile badge. */
+  defaultProfile(): string;
 }
 
 /** The dashboard's Favorites section: favorites, then recent folders (docs/design/dashboard.md section 4.6). */

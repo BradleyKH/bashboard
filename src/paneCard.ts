@@ -14,6 +14,8 @@ export interface PaneCardOptions {
   agentLine: string | null;
   /** Shows the folder path under the title; hidden, the path moves into the title's tooltip. */
   showPath: boolean;
+  /** `shell.defaultProfile`; a terminal running it shows no profile badge. */
+  defaultProfile: string;
   /** True while the card shows its inline close confirmation. */
   confirming: boolean;
   onFocus: (paneId: string) => void;
@@ -144,7 +146,7 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     head.append(marker);
   }
   if (card.kind === 'terminal') {
-    const badge = card.containerName ? null : profileBadge(card.profile);
+    const badge = card.containerName ? null : profileBadge(card.profile, opts.defaultProfile);
     if (badge) head.append(badge);
     const age = document.createElement('span');
     age.className = 'card-age';

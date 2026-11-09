@@ -21,6 +21,8 @@ export interface Settings {
   accentColor: string;
   /** Non-terminal pane content and dashboard text, derived from the accent (docs/design/data.md section 8). */
   contentTextColor: ContentTextMode;
+  /** Multiplier on the app's chrome, 1 to 2; the Interface size slider (docs/design/README.md section 5). */
+  uiScale: number;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design/backdrop.md section 6.4). */
   backdrop: {
@@ -88,6 +90,7 @@ export const DEFAULT_SETTINGS: Settings = {
   font: { family: 'JetBrainsMono Nerd Font Mono, Cascadia Mono', size: 14 },
   accentColor: DEFAULT_ACCENT,
   contentTextColor: DEFAULT_CONTENT_TEXT_MODE,
+  uiScale: 1,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {
     style: 'lights',

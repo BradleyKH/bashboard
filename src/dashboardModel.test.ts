@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentCards,
   externalSessions,
   formatAge,
   groupCardsByTab,
   isBusy,
   lastFolder,
+  otherPanesLabel,
   paneCards,
   type OtherCardInput,
   type TerminalCard,
@@ -301,6 +303,31 @@ describe('formatAge', () => {
     expect(formatAge(2 * 3600000 + 1)).toBe('2h');
     expect(formatAge(86400000)).toBe('1d');
     expect(formatAge(3 * 86400000)).toBe('3d');
+  });
+});
+
+describe('agentCards', () => {
+  const cards = () =>
+    paneCards(
+      [term({ paneId: 'a', ptyId: 1 }), term({ paneId: 'b', ptyId: 2 }), pad({ paneId: 'v1' })],
+      [session({ paneId: 2, agent: 'codex' })],
+    );
+
+  it('passes every card through when off', () => {
+    const r = agentCards(cards(), false);
+    expect(r.cards.map((c) => c.paneId)).toEqual(['a', 'b', 'v1']);
+    expect(r.others).toBe(0);
+  });
+
+  it('keeps only terminals bound to an agent session and counts the rest', () => {
+    const r = agentCards(cards(), true);
+    expect(r.cards.map((c) => c.paneId)).toEqual(['b']);
+    expect(r.others).toBe(2);
+  });
+
+  it('labels one pane and several', () => {
+    expect(otherPanesLabel(1)).toBe('(1 other pane)');
+    expect(otherPanesLabel(2)).toBe('(2 other panes)');
   });
 });
 

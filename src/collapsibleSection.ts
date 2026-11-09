@@ -9,7 +9,12 @@ export function makeCollapsible(
 ): void {
   header.classList.add('collapsible-head');
   header.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement).closest('button, input')) return;
+    // composedPath, not target.closest: a header button that swaps its own icon on click leaves
+    // the target detached by the time the click bubbles here, so closest() would miss the button.
+    const fromControl = e
+      .composedPath()
+      .some((n) => n instanceof Element && n.matches('button, input'));
+    if (fromControl) return;
     onToggle();
   });
   section.classList.add('collapsible');

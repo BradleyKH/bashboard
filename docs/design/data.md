@@ -146,6 +146,10 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 - `collapsedSections`: none. Reading keeps known names once each; Launch and the clock never
   collapse, so they are dropped.
 - `showPanePaths` (the Panes section's paths toggle, 4.6): false; a non-boolean reads as absent.
+- `agentPanesOnly` (the Panes section's AI toggle, 4.6): false, so every pane shows; anything but
+  `true` reads as absent.
+- `hideStoppedContainers` (the Containers section's eye toggle, 4.6): false, so stopped groups
+  show; anything but `true` reads as absent.
 - `dashboardHideNoticeShown` (whether hiding the dashboard with × has shown its toast, 4.6):
   false; anything but `true` reads as absent.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
@@ -200,6 +204,9 @@ it with no pins, and Automatic omits it.
   // for links and highlights; white is #e6e6e6. A #rrggbb value loads as white when it is
   // #e6e6e6 and as accent otherwise; any other value falls back to accent with a notice.
   "contentTextColor": "accent",
+  // 1 to 2, the Settings tab's Interface size: zoom on controls, the bars that hold them, chrome
+  // titles, and the app dialog's tabs (section 5). Out of range falls back to 1.
+  "uiScale": 1,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
   // slideshow; a missing or invalid value falls back to lights. animate false freezes lights,

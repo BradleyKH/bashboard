@@ -216,7 +216,7 @@ menu is dropped if another menu opened or closed meanwhile.
 focused pane that had one; a folder outside any repo counts as its own. A Files pane counts as the
 repo it was opened for, not the folder it is showing, so opening a pinned subfolder keeps them on
 its repo. Under a **Launch** heading, which does not collapse, one row of equal icon buttons opens
-a Terminal, Git, Files, Ship, Search, or Scratch pane, in that order, with Git and Ship for git
+a Terminal, Files, Git, Scratch, Search, or Ship pane, in kind menu order (4.11), with Git and Ship for git
 repos only; the row fits on one line at the panel's minimum width. Each tooltip names the option,
 and those for Git, Files, Search, and Scratch end with the keys of openGit, openFiles, openSearch,
 and newScratch, which open the same thing, read on hover like the top bar's; Terminal names none,
@@ -230,8 +230,8 @@ Files or Git would bring forward, the whole pane area of an empty tab, or the fo
 "opens collapsed: no room".
 
 The **Launch menu** lists the same options plus Containers and Ports, which open as they are
-rather than at the repo root, in kind menu order (4.11), with their icons and a letter each (t, g,
-f, o, s, c, r, p); Containers is left out while no container engine is installed, as in the kind
+rather than at the repo root, in kind menu order (4.11), with their icons and a letter each (t, c,
+f, g, b, r, p, s, o); Containers is left out while no container engine is installed, as in the kind
 menu. A letter chooses its entry, and the highlighted entry shows the same preview. The menu has
 an accent border and dims the window behind it, under the preview; a click on the dimmed area
 only closes the menu. While the
@@ -253,7 +253,7 @@ drag and can be renamed and removed.
 - A "+" button adds the focused terminal's working directory, and records the focused
   terminal's shell profile when it differs from `shell.defaultProfile`. A favorite with a
   profile opens in that shell; one without opens in the default. Rows show a profile badge
-  when the profile is not Git Bash. Rows can be renamed, removed, and reordered by drag.
+  when the profile is not `shell.defaultProfile`. Rows can be renamed, removed, and reordered by drag.
 - Below the favorites, up to five recent folders taken from the roster's session cwds that are
   not already favorites, each with a star to promote it.
 
@@ -281,6 +281,13 @@ the group's cards indented beneath it along a vertical guide line. The header ha
 so only cards carry one. The active tab's header is brighter and its guide line takes the
 accent color, and clicking a header switches to that tab. Its menu or F2 renames the tab in place. With one tab there
 are no headers and the section reads as a plain list.
+
+Left of the paths toggle, an AI toggle (a sparkle, filled while on) narrows each group to the
+terminals bound to an agent session (3.4) of any agent, Claude Code, Codex, or Copilot. The tab's
+other panes fold into one dimmed row after its cards, "(2 other panes)", which does nothing when
+clicked; a tab with no agent session shows only that row. Headers keep the tab's full pane count
+and status. It starts off, is saved with the workspace, and is hidden while the section is
+collapsed.
 
 Dragging a card or a title strip onto another tab's group (its header or cards) highlights the
 group, and dropping there moves the pane into that tab without switching to it. A collapsed pane
@@ -312,14 +319,17 @@ Each card shows:
   the window is the loaded context length from the Local AI models poll (3.19). Claude Code's
   transcript does not name the window, so its count stands alone rather than guess a fraction.
 - For a terminal, time since the last status change.
-- A profile badge when the terminal's shell is not Git Bash.
+- A profile badge when the terminal's shell is not `shell.defaultProfile`.
 - Whether it is expanded or collapsed. Clicking an expanded card switches to its tab if needed
   and focuses its pane; clicking a collapsed one expands it (4.3).
 - A close button, which asks first if a command or agent session is running, or if a scratch
   pad is not empty.
 
 **Containers.** One row per container group (4.16) with its state dot, and a Manage
-button (an arrow leaving a square) in the header. Shown while a container engine is available
+button (an arrow leaving a square) in the header. Left of Manage, an eye toggle (struck through
+while off) hides the groups with no running container; a group with any running container always
+shows, and engine rows are unaffected. It starts on, is saved with the workspace, and is hidden
+while the section is collapsed. With every group hidden, the list reads "No running containers". Shown while a container engine is available
 (3.10) and `dashboard.sections.containers` is on. The setting affects only the dashboard; the kind menu
 (4.11) offers a Containers pane whenever an engine is available.
 

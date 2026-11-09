@@ -47,9 +47,9 @@ Defaults mirror the current Windows Terminal settings:
 | Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) | `cycleScrim` |
 | Ctrl+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None | `toggleBackdrop` |
 | Ctrl+Shift+N | Focus the next terminal that needs you, across all tabs (4.7) | `nextAttention` |
-| Ctrl+= or Ctrl+Numpad+ | Increase the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) | `increaseFontSize` |
-| Ctrl+- | Decrease the terminal font size by 1 px (saved to `font.size`; applies to every terminal; 6 to 48 px) | `decreaseFontSize` |
-| Ctrl+0 | Reset the terminal font size to the default, 14 px (saved to `font.size`; applies to every terminal) | `resetFontSize` |
+| Ctrl+= or Ctrl+Numpad+ | Increase the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `increaseFontSize` |
+| Ctrl+- | Decrease the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `decreaseFontSize` |
+| Ctrl+0 | Reset the text size to the default, 14 px (saved to `font.size`; applies to terminals and pane text) | `resetFontSize` |
 | F1 | Open the app dialog on its Help tab (4.18) | `showHelp` |
 | Ctrl+, | Open the app dialog on its Settings tab | `openSettings` |
 | F11 | Toggle full screen | `toggleFullscreen` |

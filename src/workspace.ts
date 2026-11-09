@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { applyAccent } from './accent';
+import { applyTextScale, applyUiScale } from './uiScale';
 import { applyContentText, contentTextColor } from './contentText';
 import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
 import type { PaneCardInput } from './dashboardModel';
@@ -102,6 +103,8 @@ export class Workspace {
     applyScrim(document.documentElement, this.scrim);
     applyAccent(document.documentElement, payload.settings.accentColor);
     applyContentText(document.documentElement, contentTextColor(payload.settings.contentTextColor, payload.settings.accentColor));
+    applyUiScale(document.documentElement, payload.settings.uiScale);
+    applyTextScale(document.documentElement, this.fontSize);
     this.ctx = this.context();
     this.status = new PaneStatus(this.ctx);
     this.tabView = new TabView(this.ctx);
@@ -274,16 +277,19 @@ export class Workspace {
     applyAccent(document.documentElement, this.config.settings.accentColor);
     const { contentTextColor: mode, accentColor } = this.config.settings;
     applyContentText(document.documentElement, contentTextColor(mode, accentColor));
+    applyUiScale(document.documentElement, this.config.settings.uiScale);
+    applyTextScale(document.documentElement, this.fontSize);
     for (const pane of this.paneViews.values()) pane.applySettings(this.config.settings);
   }
 
   private setFontSize(size: number): void {
     if (size === this.fontSize) return;
     this.fontSize = size;
+    applyTextScale(document.documentElement, size);
     const settings = this.paneSettings();
     for (const pane of this.paneViews.values()) pane.applySettings(settings);
     saveSetting(['font', 'size'], size).catch((err: unknown) =>
-      showToast(`Could not save the font size: ${String(err)}`),
+      showToast(`Could not save the text size: ${String(err)}`),
     );
   }
 

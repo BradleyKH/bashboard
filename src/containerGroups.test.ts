@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Container, ContainersSnapshot } from './containers';
 import { shellCommand } from './containers';
-import { dashboardRows, engineLabel, groupContainers } from './containerGroups';
+import { dashboardRows, engineLabel, groupContainers, visibleDashboardRows } from './containerGroups';
 
 function c(over: Partial<Container> & { id: string }): Container {
   return {
@@ -108,6 +108,30 @@ describe('dashboardRows', () => {
       containers: [],
     });
     expect(rows).toEqual([{ kind: 'unavailable', engine: 'podman', canStart: true, pending: 'starting' }]);
+  });
+});
+
+describe('visibleDashboardRows', () => {
+  const rows = dashboardRows({
+    engines: [
+      { engine: 'docker', running: true, pending: null, canStart: false, canStop: false },
+      { engine: 'podman', running: false, pending: null, canStart: true, canStop: false },
+    ],
+    containers: [
+      c({ id: '1', name: 'off', state: 'exited' }),
+      c({ id: '2', name: 'on' }),
+      c({ id: '3', project: 'half', state: 'running' }),
+      c({ id: '4', project: 'half', state: 'exited' }),
+    ],
+  });
+
+  it('keeps every row while stopped containers are shown', () => {
+    expect(visibleDashboardRows(rows, true)).toBe(rows);
+  });
+
+  it('drops only fully stopped groups, keeping partly running ones and engine rows', () => {
+    const names = visibleDashboardRows(rows, false).map((r) => (r.kind === 'group' ? r.name : r.engine));
+    expect(names).toEqual(['half', 'on', 'podman']);
   });
 });
 

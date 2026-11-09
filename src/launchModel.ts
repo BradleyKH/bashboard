@@ -25,18 +25,18 @@ export interface LaunchOption {
   menuOnly?: boolean;
 }
 
-// Terminal names no action: splitAuto opens at the focused pane's folder, which can be below the
-// repo root the Launch terminal opens at.
+// Kind menu order (4.11). Terminal names no action: splitAuto opens at the focused pane's folder,
+// which can be below the repo root the Launch terminal opens at.
 const OPTIONS: readonly LaunchOption[] = [
   { kind: 'terminal', label: 'Terminal', icon: paneKindInfo('terminal').icon, key: 't', title: 'Terminal at the repo root' },
-  { kind: 'git', label: 'Git', icon: paneKindInfo('git').icon, key: 'g', title: 'Git pane for the repo', action: 'openGit' },
-  { kind: 'files', label: 'Files', icon: paneKindInfo('files').icon, key: 'f', title: 'Files at the repo root', action: 'openFiles' },
-  { kind: 'ship', label: 'Ship', icon: paneKindInfo('ship').icon, key: 'o', title: 'Pipelines and pull requests for the repo' },
-  { kind: 'search', label: 'Search', icon: paneKindInfo('search').icon, key: 's', title: 'Search the repo\'s code', action: 'openSearch' },
   { kind: 'containers', label: 'Containers', icon: paneKindInfo('containers').icon, key: 'c', title: 'Docker and Podman containers', menuOnly: true },
-  { kind: 'ports', label: 'Ports', icon: paneKindInfo('ports').icon, key: 'r', title: 'Listening dev servers', menuOnly: true },
+  { kind: 'files', label: 'Files', icon: paneKindInfo('files').icon, key: 'f', title: 'Files at the repo root', action: 'openFiles' },
+  { kind: 'git', label: 'Git', icon: paneKindInfo('git').icon, key: 'g', title: 'Git pane for the repo', action: 'openGit' },
   { kind: 'browser', label: 'Local Browser', icon: paneKindInfo('browser').icon, key: 'b', title: 'Browse a local dev server', menuOnly: true },
+  { kind: 'ports', label: 'Ports', icon: paneKindInfo('ports').icon, key: 'r', title: 'Listening dev servers', menuOnly: true },
   { kind: 'scratch', label: 'Scratch', icon: paneKindInfo('scratch').icon, key: 'p', title: 'Scratch pad', action: 'newScratch' },
+  { kind: 'search', label: 'Search', icon: paneKindInfo('search').icon, key: 's', title: 'Search the repo\'s code', action: 'openSearch' },
+  { kind: 'ship', label: 'Ship', icon: paneKindInfo('ship').icon, key: 'o', title: 'Pipelines and pull requests for the repo' },
 ];
 
 /** Git and Ship need a repo, so a folder that is not one leaves them out. */

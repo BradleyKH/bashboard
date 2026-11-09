@@ -11,6 +11,17 @@
   height: 18px;
 }
 
+/* The head spreads its children apart, so this pushes the toggle right, beside the Manage button. */
+#dashboard .containers-stopped {
+  margin-left: auto;
+  margin-right: 2px;
+}
+
+/* The toggle only affects the hidden row list. */
+.dashboard-section.collapsed .containers-stopped {
+  display: none;
+}
+
 .section-open svg {
   width: 13px;
   height: 13px;

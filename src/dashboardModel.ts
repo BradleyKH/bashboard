@@ -209,3 +209,18 @@ export function groupCardsByTab(cards: PaneCard[], tabs: TabGroupInput[]): PaneG
     };
   });
 }
+
+/**
+ * The Panes section's AI filter (docs/design/dashboard.md section 4.6): with `agentsOnly`, keeps
+ * only terminals bound to an agent session and counts the rest, which collapse into one row.
+ */
+export function agentCards(cards: PaneCard[], agentsOnly: boolean): { cards: PaneCard[]; others: number } {
+  if (!agentsOnly) return { cards, others: 0 };
+  const kept = cards.filter((c) => c.kind === 'terminal' && c.sessionId !== null);
+  return { cards: kept, others: cards.length - kept.length };
+}
+
+/** The collapsed row's text, as "(2 other panes)". */
+export function otherPanesLabel(count: number): string {
+  return `(${count} other ${count === 1 ? 'pane' : 'panes'})`;
+}

@@ -42,9 +42,9 @@ export function parseProfileId(raw: unknown): string | undefined {
   return typeof raw === 'string' && PROFILE_ID.test(raw) ? raw : undefined;
 }
 
-/** Small label naming a non-default shell; null for Git Bash, which needs no marker. */
-export function profileBadge(id: string): HTMLElement | null {
-  if (id === GIT_BASH_PROFILE.id) return null;
+/** Small label naming a shell other than `shell.defaultProfile`; null for the default, which needs no marker. */
+export function profileBadge(id: string, defaultProfile: string): HTMLElement | null {
+  if (id === defaultProfile) return null;
   const el = document.createElement('span');
   el.className = 'profile-badge';
   el.textContent = profileName(id);

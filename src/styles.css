@@ -5,7 +5,25 @@
   --content-fg: #b5d8df;
   --content-muted: color-mix(in srgb, var(--content-fg) 80%, black);
   --content-faint: color-mix(in srgb, var(--content-fg) 58%, black);
+  /* uiScale (src/uiScale.ts, docs/design/README.md section 5). */
+  --ui-scale: 1;
   color-scheme: dark;
+}
+
+/* zoom scales a control's glyph, padding, and border together; text boxes and dropdowns take it
+   with the buttons so a toolbar row keeps one height. Bars sized in px scale their height by
+   --ui-scale to match. Left out: the Launch buttons (the size the scale tops out at), the
+   dashboard's edge handle (it must fit the 8px gutter), buttons that read as text (links, list
+   rows, sortable column headers), and rename boxes that stand in for a row's or tab's own text, so
+   they keep the size of the text around them. A control's font must not also be scaled by an
+   ancestor, or zoom applies the scale twice; that includes the button a customizable <select>
+   draws inside itself. */
+button:not(.launch-button, .dashboard-reveal, .app-dialog-link, .ship-repo, .ports-head-cell, select > button),
+input:not([type='checkbox'], [type='radio'], [type='range'], .tab-rename, .file-rename-field, .git-rename-field, .favorite-rename),
+select,
+.pane-strip .status-dot,
+.tab-item .status-dot {
+  zoom: var(--ui-scale);
 }
 
 /* Set on every element rather than inherited from :root, so only the scroller under the
@@ -155,7 +173,7 @@ body.resizing.column {
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  height: 20px;
+  height: calc(20px * var(--ui-scale));
   padding: 0 4px 0 8px;
   background: rgba(0, 0, 0, 0.3);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -172,6 +190,8 @@ body.resizing.column {
 
 .strip-title {
   flex: 0 1 auto;
+  /* The title is the pane's drag handle, so it grows with the buttons beside it. */
+  font-size: calc(11px * var(--ui-scale));
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -271,7 +291,7 @@ body.resizing.column {
    order. */
 .find-bar {
   position: absolute;
-  top: 24px;
+  top: calc(20px * var(--ui-scale) + 4px);
   right: 8px;
   z-index: 3;
   display: flex;
@@ -301,7 +321,8 @@ body.resizing.column {
 }
 
 .find-count {
-  min-width: 64px;
+  min-width: calc(64px * var(--ui-scale));
+  font-size: calc(12px * var(--ui-scale));
   color: #9aa6ad;
   white-space: nowrap;
 }
@@ -508,8 +529,10 @@ body.dashboard-resizing {
   flex: 0 1 auto;
   min-width: 0;
   margin-right: 2px;
-  padding-left: 8px;
-  padding-right: 8px;
+  /* Divided by the scale so zoom leaves the side padding at 8px: at the top of the range both
+     menus and the icons still fit the dashboard's 300px minimum width untruncated. */
+  padding-left: calc(8px / var(--ui-scale));
+  padding-right: calc(8px / var(--ui-scale));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -523,6 +546,9 @@ body.dashboard-resizing {
 #dashboard .dashboard-top-icon {
   flex: 0 0 auto;
   min-width: 22px;
+  /* Same reason as .dashboard-top-menu's padding. */
+  padding-left: calc(6px / var(--ui-scale));
+  padding-right: calc(6px / var(--ui-scale));
   font-size: 13px;
 }
 
@@ -606,7 +632,8 @@ body.dashboard-resizing {
 
 .dashboard-section h2 {
   margin: 0 0 6px;
-  font-size: 11px;
+  /* Section titles collapse their section on click, so they scale with the buttons. */
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -622,6 +649,13 @@ body.dashboard-resizing {
 .dashboard-empty {
   color: #6c777e;
   padding: 4px 2px;
+}
+
+/* The Panes AI filter's stand-in for the panes it hides. */
+.panes-others {
+  color: #6c777e;
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .terminal-card,
@@ -978,6 +1012,21 @@ body.dashboard-resizing {
   font-size: 14px;
 }
 
+/* The head spreads its children apart, so this pushes the AI filter right, beside the paths toggle. */
+#dashboard .panes-agents {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  margin-left: auto;
+  margin-right: 2px;
+}
+
+#dashboard .panes-agents svg {
+  width: 13px;
+  height: 13px;
+}
+
+#dashboard .panes-agents[aria-pressed='true'],
 #dashboard .panes-paths[aria-pressed='true'] {
   background: color-mix(in srgb, var(--accent) 25%, transparent);
   color: #eef3f5;
@@ -2026,8 +2075,9 @@ body.dashboard-resizing {
 h2.collapsible-head::before {
   content: '▾';
   display: inline-block;
-  width: 12px;
-  font-size: 10px;
+  /* Scales with the section title it marks. */
+  width: calc(12px * var(--ui-scale));
+  font-size: calc(10px * var(--ui-scale));
   color: #6c777e;
 }
 
@@ -2044,7 +2094,8 @@ h2.collapsible-head::before {
   margin-bottom: 0;
 }
 
-/* The path toggle only affects the hidden card list. */
+/* The path and AI toggles only affect the hidden card list. */
+.dashboard-section.collapsed .panes-agents,
 .dashboard-section.collapsed .panes-paths {
   display: none;
 }

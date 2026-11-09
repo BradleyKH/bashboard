@@ -37,7 +37,8 @@ describe('normalizeDevtools', () => {
 describe('split drawer', () => {
   it('keeps the split flag and clamps the ratio', () => {
     expect(normalizeDevtools({ split: true, splitRatio: 0.3 })).toMatchObject({ split: true, splitRatio: 0.3 });
-    expect(normalizeDevtools({ split: 'yes' as never }).split).toBe(false);
+    expect(normalizeDevtools({ split: false }).split).toBe(false);
+    expect(normalizeDevtools({ split: 'yes' as never }).split).toBe(true);
     expect(clampSplitRatio(0.01)).toBe(0.15);
     expect(clampSplitRatio(2)).toBe(0.85);
     expect(clampSplitRatio(Number.NaN)).toBe(DEFAULT_DEVTOOLS.splitRatio);

@@ -149,7 +149,14 @@ powershell, nu) or Claude Code, walked the same way as the owning pane below.
 process's parent chain up to a pane's shell, stopping at a parent that started after its child,
 which is a reused pid rather than the real parent. MSYS exec can leave a process parented to a
 fork stub that has already exited; such a process still shares its pane's ConPTY console host,
-which is checked next, as the activity sweep does (4.8). An attribution sticks to the process (its
+which is checked next, as the activity sweep does (4.8). Claude Code's Bash tool defeats both: it
+runs each command in a bash with no console, which opens a conhost of its own, and that bash exits
+once a background server is up. The last check reads the process's environment for the
+`BASHBOARD_PANE_ID` its pane's shell exported, accepted only when its `BASHBOARD_HOOK_URL` matches
+this instance's receiver (so a dev build beside the installed app, whose pane ids overlap, claims
+none of the other's servers) and the process started after the pane did. Native processes keep
+that environment; MSYS ones carry a trimmed Windows copy, but a listener is rarely one. An
+attribution sticks to the process (its
 pid and start time) once found, so it survives the intermediate shells exiting, and lapses when
 the pane closes.
 

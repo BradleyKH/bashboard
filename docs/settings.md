@@ -25,6 +25,12 @@ fields and lists only the editors it found.
 The Font family field in the Appearance section of the Settings tab suggests installed fonts as
 you type, and still accepts any name or a comma-separated fallback list.
 
+`font.size` (default 14, from 6 to 48 px) is the Text size field in the Appearance section, also
+stepped by Ctrl+= and Ctrl+-. It sizes terminal text and the text you read in other panes: code
+and the text editor in a preview, scratch pads, Search's code lines, and Containers logs render
+at it directly, and the Files list, Markdown and CSV previews, and the Git diff scale with it from
+their own sizes at the default 14. Each pane's zoom buttons multiply on top.
+
 `accentColor` sets the color of focus borders, selections, find highlights, and other accents
 (default `#4fb3c8`, teal). The Accent color field in the Appearance section offers Silver, Orange,
 Gold, Green, Teal, Blue, Violet, and Pink. In the file it takes any `#rrggbb` value bright enough to
@@ -41,6 +47,14 @@ and the dashboard's gray labels keep their UI gray, and terminals take it only f
 text (the default foreground, bright white, and `#ffffff` in the 256-color palette), keeping
 every other color a program picks. The Text color field in the Appearance section offers Accent
 tint and White.
+
+`uiScale` sets the size of the app's chrome, from `1` (the default, compact) to `2`; at `1.5` the
+dashboard's buttons match its Launch buttons. It covers buttons, text boxes, and dropdowns in the
+pane title bars, the tab strip, the dashboard, pane toolbars, the find bar, and menus, and
+everything in the Help, Settings, Accounts, Shortcuts, CLI, and About dialog. The bars that hold
+them grow to fit, and pane titles, tab titles, and the dashboard's section titles grow with them;
+pane content and terminal text follow `font.size` instead. The Interface size slider in the
+Appearance section sets it live.
 
 The Shortcuts tab of the app dialog (open it with F1 or the dashboard's **?** button, then click
 Shortcuts) lists every key in effect, including your own bindings. It is also where keys are changed: click a key to

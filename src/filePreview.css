@@ -138,7 +138,7 @@
   min-height: 0;
   overflow: auto;
   padding: 4px 16px 16px;
-  font: calc(13px * var(--preview-zoom, 1)) / 1.5 system-ui, sans-serif;
+  font: calc(13px * var(--text-scale, 1) * var(--preview-zoom, 1)) / 1.5 system-ui, sans-serif;
   user-select: text;
 }
 
@@ -428,7 +428,7 @@
   min-height: 0;
   overflow: auto;
   outline: 0;
-  font: calc(12px * var(--preview-zoom, 1)) / 1.4 system-ui, sans-serif;
+  font: calc(12px * var(--text-scale, 1) * var(--preview-zoom, 1)) / 1.4 system-ui, sans-serif;
   user-select: text;
 }
 

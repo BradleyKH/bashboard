@@ -21,7 +21,7 @@
 - [Attention and status](#attention-and-status)
 - [Command palette](#command-palette)
 - [Find and links](#find-and-links)
-- [Font size](#font-size)
+- [Text size](#text-size)
 - [Help, settings, and shortcuts](#help-settings-and-shortcuts)
 - [Pane CLI](#pane-cli)
 
@@ -503,7 +503,9 @@ and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k t
 "Codex · gpt-5.5 · 112k / 272k tokens" for the others, which lead with the agent's name); a card for any other kind of pane shows the
 kind's icon and the pane's title. Folder paths under the card titles are hidden by default; the
 **↳** button on the Panes header shows them, and the choice is saved with the workspace. While
-they're hidden, hover a card's title to see its full path. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
+they're hidden, hover a card's title to see its full path. The sparkle button beside it shows only the
+terminals running a coding agent (Claude Code, Codex, or Copilot); each tab's other panes fold into a single
+"(2 other panes)" row, and that choice is saved too. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
@@ -522,8 +524,8 @@ the row's repo root as a Terminal, as Files (see [Files panes](#files-panes)), a
 your Editor.
 
 **Launch** sits at the top by default and appears while the focused pane is in a folder (a
-scratch pad keeps the last one shown). Its row of icons opens a Terminal, Git, Files, Ship (see
-[Ship pane](#ship-pane)), Search (see [Code search](#code-search)), or Scratch pane at the
+scratch pad keeps the last one shown). Its row of icons opens a Terminal, Files, Git, Scratch, Search (see
+[Code search](#code-search)), or Ship (see [Ship pane](#ship-pane)) pane at the
 focused pane's repo root, with Git and Ship for a git repo only (Ship opens on that repo, not the
 Overview); hover one for its name and shortcut. While you hover, the
 panes show where the new one will open: the focused pane outlined and the new pane's share of it
@@ -680,7 +682,8 @@ button (›) that opens it in the Containers tab, where each container can be st
 Right-click a row to start or stop a whole project. A project that exists on both engines is one row.
 Click a row to open the Containers tab with that project expanded. The Manage button (an arrow
 leaving a square) in the section's header switches to a Containers tab that is already open, or
-adds one.
+adds one. The eye button beside it hides projects with nothing running (a project with even one
+of its containers running stays), and shows them again; the choice is saved with the workspace.
 
 The **Containers pane** has a heading for each engine that is available, Docker and then Podman,
 and its projects expand to their containers. An engine's heading has a Start or Stop button for
@@ -768,7 +771,7 @@ by dragging its top edge. **Console** shows what the page logs, with filters for
 and error, a text filter, **Clear**, and **Preserve log** (the console clears whenever the page
 navigates unless it is ticked). **Network** lists each request with its method, status, path, type,
 size, and time, with type and text filters; click a row for its headers and response body (JSON is
-indented). **Split** shows Console on the left and Network on the right at the same time;
+indented). **Split**, on by default, shows Console on the left and Network on the right at the same time (turn it off to show one panel at a time by tab);
 drag the line between them to change their widths.
 
 **Device sizes.** The device menu fits the page to Phone, Phone large, Tablet, Laptop, or Desktop
@@ -872,11 +875,13 @@ open; other schemes are ignored. A link to `localhost` or `127.0.0.1` opens a
 [Local Browser](#local-browser) pane beside the terminal instead, and Ctrl+Shift+click sends it to
 your system browser.
 
-## Font size
+## Text size
 
-Ctrl+= (or Ctrl+numpad +) enlarges the terminal font, Ctrl+- shrinks it, and Ctrl+0 resets it
-to 14. Each step is 1 px, from 6 to 48, applies to every terminal, and is saved to `font.size` in
-`settings.json`.
+Ctrl+= (or Ctrl+numpad +) enlarges text, Ctrl+- shrinks it, and Ctrl+0 resets it to 14. Each
+step is 1 px, from 6 to 48, and is saved to `font.size` in `settings.json`. It applies to every
+terminal and to the text in other panes (file lists, previews, diffs, scratch pads, Search's
+code lines, and container logs); each pane's own zoom buttons adjust from there. The app's buttons,
+bars, and titles follow Interface size in Settings instead.
 
 ## Help, settings, and shortcuts
 

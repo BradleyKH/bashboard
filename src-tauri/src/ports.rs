@@ -12,6 +12,7 @@ use serde::Serialize;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::State;
 
+use crate::hooks::Hooks;
 use crate::pty::{console_host, PtyInfo, Ptys};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -126,8 +127,25 @@ fn join_command(args: &[std::ffi::OsString]) -> String {
         .join(" ")
 }
 
+/// The pane id a process inherited from its pane's shell, when it was this instance's pane: the
+/// hook URL names the running receiver, so a dev build beside the installed app, whose panes
+/// reuse the same small ids, never claims the other's servers.
+fn inherited_pane(environ: &[std::ffi::OsString], hook_url: Option<&str>) -> Option<u32> {
+    let var = |name: &str| {
+        environ.iter().find_map(|e| {
+            let e = e.to_str()?;
+            let (k, v) = e.split_once('=')?;
+            k.eq_ignore_ascii_case(name).then_some(v)
+        })
+    };
+    if var("BASHBOARD_HOOK_URL") != hook_url {
+        return None;
+    }
+    var("BASHBOARD_PANE_ID")?.parse().ok()
+}
+
 impl PortsProbe {
-    pub fn list(&mut self, ptys: &[PtyInfo]) -> Vec<Listener> {
+    pub fn list(&mut self, ptys: &[PtyInfo], hook_url: Option<&str>) -> Vec<Listener> {
         let rows = merge(os::listeners());
         if rows.is_empty() {
             return Vec::new();
@@ -139,7 +157,8 @@ impl PortsProbe {
             false,
             ProcessRefreshKind::nothing()
                 .with_cmd(UpdateKind::OnlyIfNotSet)
-                .with_cwd(UpdateKind::OnlyIfNotSet),
+                .with_cwd(UpdateKind::OnlyIfNotSet)
+                .with_environ(UpdateKind::OnlyIfNotSet),
         );
         let procs: HashMap<u32, Proc> = self
             .sys
@@ -162,7 +181,7 @@ impl PortsProbe {
         let mut out = Vec::with_capacity(rows.len());
         for (port, pid, addresses) in rows {
             let start = self.sys.process(Pid::from_u32(pid)).map(|p| p.start_time()).unwrap_or(0);
-            let pty_id = self.owner(pid, start, &procs, &shells, ptys);
+            let pty_id = self.owner(pid, start, &procs, &shells, ptys, hook_url);
             let process = self.sys.process(Pid::from_u32(pid));
             out.push(Listener {
                 port,
@@ -182,9 +201,12 @@ impl PortsProbe {
         out
     }
 
-    /// The pane a listener came from: its parent chain first, then its console. MSYS exec can
-    /// leave a process parented to a fork stub that has already exited, breaking the chain, but
-    /// it still shares its pane's ConPTY console host.
+    /// The pane a listener came from: its parent chain, then its console, then its environment.
+    /// MSYS exec can leave a process parented to a fork stub that has already exited, breaking
+    /// the chain, but it still shares its pane's ConPTY console host. Claude Code's Bash tool
+    /// breaks both: it runs each command in a bash with no console (which then opens its own
+    /// conhost) and exits once a background server is up. The pane id the server inherited
+    /// survives all of that in native processes; MSYS ones keep a trimmed Windows environment.
     fn owner(
         &mut self,
         pid: u32,
@@ -192,6 +214,7 @@ impl PortsProbe {
         procs: &HashMap<u32, Proc>,
         shells: &HashMap<u32, u32>,
         ptys: &[PtyInfo],
+        hook_url: Option<&str>,
     ) -> Option<u32> {
         let live_pty = |id: u32| ptys.iter().any(|p| p.id == id);
         if let Some(&id) = self.owners.get(&(pid, start)) {
@@ -208,6 +231,11 @@ impl PortsProbe {
                     self.host(p.pid, shell_start) == Some(host)
                 })
                 .map(|p| p.id)
+        })
+        .or_else(|| {
+            let id = inherited_pane(self.sys.process(Pid::from_u32(pid))?.environ(), hook_url)?;
+            // A process older than the pane holds an id from a previous run of this app.
+            ptys.iter().find(|p| p.id == id && start >= p.started_at / 1000).map(|p| p.id)
         });
         if let Some(id) = found {
             self.owners.insert((pid, start), id);
@@ -229,12 +257,17 @@ impl PortsProbe {
 }
 
 #[tauri::command]
-pub async fn ports_list(state: State<'_, PortsState>, ptys: State<'_, Ptys>) -> Result<Vec<Listener>, String> {
+pub async fn ports_list(
+    state: State<'_, PortsState>,
+    ptys: State<'_, Ptys>,
+    hooks: State<'_, Hooks>,
+) -> Result<Vec<Listener>, String> {
     let probe = state.0.clone();
     let list = ptys.list();
+    let hook_url = hooks.url().map(str::to_owned);
     tauri::async_runtime::spawn_blocking(move || {
         let mut p = probe.lock().map_err(|e| e.to_string())?;
-        Ok(p.list(&list))
+        Ok(p.list(&list, hook_url.as_deref()))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -455,6 +488,22 @@ mod tests {
         assert_eq!(traced_owner(1, &p, &HashMap::new()), None);
     }
 
+    fn env(vars: &[&str]) -> Vec<std::ffi::OsString> {
+        vars.iter().map(Into::into).collect()
+    }
+
+    #[test]
+    fn reads_the_inherited_pane_of_this_instance_only() {
+        let url = Some("http://127.0.0.1:5");
+        let mine = env(&["PATH=x", "BASHBOARD_HOOK_URL=http://127.0.0.1:5", "BASHBOARD_PANE_ID=3"]);
+        assert_eq!(inherited_pane(&mine, url), Some(3));
+        let other = env(&["BASHBOARD_HOOK_URL=http://127.0.0.1:6", "BASHBOARD_PANE_ID=3"]);
+        assert_eq!(inherited_pane(&other, url), None);
+        assert_eq!(inherited_pane(&env(&["BASHBOARD_PANE_ID=3"]), url), None);
+        assert_eq!(inherited_pane(&env(&["BASHBOARD_PANE_ID=3"]), None), Some(3));
+        assert_eq!(inherited_pane(&env(&["PATH=x"]), None), None);
+    }
+
     #[test]
     fn quotes_arguments_with_spaces() {
         let args: Vec<std::ffi::OsString> = ["node", "C:\\Program Files\\x.js", "--port", "3000"].iter().map(Into::into).collect();
@@ -499,7 +548,7 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         let me = std::process::id();
         assert!(os::listeners().iter().any(|r| r.port == port && r.pid == me));
-        let list = PortsProbe::default().list(&[]);
+        let list = PortsProbe::default().list(&[], None);
         let row = list.iter().find(|l| l.port == port).expect("own listener");
         assert_eq!(row.pid, me);
         assert!(!row.system && row.own);

@@ -7,11 +7,11 @@ const NO_GIT = { isGit: false, containers: true };
 
 describe('launchOptions', () => {
   it('lists every option in a git repo, in display order', () => {
-    expect(launchOptions(true).map((o) => o.kind)).toEqual(['terminal', 'git', 'files', 'ship', 'search', 'scratch']);
+    expect(launchOptions(true).map((o) => o.kind)).toEqual(['terminal', 'files', 'git', 'scratch', 'search', 'ship']);
   });
 
   it('drops Git and Ship outside a git repo', () => {
-    expect(launchOptions(false).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'scratch']);
+    expect(launchOptions(false).map((o) => o.kind)).toEqual(['terminal', 'files', 'scratch', 'search']);
   });
 
 });
@@ -19,12 +19,12 @@ describe('launchOptions', () => {
 describe('launchMenuOptions', () => {
   it('adds Containers and Ports to the row options, in kind menu order', () => {
     expect(launchMenuOptions(GIT).map((o) => o.kind)).toEqual([
-      'terminal', 'git', 'files', 'ship', 'search', 'containers', 'ports', 'browser', 'scratch',
+      'terminal', 'containers', 'files', 'git', 'browser', 'ports', 'scratch', 'search', 'ship',
     ]);
   });
 
   it('keeps Containers and Ports outside a git repo', () => {
-    expect(launchMenuOptions(NO_GIT).map((o) => o.kind)).toEqual(['terminal', 'files', 'search', 'containers', 'ports', 'browser', 'scratch']);
+    expect(launchMenuOptions(NO_GIT).map((o) => o.kind)).toEqual(['terminal', 'containers', 'files', 'browser', 'ports', 'scratch', 'search']);
   });
 
   it('drops Containers while no container engine is installed', () => {

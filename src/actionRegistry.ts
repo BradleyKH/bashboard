@@ -61,9 +61,9 @@ export const ACTION_REGISTRY = [
   },
   { name: 'find', arg: 'none', label: 'Find in scrollback or file preview', section: 'Terminal' },
   { name: 'sendInput', arg: 'input', section: 'Terminal' },
-  { name: 'increaseFontSize', arg: 'none', label: 'Increase font size', section: 'Terminal' },
-  { name: 'decreaseFontSize', arg: 'none', label: 'Decrease font size', section: 'Terminal' },
-  { name: 'resetFontSize', arg: 'none', label: 'Reset font size', section: 'Terminal' },
+  { name: 'increaseFontSize', arg: 'none', label: 'Increase text size', section: 'Terminal' },
+  { name: 'decreaseFontSize', arg: 'none', label: 'Decrease text size', section: 'Terminal' },
+  { name: 'resetFontSize', arg: 'none', label: 'Reset text size', section: 'Terminal' },
 
   { name: 'openPalette', arg: 'none', label: 'Command palette', section: 'Workspace' },
   { name: 'nextAttention', arg: 'none', label: 'Jump to the next terminal that needs you', section: 'Workspace' },

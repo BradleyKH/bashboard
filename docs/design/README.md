@@ -167,6 +167,28 @@ and at every scrim opacity. The canvas is oversized by twice the blur on each si
 at the canvas edges as wide as itself, and the oversize pushes that band off screen. Blur over a
 constantly redrawing canvas is the most expensive effect here, hence the default of 0.
 
+`uiScale` (default 1, up to 2; the Settings tab calls it Interface size) sizes the chrome for people
+who want larger targets and text. It sets `--ui-scale` on `:root` (`src/uiScale.ts`), and one rule
+in `styles.css` gives every button, single-line text box, and dropdown `zoom` by it, so a control's
+glyph, padding, and border grow together, a toolbar row keeps one height, and every pane kind's
+toolbar follows without its own rule. Bars with a fixed px height (the pane title strip, the tab
+strip, and the offsets below them) multiply that height by the same property, and text you click or
+drag scales with them: pane titles and their status dots, tab titles and dots, the dashboard's
+section titles, and the find bar's match count. The app dialog zooms each tab's whole panel
+instead, so every tab's text, spacing, and fields scale together, and its controls reset their own
+zoom to 1 so the panel's applies once; the dialog widens by the same factor so lines keep their
+length. Content text stays put; it follows `font.size`, the Settings tab's Text size, through the
+`--text-scale` property (`font.size` over 14, set by `applyTextScale`), so surfaces designed at a
+fixed px size keep it at the default, and its pane's zoom multiplies on top. The top of the
+range puts the dashboard's buttons at the Launch section's size, and the Launch buttons themselves
+stay fixed. Buttons that read as text (dialog links, Ship repo rows, Ports column headers), rename
+boxes that stand in for a row's or tab's text, and the hidden dashboard's 8px edge handle are left
+out. The dashboard top bar's buttons keep their side padding unscaled, so both menus and the icons
+fit untruncated up to about 1.4 at the dashboard's minimum width; past that the menu labels
+ellipsize until the dashboard is widened. A control whose font an ancestor already scales would be
+scaled twice, so the tab strip, which scales its text, leaves its buttons' font explicit and its
+rename box out.
+
 ## 9. Security
 
 - The hook endpoint listens on loopback only and requires the per-launch token; the token

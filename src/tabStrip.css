@@ -5,7 +5,7 @@
   top: 8px;
   left: 8px;
   right: 8px;
-  height: 28px;
+  height: calc(28px * var(--ui-scale));
   z-index: 3;
   box-sizing: border-box;
   display: flex;
@@ -15,7 +15,9 @@
   background: rgba(0, 0, 0, 0.3);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   color: #9aa6ad;
-  font: 12px system-ui, sans-serif;
+  /* Tabs are click targets, so their titles scale with the buttons; .tab-close and .tab-add set
+     their own font, so their zoom does not compound this. */
+  font: calc(12px * var(--ui-scale)) system-ui, sans-serif;
   user-select: none;
   overflow: hidden;
 }
@@ -37,7 +39,7 @@ body.dashboard-left.dashboard-peek #tab-strip {
 
 /* Overrides only `top`; the dashboard's `left` and `right` rules keep working. */
 body.has-tabs #panes {
-  top: 36px;
+  top: calc(28px * var(--ui-scale) + 8px);
 }
 
 .tab-item {

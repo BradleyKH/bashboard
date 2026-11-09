@@ -4,8 +4,7 @@
   z-index: 5;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding-top: 8vh;
+  align-items: center;
   background: rgba(0, 0, 0, 0.35);
 }
 
@@ -14,14 +13,16 @@
   background: transparent;
 }
 
-/* One size for every tab, so switching tabs doesn't move the edges. */
+/* One size for every tab, so switching tabs doesn't move the edges. 80% of the window on a tall
+   screen, and up to 760px of a short one's 90%. It widens with the UI scale so scaled text keeps
+   its line length. */
 .app-dialog {
   display: flex;
   flex-direction: column;
   gap: 10px;
   box-sizing: border-box;
-  width: min(820px, 92vw);
-  height: min(760px, 84vh);
+  width: min(calc(820px * var(--ui-scale)), 92vw);
+  height: max(80vh, min(760px, 90vh));
   padding: 12px;
   border: 1px solid var(--accent);
   border-radius: 6px;
@@ -102,6 +103,14 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  /* Every tab's text, spacing, and controls scale together (docs/design/README.md section 5). */
+  zoom: var(--ui-scale);
+}
+
+/* Controls inside already take the panel's zoom; their own zoom from styles.css would apply the
+   scale twice. */
+.app-dialog .app-dialog-tab-panel :is(button, input, select) {
+  zoom: 1;
 }
 
 .app-dialog-tab-panel[hidden] {

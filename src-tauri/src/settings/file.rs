@@ -30,6 +30,11 @@ pub(super) fn default_file_text() -> String {
   \"contentTextColor\":",
     )
     .replace(
+        "  \"uiScale\":",
+        "  // Size of buttons, bars, titles, and dialog text (not pane content), from 1 (compact) to 2.
+  \"uiScale\":",
+    )
+    .replace(
         "  \"editor\": {",
         "  // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default

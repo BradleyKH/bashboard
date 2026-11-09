@@ -200,8 +200,8 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
 - **Ids.** Pane ids come from a front-end counter: `p<n>` for terminals and `v<n>` for other
   kinds. A terminal's pty id (3.1) is separate.
 - **Kind menu.** The first control in the title strip shows the pane's kind as an icon.
-  Clicking it lists the kinds, and choosing one replaces the pane in place: same spot in the
-  tree, same folder. A pane with no folder passes on the Launch section's repo (4.6), except for
+  Clicking it lists the kinds, Terminal first and the rest alphabetical by label, and choosing
+  one replaces the pane in place: same spot in the tree, same folder. A pane with no folder passes on the Launch section's repo (4.6), except for
   Ship, which opens on the Overview (4.20) rather than on that repo. Replacing a
   terminal with a running command or a live Claude session asks first, as closing it does, and
   so does replacing a scratch pad that is not empty. A terminal chosen from the menu runs the

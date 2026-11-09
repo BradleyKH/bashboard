@@ -129,7 +129,7 @@ describe('palette actions', () => {
 
   it('shows chords from the live keybindings as hints', () => {
     expect(byLabel(actions, 'Open a saved layout')?.hint).toBe('Ctrl+Shift+R');
-    expect(byLabel(actions, 'Increase font size')?.hint).toBe('Ctrl+=, Ctrl++');
+    expect(byLabel(actions, 'Increase text size')?.hint).toBe('Ctrl+=, Ctrl++');
   });
 
   it('follows overrides and leaves unbound actions without a hint', () => {

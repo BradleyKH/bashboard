@@ -10,8 +10,9 @@ import { DashboardClock } from './dashboardClock';
 import type { DashboardColumn } from './dashboardColumns';
 import { DashboardColumnsView } from './dashboardColumnsView';
 import { dashboardMenuItems } from './dashboardMenu';
-import { externalSessions, groupCardsByTab, paneCards } from './dashboardModel';
-import type { PaneCardInput } from './dashboardModel';
+import { agentCards, externalSessions, groupCardsByTab, otherPanesLabel, paneCards } from './dashboardModel';
+import type { PaneCard, PaneCardInput } from './dashboardModel';
+import { sparkleIcon } from './sparkleIcon';
 import {
   applyDashboardWidth,
   clampDashboardWidth,
@@ -50,6 +51,7 @@ import { LaunchSection } from './launchSection';
 import type { LaunchKind } from './launchModel';
 import { PinsSection, type RepoState } from './pinsSection';
 import type { Session } from './sessions';
+import { GIT_BASH_PROFILE } from './profiles';
 import type { Settings } from './settings';
 import { renderSessionRow } from './sessionRow';
 import { renderPaneCard } from './paneCard';
@@ -79,6 +81,8 @@ export interface DashboardCallbacks
   onSectionsChange?: (collapsed: DashboardSection[]) => void;
   /** The user toggled the Panes section's folder paths. */
   onPanePathsChange?: (shown: boolean) => void;
+  /** The user toggled the Panes section's AI filter. */
+  onAgentPanesOnlyChange?: (only: boolean) => void;
   /** The user finished dragging the panel's inner edge. */
   onWidthChange?: (width: number) => void;
   /** An element or Pins moved, by a drag or the first split into two columns; save the placement. */
@@ -158,6 +162,8 @@ export class DashboardPanel {
   private collapsed: DashboardSection[] = [];
   private showPanePaths = false;
   private panePathsButton!: HTMLButtonElement;
+  private agentPanesOnly = false;
+  private agentPanesButton!: HTMLButtonElement;
   /** The width the user chose; what shows is clamped to the current window. */
   private preferredWidth = DEFAULT_DASHBOARD_WIDTH;
   private readonly sectionEls = new Map<DashboardSection, HTMLElement>();
@@ -225,6 +231,7 @@ export class DashboardPanel {
       onPromote: (path) => this.callbacks.onPromote?.(path),
       onDragStart: (path, e) => this.callbacks.onDragStart?.(path, e),
       onOpenIn: (kind, path) => this.callbacks.onOpenIn?.(kind, path),
+      defaultProfile: () => this.defaultProfile(),
     });
     this.layoutsSection = new LayoutsSection({
       onOpenLayout: (name) => this.callbacks.onOpenLayout?.(name),
@@ -316,6 +323,7 @@ export class DashboardPanel {
       onStart: (row) => this.callbacks.onStart?.(row),
       onStop: (row) => this.callbacks.onStop?.(row),
       onStartEngine: (engine) => this.callbacks.onStartEngine?.(engine),
+      onShowStoppedChange: (shown) => this.callbacks.onShowStoppedChange?.(shown),
     });
     this.containersSection.setVisible(false);
     this.addSection('containers', this.containersSection.el, this.containersSection.head);
@@ -421,6 +429,10 @@ export class DashboardPanel {
   }
 
   /** The context length of the loaded Ollama model this session runs, which fills the card's window. */
+  private defaultProfile(): string {
+    return this.callbacks.defaultProfile?.() ?? GIT_BASH_PROFILE.id;
+  }
+
   private loadedWindow(sessionId: string): number | null {
     const model = this.agentContexts.get(sessionId)?.model;
     return findLoadedOllama(this.localModelsStore?.current() ?? null, model)?.contextLength ?? null;
@@ -766,7 +778,17 @@ export class DashboardPanel {
     });
     this.panePathsButton = paths;
     this.syncPanePathsButton();
-    head.append(h, paths);
+    const agents = document.createElement('button');
+    agents.type = 'button';
+    agents.className = 'panes-agents';
+    agents.setAttribute('aria-label', 'AI sessions only');
+    agents.addEventListener('click', () => {
+      this.setAgentPanesOnly(!this.agentPanesOnly);
+      this.callbacks.onAgentPanesOnlyChange?.(this.agentPanesOnly);
+    });
+    this.agentPanesButton = agents;
+    this.syncAgentPanesButton();
+    head.append(h, agents, paths);
     const list = document.createElement('div');
     list.className = 'dashboard-list';
     section.append(head, list);
@@ -789,6 +811,33 @@ export class DashboardPanel {
 
   panePathsShown(): boolean {
     return this.showPanePaths;
+  }
+
+  private syncAgentPanesButton(): void {
+    this.agentPanesButton.setAttribute('aria-pressed', String(this.agentPanesOnly));
+    this.agentPanesButton.title = this.agentPanesOnly ? 'Show all panes' : 'Show only AI sessions';
+    this.agentPanesButton.replaceChildren(sparkleIcon(this.agentPanesOnly));
+  }
+
+  /** Applies the saved Panes AI filter without firing `onAgentPanesOnlyChange`. */
+  setAgentPanesOnly(only: boolean): void {
+    if (only === this.agentPanesOnly) return;
+    this.agentPanesOnly = only;
+    this.syncAgentPanesButton();
+    if (this.open || this.peeking) this.render();
+  }
+
+  agentPanesOnlyShown(): boolean {
+    return this.agentPanesOnly;
+  }
+
+  /** Applies the saved Containers stopped-groups toggle without firing `onShowStoppedChange`. */
+  setShowStoppedContainers(shown: boolean): void {
+    this.containersSection.setShowStopped(shown);
+  }
+
+  stoppedContainersShown(): boolean {
+    return this.containersSection.stoppedShown();
   }
 
   private addSection(id: DashboardSection & DashboardElement, section: HTMLElement, header: HTMLElement): void {
@@ -822,7 +871,7 @@ export class DashboardPanel {
     const focusedPane = this.panes.find((p) => p.focused);
     const cwd = focusedPane?.kind === 'terminal' ? focusedPane.cwd : null;
     const canAdd = cwd !== null && !this.favorites.some((f) => samePath(f.path, cwd));
-    const key = JSON.stringify([this.favorites, recents, canAdd]);
+    const key = JSON.stringify([this.favorites, recents, canAdd, this.defaultProfile()]);
     if (key !== this.favoritesKey) {
       this.favoritesKey = key;
       this.favoritesSection.update(this.favorites, recents, canAdd);
@@ -853,6 +902,7 @@ export class DashboardPanel {
             )
           : null,
       showPath: this.showPanePaths,
+      defaultProfile: this.defaultProfile(),
       confirming: this.confirming.has(card.paneId),
       onFocus: this.callbacks.onFocus,
       onToggleCollapse: this.callbacks.onToggleCollapse,
@@ -868,6 +918,18 @@ export class DashboardPanel {
         this.render();
       },
     });
+    // The AI filter leaves each tab's count and status alone; only the card list narrows.
+    const renderCards = (list: PaneCard[]): HTMLElement[] => {
+      const { cards: kept, others } = agentCards(list, this.agentPanesOnly);
+      const els = kept.map((card) => renderPaneCard(card, cardOptions(card)));
+      if (others > 0) {
+        const row = document.createElement('div');
+        row.className = 'panes-others';
+        row.textContent = otherPanesLabel(others);
+        els.push(row);
+      }
+      return els;
+    };
     const groups = groupCardsByTab(cards, this.tabs);
     const showHeaders = groups.length > 1;
     // A status or age refresh would destroy a group header's open rename field; the commit
@@ -878,14 +940,14 @@ export class DashboardPanel {
         ? groups.map((g) =>
             renderPaneGroup(
               g,
-              g.cards.map((card) => renderPaneCard(card, cardOptions(card))),
+              renderCards(g.cards),
               {
                 onSwitchTab: (tabId) => this.callbacks.onSwitchTab?.(tabId),
                 onRename: (tabId, name) => this.callbacks.onRenameTab?.(tabId, name),
               },
             ),
           )
-        : cards.map((card) => renderPaneCard(card, cardOptions(card)))),
+        : renderCards(cards)),
     );
 
     this.sessionList.parentElement!.hidden = external.length === 0;
