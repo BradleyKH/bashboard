@@ -136,9 +136,11 @@ The preview depends on the file:
   a `blob:` URL, since the CSP allows no file path as an image source; an SVG runs
   no script as an `<img>`. A change on disk reloads the image. A file that does not decode
   shows the binary notice.
-- **Plain text** (`.txt`, or no extension) opens in the text editor, with long lines wrapped.
+- **Plain text** (`.txt`, or no extension) opens in the text editor, with long lines wrapped. A
+  name with a language in 4.22, such as `Dockerfile` or `.bashrc`, opens as code instead.
 - **Other text files** (code, JSON, YAML, HTML, and so on) open in the text editor with a
-  line-number gutter; lines do not wrap and scroll sideways instead.
+  line-number gutter; lines do not wrap and scroll sideways instead. Code with a language is
+  colored (4.22).
 - **Binary files, and other files over 2 MiB,** show their name, size, an Open with default app
   button, and an Open in editor button. Open with default app is left out for a file that would
   run as a program when opened (3.12).
@@ -148,10 +150,10 @@ for markdown and CSV; an image has none. Ctrl+Shift+F anywhere in the Files pane
 toolbar that works like the terminal's (4.4): case-insensitive, literal, as you type, Enter for
 the next match and Shift+Enter for the previous, "n of m" or "No results". Matches are painted
 with the CSS Custom Highlight API, so the rendered markdown's DOM is never rewritten; past 5000
-matches it stops and the count reads "5000+ matches". In the text editor, a hidden copy of the
-text laid out under the transparent textarea carries the highlights. The search follows the
-text as it changes: an edit, a reload, or the Edit toggle re-runs it. Esc closes the bar and
-selects the current match (in the editor, as the caret's selection).
+matches it stops and the count reads "5000+ matches". The text editor paints its matches as
+decorations in its own document, since it draws only the lines in view (4.22). The search
+follows the text as it changes: an edit, a reload, or the Edit toggle re-runs it. Esc closes the
+bar and selects the current match (in the editor, as the caret's selection).
 
 **Zoom.** The preview toolbar ends in − and + buttons that step the preview's text size through
 browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
@@ -180,7 +182,7 @@ Showing a folder in the pane (a pin, `bb open` on a folder, 3.13) also brings th
 selecting a file the same way (a pinned file, `bb open` on a file, a markdown link) keeps the
 preview expanded. A file that shows the binary notice shows the list.
 
-**Text editor.** A monospaced text area. It saves one second after typing stops, on blur, and
+**Text editor.** A monospaced CodeMirror 6 editor (4.22), which colors code by language. It saves one second after typing stops, on blur, and
 on Ctrl+S, through `fs_write_text` with the modified time it last read. When the file changes on
 disk and there are no unsaved edits, it reloads in place, so a to-do list Claude edits updates
 in front of you. With unsaved edits, a bar offers Reload (discarding them) or Keep mine
@@ -259,7 +261,8 @@ is stored relative to its root; one outside it, such as a meeting notes folder, 
 absolute path. The breadcrumb's pin button pins the current folder. In the Pins section
 (4.6), clicking a pinned folder shows it in the active tab's Files pane for that repo, or opens
 one; clicking a pinned file does the same with its folder and selects it. A pin whose path no
-longer exists is shown dimmed and opens nothing.
+longer exists is shown dimmed and opens nothing. A pin can also hold a shell command, its path
+then being the folder the command runs in (command pins, 4.6).
 
 ## 4.14 Search pane
 
@@ -274,7 +277,9 @@ at the first 5,000. Up and Down move through matches.
 **Preview.** Selecting a result previews its file beside the list in the Files pane's preview
 (`FilePreview`, 4.12) in source mode: every text file opens in the text editor with line numbers,
 since results point at source lines. A markdown file adds a Raw / Preview button group after the
-zoom buttons (`markdownModeToggle.ts`), Preview on by default. Preview renders the file as the
+zoom buttons (`markdownModeToggle.ts`), Preview on by default. Code and markdown files also show the
+Plain | Syntax button group (4.22), before the zoom buttons and so before Raw / Preview; plain
+text and CSV, which open as uncolored source, show none. Preview renders the file as the
 Files pane does, without its Edit toggle, followed by a muted "View raw to edit"; a match row in a
 markdown file stays in Preview, showing the file from the top, and switching to Raw then scrolls
 to and marks its line. A relative link there shows its
@@ -330,3 +335,175 @@ A scratch pad is a drop target for dragged paths (4.4): they are inserted at its
 
 Closing a pad that is not empty asks first, and closing it deletes its file. Closing a tab with
 pads that are not empty lists them in the tab's confirm dialog (4.10).
+
+## 4.22 Code colors (`src/code/`)
+
+Text previews color code by language, as a code editor does. The colors are on by default, and
+a Plain | Syntax button group on each surface that shows code turns them off for that pane.
+Plain looks exactly like an uncolored preview: every character in the content text color
+(`--content-fg`, section 8).
+
+**Engine.** The text editor (4.12) is a CodeMirror 6 `EditorView` in both modes, so there is one
+editor whatever the toggle says. Plain leaves the language and highlighting extensions out of the
+editor's language `Compartment` and Syntax puts them back, which keeps the caret, scroll
+position, selection, and undo history. Read-only code (rendered markdown fences, Git diffs) runs
+the same Lezer parsers and the same role highlighter through `highlightTree` from
+`@lezer/highlight`: `tokenize` returns one list of colored spans per line and `renderLine` builds
+a line from them (`highlightStatic.ts`), so one language table and one color scheme serve every
+surface. CodeMirror builds the document from text nodes, never HTML,
+and runs nothing from the file. Its injected styles need `style-src 'unsafe-inline'`, which the
+CSP already allows.
+
+**Surfaces.**
+
+| Surface | Colors | Toggle |
+| --- | --- | --- |
+| Files preview, code files (4.12) | The file's language | On the preview toolbar, before the zoom buttons |
+| Search preview (4.14) | The file's language; Raw markdown as markdown | Same place, for code and markdown; none for plain text and CSV |
+| Markdown Edit and CSV Edit (4.12) | Markdown; CSV stays plain | Same place for markdown, which keeps it while editing; none for CSV |
+| Rendered markdown (4.12, 4.14) | Fenced blocks, by the fence's info string | Same place |
+| Git diff (4.13) | Each file's language | In the diff bar, before the zoom buttons |
+
+Plain text (`.txt`, no extension) opens in the same editor with lines wrapped and has no toggle.
+A file whose language is not in the table shows uncolored with the toggle disabled, its tooltip
+reading "No colors for this file type". Scratch pads (4.15) keep their own textarea and have no
+colors.
+
+Each pane keeps its own mode in its saved state (`codeColors` on the files, search, and git
+entries, section 7), and the latest choice made in any pane is saved to `codeColors` in
+workspace.json, the mode a new pane starts in. A saved pane without the field starts in Syntax.
+
+**Languages** (`languages.ts`) map file names to CodeMirror language support, each loaded by a
+dynamic `import()` the first time a file needs it, so the start-up bundle carries none of them. A
+file shows uncolored until its language loads, then colors in place. Adding a language is one
+row.
+
+| Language | Package | Matches |
+| --- | --- | --- |
+| HTML (with embedded CSS and JS) | `@codemirror/lang-html` | `.html`, `.htm` |
+| CSS, SCSS, Less | `@codemirror/lang-css`, `lang-sass`, `lang-less` | `.css`, `.scss`, `.sass`, `.less` |
+| JavaScript, TypeScript, JSX, TSX | `@codemirror/lang-javascript` | `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, `.tsx` |
+| JSON | `@codemirror/lang-json` | `.json`, `.jsonc`, `.json5` |
+| C# | `@codemirror/legacy-modes` (`clike`) | `.cs`, `.csx` |
+| Python | `@codemirror/lang-python` | `.py`, `.pyi` |
+| Markdown (fences colored by language) | `@codemirror/lang-markdown` | `.md`, `.markdown` |
+| YAML | `@codemirror/lang-yaml` | `.yml`, `.yaml` |
+| Rust | `@codemirror/lang-rust` | `.rs` |
+| SQL | `@codemirror/lang-sql` | `.sql` |
+| XML | `@codemirror/lang-xml` | `.xml`, `.csproj`, `.props`, `.targets`, `.xaml`, `.svg` |
+| Shell | `@codemirror/legacy-modes` (`shell`) | `.sh`, `.bash`, `.bashrc`, `.bash_profile`, `.profile` |
+| PowerShell | `@codemirror/legacy-modes` (`powershell`) | `.ps1`, `.psm1`, `.psd1` |
+| TOML | `@codemirror/legacy-modes` (`toml`) | `.toml` |
+| Dockerfile | `@codemirror/legacy-modes` (`dockerfile`) | `Dockerfile`, `*.dockerfile` |
+
+A fence's info string, its first word, matches a language's name, a common alias, or one of its
+extensions, ignoring case (`ts`, `tsx`, `cs`, `csharp`, `c#`, `py`, `sh`, `bash`, `ps1`, `pwsh`,
+`yml`, `rs`, and so on). An unknown or missing info string stays uncolored.
+
+The legacy modes (C#, Shell, PowerShell, TOML, Dockerfile) tokenize line by line rather than
+parse, so they color keywords, strings, comments, numbers, and types but do not tell function
+names from other identifiers.
+
+**Roles.** A `tagHighlighter` maps Lezer's highlight tags to eleven role classes, and a scheme is
+one color per role, set as `--syn-<role>` custom properties on `:root`. Switching schemes rewrites
+the properties and never touches an editor or re-parses anything.
+
+| Role | Tags |
+| --- | --- |
+| `keyword` | keywords, control keywords, modifiers, `this` and `self` |
+| `string` | strings, template text, characters |
+| `escape` | escapes in strings, regular expressions |
+| `constant` | numbers, booleans, `null`, atoms |
+| `comment` | line and block comments, doc comments |
+| `function` | function and method names, at definition and call |
+| `type` | type, class, interface, and namespace names |
+| `property` | property and field names |
+| `tag` | HTML, XML, and JSX tag names |
+| `attribute` | attribute names |
+| `meta` | decorators, C# attributes (`[Obsolete]`), preprocessor lines, front matter |
+
+Everything else (identifiers, operators, punctuation) takes `--content-fg`, so plain text in a
+colored file matches the rest of the app and follows the Text color setting (section 8). Schemes
+supply foreground colors only, never a background, since the backdrop shows through every pane.
+
+**Schemes** (`schemes.ts`), one per accent preset, are each the token colors of the editor theme
+they are named for (its dark variant), lifted where needed so every role keeps a WCAG contrast of
+at least 4.5:1 against `#1e1e1e`, a pane over the default scrim. A test pins the contrast; the
+comment color is the one usually lifted.
+
+| Scheme | Pairs with | Character |
+| --- | --- | --- |
+| Nord | Silver | Cool blue-gray keywords, frost-teal functions, muted green strings |
+| Ayu | Orange | Orange keywords, gold functions, lime strings, sky-blue types |
+| Gruvbox | Gold | Warm retro: red keywords, yellow types, olive strings, orange constants |
+| Monokai | Green | Pink keywords, green functions, yellow strings, purple constants |
+| Tokyo Night | Teal | Purple keywords, blue functions, cyan types, green strings |
+| One Dark | Blue | Violet keywords, blue functions, green strings, gold types |
+| Catppuccin Mocha | Violet | Pastel: mauve keywords, blue functions, green strings, peach constants |
+| Dracula | Pink | Pink keywords, green functions, yellow strings, purple constants |
+
+**Match accent**, the default, picks the scheme paired with the current accent, so changing the
+accent changes the code colors with it. A custom accent (a hand-edited `accentColor`) pairs by
+nearest hue among the presets, and one with HSV saturation under 0.2 pairs as Silver does
+(`pairedScheme`). The schemes' palettes are MIT-licensed, and the About tab (4.18) credits each.
+
+**Settings.** `codeColors.scheme` (section 8) is `matchAccent` or a scheme's id, set under
+Appearance in the Settings tab, after Text color. Below the dropdown a preview shows a short TSX
+snippet that exercises every role, in the terminal font, colored with the chosen scheme. With
+Match accent, the dropdown names the scheme it resolves to, as "Match accent (Tokyo Night)". The
+preview redraws when the scheme, accent, Text color, or font changes, without waiting for a
+save. It is a `preview: 'codeColors'` option on the select field (`settingsModel.ts`), rendered
+by `codeColorsPreview.ts`.
+
+**Editor behavior.** The editor keeps everything 4.12 describes: save timing and the
+change-on-disk bar, CRLF files kept CRLF on save, read-only for a `lossy` read, the line-number
+gutter and sideways scrolling for code, wrapped lines for plain text, `revealLine`'s band, zoom,
+and the text field menu (4.4). Its keymap is CodeMirror's `standardKeymap` (caret motion,
+selection, Backspace, Delete) plus only Ctrl+Z (undo) and Ctrl+Y (redo) from `historyKeymap`, with
+none of `defaultKeymap`'s extras. Ctrl+Shift+Z stays the app's pane zoom, Ctrl+U and Alt+U are
+unbound, and Tab is unbound, so it still moves focus out of the editor. Enter and Shift+Enter
+insert a bare newline with no auto-indent, as a textarea does.
+
+The editor's keydown handler runs at the highest precedence, ahead of CodeMirror's keymap, and
+makes the same lookup the panes' key handlers make (4.5): Ctrl+S saves, and any other action
+that is not a `textFieldOwns` one (copy, paste, send input, find) goes to the app, so chords such
+as Ctrl+Shift+Left are never shadowed. The Files and Search panes' own key handlers skip keys
+that start inside the preview, leaving them to the editor's lookup.
+`isTextField` (`textFieldTarget.ts`, shared by the text field menu and the context menu in
+`contextMenu.ts`) treats anything inside the editor's `.cm-content` as a text field, so
+`textFieldOwns` actions reach it as they reach a textarea and a right-click there opens the text
+field menu. That menu works through a `TextFieldAdapter`, which edits a textarea or input as the
+browser does and the editor through its view, its Undo going through CodeMirror's history.
+
+**Find.** CodeMirror draws only the lines in view, so the editor's find cannot paint DOM ranges
+as rendered markdown's does. The editor implements the find surface over its document text
+instead: matches come from a search of the text and are painted as CodeMirror mark decorations
+in the same colors as the Custom Highlight ranges, the current match scrolls into view through
+`EditorView.scrollIntoView`, and Esc leaves it selected. The bar, the 5000-match cap, and the
+"n of m" count are shared with every other preview (`previewFind.ts`).
+
+**Rendered markdown.** `markdown-it` renders fences plainly and tags each `<code>` with its
+language. After `DOMPurify`, `colorFences` (`fenceColors.ts`) tokenizes every tagged block and
+then rewrites each as one span per line joined by newline text nodes, built from text nodes and
+run once the languages have loaded, so a block's `textContent` is unchanged and copy keeps its
+text. A pass that lands after the body re-rendered, after the toggle went to Plain, or while the
+Edit toggle shows the editor writes nothing. An open find bar re-runs after the pass, since the
+spans split the text nodes its ranges pointed into.
+
+**Git diff.** Each file's hunks are colored from two reconstructed texts: the new side (context
+and added lines) and the old side (context and removed lines). Each is parsed whole and its
+tokens mapped back to the rows, so a string or comment that spans lines inside a hunk colors
+correctly. A hunk that begins inside a construct opened above it (a block comment, a multi-line
+string) can color wrongly until the construct ends, since the hunk never shows enough of the
+file to know. A diff of several files, such as a commit's, splits at its `diff --git` headers and
+colors each file by its own path, taken from its `+++` line, else its `---` line for a deletion,
+else `rename to`, since the `diff --git` header is ambiguous when a path contains spaces; a diff
+with no headers takes the path of the file the pane selected. A merge file (`diff --cc`) stays
+uncolored.
+
+The diff's rows render plain first, and coloring then runs file by file, yielding between files
+and every few hundred rows, so a large diff appears at once and fills in. A row's `+`, `-`, or
+space prefix, any text no token covers, and its added or removed tint stay as they are; only
+tokens take role colors. Header lines, hunk lines (`@@`), and `\ No newline` markers stay
+uncolored. The toggle is disabled while no file in the diff has a language, and changing it
+repaints the diff where it was scrolled.

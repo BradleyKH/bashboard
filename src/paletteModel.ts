@@ -126,6 +126,16 @@ export function buildPaletteItems(input: PaletteInput): PaletteItem[] {
     // A root pin's path is ".", so its name comes from the absolute path. The folder name is
     // dropped as a detail when it is already the title.
     ...input.pins.filter((p) => p.exists).map((p): PaletteItem => {
+      const { command } = p.pin;
+      if (command !== undefined) {
+        return {
+          id: `pin:${p.absolute}\n${command}`,
+          category: 'Pin',
+          label: p.pin.label || command,
+          detail: p.pin.label ? command : p.pin.path,
+          choice: { kind: 'pin', pin: p.pin },
+        };
+      }
       const atRoot = p.pin.path === '.';
       const folder = lastSegment(p.absolute);
       return {

@@ -132,7 +132,18 @@ brings the list back. The expanded state is kept on relaunch and in layouts.
 The text editor saves about a second after you stop typing, when it loses focus, and on Ctrl+S.
 If the file changes on disk while you have no unsaved edits, it reloads in place. If it changes
 while you do (or a save finds it changed), a bar offers Reload, which discards your edits, or Keep
-mine, which overwrites the file.
+mine, which overwrites the file. Ctrl+Z undoes and Ctrl+Y redoes; Enter starts the next line at
+the left edge, with no auto-indent, and Tab moves focus out of the editor.
+
+Code is colored by language, as a code editor does: HTML, CSS (and SCSS, Sass, and Less),
+JavaScript and TypeScript (with JSX and TSX), JSON, C#, Python, Markdown, YAML, Rust, SQL, XML,
+shell, PowerShell, TOML, and Dockerfiles. A **Plain | Syntax** button group before the zoom
+buttons turns the colors off for the pane, which then shows every character in the text color.
+It appears for code and markdown files (colors apply to the fenced blocks of rendered markdown
+and to the source in Edit), and is disabled, with a tooltip, for a code file whose type has no
+colors; plain text and CSV show none. A new pane starts in the mode you last chose, and each
+pane keeps its own across a relaunch. The Code colors setting picks the color scheme (see
+[Settings](settings.md#settings)).
 
 Hover a row for its menu: **Open terminal here** and **Search in this folder** (folders), **Open in editor**, **Copy path**,
 **Insert path** (pastes the path relative to the Files pane's root, or the absolute path outside
@@ -157,17 +168,28 @@ quoted for the shell. Holding a drag over a tab for half a second switches to it
 
 ### Pins
 
-Pins are the files and folders you keep close in a repo. Pin the current folder from the
-breadcrumb, or any row from its menu; they appear in the dashboard's **Pins** section
-(the heading collapses them, and is absent while the repo has none), where a click
+Pins are the files, folders, and commands you keep close in a repo, or in any folder outside one.
+Pin the current folder from the breadcrumb, or any row from its menu; they appear in the
+dashboard's **Pins** section (the heading collapses them), where a click
 opens one (a folder in a Files pane, a file in its folder with the file selected), its rename
 button renames it, a handle drags it to reorder, and its remove button removes it. A pin whose file or folder is gone is
 dimmed and does nothing.
 
+A **command pin** keeps a command you run often, such as
+`dotnet run --project src/Project.Name.Api`, with a name and the folder it runs in. Add one with
+the **+** at the right of the Pins heading, the **+** after a terminal's title, or New pin in the
+title strip's right-click menu; each opens a popup with Name and Command fields, in the focused
+pane's or that terminal's folder (the terminal's **+** fills Command with any selected text).
+Clicking the pin types the command into the focused terminal when it is idle and in that folder,
+or into a new terminal opened there, without pressing Enter, so you choose when to run it. A new
+terminal uses the focused terminal's shell, or your default shell when no terminal has focus. The
+row shows a running mark while the terminal it last typed into is busy. Its pencil button, F2,
+or Edit in its menu changes the name and command; the folder stays as it was pinned.
+
 Pins are kept in `repos.json` next to `settings.json`, as a list of entries, each with a repo
 `root` and its `pins`. A pin's
 `path` is relative to the root with forward slashes when it is inside the repo, and absolute
-otherwise; `label` is optional. Roots and pins match without regard to case. The file is plain
+otherwise; `label` is optional, and a command pin adds a `command`. Roots and pins match without regard to case. The file is plain
 JSON you can edit by hand, and the panel updates when you save it.
 
 ## Git pane
@@ -215,7 +237,9 @@ Click a file row to see its diff: the unstaged change for a row in Changes, or t
 a row in Staged. An untracked file shows its whole content as added. Click a commit to see its
 changes. A diff over 1 MiB is cut off with a note that it was truncated. The − and + buttons above
 the diff, or Ctrl+wheel over it, zoom it, and a new Git pane starts at the zoom you last chose.
-The divider between the lists and the diff can be dragged.
+The divider between the lists and the diff can be dragged. Code in the diff is colored by the file's
+language, under the green and red of added and removed lines; the **Plain | Syntax** buttons before
+the zoom buttons turn that off for the pane, and a new Git pane starts in the mode you last chose.
 
 Push never forces. A rejected push shows git's message, and after undoing a pushed commit the
 force push stays in a terminal.
@@ -467,7 +491,8 @@ saves as you type, and once you leave the preview after a save the search runs a
 follows your edit. Esc in the preview goes back to the list, and Find (or Ctrl+Shift+F in the
 preview) searches the file. The divider between the list and the preview can be dragged.
 
-A markdown file opens rendered, with **Raw** and **Preview** buttons after the zoom buttons. Switch
+Code in the preview is colored, with the same **Plain | Syntax** buttons as in a Files pane, before the zoom
+buttons. A markdown file opens rendered, with **Raw** and **Preview** buttons after the zoom buttons. Switch
 to Raw to see its source with line numbers and edit it; the pane remembers the choice for the next
 markdown file you select. Links in the rendered file open their target in the preview.
 

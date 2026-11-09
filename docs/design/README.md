@@ -55,6 +55,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.19 Ports | [containers.md](containers.md) |
 | 4.20 Ship pane | [ship.md](ship.md) |
 | 4.21 Local Browser (`src/localBrowserPane.ts`, `src-tauri/src/browser.rs`) | [browser.md](browser.md) |
+| 4.22 Code colors (`src/code/`) | [files.md](files.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |
@@ -100,8 +101,8 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 - Replacing Claude Code's interface. Claude runs unmodified inside a pane.
 - Shells other than Git Bash, PowerShell 7, Windows PowerShell, and Command Prompt.
 - Remote or SSH sessions.
-- Editing code. Panes edit plain text files and scratch pads; code opens in the preferred
-  editor (3.12).
+- Being a code editor. The file preview edits text and colors code by language (4.22), but
+  completion, diagnostics, and refactoring stay in the preferred editor (3.12).
 - A full git client or container manager. The Git pane covers status, staging, committing,
   diffs, undoing the last commit, and creating, switching, renaming, and deleting local branches,
   with no merge or rebase; the Containers pane covers existing containers and
@@ -143,6 +144,7 @@ mapping. They talk through Tauri commands (request/response) and Tauri channels 
 | Backdrop | Colony simulation and renderer (three.js), a Canvas 2D digital-rain style, or nothing, chosen by `backdrop.style`, in `src/backdrop/` (section 6) |
 | Front end | TypeScript, Vite, no framework |
 | Markdown | `markdown-it`, sanitized with `DOMPurify` |
+| Text editor, code colors | CodeMirror 6 and its Lezer language parsers (4.22) |
 | Code search | `ignore`, `grep-searcher`, and `grep-regex` (ripgrep's libraries) |
 | Git, containers | The `git`, `docker`, and `podman` command-line tools, run as child processes |
 | Pane CLI | `bb.exe`, a second binary in the Tauri crate, installed beside the app (3.13) |

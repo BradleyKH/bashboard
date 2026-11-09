@@ -123,6 +123,21 @@ pub const DEFAULT_ACCENT: &str = "#4fb3c8";
 pub const CONTENT_TEXT_MODES: [&str; 2] = ["accent", "white"];
 pub const DEFAULT_CONTENT_TEXT_MODE: &str = "accent";
 
+/// Ids `codeColors.scheme` accepts: `matchAccent` follows the accent preset, the rest are fixed
+/// schemes (docs/design/files.md section 4.22). The front end owns the palettes (src/code/).
+pub const CODE_SCHEMES: [&str; 9] = [
+    "matchAccent", "nord", "ayu", "gruvbox", "monokai", "tokyoNight", "oneDark", "catppuccinMocha",
+    "dracula",
+];
+pub const DEFAULT_CODE_SCHEME: &str = "matchAccent";
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodeColors {
+    /// One of `CODE_SCHEMES`.
+    pub scheme: String,
+}
+
 /// `uiScale` bounds: 1 is the compact default, and at 1.5 the dashboard's buttons match
 /// the Launch section's (docs/design/README.md section 5).
 pub const UI_SCALE_MIN: f64 = 1.0;
@@ -268,6 +283,7 @@ pub struct Settings {
     pub accent_color: String,
     /// One of `CONTENT_TEXT_MODES`; see `parse_content_text`.
     pub content_text_color: String,
+    pub code_colors: CodeColors,
     /// Multiplier on the app's chrome (controls, bars, titles, dialog text), `UI_SCALE_MIN..=UI_SCALE_MAX`.
     pub ui_scale: f64,
     pub scrim: Scrim,
@@ -315,6 +331,7 @@ impl Default for Settings {
             },
             accent_color: DEFAULT_ACCENT.into(),
             content_text_color: DEFAULT_CONTENT_TEXT_MODE.into(),
+            code_colors: CodeColors { scheme: DEFAULT_CODE_SCHEME.into() },
             ui_scale: 1.0,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {

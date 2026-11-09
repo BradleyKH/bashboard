@@ -96,6 +96,19 @@ describe('buildPaletteItems', () => {
     expect(root.find((i) => i.category === 'Pin')).toMatchObject({ label: 'Home', detail: 'bashboard' });
   });
 
+  it('labels a command pin by its name, else its command', () => {
+    const pins = [
+      { pin: { path: 'src/Api', label: 'API', command: 'dotnet run' }, absolute: 'C:\\repos\\bashboard\\src\\Api', exists: true },
+      { pin: { path: 'src/Api', command: 'dotnet test' }, absolute: 'C:\\repos\\bashboard\\src\\Api', exists: true },
+    ];
+    const got = buildPaletteItems(input({ pins })).filter((i) => i.category === 'Pin');
+    expect(got.map((i) => [i.label, i.detail])).toEqual([
+      ['API', 'dotnet run'],
+      ['dotnet test', 'src/Api'],
+    ]);
+    expect(new Set(got.map((i) => i.id)).size).toBe(2);
+  });
+
   it('leaves out a missing pin', () => {
     expect(items.some((i) => i.id.includes('gone.txt'))).toBe(false);
   });

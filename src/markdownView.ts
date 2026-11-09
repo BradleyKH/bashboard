@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { CodeColorsMode } from './code/codeColorsStore';
+import { colorFences, stripFences } from './code/fenceColors';
 import type { Action, Keymap } from './keymap';
 import { isOpenableUrl } from './links';
 import { classifyLink, renderMarkdown, samePath } from './markdownRender';
@@ -19,6 +21,8 @@ export interface MarkdownViewOptions {
   onOpenFile: (path: string, fragment?: string) => void;
   /** False hides the Edit toggle: the Search preview edits markdown through its Raw mode instead. */
   editable?: boolean;
+  /** Plain or Syntax, for fenced blocks and the Edit mode editor. */
+  codeColors: CodeColorsMode;
 }
 
 /** Rendered markdown with an Edit toggle (docs/design/files.md section 4.12). */
@@ -36,6 +40,9 @@ export class MarkdownView {
   private editor: TextEditor | null = null;
   private settings: Settings;
   private disposed = false;
+  private codeColors: CodeColorsMode;
+  /** Bumped on every render and mode change, so a fence pass that lands late is dropped. */
+  private fenceGeneration = 0;
 
   constructor(opts: MarkdownViewOptions) {
     this.opts = opts;
@@ -43,6 +50,7 @@ export class MarkdownView {
     this.modified = opts.modified;
     this.lossy = opts.lossy;
     this.settings = opts.settings;
+    this.codeColors = opts.codeColors;
 
     this.el = document.createElement('div');
     this.el.className = 'markdown-view';
@@ -76,6 +84,20 @@ export class MarkdownView {
   applySettings(settings: Settings): void {
     this.settings = settings;
     this.editor?.applySettings(settings);
+  }
+
+  /** Colors or uncolors fenced blocks, or the editor while editing. */
+  setCodeColors(mode: CodeColorsMode): void {
+    if (mode === this.codeColors) return;
+    this.codeColors = mode;
+    this.editor?.setMode(mode);
+    if (this.editor) return;
+    if (mode === 'plain') {
+      this.fenceGeneration++;
+      stripFences(this.body);
+    } else {
+      this.runFencePass();
+    }
   }
 
   /** The folder watch saw this file's modified time change. */
@@ -128,7 +150,10 @@ export class MarkdownView {
       settings: this.settings,
       keymap: this.opts.keymap,
       dispatch: this.opts.dispatch,
+      language: 'markdown',
+      mode: this.codeColors,
     });
+    this.fenceGeneration++;
     this.body.replaceChildren(this.editor.el);
     this.body.classList.add('editing');
     this.toggle.textContent = 'Done';
@@ -158,6 +183,13 @@ export class MarkdownView {
 
   private renderBody(): void {
     this.body.innerHTML = renderMarkdown(this.text);
+    this.fenceGeneration++;
+    if (this.codeColors === 'syntax') this.runFencePass();
+  }
+
+  private runFencePass(): void {
+    const gen = ++this.fenceGeneration;
+    void colorFences(this.body, () => gen === this.fenceGeneration && !this.disposed && !this.editor);
   }
 
   private onClick(e: MouseEvent): void {

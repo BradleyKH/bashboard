@@ -1,7 +1,7 @@
 import './pinsSection.css';
 import { renderPinRow, type PinRowCallbacks } from './pinRow';
 import type { RepoInfo } from './repoFiles';
-import type { Pin } from './repos';
+import { isCommandPin, type Pin } from './repos';
 
 export interface RepoPinState {
   pin: Pin;
@@ -9,6 +9,13 @@ export interface RepoPinState {
   exists: boolean;
   /** From the parent's listing; picks the pin's icon. Absent means a file. */
   isDir?: boolean;
+  /** A command pin whose terminal is running a command (docs/design/dashboard.md section 4.6). */
+  running?: boolean;
+}
+
+export interface PinsSectionCallbacks extends PinRowCallbacks {
+  /** The heading's "+": a new command pin in the focused pane's folder. */
+  onNewPin(): void;
 }
 
 /** The focused pane's repo and its pins, which the Launch and Pins sections follow. */
@@ -33,16 +40,25 @@ export class PinsSection {
   private readonly folder: HTMLElement;
   private readonly list: HTMLElement;
 
-  constructor(private readonly callbacks: PinRowCallbacks) {
+  constructor(private readonly callbacks: PinsSectionCallbacks) {
     this.el = document.createElement('div');
     this.el.className = 'dashboard-section repo-pins';
-    this.head = document.createElement('h2');
-    this.head.className = 'repo-pins-head';
+    this.head = document.createElement('div');
+    this.head.className = 'dashboard-section-head';
+    const title = document.createElement('h2');
+    title.className = 'repo-pins-head';
     const label = document.createElement('span');
     label.textContent = 'Pins';
     this.folder = document.createElement('span');
     this.folder.className = 'repo-pins-folder';
-    this.head.append(label, this.folder);
+    title.append(label, this.folder);
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'favorite-add';
+    add.textContent = '+';
+    add.title = 'Pin a command';
+    add.addEventListener('click', () => this.callbacks.onNewPin());
+    this.head.append(title, add);
     this.list = document.createElement('div');
     this.list.className = 'dashboard-list';
     this.el.append(this.head, this.list);
@@ -50,19 +66,27 @@ export class PinsSection {
 
   update(state: RepoState): void {
     const { repo } = state;
-    // The heading would introduce nothing; pinning from a Files pane brings it back.
-    this.el.hidden = repo === null || state.pins.length === 0;
+    // Shown with no pins too, since its "+" is a way to add the first one.
+    this.el.hidden = repo === null;
     if (!repo) {
       this.list.replaceChildren();
       return;
     }
     this.folder.textContent = ` · ${folderName(repo.root)}`;
     this.folder.title = repo.root;
+    if (state.pins.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'dashboard-empty';
+      empty.textContent = 'Pin a command with +, or a file or folder from a Files pane';
+      this.list.replaceChildren(empty);
+      return;
+    }
     this.list.replaceChildren(
       ...state.pins.map((p, i) => {
         // The repo root itself is pinned as ".", which says nothing on its own.
-        const name = p.pin.label ?? (p.pin.path === '.' ? folderName(p.absolute) : p.pin.path);
-        return renderPinRow(p.pin, name, i, p.isDir ?? false, p.exists, p.absolute, this.callbacks);
+        const name =
+          p.pin.label ?? (isCommandPin(p.pin) ? p.pin.command : p.pin.path === '.' ? folderName(p.absolute) : p.pin.path);
+        return renderPinRow(p.pin, name, i, p.isDir ?? false, p.exists, p.absolute, this.callbacks, p.running);
       }),
     );
   }

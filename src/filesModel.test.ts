@@ -192,6 +192,9 @@ describe('previewKind', () => {
     expect(previewKind('photo.jpg', 20 * 1024 * 1024)).toBe('image');
     expect(previewKind('huge.png', 32 * 1024 * 1024 + 1)).toBe('binary');
     expect(previewKind('.png', 10)).toBe('plain');
+    expect(previewKind('.bashrc', 10)).toBe('code');
+    expect(previewKind('Dockerfile', 10)).toBe('code');
+    expect(previewKind('notes.txt', 10)).toBe('plain');
   });
 });
 

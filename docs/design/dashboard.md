@@ -166,7 +166,7 @@ sections:
 - Up and Down move one row, stopping at the ends; Home and End go to the first and last.
 - Enter or Space acts as a click on the row, and Ctrl+Enter as a Ctrl+click.
 - F2 on a favorite, layout, pin (one whose target exists), or tab group header opens the rename
-  field its button, double-click, or menu opens. Enter saves and Escape cancels, both returning focus to the row;
+  field its button, double-click, or menu opens; on a command pin it opens the edit popup. Enter saves and Escape cancels, both returning focus to the row;
   leaving the field saves, as it does for a mouse rename.
 - Left on a row goes to its section's header, and on an expanded header collapses the section.
   Right on a collapsed header expands it, and on an expanded one goes to its first row.
@@ -199,6 +199,7 @@ a git repo; "Explorer" is Open in File Explorer.
 | Recent | The Open entries, Explorer, Copy path, Add to favorites |
 | Layout | Open, Rename, Remove (asking inline, as its button does) |
 | Repo pin | Open, Explorer (a file pin's folder), Copy path, Rename, Remove pin |
+| Command pin | Type in terminal, Edit, Copy command, Explorer (its folder), Copy path, Remove pin |
 | Tab group header | Rename (an empty name follows the focused pane's title, as in the tab strip) |
 | Containers | Start when any container in the group is stopped, Stop when any runs, Open Containers |
 | Ports | Open localhost:&lt;port&gt;, Go to pane (when a pane started it), Show in Ports, Copy URL, Copy command line, Copy folder, Copy PID, Stop &lt;program&gt;... |
@@ -240,10 +241,39 @@ ending with the keys of openLaunch. openLaunch (Ctrl+Shift+L, 4.5) opens it over
 whether or not the element is shown.
 
 **Pins.** The same repo's pins (4.12), under a **Pins** heading that collapses and expands them
-like any section; it is absent while the repo has no pins. The heading names the folder after the
-title ("Pins · bashboard"), dropping the name rather than wrapping when it does not fit. Each pin
-shows a file or folder icon and its label or path; clicking one opens it, and pins reorder by
-drag and can be renamed and removed.
+like any section. Like Launch, it is shown once some pane has a folder, whether or not the repo
+has pins yet, and a folder outside any repo holds pins of its own. The heading names the folder
+after the title ("Pins · bashboard"), dropping the name rather than wrapping when it does not
+fit, and ends with a "+" button that opens the new pin popup for a command pin in the focused
+pane's folder. File and folder pins show a file or folder icon and their label or path; clicking
+one opens it. Pins of every kind share one list, reorder by drag, and can be removed.
+
+**Command pins** hold a shell command, a name, and the folder it runs in. The row shows a `>_`
+icon and the name, or the command when the name is empty, with the command and folder in its
+tooltip. Clicking one types the command without pressing Enter, so it can be reviewed, edited,
+or run:
+
+- If the focused pane is an idle terminal whose working directory is the pin's folder (compared
+  without regard to case), the command goes there, as a bracketed paste.
+- Otherwise a new terminal opens at the pin's folder as a split of the focused pane in the active
+  tab (collapsed when there is no room, as for a favorite), and the command is pasted once its
+  shell is ready. It runs the focused terminal's shell profile when a terminal has focus, and
+  `shell.defaultProfile` otherwise. A busy terminal (one in `working`, 4.8) never counts as a match,
+  since the text would go to the program running in it rather than to the shell.
+
+The pin remembers the terminal it last typed into, and its row shows a running mark while that
+terminal is `working`. The mark follows the terminal, not the command: running something else in
+it lights the row too, and it goes out when the terminal closes. Its accuracy is that of the
+working status, exact in Git Bash with the OSC 133 lines (docs/setup.md) and within a couple of
+seconds in the other shells.
+
+**New pin popup.** A small popup with Name and Command fields over the folder the pin will run
+in, shown read only; the folder is fixed once the pin exists, and a pin whose folder is gone is
+dimmed like a missing file pin. Command is one field holding the whole command line, any syntax
+and flags, and is required; Name is optional. Enter or the Pin button saves, and Escape cancels.
+The title strip's "+" (4.4) prefills Command with the terminal's selected text, if any. A command
+pin's pencil button, F2, and its menu's Edit open the same popup with its values, and saving
+replaces them in place.
 
 **Favorites.** One row per favorite folder (3.7), showing its label and path:
 

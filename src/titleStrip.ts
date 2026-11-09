@@ -13,6 +13,8 @@ export interface TitleStripHooks {
   onZoom?(): void;
   /** Fired when the user picks a different kind from the kind menu. */
   onChooseKind?(kind: PaneKind): void;
+  /** A terminal's New pin; the menu leaves the item out without it. */
+  onNewPin?(): void;
   /** Fired once the pointer has moved past the drag threshold; `e` is the move event that crossed it. */
   onDragStart(e: PointerEvent): void;
 }
@@ -41,13 +43,15 @@ const DRAG_THRESHOLD_PX = 4;
 /** The title strip's right-click menu (docs/design/terminal.md section 4.4). */
 export function titleStripMenuItems(
   state: { kindItems: MenuLeaf[]; zoom: TitleStripZoomState },
-  hooks: Pick<TitleStripHooks, 'onCollapse' | 'onClose' | 'onZoom'>,
+  hooks: Pick<TitleStripHooks, 'onCollapse' | 'onClose' | 'onZoom' | 'onNewPin'>,
 ): MenuEntry[] {
   const entries: MenuEntry[] = [
     submenu('Change kind', state.kindItems),
     item('Collapse', () => hooks.onCollapse()),
   ];
   if (state.zoom.available) entries.push(item(state.zoom.zoomed ? 'Restore' : 'Zoom', () => hooks.onZoom?.()));
+  const { onNewPin } = hooks;
+  if (onNewPin) entries.push(item('New pin', () => onNewPin()));
   entries.push(separator(), item('Close pane', () => hooks.onClose()));
   return entries;
 }

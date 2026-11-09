@@ -1,3 +1,6 @@
+import { CodeColorsPreview } from './code/codeColorsPreview';
+import { resolveScheme, type CodeScheme } from './code/schemes';
+import { contentTextColor } from './contentText';
 import type { Settings, SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
@@ -14,6 +17,8 @@ export interface SettingsTabCallbacks {
 }
 
 const SLIDER_DEBOUNCE_MS = 250;
+/** Settings the Code colors preview and its Match accent label are drawn from. */
+const CODE_COLORS_INPUTS = ['codeColors.scheme', 'accentColor', 'contentTextColor', 'font.family'];
 const DEFAULT_EDITOR: Editor = { id: 'default', name: "The file's default app" };
 
 interface Control {
@@ -43,6 +48,7 @@ export class SettingsTab {
   /** The last loaded file, for swatches drawn from other settings. */
   private settings: Settings | null = null;
   private fontList: HTMLDataListElement | null = null;
+  private codeColors: { control: Control; preview: CodeColorsPreview } | null = null;
   /** The editors the core found; just `default` until the list arrives or when it cannot be read. */
   private editors: Editor[] = [DEFAULT_EDITOR];
 
@@ -170,6 +176,34 @@ export class SettingsTab {
       setError(c, '');
     }
     this.applyVisibility();
+    this.refreshCodeColors();
+  }
+
+  /** The loaded file with the controls' current values laid over the settings the preview reads. */
+  private effectiveSettings(): Settings | null {
+    const base = this.settings;
+    if (!base) return null;
+    const text = (path: string): string | undefined => {
+      const v = this.controls.find((c) => c.field.path.join('.') === path)?.last;
+      return typeof v === 'string' ? v : undefined;
+    };
+    return {
+      ...base,
+      accentColor: text('accentColor') ?? base.accentColor,
+      contentTextColor: (text('contentTextColor') ?? base.contentTextColor) as Settings['contentTextColor'],
+      font: { ...base.font, family: text('font.family') ?? base.font.family },
+      codeColors: { scheme: (text('codeColors.scheme') ?? base.codeColors.scheme) as CodeScheme },
+    };
+  }
+
+  /** Redraws the Code colors preview and renames the Match accent option from the controls' values. */
+  private refreshCodeColors(): void {
+    const cc = this.codeColors;
+    const s = this.effectiveSettings();
+    if (!cc || !s) return;
+    cc.preview.update(resolveScheme(s.codeColors.scheme, s.accentColor), s.font.family, contentTextColor(s.contentTextColor, s.accentColor));
+    // Rebuilding the options would close a dropdown that is open.
+    if (!cc.control.cell.contains(document.activeElement)) cc.control.show(cc.control.last);
   }
 
   /**
@@ -203,6 +237,7 @@ export class SettingsTab {
     }
     this.controls = [];
     this.fontList = null;
+    this.codeColors = null;
     this.root?.remove();
     this.root = null;
     this.warnings = null;
@@ -252,6 +287,11 @@ export class SettingsTab {
     cell.prepend(input);
     cell.append(error);
     this.controls.push(control);
+    if (field.preview === 'codeColors') {
+      const preview = new CodeColorsPreview();
+      row.append(preview.el);
+      this.codeColors = { control, preview };
+    }
     return row;
   }
 
@@ -291,7 +331,8 @@ export class SettingsTab {
           ...options.map((o) => {
             const opt = document.createElement('option');
             opt.value = o.value;
-            opt.textContent = o.label;
+            const named = f.optionLabel && f.options?.some((x) => x.value === o.value) ? this.effectiveSettings() : null;
+            opt.textContent = named && f.optionLabel ? f.optionLabel(o.value, named) : o.label;
             if (head) {
               const swatch = document.createElement('span');
               swatch.className = 'settings-tab-swatch';
@@ -442,6 +483,7 @@ export class SettingsTab {
     const previous = c.last;
     c.last = parsed.value;
     this.applyVisibility();
+    if (CODE_COLORS_INPUTS.includes(c.field.path.join('.'))) this.refreshCodeColors();
     this.callbacks.onSave(c.field.path, parsed.value).catch((err: unknown) => {
       setError(c, errorText(err));
       if (c.last !== parsed.value) return; // a later edit or reload superseded this one
@@ -453,6 +495,7 @@ export class SettingsTab {
         c.last = previous;
         c.show(previous);
         this.applyVisibility();
+        this.refreshCodeColors();
       }
     });
   }

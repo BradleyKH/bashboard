@@ -1,0 +1,38 @@
+/* The new pin popup (docs/design/dashboard.md section 4.6); the box itself is a .hook-dialog. */
+
+.command-pin-dialog {
+  width: min(480px, 90vw);
+}
+
+.command-pin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #9aa6ad;
+}
+
+.command-pin-field input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef3f5;
+  font: inherit;
+  outline: none;
+}
+
+.command-pin-field input:focus {
+  border-color: var(--accent);
+}
+
+.command-pin-field input.command-pin-command {
+  font: 12px ui-monospace, Consolas, monospace;
+}
+
+.command-pin-folder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

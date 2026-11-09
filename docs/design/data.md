@@ -155,6 +155,10 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
+- `codeColors` (`plain` or `syntax`, the mode of the Plain | Syntax toggle on code surfaces,
+  4.22): the last mode chosen in any pane, which new panes start in; anything but `plain` reads
+  as `syntax`. A Files, Search, or Git pane's own `codeColors` is `plain` and written only then;
+  a pane without it opens in Syntax.
 - A terminal pane's `profile`: the default profile. Its `permissionMode` (letters only, kept
   only beside a `sessionId`): the default mode. Its `agent` (`claude`, `codex`, or `copilot`):
   Claude Code, which an unknown value also reads as. Its `resumeModel` (kept only beside a
@@ -171,7 +175,9 @@ terminals carry no session ids, permission modes, or scrollback ids and whose sc
 entry whose `workspace` holds a version 1 workspace loads as that one tab.
 
 **repos.json.** Roots compare without regard to case. A pin's path is relative to the root, with
-forward slashes, when inside the repo, else absolute. `primaryBranch`, the branch the Git pane
+forward slashes, when inside the repo, else absolute. A pin with a `command` (the whole command
+line, as one string) is a command pin, and its path is the folder the command runs in; `label` is
+optional on either kind. `primaryBranch`, the branch the Git pane
 compares worktrees with (4.13), is keyed by the main worktree's path; an entry may hold
 it with no pins, and Automatic omits it.
 
@@ -204,6 +210,10 @@ it with no pins, and Automatic omits it.
   // for links and highlights; white is #e6e6e6. A #rrggbb value loads as white when it is
   // #e6e6e6 and as accent otherwise; any other value falls back to accent with a notice.
   "contentTextColor": "accent",
+  // "matchAccent" or one of nord, ayu, gruvbox, monokai, tokyoNight, oneDark, catppuccinMocha,
+  // dracula: the syntax color scheme of text previews. Match accent follows the accent preset
+  // (files.md section 4.22). Any other value falls back to matchAccent with a notice.
+  "codeColors": { "scheme": "matchAccent" },
   // 1 to 2, the Settings tab's Interface size: zoom on controls, the bars that hold them, chrome
   // titles, and the app dialog's tabs (section 5). Out of range falls back to 1.
   "uiScale": 1,

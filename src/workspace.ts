@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { applyAccent } from './accent';
 import { applyTextScale, applyUiScale } from './uiScale';
+import { applyScheme, resolveScheme } from './code/schemes';
 import { applyContentText, contentTextColor } from './contentText';
 import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
 import type { PaneCardInput } from './dashboardModel';
@@ -103,6 +104,7 @@ export class Workspace {
     applyScrim(document.documentElement, this.scrim);
     applyAccent(document.documentElement, payload.settings.accentColor);
     applyContentText(document.documentElement, contentTextColor(payload.settings.contentTextColor, payload.settings.accentColor));
+    applyScheme(document.documentElement, resolveScheme(payload.settings.codeColors.scheme, payload.settings.accentColor));
     applyUiScale(document.documentElement, payload.settings.uiScale);
     applyTextScale(document.documentElement, this.fontSize);
     this.ctx = this.context();
@@ -229,25 +231,25 @@ export class Workspace {
    * Design 4.11 Opening: a pane of any kind, alone in a new tab, collapsed, docked at a target,
    * or split from the focused pane; with no room it opens collapsed.
    */
-  openPane(spec: PaneSpec, opts: OpenPaneOptions = {}): void {
+  openPane(spec: PaneSpec, opts: OpenPaneOptions = {}): string | undefined {
     const id = this.takeIdFor(spec.kind);
     if (opts.tab) {
       const prev = this.store.active;
       this.store.state = addTab(this.store.state, this.store.emptyTab());
       this.tabView.hideTab(prev);
       this.mount(id, { kind: 'pane', paneId: id }, spec);
-      return;
+      return id;
     }
     if (opts.collapsed) {
       this.openCollapsed(id, spec);
-      return;
+      return id;
     }
     if (!this.store.tree) {
       this.mount(id, { kind: 'pane', paneId: id }, spec);
-      return;
+      return id;
     }
     const cell = this.layoutCell();
-    if (!cell) return;
+    if (!cell) return undefined;
     const container = this.containerRect();
     let next: Layout | null = null;
     let displaced: string | null = null;
@@ -263,10 +265,11 @@ export class Workspace {
     if (!next) {
       showToast('Not enough room for another pane; opened it collapsed');
       this.openCollapsed(id, spec);
-      return;
+      return id;
     }
     if (displaced) this.markCollapsed(displaced);
     this.mount(id, next, spec);
+    return id;
   }
 
   applySettings(payload: SettingsPayload): void {
@@ -277,6 +280,7 @@ export class Workspace {
     applyAccent(document.documentElement, this.config.settings.accentColor);
     const { contentTextColor: mode, accentColor } = this.config.settings;
     applyContentText(document.documentElement, contentTextColor(mode, accentColor));
+    applyScheme(document.documentElement, resolveScheme(this.config.settings.codeColors.scheme, accentColor));
     applyUiScale(document.documentElement, this.config.settings.uiScale);
     applyTextScale(document.documentElement, this.fontSize);
     for (const pane of this.paneViews.values()) pane.applySettings(this.config.settings);
@@ -665,6 +669,19 @@ export class Workspace {
   /** Records a session's newest model (from the agent context stream) for the next save. */
   setSessionModel(sessionId: string, model: string | null): void {
     this.sessions.setModel(sessionId, model);
+  }
+
+  /**
+   * Opens a terminal in `cwd` and pastes `text` without Enter once its shell is ready, for a
+   * command pin (docs/design/dashboard.md section 4.6). Returns the new pane's id.
+   */
+  openTerminalWithPaste(cwd: string, text: string, opts: OpenTerminalOptions = {}): string | undefined {
+    return this.openPane({ kind: 'terminal', cwd, profile: opts.profile, initialPaste: text }, opts);
+  }
+
+  /** Pastes into a terminal without Enter, as bracketed paste when the shell asked for it. */
+  pasteIntoTerminal(id: string, text: string): void {
+    this.terminal(id)?.pasteText(text);
   }
 
   /** Opens a terminal in `cwd` and types `command` once its shell is ready, as restore does for a resume. */

@@ -35,6 +35,7 @@ import { GitBranchRow } from './gitBranchRow';
 import { GitBranchesView } from './gitBranchesView';
 import { openBranchSwitcher } from './gitBranchSwitcher';
 import { GitCommitBox } from './gitCommitBox';
+import { type CodeColorsMode, codeColorsDefault, setCodeColorsDefault } from './code/codeColorsStore';
 import { GitDiffView } from './gitDiffView';
 import { GitFileList } from './gitFileList';
 import { GitLogList } from './gitLogList';
@@ -100,6 +101,8 @@ export interface GitPaneOptions {
   onSetPrimaryBranch: (root: string, branch: string | null) => void;
   /** The tab the pane opens on; absent means Changes. */
   tab?: GitTab;
+  /** The diff's code colors; absent starts from the latest choice made in any pane. */
+  codeColors?: CodeColorsMode;
 }
 
 const LOG_COUNT = 20;
@@ -147,6 +150,7 @@ export class GitPane implements PaneView {
   private readonly changesList: GitFileList;
   private readonly logList: GitLogList;
   private readonly diffView: GitDiffView;
+  private codeColors: CodeColorsMode;
   private readonly tabStrip: GitTabStrip;
   private readonly branchesView: GitBranchesView;
   private readonly branchActions: GitBranchActions;
@@ -259,9 +263,19 @@ export class GitPane implements PaneView {
 
     this.right = document.createElement('div');
     this.right.className = 'git-right';
-    this.diffView = new GitDiffView(() => {
-      if (this.selection?.type === 'commit') void this.undo(this.selection.hash);
-    }, textZoom('gitDiff'));
+    this.codeColors = opts.codeColors ?? codeColorsDefault();
+    this.diffView = new GitDiffView(
+      () => {
+        if (this.selection?.type === 'commit') void this.undo(this.selection.hash);
+      },
+      textZoom('gitDiff'),
+      this.codeColors,
+      (mode) => {
+        this.codeColors = mode;
+        setCodeColorsDefault(mode);
+        this.opts.onChange();
+      },
+    );
     this.right.append(this.diffView.el);
 
     this.notice = document.createElement('div');
@@ -359,9 +373,12 @@ export class GitPane implements PaneView {
     return baseName(this.rootPath);
   }
 
-  /** The `git` saved-pane fields; `tab` only when it is not the default. */
-  saved(): { root: string; tab?: GitTab } {
-    return this.tab === 'changes' ? { root: this.rootPath } : { root: this.rootPath, tab: this.tab };
+  /** The `git` saved-pane fields; `tab` and `codeColors` only when they are not the default. */
+  saved(): { root: string; tab?: GitTab; codeColors?: CodeColorsMode } {
+    const out: { root: string; tab?: GitTab; codeColors?: CodeColorsMode } = { root: this.rootPath };
+    if (this.tab !== 'changes') out.tab = this.tab;
+    if (this.codeColors === 'plain') out.codeColors = 'plain';
+    return out;
   }
 
   private setTab(tab: GitTab): void {
@@ -654,7 +671,7 @@ export class GitPane implements PaneView {
       return;
     }
     const row = (sel.staged ? staged : changes).find((r) => r.key === sel.key);
-    if (row) void this.fetchDiff(() => gitDiff(this.rootPath, row.entry.path, sel.staged), false);
+    if (row) void this.fetchDiff(() => gitDiff(this.rootPath, row.entry.path, sel.staged), false, row.entry.path);
     else this.clearSelection();
   }
 
@@ -694,7 +711,7 @@ export class GitPane implements PaneView {
     (staged ? this.changesList : this.stagedList).select(null);
     this.logList.select(null);
     this.updateUndo();
-    void this.fetchDiff(() => gitDiff(this.rootPath, row.entry.path, staged), true);
+    void this.fetchDiff(() => gitDiff(this.rootPath, row.entry.path, staged), true, row.entry.path);
   }
 
   private selectCommit(hash: string): void {
@@ -705,14 +722,15 @@ export class GitPane implements PaneView {
     void this.fetchDiff(() => gitShow(this.rootPath, hash), true);
   }
 
-  private async fetchDiff(run: () => Promise<GitDiff>, scrollTop: boolean): Promise<void> {
+  /** `path` is the selected file, which names the language of a diff text with no file header. */
+  private async fetchDiff(run: () => Promise<GitDiff>, scrollTop: boolean, path?: string): Promise<void> {
     const gen = ++this.diffGen;
     const scroll = this.diffView.el.querySelector<HTMLElement>('.git-diff-body');
     const keep = scrollTop ? 0 : (scroll?.scrollTop ?? 0);
     try {
       const diff = await run();
       if (gen !== this.diffGen || this.disposed) return;
-      this.diffView.show(diff);
+      this.diffView.show(diff, path);
       if (scroll && keep > 0) scroll.scrollTop = keep;
     } catch (e) {
       if (gen !== this.diffGen || this.disposed) return;

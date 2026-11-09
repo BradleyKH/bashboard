@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addPin,
+  editCommandPin,
   movePin,
   parseRepos,
   pinsFor,
@@ -10,6 +11,7 @@ import {
   resolvePin,
   setPrimaryBranch,
   toPinPath,
+  type Pin,
   type ReposFile,
 } from './repos';
 
@@ -155,5 +157,39 @@ describe('primaryBranch', () => {
   it('survives removing the last pin', () => {
     const f: ReposFile = [{ root: ROOT, pins: [{ path: 'a' }], primaryBranch: 'dev' }];
     expect(removePin(f, ROOT, 0)).toEqual([{ root: ROOT, pins: [], primaryBranch: 'dev' }]);
+  });
+});
+
+describe('command pins', () => {
+  const run: Pin = { path: 'src/Api', command: 'dotnet run' };
+
+  it('parses a command and drops a blank one', () => {
+    const f = parseRepos([
+      { root: ROOT, pins: [{ path: 'src/Api', command: ' dotnet run ', label: 'API' }, { path: 'b', command: '  ' }] },
+    ]);
+    expect(pinsFor(f, ROOT)).toEqual([{ path: 'src/Api', label: 'API', command: 'dotnet run' }, { path: 'b' }]);
+  });
+
+  it('pins several commands, and a folder pin, at one path', () => {
+    let f: ReposFile = [];
+    f = addPin(f, ROOT, run);
+    f = addPin(f, ROOT, { path: 'src/Api', command: 'dotnet test' });
+    f = addPin(f, ROOT, { path: 'src/Api' });
+    expect(pinsFor(f, ROOT)).toHaveLength(3);
+    expect(addPin(f, ROOT, { path: 'SRC/api', command: 'dotnet run' })).toBe(f);
+  });
+
+  it('keeps the command through a rename', () => {
+    const f = addPin([], ROOT, run);
+    expect(pinsFor(renamePin(f, ROOT, 0, 'API'), ROOT)).toEqual([{ path: 'src/Api', label: 'API', command: 'dotnet run' }]);
+  });
+
+  it('edits the label and command but not the folder', () => {
+    const f = addPin([], ROOT, { ...run, label: 'API' });
+    expect(pinsFor(editCommandPin(f, ROOT, 0, '', 'dotnet watch'), ROOT)).toEqual([
+      { path: 'src/Api', command: 'dotnet watch' },
+    ]);
+    expect(editCommandPin(f, ROOT, 0, 'x', '  ')).toBe(f);
+    expect(editCommandPin(addPin([], ROOT, { path: 'a' }), ROOT, 0, 'x', 'y')).toEqual(addPin([], ROOT, { path: 'a' }));
   });
 });

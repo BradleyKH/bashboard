@@ -4,6 +4,7 @@ import { WAVE_COLOR_MODES, waveSwatch } from './backdrop/wave/waveColor';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
 import { UI_SCALE_MAX, UI_SCALE_MIN } from './uiScale';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
+import { resolveScheme, SCHEMES } from './code/schemes';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { DEFAULT_ELEMENT_ORDER, ELEMENT_HINTS, ELEMENT_LABELS } from './dashboardSections';
 import type { Settings } from './settings';
@@ -37,6 +38,10 @@ export interface SettingsField {
   swatches?: boolean;
   /** Swatch fields only: the color for an option whose value is not itself a color. */
   swatchColor?: (value: string, settings: Settings) => string;
+  /** Select fields only: an option's label when it depends on other settings, in swatchColor's shape. */
+  optionLabel?: (value: string, settings: Settings) => string;
+  /** Draws a live sample below the field; `codeColors` is the Code colors snippet. */
+  preview?: 'codeColors';
   /** Select fields only: offer just the options the core detected, as shell profiles or editors. */
   installedFrom?: 'profiles' | 'editors';
   /** Text fields only: suggest values while typing, filled from the core after the dialog opens. */
@@ -90,6 +95,12 @@ const SLIDESHOW_INTERVALS = [
   { value: '21600', label: '6 hours' },
   { value: '86400', label: '1 day' },
 ];
+
+/** Match accent names the scheme the current accent resolves to; the other options keep their labels. */
+export function codeColorsLabel(value: string, settings: Settings): string {
+  if (value !== 'matchAccent') return SCHEMES.find((s) => s.id === value)?.label ?? value;
+  return `Match accent (${resolveScheme('matchAccent', settings.accentColor).label})`;
+}
 
 /** Ranges mirror try_parse_settings in src-tauri/src/settings/parse.rs so a saved value always loads. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -176,6 +187,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         swatchColor: (mode, s) => contentTextColor(mode, s.accentColor),
         applies: 'live',
         half: true,
+      },
+      {
+        path: ['codeColors', 'scheme'],
+        label: 'Code colors',
+        kind: 'select',
+        options: [{ value: 'matchAccent', label: 'Match accent' }, ...SCHEMES.map((s) => ({ value: s.id, label: s.label }))],
+        optionLabel: codeColorsLabel,
+        preview: 'codeColors',
+        applies: 'live',
       },
       {
         path: ['uiScale'],

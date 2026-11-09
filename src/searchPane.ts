@@ -1,5 +1,6 @@
 import './searchPane.css';
 import { startSplitDrag } from './splitDrag';
+import type { CodeColorsMode } from './code/codeColorsStore';
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
@@ -40,6 +41,8 @@ export interface SearchPaneOptions {
   query: string;
   options: SearchOptions;
   expanded: boolean;
+  /** The preview's Plain | Syntax mode; defaults to the mode a new pane starts in. */
+  codeColors?: CodeColorsMode;
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
@@ -178,6 +181,7 @@ export class SearchPane implements PaneView {
       keymap: opts.keymap,
       dispatch: opts.dispatch,
       source: true,
+      codeColors: opts.codeColors,
       zoomKey: 'searchPreview',
       emptyText: 'Select a result to preview its file.',
       // A link in rendered markdown shows its target here, though it may be no result; the list keeps its row.
@@ -238,9 +242,14 @@ export class SearchPane implements PaneView {
     return baseName(this.rootPath);
   }
 
-  /** The `search` saved-pane fields. */
-  saved(): { root: string; query: string; options: SearchOptions } {
-    return { root: this.rootPath, query: this.query, options: { ...this.options } };
+  /** The `search` saved-pane fields; `codeColors` only for Plain, since a pane saved without it starts in Syntax. */
+  saved(): { root: string; query: string; options: SearchOptions; codeColors?: CodeColorsMode } {
+    return {
+      root: this.rootPath,
+      query: this.query,
+      options: { ...this.options },
+      ...(this.preview.codeColors === 'plain' ? { codeColors: 'plain' as const } : {}),
+    };
   }
 
   /** Focuses the query field. */

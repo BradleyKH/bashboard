@@ -1,14 +1,41 @@
 import { setHintedTitle } from './keyHints';
 import { findMatches, matchAtOrAfter, matchCountText, stepMatch, type FindMatches } from './previewFindModel';
 
-/** What a preview view offers the find bar. */
-export interface FindSurface {
+/** A view whose text is in the DOM: its matches are painted as CSS Custom Highlight ranges. */
+export interface DomFindSurface {
   /** The element whose text is searched and highlighted. */
   readonly textRoot: HTMLElement;
   /** Scrolls so `range` is in view. */
   reveal(range: Range): void;
   /** The bar closed; `range` is the current match, or null. Takes focus back. */
   done(range: Range | null): void;
+}
+
+/**
+ * A view that searches and paints its own text, such as the text editor, which draws only the
+ * lines in view (docs/design/files.md section 4.22, Find). Offsets are into its text.
+ */
+export interface TextFindSurface {
+  /** Searches with `findMatches` and paints every match, none of them current. */
+  find(query: string): FindMatches;
+  /** Paints match `index` (-1 for none) as current, scrolling it into view when `reveal`. */
+  setCurrent(index: number, reveal: boolean): void;
+  /** Removes the painted matches. */
+  clear(): void;
+  /**
+   * The bar closed; `match` is the current match, or null. Takes focus back. Named apart from
+   * `DomFindSurface.done` so a view's object literal still gets its parameter types inferred.
+   */
+  finish(match: readonly [number, number] | null): void;
+  /** Calls `listener` after the text changes; returns a function that stops it. */
+  onChange(listener: () => void): () => void;
+}
+
+/** What a preview view offers the find bar. */
+export type FindSurface = DomFindSurface | TextFindSurface;
+
+function isTextSurface(surface: FindSurface): surface is TextFindSurface {
+  return !('textRoot' in surface);
 }
 
 interface SharedHighlights {
@@ -45,7 +72,11 @@ export class PreviewFind {
   private readonly count: HTMLElement;
   private readonly surface: () => FindSurface | null;
   private readonly observer: MutationObserver;
-  private observed: HTMLElement | null = null;
+  private observed: HTMLElement | TextFindSurface | null = null;
+  private stopListening: (() => void) | null = null;
+  /** The painted text surface, if the current one is one. */
+  private painted: TextFindSurface | null = null;
+  /** The DOM ranges, for a DOM surface. */
   private ranges: Range[] = [];
   private found: FindMatches = { ranges: [], capped: false };
   private index = -1;
@@ -103,9 +134,13 @@ export class PreviewFind {
 
   close(): void {
     if (!this.isOpen) return;
+    const surface = this.surface();
     const range = this.ranges[this.index] ?? null;
+    const match = this.found.ranges[this.index] ?? null;
     this.reset();
-    this.surface()?.done(range);
+    if (!surface) return;
+    if (isTextSurface(surface)) surface.finish(match);
+    else surface.done(range);
   }
 
   dispose(): void {
@@ -117,9 +152,9 @@ export class PreviewFind {
   private reset(): void {
     this.bar.hidden = true;
     this.button.hidden = false;
-    this.observer.disconnect();
-    this.observed = null;
+    this.unobserve();
     this.setRanges([], -1);
+    this.clearPainted();
     this.found = { ranges: [], capped: false };
     this.count.textContent = '';
   }
@@ -127,24 +162,47 @@ export class PreviewFind {
   private search(reveal: boolean): void {
     const surface = this.surface();
     if (!this.isOpen || !surface) return;
-    this.observe(surface.textRoot);
     const query = this.input.value;
-    const map = textMap(surface.textRoot);
     // Stays on the same match, or the next one, as the text changes under it.
     const anchor = this.found.ranges[this.index]?.[0] ?? 0;
-    this.found = findMatches(map.text, query);
-    const ranges = this.found.ranges.map(([start, end]) => map.range(start, end));
-    this.setRanges(ranges, matchAtOrAfter(this.found.ranges, anchor));
+    if (isTextSurface(surface)) {
+      this.observe(surface);
+      this.setRanges([], -1);
+      if (this.painted !== surface) this.clearPainted();
+      this.painted = surface;
+      this.found = surface.find(query);
+      this.index = matchAtOrAfter(this.found.ranges, anchor);
+      surface.setCurrent(this.index, reveal);
+    } else {
+      this.observe(surface.textRoot);
+      this.clearPainted();
+      const map = textMap(surface.textRoot);
+      this.found = findMatches(map.text, query);
+      const ranges = this.found.ranges.map(([start, end]) => map.range(start, end));
+      this.setRanges(ranges, matchAtOrAfter(this.found.ranges, anchor));
+      if (reveal) this.revealCurrent(surface);
+    }
     this.showCount(query);
-    if (reveal) this.revealCurrent(surface);
   }
 
   private step(direction: 'next' | 'previous'): void {
     const surface = this.surface();
-    if (!surface || this.ranges.length === 0) return;
-    this.setRanges(this.ranges, stepMatch(this.index, this.ranges.length, direction));
+    const count = this.found.ranges.length;
+    if (!surface || count === 0) return;
+    const index = stepMatch(this.index, count, direction);
+    if (isTextSurface(surface)) {
+      this.index = index;
+      surface.setCurrent(index, true);
+    } else {
+      this.setRanges(this.ranges, index);
+      this.revealCurrent(surface);
+    }
     this.showCount(this.input.value);
-    this.revealCurrent(surface);
+  }
+
+  private clearPainted(): void {
+    this.painted?.clear();
+    this.painted = null;
   }
 
   private setRanges(ranges: Range[], index: number): void {
@@ -159,7 +217,7 @@ export class PreviewFind {
     if (now) current.add(now);
   }
 
-  private revealCurrent(surface: FindSurface): void {
+  private revealCurrent(surface: DomFindSurface): void {
     const range = this.ranges[this.index];
     if (range) surface.reveal(range);
   }
@@ -168,11 +226,22 @@ export class PreviewFind {
     this.count.textContent = matchCountText(query, this.index, this.found);
   }
 
-  private observe(root: HTMLElement): void {
-    if (this.observed === root) return;
+  private observe(target: HTMLElement | TextFindSurface): void {
+    if (this.observed === target) return;
+    this.unobserve();
+    if (target instanceof HTMLElement) {
+      this.observer.observe(target, { childList: true, characterData: true, subtree: true });
+    } else {
+      this.stopListening = target.onChange(() => this.search(false));
+    }
+    this.observed = target;
+  }
+
+  private unobserve(): void {
     this.observer.disconnect();
-    this.observer.observe(root, { childList: true, characterData: true, subtree: true });
-    this.observed = root;
+    this.stopListening?.();
+    this.stopListening = null;
+    this.observed = null;
   }
 
   private onKey(e: KeyboardEvent): void {

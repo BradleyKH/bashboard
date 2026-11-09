@@ -21,6 +21,30 @@ export function pinRowMenuItems(state: { exists: boolean }, h: PinRowMenuHandler
   ];
 }
 
+export interface CommandPinRowMenuHandlers {
+  run: () => void;
+  edit: () => void;
+  copyCommand: () => void;
+  openInExplorer: () => void;
+  copyPath: () => void;
+  remove: () => void;
+}
+
+/** The menu for a command pin row; one whose folder is missing keeps only Remove pin. */
+export function commandPinRowMenuItems(state: { exists: boolean }, h: CommandPinRowMenuHandlers): MenuEntry[] {
+  const enabled = state.exists;
+  return [
+    item('Type in terminal', h.run, { enabled }),
+    item('Edit', h.edit, { enabled }),
+    item('Copy command', h.copyCommand, { enabled }),
+    separator(),
+    item('Open in File Explorer', h.openInExplorer, { enabled }),
+    item('Copy path', h.copyPath, { enabled }),
+    separator(),
+    item('Remove pin', h.remove),
+  ];
+}
+
 export interface WorktreeRowMenuHandlers {
   openInExplorer: () => void;
   copyPath: () => void;

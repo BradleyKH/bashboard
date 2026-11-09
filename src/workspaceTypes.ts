@@ -11,6 +11,7 @@ import type { DockZone, Rect } from './layout';
 import type { OpenInHandler } from './openMenu';
 import type { PaneKind } from './paneKinds';
 import type { PortsStore } from './portsStore';
+import type { CodeColorsMode } from './code/codeColorsStore';
 import type { SearchOptions } from './searchOptions';
 import type { ShipTab } from './shipModel';
 import type { ShellStatus, TerminalStatus } from './terminalStatus';
@@ -92,6 +93,8 @@ export interface WorkspaceHooks {
   /**
    * A Files pane pinned a file or folder of the repo at `root` (docs/design/files.md section 4.12).
    */
+  /** A terminal's title strip "+" or New pin: a command pin in `folder`, prefilled with the selection. */
+  onNewCommandPin?: (folder: string | null, selection: string) => void;
   onPin?: (root: string, absolute: string, isDir: boolean) => void;
   onUnpin?: (root: string, absolute: string) => void;
   /** Absolute paths of the existing pinned folders of the repo at `root`. */
@@ -148,6 +151,8 @@ export type PaneSpec =
       command?: string[];
       /** Typed into the shell, with Enter, once it is ready for input. */
       initialInput?: string;
+      /** Pasted into the shell, without Enter, once it is ready for input. */
+      initialPaste?: string;
       /** Marks a container shell (design 4.16), which is titled by it and never saved. */
       container?: { name: string };
       /** The saved terminal's scrollback id, kept so the next save reuses its file. */
@@ -156,8 +161,20 @@ export type PaneSpec =
       replay?: Promise<string>;
     }
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
-  | { kind: 'files'; folder: string; selected?: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
-  | { kind: 'git'; root: string; tab?: GitTab }
+  /**
+   * `codeColors` unset opens in the mode last chosen (docs/design/files.md section 4.22); restore
+   * always sets it, since a saved pane without the field was in Syntax.
+   */
+  | {
+      kind: 'files';
+      folder: string;
+      selected?: string | null;
+      root?: string;
+      expanded?: boolean;
+      sort?: FilesSort;
+      codeColors?: CodeColorsMode;
+    }
+  | { kind: 'git'; root: string; tab?: GitTab; codeColors?: CodeColorsMode }
   /** No `root` opens on the Overview. */
   | {
       kind: 'ship';
@@ -167,7 +184,7 @@ export type PaneSpec =
       thisBranchPulls?: boolean;
       allPulls?: boolean;
     }
-  | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
+  | { kind: 'search'; root: string; query?: string; options?: SearchOptions; codeColors?: CodeColorsMode }
   | { kind: 'containers' }
   | { kind: 'ports' }
   /** No `url` opens the start page. */

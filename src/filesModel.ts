@@ -1,5 +1,6 @@
 /** Files pane list, path, history, and keyboard rules (docs/design/files.md section 4.12). */
 
+import { languageIdFor } from './code/languages';
 import { samePath } from './favorites';
 
 /** Mirrors the core's `fs_list` entry (docs/design/files.md section 3.8); times are epoch milliseconds. */
@@ -225,7 +226,8 @@ export function imageMime(name: string): string {
 /**
  * How a file previews: `.md` renders, `.csv` and `.tsv` show as a table, images show as images
  * up to 32 MiB, `.txt` or no extension edits as wrapped plain text, other names edit as code
- * with line numbers, and any other file over 2 MiB is binary. A NUL byte also makes a text file
+ * with line numbers (a name with a language, such as `.bashrc` or `Dockerfile`, is code even
+ * with no extension), and any other file over 2 MiB is binary. A NUL byte also makes a text file
  * binary, but only the read can tell.
  */
 export function previewKind(name: string, size: number): PreviewKind {
@@ -234,6 +236,7 @@ export function previewKind(name: string, size: number): PreviewKind {
   if (size > MAX_TEXT_BYTES) return 'binary';
   if (ext === 'md') return 'markdown';
   if (ext === 'csv' || ext === 'tsv') return 'csv';
+  if (languageIdFor(name)) return 'code';
   if (ext === '' || ext === 'txt') return 'plain';
   return 'code';
 }

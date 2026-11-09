@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CODE_SCHEME_IDS } from './code/schemes';
 import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
 import { DEFAULT_SETTINGS, type BackdropStyle, type Settings } from './settings';
 import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
@@ -230,6 +231,31 @@ describe('Matrix settings', () => {
     const style = byPath('backdrop.style');
     for (const v of ['none', 'lights', 'galaxy', 'matrix', 'wave', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
     expect(parseInput(style, 'rain').ok).toBe(false);
+  });
+});
+
+describe('Code colors setting', () => {
+  const field = () => byPath('codeColors.scheme');
+
+  it('follows Text color in Appearance and offers Match accent plus every scheme', () => {
+    const appearance = SETTINGS_SECTIONS.find((s) => s.title === 'Appearance')?.fields.map((f) => f.path.join('.')) ?? [];
+    expect(appearance.indexOf('codeColors.scheme')).toBe(appearance.indexOf('contentTextColor') + 1);
+    expect(field().options?.map((o) => o.value)).toEqual([...CODE_SCHEME_IDS]);
+    expect(field().preview).toBe('codeColors');
+    expect(field().applies).toBe('live');
+  });
+
+  it('accepts each scheme id and rejects others', () => {
+    for (const id of CODE_SCHEME_IDS) expect(parseInput(field(), id).ok, id).toBe(true);
+    expect(parseInput(field(), 'solarized').ok).toBe(false);
+  });
+
+  it('names the resolved scheme on Match accent only, following the accent', () => {
+    const label = (accent: string) => field().optionLabel?.('matchAccent', { ...DEFAULT_SETTINGS, accentColor: accent });
+    expect(label('#a68bff')).toBe('Match accent (Catppuccin Mocha)');
+    expect(label('#e07ad8')).toBe('Match accent (Dracula)');
+    expect(field().optionLabel?.('nord', DEFAULT_SETTINGS)).toBe('Nord');
+    expect(field().optionLabel?.('tokyoNight', DEFAULT_SETTINGS)).toBe('Tokyo Night');
   });
 });
 

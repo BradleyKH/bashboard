@@ -1,6 +1,15 @@
+import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
+import { syntaxHighlighting } from '@codemirror/language';
+import { Annotation, Compartment, EditorState as CmState, type Extension, Prec, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, type DecorationSet, EditorView, keymap as cmKeymap, lineNumbers as cmLineNumbers } from '@codemirror/view';
+import './code/syntax.css';
+import { type CodeColorsMode, codeColorsDefault } from './code/codeColorsStore';
+import { type LanguageId, loadLanguage } from './code/languages';
+import { roleHighlighter } from './code/roles';
 import { lookup, type Action, type Keymap } from './keymap';
 import { toFontFamily } from './pane';
-import { revealIn, type FindSurface } from './previewFind';
+import type { FindSurface, TextFindSurface } from './previewFind';
+import { findMatches, type FindMatches } from './previewFindModel';
 import { classifyReadError, fsReadText, fsWriteText } from './repoFiles';
 import type { Settings } from './settings';
 import { editorStep, initialEditorState, type EditorEffect, type EditorEvent, type EditorState } from './textEditorModel';
@@ -20,40 +29,107 @@ export interface TextEditorOptions {
   lossy?: boolean;
   /** A save reached the disk. */
   onSaved?: () => void;
+  /** The language to color by; null (the default) leaves the text uncolored. */
+  language?: LanguageId | null;
+  /** Plain or Syntax; defaults to the mode a new pane starts in. */
+  mode?: CodeColorsMode;
 }
 
-/** The monospaced editor for a file on disk (docs/design/files.md section 4.12, Text editor). */
+/** Marks a transaction the editor made itself (a reload), which is not an edit to save. */
+const external = Annotation.define<boolean>();
+
+const setBand = StateEffect.define<number | null>();
+
+/** The line `revealLine` marked; dropped on the first edit. */
+const bandField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    for (const e of tr.effects) {
+      if (e.is(setBand)) {
+        if (e.value === null) return Decoration.none;
+        const line = tr.state.doc.line(e.value);
+        return Decoration.set([Decoration.line({ class: 'editor-band' }).range(line.from)]);
+      }
+    }
+    if (tr.docChanged && !tr.annotation(external)) return Decoration.none;
+    return deco.map(tr.changes);
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+const setFind = StateEffect.define<{ ranges: readonly [number, number][]; current: number }>();
+const findMark = Decoration.mark({ class: 'editor-find' });
+const findCurrentMark = Decoration.mark({ class: 'editor-find editor-find-current' });
+
+/** The find bar's matches, painted as marks since only the lines in view exist in the DOM. */
+const findField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    for (const e of tr.effects) {
+      if (e.is(setFind)) {
+        const { ranges, current } = e.value;
+        return Decoration.set(ranges.map(([from, to], i) => (i === current ? findCurrentMark : findMark).range(from, to)));
+      }
+    }
+    return deco.map(tr.changes);
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+/** Only undo and redo: the rest of `historyKeymap` (Mod-u, Alt-u, Linux's Ctrl-Shift-z) stays unbound. */
+const undoRedoKeys = historyKeymap.filter((b) => b.key === 'Mod-z' || b.key === 'Mod-y');
+
+/** Enter inserts a bare newline, as the textarea did, rather than keeping the indent. */
+const editorKeys = [{ key: 'Enter', run: insertNewline, shift: insertNewline }, ...standardKeymap, ...undoRedoKeys];
+
+/** The look of the textarea it replaced: transparent, `--content-fg`, the pane's font. */
+const editorTheme = EditorView.theme({
+  '&': { flex: '1 1 auto', minWidth: '0', minHeight: '0', backgroundColor: 'transparent', color: 'var(--content-fg)' },
+  '&.cm-focused': { outline: 'none' },
+  '.cm-scroller': { fontFamily: 'inherit', lineHeight: 'normal', scrollbarGutter: 'stable' },
+  '.cm-content': { padding: '4px 0', caretColor: 'var(--accent)' },
+  '.cm-line': { padding: '0 8px' },
+  '.cm-gutters': {
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    color: 'var(--content-faint)',
+    border: 'none',
+  },
+  '.cm-lineNumbers .cm-gutterElement': { padding: '0 8px' },
+});
+
+/** The monospaced editor for a file on disk (docs/design/files.md sections 4.12, Text editor, and 4.22). */
 export class TextEditor {
   readonly el: HTMLElement;
-  private readonly area: HTMLTextAreaElement;
+  private readonly view: EditorView;
   private readonly field: HTMLElement;
-  /**
-   * A copy of the text laid out exactly under the transparent textarea, so the find bar can
-   * highlight matches, which a textarea cannot show itself. Filled only while find is open.
-   */
-  private readonly mirror: HTMLElement;
-  private readonly gutter: HTMLElement | null;
-  private gutterLines = 0;
-  /** The line `revealLine` marked, drawn over the text; dropped on the first edit. */
-  private readonly band: HTMLElement;
-  private bandLine: number | null = null;
-  private mirrorOn = false;
   private readonly bar: HTMLElement;
   private readonly error: HTMLElement;
   private readonly lossyNote: HTMLElement;
   private readonly opts: TextEditorOptions;
+  private readonly readOnlyConf = new Compartment();
+  private readonly languageConf = new Compartment();
+  private language: LanguageId | null;
+  private mode: CodeColorsMode;
+  /** Bumped on every language or mode change, so a load that lands late is dropped. */
+  private languageToken = 0;
   private state: EditorState;
   private timer: number | null = null;
   private pending: Promise<void> | null = null;
   private reading: Promise<void> | null = null;
-  /** The file on disk uses CRLF; the textarea only ever holds LF. */
+  /** The file on disk uses CRLF; the document only ever holds LF. */
   private crlf: boolean;
+  private readOnly = false;
+  private surface: TextFindSurface | null = null;
+  private readonly changeListeners = new Set<() => void>();
+  private findRanges: [number, number][] = [];
   private disposed = false;
 
   constructor(opts: TextEditorOptions) {
     this.opts = opts;
     this.crlf = opts.text.includes('\r\n');
     this.state = initialEditorState(toLf(opts.text), opts.modified);
+    this.language = opts.language ?? null;
+    this.mode = opts.mode ?? codeColorsDefault();
 
     this.el = document.createElement('div');
     this.el.className = 'text-editor';
@@ -76,52 +152,56 @@ export class TextEditor {
     this.lossyNote.className = 'editor-note';
     this.lossyNote.textContent = 'Read-only: this file is not valid UTF-8, and saving it here would change its bytes.';
 
-    this.area = document.createElement('textarea');
-    this.area.className = 'editor-text';
-    this.area.spellcheck = false;
-    this.area.value = this.state.text;
-    this.mirror = document.createElement('div');
-    this.mirror.className = 'editor-mirror';
-    this.mirror.setAttribute('aria-hidden', 'true');
-    this.band = document.createElement('div');
-    this.band.className = 'editor-band';
-    this.band.hidden = true;
-    const body = document.createElement('div');
-    body.className = 'editor-body';
-    body.append(this.band, this.mirror, this.area);
     this.field = document.createElement('div');
     this.field.className = 'editor-field';
+
+    const extensions: Extension[] = [
+      // Runs before CodeMirror's keymap, so app chords like Ctrl+Shift+Left win over its bindings.
+      Prec.highest(
+        EditorView.domEventHandlers({
+          keydown: (e) => this.onKeyDown(e),
+          blur: () => {
+            this.send({ type: 'saveRequested' });
+            return false;
+          },
+        }),
+      ),
+      history(),
+      cmKeymap.of(editorKeys),
+      CmState.tabSize.of(8),
+      this.readOnlyConf.of(CmState.readOnly.of(false)),
+      this.languageConf.of([]),
+      bandField,
+      findField,
+      editorTheme,
+      EditorView.contentAttributes.of({ spellcheck: 'false' }),
+      EditorView.updateListener.of((u) => {
+        if (!u.docChanged) return;
+        if (!u.transactions.some((tr) => tr.annotation(external))) {
+          this.send({ type: 'edit', text: u.state.doc.toString() });
+        }
+        // A listener may search and repaint, which cannot dispatch inside this update.
+        if (this.changeListeners.size > 0) queueMicrotask(() => this.changeListeners.forEach((fn) => fn()));
+      }),
+    ];
+    if (opts.lineNumbers) extensions.push(cmLineNumbers());
+    else extensions.push(EditorView.lineWrapping);
+
+    this.view = new EditorView({
+      parent: this.field,
+      state: CmState.create({ doc: this.state.text, extensions }),
+    });
     if (opts.lineNumbers) {
-      this.el.classList.add('with-lines');
-      this.area.wrap = 'off';
-      this.gutter = document.createElement('pre');
-      this.gutter.className = 'editor-gutter';
-      this.gutter.setAttribute('aria-hidden', 'true');
-      this.field.append(this.gutter);
-      this.syncGutter();
-    } else {
-      this.gutter = null;
+      // CodeMirror's gutter is sticky over the scrolled text, and its translucent background (the
+      // backdrop shows through) would let that text show, so the text clips where it passes under.
+      const scroller = this.view.scrollDOM;
+      scroller.addEventListener('scroll', () => this.field.style.setProperty('--gutter-clip', `${scroller.scrollLeft}px`));
     }
-    this.field.append(body);
     this.applySettings(opts.settings);
 
     this.el.append(this.bar, this.lossyNote, this.error, this.field);
     this.setLossy(opts.lossy ?? false);
-
-    this.area.addEventListener('input', () => {
-      this.syncMirror();
-      this.syncGutter();
-      this.clearBand();
-      this.send({ type: 'edit', text: this.area.value });
-    });
-    this.area.addEventListener('scroll', () => {
-      this.mirror.scrollTop = this.area.scrollTop;
-      this.mirror.scrollLeft = this.area.scrollLeft;
-      if (this.gutter) this.gutter.scrollTop = this.area.scrollTop;
-      this.placeBand();
-    });
-    this.area.addEventListener('blur', () => this.send({ type: 'saveRequested' }));
-    this.area.addEventListener('keydown', (e) => this.onKeyDown(e));
+    void this.applyLanguage();
   }
 
   get text(): string {
@@ -135,54 +215,69 @@ export class TextEditor {
 
   /** Whether the last read was lossy, which leaves the editor read-only. */
   get lossy(): boolean {
-    return this.area.readOnly;
+    return this.readOnly;
+  }
+
+  /** Whether the editor has a language to color by, which enables the Plain | Syntax toggle. */
+  get hasColors(): boolean {
+    return this.language !== null;
   }
 
   focus(): void {
-    this.area.focus();
+    this.view.focus();
   }
 
   applySettings(settings: Settings): void {
     this.field.style.fontFamily = toFontFamily(settings.font.family);
     this.field.style.fontSize = `calc(${settings.font.size}px * var(--preview-zoom, 1))`;
-    this.placeBand();
+    this.view.requestMeasure();
+  }
+
+  /** Colors by `id` in Syntax mode; null leaves the text uncolored. */
+  setLanguage(id: LanguageId | null): void {
+    if (id === this.language) return;
+    this.language = id;
+    void this.applyLanguage();
+  }
+
+  /** Plain or Syntax; keeps the caret, scroll position, selection, and undo history. */
+  setMode(mode: CodeColorsMode): void {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    void this.applyLanguage();
   }
 
   /**
    * Scrolls the 1-based `line` to the middle, marks it, and puts the caret at its start without
-   * taking focus. Only for an editor with line numbers, whose lines never wrap, so each line is
-   * one row tall.
+   * taking focus.
    */
   revealLine(line: number): void {
-    const lines = this.area.value.split('\n');
-    const at = Math.min(Math.max(1, line), lines.length);
-    let offset = 0;
-    for (let i = 0; i < at - 1; i++) offset += lines[i].length + 1;
-    this.area.setSelectionRange(offset, offset);
-    this.bandLine = at;
-    const row = this.rowHeight();
-    const top = this.padTop() + (at - 1) * row;
-    this.area.scrollTop = Math.max(0, top - (this.area.clientHeight - row) / 2);
-    this.area.scrollLeft = 0;
-    this.placeBand();
+    const doc = this.view.state.doc;
+    const at = Math.min(Math.max(1, line), doc.lines);
+    const from = doc.line(at).from;
+    this.view.dispatch({
+      selection: { anchor: from },
+      effects: [setBand.of(at), EditorView.scrollIntoView(from, { y: 'center', x: 'start' })],
+    });
   }
 
-  /** Re-places the band after the text size changed (a zoom step). */
+  /** Measures again after the text size changed (a zoom step). */
   relayout(): void {
-    this.placeBand();
+    this.view.requestMeasure();
   }
 
   findSurface(): FindSurface {
-    if (!this.mirrorOn) {
-      this.mirrorOn = true;
-      this.syncMirror();
-    }
-    return {
-      textRoot: this.mirror,
-      // The mirror sits exactly under the textarea, so its ranges measure the textarea's text.
-      reveal: (range) => revealIn(this.area, range),
-      done: (range) => this.findDone(range),
+    this.surface ??= {
+      find: (query) => this.find(query),
+      setCurrent: (index, reveal) => this.paintFind(index, reveal),
+      clear: () => this.clearFind(),
+      finish: (match) => this.finishFind(match),
+      onChange: (listener) => {
+        this.changeListeners.add(listener);
+        return () => this.changeListeners.delete(listener);
+      },
     };
+    return this.surface;
   }
 
   /** The folder watch saw this file's modified time change. */
@@ -205,7 +300,62 @@ export class TextEditor {
     if (this.disposed) return;
     this.disposed = true;
     this.clearTimer();
+    this.changeListeners.clear();
+    this.view.destroy();
     this.el.remove();
+  }
+
+  private async applyLanguage(): Promise<void> {
+    const token = ++this.languageToken;
+    const id = this.language;
+    if (this.mode === 'plain' || id === null) {
+      this.reconfigureLanguage([]);
+      return;
+    }
+    let support: Extension;
+    try {
+      support = await loadLanguage(id);
+    } catch (err) {
+      console.error(`could not load the ${id} language`, err);
+      return;
+    }
+    if (token !== this.languageToken || this.disposed) return;
+    this.reconfigureLanguage([support, syntaxHighlighting(roleHighlighter)]);
+  }
+
+  private reconfigureLanguage(ext: Extension): void {
+    if (this.disposed) return;
+    this.view.dispatch({ effects: this.languageConf.reconfigure(ext) });
+  }
+
+  private find(query: string): FindMatches {
+    const found = findMatches(this.view.state.doc.toString(), query);
+    this.findRanges = found.ranges;
+    this.view.dispatch({ effects: setFind.of({ ranges: found.ranges, current: -1 }) });
+    return found;
+  }
+
+  private paintFind(index: number, reveal: boolean): void {
+    const effects: StateEffect<unknown>[] = [setFind.of({ ranges: this.findRanges, current: index })];
+    const match = this.findRanges[index];
+    if (reveal && match) effects.push(EditorView.scrollIntoView(match[0], { y: 'nearest', yMargin: 40 }));
+    this.view.dispatch({ effects });
+  }
+
+  private clearFind(): void {
+    this.findRanges = [];
+    if (!this.disposed) this.view.dispatch({ effects: setFind.of({ ranges: [], current: -1 }) });
+  }
+
+  /** Leaves the current match selected, as the caret's new place. */
+  private finishFind(match: readonly [number, number] | null): void {
+    this.clearFind();
+    if (this.disposed) return;
+    if (match) {
+      const len = this.view.state.doc.length;
+      this.view.dispatch({ selection: { anchor: Math.min(match[0], len), head: Math.min(match[1], len) } });
+    }
+    this.view.focus();
   }
 
   private send(event: EditorEvent): void {
@@ -239,14 +389,25 @@ export class TextEditor {
         break;
       }
       case 'setText':
-        if (this.area.value !== effect.text) {
-          this.area.value = effect.text;
-          this.syncMirror();
-          this.syncGutter();
-        }
+        this.replaceText(effect.text);
         this.showError(null);
         break;
     }
+  }
+
+  /** Swaps in `text` as one change over the part that differs, so the caret stays near its place. */
+  private replaceText(text: string): void {
+    const old = this.view.state.doc.toString();
+    if (old === text) return;
+    let start = 0;
+    const max = Math.min(old.length, text.length);
+    while (start < max && old.charCodeAt(start) === text.charCodeAt(start)) start++;
+    let end = 0;
+    while (end < max - start && old.charCodeAt(old.length - 1 - end) === text.charCodeAt(text.length - 1 - end)) end++;
+    this.view.dispatch({
+      changes: { from: start, to: old.length - end, insert: text.slice(start, text.length - end) },
+      annotations: external.of(true),
+    });
   }
 
   private save(text: string, expectedModified: number): void {
@@ -294,66 +455,10 @@ export class TextEditor {
   }
 
   private setLossy(lossy: boolean): void {
-    this.area.readOnly = lossy;
     this.lossyNote.hidden = !lossy;
-  }
-
-  private syncMirror(): void {
-    if (!this.mirrorOn) return;
-    this.mirror.textContent = this.area.value;
-    this.mirror.scrollTop = this.area.scrollTop;
-    this.mirror.scrollLeft = this.area.scrollLeft;
-  }
-
-  private placeBand(): void {
-    if (this.bandLine === null) return;
-    const row = this.rowHeight();
-    this.band.style.top = `${this.padTop() + (this.bandLine - 1) * row - this.area.scrollTop}px`;
-    this.band.style.height = `${row}px`;
-    this.band.hidden = false;
-  }
-
-  private clearBand(): void {
-    this.bandLine = null;
-    this.band.hidden = true;
-  }
-
-  /** The textarea's row height; its `line-height: normal` has no computed number to read. */
-  private rowHeight(): number {
-    const probe = document.createElement('div');
-    probe.className = 'editor-row-probe';
-    probe.textContent = 'x\n'.repeat(9) + 'x';
-    this.field.appendChild(probe);
-    const h = probe.getBoundingClientRect().height / 10;
-    probe.remove();
-    return h || 16;
-  }
-
-  private padTop(): number {
-    return parseFloat(getComputedStyle(this.area).paddingTop) || 0;
-  }
-
-  /** One gutter row per line; lines never wrap while the gutter shows, so the rows stay aligned. */
-  private syncGutter(): void {
-    if (!this.gutter) return;
-    const text = this.area.value;
-    let lines = 1;
-    for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) lines++;
-    if (lines === this.gutterLines) return;
-    this.gutterLines = lines;
-    this.gutter.textContent = Array.from({ length: lines }, (_, i) => String(i + 1)).join('\n');
-    this.gutter.scrollTop = this.area.scrollTop;
-  }
-
-  /** Leaves the current match selected in the textarea, as the caret's new place. */
-  private findDone(range: Range | null): void {
-    // The mirror holds one text node, so range offsets are textarea offsets.
-    const start = range?.startOffset;
-    const end = range?.endOffset;
-    this.mirrorOn = false;
-    this.mirror.textContent = '';
-    this.area.focus({ preventScroll: true });
-    if (start !== undefined && end !== undefined) this.area.setSelectionRange(start, end);
+    if (lossy === this.readOnly) return;
+    this.readOnly = lossy;
+    this.view.dispatch({ effects: this.readOnlyConf.reconfigure(CmState.readOnly.of(lossy)) });
   }
 
   private showError(message: string | null): void {
@@ -368,18 +473,21 @@ export class TextEditor {
     }
   }
 
-  private onKeyDown(e: KeyboardEvent): void {
+  /** True when the key was handled here, which keeps it from CodeMirror's keymap. */
+  private onKeyDown(e: KeyboardEvent): boolean {
     if (e.key.toLowerCase() === 's' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       e.stopPropagation();
       this.send({ type: 'saveRequested' });
-      return;
+      return true;
     }
     const action = lookup(this.opts.keymap(), e);
     if (action && !textFieldOwns(action) && this.opts.dispatch(action)) {
       e.preventDefault();
       e.stopPropagation();
+      return true;
     }
+    return false;
   }
 
   private barButton(label: string, title: string, onClick: () => void): HTMLButtonElement {
@@ -392,7 +500,7 @@ export class TextEditor {
   }
 }
 
-/** A textarea's value normalizes line breaks to LF, so the model compares against that form. */
+/** The document holds LF only, so the model compares against that form. */
 function toLf(text: string): string {
   return text.replace(/\r\n?/g, '\n');
 }

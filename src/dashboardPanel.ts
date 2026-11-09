@@ -63,6 +63,8 @@ export interface DashboardCallbacks
     Partial<LayoutsCallbacks>,
     Partial<PinRowCallbacks>,
     Partial<ContainersSectionCallbacks> {
+  /** The Pins heading's "+" (docs/design/dashboard.md section 4.6). */
+  onNewPin?: () => void;
   onFocus: (paneId: string) => void;
   onClose: (paneId: string) => void;
   /** The Ports section's rows; omitted, they only list. */
@@ -219,6 +221,8 @@ export class DashboardPanel {
     this.pinsSection = new PinsSection({
       onOpenPin: (pin) => this.callbacks.onOpenPin?.(pin),
       onRenamePin: (index, label) => this.callbacks.onRenamePin?.(index, label),
+      onEditPin: (index) => this.callbacks.onEditPin?.(index),
+      onNewPin: () => this.callbacks.onNewPin?.(),
       onRemovePin: (index) => this.callbacks.onRemovePin?.(index),
       onReorderPin: (from, to) => this.callbacks.onReorderPin?.(from, to),
     });

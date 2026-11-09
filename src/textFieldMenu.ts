@@ -1,7 +1,12 @@
+import { undo } from '@codemirror/commands';
+import { EditorView } from '@codemirror/view';
 import { invoke } from '@tauri-apps/api/core';
 import { isKeyboardContextMenuEvent, openContextMenu } from './contextMenu';
 import { item, type MenuEntry, separator } from './contextMenuModel';
+import { isTextField } from './textFieldTarget';
 import { showToast } from './toast';
+
+export { isTextField };
 
 export interface TextFieldMenuState {
   hasSelection: boolean;
@@ -37,31 +42,45 @@ export function textFieldMenuItems(
   return entries;
 }
 
-type TextField = HTMLInputElement | HTMLTextAreaElement;
+type InputField = HTMLInputElement | HTMLTextAreaElement;
 
-const TEXT_INPUT_TYPES = new Set(['text', 'search', 'url', 'tel', 'email', 'password', 'number']);
-
-/** A textarea or text-like input outside a terminal (xterm.js's helper textarea is not one). */
-export function isTextField(el: Element | null): el is TextField {
-  if (!el || el.closest('.xterm')) return false;
-  const tag = el.tagName;
-  if (tag === 'TEXTAREA') return true;
-  return tag === 'INPUT' && TEXT_INPUT_TYPES.has((el as HTMLInputElement).type);
-}
-
-const extrasByField = new WeakMap<TextField, () => MenuEntry[]>();
+const extrasByField = new WeakMap<Element, () => MenuEntry[]>();
 
 /** Adds items after the standard ones in `field`'s menu, built each time the menu opens. */
-export function setTextFieldExtras(field: TextField, provider: () => MenuEntry[]): void {
+export function setTextFieldExtras(field: InputField, provider: () => MenuEntry[]): void {
   extrasByField.set(field, provider);
 }
 
-interface Range {
+/**
+ * What the menu needs from a field, captured when the menu opens: a textarea or input keeps the
+ * browser's own editing, and a CodeMirror editor edits through its view.
+ */
+export interface TextFieldAdapter {
+  readonly element: HTMLElement;
+  readonly hasSelection: boolean;
+  readonly readOnly: boolean;
+  /** Where a menu opened from the keyboard goes. */
+  anchor(): { x: number; y: number };
+  actions(): TextFieldMenuActions;
+}
+
+/** The adapter for the field `el` is in, or null when it is not a text field. */
+export function textFieldAdapter(el: Element | null): TextFieldAdapter | null {
+  if (!isTextField(el)) return null;
+  const content = el.closest('.cm-content');
+  if (content) {
+    const view = EditorView.findFromDOM(content as HTMLElement);
+    return view ? editorAdapter(view) : null;
+  }
+  return inputAdapter(el as InputField);
+}
+
+interface Span {
   start: number | null;
   end: number | null;
 }
 
-function selectionOf(field: TextField): Range {
+function selectionOf(field: InputField): Span {
   // Some input types (email, number) have no selection API and report null or throw.
   try {
     return { start: field.selectionStart, end: field.selectionEnd };
@@ -70,19 +89,18 @@ function selectionOf(field: TextField): Range {
   }
 }
 
-function restore(field: TextField, range: Range): void {
+function restore(field: InputField, span: Span): void {
   field.focus();
-  if (range.start === null || range.end === null) return;
+  if (span.start === null || span.end === null) return;
   try {
-    field.setSelectionRange(range.start, range.end);
+    field.setSelectionRange(span.start, span.end);
   } catch {
     // No selection API on this input type.
   }
 }
 
-/** Resolves true once the selected text is on the clipboard. */
-function writeSelection(field: TextField, range: Range): Promise<boolean> {
-  const text = field.value.slice(range.start ?? 0, range.end ?? 0);
+/** Resolves true once `text` is on the clipboard. */
+function writeClipboard(text: string): Promise<boolean> {
   return navigator.clipboard.writeText(text).then(
     () => true,
     (e) => {
@@ -92,39 +110,103 @@ function writeSelection(field: TextField, range: Range): Promise<boolean> {
   );
 }
 
-function actionsFor(field: TextField, range: Range): TextFieldMenuActions {
+function readClipboard(use: (text: string) => void): void {
+  void invoke<string | null>('clipboard_read_text').then(
+    (text) => {
+      if (text) use(text);
+    },
+    (e) => showToast(`Could not paste: ${e}`),
+  );
+}
+
+function inputAdapter(field: InputField): TextFieldAdapter {
+  const span = selectionOf(field);
+  const isPassword = field instanceof HTMLInputElement && field.type === 'password';
+  const selected = (): string => field.value.slice(span.start ?? 0, span.end ?? 0);
   return {
-    undo: () => {
-      restore(field, range);
-      document.execCommand('undo');
+    element: field,
+    hasSelection: !isPassword && span.start !== null && span.end !== null && span.start !== span.end,
+    readOnly: field.readOnly || field.disabled,
+    anchor: () => {
+      const rect = field.getBoundingClientRect();
+      return { x: rect.left, y: rect.bottom };
     },
-    copy: () => {
-      restore(field, range);
-      void writeSelection(field, range);
-    },
-    cut: () => {
-      restore(field, range);
-      // execCommand keeps the deletion on the field's undo stack and fires `input` for owners.
-      void writeSelection(field, range).then((copied) => {
-        if (!copied || !field.isConnected) return;
-        restore(field, range);
-        document.execCommand('delete');
-      });
-    },
-    paste: () => {
-      void invoke<string | null>('clipboard_read_text').then(
-        (text) => {
-          if (!text || !field.isConnected) return;
-          restore(field, range);
+    actions: () => ({
+      undo: () => {
+        restore(field, span);
+        document.execCommand('undo');
+      },
+      copy: () => {
+        restore(field, span);
+        void writeClipboard(selected());
+      },
+      cut: () => {
+        restore(field, span);
+        // execCommand keeps the deletion on the field's undo stack and fires `input` for owners.
+        void writeClipboard(selected()).then((copied) => {
+          if (!copied || !field.isConnected) return;
+          restore(field, span);
+          document.execCommand('delete');
+        });
+      },
+      paste: () =>
+        readClipboard((text) => {
+          if (!field.isConnected) return;
+          restore(field, span);
           document.execCommand('insertText', false, text);
-        },
-        (e) => showToast(`Could not paste: ${e}`),
-      );
+        }),
+      selectAll: () => {
+        field.focus();
+        field.select();
+      },
+    }),
+  };
+}
+
+function editorAdapter(view: EditorView): TextFieldAdapter {
+  const { from, to, head } = view.state.selection.main;
+  const text = view.state.sliceDoc(from, to);
+  // The document may change while the clipboard is read, so edits clamp to its current length.
+  const clamp = (n: number): number => Math.min(n, view.state.doc.length);
+  return {
+    element: view.contentDOM,
+    hasSelection: from !== to,
+    readOnly: view.state.readOnly,
+    anchor: () => {
+      const at = view.coordsAtPos(head);
+      if (at) return { x: at.left, y: at.bottom };
+      const rect = view.contentDOM.getBoundingClientRect();
+      return { x: rect.left, y: rect.top };
     },
-    selectAll: () => {
-      field.focus();
-      field.select();
-    },
+    actions: () => ({
+      undo: () => {
+        view.focus();
+        undo(view);
+      },
+      copy: () => void writeClipboard(text),
+      cut: () =>
+        void writeClipboard(text).then((copied) => {
+          if (!copied || view.state.readOnly) return;
+          view.dispatch({ changes: { from: clamp(from), to: clamp(to) }, userEvent: 'delete.cut' });
+          view.focus();
+        }),
+      paste: () =>
+        readClipboard((pasted) => {
+          if (view.state.readOnly) return;
+          const insert = view.state.toText(pasted);
+          view.dispatch({
+            changes: { from: clamp(from), to: clamp(to), insert },
+            selection: { anchor: clamp(from) + insert.length },
+            userEvent: 'input.paste',
+            scrollIntoView: true,
+          });
+          view.focus();
+        }),
+      selectAll: () => {
+        view.focus();
+        view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+      },
+    }),
   };
 }
 
@@ -139,25 +221,16 @@ export function installTextFieldMenu(): void {
   if (installed) return;
   installed = true;
   document.addEventListener('contextmenu', (e) => {
-    const field = e.target instanceof Element ? e.target : null;
-    if (!isTextField(field)) return;
-    const range = selectionOf(field);
-    const isPassword = field instanceof HTMLInputElement && field.type === 'password';
-    const state: TextFieldMenuState = {
-      hasSelection: !isPassword && range.start !== null && range.end !== null && range.start !== range.end,
-      readOnly: field.readOnly || field.disabled,
-    };
-    const extras = extrasByField.get(field)?.() ?? [];
+    const field = textFieldAdapter(e.target instanceof Element ? e.target : null);
+    if (!field) return;
+    const state: TextFieldMenuState = { hasSelection: field.hasSelection, readOnly: field.readOnly };
+    const extras = extrasByField.get(field.element)?.() ?? [];
+    const entries = textFieldMenuItems(state, field.actions(), extras);
     e.preventDefault();
     if (isKeyboardContextMenuEvent(e)) {
-      const rect = field.getBoundingClientRect();
-      openContextMenu(
-        textFieldMenuItems(state, actionsFor(field, range), extras),
-        { x: rect.left, y: rect.bottom },
-        { focusFirst: true },
-      );
+      openContextMenu(entries, field.anchor(), { focusFirst: true });
     } else {
-      openContextMenu(textFieldMenuItems(state, actionsFor(field, range), extras), { x: e.clientX, y: e.clientY });
+      openContextMenu(entries, { x: e.clientX, y: e.clientY });
     }
   });
 }

@@ -16,6 +16,7 @@ import { normalizeDevtools, type DevtoolsState } from './browserPaneModel';
 import { parseFilesSort, type FilesSort } from './filesModel';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
+import { type CodeColorsMode, parseCodeColorsMode } from './code/codeColorsStore';
 import { type TextZoom, parseTextZoom } from './textZoomStore';
 
 /** A coding agent Bashboard can resume; absent or unknown in a saved pane reads as Claude. */
@@ -49,11 +50,20 @@ export type SavedPane = { key: string; collapsed: boolean } & (
   /**
    * `selected` is the previewed file's absolute path. `root` is the repo the pane was opened
    * for, which can be an ancestor of `folder`; absent, it resolves from `folder`. `expanded` is
-   * whether the preview filled the pane; absent means false.
+   * whether the preview filled the pane; absent means false. `codeColors` is the pane's code
+   * colors mode (docs/design/files.md section 4.22), written only for Plain; absent means Syntax.
    */
-  | { kind: 'files'; folder: string; selected: string | null; root?: string; expanded?: boolean; sort?: FilesSort }
-  /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Changes. */
-  | { kind: 'git'; root: string; tab?: GitTab }
+  | {
+      kind: 'files';
+      folder: string;
+      selected: string | null;
+      root?: string;
+      expanded?: boolean;
+      sort?: FilesSort;
+      codeColors?: CodeColorsMode;
+    }
+  /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Changes; `codeColors` is as for Files. */
+  | { kind: 'git'; root: string; tab?: GitTab; codeColors?: CodeColorsMode }
   /**
    * `root` is the drilled-in target, a local repo root or a `remote:<host>/<owner>/<name>` key;
    * absent means the pane is on Overview. `tab` is the open tab, absent meaning Pipelines;
@@ -70,8 +80,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
       thisBranchPulls?: boolean;
       allPulls?: boolean;
     }
-  /** `root` is the repo root the pane searches. */
-  | { kind: 'search'; root: string; query: string; options: SearchOptions }
+  /** `root` is the repo root the pane searches; `codeColors` is as for Files. */
+  | { kind: 'search'; root: string; query: string; options: SearchOptions; codeColors?: CodeColorsMode }
   /** The Containers pane saves no state; its containers come from the engines. */
   | { kind: 'containers' }
   /** The Ports pane saves no state; its ports come from the OS. */
@@ -123,6 +133,8 @@ export interface SavedWorkspace {
   dashboardHideNoticeShown?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
+  /** The code colors mode new panes start in (docs/design/files.md section 4.22); absent means Syntax. */
+  codeColors?: CodeColorsMode;
 }
 
 export const EMPTY_WORKSPACE: SavedWorkspace = { version: 3, tabs: [], activeTab: 0, collapsedSections: [] };
@@ -216,11 +228,18 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
       ...(typeof raw.root === 'string' && { root: raw.root }),
       ...(typeof raw.expanded === 'boolean' && { expanded: raw.expanded }),
       ...(raw.sort !== undefined && { sort: parseFilesSort(raw.sort) }),
+      ...(raw.codeColors !== undefined && { codeColors: parseCodeColorsMode(raw.codeColors) }),
     };
   },
   git: (raw, base) => {
     if (typeof raw.root !== 'string') return null;
-    return { ...base, kind: 'git', root: raw.root, ...(raw.tab === 'branches' && { tab: 'branches' as const }) };
+    return {
+      ...base,
+      kind: 'git',
+      root: raw.root,
+      ...(raw.tab === 'branches' && { tab: 'branches' as const }),
+      ...(raw.codeColors !== undefined && { codeColors: parseCodeColorsMode(raw.codeColors) }),
+    };
   },
   ship: (raw, base) => {
     // An empty root is how a pane with no target was once saved, so it reads as Overview too.
@@ -243,6 +262,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
       root: raw.root,
       query: typeof raw.query === 'string' ? raw.query : '',
       options: parseSearchOptions(raw.options),
+      ...(raw.codeColors !== undefined && { codeColors: parseCodeColorsMode(raw.codeColors) }),
     };
   },
   containers: (_raw, base) => ({ ...base, kind: 'containers' }),
@@ -390,6 +410,7 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (raw.hideStoppedContainers === true) saved.hideStoppedContainers = true;
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
+  if (raw.codeColors !== undefined) saved.codeColors = parseCodeColorsMode(raw.codeColors);
   return saved;
 }
 

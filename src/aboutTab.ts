@@ -1,4 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app';
+import { SCHEMES, SCHEME_CREDITS } from './code/schemes';
 import { linkButton } from './dialogLink';
 
 const REPO_URL = 'https://github.com/BradleyKH/bashboard';
@@ -40,7 +41,19 @@ export class AboutTab {
     const notes = linkButton('Release notes', `${REPO_URL}/releases`);
     links.append(notes, linkButton('Documentation', `${REPO_URL}#documentation`), linkButton('Source on GitHub', REPO_URL));
 
-    root.append(name, tagline, version, actions, links);
+    const creditsLabel = document.createElement('p');
+    creditsLabel.className = 'app-dialog-note';
+    creditsLabel.textContent = 'Code color schemes, adapted from these MIT-licensed palettes:';
+    const credits = document.createElement('ul');
+    credits.className = 'about-tab-credits';
+    for (const { id, label } of SCHEMES) {
+      const { name, url, license } = SCHEME_CREDITS[id];
+      const item = document.createElement('li');
+      item.append(`${label}: `, linkButton(name, url), `, ${license}`);
+      credits.append(item);
+    }
+
+    root.append(name, tagline, version, actions, links, creditsLabel, credits);
     host.append(root);
     this.root = root;
 

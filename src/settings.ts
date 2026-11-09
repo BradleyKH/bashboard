@@ -3,6 +3,7 @@ import { DEFAULT_ACCENT } from './accent';
 import type { ImageFit } from './backdrop/image/imageFit';
 import { DEFAULT_WAVE_COLOR_MODE, type WaveColorMode } from './backdrop/wave/waveColor';
 import { DEFAULT_MATRIX_COLOR_MODE, type MatrixColorMode } from './backdrop/matrix/rainColor';
+import { DEFAULT_CODE_SCHEME, type CodeScheme } from './code/schemes';
 import { DEFAULT_CONTENT_TEXT_MODE, type ContentTextMode } from './contentText';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ClockStyle } from './clockModel';
@@ -21,6 +22,8 @@ export interface Settings {
   accentColor: string;
   /** Non-terminal pane content and dashboard text, derived from the accent (docs/design/data.md section 8). */
   contentTextColor: ContentTextMode;
+  /** Code color scheme for text previews; matchAccent picks the one paired with the accent (docs/design/files.md section 4.22). */
+  codeColors: { scheme: CodeScheme };
   /** Multiplier on the app's chrome, 1 to 2; the Interface size slider (docs/design/README.md section 5). */
   uiScale: number;
   scrim: { opacity: number; blurPx: number };
@@ -90,6 +93,7 @@ export const DEFAULT_SETTINGS: Settings = {
   font: { family: 'JetBrainsMono Nerd Font Mono, Cascadia Mono', size: 14 },
   accentColor: DEFAULT_ACCENT,
   contentTextColor: DEFAULT_CONTENT_TEXT_MODE,
+  codeColors: { scheme: DEFAULT_CODE_SCHEME },
   uiScale: 1,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {

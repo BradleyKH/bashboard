@@ -1,9 +1,17 @@
 import { moveItem, samePath } from './favorites';
 
-/** One pinned file or folder; `path` is relative to the root (forward slashes) when inside it. */
+/**
+ * One pinned file or folder, or a command pin (docs/design/dashboard.md section 4.6) whose `path`
+ * is the folder its `command` runs in; `path` is relative to the root (forward slashes) when inside it.
+ */
 export interface Pin {
   path: string;
   label?: string;
+  command?: string;
+}
+
+export function isCommandPin(pin: Pin): pin is Pin & { command: string } {
+  return pin.command !== undefined;
 }
 
 /**
@@ -31,10 +39,11 @@ export function parseRepos(raw: unknown): ReposFile {
     const good: Pin[] = [];
     for (const p of Array.isArray(pins) ? pins : []) {
       if (typeof p !== 'object' || p === null) continue;
-      const { path, label } = p as Record<string, unknown>;
+      const { path, label, command } = p as Record<string, unknown>;
       if (typeof path !== 'string' || path.trim() === '') continue;
       const text = typeof label === 'string' ? label.trim() : '';
-      good.push({ path, ...(text ? { label: text } : {}) });
+      const cmd = typeof command === 'string' ? command.trim() : '';
+      good.push({ path, ...(text ? { label: text } : {}), ...(cmd ? { command: cmd } : {}) });
     }
     if (good.length === 0 && !branch) continue;
     const existing = out.find((r) => samePath(r.root, root));
@@ -83,8 +92,13 @@ export function resolvePin(root: string, pin: Pin): string {
   return base + sep + rel.split('/').join(sep);
 }
 
-function samePin(a: string, b: string): boolean {
+export function samePinPath(a: string, b: string): boolean {
   return trimEnd(slashes(a)).toLowerCase() === trimEnd(slashes(b)).toLowerCase();
+}
+
+/** Same folder and command for command pins, same path for the others; labels are ignored. */
+export function samePin(a: Pin, b: Pin): boolean {
+  return samePinPath(a.path, b.path) && a.command === b.command;
 }
 
 function withPins(file: ReposFile, root: string, pins: Pin[]): ReposFile {
@@ -96,10 +110,10 @@ function withPins(file: ReposFile, root: string, pins: Pin[]): ReposFile {
   return file.map((r, j) => (j === i ? { ...r, pins } : r));
 }
 
-/** Adds a pin at the end; pinning a path that is already pinned returns `file` itself. */
+/** Adds a pin at the end; pinning one that is already pinned returns `file` itself. */
 export function addPin(file: ReposFile, root: string, pin: Pin): ReposFile {
   const pins = pinsFor(file, root);
-  if (pins.some((p) => samePin(p.path, pin.path))) return file;
+  if (pins.some((p) => samePin(p, pin))) return file;
   return withPins(file, root, [...pins, pin]);
 }
 
@@ -117,8 +131,19 @@ export function renamePin(file: ReposFile, root: string, index: number, label: s
   const text = label.trim();
   const next = pins.map((p, i) => {
     if (i !== index) return p;
-    return text ? { path: p.path, label: text } : { path: p.path };
+    const { label: _old, ...rest } = p;
+    return text ? { ...rest, label: text } : rest;
   });
+  return withPins(file, root, next);
+}
+
+/** Replaces a command pin's label and command, keeping its folder; a blank command changes nothing. */
+export function editCommandPin(file: ReposFile, root: string, index: number, label: string, command: string): ReposFile {
+  const pins = pinsFor(file, root);
+  const cmd = command.trim();
+  if (index < 0 || index >= pins.length || !isCommandPin(pins[index]) || !cmd) return file;
+  const text = label.trim();
+  const next = pins.map((p, i) => (i === index ? { path: p.path, ...(text ? { label: text } : {}), command: cmd } : p));
   return withPins(file, root, next);
 }
 

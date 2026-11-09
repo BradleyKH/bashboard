@@ -48,6 +48,34 @@ text (the default foreground, bright white, and `#ffffff` in the 256-color palet
 every other color a program picks. The Text color field in the Appearance section offers Accent
 tint and White.
 
+`codeColors.scheme` sets the colors code takes in text previews: the Files and Search previews
+and editor, rendered markdown's fenced blocks, and the Git diff. It is `matchAccent` (the
+default), which picks the scheme paired with the current accent, or one of `nord`, `ayu`,
+`gruvbox`, `monokai`, `tokyoNight`, `oneDark`, `catppuccinMocha`, and `dracula`; any other value
+falls back to `matchAccent` and shows a notice. The Code colors field in the Appearance section,
+after Text color, offers Match accent and the eight schemes by name, and names the scheme Match
+accent resolves to, as "Match accent (Tokyo Night)". Below the field, a short TSX sample shows
+the chosen scheme in the Font family you set and the Text color you chose, and redraws as you
+change the scheme, the accent, the text color, or the font, before anything is saved. Text that no
+scheme colors (identifiers, operators, and punctuation) takes Text color. Each preview has a
+Plain | Syntax button group that turns the colors off for that pane (see the user guide).
+
+Under Match accent, each accent preset has a scheme:
+
+| Accent | Scheme |
+| --- | --- |
+| Silver | Nord |
+| Orange | Ayu |
+| Gold | Gruvbox |
+| Green | Monokai |
+| Teal | Tokyo Night |
+| Blue | One Dark |
+| Violet | Catppuccin Mocha |
+| Pink | Dracula |
+
+A custom `accentColor` takes the scheme of the preset nearest in hue, and one that is nearly gray
+(HSV saturation under 0.2) takes Nord, as Silver does.
+
 `uiScale` sets the size of the app's chrome, from `1` (the default, compact) to `2`; at `1.5` the
 dashboard's buttons match its Launch buttons. It covers buttons, text boxes, and dropdowns in the
 pane title bars, the tab strip, the dashboard, pane toolbars, the find bar, and menus, and

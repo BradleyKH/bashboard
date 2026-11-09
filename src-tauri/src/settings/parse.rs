@@ -275,6 +275,15 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
         |v| v.as_str().and_then(parse_content_text),
         d.content_text_color,
     );
+    let code_colors = CodeColors {
+        scheme: pick(
+            &root,
+            &["codeColors", "scheme"],
+            &mut w,
+            |v| v.as_str().filter(|s| CODE_SCHEMES.contains(s)).map(String::from),
+            d.code_colors.scheme,
+        ),
+    };
     let ui_scale = pick(
         &root,
         &["uiScale"],
@@ -583,6 +592,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             font,
             accent_color,
             content_text_color,
+            code_colors,
             ui_scale,
             scrim,
             backdrop,
@@ -652,6 +662,27 @@ mod tests {
             let (s, w) = parse_settings(&format!(r#"{{ "contentTextColor": {bad} }}"#));
             assert_eq!(s.content_text_color, DEFAULT_CONTENT_TEXT_MODE, "{bad}");
             assert_eq!(w, vec!["contentTextColor: invalid value, using default"], "{bad}");
+        }
+    }
+
+    #[test]
+    fn code_colors_scheme_takes_a_known_id() {
+        for id in CODE_SCHEMES {
+            let (s, w) = parse_settings(&format!(r#"{{ "codeColors": {{ "scheme": "{id}" }} }}"#));
+            assert_eq!(s.code_colors.scheme, id);
+            assert!(w.is_empty(), "{id}");
+        }
+        let (s, w) = parse_settings("{}");
+        assert_eq!(s.code_colors.scheme, DEFAULT_CODE_SCHEME);
+        assert!(w.is_empty());
+    }
+
+    #[test]
+    fn code_colors_scheme_falls_back_with_warning() {
+        for bad in [r#""solarized""#, r#""Nord""#, r#""""#, "12"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "codeColors": {{ "scheme": {bad} }} }}"#));
+            assert_eq!(s.code_colors.scheme, DEFAULT_CODE_SCHEME, "{bad}");
+            assert_eq!(w, vec!["codeColors.scheme: invalid value, using default"], "{bad}");
         }
     }
 

@@ -93,7 +93,8 @@ export class PaneFactory {
   buildPane(id: string, host: HTMLElement, spec: PaneSpec, expanded: boolean, onReady?: () => void): PaneView {
     const { pane, strip } = this.build(id, host, spec, expanded, onReady);
     this.ctx.paneViews.set(id, pane);
-    strip.setActions(pane.stripActions ?? null);
+    const newPin = this.newPinHandler(id, spec);
+    strip.setActions(pane.stripActions ?? (newPin ? newPinButton(newPin) : null));
     this.ctx.paneStatus().register(id, strip);
     this.ctx.paneStatus().refresh(id);
     return pane;
@@ -133,6 +134,21 @@ export class PaneFactory {
     return this.sizer;
   }
 
+  /**
+   * A terminal's New pin (docs/design/terminal.md section 4.4): a command pin in its working
+   * directory, prefilled with its selection. A container shell's folder is inside the container,
+   * so it has none.
+   */
+  private newPinHandler(id: string, spec: PaneSpec): (() => void) | undefined {
+    const { ctx } = this;
+    const hook = ctx.hooks.onNewCommandPin;
+    if (spec.kind !== 'terminal' || spec.container || !hook) return undefined;
+    return () => {
+      const term = ctx.terminal(id);
+      hook(term?.cwd ?? null, term?.selection() ?? '');
+    };
+  }
+
   /** The strip goes in first so it sits ahead of the body the pane builds into. */
   private build(
     id: string,
@@ -152,6 +168,7 @@ export class PaneFactory {
         },
         onChooseKind: (kind) => void ctx.replaceKind(id, kind),
         onDragStart: (e) => ctx.startDrag({ kind: 'pane', paneId: id }, e),
+        onNewPin: this.newPinHandler(id, spec),
       },
       spec.kind,
     );
@@ -225,7 +242,9 @@ export class PaneFactory {
         onReady ??
         (spec.initialInput !== undefined
           ? () => ctx.terminal(id)?.typeText(`${spec.initialInput}\r`)
-          : undefined),
+          : spec.initialPaste !== undefined
+            ? () => ctx.terminal(id)?.pasteText(spec.initialPaste ?? '')
+            : undefined),
     });
   }
 
@@ -265,6 +284,7 @@ export class PaneFactory {
       root: spec.root,
       query: spec.query ?? '',
       options: spec.options ?? DEFAULT_SEARCH_OPTIONS,
+      codeColors: spec.codeColors,
       expanded,
       keymap: () => ctx.keymap(),
       dispatch: (a) => ctx.dispatch(a),
@@ -288,6 +308,7 @@ export class PaneFactory {
       paneId: id,
       settings: ctx.paneSettings(),
       root: spec.root,
+      codeColors: spec.codeColors,
       expanded,
       keymap: () => ctx.keymap(),
       dispatch: (a) => ctx.dispatch(a),
@@ -422,6 +443,7 @@ export class PaneFactory {
       root: spec.root,
       expanded: spec.expanded,
       sort: spec.sort,
+      codeColors: spec.codeColors,
       keymap: () => ctx.keymap(),
       dispatch: (a) => ctx.dispatch(a),
       onFocus: () => ctx.setFocused(id),
@@ -454,4 +476,19 @@ export class PaneFactory {
     this.ctx.focusPane(filesPaneId);
     this.ctx.showSearch(root, '', {}, { ...DEFAULT_SEARCH_OPTIONS, include: folderInclude(root, folder) });
   }
+}
+
+function newPinButton(onClick: () => void): HTMLElement {
+  const el = document.createElement('div');
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'strip-action';
+  b.textContent = '+';
+  b.title = 'New pin: pin a command in this folder';
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onClick();
+  });
+  el.append(b);
+  return el;
 }

@@ -3,6 +3,8 @@
 /* One line tall and wrapping, so a folder name too long to fit beside "Pins" wraps out of sight
    instead of growing the heading. */
 .repo-pins-head {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   max-height: 1lh;
@@ -32,6 +34,34 @@
   min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The ">_" glyph is two characters, so it is drawn smaller to sit in the width of the others. */
+.pin-row .pin-icon-command {
+  font-family: Consolas, monospace;
+  font-size: 0.8em;
+}
+
+.pin-row .pin-running {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pin-running-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pin-running-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin-row .pin-running {
+    animation: none;
+  }
 }
 
 .pin-row.missing {

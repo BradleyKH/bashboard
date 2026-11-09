@@ -28,6 +28,14 @@ describe('titleStripMenuItems', () => {
     expect((find(entries, 'Change kind') as MenuSubmenu).items).toBe(kindItems);
   });
 
+  it('offers New pin only with its hook, before Close pane', () => {
+    const onNewPin = vi.fn();
+    const entries = titleStripMenuItems({ kindItems: [], zoom: zoom(false) }, { ...hooks(), onNewPin });
+    expect(labels(entries)).toEqual(['Change kind', 'Collapse', 'New pin', 'Close pane']);
+    (find(entries, 'New pin') as { run(): void }).run();
+    expect(onNewPin).toHaveBeenCalledOnce();
+  });
+
   it('calls each hook', () => {
     const h = hooks();
     const entries = titleStripMenuItems({ kindItems: [], zoom: zoom(true) }, h);

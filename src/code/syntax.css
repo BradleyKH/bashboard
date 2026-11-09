@@ -1,0 +1,12 @@
+/* Role colors for code surfaces (docs/design/files.md section 4.22); schemes set the --syn-* properties on :root. */
+.syn-keyword { color: var(--syn-keyword); }
+.syn-string { color: var(--syn-string); }
+.syn-escape { color: var(--syn-escape); }
+.syn-constant { color: var(--syn-constant); }
+.syn-comment { color: var(--syn-comment); }
+.syn-function { color: var(--syn-function); }
+.syn-type { color: var(--syn-type); }
+.syn-property { color: var(--syn-property); }
+.syn-tag { color: var(--syn-tag); }
+.syn-attribute { color: var(--syn-attribute); }
+.syn-meta { color: var(--syn-meta); }

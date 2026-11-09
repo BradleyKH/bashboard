@@ -1,4 +1,5 @@
 import './contextMenu.css';
+import { isTextField } from './textFieldTarget';
 import {
   isEnabled,
   isKeyboardContextMenu,
@@ -129,7 +130,7 @@ export function attachContextMenu(el: HTMLElement, build: ContextMenuBuild): () 
   const onContextMenu = (e: MouseEvent): void => {
     const origin = e.target instanceof Element ? e.target : null;
     if (origin?.closest('.xterm')) return;
-    if (origin instanceof HTMLInputElement || origin instanceof HTMLTextAreaElement) return;
+    if (isTextField(origin)) return;
 
     const keyboard = isKeyboardContextMenuEvent(e);
     const open = (spec: ContextMenuSpec): void => {

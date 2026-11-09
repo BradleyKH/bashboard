@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { item, type MenuEntry, type MenuItem } from './contextMenuModel';
-import { textFieldMenuItems, type TextFieldMenuActions } from './textFieldMenu';
+import { isTextField, textFieldMenuItems, type TextFieldMenuActions } from './textFieldMenu';
 
 function actions(): TextFieldMenuActions {
   return { undo: vi.fn(), cut: vi.fn(), copy: vi.fn(), paste: vi.fn(), selectAll: vi.fn() };
@@ -55,5 +55,33 @@ describe('textFieldMenuItems', () => {
   it('adds no separator without extras', () => {
     const entries = textFieldMenuItems({ hasSelection: false, readOnly: false }, actions(), []);
     expect(entries.some((e) => e.kind === 'separator')).toBe(false);
+  });
+});
+
+/** A stand-in element: its tag, input type, and the ancestor selectors `closest` matches. */
+function fakeEl(tagName: string, opts: { type?: string; inside?: string[] } = {}): Element {
+  const inside = opts.inside ?? [];
+  return { tagName, type: opts.type, closest: (sel: string) => (inside.includes(sel) ? {} : null) } as unknown as Element;
+}
+
+describe('isTextField', () => {
+  it('accepts textareas and text-like inputs', () => {
+    expect(isTextField(fakeEl('TEXTAREA'))).toBe(true);
+    expect(isTextField(fakeEl('INPUT', { type: 'text' }))).toBe(true);
+    expect(isTextField(fakeEl('INPUT', { type: 'password' }))).toBe(true);
+  });
+
+  it('rejects other inputs, plain elements, and null', () => {
+    expect(isTextField(fakeEl('INPUT', { type: 'checkbox' }))).toBe(false);
+    expect(isTextField(fakeEl('DIV'))).toBe(false);
+    expect(isTextField(null)).toBe(false);
+  });
+
+  it('accepts anything inside a CodeMirror editor', () => {
+    expect(isTextField(fakeEl('SPAN', { inside: ['.cm-content'] }))).toBe(true);
+  });
+
+  it("rejects a terminal's helper textarea", () => {
+    expect(isTextField(fakeEl('TEXTAREA', { inside: ['.xterm'] }))).toBe(false);
   });
 });

@@ -306,122 +306,33 @@
 .editor-field {
   display: flex;
   flex: 1 1 auto;
-  min-height: 0;
-}
-
-.editor-body {
-  position: relative;
-  display: flex;
-  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  /* Clips the reveal band as its line scrolls out of view. */
-  overflow: hidden;
 }
 
-/* The textarea and its find mirror must lay text out identically, line for line. */
-.editor-text,
-.editor-mirror {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 4px 8px;
-  border: 0;
-  font: inherit;
-  line-height: normal;
-  tab-size: 8;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  scrollbar-gutter: stable;
+/* Hides the text the sticky line-number gutter covers while scrolled sideways (textEditor.ts). */
+.text-editor .cm-content {
+  clip-path: inset(0 0 0 var(--gutter-clip, 0px));
 }
 
-.editor-text {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  outline: 0;
-  resize: none;
-  background: transparent;
-  color: var(--content-fg);
-  caret-color: var(--accent);
-}
-
-.editor-mirror {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  color: transparent;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* Room to scroll as far as the textarea can, whatever its last line holds. */
-.editor-mirror::after {
-  content: '';
-  display: block;
-  height: 100%;
-}
-
-/* The line a search result points at (revealLine), under the text like the find mirror. */
-.editor-band {
-  position: absolute;
-  left: 0;
-  right: 0;
+/* The line a search result points at (revealLine), a CodeMirror line decoration. */
+.text-editor .editor-band {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
-  pointer-events: none;
 }
 
-.editor-band[hidden] {
-  display: none;
-}
-
-/* Measures one row of the textarea's text, which has the same font and line height. */
-.editor-row-probe {
-  position: absolute;
-  visibility: hidden;
-  margin: 0;
-  padding: 0;
-  font: inherit;
-  line-height: normal;
-  white-space: pre;
-}
-
-.editor-text::selection {
+.text-editor .cm-content ::selection {
   background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
-/* Code: the gutter's rows line up with the textarea's only because neither side wraps. */
-.with-lines .editor-text,
-.with-lines .editor-mirror {
-  white-space: pre;
-  overflow-wrap: normal;
+/* Find matches, in the colors of the ::highlight(preview-find) ranges above. */
+.text-editor .editor-find {
+  background-color: color-mix(in srgb, var(--accent) 52%, black);
 }
 
-.editor-gutter {
-  flex: none;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 4px 8px;
-  font: inherit;
-  line-height: normal;
-  white-space: pre;
-  overflow: hidden;
-  text-align: right;
-  color: var(--content-faint);
-  user-select: none;
-  background: rgba(0, 0, 0, 0.25);
-}
-
-/* Room to scroll as far as the textarea can, whose horizontal scrollbar takes some height. */
-.editor-gutter::after {
-  content: '';
-  display: block;
-  height: 100%;
-}
-
-/* The textarea draws the text over its mirror, so the mirror's match keeps no text of its own. */
-.editor-mirror::highlight(preview-find-current) {
-  background-color: color-mix(in srgb, var(--accent) 75%, black);
-  color: transparent;
+.text-editor .editor-find-current,
+.text-editor .editor-find-current * {
+  background-color: var(--accent);
+  color: #06121a;
 }
 
 .preview-toolbar .preview-expand {

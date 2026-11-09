@@ -1,14 +1,16 @@
 import { attachContextMenu } from './contextMenu';
-import { copyPath } from './copyText';
+import { copyPath, copyText } from './copyText';
 import { openFolder } from './folderButton';
-import type { Pin } from './repos';
-import { pinRowMenuItems } from './repoMenus';
+import { isCommandPin, type Pin } from './repos';
+import { commandPinRowMenuItems, pinRowMenuItems } from './repoMenus';
 import { iconButton, setRowRename, startRename } from './rowControls';
 import { attachReorder } from './rowReorder';
 
 export interface PinRowCallbacks {
   onOpenPin(pin: Pin): void;
   onRenamePin(index: number, label: string): void;
+  /** Opens the edit popup for the command pin at `index`. */
+  onEditPin(index: number): void;
   onRemovePin(index: number): void;
   onReorderPin(from: number, to: number): void;
 }
@@ -18,7 +20,10 @@ function parentFolder(path: string): string {
   return cut > 0 ? path.slice(0, cut) : path;
 }
 
-/** One pin in the dashboard's Pins section (docs/design/dashboard.md section 4.6). A missing target is dimmed and inert. */
+/**
+ * One pin in the dashboard's Pins section (docs/design/dashboard.md section 4.6). A missing target
+ * is dimmed and inert; a command pin edits through its popup rather than renaming inline.
+ */
 export function renderPinRow(
   pin: Pin,
   /** Shown when the pin has no label. */
@@ -29,7 +34,10 @@ export function renderPinRow(
   /** The pin's absolute path, for Copy path and Open in File Explorer. */
   absolute: string,
   callbacks: PinRowCallbacks,
+  /** A command pin whose terminal is running a command. */
+  running = false,
 ): HTMLElement {
+  const command = isCommandPin(pin) ? pin.command : null;
   const el = document.createElement('div');
   el.className = 'favorite-row pin-row';
   el.dataset.index = String(index);
@@ -48,33 +56,59 @@ export function renderPinRow(
 
   const icon = document.createElement('span');
   icon.className = 'pin-icon';
-  icon.textContent = isDir ? '🗀' : '🗎';
+  icon.textContent = command !== null ? '>_' : isDir ? '🗀' : '🗎';
+  if (command !== null) icon.classList.add('pin-icon-command');
 
   const label = document.createElement('div');
   label.className = 'favorite-label pin-label';
   label.textContent = name;
-  label.title = pin.path;
+  label.title = command !== null ? `${command}
+${absolute}` : pin.path;
 
-  const rename = iconButton('✎', 'layout-rename', 'Rename pin (F2)', () => {
-    startRename(label, name, (value) => callbacks.onRenamePin(index, value));
-  });
+  const rename =
+    command !== null
+      ? iconButton('✎', 'layout-rename', 'Edit pin (F2)', () => callbacks.onEditPin(index))
+      : iconButton('✎', 'layout-rename', 'Rename pin (F2)', () => {
+          startRename(label, name, (value) => callbacks.onRenamePin(index, value));
+        });
   // A missing pin's menu disables Rename, so F2 leaves it alone too.
   if (exists) setRowRename(el, () => rename.click());
   const remove = iconButton('×', 'favorite-remove', 'Remove pin', () => callbacks.onRemovePin(index));
 
-  el.append(handle, icon, label, rename, remove);
+  if (running) {
+    el.classList.add('running');
+    const mark = document.createElement('span');
+    mark.className = 'pin-running';
+    mark.title = 'Running';
+    el.append(handle, icon, label, mark, rename, remove);
+  } else {
+    el.append(handle, icon, label, rename, remove);
+  }
 
   attachContextMenu(el, () => ({
-    entries: pinRowMenuItems(
-      { exists },
-      {
-        open: () => callbacks.onOpenPin(pin),
-        openInExplorer: () => openFolder(isDir ? absolute : parentFolder(absolute)),
-        copyPath: () => void copyPath(absolute),
-        rename: () => rename.click(),
-        remove: () => callbacks.onRemovePin(index),
-      },
-    ),
+    entries:
+      command !== null
+        ? commandPinRowMenuItems(
+            { exists },
+            {
+              run: () => callbacks.onOpenPin(pin),
+              edit: () => rename.click(),
+              copyCommand: () => void copyText(command, 'command'),
+              openInExplorer: () => openFolder(absolute),
+              copyPath: () => void copyPath(absolute),
+              remove: () => callbacks.onRemovePin(index),
+            },
+          )
+        : pinRowMenuItems(
+            { exists },
+            {
+              open: () => callbacks.onOpenPin(pin),
+              openInExplorer: () => openFolder(isDir ? absolute : parentFolder(absolute)),
+              copyPath: () => void copyPath(absolute),
+              rename: () => rename.click(),
+              remove: () => callbacks.onRemovePin(index),
+            },
+          ),
     target: el,
   }));
   return el;

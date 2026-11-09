@@ -30,6 +30,12 @@ pub(super) fn default_file_text() -> String {
   \"contentTextColor\":",
     )
     .replace(
+        "  \"codeColors\": {",
+        "  // scheme is matchAccent (follows the accent color) or one of nord, ayu, gruvbox, monokai,
+  // tokyoNight, oneDark, catppuccinMocha, dracula. Colors code in text previews.
+  \"codeColors\": {",
+    )
+    .replace(
         "  \"uiScale\":",
         "  // Size of buttons, bars, titles, and dialog text (not pane content), from 1 (compact) to 2.
   \"uiScale\":",

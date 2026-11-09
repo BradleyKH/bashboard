@@ -35,6 +35,12 @@ describe('renderUnsanitized', () => {
     expect(renderUnsanitized('see https://b.test now')).toContain('<a href="https://b.test">');
   });
 
+  it('marks a fence with its info string as a language class, for code colors', () => {
+    expect(renderUnsanitized('```ts\nconst a = 1;\n```')).toContain('<pre><code class="language-ts">const a = 1;\n</code></pre>');
+    expect(renderUnsanitized('```c# extra\nx\n```')).toContain('<code class="language-c#">');
+    expect(renderUnsanitized('```\nx\n```')).toContain('<pre><code>x\n</code></pre>');
+  });
+
   it('does not emit javascript: links', () => {
     expect(renderUnsanitized('[x](javascript:alert(1))')).not.toContain('<a href="javascript');
   });

@@ -130,7 +130,8 @@ switching back attaches one again if the budget allows. If the browser drops a W
 
 **Title strip:** the kind menu (4.11), the status dot (4.8), the bound session's name or the
 shell's working directory, any buttons of the pane's own kind (`PaneView.stripActions`; the
-Files pane's, 4.12), then a collapse button, a zoom button (with two or more expanded
+Files pane's, 4.12; a terminal's "+" that opens the new pin popup for a command pin in its
+working directory, 4.6), then a collapse button, a zoom button (with two or more expanded
 panes in the tab, 4.2), and a close button that acts as Ctrl+W (`requestClosePane`); the rest of
 the strip is the drag handle for docking. The status dot's tooltip shows the waiting reason
 (3.3) while the terminal is `waiting`; the strip's text is unchanged. Every pane kind
@@ -141,7 +142,8 @@ before the pane's own buttons give up any room.
 
 **Title strip menu.** A right-click on a title strip of any pane kind opens Change kind (a
 submenu of the kind menu's entries, 4.11), Collapse, Zoom or Restore (only while the zoom button
-shows, 4.2), and, after a separator, Close pane. Each item does what its button does.
+shows, 4.2), on a terminal New pin, and, after a separator, Close pane. Each item does what its
+button does.
 
 **Right-click.** A right-click in a terminal does whatever xterm.js and the running program do
 with it, in every profile, and no menu opens. `main.ts` registers one `contextmenu` listener on
