@@ -64,7 +64,7 @@ describe('scratchMenuExtras', () => {
 
   it('lists Send, Copy all, Clear, Save as in order', () => {
     expect(scratchMenuExtras({ canSend: true }, handlers()).map((i) => i.label)).toEqual([
-      'Send',
+      'Send to last terminal',
       'Copy all',
       'Clear',
       'Save as',

@@ -58,7 +58,7 @@ line.
 A pad saves itself about half a second after you stop typing and comes back with the workspace
 on relaunch. Its toolbar has four buttons, then a − and + pair at the right that zooms the text:
 
-- **Send** (Ctrl+Enter) pastes the pad's text into the tab's most recently focused terminal
+- **Send to last terminal** (Ctrl+Enter) pastes the pad's text into the tab's most recently focused terminal
   without pressing Enter, so you can review it there first. It is disabled in a tab with no
   terminal.
 - **Copy** puts all of the text on the clipboard.

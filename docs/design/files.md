@@ -310,7 +310,7 @@ A scratch pad is an untitled text area, like a new tab in Notepad++, in the term
 title is its first non-empty line, shortened, or "Scratch". It saves to `scratch/<id>.txt` (3.7)
 half a second after typing stops and comes back on restore.
 
-- **Send** (Ctrl+Enter) pastes the whole text into the tab's most recently focused terminal as a
+- **Send to last terminal** (Ctrl+Enter) pastes the whole text into the tab's most recently focused terminal as a
   bracketed paste without Enter, so a prompt can be drafted here and reviewed before sending,
   then focuses that terminal. It is disabled while the tab has no terminal.
 - **Copy** copies the whole text. **Clear** empties it.

@@ -41,7 +41,7 @@ export interface ScratchMenuHandlers {
 /** The pad's own items, added after the text field menu's (docs/design/terminal.md section 4.4). */
 export function scratchMenuExtras(state: { canSend: boolean }, handlers: ScratchMenuHandlers): MenuItem[] {
   return [
-    item('Send', handlers.send, { enabled: state.canSend }),
+    item('Send to last terminal', handlers.send, { enabled: state.canSend }),
     item('Copy all', handlers.copyAll),
     item('Clear', handlers.clear),
     item('Save as', handlers.saveAs),

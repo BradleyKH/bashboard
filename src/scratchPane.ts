@@ -63,7 +63,7 @@ export class ScratchPane implements PaneView {
 
     const toolbar = document.createElement('div');
     toolbar.className = 'scratch-toolbar';
-    this.sendBtn = this.button(toolbar, 'Send', 'Paste into the last focused terminal (Ctrl+Enter)', () => this.send());
+    this.sendBtn = this.button(toolbar, 'Send to last terminal', 'Paste into the last focused terminal (Ctrl+Enter)', () => this.send());
     this.button(toolbar, 'Copy', 'Copy all text', () => this.copy());
     this.button(toolbar, 'Clear', 'Empty the pad', () => this.clear());
     this.button(toolbar, 'Save as', 'Save to a file', () => void this.saveToFile());
