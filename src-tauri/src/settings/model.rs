@@ -44,7 +44,7 @@ pub struct Backdrop {
     /// Divides the camera's home distance.
     pub zoom: f64,
     pub matrix: MatrixBackdrop,
-    pub lissajous: LissajousBackdrop,
+    pub wave: WaveBackdrop,
     pub image: ImageBackdrop,
 }
 
@@ -62,8 +62,8 @@ pub struct MatrixBackdrop {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LissajousBackdrop {
-    /// One of `LISSAJOUS_COLOR_MODES`.
+pub struct WaveBackdrop {
+    /// One of `WAVE_COLOR_MODES`.
     pub color: String,
     /// Share of the window the figure's widest point fills.
     pub size: f64,
@@ -92,7 +92,7 @@ pub struct ImageBackdrop {
 }
 
 /// Ids `backdrop.style` accepts (docs/design/data.md section 8).
-pub const BACKDROP_STYLES: [&str; 7] = ["none", "lights", "galaxy", "matrix", "lissajous", "image", "slideshow"];
+pub const BACKDROP_STYLES: [&str; 7] = ["none", "lights", "galaxy", "matrix", "wave", "image", "slideshow"];
 
 /// Ids `backdrop.image.fit` accepts, the Windows wallpaper modes less Span.
 pub const IMAGE_FITS: [&str; 5] = ["fill", "fit", "stretch", "center", "tile"];
@@ -102,8 +102,8 @@ pub const IMAGE_FITS: [&str; 5] = ["fill", "fit", "stretch", "center", "tile"];
 pub const MATRIX_COLOR_MODES: [&str; 2] = ["green", "accent"];
 
 /// The front end resolves the line's color from the mode and the accent
-/// (src/backdrop/lissajous/lissajousColor.ts).
-pub const LISSAJOUS_COLOR_MODES: [&str; 3] = ["accent", "white", "spectrum"];
+/// (src/backdrop/wave/waveColor.ts).
+pub const WAVE_COLOR_MODES: [&str; 3] = ["accent", "white", "spectrum"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -317,7 +317,7 @@ impl Default for Settings {
                 mutation_rate: 0.2,
                 zoom: 2.0,
                 matrix: MatrixBackdrop { color: "green".into(), zoom: 1.0, speed: 10, density: 3.0 },
-                lissajous: LissajousBackdrop { color: "accent".into(), size: 0.85, speed: 0.5, line_width: 3.0, echoes: 4 },
+                wave: WaveBackdrop { color: "accent".into(), size: 0.85, speed: 0.5, line_width: 3.0, echoes: 4 },
                 image: ImageBackdrop {
                     file: String::new(),
                     folder: String::new(),

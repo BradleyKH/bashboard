@@ -1,4 +1,4 @@
-// Lissajous backdrop style: the dashboard's Wave drawn across the whole window with Canvas 2D
+// Wave backdrop style: the dashboard's Wave drawn across the whole window with Canvas 2D
 // (docs/design/backdrop.md section 6.7).
 import type { StyleBackdrop } from '../backdropHandle';
 import { FramePacer } from '../framePacer';
@@ -15,10 +15,10 @@ import {
   waveReading,
   type WaveReading,
 } from '../../waveModel';
-import { spectrumColor } from './lissajousColor';
+import { spectrumColor } from './waveColor';
 
-export interface LissajousOptions {
-  /** A #rrggbb, or 'spectrum' (see `lissajousLineColor`). */
+export interface WaveOptions {
+  /** A #rrggbb, or 'spectrum' (see `waveLineColor`). */
   color: string;
   /** Share of the window the figure's widest point fills. */
   size: number;
@@ -32,8 +32,8 @@ export interface LissajousOptions {
   maxFps: number;
 }
 
-export interface LissajousBackdrop extends StyleBackdrop {
-  setOptions(options: LissajousOptions): void;
+export interface WaveBackdrop extends StyleBackdrop {
+  setOptions(options: WaveOptions): void;
 }
 
 const POLL_MS = 2000;
@@ -45,20 +45,20 @@ const ECHO_ALPHA = 0.22;
 /** Degrees per second the spectrum turns along the line at speed 1: a full turn every 30 s. */
 const SPECTRUM_TURN = 12;
 
-export function mountLissajous(canvas: HTMLCanvasElement, options: LissajousOptions): LissajousBackdrop {
-  const wave = new LissajousLoop(canvas, options);
+export function mountWave(canvas: HTMLCanvasElement, options: WaveOptions): WaveBackdrop {
+  const wave = new WaveLoop(canvas, options);
   wave.setVisible(true);
   return wave;
 }
 
-class LissajousLoop implements LissajousBackdrop {
+class WaveLoop implements WaveBackdrop {
   private ctx: CanvasRenderingContext2D | null;
   private readonly pacer = new FramePacer();
   private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   private readonly handleResize = (): void => this.resize();
   private readonly handleMotionChange = (): void => this.sync();
 
-  private options: LissajousOptions;
+  private options: WaveOptions;
   private readonly motion = restingWave();
   private target: WaveReading = { cpu: 0, net: 0, mem: 0 };
   private sampled = false;
@@ -71,7 +71,7 @@ class LissajousLoop implements LissajousBackdrop {
   private frameId: number | null = null;
   private lastTime: number | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement, options: LissajousOptions) {
+  constructor(private readonly canvas: HTMLCanvasElement, options: WaveOptions) {
     this.ctx = canvas.getContext('2d');
     this.options = options;
     this.pacer.setMaxFps(options.maxFps);
@@ -92,7 +92,7 @@ class LissajousLoop implements LissajousBackdrop {
     this.sync();
   }
 
-  setOptions(options: LissajousOptions): void {
+  setOptions(options: WaveOptions): void {
     if (this.disposed) return;
     if (options.maxFps !== this.options.maxFps) this.pacer.setMaxFps(options.maxFps);
     this.options = options;

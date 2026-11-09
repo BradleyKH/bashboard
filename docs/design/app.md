@@ -254,12 +254,12 @@ has Back, Next, and Skip setup.
    agent's install with its confirmation (3.3). An installed Codex hook that is not yet trusted
    says Codex will ask to trust it on its next start.
 7. **Look.** Applied live, in the Settings tab's terms (6.2). Background (None, Swirling
-   Lights, Galaxy, Matrix, Lissajous, Image, Slideshow; `backdrop.style`). Image and Slideshow open the native picker
+   Lights, Galaxy, Matrix, Wave, Image, Slideshow; `backdrop.style`). Image and Slideshow open the native picker
    (`backdrop_image_pick`, 6.5) for a file or folder and save the style only once it returns a
    path (`backdrop.image.file` or `backdrop.image.folder`), so cancelling changes nothing; a line
    under the row then names the picked path with a Change button, and Fit and the slideshow's
    timing stay at their defaults for the Settings tab. Animate the background
-   (`backdrop.animate`), shown only for Swirling Lights, Galaxy, Matrix, and Lissajous, and Brightness (Low, Medium,
+   (`backdrop.animate`), shown only for Swirling Lights, Galaxy, Matrix, and Wave, and Brightness (Low, Medium,
    High, the scrim presets of section 5 from darkest), hidden under None. Accent
    color as swatches of its presets (`accentColor`), and Text color as an Accent tint swatch, drawn
    from the accent shown, and a White one (`contentTextColor`). Picking Matrix turns the accent

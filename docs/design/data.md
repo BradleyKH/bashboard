@@ -201,21 +201,22 @@ it with no pins, and Automatic omits it.
   // #e6e6e6 and as accent otherwise; any other value falls back to accent with a notice.
   "contentTextColor": "accent",
   "scrim": { "opacity": 0.5, "blurPx": 1 },
-  // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, lissajous, image, or
+  // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
   // slideshow; a missing or invalid value falls back to lights. animate false freezes lights,
-  // galaxy, matrix, and lissajous on a still frame (6.4); the other styles ignore it.
-  // maxFps applies to lights, galaxy, and lissajous, and 0 renders at the display's refresh rate.
+  // galaxy, matrix, and wave on a still frame (6.4); the other styles ignore it.
+  // maxFps applies to lights, galaxy, and wave, and 0 renders at the display's refresh rate.
   // capacity, mutationRate, and zoom apply to lights and galaxy only: the simulation and camera
   // controls (6.2, 6.6).
   // matrix.color is green (#00ff41) or accent: accentColor at full brightness with its HSV
   // saturation raised by half, so a gray accent stays gray. A #rrggbb value loads as green when it
   // is #00ff41 and as accent otherwise. matrix.zoom is 0.5 to 3 (the base cell is 20 px);
   // matrix.speed is a whole number of rain steps per second, 5 to 30; matrix.density (0.25 to 4)
-  // scales how often a new drop starts. lissajous is for the lissajous style (6.7): color is
+  // scales how often a new drop starts. wave is for the wave style (6.7): color is
   // accent (accentColor brightened as for matrix), white (#e6e6e6), or spectrum; size (0.3 to 2)
   // is the share of the window the figure fills, spilling past it above 1; speed (0.1 to 3)
   // scales its spin, tilt, and detune sweep; lineWidth (1 to 8) is CSS pixels on the line's near side; echoes is a whole
-  // number from 0 to 15. image is for the image and slideshow styles (6.5): file
+  // number from 0 to 15. A style of lissajous loads as wave, and a lissajous block fills in any wave
+  // field the file doesn't set. image is for the image and slideshow styles (6.5): file
   // and folder may contain %VARS% and are empty until set; fit is fill, fit, stretch, center, or
   // tile; intervalSeconds is a whole number from 5 to 86400; crossfadeSeconds is 0 to 10. Out-of-range or invalid values fall
   // back to their defaults.
@@ -227,7 +228,7 @@ it with no pins, and Automatic omits it.
     "mutationRate": 0.2,
     "zoom": 2,
     "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 },
-    "lissajous": { "color": "accent", "size": 0.85, "speed": 0.5, "lineWidth": 3, "echoes": 4 },
+    "wave": { "color": "accent", "size": 0.85, "speed": 0.5, "lineWidth": 3, "echoes": 4 },
     "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 5, "shuffle": true, "includeSubfolders": false }
   },
   "scrollback": 10000,

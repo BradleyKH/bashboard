@@ -81,14 +81,14 @@ describe('isShown', () => {
         'backdrop.matrix.zoom',
         'backdrop.matrix.speed',
         'backdrop.matrix.density',
-        ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.lissajous.${k}`),
+        ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.wave.${k}`),
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
         'dashboard.clockStyle',
       ].sort(),
     );
   });
 
-  it('shows every Swirling Lights field while the backdrop animates and the clock is on, and none of the Matrix or Lissajous fields', () => {
+  it('shows every Swirling Lights field while the backdrop animates and the clock is on, and none of the Matrix or Wave fields', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(true, true))).map((f) => f.path.join('.'));
     expect(hidden.sort()).toEqual(
       [
@@ -96,7 +96,7 @@ describe('isShown', () => {
         'backdrop.matrix.density',
         'backdrop.matrix.speed',
         'backdrop.matrix.zoom',
-        ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.lissajous.${k}`),
+        ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.wave.${k}`),
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
       ].sort(),
     );
@@ -142,14 +142,14 @@ describe('isShown', () => {
     expect(shownBackdrop('galaxy', false)).toEqual(shownBackdrop('lights', false));
   });
 
-  it('shows the Lissajous controls for lissajous, hiding the frame rate cap and speed when frozen', () => {
-    expect(shownBackdrop('lissajous', true)).toEqual([
-      'backdrop.style', 'backdrop.animate', 'backdrop.maxFps', 'scrim.opacity', 'scrim.blurPx', 'backdrop.lissajous.color',
-      'backdrop.lissajous.size', 'backdrop.lissajous.speed', 'backdrop.lissajous.lineWidth', 'backdrop.lissajous.echoes',
+  it('shows the Wave controls for wave, hiding the frame rate cap and speed when frozen', () => {
+    expect(shownBackdrop('wave', true)).toEqual([
+      'backdrop.style', 'backdrop.animate', 'backdrop.maxFps', 'scrim.opacity', 'scrim.blurPx', 'backdrop.wave.color',
+      'backdrop.wave.size', 'backdrop.wave.speed', 'backdrop.wave.lineWidth', 'backdrop.wave.echoes',
     ]);
-    expect(shownBackdrop('lissajous', false)).toEqual([
-      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.lissajous.color', 'backdrop.lissajous.size',
-      'backdrop.lissajous.lineWidth', 'backdrop.lissajous.echoes',
+    expect(shownBackdrop('wave', false)).toEqual([
+      'backdrop.style', 'backdrop.animate', 'scrim.opacity', 'scrim.blurPx', 'backdrop.wave.color', 'backdrop.wave.size',
+      'backdrop.wave.lineWidth', 'backdrop.wave.echoes',
     ]);
   });
 
@@ -228,15 +228,15 @@ describe('Matrix settings', () => {
 
   it('accepts the seven background styles and rejects anything else', () => {
     const style = byPath('backdrop.style');
-    for (const v of ['none', 'lights', 'galaxy', 'matrix', 'lissajous', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
+    for (const v of ['none', 'lights', 'galaxy', 'matrix', 'wave', 'image', 'slideshow']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
     expect(parseInput(style, 'rain').ok).toBe(false);
   });
 });
 
-describe('Lissajous settings', () => {
+describe('Wave settings', () => {
   it('offers Accent, White, and Spectrum, led by the default, with the spectrum swatch a gradient', () => {
-    const color = byPath('backdrop.lissajous.color');
-    expect(color.options?.map((o) => o.value)).toEqual([DEFAULT_SETTINGS.backdrop.lissajous.color, 'white', 'spectrum']);
+    const color = byPath('backdrop.wave.color');
+    expect(color.options?.map((o) => o.value)).toEqual([DEFAULT_SETTINGS.backdrop.wave.color, 'white', 'spectrum']);
     const violet = { ...DEFAULT_SETTINGS, accentColor: '#a68bff' };
     expect(color.swatchColor?.('accent', violet)).toBe('#7a51ff');
     expect(color.swatchColor?.('white', violet)).toBe('#e6e6e6');
@@ -250,7 +250,7 @@ describe('Lissajous settings', () => {
       ['lineWidth', '0.5', false], ['lineWidth', '1', true], ['lineWidth', '8', true], ['lineWidth', '9', false],
       ['echoes', '-1', false], ['echoes', '0', true], ['echoes', '15', true], ['echoes', '16', false], ['echoes', '2.5', false],
     ];
-    for (const [key, input, ok] of cases) expect(parseInput(byPath(`backdrop.lissajous.${key}`), input).ok, `${key} ${input}`).toBe(ok);
+    for (const [key, input, ok] of cases) expect(parseInput(byPath(`backdrop.wave.${key}`), input).ok, `${key} ${input}`).toBe(ok);
   });
 });
 

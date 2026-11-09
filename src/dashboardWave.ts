@@ -109,7 +109,7 @@ export class DashboardWave {
     this.color = getComputedStyle(this.el).getPropertyValue('--accent').trim() || DEFAULT_ACCENT;
     const memory = `${formatBytes(s.memoryUsedBytes)} of ${formatBytes(s.memoryTotalBytes)}`;
     const label = `CPU ${formatPercent(s.cpuPercent)}, memory ${memory}, network ${formatNetwork(s.netRxPerSec, s.netTxPerSec)}`;
-    this.el.title = `Lissajous! ${label}`;
+    this.el.title = `${label}`;
     this.el.setAttribute('aria-label', `Wave: ${label}`);
     if (!this.moving()) {
       settleWave(this.motion, this.target);

@@ -1734,7 +1734,22 @@ body.dashboard-resizing {
 
 .settings-tab-body > section {
   position: relative;
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: start;
   padding-top: 10px;
+}
+
+/* Sticky so a long section's title stays beside its rows while they scroll. */
+.settings-tab-body > section > h3 {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  padding-top: 4px;
+  color: #c4ced4;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 /* A pseudo-element rather than border-top so the rule also spans the body's right padding. */

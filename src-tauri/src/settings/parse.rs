@@ -185,6 +185,24 @@ fn parse_bookmarks(root: &Value, warnings: &mut Vec<String>) -> Vec<Bookmark> {
 }
 
 /// The settings file's root object with comments stripped.
+/// Settings files written before the Wave style took its name say `lissajous` for the style and
+/// the block. Both still load: the style maps to `wave`, and each `backdrop.lissajous` field fills
+/// in the matching `backdrop.wave` field the file doesn't set, so a Settings tab edit (which
+/// writes under `wave`) wins over the old value without discarding the rest.
+fn accept_legacy_wave(root: &mut Value) {
+    let Some(backdrop) = root.get_mut("backdrop").and_then(Value::as_object_mut) else { return };
+    if backdrop.get("style").and_then(Value::as_str) == Some("lissajous") {
+        backdrop.insert("style".into(), Value::from("wave"));
+    }
+    let Some(Value::Object(legacy)) = backdrop.remove("lissajous") else { return };
+    let wave = backdrop.entry("wave").or_insert_with(|| Value::Object(Default::default()));
+    if let Some(wave) = wave.as_object_mut() {
+        for (key, value) in legacy {
+            wave.entry(key).or_insert(value);
+        }
+    }
+}
+
 pub(super) fn parse_root(text: &str) -> Result<Value, String> {
     let mut stripped = String::new();
     let parsed = json_comments::StripComments::new(text.as_bytes())
@@ -206,7 +224,8 @@ pub(super) fn parse_settings(text: &str) -> (Settings, Vec<String>) {
 
 /// Errs only when the file as a whole is unusable; a bad field degrades to its default.
 pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
-    let root = parse_root(text)?;
+    let mut root = parse_root(text)?;
+    accept_legacy_wave(&mut root);
 
     let d = Settings::default();
     let mut w = Vec::new();
@@ -341,41 +360,41 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
                 d.backdrop.matrix.density,
             ),
         },
-        lissajous: LissajousBackdrop {
+        wave: WaveBackdrop {
             color: pick(
                 &root,
-                &["backdrop", "lissajous", "color"],
+                &["backdrop", "wave", "color"],
                 &mut w,
-                |v| v.as_str().filter(|s| LISSAJOUS_COLOR_MODES.contains(s)).map(String::from),
-                d.backdrop.lissajous.color,
+                |v| v.as_str().filter(|s| WAVE_COLOR_MODES.contains(s)).map(String::from),
+                d.backdrop.wave.color,
             ),
             size: pick(
                 &root,
-                &["backdrop", "lissajous", "size"],
+                &["backdrop", "wave", "size"],
                 &mut w,
                 |v| number(v).filter(|n| (0.3..=2.0).contains(n)),
-                d.backdrop.lissajous.size,
+                d.backdrop.wave.size,
             ),
             speed: pick(
                 &root,
-                &["backdrop", "lissajous", "speed"],
+                &["backdrop", "wave", "speed"],
                 &mut w,
                 |v| number(v).filter(|n| (0.1..=3.0).contains(n)),
-                d.backdrop.lissajous.speed,
+                d.backdrop.wave.speed,
             ),
             line_width: pick(
                 &root,
-                &["backdrop", "lissajous", "lineWidth"],
+                &["backdrop", "wave", "lineWidth"],
                 &mut w,
                 |v| number(v).filter(|n| (1.0..=8.0).contains(n)),
-                d.backdrop.lissajous.line_width,
+                d.backdrop.wave.line_width,
             ),
             echoes: pick(
                 &root,
-                &["backdrop", "lissajous", "echoes"],
+                &["backdrop", "wave", "echoes"],
                 &mut w,
                 |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n <= 15),
-                d.backdrop.lissajous.echoes,
+                d.backdrop.wave.echoes,
             ),
         },
         image: ImageBackdrop {
@@ -680,15 +699,15 @@ mod tests {
     }
 
     #[test]
-    fn backdrop_lissajous_values_parse_and_invalid_ones_fall_back() {
+    fn backdrop_wave_values_parse_and_invalid_ones_fall_back() {
         let (s, w) = parse_settings(
-            r#"{ "backdrop": { "style": "lissajous", "lissajous": { "color": "spectrum", "size": 0.6, "speed": 1.5, "lineWidth": 5, "echoes": 0 } } }"#,
+            r#"{ "backdrop": { "style": "wave", "wave": { "color": "spectrum", "size": 0.6, "speed": 1.5, "lineWidth": 5, "echoes": 0 } } }"#,
         );
         assert!(w.is_empty(), "{w:?}");
-        assert_eq!(s.backdrop.style, "lissajous");
+        assert_eq!(s.backdrop.style, "wave");
         assert_eq!(
-            s.backdrop.lissajous,
-            LissajousBackdrop { color: "spectrum".into(), size: 0.6, speed: 1.5, line_width: 5.0, echoes: 0 }
+            s.backdrop.wave,
+            WaveBackdrop { color: "spectrum".into(), size: 0.6, speed: 1.5, line_width: 5.0, echoes: 0 }
         );
         for (key, bad) in [
             ("color", r#""green""#),
@@ -702,10 +721,25 @@ mod tests {
             ("echoes", "2.5"),
             ("echoes", "\"4\""),
         ] {
-            let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "lissajous": {{ "{key}": {bad} }} }} }}"#));
-            assert_eq!(s.backdrop.lissajous, Settings::default().backdrop.lissajous, "{key}: {bad}");
-            assert!(w.iter().any(|m| m.starts_with(&format!("backdrop.lissajous.{key}"))), "{key}: {w:?}");
+            let (s, w) = parse_settings(&format!(r#"{{ "backdrop": {{ "wave": {{ "{key}": {bad} }} }} }}"#));
+            assert_eq!(s.backdrop.wave, Settings::default().backdrop.wave, "{key}: {bad}");
+            assert!(w.iter().any(|m| m.starts_with(&format!("backdrop.wave.{key}"))), "{key}: {w:?}");
         }
+    }
+
+    #[test]
+    fn legacy_lissajous_style_and_block_load_as_wave() {
+        let (s, w) = parse_settings(
+            r#"{ "backdrop": { "style": "lissajous", "lissajous": { "color": "white", "size": 1.4, "echoes": 9 } } }"#,
+        );
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(s.backdrop.style, "wave");
+        let d = Settings::default().backdrop.wave;
+        assert_eq!(s.backdrop.wave, WaveBackdrop { color: "white".into(), size: 1.4, echoes: 9, ..d.clone() });
+
+        // A wave field the file also sets wins over its lissajous twin; the rest still carry over.
+        let (s, _) = parse_settings(r#"{ "backdrop": { "wave": { "size": 0.5 }, "lissajous": { "size": 1.4, "echoes": 9 } } }"#);
+        assert_eq!(s.backdrop.wave, WaveBackdrop { size: 0.5, echoes: 9, ..d });
     }
 
     #[test]

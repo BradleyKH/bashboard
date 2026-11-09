@@ -29,7 +29,7 @@ with previews for OpenAI Codex and GitHub Copilot CLI, and it works with any sta
   rebuild one in a click, and Ctrl+Shift+P reaches everything.
 - **The `bb` CLI and scratch pads:** open panes from any prompt, and draft longer prompts
   before sending them.
-- **Backdrops:** a live colony simulation, Galaxy, Matrix, a load-driven Lissajous wave, or your own image, dimmed to taste.
+- **Backdrops:** a live colony simulation, Galaxy, Matrix, a load-driven wave, or your own image, dimmed to taste.
 - **Codex, Copilot, and local AI models:** the same status and notifications for other agents,
   plus what Ollama and LM Studio have loaded.
 

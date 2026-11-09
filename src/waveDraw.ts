@@ -1,5 +1,5 @@
 // Strokes Wave figures on a 2D canvas, for the dashboard's Wave (docs/design/dashboard.md
-// section 4.6) and the Lissajous backdrop (docs/design/backdrop.md section 6.7).
+// section 4.6) and the Wave backdrop (docs/design/backdrop.md section 6.7).
 import type { WaveFigure, WavePoint } from './waveModel';
 
 /** The canvas in CSS pixels, the scale the figure draws at, and the margin kept clear at each edge. */

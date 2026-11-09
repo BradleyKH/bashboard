@@ -1,6 +1,6 @@
 import { ACCENT_PRESETS } from './accent';
 import { IMAGE_FITS } from './backdrop/image/imageFit';
-import { LISSAJOUS_COLOR_MODES, lissajousSwatch } from './backdrop/lissajous/lissajousColor';
+import { WAVE_COLOR_MODES, waveSwatch } from './backdrop/wave/waveColor';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
@@ -64,20 +64,20 @@ export interface SettingsSection {
   fields: SettingsField[];
 }
 
-// A frozen backdrop redraws only for zoom (every drawn style), the Matrix color and density, and the Lissajous
+// A frozen backdrop redraws only for zoom (every drawn style), the Matrix color and density, and the Wave
 // look, so the rest would do nothing while it is still.
 const WHILE_ANIMATED: ShownWhen = { path: ['backdrop', 'animate'], value: true };
 // Galaxy shares Swirling Lights' settings, read as stars rather than organisms.
 const IS_LIGHTS_OR_GALAXY: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy'] };
 const IS_MATRIX: ShownWhen = { path: ['backdrop', 'style'], value: 'matrix' };
-const IS_LISSAJOUS: ShownWhen = { path: ['backdrop', 'style'], value: 'lissajous' };
+const IS_WAVE: ShownWhen = { path: ['backdrop', 'style'], value: 'wave' };
 // The styles that run on the shared frame rate cap; Matrix steps on its own clock.
-const IS_FRAME_CAPPED: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'lissajous'] };
-const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'lissajous'] };
+const IS_FRAME_CAPPED: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'wave'] };
+const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'wave'] };
 const IS_IMAGE: ShownWhen = { path: ['backdrop', 'style'], value: 'image' };
 const IS_SLIDESHOW: ShownWhen = { path: ['backdrop', 'style'], value: 'slideshow' };
 const IS_PICTURE: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['image', 'slideshow'] };
-const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'lissajous', 'image', 'slideshow'] };
+const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'wave', 'image', 'slideshow'] };
 
 const SLIDESHOW_INTERVALS = [
   { value: '30', label: '30 seconds' },
@@ -190,7 +190,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'lights', label: 'Swirling Lights' },
           { value: 'galaxy', label: 'Galaxy' },
           { value: 'matrix', label: 'Matrix' },
-          { value: 'lissajous', label: 'Lissajous' },
+          { value: 'wave', label: 'Wave' },
           { value: 'image', label: 'Image' },
           { value: 'slideshow', label: 'Slideshow' },
         ],
@@ -292,62 +292,57 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         shownWhen: IS_MATRIX,
       },
       {
-        path: ['backdrop', 'lissajous', 'color'],
+        path: ['backdrop', 'wave', 'color'],
         label: 'Color',
         kind: 'select',
-        options: LISSAJOUS_COLOR_MODES,
+        options: WAVE_COLOR_MODES,
         swatches: true,
-        swatchColor: (mode, s) => lissajousSwatch(mode, s.accentColor),
-        hint: 'The line',
+        swatchColor: (mode, s) => waveSwatch(mode, s.accentColor),
         applies: 'live',
-        shownWhen: IS_LISSAJOUS,
+        shownWhen: IS_WAVE,
       },
       {
-        path: ['backdrop', 'lissajous', 'size'],
+        path: ['backdrop', 'wave', 'size'],
         label: 'Size',
         kind: 'slider',
         min: 0.3,
         max: 2,
         step: 0.05,
-        hint: '1 fills the window; above it spills past the edges',
         applies: 'live',
-        shownWhen: IS_LISSAJOUS,
+        shownWhen: IS_WAVE,
       },
       {
-        path: ['backdrop', 'lissajous', 'speed'],
+        path: ['backdrop', 'wave', 'speed'],
         label: 'Speed',
         kind: 'slider',
         min: 0.1,
         max: 3,
         step: 0.1,
         unit: 'x',
-        hint: 'How fast it turns',
         applies: 'live',
-        shownWhen: [IS_LISSAJOUS, WHILE_ANIMATED],
+        shownWhen: [IS_WAVE, WHILE_ANIMATED],
       },
       {
-        path: ['backdrop', 'lissajous', 'lineWidth'],
+        path: ['backdrop', 'wave', 'lineWidth'],
         label: 'Line width',
         kind: 'slider',
         min: 1,
         max: 8,
         step: 0.5,
         unit: 'px',
-        hint: 'On the near side',
         applies: 'live',
-        shownWhen: IS_LISSAJOUS,
+        shownWhen: IS_WAVE,
       },
       {
-        path: ['backdrop', 'lissajous', 'echoes'],
+        path: ['backdrop', 'wave', 'echoes'],
         label: 'Echoes',
         kind: 'slider',
         min: 0,
         max: 15,
         step: 1,
         integer: true,
-        hint: 'Faint copies trailing the line',
         applies: 'live',
-        shownWhen: IS_LISSAJOUS,
+        shownWhen: IS_WAVE,
       },
     ],
   },

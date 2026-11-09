@@ -72,11 +72,11 @@ for their text.
 
 The background (the backdrop) has seven styles, chosen with `backdrop.style` or the Background
 select in the Background section of the Settings tab: `lights` (Swirling Lights, the
-default, a living colony simulation), `galaxy` (Galaxy, a slowly turning spiral galaxy), `matrix` (Matrix, falling glyph rain), `lissajous` (Lissajous, a large version of the
+default, a living colony simulation), `galaxy` (Galaxy, a slowly turning spiral galaxy), `matrix` (Matrix, falling glyph rain), `wave` (Wave, a large version of the
 dashboard's Wave), `image` (Image, a
 picture from your disk), `slideshow` (Slideshow, the pictures in a folder in turn), and `none`
 (nothing is drawn behind the panes). A missing or invalid value falls back to `lights` with a
-notice. The choice applies live. `backdrop.animate` applies to Swirling Lights, Galaxy, Matrix, and Lissajous and starts
+notice. The choice applies live. `backdrop.animate` applies to Swirling Lights, Galaxy, Matrix, and Wave and starts
 `false`, a frozen still frame; set it to `true` to run the background. Ctrl+Shift+A pauses or
 resumes any of them and saves the choice to `backdrop.animate`; it does nothing under Image,
 Slideshow, or None, and the dialog shows Animate only for the four styles it affects. The dialog
@@ -122,11 +122,12 @@ An invalid `color`, `zoom`, `speed`, or `density` falls back to its default with
 (or while Windows animation effects are off) Matrix shows a still frame of rain that is already
 falling, not an empty screen.
 
-**Lissajous** draws the dashboard's Wave across the whole window: a looping line turning in 3D
+**Wave** draws the dashboard's Wave across the whole window: a looping line turning in 3D
 whose weave tightens with CPU load, whose spin quickens with network traffic, and whose
 lopsided detune sweeps faster as memory fills. It runs at up to `backdrop.maxFps` like Swirling
-Lights. Its fields live under `backdrop.lissajous`, which are Color, Size, Speed, Line width, and
-Echoes in the dialog:
+Lights. Its fields live under `backdrop.wave`, which are Color, Size, Speed, Line width, and
+Echoes in the dialog (a file that says `lissajous` for the style or the block still loads as
+Wave):
 
 - `color` is the line's color: `accent` (the default, a vivid, full-brightness version of the
   accent color, as for the Matrix rain), `white`, or `spectrum`, a rainbow running along the line
@@ -140,7 +141,7 @@ Echoes in the dialog:
   draws at about a third of that.
 - `echoes` (0 to 15, default 4) is how many faint copies trail the line through its spin.
 
-An invalid value falls back to its default with a notice. With `animate` off Lissajous shows a still
+An invalid value falls back to its default with a notice. With `animate` off Wave shows a still
 figure shaped by the load when it froze; while Windows animation effects are off it holds still
 but reshapes on each new reading.
 
@@ -175,7 +176,7 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
   "mutationRate": 0.2,
   "zoom": 2,
   "matrix": { "color": "green", "zoom": 1, "speed": 10, "density": 3 },
-  "lissajous": { "color": "accent", "size": 0.85, "speed": 0.5, "lineWidth": 3, "echoes": 4 },
+  "wave": { "color": "accent", "size": 0.85, "speed": 0.5, "lineWidth": 3, "echoes": 4 },
   "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 5, "shuffle": true, "includeSubfolders": false }
 }
 ```

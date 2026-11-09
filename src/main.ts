@@ -105,7 +105,7 @@ try {
 
 function toggleBackdrop(): void {
   // Only the drawn styles animate; Image and Slideshow ignore backdrop.animate.
-  if (backdrop.style !== 'lights' && backdrop.style !== 'galaxy' && backdrop.style !== 'matrix' && backdrop.style !== 'lissajous') return;
+  if (backdrop.style !== 'lights' && backdrop.style !== 'galaxy' && backdrop.style !== 'matrix' && backdrop.style !== 'wave') return;
   backdropAnimated = !backdropAnimated;
   backdrop.setAnimated(backdropAnimated);
   saveSetting(['backdrop', 'animate'], backdropAnimated).catch((err: unknown) =>

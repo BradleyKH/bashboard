@@ -1,5 +1,5 @@
 // The dashboard's Wave element: a looping figure shaped by machine load (docs/design/dashboard.md
-// section 4.6), also drawn large as the Lissajous backdrop (docs/design/backdrop.md section 6.7).
+// section 4.6), also drawn large as the Wave backdrop (docs/design/backdrop.md section 6.7).
 // Pure, no DOM.
 
 import type { SystemSample } from './systemModel';

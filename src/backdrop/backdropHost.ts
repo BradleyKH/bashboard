@@ -3,8 +3,8 @@
 import type { BackdropStyle, Settings } from '../settings';
 import type { BackdropHandle } from './backdrop';
 import type { ImageBackdrop, ImageOptions } from './image/imageBackdrop';
-import type { LissajousBackdrop, LissajousOptions } from './lissajous/lissajousBackdrop';
-import { lissajousLineColor } from './lissajous/lissajousColor';
+import type { WaveBackdrop, WaveOptions } from './wave/waveBackdrop';
+import { waveLineColor } from './wave/waveColor';
 import type { MatrixBackdrop, MatrixOptions } from './matrix/matrixBackdrop';
 import { matrixRainColor } from './matrix/rainColor';
 
@@ -13,7 +13,7 @@ type Mounted =
   | { style: 'lights'; handle: BackdropHandle }
   | { style: 'galaxy'; handle: BackdropHandle }
   | { style: 'matrix'; handle: MatrixBackdrop }
-  | { style: 'lissajous'; handle: LissajousBackdrop }
+  | { style: 'wave'; handle: WaveBackdrop }
   | { style: 'image' | 'slideshow'; handle: ImageBackdrop };
 
 export class BackdropHost {
@@ -24,7 +24,7 @@ export class BackdropHost {
   /** Bumped by every style switch, so a mount that finishes after a later switch knows it lost. */
   private generation = 0;
   private settings: BackdropSettings | undefined;
-  /** The Matrix rain and the Lissajous line can follow the accent. */
+  /** The Matrix rain and the Wave line can follow the accent. */
   private accent = '';
   private visible = true;
   private animated = true;
@@ -91,8 +91,8 @@ export class BackdropHost {
       current.handle.setOptions(settings);
     } else if (current.style === 'matrix') {
       current.handle.setOptions(matrixOptions(settings, this.accent));
-    } else if (current.style === 'lissajous') {
-      current.handle.setOptions(lissajousOptions(settings, this.accent));
+    } else if (current.style === 'wave') {
+      current.handle.setOptions(waveOptions(settings, this.accent));
     } else {
       current.handle.setOptions(imageOptions(settings, current.style));
     }
@@ -117,10 +117,10 @@ function matrixOptions(settings: BackdropSettings, accent: string): MatrixOption
   return { ...settings.matrix, color: matrixRainColor(settings.matrix.color, accent) };
 }
 
-/** The Lissajous settings with the color mode resolved, and the shared frame rate cap. */
-function lissajousOptions(settings: BackdropSettings, accent: string): LissajousOptions {
-  const l = settings.lissajous;
-  return { ...l, color: lissajousLineColor(l.color, accent), maxFps: settings.maxFps };
+/** The Wave settings with the color mode resolved, and the shared frame rate cap. */
+function waveOptions(settings: BackdropSettings, accent: string): WaveOptions {
+  const l = settings.wave;
+  return { ...l, color: waveLineColor(l.color, accent), maxFps: settings.maxFps };
 }
 
 function imageOptions(settings: BackdropSettings, mode: 'image' | 'slideshow'): ImageOptions {
@@ -147,9 +147,9 @@ async function mount(
     const { mountMatrix } = await import('./matrix/matrixBackdrop');
     return { style, handle: mountMatrix(canvas, matrixOptions(settings, accent)) };
   }
-  if (style === 'lissajous') {
-    const { mountLissajous } = await import('./lissajous/lissajousBackdrop');
-    return { style, handle: mountLissajous(canvas, lissajousOptions(settings, accent)) };
+  if (style === 'wave') {
+    const { mountWave } = await import('./wave/waveBackdrop');
+    return { style, handle: mountWave(canvas, waveOptions(settings, accent)) };
   }
   const { mountImage } = await import('./image/imageBackdrop');
   return { style, handle: mountImage(canvas, imageOptions(settings, style), onError) };

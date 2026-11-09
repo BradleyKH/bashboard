@@ -20,7 +20,7 @@
   flex-direction: column;
   gap: 10px;
   box-sizing: border-box;
-  width: min(680px, 92vw);
+  width: min(820px, 92vw);
   height: min(760px, 84vh);
   padding: 12px;
   border: 1px solid var(--accent);
