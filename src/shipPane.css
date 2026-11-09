@@ -135,13 +135,16 @@
   color: var(--ship-bad);
 }
 
-/* Status icons: one 12 px footprint, a ring or a mask cut from a solid fill. */
+/*
+ * Status icons, after GitHub's: a filled circle with the glyph cut out of it for a finished run, a
+ * spinning ring while running. The masks are data: URLs, which the CSP's img-src must allow.
+ */
 .ship-status {
   flex: none;
   display: inline-block;
   box-sizing: border-box;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--ship-idle);
 }
@@ -155,6 +158,7 @@
   background: transparent;
   border: 2px solid color-mix(in srgb, var(--ship-warn) 30%, transparent);
   border-top-color: var(--ship-warn);
+  border-right-color: var(--ship-warn);
   animation: ship-spin 0.9s linear infinite;
 }
 
@@ -164,25 +168,22 @@
 }
 
 .ship-status--success {
-  border-radius: 0;
   background: var(--ship-ok);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0.8 4.3 3.1 6.6 7.2 1.5' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='g'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M4.6 8.4 7 10.7 11.4 5.6' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' mask='url(%23g)'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='g'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M4.6 8.4 7 10.7 11.4 5.6' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' mask='url(%23g)'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
 .ship-status--failure {
-  border-radius: 0;
   background: var(--ship-bad);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 1 7 7M7 1 1 7' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='g'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M5.4 5.4 10.6 10.6M10.6 5.4 5.4 10.6' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' mask='url(%23g)'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='g'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M5.4 5.4 10.6 10.6M10.6 5.4 5.4 10.6' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' mask='url(%23g)'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
 .ship-status--cancelled,
 .ship-status--skipped {
-  border-radius: 0;
   background: var(--ship-idle);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4 6.8 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4 6.8 4' fill='none' stroke='black' stroke-width='1.6'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='g'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M5 11 11 5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' mask='url(%23g)'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='g'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M5 11 11 5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' mask='url(%23g)'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
 }
 
 /* A pull request's checks still loading: a faint dot that settles into the real icon. */
@@ -711,7 +712,8 @@
 }
 
 /* A row without a local clone keeps its Terminal button's place, so the buttons line up. */
-.ship-run-btn.ship-ov-absent {
+.ship-run-btn.ship-ov-absent,
+.ship-status.ship-ov-absent {
   visibility: hidden;
 }
 

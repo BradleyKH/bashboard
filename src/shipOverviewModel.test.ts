@@ -7,6 +7,7 @@ import {
   dashboardItems,
   healthBranches,
   isBitbucketPin,
+  latestRun,
   nextPollMs,
   orderRows,
   repoId,
@@ -84,6 +85,14 @@ describe('targetKey and repoId', () => {
     expect(repoId({ ...REPO, host: 'git.example.com:8443', owner: 'Group/Sub', name: 'Proj' })).toBe(
       'git.example.com:8443/Group/Sub/Proj',
     );
+  });
+});
+
+describe('latestRun', () => {
+  it('is the newest run on any branch, or null with none', () => {
+    const newest = run('feature/x', 'failure');
+    expect(latestRun(overview({ runs: [newest, run('main')] }))).toBe(newest);
+    expect(latestRun(overview())).toBeNull();
   });
 });
 

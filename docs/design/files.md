@@ -133,7 +133,7 @@ The preview depends on the file:
   32 MiB show fitted to the preview over a checkerboard, with their pixel size and file size
   on the toolbar (`imageView.ts`). Clicking the image, or the toolbar's Actual size and Fit
   button, toggles between fitted and actual size. The bytes come through `fs_read_bytes` into
-  a `blob:` URL, the only image source the CSP allows besides the app's own files; an SVG runs
+  a `blob:` URL, since the CSP allows no file path as an image source; an SVG runs
   no script as an `<img>`. A change on disk reloads the image. A file that does not decode
   shows the binary notice.
 - **Plain text** (`.txt`, or no extension) opens in the text editor, with long lines wrapped.

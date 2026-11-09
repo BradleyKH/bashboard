@@ -64,6 +64,12 @@ const isRedBranch = (h: HealthBranch): h is HealthBranch & { run: Run } => h.run
 const needsReview = (p: PullRequest) => p.reviewRequested;
 const mineNeedsWork = (p: PullRequest) => p.isMine && (p.reviewDecision === 'changesRequested' || p.checks === 'failure');
 
+/** The repo's newest run on any branch, for the row's headline status; null when it has none. */
+export function latestRun(o: OverviewRepo): Run | null {
+  // Runs arrive newest first.
+  return o.runs[0] ?? null;
+}
+
 /** Runs queued or running among the repo's latest 20, on any branch. */
 export function runningCount(o: OverviewRepo): number {
   return o.runs.filter((r) => statusInfo(r.status).active).length;

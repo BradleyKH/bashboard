@@ -357,7 +357,8 @@ the Accounts tab (below), and a **Refresh** button that polls every pin at once.
 poll is more than 30 s old. With no pins, a note says to pin a repo from its Ship view or add one
 there. Each row holds:
 
-- A provider badge (GH for GitHub, BB for Bitbucket, GL for GitLab, AZ for Azure DevOps), the repo's `owner/name` (the full
+- The status icon of the repo's newest run on any branch (passed, failed, or running, with its
+  branch, age, and title in the tooltip; a faint dot until the first poll), a provider badge (GH for GitHub, BB for Bitbucket, GL for GitLab, AZ for Azure DevOps), the repo's `owner/name` (the full
   `<host>/<path>` in its tooltip), with the health branches under it, and beside them a pull
   request summary: "3 PRs open, 1 draft, 1 needs you, 1 approved", "1 PR open", or "No open pull
   requests" (with the host's noun, as initials when counted; the draft, needs-you, and approved

@@ -1,7 +1,7 @@
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { isReadyToMerge, noticeFor, prNounOf, relativeTime, statusInfo, type ShipTab } from './shipModel';
-import { runningCount, targetKey } from './shipOverviewModel';
+import { latestRun, runningCount, targetKey } from './shipOverviewModel';
 import { approvedTooltip, providerBadge, pullSummary, repoLabel, runningSummary } from './shipOverviewText';
 import { shipOverviewStore, type OverviewEntry } from './shipOverviewStore';
 
@@ -25,6 +25,7 @@ export class ShipOverviewRow {
   readonly el: HTMLElement;
   private current: OverviewEntry;
 
+  private readonly latest: HTMLElement;
   private readonly badge: HTMLElement;
   private readonly name: HTMLElement;
   private readonly pulls: HTMLButtonElement;
@@ -53,11 +54,13 @@ export class ShipOverviewRow {
     info.className = 'ship-ov-info';
     const head = document.createElement('div');
     head.className = 'ship-ov-head';
+    this.latest = document.createElement('span');
+    this.latest.className = 'ship-status';
     this.badge = document.createElement('span');
     this.badge.className = 'ship-ov-provider';
     this.name = document.createElement('span');
     this.name.className = 'ship-ov-name';
-    head.append(this.badge, this.name);
+    head.append(this.latest, this.badge, this.name);
     this.health = document.createElement('div');
     this.health.className = 'ship-ov-health';
     info.append(head, this.health);
@@ -173,8 +176,24 @@ export class ShipOverviewRow {
     this.terminalButton.classList.toggle('ship-ov-absent', !pin.root);
     this.terminalButton.disabled = !pin.root;
 
+    this.renderLatest(entry, nowMs);
     this.renderHealth(entry, nowMs);
     this.renderError(entry);
+  }
+
+  /** The newest run's status on any branch, at the head of the row; a faint dot until the first poll. */
+  private renderLatest(entry: OverviewEntry, nowMs: number): void {
+    const run = entry.row ? latestRun(entry.row.overview) : null;
+    const info = run ? statusInfo(run.status) : null;
+    const modifier = info?.modifier ?? (entry.row || entry.error ? 'other' : 'pending');
+    // Held in place without a run, so the badges and names line up down the list.
+    const absent = entry.row && !run ? ' ship-ov-absent' : '';
+    const cls = `ship-status ship-status--${modifier}${absent}`;
+    if (this.latest.className !== cls) this.latest.className = cls;
+    const branch = run?.branch ? ` on ${run.branch}` : '';
+    const title = run && info ? `Latest run: ${info.label}${branch}, ${relativeTime(run.createdAt, nowMs)}
+${run.title || run.name}` : '';
+    if (this.latest.title !== title) this.latest.title = title;
   }
 
   private renderHealth(entry: OverviewEntry, nowMs: number): void {

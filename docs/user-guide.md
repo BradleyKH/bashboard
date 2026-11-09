@@ -316,7 +316,7 @@ pane looks again on its own, unless the error is a rate limit. The full steps ar
 ### Overview
 
 The Overview has one row per pinned repo, across GitHub, GitLab, Bitbucket, and Azure DevOps,
-ordered by what needs you first. A row shows the repo's `owner/name` with a GH, GL, BB, or AZ badge, a summary of its open pull
+ordered by what needs you first. A row shows the repo's `owner/name` with a GH, GL, BB, or AZ badge, led by an icon for its newest pipeline run on any branch (a green check, a red X, or a spinner while running), a summary of its open pull
 requests ("3 PRs open, 1 draft, 1 needs you, 1 approved", highlighted while a review is waiting on you, or in green while one of your own is approved and ready to merge, with who approved it in the tooltip), the number of
 pipelines queued or running on any branch ("2 pipelines running", shown only while some are), and a status icon
 for each of its **health branches**: the repo's default branch, the branches its open pull requests

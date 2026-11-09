@@ -229,8 +229,8 @@ scrim's brightness and blur reach them through the canvas's CSS filter like ever
 Neither animates, so they ignore `backdrop.animate`, the Settings tab hides Animate for them, and
 Ctrl+Shift+A does nothing while either is shown.
 
-- **Loading through the core.** The CSP allows images only from the app (`img-src 'self'`), so the
-  webview never loads a path. `backdrop_image_read` returns the file's bytes as a raw IPC response
+- **Loading through the core.** The CSP allows images only from the app, `blob:` URLs, and
+  inline `data:` URLs (`img-src 'self' blob: data:`), so the webview never loads a path. `backdrop_image_read` returns the file's bytes as a raw IPC response
   and the front end decodes them with `createImageBitmap`, which the CSP does not govern.
   `backdrop_image_list` lists a folder, optionally with its subfolders, sorted case-insensitively.
   Both expand `%VARS%`, serve only image extensions (png, jpg, jpeg, webp, avif, bmp, gif), and
