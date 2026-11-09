@@ -10,16 +10,12 @@ export interface ShellIntegrationStepState {
   done: boolean;
 }
 
-const PURPOSE: Record<IntegrationShell, string> = {
-  gitBash:
-    'These lines let new panes open in the current folder, and let the app tell exactly when a shell is working or idle.',
-  pwsh: 'These lines let new panes open in the current folder.',
-  powershell: 'These lines let new panes open in the current folder.',
-};
+const PURPOSE =
+  'These lines let new panes open in the current folder, and let the app tell exactly when a shell is working or idle.';
 
 /**
- * The setup wizard's shell-integration step, for the shell new panes open with: the `.bashrc`
- * lines for Git Bash, or the profile lines for PowerShell (docs/design/app.md section 4.17).
+ * The setup wizard's shell-integration step: the `.bashrc` lines, shown when Git Bash is the
+ * shell new panes open with (docs/design/app.md section 4.17).
  */
 export function renderShellIntegrationStep(
   content: HTMLElement,
@@ -28,10 +24,10 @@ export function renderShellIntegrationStep(
   install: () => void,
 ): void {
   const name = profileName(state.shell);
-  content.append(ui.note(`For ${name}, the shell new panes open with. ${PURPOSE[state.shell]}`));
+  content.append(ui.note(`For ${name}, the shell new panes open with. ${PURPOSE}`));
   const { preview } = state;
   if (!preview) {
-    content.append(ui.note(`Reading the ${name} profile...`));
+    content.append(ui.note('Reading ~/.bashrc...'));
     return;
   }
 
@@ -66,11 +62,11 @@ export function renderShellIntegrationStep(
     const done = document.createElement('span');
     done.className = 'setup-wizard-done';
     const cmd = document.createElement('code');
-    cmd.textContent = state.shell === 'gitBash' ? 'source ~/.bashrc' : '. $PROFILE';
+    cmd.textContent = 'source ~/.bashrc';
     done.append('Added. Panes opened from now on use it; run ', cmd, ' in panes already open.');
     actions.append(done);
   } else {
-    const add = ui.button(state.shell === 'gitBash' ? 'Add to .bashrc' : 'Add to profile', install);
+    const add = ui.button('Add to .bashrc', install);
     add.classList.add('setup-wizard-primary');
     add.disabled = state.installing;
     actions.append(add);

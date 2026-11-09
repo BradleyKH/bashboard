@@ -23,6 +23,7 @@ mod hooks;
 mod links;
 mod model_servers;
 mod ports;
+mod powershell_prompt;
 mod profiles;
 mod pty;
 mod roster;

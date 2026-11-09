@@ -75,22 +75,15 @@ from the command; for the other commands the words after it are ordinary argumen
 ## 3.14 Shell integration install (`src-tauri/src/shell_integration.rs`)
 
 Working-directory reporting (OSC 9;9) and the command-start and command-end markers (OSC 133)
-come from a few lines in Git Bash's `~/.bashrc`; PowerShell 7 and Windows PowerShell report the
-working directory from a prompt wrapper in their profile (no OSC 133, for the reason in setup.md).
-The setup wizard (4.17) installs either with `shell_integration_preview(shell)` and
-`shell_integration_install(shell)`, where `shell` is the profile id `gitBash`, `pwsh`, or
-`powershell` (cmd needs no lines, 3.1). The lines are the snippets in setup.md's "New panes in
-the current folder" and PowerShell sections; tests require each to match byte for byte, ignoring
-line endings. The PowerShell snippet uses `$([char]27)` rather than the `` `e `` escape, which
-Windows PowerShell 5.1 lacks.
+come from a few lines in Git Bash's `~/.bashrc`. The setup wizard (4.17) installs them with
+`shell_integration_preview(shell)` and `shell_integration_install(shell)`, where `shell` is the
+profile id `gitBash`; cmd and PowerShell need no lines, since the core starts them with a prompt
+that reports the folder (3.1). The lines are the snippet in setup.md's "New panes in the current
+folder"; a test requires it to match byte for byte, ignoring line endings.
 
 The install writes the snippet between two marker lines at the end of the file:
-`# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<`. For Git
-Bash the file is `~/.bashrc`, with home as `HOME`, then `USERPROFILE`, as Git Bash resolves it.
-For PowerShell it is `$PROFILE.CurrentUserCurrentHost`, which differs between the two shells and
-follows a Documents folder moved to OneDrive, so the core asks the shell itself: it runs the
-shell with `-NoProfile -NonInteractive` (no console window) and reads back the profile path and
-`Get-ExecutionPolicy`. The PowerShell code is `src-tauri/src/shell_integration/powershell.rs`.
+`# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<`. The file is
+`~/.bashrc`, with home as `HOME`, then `USERPROFILE`, as Git Bash resolves it.
 `shell_integration_preview` returns the shell, the file's path, the status, the block to add,
 whether the file or `.bash_profile` would be created, and a warning.
 
@@ -100,27 +93,19 @@ whether the file or `.bash_profile` would be created, and a warning.
 | `installed` | A marked block equal to the current snippet | Nothing |
 | `outdated` | A marked block that differs from the current snippet | Replaces the block in place |
 | `handAdded` | The snippet, or an earlier published one, appears verbatim without markers | Replaces those lines with the marked block, in place |
-| `custom` | A begin marker with no end marker, or lines of the user's own (a `__bashboard_prompt` function, or a `__BashboardOriginalPrompt` line) that are not the snippet | Refuses; the user updates the lines by hand |
+| `custom` | A begin marker with no end marker, or lines of the user's own (a `__bashboard_prompt` function) that are not the snippet | Refuses; the user updates the lines by hand |
 
 - **Backup.** An existing file is copied to `<file>.bashboard-backup` beside it before it is
-  rewritten. The write is atomic (the helper the hook install uses, 3.3) and creates a missing
-  folder, which a PowerShell profile's often is.
+  rewritten. The write is atomic (the helper the hook install uses, 3.3).
 - **Encoding and line endings.** The file's own line endings are kept, and lines outside the
-  block are rewritten byte for byte. `.bashrc` must be UTF-8. A PowerShell profile may also be
-  UTF-8 with a BOM or UTF-16 LE (what Windows PowerShell's `>` writes), and is written back the
-  same way; a new profile is plain UTF-8, which is safe since the block is ASCII. Anything else
-  is left alone with an error.
+  block are rewritten byte for byte. `.bashrc` must be UTF-8; anything else is left alone with an
+  error.
 - **Login shells.** Git Bash's login shell reads `~/.bash_profile`, not `~/.bashrc`. When that
   file is missing, the install creates it with the two standard lines that source `~/.profile`
   and `~/.bashrc`. When it exists and never mentions `.bashrc`, the preview carries a warning
   and the file is left untouched.
-- **Execution policy.** A PowerShell whose effective policy is `Restricted` (Windows
-  PowerShell's default on Windows clients) or `AllSigned` will not run the profile, so the
-  preview warns and names `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. The install
-  never changes the policy.
 - Panes already open do not pick the lines up until their shell reads the file again
-  (`source ~/.bashrc`, or `. $PROFILE`, which the snippet's guard keeps from wrapping the prompt
-  twice).
+  (`source ~/.bashrc`).
 
 ## 3.15 Git install (`src-tauri/src/git_install.rs`)
 
@@ -229,14 +214,13 @@ has Back, Next, and Skip setup.
 2. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
 3. **Shell integration.** For the shell new panes open with: the chosen default when it is
    installed, else the first installed profile, as the core resolves it (3.1). Shown when that
-   shell is Git Bash, PowerShell 7, or Windows PowerShell and its file does not already hold the
-   current block (3.14); hidden for cmd, which needs no lines, and when the file's state could
-   not be read. Every installed shell's state is read in the background when the wizard opens,
-   so changing the Shell step's choice adds or drops this step at once, updating the step count
-   without re-rendering the Shell step. It lists the lines and the file they go in, notes the
-   backup, any `.bash_profile` it will create, and any warning (a `.bash_profile` that skips
-   `.bashrc`, or an execution policy that blocks the profile), and runs the install with Add to
-   .bashrc or Add to profile. A `custom` status shows the lines and an error instead of the
+   shell is Git Bash and `~/.bashrc` does not already hold the current block (3.14); hidden for
+   the other shells, which need no lines, and when the file's state could not be read. The
+   file's state is read in the background when the wizard opens, so changing the Shell step's
+   choice adds or drops this step at once, updating the step count without re-rendering the
+   Shell step. It lists the lines and the file they go in, notes the backup, any `.bash_profile`
+   it will create, and any warning (a `.bash_profile` that skips `.bashrc`), and runs the install
+   with Add to .bashrc. A `custom` status shows the lines and an error instead of the
    button.
 4. **Editor.** The editors found (3.12) and the file's default app; sets `editor.preferred`.
 5. **Favorites.** A folder field, starting at `%USERPROFILE%\source\repos` when it exists,

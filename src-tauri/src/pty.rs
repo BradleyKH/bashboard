@@ -480,10 +480,13 @@ fn spawn_spec(
             (program, command)
         }
         None => {
+            let mut args = resolved.args.clone();
             if resolved.id == profiles::CMD {
                 env.push(("PROMPT".into(), cmd_prompt(std::env::var("PROMPT").ok().as_deref())));
+            } else if resolved.id == profiles::PWSH || resolved.id == profiles::POWERSHELL {
+                args.extend(crate::powershell_prompt::launch_args());
             }
-            (resolved.path.clone(), resolved.args.clone())
+            (resolved.path.clone(), args)
         }
     };
     Ok(SpawnSpec { program, args, cwd, env })
@@ -829,6 +832,19 @@ mod tests {
         let spec = spawn_spec(None, &resolved, Vec::new(), None).unwrap();
         assert_eq!(spec.program, "shell.exe");
         assert!(spec.env.iter().any(|(k, _)| k == "PROMPT"));
+    }
+
+    #[test]
+    fn powershell_profiles_start_with_the_prompt_wrapper() {
+        for id in [profiles::PWSH, profiles::POWERSHELL] {
+            let spec = spawn_spec(None, &profile_for_test(id), Vec::new(), None).unwrap();
+            assert_eq!(&spec.args[..3], ["-l", "-NoExit", "-EncodedCommand"]);
+            let command = vec!["pwsh.exe".to_string(), "-NoProfile".into()];
+            let spec = spawn_spec(Some(command), &profile_for_test(id), Vec::new(), None).unwrap();
+            assert_eq!(spec.args, vec!["-NoProfile"]);
+        }
+        let spec = spawn_spec(None, &profile_for_test(profiles::GIT_BASH), Vec::new(), None).unwrap();
+        assert_eq!(spec.args, vec!["-l"]);
     }
 
     #[test]

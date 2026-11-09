@@ -62,24 +62,15 @@ describe('setupSteps', () => {
     ]);
   });
 
-  it('follows the default shell: PowerShell takes the step, cmd never does', () => {
-    for (const shell of ['pwsh', 'powershell']) {
-      expect(setupSteps({ ...bash, defaultShell: shell, shellIntegrationStatus: 'missing' })).toContain(
+  it('follows the default shell: only Git Bash takes the step', () => {
+    for (const shell of ['pwsh', 'powershell', 'cmd']) {
+      expect(setupSteps({ ...bash, defaultShell: shell, shellIntegrationStatus: 'missing' })).not.toContain(
         'shellIntegration',
       );
     }
-    expect(setupSteps({ ...bash, defaultShell: 'cmd', shellIntegrationStatus: 'missing' })).not.toContain(
-      'shellIntegration',
-    );
     expect(setupSteps({ ...bash, defaultShell: null, shellIntegrationStatus: 'missing' })).not.toContain(
       'shellIntegration',
     );
-  });
-
-  it('offers PowerShell lines while Git Bash is missing', () => {
-    expect(
-      setupSteps({ ...hooks, gitBashFound: false, defaultShell: 'pwsh', shellIntegrationStatus: 'missing' }),
-    ).toEqual(['git', 'shell', 'shellIntegration', 'editor', 'favorites', 'look']);
   });
 
   it('hides Git Bash integration while Git Bash is missing', () => {

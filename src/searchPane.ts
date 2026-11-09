@@ -180,8 +180,8 @@ export class SearchPane implements PaneView {
       source: true,
       zoomKey: 'searchPreview',
       emptyText: 'Select a result to preview its file.',
-      // Markdown opens as source here, so it has no links to follow.
-      onOpenFile: () => {},
+      // A link in rendered markdown shows its target here, though it may be no result; the list keeps its row.
+      onOpenFile: (path) => void this.preview.show(path),
       onOpenInEditor: (path) => void openInEditor(path),
       onSaved: () => (this.editedSinceRun = true),
     });

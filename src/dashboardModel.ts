@@ -220,7 +220,10 @@ export function agentCards(cards: PaneCard[], agentsOnly: boolean): { cards: Pan
   return { cards: kept, others: cards.length - kept.length };
 }
 
-/** The collapsed row's text, as "(2 other panes)". */
-export function otherPanesLabel(count: number): string {
-  return `(${count} other ${count === 1 ? 'pane' : 'panes'})`;
+/**
+ * The collapsed row's text, as "(2 other panes)"; "(2 panes)" when no card is shown above it,
+ * since there is nothing for the panes to be "other" than.
+ */
+export function otherPanesLabel(count: number, alone = false): string {
+  return `(${count}${alone ? '' : ' other'} ${count === 1 ? 'pane' : 'panes'})`;
 }

@@ -1,18 +1,15 @@
-//! Installs the shell integration lines into a shell's startup file (docs/design/app.md
-//! section 3.14): the OSC 133 markers and OSC 9;9 working directory into Git Bash's `~/.bashrc`,
-//! and the OSC 9;9 prompt wrapper into a PowerShell profile (`powershell`). Both files take the
-//! same marked block, so the classify-and-rewrite logic is shared and each shell supplies a
-//! `Flavor`. The file work runs over injectable paths so tests never touch the real ones; the Tauri
-//! commands resolve them and delegate.
-
-mod powershell;
+//! Installs the shell integration lines into Git Bash's `~/.bashrc` (docs/design/app.md section
+//! 3.14): the OSC 133 markers and the OSC 9;9 working directory, in a marked block. PowerShell
+//! needs no install; its panes start with a prompt wrapper (`powershell_prompt`). The file work
+//! runs over injectable paths so tests never touch the real ones; the Tauri commands resolve them
+//! and delegate.
 
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
 use crate::hook_install::write_atomic;
-use crate::profiles::{GIT_BASH, POWERSHELL, PWSH};
+use crate::profiles::GIT_BASH;
 
 const BEGIN: &str = "# >>> bashboard shell integration >>>";
 const END: &str = "# <<< bashboard shell integration <<<";
@@ -63,14 +60,14 @@ pub enum Status {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
-    /// The profile id the lines are for: gitBash, pwsh, or powershell.
+    /// The profile id the lines are for; only gitBash takes any.
     pub shell: String,
     /// The file the install writes.
     pub path: String,
     pub status: Status,
     pub block: String,
     pub creates_file: bool,
-    /// Git Bash only: `~/.bash_profile` is missing, so the install creates it.
+    /// `~/.bash_profile` is missing, so the install creates it.
     pub creates_bash_profile: bool,
     /// Something outside the file that keeps the lines from running, with how to fix it.
     pub warning: Option<String>,
@@ -300,7 +297,6 @@ fn bash_install_in(home: &Path) -> Result<(), String> {
 fn preview_for(shell: &str) -> Result<Preview, String> {
     match shell {
         GIT_BASH => bash_preview_in(&home_dir()?),
-        PWSH | POWERSHELL => powershell::preview(shell),
         _ => Err(format!("{shell} has no shell integration to install")),
     }
 }
@@ -308,12 +304,11 @@ fn preview_for(shell: &str) -> Result<Preview, String> {
 fn install_for(shell: &str) -> Result<(), String> {
     match shell {
         GIT_BASH => bash_install_in(&home_dir()?),
-        PWSH | POWERSHELL => powershell::install(shell),
         _ => Err(format!("{shell} has no shell integration to install")),
     }
 }
 
-/// `shell` is a profile id (gitBash, pwsh, or powershell) and defaults to Git Bash.
+/// `shell` is a profile id and defaults to Git Bash, the only one with lines to install.
 #[tauri::command]
 pub async fn shell_integration_preview(shell: Option<String>) -> Result<Preview, String> {
     let shell = shell.unwrap_or_else(|| GIT_BASH.into());
@@ -334,7 +329,7 @@ pub async fn shell_integration_install(shell: Option<String>) -> Result<(), Stri
 mod tests {
     use super::*;
 
-    pub(super) fn temp_dir(tag: &str) -> PathBuf {
+    fn temp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "bashboard-shell-integration-{tag}-{}",
             std::process::id()
@@ -521,8 +516,10 @@ mod tests {
     }
 
     #[test]
-    fn cmd_has_no_integration() {
-        assert!(preview_for("cmd").is_err());
-        assert!(install_for("cmd").is_err());
+    fn other_shells_have_no_integration() {
+        for shell in ["cmd", "pwsh", "powershell"] {
+            assert!(preview_for(shell).is_err());
+            assert!(install_for(shell).is_err());
+        }
     }
 }

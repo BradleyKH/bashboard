@@ -6,6 +6,7 @@ import { ExpandPreviewButton } from './expandPreviewButton';
 import { previewKind } from './filesModel';
 import { ImageView } from './imageView';
 import type { Action, Keymap } from './keymap';
+import { MarkdownModeToggle } from './markdownModeToggle';
 import { samePath } from './markdownRender';
 import { MarkdownView } from './markdownView';
 import { PreviewFind } from './previewFind';
@@ -26,8 +27,8 @@ export interface FilePreviewOptions {
   /** The expand button was clicked; without it the preview has no expand button. */
   onToggleExpand?: () => void;
   /**
-   * Every text file opens as code, in the editor with line numbers, markdown included: the Search
-   * pane, whose results point at source lines.
+   * Every text file opens as code, in the editor with line numbers: the Search pane, whose results
+   * point at source lines. Markdown gets a Raw / Preview toggle instead, Preview first.
    */
   source?: boolean;
   /** The `textZoom` key the zoom buttons save to; `filePreview` by default. */
@@ -59,6 +60,10 @@ export class FilePreview {
   private readonly expand: ExpandPreviewButton;
   /** The file's name, shown on the toolbar while expanded. */
   private readonly nameEl: HTMLSpanElement;
+  /** Source mode's Raw / Preview toggle for markdown; kept across files, so the choice holds. */
+  private readonly mdMode: MarkdownModeToggle | null;
+  /** The last `show`'s line, so switching a markdown match to Raw lands on it. */
+  private line: number | null = null;
   private settings: Settings;
   private current: Current | null = null;
   private generation = 0;
@@ -88,6 +93,14 @@ export class FilePreview {
     this.nameEl = document.createElement('span');
     this.nameEl.className = 'preview-file-name';
     this.nameEl.hidden = true;
+    this.mdMode = opts.source
+      ? new MarkdownModeToggle(() => {
+          const path = this.path;
+          if (path === null) return;
+          this.invalidate();
+          void this.show(path, 0, this.line);
+        })
+      : null;
     opts.host.appendChild(this.el);
     this.showEmpty();
   }
@@ -117,6 +130,7 @@ export class FilePreview {
    */
   async show(path: string | null, size = 0, line: number | null = null): Promise<void> {
     const gen = ++this.generation;
+    this.line = line;
     const anchor = this.takeAnchor(path);
     const c = this.current;
     if (path !== null && !this.stale && c?.path === path) {
@@ -154,7 +168,7 @@ export class FilePreview {
       }
       const file = await fsReadText(path);
       if (gen !== this.generation) return;
-      this.mount(path, this.opts.source ? 'code' : kind, file);
+      this.mount(path, kind, file);
       const now = this.current;
       if (line !== null && now?.kind === 'code') now.view.revealLine(line);
       this.opts.onShown?.(true);
@@ -231,9 +245,12 @@ export class FilePreview {
     this.el.remove();
   }
 
-  private mount(path: string, kind: 'markdown' | 'csv' | 'plain' | 'code', file: FileText): void {
+  private mount(path: string, fileKind: 'markdown' | 'csv' | 'plain' | 'code', file: FileText): void {
     const { keymap, dispatch } = this.opts;
     const { text, modified, lossy } = file;
+    const mdMode = fileKind === 'markdown' ? this.mdMode : null;
+    const kind = !this.opts.source ? fileKind : mdMode?.mode === 'preview' ? 'markdown' : 'code';
+    const modeEls = mdMode ? mdMode.els : [];
     if (kind === 'markdown') {
       const view = new MarkdownView({
         path,
@@ -243,13 +260,14 @@ export class FilePreview {
         settings: this.settings,
         keymap,
         dispatch,
+        editable: !this.opts.source,
         onOpenFile: (target, fragment) => {
           this.pendingAnchor = fragment === undefined ? null : { path: target, fragment };
           this.opts.onOpenFile(target);
         },
       });
       view.toolbar.prepend(this.fileName(path));
-      view.toolbar.append(this.zoom.el, ...this.expandButton());
+      view.toolbar.append(this.zoom.el, ...modeEls, ...this.expandButton());
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
     } else if (kind === 'csv') {
@@ -273,7 +291,7 @@ export class FilePreview {
       });
       const find = new PreviewFind(() => view.findSurface());
       this.current = { kind, path, view, find };
-      this.el.replaceChildren(framed(view.el, find, [this.zoom.el, ...this.expandButton()], this.fileName(path)));
+      this.el.replaceChildren(framed(view.el, find, [this.zoom.el, ...modeEls, ...this.expandButton()], this.fileName(path)));
     }
   }
 

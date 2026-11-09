@@ -95,6 +95,42 @@
   gap: 4px;
 }
 
+/* Raw / Preview in the Search preview (markdownModeToggle.ts): one joined pair of buttons. */
+.markdown-mode {
+  display: inline-flex;
+}
+
+.preview-toolbar .markdown-mode button {
+  border-radius: 0;
+}
+
+.preview-toolbar .markdown-mode button:first-child {
+  border-radius: 3px 0 0 3px;
+}
+
+.preview-toolbar .markdown-mode button + button {
+  margin-left: -1px;
+  border-radius: 0 3px 3px 0;
+}
+
+.preview-toolbar .markdown-mode button[aria-pressed='true'] {
+  position: relative;
+  color: #e6e6e6;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.markdown-mode-hint {
+  padding: 0 4px;
+  font: 11px system-ui, sans-serif;
+  color: var(--content-muted);
+  white-space: nowrap;
+}
+
+.markdown-mode-hint[hidden] {
+  display: none;
+}
+
 .preview-toolbar button[hidden],
 .preview-find[hidden] {
   display: none;

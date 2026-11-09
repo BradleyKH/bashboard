@@ -462,10 +462,14 @@ the latest query. An invalid regex or include glob shows its message under the f
 
 Up and Down move through the file names and matching lines, and the preview on the right shows the
 selected file scrolled to its line, which is highlighted. The preview is the same text editor as
-the Files pane's, with line numbers (markdown shows as source), so you can fix a match in place: it
+the Files pane's, with line numbers, so you can fix a match in place: it
 saves as you type, and once you leave the preview after a save the search runs again, so the list
 follows your edit. Esc in the preview goes back to the list, and Find (or Ctrl+Shift+F in the
 preview) searches the file. The divider between the list and the preview can be dragged.
+
+A markdown file opens rendered, with **Raw** and **Preview** buttons after the zoom buttons. Switch
+to Raw to see its source with line numbers and edit it; the pane remembers the choice for the next
+markdown file you select. Links in the rendered file open their target in the preview.
 
 A hovered or selected row shows two buttons: 🗀, **Show in Files**, shows the file in
 the tab's Files pane for the repo (opening one if there is none), and ↗, **Open in editor**, opens it
@@ -505,7 +509,7 @@ kind's icon and the pane's title. Folder paths under the card titles are hidden 
 **↳** button on the Panes header shows them, and the choice is saved with the workspace. While
 they're hidden, hover a card's title to see its full path. The sparkle button beside it shows only the
 terminals running a coding agent (Claude Code, Codex, or Copilot); each tab's other panes fold into a single
-"(2 other panes)" row, and that choice is saved too. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
+"(2 other panes)" row ("(2 panes)" in a tab with no agent), and that choice is saved too. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's

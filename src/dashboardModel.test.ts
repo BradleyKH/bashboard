@@ -329,6 +329,11 @@ describe('agentCards', () => {
     expect(otherPanesLabel(1)).toBe('(1 other pane)');
     expect(otherPanesLabel(2)).toBe('(2 other panes)');
   });
+
+  it('drops "other" when no card is shown above the row', () => {
+    expect(otherPanesLabel(1, true)).toBe('(1 pane)');
+    expect(otherPanesLabel(3, true)).toBe('(3 panes)');
+  });
 });
 
 describe('groupCardsByTab', () => {

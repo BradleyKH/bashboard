@@ -272,8 +272,14 @@ with line numbers and the match highlighted. A footer gives the count, or says t
 at the first 5,000. Up and Down move through matches.
 
 **Preview.** Selecting a result previews its file beside the list in the Files pane's preview
-(`FilePreview`, 4.12) in source mode: every text file, markdown included, opens in the text editor
-with line numbers, since results point at source lines. A match scrolls its line to the middle
+(`FilePreview`, 4.12) in source mode: every text file opens in the text editor with line numbers,
+since results point at source lines. A markdown file adds a Raw / Preview button group after the
+zoom buttons (`markdownModeToggle.ts`), Preview on by default. Preview renders the file as the
+Files pane does, without its Edit toggle, followed by a muted "View raw to edit"; a match row in a
+markdown file stays in Preview, showing the file from the top, and switching to Raw then scrolls
+to and marks its line. A relative link there shows its
+target in this preview, even when it is not a result, and the list keeps its row. Raw is the text
+editor below. The choice lasts for the pane, so the next markdown file opens the same way. A match scrolls its line to the middle
 and marks it with a band, with the caret at its start; the list keeps focus, so Up and Down go on
 stepping. Stepping between matches in one file moves the band without re-reading the file; a new
 search makes the next selection read it again. The editor saves as it does in the Files pane, and

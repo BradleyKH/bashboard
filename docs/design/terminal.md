@@ -42,9 +42,17 @@ Behavior:
   environment sets `PROMPT` to `$e]9;9;$P$e\` followed by the inherited `PROMPT` (or `$P$G` when
   there is none). The prompt itself then reports the working directory as OSC 9;9. cmd emits no
   OSC 133, so its status comes from the activity sweep (below).
-  PowerShell reports nothing by default; the profile snippet in setup.md adds OSC 9;9 only. The
-  front end ignores the sweep once a pane emits any OSC 133 marker (4.8), and PowerShell has no
-  reliable hook for the command-started marker, so its status also comes from the sweep.
+- **PowerShell arguments.** PowerShell reports nothing by default, so the core appends
+  `-NoExit -EncodedCommand <wrapper>` to the `pwsh` and `powershell` profiles' arguments
+  (`src-tauri/src/powershell_prompt.rs`). The wrapper runs after the user's profile, keeps that
+  profile's `prompt` in `$Global:__BashboardOriginalPrompt`, and replaces `prompt` with one that
+  emits OSC 9;9 with the current location ahead of the original. A guard skips the capture when
+  that variable already exists, so a profile carrying the same wrapper is not wrapped twice. It
+  uses `$([char]27)` rather than `` `e ``, which Windows PowerShell 5.1 lacks, and restores
+  `$LASTEXITCODE` after calling the original prompt. It emits no OSC 133: the front end ignores
+  the sweep once a pane emits any marker (4.8), and PowerShell has no reliable hook for the
+  command-started marker, so its status also comes from the sweep. A pane started with an
+  explicit `command` gets neither this nor cmd's `PROMPT`.
 - **Output** streams over a per-pane `Channel` as raw bytes (`InvokeResponseBody::Raw`), which
   arrive in JS as an `ArrayBuffer` and go straight to `term.write(Uint8Array)`. xterm.js
   handles UTF-8 sequences split across chunks.

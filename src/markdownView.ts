@@ -17,6 +17,8 @@ export interface MarkdownViewOptions {
   dispatch: (action: Action) => boolean;
   /** A relative link to another file was clicked; `path` is absolute, `fragment` the heading slug if any. */
   onOpenFile: (path: string, fragment?: string) => void;
+  /** False hides the Edit toggle: the Search preview edits markdown through its Raw mode instead. */
+  editable?: boolean;
 }
 
 /** Rendered markdown with an Edit toggle (docs/design/files.md section 4.12). */
@@ -51,7 +53,8 @@ export class MarkdownView {
     this.toggle.type = 'button';
     this.toggle.addEventListener('click', () => void this.toggleEdit());
     this.find = new PreviewFind(() => this.findSurface());
-    toolbar.append(this.toggle, this.find.button, this.find.bar);
+    if (opts.editable === false) toolbar.append(this.find.button, this.find.bar);
+    else toolbar.append(this.toggle, this.find.button, this.find.bar);
     this.body = document.createElement('div');
     this.body.className = 'markdown-body';
     this.body.tabIndex = -1;

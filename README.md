@@ -77,8 +77,8 @@ from **Settings > Apps > Installed apps**. To build from source, see
 - [User guide](docs/user-guide.md): tabs, panes, layouts, the dashboard, Files, Git, code
   search, containers, ports, Local Browser, the Ship pane, local AI models, attention, and the
   `bb` pane CLI.
-- [Shell and coding agent setup](docs/setup.md): the `~/.bashrc` and PowerShell lines that let
-  new panes open in the current folder, the hooks for Claude Code, Codex, and Copilot, and signing
+- [Shell and coding agent setup](docs/setup.md): the `~/.bashrc` lines that let new panes open
+  in the current folder, the hooks for Claude Code, Codex, and Copilot, and signing
   in to GitHub, GitLab, Bitbucket, and Azure DevOps for the Ship pane.
 - [Settings](docs/settings.md): the settings file and what each setting does.
 - [Development](docs/development.md): building from source, releasing, and debugging input.

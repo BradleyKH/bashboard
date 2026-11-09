@@ -41,7 +41,7 @@ describe('gitRow', () => {
 describe('shellRow', () => {
   it('offers an install or update when the lines are missing or old', () => {
     expect(shellRow('gitBash', 'Git Bash', preview({ status: 'missing' }), true).fix).toEqual({ kind: 'shell', shell: 'gitBash', label: 'Install' });
-    expect(shellRow('pwsh', 'PowerShell 7', preview({ status: 'outdated' }), true).fix?.label).toBe('Update');
+    expect(shellRow('gitBash', 'Git Bash', preview({ status: 'outdated' }), true).fix?.label).toBe('Update');
   });
 
   it('has no fix for installed, hand-added, or customized lines', () => {
@@ -57,8 +57,8 @@ describe('shellRow', () => {
   });
 
   it('warns only for the default shell, but offers the install for every shell', () => {
-    expect(shellRow('pwsh', 'PowerShell 7', preview({ status: 'missing' }), true).level).toBe('missing');
-    const other = shellRow('pwsh', 'PowerShell 7', preview({ status: 'missing' }), false);
+    expect(shellRow('gitBash', 'Git Bash', preview({ status: 'missing' }), true).level).toBe('missing');
+    const other = shellRow('gitBash', 'Git Bash', preview({ status: 'missing' }), false);
     expect(other.level).toBe('info');
     expect(other.fix?.label).toBe('Install');
   });

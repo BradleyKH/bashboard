@@ -925,7 +925,7 @@ export class DashboardPanel {
       if (others > 0) {
         const row = document.createElement('div');
         row.className = 'panes-others';
-        row.textContent = otherPanesLabel(others);
+        row.textContent = otherPanesLabel(others, kept.length === 0);
         els.push(row);
       }
       return els;

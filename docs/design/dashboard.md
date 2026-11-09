@@ -285,7 +285,7 @@ are no headers and the section reads as a plain list.
 Left of the paths toggle, an AI toggle (a sparkle, filled while on) narrows each group to the
 terminals bound to an agent session (3.4) of any agent, Claude Code, Codex, or Copilot. The tab's
 other panes fold into one dimmed row after its cards, "(2 other panes)", which does nothing when
-clicked; a tab with no agent session shows only that row. Headers keep the tab's full pane count
+clicked; a tab with no agent session shows only that row, worded "(2 panes)". Headers keep the tab's full pane count
 and status. It starts off, is saved with the workspace, and is hidden while the section is
 collapsed.
 

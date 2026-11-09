@@ -64,7 +64,7 @@ const DEFAULT_EDITOR: Choice = { value: 'default', label: "The file's default ap
 
 /**
  * The steps to show, in order: Git only when Git Bash was missing, shell integration only when
- * the default shell takes the lines (not cmd) and they are not current, the agents step only when
+ * the default shell takes the lines (Git Bash) and they are not current, the agents step only when
  * a detected agent lacks the hooks.
  */
 export function setupSteps(opts: SetupStepOptions): SetupStep[] {

@@ -1,9 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 
-/** The profiles that take shell integration lines; cmd reports its folder without any. */
-export type IntegrationShell = 'gitBash' | 'pwsh' | 'powershell';
+/**
+ * The profiles that take shell integration lines. cmd and PowerShell report their folder without
+ * any, from the prompt Bashboard starts them with.
+ */
+export type IntegrationShell = 'gitBash';
 
-export const INTEGRATION_SHELLS: readonly IntegrationShell[] = ['gitBash', 'pwsh', 'powershell'];
+export const INTEGRATION_SHELLS: readonly IntegrationShell[] = ['gitBash'];
 
 export function isIntegrationShell(id: string): id is IntegrationShell {
   return (INTEGRATION_SHELLS as readonly string[]).includes(id);
@@ -14,19 +17,18 @@ export type ShellIntegrationStatus = 'missing' | 'installed' | 'outdated' | 'han
 
 export interface ShellIntegrationPreview {
   shell: IntegrationShell;
-  /** `~/.bashrc`, or the PowerShell profile. */
+  /** `~/.bashrc`. */
   path: string;
   status: ShellIntegrationStatus;
   /** The marked block the install writes, LF line endings. */
   block: string;
   createsFile: boolean;
-  /** Git Bash only. */
   createsBashProfile: boolean;
   /** Something outside the file that keeps the lines from running, with how to fix it. */
   warning: string | null;
 }
 
-/** Rejects with a message when the file cannot be read, or the shell cannot report its profile. */
+/** Rejects with a message when the file cannot be read. */
 export function shellIntegrationPreview(shell: IntegrationShell): Promise<ShellIntegrationPreview> {
   return invoke<ShellIntegrationPreview>('shell_integration_preview', { shell });
 }

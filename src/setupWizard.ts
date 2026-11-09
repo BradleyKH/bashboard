@@ -211,9 +211,7 @@ export class SetupWizard {
     box.focus();
     void this.loadEditors(backdrop);
     void this.listRepos(undefined, backdrop);
-    // Each installed shell's file is read up front, so switching shells in the Shell step shows
-    // the right lines at once. PowerShell has to start to report its profile path, which takes
-    // a moment, hence in the background.
+    // Read up front, so switching shells in the Shell step adds or drops the step at once.
     for (const p of this.callbacks.getProfiles()) {
       if (isIntegrationShell(p.id)) void this.loadPreview(p.id, backdrop);
     }

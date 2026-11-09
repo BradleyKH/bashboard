@@ -8,7 +8,7 @@ lines to `~/.bashrc`, in a block
 marked `# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<` at the
 end of the file, below any prompt framework's init line. It backs the file up to
 `~/.bashrc.bashboard-backup` first, and creates `~/.bash_profile` when it is missing so login
-shells read `~/.bashrc`. The Setup list in the Help tab (F1) shows whether each shell has the
+shells read `~/.bashrc`. The Setup list in the Help tab (F1) shows whether `~/.bashrc` has the
 current lines, with an Install or Update button that does the same. To add them yourself, put these lines at the end of `~/.bashrc` (below
 a line such as `eval "$(starship init bash)"`):
 
@@ -47,38 +47,18 @@ directory (OSC 9;9) ahead of your own `PROMPT`, so new panes open in the same fo
 emit the OSC 133 markers, so its working or idle status comes from the check of the shell's
 processes every 2 seconds.
 
-PowerShell 7 and Windows PowerShell do not report their folder until you tell them to. This follows Microsoft's
+PowerShell 7 and Windows PowerShell report their folder the same way, with nothing to set up:
+Bashboard starts them with `-NoExit -EncodedCommand`, running a few lines after your profile that
+wrap whatever `prompt` it left you with (a Starship or oh-my-posh prompt included) and emit the
+working directory (OSC 9;9) ahead of it, following Microsoft's
 [Windows Terminal shell integration](https://learn.microsoft.com/en-us/windows/terminal/tutorials/shell-integration)
-guidance for the working directory: the lines below wrap whatever `prompt` you already have and
-emit the folder (OSC 9;9) ahead of it, so new panes open in the same folder. When PowerShell 7 or
-Windows PowerShell is the default shell, the setup wizard offers to add them to that shell's
-profile (`$PROFILE`; the two shells keep separate ones), in the same marked block as `~/.bashrc`,
-after backing the file up to `<profile>.bashboard-backup`. To add them yourself, open the profile
-with `notepad $PROFILE` and put them at the end, after any prompt framework's init line, such as
-`oh-my-posh init`:
+guidance. Your profile is never changed, and since execution policy applies to script files
+rather than to a command on the command line, it works even where the policy keeps the profile
+from loading.
 
-```powershell
-if (-not (Test-Path variable:Global:__BashboardOriginalPrompt)) {
-  $Global:__BashboardOriginalPrompt = $function:prompt
-}
-
-function Global:prompt {
-  $exit = $global:LASTEXITCODE
-  $loc = $executionContext.SessionState.Path.CurrentLocation
-  $out = "$([char]27)]9;9;`"$loc`"$([char]7)" + (& $Global:__BashboardOriginalPrompt)
-  $global:LASTEXITCODE = $exit   # keep the last native exit code visible to the user
-  return $out
-}
-```
-
-The lines work in both shells, and running `. $PROFILE` again does not wrap the prompt twice.
-Windows PowerShell's default execution policy on Windows 11 is `Restricted`, which runs no profile
-at all; the wizard warns when the policy blocks the profile, and
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` lets it run.
-
-The snippet deliberately leaves out the OSC 133 markers from Microsoft's example. Bashboard uses
-the markers exclusively once a pane emits any of them, and PowerShell has no reliable hook for
-the command-started marker (`C`), so a pane emitting only the others would show as idle while a
+The wrapper leaves out the OSC 133 markers from Microsoft's example. Bashboard uses the markers
+exclusively once a pane emits any of them, and PowerShell has no reliable hook for the
+command-started marker (`C`), so a pane emitting only the others would show as idle while a
 command runs. Like Command Prompt, a PowerShell pane's working or idle status comes from the
 check of the shell's processes every 2 seconds.
 
