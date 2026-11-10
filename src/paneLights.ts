@@ -59,8 +59,8 @@ export class PaneLights {
     this.pacer.setMaxFps(L.maxFps);
     const root = document.documentElement.style;
     root.setProperty('--agent-glow-period', `${L.breathSeconds}s`);
-    root.setProperty('--agent-glow-low', String(L.glowLow * L.intensity));
-    root.setProperty('--agent-glow-high', String(L.glowHigh * L.intensity));
+    root.setProperty('--agent-glow-low', String(L.glowLow));
+    root.setProperty('--agent-glow-high', String(L.glowHigh));
     window.addEventListener('resize', () => this.fitCanvas());
     this.reducedMotion.addEventListener('change', () => this.sync());
     bindWindowVisibility((visible) => {

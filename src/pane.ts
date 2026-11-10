@@ -15,6 +15,7 @@ import { replayText } from './scrollbackModel';
 import { noteShellFallback } from './shellFallback';
 import type { CellSize } from './layout';
 import type { PaneView } from './paneView';
+import { platformOs } from './platform';
 import type { Settings } from './settings';
 import type { OscShellState } from './terminalStatus';
 
@@ -161,6 +162,9 @@ export class TerminalPane implements PaneView {
       cursorBlink: true,
       cursorStyle: 'bar',
       cursorInactiveStyle: 'outline',
+      // Option+B, Option+F, and Option+Backspace reach readline and Claude Code as Meta, as a Mac
+      // terminal user expects; otherwise xterm.js types the Option character (∫, ƒ).
+      macOptionIsMeta: platformOs() === 'macos',
       fontFamily: toFontFamily(opts.settings.font.family),
       fontSize: opts.settings.font.size,
       scrollback: opts.settings.scrollback,

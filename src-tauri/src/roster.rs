@@ -222,11 +222,11 @@ fn find_agent_pid(agent: AgentId, pane: u32, shells: &HashMap<u32, u32>, procs: 
         .map(|(_, _, pid)| pid)
 }
 
-/// `node.exe` processes under `pane`'s shell whose command line has not been read.
+/// `node` processes under `pane`'s shell whose command line has not been read.
 fn node_without_cmd(pane: u32, shells: &HashMap<u32, u32>, procs: &ProcTable) -> Vec<u32> {
     procs
         .iter()
-        .filter(|(_, p)| p.cmd.is_none() && p.name.eq_ignore_ascii_case("node.exe"))
+        .filter(|(_, p)| p.cmd.is_none() && crate::agents::program_stem(&p.name) == "node")
         .filter(|(pid, _)| bind_pane(**pid, shells, procs) == Some(pane))
         .map(|(&pid, _)| pid)
         .collect()
@@ -255,7 +255,7 @@ fn hook_born_ids(overlay: &HashMap<String, HookOverlay>, born: &HookBorn) -> Vec
 
 /// Binds hook-born sessions to processes and ends the ones whose process died, whose pane
 /// closed, or that went 30 minutes without events with no process found. `fill_cmds` reads
-/// command lines, called only when a `node.exe` under the pane could be the agent.
+/// command lines, called only when a `node` under the pane could be the agent.
 fn sweep_hook_born(
     born: &mut HookBorn,
     overlay: &HashMap<String, HookOverlay>,

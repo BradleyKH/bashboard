@@ -17,13 +17,13 @@ export const PANE_LIGHTS = {
   countHysteresis: 0.15,
   /** How far the light trails out on each side of the head; it fades both ways. */
   tailPx: 60,
-  /** 0 to 1; scales the comet and the glow together. */
+  /** 0 to 1; scales the comet's brightness. */
   intensity: 0.3,
   /** One full glow breath, dim to bright and back. */
   breathSeconds: 7,
-  /** The glow's opacity at the bottom and top of a breath, before intensity. */
-  glowLow: 0.25,
-  glowHigh: 1,
+  /** The glow's opacity at the bottom and top of a breath. */
+  glowLow: 0.2,
+  glowHigh: 0.9,
   /** Outward from the pane's edge: half the 4px divider, so the loop runs down the gutter's middle. */
   gutterOffsetPx: 2,
   lineWidthPx: 1.6,

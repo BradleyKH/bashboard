@@ -49,9 +49,9 @@ pub struct Agent {
     home_dir_name: &'static str,
     /// Environment variable that relocates the home folder, if the agent honors one.
     home_env: Option<&'static str>,
-    /// Executable file names, lowercase.
+    /// Executable names, lowercase and without `.exe`, so one list serves every OS.
     pub executables: &'static [&'static str],
-    /// A `node.exe` host counts when its command line contains this text.
+    /// A `node` host counts when its command line contains this text.
     node_marker: Option<&'static str>,
     /// An entry inside the home folder that only the agent itself writes, when the folder alone
     /// is not proof: VS Code's Copilot extension creates `~/.copilot` (a `config.json` and
@@ -62,7 +62,7 @@ pub struct Agent {
 pub static CLAUDE: Agent = Agent {
     home_dir_name: ".claude",
     home_env: None,
-    executables: &["claude.exe"],
+    executables: &["claude"],
     node_marker: None,
     detect_marker: None,
 };
@@ -70,7 +70,7 @@ pub static CLAUDE: Agent = Agent {
 pub static CODEX: Agent = Agent {
     home_dir_name: ".codex",
     home_env: Some("CODEX_HOME"),
-    executables: &["codex.exe"],
+    executables: &["codex"],
     node_marker: None,
     detect_marker: None,
 };
@@ -78,11 +78,18 @@ pub static CODEX: Agent = Agent {
 pub static COPILOT: Agent = Agent {
     home_dir_name: ".copilot",
     home_env: Some("COPILOT_HOME"),
-    executables: &["copilot.exe"],
+    executables: &["copilot"],
     node_marker: Some("@github/copilot"),
     // The CLI writes one folder per session here on its first interactive run.
     detect_marker: Some("session-state"),
 };
+
+/// A process's executable name, lowercase and without `.exe`: `Claude.exe` and `claude` are
+/// both `claude`.
+pub(crate) fn program_stem(name: &str) -> String {
+    let lower = name.to_ascii_lowercase();
+    lower.strip_suffix(".exe").map(str::to_string).unwrap_or(lower)
+}
 
 impl Agent {
     /// The agent's home folder. `env` looks up a variable (the real one is `std::env::var_os`);
@@ -108,15 +115,13 @@ impl Agent {
     /// Whether a process is this agent. `name` is the executable file name; `cmdline` is the
     /// full command line when known.
     pub fn matches_process(&self, name: &str, cmdline: Option<&str>) -> bool {
-        let lower = name.to_ascii_lowercase();
-        if self.executables.contains(&lower.as_str()) {
+        let stem = program_stem(name);
+        if self.executables.contains(&stem.as_str()) {
             return true;
         }
         match (self.node_marker, cmdline) {
             // npm on Windows launches the CLI by a backslash path (`node_modules\@github\copilot`).
-            (Some(marker), Some(cmd)) => {
-                lower == "node.exe" && cmd.replace('\\', "/").contains(marker)
-            }
+            (Some(marker), Some(cmd)) => stem == "node" && cmd.replace('\\', "/").contains(marker),
             _ => false,
         }
     }
@@ -207,6 +212,16 @@ mod tests {
         assert!(CODEX.matches_process("codex.exe", None));
         assert!(COPILOT.matches_process("COPILOT.exe", None));
         assert!(!CODEX.matches_process("claude.exe", None));
+    }
+
+    #[test]
+    fn executables_match_without_exe_as_on_macos_and_linux() {
+        assert!(CLAUDE.matches_process("claude", None));
+        assert!(CLAUDE.matches_process("Claude.exe", None));
+        assert!(!CLAUDE.matches_process("claude-helper", None));
+        let cmd = "node /opt/homebrew/lib/node_modules/@github/copilot/index.js";
+        assert!(COPILOT.matches_process("node", Some(cmd)));
+        assert!(!COPILOT.matches_process("node", Some("node server.js")));
     }
 
     #[test]

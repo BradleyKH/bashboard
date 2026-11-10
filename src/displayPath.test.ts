@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayPath, windowsPathText } from './displayPath';
+import { copiedPathText, displayPath, windowsPathText } from './displayPath';
 
 const HOME = 'C:\\Users\\my-username';
 
@@ -46,5 +46,13 @@ describe('windowsPathText', () => {
   it('handles a drive root', () => {
     expect(windowsPathText('C:/')).toBe('C:\\');
     expect(windowsPathText('D:\\')).toBe('D:\\');
+  });
+});
+
+describe('copiedPathText', () => {
+  it('uses backslashes on Windows only', () => {
+    expect(copiedPathText('C:/Users/me/a.ts', 'windows')).toBe(String.raw`C:\Users\me\a.ts`);
+    expect(copiedPathText('/Users/me/a.ts', 'macos')).toBe('/Users/me/a.ts');
+    expect(copiedPathText('/home/me/a.ts', 'linux')).toBe('/home/me/a.ts');
   });
 });

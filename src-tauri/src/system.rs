@@ -125,6 +125,27 @@ fn drive_root(mount: &Path) -> Option<String> {
         .then(|| s[..2].to_ascii_uppercase())
 }
 
+/// Folders whose direct mounts are user volumes: macOS's external drives, and Linux's
+/// conventional places for extra disks.
+const UNIX_VOLUME_PARENTS: &[&str] = &["/Volumes/", "/mnt/", "/media/", "/run/media/"];
+
+/// `/` and the user volumes under `UNIX_VOLUME_PARENTS`, as their mount paths. Everything else
+/// is left out: macOS's APFS system volumes under `/System/Volumes` share the root's container
+/// and would count its space again, and Linux's `/boot`, tmpfs, and snap mounts are not disks a
+/// user thinks of.
+fn unix_volume(mount: &Path) -> Option<String> {
+    let s = mount.to_str()?;
+    let user_volume = UNIX_VOLUME_PARENTS
+        .iter()
+        .any(|parent| s.strip_prefix(parent).is_some_and(|rest| !rest.is_empty()));
+    (s == "/" || user_volume).then(|| s.to_string())
+}
+
+/// The label a disk row shows: a drive letter on Windows, a mount path elsewhere.
+fn disk_label(mount: &Path) -> Option<String> {
+    if cfg!(windows) { drive_root(mount) } else { unix_volume(mount) }
+}
+
 /// `chrome.exe` as `chrome`; grouping ignores case, keeping the first spelling seen.
 fn group_name(name: &str) -> &str {
     let n = name.len();
@@ -244,7 +265,7 @@ impl SystemSampler {
                 .filter(|d| !d.is_removable())
                 .filter_map(|d| {
                     Some(DiskRow {
-                        mount: drive_root(d.mount_point())?,
+                        mount: disk_label(d.mount_point())?,
                         total_bytes: d.total_space(),
                         available_bytes: d.available_space(),
                     })
@@ -318,6 +339,25 @@ mod tests {
         assert_eq!(drive_root(Path::new("d:\\")), Some("D:".into()));
         assert_eq!(drive_root(Path::new("C:\\mnt\\data")), None);
         assert_eq!(drive_root(Path::new("\\\\server\\share\\")), None);
+    }
+
+    #[test]
+    fn unix_volumes_are_the_root_and_user_mounts() {
+        for keep in ["/", "/Volumes/Backup", "/mnt/data", "/media/usb", "/run/media/me/stick"] {
+            assert_eq!(unix_volume(Path::new(keep)).as_deref(), Some(keep), "{keep}");
+        }
+        for skip in [
+            "/System/Volumes/Data",
+            "/System/Volumes/VM",
+            "/boot",
+            "/boot/efi",
+            "/dev/shm",
+            "/snap/core/1",
+            "/Volumes/",
+            "/mnt",
+        ] {
+            assert_eq!(unix_volume(Path::new(skip)), None, "{skip}");
+        }
     }
     #[test]
     fn second_sample_fills_cpu_and_network() {

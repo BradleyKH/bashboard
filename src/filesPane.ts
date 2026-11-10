@@ -4,7 +4,8 @@ import type { CodeColorsMode } from './code/codeColorsStore';
 import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
-import { windowsPathText } from './displayPath';
+import { copiedPathText } from './displayPath';
+import { platformOs } from './platform';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import { FilePreview } from './filePreview';
@@ -650,7 +651,7 @@ export class FilesPane implements PaneView {
       openInEditor: (e) => this.openInEditor(pathOf(e)),
       copyPath: (es) => {
         if (es.length === 1) void copyPath(pathOf(es[0]));
-        else void copyText(es.map((e) => windowsPathText(pathOf(e))).join('\n'), 'paths');
+        else void copyText(es.map((e) => copiedPathText(pathOf(e), platformOs())).join('\n'), 'paths');
       },
       insertPath: (es) => this.opts.onInsertPaths(es.map(pathOf), this.rootPath),
       moveTo: (files, toDir) => void this.movePaths(files.map(pathOf), toDir),

@@ -182,8 +182,8 @@ body.agent-glow .pane.agent-working::after {
   z-index: 3;
   pointer-events: none;
   box-shadow:
-    inset 0 0 22px 2px color-mix(in srgb, var(--accent) 38%, transparent),
-    inset 0 0 3px 0 color-mix(in srgb, var(--accent) 45%, transparent);
+    inset 0 0 56px 6px color-mix(in srgb, var(--accent) 55%, transparent),
+    inset 0 0 14px 1px color-mix(in srgb, var(--accent) 80%, transparent);
   animation: agent-glow-breathe var(--agent-glow-period) ease-in-out infinite;
 }
 

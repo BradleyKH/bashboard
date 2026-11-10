@@ -21,6 +21,7 @@ mod git_worktrees;
 mod hook_install;
 mod hooks;
 mod links;
+mod login_path;
 mod model_servers;
 mod platform;
 mod ports;
@@ -131,6 +132,7 @@ fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWin
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    login_path::adopt();
     let builder = tauri::Builder::default();
     // Release builds only: the lock is keyed on the app identifier, which debug builds share,
     // and a dev run has to start beside the installed app. Registered first so a second

@@ -23,6 +23,11 @@ export function windowsPathText(path: string): string {
   return path.replace(/\//g, '\\');
 }
 
+/** `path` as Copy path copies it on `os`: backslashes on Windows, unchanged elsewhere. */
+export function copiedPathText(path: string, os: string): string {
+  return os === 'windows' ? windowsPathText(path) : path;
+}
+
 /**
  * Fills `el` with `path` for display: home abbreviated, the full path as the tooltip, and the
  * `path-text` class, which cuts an overlong path from the left so its distinctive end stays.
