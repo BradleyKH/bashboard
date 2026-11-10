@@ -1040,7 +1040,11 @@ mod tests {
             assert!(check_hash(bad).is_err(), "{bad}");
         }
         assert!(check_paths(&["src/a.rs".into(), "./b".into()]).is_ok());
-        for bad in ["", "../x", "a/../../x", "/etc/passwd", r"C:\x", r"\x"] {
+        for bad in ["", "../x", "a/../../x", "/etc/passwd"] {
+            assert!(check_paths(&[bad.to_string()]).is_err(), "{bad}");
+        }
+        #[cfg(windows)]
+        for bad in [r"C:\x", r"\x"] {
             assert!(check_paths(&[bad.to_string()]).is_err(), "{bad}");
         }
         assert!(check_root("relative/path").is_err());

@@ -868,11 +868,17 @@ mod tests {
         assert!(spawn_spec(Some(Vec::new()), &resolved, Vec::new(), None).is_err());
     }
 
+    /// `program` running `echo hi` in its own syntax: `cmd /c` or `sh -c`.
+    fn echo_hi(program: &str) -> Vec<String> {
+        let flag = if cfg!(windows) { "/c" } else { "-c" };
+        vec![program.into(), flag.into(), "echo hi".into()]
+    }
+
     #[test]
     fn command_runs_in_place_of_the_profile() {
         let ptys = Ptys::default();
         let spec = spawn_spec(
-            Some(vec!["cmd.exe".into(), "/c".into(), "echo hi".into()]),
+            Some(echo_hi(if cfg!(windows) { "cmd.exe" } else { "/bin/sh" })),
             &profile_for_test(profiles::GIT_BASH),
             Vec::new(),
             None,
@@ -888,7 +894,7 @@ mod tests {
     fn bare_command_name_resolves_through_path() {
         let ptys = Ptys::default();
         let spec = spawn_spec(
-            Some(vec!["cmd".into(), "/c".into(), "echo hi".into()]),
+            Some(echo_hi(if cfg!(windows) { "cmd" } else { "sh" })),
             &profile_for_test(profiles::GIT_BASH),
             Vec::new(),
             None,

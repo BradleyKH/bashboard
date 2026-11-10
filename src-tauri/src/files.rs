@@ -71,7 +71,26 @@ pub(crate) fn normalize(path: &str) -> Result<PathBuf, String> {
     if !p.is_absolute() {
         return Err(format!("not an absolute path: {path}"));
     }
-    std::path::absolute(p).map_err(|e| format!("{path}: {e}"))
+    let abs = std::path::absolute(p).map_err(|e| format!("{path}: {e}"))?;
+    // Windows' absolute() already drops `..`; POSIX keeps it, since a symlink could make the
+    // lexical answer wrong. Paths here are compared and shown, so they resolve lexically on
+    // every OS alike.
+    Ok(if cfg!(windows) { abs } else { lexical(&abs) })
+}
+
+/// `path` with `.` dropped and each `..` removing the component before it.
+fn lexical(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for c in path.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 pub(crate) fn display(path: &Path) -> String {

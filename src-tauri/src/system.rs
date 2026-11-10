@@ -346,7 +346,8 @@ mod tests {
             .sample(true, Instant::now())
             .disks
             .expect("disks requested");
-        assert!(rows.iter().any(|r| r.mount == "C:" && r.total_bytes > 0));
+        let system = if cfg!(windows) { "C:" } else { "/" };
+        assert!(rows.iter().any(|r| r.mount == system && r.total_bytes > 0), "{rows:?}");
         let mounts: Vec<_> = rows.iter().map(|r| r.mount.clone()).collect();
         let mut sorted = mounts.clone();
         sorted.sort();

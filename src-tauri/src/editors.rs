@@ -643,6 +643,7 @@ mod tests {
         assert_eq!(custom_argv("  \t ", Path::new(FILE), Some(3)), None);
     }
 
+    #[cfg(windows)]
     #[test]
     fn detects_in_install_folders_and_on_path() {
         let root = temp_dir("detect");
@@ -707,6 +708,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn vscode_family_install_folders() {
         let root = temp_dir("vscinstall");
@@ -729,6 +731,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn jetbrains_exe_on_path() {
         let root = temp_dir("jbpath");
@@ -740,6 +743,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn jetbrains_toolbox_script_on_path() {
         let root = temp_dir("jbtoolbox");
@@ -758,6 +762,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn jetbrains_toolbox_script_in_the_scripts_folder_off_path() {
         let root = temp_dir("jbscripts");
@@ -776,6 +781,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn jetbrains_install_folders_pick_the_highest_version() {
         let root = temp_dir("jbinstall");
@@ -793,6 +799,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn jetbrains_install_without_version_loses() {
         let root = temp_dir("jbnoversion");
@@ -813,6 +820,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn toolbox_exe_reads_the_script_text() {
         let quoted = "@echo off\r\nstart \"\" \"C:\\Tool Box\\Rider\\bin\\rider64.exe\" %*\r\n";
@@ -876,9 +884,9 @@ mod tests {
         );
         let root = temp_dir("normalize");
         touch(&root.join("a.txt"));
-        let dotted = format!("{}\\sub\\..\\a.txt", root.display());
-        assert_eq!(normalize_existing(&dotted).unwrap(), root.join("a.txt"));
-        assert!(normalize_existing(&format!("{}\\missing.txt", root.display())).is_err());
+        let dotted = root.join("sub").join("..").join("a.txt");
+        assert_eq!(normalize_existing(&dotted.to_string_lossy()).unwrap(), root.join("a.txt"));
+        assert!(normalize_existing(&root.join("missing.txt").to_string_lossy()).is_err());
         std::fs::remove_dir_all(&root).unwrap();
     }
 

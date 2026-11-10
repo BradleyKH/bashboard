@@ -2,8 +2,8 @@
 //! `shell.args`), PowerShell 7 and Windows PowerShell when installed, and Command Prompt. On
 //! macOS and other Unix systems: the login shell from `$SHELL`, plus zsh and bash when they are
 //! not already it. Only profiles whose executable exists are offered, and the last resort (cmd,
-//! or the login shell falling back to `/bin/zsh`) always is, so resolving a profile can never
-//! land on a shell that fails to start.
+//! or the login shell falling back as far as `/bin/sh`) always is, so resolving a profile can
+//! never land on a shell that fails to start.
 
 use std::{
     ffi::OsStr,
@@ -176,18 +176,21 @@ fn build_profiles(
     list
 }
 
-/// The `/bin/zsh` floor of the Unix list: every supported macOS has it.
-const ZSH_FALLBACK: &str = "/bin/zsh";
+const ZSH_PATH: &str = "/bin/zsh";
+/// The login shell when `$SHELL` is unset or missing, first that exists: zsh (macOS's default),
+/// bash, then `/bin/sh`, which every Unix has.
+const LOGIN_FALLBACKS: &[&str] = &[ZSH_PATH, "/bin/bash", "/bin/sh"];
 /// Homebrew's bash first: macOS ships bash 3.2.
 const BASH_CANDIDATES: &[&str] = &["/opt/homebrew/bin/bash", "/usr/local/bin/bash", "/bin/bash"];
 
 /// The Unix list, in fallback order. The login shell is `login_shell` (`$SHELL`) when it
-/// exists, else `/bin/zsh`, so the list is never empty. Shells start with `-l` so they read the
+/// exists, else the first of `LOGIN_FALLBACKS`, so the list is never empty. Shells start with `-l` so they read the
 /// user's profile files and build their own `PATH`, as a terminal app's shells do.
 fn unix_profiles(login_shell: Option<&str>, exists: impl Fn(&Path) -> bool) -> Vec<ShellProfile> {
     let login = login_shell
         .filter(|s| !s.is_empty() && exists(Path::new(s)))
-        .unwrap_or(ZSH_FALLBACK)
+        .or_else(|| LOGIN_FALLBACKS.iter().copied().find(|p| exists(Path::new(p))))
+        .unwrap_or("/bin/sh")
         .to_string();
     let login_name = Path::new(&login)
         .file_name()
@@ -195,8 +198,8 @@ fn unix_profiles(login_shell: Option<&str>, exists: impl Fn(&Path) -> bool) -> V
         .unwrap_or_else(|| "Login shell".into());
     let args = || vec!["-l".to_string()];
     let mut list = vec![profile(LOGIN_SHELL, &login_name, login.clone(), args())];
-    if login != ZSH_FALLBACK && exists(Path::new(ZSH_FALLBACK)) {
-        list.push(profile(ZSH, "zsh", ZSH_FALLBACK.into(), args()));
+    if login != ZSH_PATH && exists(Path::new(ZSH_PATH)) {
+        list.push(profile(ZSH, "zsh", ZSH_PATH.into(), args()));
     }
     if let Some(bash) = BASH_CANDIDATES
         .iter()
@@ -569,6 +572,15 @@ mod tests {
 
         let list = unix_profiles(Some("/opt/homebrew/bin/bash"), all);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH]);
+    }
+
+    #[test]
+    fn unix_login_shell_falls_back_to_sh_without_zsh_or_bash() {
+        let only_sh = |p: &Path| p == Path::new("/bin/sh");
+        let list = unix_profiles(None, only_sh);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL]);
+        assert_eq!(list[0].path, "/bin/sh");
+        assert_eq!(list[0].name, "Login shell (sh)");
     }
 
     #[test]

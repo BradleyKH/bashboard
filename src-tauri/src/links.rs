@@ -40,14 +40,20 @@ fn is_folder(path: &Path) -> bool {
     path.is_absolute() && path.is_dir()
 }
 
-/// Opens a folder in File Explorer (Finder on macOS).
+/// Opens a folder in File Explorer (Finder on macOS, the desktop's file manager elsewhere).
 #[tauri::command]
 pub fn open_folder(path: String) -> Result<(), String> {
     let dir = PathBuf::from(path.trim());
     if !is_folder(&dir) {
         return Err(format!("{} is not a folder", dir.display()));
     }
-    let program = if cfg!(windows) { "explorer.exe" } else { "open" };
+    let program = if cfg!(windows) {
+        "explorer.exe"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
     // Explorer exits with 1 even on success, so spawn without waiting on its status.
     std::process::Command::new(program)
         .arg(&dir)

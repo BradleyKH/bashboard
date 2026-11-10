@@ -53,10 +53,7 @@ jobs:
       - name: Front end tests
         run: pnpm test
 
-      # Several Rust tests still assume Windows. They report here without blocking the build, so
-      # a failing test is a finding to fix rather than a reason there is no build to try.
       - name: Rust tests
-        continue-on-error: true
         working-directory: src-tauri
         run: cargo test
 
@@ -85,6 +82,8 @@ jobs:
           path: src-tauri/target/${{ inputs.target }}/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
+      # One prerelease per commit: a second run (the other architecture) adds its .dmg to it, and
+      # a rerun of the same architecture replaces the file.
       - name: Attach to a prerelease
         if: inputs.prerelease
         env:
@@ -92,7 +91,12 @@ jobs:
         run: |
           tag="macos-preview-$(git rev-parse --short HEAD)"
           version=$(node -p "require('./package.json').version")
-          gh release create "$tag" --prerelease --target "$GITHUB_SHA" \
-            --title "Bashboard $version macOS preview ($tag)" \
-            --notes "Unsigned macOS test build, not for general use. After dragging Bashboard to Applications, run once in Terminal: xattr -dr com.apple.quarantine /Applications/Bashboard.app" \
-            src-tauri/target/${{ inputs.target }}/release/bundle/dmg/*.dmg
+          dmg=$(ls src-tauri/target/${{ inputs.target }}/release/bundle/dmg/*.dmg)
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" "$dmg" --clobber
+          else
+            gh release create "$tag" --prerelease --target "$GITHUB_SHA" \
+              --title "Bashboard $version macOS preview ($tag)" \
+              --notes "Unsigned macOS test build, not for general use. Bashboard_*_universal.dmg runs on every Mac; *_aarch64.dmg only on Apple silicon. After dragging Bashboard to Applications, run once in Terminal: xattr -dr com.apple.quarantine /Applications/Bashboard.app" \
+              "$dmg"
+          fi

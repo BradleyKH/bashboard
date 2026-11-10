@@ -1650,6 +1650,7 @@ mod tests {
         assert_eq!(podman_machine(r#"[{"Name":""}]"#), None);
     }
 
+    #[cfg(windows)]
     #[test]
     fn docker_desktop_exe_sits_three_levels_above_the_cli() {
         let cli = Path::new(r"C:\Program Files\Docker\Docker\resources\bin\docker.exe");

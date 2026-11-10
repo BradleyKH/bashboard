@@ -709,20 +709,20 @@ mod tests {
             ..Worktree::default()
         };
         let mut list = vec![
-            wt(r"C:\z\beta", false),
-            wt(r"C:\a\zeta-main", true),
-            wt(r"C:\y\Alpha", false),
-            wt(r"C:\x\gamma", false),
+            wt("/z/beta", false),
+            wt("/a/zeta-main", true),
+            wt("/y/Alpha", false),
+            wt("/x/gamma", false),
         ];
         sort_worktrees(&mut list);
         let order: Vec<&str> = list.iter().map(|w| w.path.as_str()).collect();
         assert_eq!(
             order,
             [
-                r"C:\a\zeta-main",
-                r"C:\y\Alpha",
-                r"C:\z\beta",
-                r"C:\x\gamma"
+                "/a/zeta-main",
+                "/y/Alpha",
+                "/z/beta",
+                "/x/gamma"
             ]
         );
     }
@@ -832,7 +832,8 @@ mod tests {
         let (g, [fresh, merged, squashed, wip]) = merge_scenario("wt-merge");
         let list = worktrees(&g, None).unwrap();
         let main = &list.worktrees[0];
-        assert!(main.main && !main.path.contains('/'), "{}", main.path);
+        // Native separators: Git prints C:/x on Windows, which the front end would not match.
+        assert!(main.main && (!cfg!(windows) || !main.path.contains('/')), "{}", main.path);
         assert_eq!(main_worktree_path(&g.at(wip.clone())).unwrap(), main.path);
         assert_eq!(find(&list, &fresh).merged, MergedState::Merged);
         assert_eq!(find(&list, &merged).merged, MergedState::Merged);
