@@ -45,6 +45,8 @@ export const FIXED_SECTION: HelpSection = {
   rows: [
     { label: 'Open favorite as a split', keys: ['Enter'] },
     { label: 'Open favorite or worktree collapsed', keys: ['Ctrl+Enter'], note: 'Ctrl+click works on dashboard rows too' },
+    { label: 'Rename the selected favorite or layout', keys: ['F2'] },
+    { label: 'Remove the selected favorite or layout', keys: ['Delete'], note: 'Layouts ask first' },
     { label: 'Next / previous match', keys: ['Enter', 'Shift+Enter'] },
     { label: 'Close', keys: ['Escape'] },
   ],

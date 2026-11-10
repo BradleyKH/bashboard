@@ -48,7 +48,9 @@ import type { NamedLayout } from './layouts';
 import type { OpenInHandler } from './openMenu';
 import type { PinRowCallbacks } from './pinRow';
 import type { GlobalPinRowCallbacks } from './globalPinRow';
-import { globeIcon } from './globeIcon';
+import { pinIcon } from './pinIcon';
+import { heartIcon } from './heartIcon';
+import { gridIcon } from './gridIcon';
 import { LaunchSection } from './launchSection';
 import type { LaunchKind } from './launchModel';
 import { PinsSection, type RepoState } from './pinsSection';
@@ -109,7 +111,7 @@ export interface DashboardCallbacks
   /** The top bar's Favorites and Layouts buttons, shown while their section is hidden; the menu drops from `anchor`. */
   onOpenFavoritesMenu?: (anchor: HTMLElement) => void;
   onOpenLayoutsMenu?: (anchor: HTMLElement) => void;
-  /** The top bar's globe, shown while the Pins section leaves out global pins; the menu drops from `anchor`. */
+  /** The top bar's pin button, shown while the Pins section leaves out global pins; the menu drops from `anchor`. */
   onOpenGlobalPinsMenu?: (anchor: HTMLElement) => void;
   /** The panel came on screen (open or peeking) or left it. */
   onShownChange?: (shown: boolean) => void;
@@ -261,19 +263,21 @@ export class DashboardPanel {
     });
     const keys = (action: string) => () => this.callbacks.actionKeys?.(action);
     this.favoritesMenuButton = topButton(
-      'dashboard-top-menu',
-      'Favorites ▾',
+      'dashboard-top-icon dashboard-svg-icon',
+      '',
       'Open a favorite folder',
       keys('openFavorite'),
       (b) => this.callbacks.onOpenFavoritesMenu?.(b),
     );
-    this.layoutsMenuButton = topButton('dashboard-top-menu', 'Layouts ▾', 'Open a layout', keys('openLayout'), (b) =>
+    this.favoritesMenuButton.append(heartIcon());
+    this.layoutsMenuButton = topButton('dashboard-top-icon dashboard-svg-icon', '', 'Open a layout', keys('openLayout'), (b) =>
       this.callbacks.onOpenLayoutsMenu?.(b),
     );
-    this.globalPinsMenuButton = topButton('dashboard-top-icon dashboard-global-pins', '', 'Global pins', () => undefined, (b) =>
+    this.layoutsMenuButton.append(gridIcon());
+    this.globalPinsMenuButton = topButton('dashboard-top-icon dashboard-svg-icon', '', 'Global pins', () => undefined, (b) =>
       this.callbacks.onOpenGlobalPinsMenu?.(b),
     );
-    this.globalPinsMenuButton.append(globeIcon());
+    this.globalPinsMenuButton.append(pinIcon());
     const spacer = document.createElement('span');
     spacer.className = 'dashboard-top-spacer';
     this.launchMenuButton = topButton('dashboard-top-icon dashboard-launch', '+', 'Launch', keys('openLaunch'), (b) =>
@@ -316,7 +320,7 @@ export class DashboardPanel {
     this.applyWidth();
     const top = document.createElement('div');
     top.className = 'dashboard-top';
-    top.append(this.favoritesMenuButton, this.layoutsMenuButton, this.globalPinsMenuButton, settingsButton, this.launchMenuButton, helpButton, spacer, hideButton);
+    top.append(this.launchMenuButton, this.favoritesMenuButton, this.layoutsMenuButton, this.globalPinsMenuButton, settingsButton, helpButton, spacer, hideButton);
     // Only the hooks offer lives here: one button per detected agent without them.
     const footer = document.createElement('div');
     footer.className = 'dashboard-footer';
@@ -862,7 +866,7 @@ export class DashboardPanel {
     this.syncGlobalPinsMenuButton();
   }
 
-  /** The globe stands in for the global pins the Pins section leaves out (docs/design/dashboard.md section 4.6). */
+  /** The pin button stands in for the global pins the Pins section leaves out (docs/design/dashboard.md section 4.6). */
   private syncGlobalPinsMenuButton(): void {
     this.globalPinsMenuButton.hidden = this.pinsSection.globalShown();
   }

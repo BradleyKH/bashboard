@@ -27,7 +27,7 @@ export function renderLayoutRow(layout: NamedLayout, index: number, callbacks: L
   text.append(label, meta);
 
   const beginRename = (): void => startRename(label, layout.name, (value) => callbacks.onRenameLayout(index, value));
-  const rename = iconButton('✎', 'layout-rename', 'Rename layout (F2)', beginRename);
+  const rename = iconButton('✎', 'row-rename', 'Rename layout (F2)', beginRename);
   setRowRename(el, beginRename);
   // A layout is costly to rebuild by hand, so removing it asks inline first.
   const remove = iconButton('×', 'favorite-remove', 'Remove layout', () => {

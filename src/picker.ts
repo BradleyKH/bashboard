@@ -1,3 +1,6 @@
+import { openContextMenu } from './contextMenu';
+import { item, separator } from './contextMenuModel';
+import { pickerConfirmControls, pickerRemoveButton, pickerRenameButton, pickerRenameInput } from './pickerRowEdit';
 import { selectionAfterRefresh } from './pickerSelection';
 
 export interface PickerItem {
@@ -33,6 +36,19 @@ export type PickerAction =
       submit(name: string): void;
     };
 
+/**
+ * Renaming and removing items from the list itself (docs/design/dashboard.md section 4.6), keyed
+ * by item value: F2 or the row menu renames, Delete, the row's × or the menu removes.
+ */
+export interface PickerManage {
+  /** The item's kind for tooltips, such as "favorite". */
+  noun: string;
+  rename(value: string, name: string): void;
+  remove(value: string): void;
+  /** Ask "Remove?" on the row before `remove`, for items that are costly to recreate. */
+  confirmRemove?: boolean;
+}
+
 /** Returns the rows to show, in order, for the raw input value. */
 export type PickerMatcher = (items: PickerItem[], query: string) => PickerItem[];
 
@@ -59,15 +75,20 @@ export class Picker {
   /** The button an anchored picker drops from, which takes focus back on dismiss if it had it. */
   private returnFocus: HTMLElement | null = null;
 
+  /** The row being renamed or waiting on "Remove?", by item value. */
+  private editing: { value: string; mode: 'rename' | 'confirm' } | null = null;
+
   private readonly matcher: PickerMatcher;
   private readonly action: PickerAction | null;
+  private readonly manage: PickerManage | null;
 
   constructor(
     private readonly callbacks: PickerCallbacks,
-    opts: { matcher?: PickerMatcher; action?: PickerAction } = {},
+    opts: { matcher?: PickerMatcher; action?: PickerAction; manage?: PickerManage } = {},
   ) {
     this.matcher = opts.matcher ?? substringMatcher;
     this.action = opts.action ?? null;
+    this.manage = opts.manage ?? null;
   }
 
   isOpen(): boolean {
@@ -83,6 +104,7 @@ export class Picker {
     this.items = items;
     this.selected = 0;
     this.naming = null;
+    this.editing = null;
     this.returnFocus = anchor && document.activeElement === anchor ? anchor : null;
 
     const backdrop = document.createElement('div');
@@ -210,7 +232,9 @@ export class Picker {
       this.shown.map((it) => it.value),
     );
     this.syncAction();
-    if (this.naming) return;
+    // A rebuild would drop the rename input mid-edit; the commit re-renders.
+    if (this.naming || this.editing?.mode === 'rename') return;
+    if (this.editing && !this.shown.some((it) => it.value === this.editing?.value)) this.editing = null;
     this.renderList(false);
     this.list.scrollTop = scrollTop;
     this.list.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
@@ -222,6 +246,7 @@ export class Picker {
     this.returnFocus = null;
     this.actionButton = null;
     this.naming = null;
+    this.editing = null;
   }
 
   private dismiss(): void {
@@ -245,6 +270,33 @@ export class Picker {
     e.stopPropagation();
     if (this.naming) {
       this.onNamingKey(e);
+      return;
+    }
+    if (this.editing?.mode === 'confirm') {
+      if (e.key === 'Enter' || e.key === 'Delete') {
+        e.preventDefault();
+        this.confirmRemove();
+        return;
+      }
+      // Escape answers "No"; any other key does too and then acts as usual.
+      this.editing = null;
+      this.renderList(false);
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        return;
+      }
+    }
+    if (this.manage && e.key === 'F2') {
+      e.preventDefault();
+      this.startRename(this.selected);
+      return;
+    }
+    // Delete edits the filter until the caret reaches its end, where it has nothing left to delete.
+    const caretAtEnd =
+      this.input.selectionStart === this.input.value.length && this.input.selectionEnd === this.input.value.length;
+    if (this.manage && e.key === 'Delete' && caretAtEnd && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      this.requestRemove(this.selected);
       return;
     }
     if (e.key === 'Escape') {
@@ -276,6 +328,71 @@ export class Picker {
     } else if (e.key === 'Tab') {
       e.preventDefault();
     }
+  }
+
+  private startRename(index: number): void {
+    const it = this.shown[index];
+    if (!it || !this.manage) return;
+    this.selected = index;
+    this.editing = { value: it.value, mode: 'rename' };
+    this.renderList(false);
+    const input = this.list.querySelector<HTMLInputElement>('.picker-rename');
+    input?.focus();
+    input?.select();
+  }
+
+  private finishRename(it: PickerItem, name: string | null): void {
+    this.editing = null;
+    // The commit's setItems re-renders the list; a cancel has to do it here.
+    if (name && name !== it.label) this.manage?.rename(it.value, name);
+    if (!this.backdrop) return;
+    this.renderList(false);
+    this.input.focus();
+  }
+
+  private requestRemove(index: number): void {
+    const it = this.shown[index];
+    if (!it || !this.manage) return;
+    this.selected = index;
+    if (this.manage.confirmRemove) {
+      this.editing = { value: it.value, mode: 'confirm' };
+      this.renderList(false);
+    } else {
+      this.manage.remove(it.value);
+    }
+    this.input.focus();
+  }
+
+  private confirmRemove(): void {
+    const value = this.editing?.value;
+    this.editing = null;
+    if (value !== undefined) this.manage?.remove(value);
+    this.renderList(false);
+  }
+
+  private openRowMenu(e: MouseEvent, index: number, row: HTMLElement): void {
+    const manage = this.manage;
+    if (!manage) return;
+    e.preventDefault();
+    this.selected = index;
+    this.editing = null;
+    this.renderList(false);
+    openContextMenu(
+      [
+        item('Open', () => this.choose(index, false)),
+        item('Rename', () => this.startRename(index), { key: 'F2' }),
+        separator(),
+        item(`Remove ${manage.noun}`, () => this.requestRemove(index), { key: 'Del' }),
+      ],
+      { x: e.clientX, y: e.clientY },
+      {
+        target: row.isConnected ? row : this.list.querySelector<HTMLElement>('.selected'),
+        // Keyboard focus belongs in the filter, unless the menu just started a rename.
+        onClose: () => {
+          if (this.backdrop && this.editing?.mode !== 'rename') this.input.focus();
+        },
+      },
+    );
   }
 
   private submitName(): void {
@@ -332,15 +449,32 @@ export class Picker {
         row.className = 'picker-row';
         row.classList.toggle('selected', i === this.selected);
         if (it.detail) row.title = it.detail;
-        const label = document.createElement('span');
-        label.className = 'picker-label';
-        label.textContent = it.label;
-        row.append(label);
+        const editing = this.editing?.value === it.value ? this.editing.mode : null;
+        if (editing === 'rename') {
+          row.append(pickerRenameInput(it.label, (name) => this.finishRename(it, name)));
+        } else {
+          const label = document.createElement('span');
+          label.className = 'picker-label';
+          label.textContent = it.label;
+          row.append(label);
+        }
         if (it.detail) {
           const detail = document.createElement('span');
           detail.className = 'picker-detail';
           detail.textContent = it.detail;
           row.append(detail);
+        }
+        if (editing === 'confirm') {
+          row.append(
+            pickerConfirmControls(
+              () => this.confirmRemove(),
+              () => {
+                this.editing = null;
+                this.renderList(false);
+              },
+            ),
+          );
+          return this.wireRow(row, i);
         }
         if (it.hint) {
           const hint = document.createElement('span');
@@ -354,11 +488,25 @@ export class Picker {
           category.textContent = it.category;
           row.append(category);
         }
-        row.addEventListener('mousedown', (e) => e.preventDefault());
-        row.addEventListener('click', (e) => this.choose(i, e.ctrlKey));
-        return row;
+        if (this.manage && editing !== 'rename') {
+          row.append(
+            pickerRenameButton(`Rename ${this.manage.noun} (F2)`, () => this.startRename(i)),
+            pickerRemoveButton(`Remove ${this.manage.noun} (Delete)`, () => this.requestRemove(i)),
+          );
+        }
+        return this.wireRow(row, i);
       }),
     );
     this.list.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private wireRow(row: HTMLElement, index: number): HTMLElement {
+    row.addEventListener('mousedown', (e) => e.preventDefault());
+    row.addEventListener('click', (e) => {
+      if (this.editing?.value === this.shown[index]?.value) return;
+      this.choose(index, e.ctrlKey);
+    });
+    if (this.manage) row.addEventListener('contextmenu', (e) => this.openRowMenu(e, index, row));
+    return row;
   }
 }

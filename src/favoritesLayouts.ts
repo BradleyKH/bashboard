@@ -34,6 +34,12 @@ export class FavoritesLayouts {
           enabled: () => this.canAddFocusedFolder(),
           run: this.addFocusedFolder,
         },
+        manage: {
+          noun: 'favorite',
+          rename: (path, label) =>
+            this.updateFavorites(state.favorites.map((f) => (samePath(f.path, path) ? { ...f, label } : f))),
+          remove: (path) => this.updateFavorites(state.favorites.filter((f) => !samePath(f.path, path))),
+        },
       },
     );
     this.profilePicker = new Picker({
@@ -51,6 +57,12 @@ export class FavoritesLayouts {
           placeholder: 'Name this layout',
           exists: (name) => state.layouts.some((l) => l.name.toLowerCase() === name.toLowerCase()),
           submit: this.saveLayout,
+        },
+        manage: {
+          noun: 'layout',
+          rename: (name, next) => this.renameLayout(state.layouts.findIndex((l) => l.name === name), next),
+          remove: (name) => this.updateLayouts(state.layouts.filter((l) => l.name !== name)),
+          confirmRemove: true,
         },
       },
     );

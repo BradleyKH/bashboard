@@ -24,6 +24,8 @@ export interface SettingsField {
   integer?: boolean;
   /** Slider fields only: the slider runs max to min, showing min + max - value. */
   inverted?: boolean;
+  /** Slider fields only: a mouse drag saves on release instead of while it moves; keys still save as they step. */
+  commitOnRelease?: boolean;
   /** Number fields only: nonzero values below this are rejected (0 stays valid). */
   minNonZero?: number;
   /** Text fields only: the loader accepts an empty string and the core treats it as unset. */
@@ -83,6 +85,7 @@ const IS_DRAWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'ga
 const IS_IMAGE: ShownWhen = { path: ['backdrop', 'style'], value: 'image' };
 const IS_SLIDESHOW: ShownWhen = { path: ['backdrop', 'style'], value: 'slideshow' };
 const IS_PICTURE: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['image', 'slideshow'] };
+const BORDER_LIGHTS_ON: ShownWhen = { path: ['borderLights'], value: true };
 const IS_SHOWN: ShownWhen = { path: ['backdrop', 'style'], oneOf: ['lights', 'galaxy', 'matrix', 'wave', 'image', 'slideshow'] };
 
 const SLIDESHOW_INTERVALS = [
@@ -205,11 +208,36 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         max: UI_SCALE_MAX,
         step: 0.05,
         unit: 'x',
+        // Rescaling mid-drag moves the slider out from under the pointer.
+        commitOnRelease: true,
         hint: 'Buttons, bars, titles, and labels; not pane content',
         applies: 'live',
       },
-      { path: ['agentGlow'], label: 'Agent glow', kind: 'toggle', hint: 'Panes glow softly while an AI agent works in them', applies: 'live', half: true },
       { path: ['borderLights'], label: 'Border lights', kind: 'toggle', hint: 'Lights circle the panes', applies: 'live', half: true },
+      { path: ['agentGlow'], label: 'Agent glow', kind: 'toggle', hint: 'Panes glow softly while an AI agent works in them', applies: 'live', half: true },
+      {
+        path: ['borderLightsSpeed'],
+        label: 'Border light speed',
+        kind: 'slider',
+        min: 10,
+        max: 300,
+        step: 10,
+        unit: 'px/s',
+        integer: true,
+        applies: 'live',
+        shownWhen: BORDER_LIGHTS_ON,
+      },
+      {
+        path: ['borderLightsDensity'],
+        label: 'Border light density',
+        kind: 'slider',
+        min: 0.25,
+        max: 4,
+        step: 0.25,
+        hint: 'Lights per 1000 px of pane border; every pane has at least one',
+        applies: 'live',
+        shownWhen: BORDER_LIGHTS_ON,
+      },
     ],
   },
   {

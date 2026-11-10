@@ -46,7 +46,7 @@ export function renderGlobalPinRow(
   label.textContent = globalPinName(pin);
   label.title = `${pin.command}\nRuns in the focused pane's folder`;
 
-  const edit = iconButton('✎', 'layout-rename', 'Edit pin (F2)', () => callbacks.onEditGlobalPin(index));
+  const edit = iconButton('✎', 'row-rename', 'Edit pin (F2)', () => callbacks.onEditGlobalPin(index));
   setRowRename(el, () => edit.click());
   const remove = iconButton('×', 'favorite-remove', 'Remove pin', () => callbacks.onRemoveGlobalPin(index));
 

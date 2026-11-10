@@ -285,9 +285,9 @@ target tab unzooms first. An empty list shows a toast, "Nothing needs you".
 ## 4.23 Agent glow and border lights (`src/paneLights.ts`)
 
 Two ambient effects, each off by default and turned on by its own setting (`agentGlow`,
-`borderLights`). Neither has tuning settings: speed, tail length, intensity, breath cycle, and
-the rest are constants in `PANE_LIGHTS` (`src/paneLightsModel.ts`), so they can be adjusted in
-one place. Under `prefers-reduced-motion` both stay off whatever the settings say.
+`borderLights`). The border lights also take `borderLightsSpeed` and `borderLightsDensity`;
+tail length, head size, intensity, breath cycle, and the rest are constants in `PANE_LIGHTS`
+(`src/paneLightsModel.ts`), so they can be adjusted in one place. Under `prefers-reduced-motion` both stay off whatever the settings say.
 
 **Agent glow.** A terminal whose bound session (3.4) is `busy` gets the `agent-working` class,
 whichever agent it runs (Claude Code, Codex, or Copilot). A busy shell command without an agent
@@ -297,9 +297,10 @@ that breathes from dim to bright and back over 7 seconds. It is an inset shadow 
 composites without repainting the terminal under it.
 
 **Border lights.** While `borderLights` is on, comets of accent light run clockwise around
-each pane of the active tab, along the middle of the gutter, at 60 px per second with a 60 px
-tail. A pane runs one comet per 800 px of loop, rounded, and at least one, so larger panes carry
-more. A pane's first comet starts at a random point on its loop, so neighbors don't run in step;
+each pane of the active tab, along the middle of the gutter, at `borderLightsSpeed` px per
+second (default 60). Each comet is a small 4 px head with a 60 px trail on both sides, ahead of
+the head as well as behind it, fading out toward each end. A pane runs `borderLightsDensity`
+comets per 1000 px of loop (default 1), rounded, and at least one, so larger panes carry more. A pane's first comet starts at a random point on its loop, so neighbors don't run in step;
 the rest spread out from it. When a pane or window resize changes the count, a new comet fades in
 at the middle of the widest gap, and a retired one is the one with its neighbors closest, which
 fades out. The count only changes once the loop is 0.15 comets past the halfway point, so a

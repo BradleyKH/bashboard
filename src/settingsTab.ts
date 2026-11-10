@@ -382,12 +382,27 @@ export class SettingsTab {
         c.pending = undefined;
         this.commit(c, String(sliderPosition(f, Number(range.value))));
       };
+      let dragging = false;
       range.addEventListener('input', () => {
         readout.textContent = formatSlider(f, Number(range.value));
         window.clearTimeout(timer);
         c.pending = flush;
-        timer = window.setTimeout(flush, SLIDER_DEBOUNCE_MS);
+        if (!dragging) timer = window.setTimeout(flush, SLIDER_DEBOUNCE_MS);
       });
+      if (f.commitOnRelease) {
+        range.addEventListener('pointerdown', () => {
+          dragging = true;
+        });
+        const release = (): void => {
+          if (!dragging) return;
+          dragging = false;
+          if (c.pending) flush();
+        };
+        range.addEventListener('pointerup', release);
+        range.addEventListener('pointercancel', release);
+        range.addEventListener('lostpointercapture', release);
+        range.addEventListener('change', release);
+      }
       c.show = (v) => {
         if (typeof v === 'number') range.value = String(sliderPosition(f, v));
         readout.textContent = formatSlider(f, Number(range.value));

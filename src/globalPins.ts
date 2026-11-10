@@ -67,7 +67,7 @@ export function moveGlobalPin(file: GlobalPinsFile, from: number, to: number): G
   return moveItem(file, from, to);
 }
 
-/** The top bar's globe menu order: by name, ignoring case, with each pin's index in the file. */
+/** The top bar's global pins menu order: by name, ignoring case, with each pin's index in the file. */
 export function alphabetizedGlobalPins(file: GlobalPinsFile): { pin: GlobalPin; index: number }[] {
   return file
     .map((pin, index) => ({ pin, index }))

@@ -19,7 +19,7 @@
    ancestor, or zoom applies the scale twice; that includes the button a customizable <select>
    draws inside itself. */
 button:not(.launch-button, .dashboard-reveal, .app-dialog-link, .ship-repo, .ports-head-cell, select > button),
-input:not([type='checkbox'], [type='radio'], [type='range'], .tab-rename, .file-rename-field, .git-rename-field, .favorite-rename),
+input:not([type='checkbox'], [type='radio'], [type='range'], .tab-rename, .file-rename-field, .git-rename-field, .favorite-rename, .picker-rename),
 select,
 .pane-strip .status-dot,
 .tab-item .status-dot {
@@ -554,34 +554,16 @@ body.dashboard-resizing {
   flex: 1;
 }
 
-/* Every button shares the dropdowns' height, so the bar keeps one height whether they show or not. */
 #dashboard .dashboard-top button {
   padding-top: 2px;
   padding-bottom: 2px;
 }
 
-#dashboard .dashboard-top-menu {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin-right: 2px;
-  /* Divided by the scale so zoom leaves the side padding at 8px: at the top of the range both
-     menus and the icons still fit the dashboard's 300px minimum width untruncated. */
-  padding-left: calc(8px / var(--ui-scale));
-  padding-right: calc(8px / var(--ui-scale));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-}
-
-#dashboard .dashboard-top-menu[hidden] {
-  display: none;
-}
-
 #dashboard .dashboard-top-icon {
   flex: 0 0 auto;
   min-width: 22px;
-  /* Same reason as .dashboard-top-menu's padding. */
+  /* Divided by the scale so zoom leaves the side padding at 6px: at the top of the range every
+     icon still fits the dashboard's 300px minimum width. */
   padding-left: calc(6px / var(--ui-scale));
   padding-right: calc(6px / var(--ui-scale));
   font-size: 13px;
@@ -591,19 +573,19 @@ body.dashboard-resizing {
   font-size: 14px;
 }
 
-/* Fonts center "+" on the math axis, below the cap-height glyphs beside it. The shorter line box
-   raises the glyph 1px; the extra bottom padding keeps the button the bar's height. */
-#dashboard .dashboard-global-pins:not([hidden]) {
+#dashboard .dashboard-svg-icon:not([hidden]) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-#dashboard .dashboard-global-pins svg {
+#dashboard .dashboard-svg-icon svg {
   width: 13px;
   height: 13px;
 }
 
+/* Fonts center "+" on the math axis, below the cap-height glyphs beside it. The shorter line box
+   raises the glyph 1px; the extra bottom padding keeps the button the bar's height. */
 #dashboard .dashboard-top .dashboard-launch {
   line-height: 16px;
   padding-bottom: 4px;
@@ -1147,13 +1129,14 @@ body.dashboard-resizing {
   color: var(--content-fg);
 }
 
-#dashboard .layout-rename {
+#dashboard .row-rename {
   flex: 0 0 auto;
   opacity: 0;
 }
 
-#dashboard .layout-rename:focus-visible,
-#dashboard .layout-row:is(:hover, :focus-within) .layout-rename {
+#dashboard .row-rename:focus-visible,
+#dashboard .layout-row:is(:hover, :focus-within) .row-rename,
+#dashboard .favorite-row:is(:hover, :focus-within) .row-rename {
   opacity: 1;
 }
 
@@ -1209,6 +1192,7 @@ body.dashboard-resizing {
 }
 
 #dashboard .favorite-rename,
+.picker-rename,
 .picker-input {
   box-sizing: border-box;
   width: 100%;
@@ -1255,8 +1239,6 @@ body.dashboard-resizing {
 }
 
 #dashboard .folder-open:focus-visible,
-#dashboard .favorite-row:is(:hover, :focus-within) .folder-open,
-#dashboard .recent-row:is(:hover, :focus-within) .folder-open,
 #dashboard .terminal-card:is(:hover, :focus-within) .folder-open,
 #dashboard .session-head:is(:hover, :focus-within) .folder-open {
   opacity: 1;
@@ -1411,6 +1393,67 @@ body.dashboard-resizing {
   white-space: nowrap;
   color: #7f8c94;
   font-size: 11px;
+}
+
+.picker-rename {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-rename-button,
+.picker-remove,
+.picker-confirm button {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #a9b4ba;
+  font: inherit;
+  cursor: pointer;
+}
+
+.picker-rename-button,
+.picker-remove {
+  line-height: 1;
+  opacity: 0;
+}
+
+.picker-rename-button {
+  margin-left: auto;
+}
+
+.picker-remove {
+  font-size: 14px;
+}
+
+/* Shown on the row under the pointer and the selected row, where F2 and Delete would act. */
+.picker-row:is(:hover, .selected) :is(.picker-rename-button, .picker-remove) {
+  opacity: 1;
+}
+
+.picker-category + .picker-rename-button {
+  margin-left: 0;
+}
+
+.picker-rename-button:hover,
+.picker-remove:hover,
+.picker-confirm button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #eef3f5;
+}
+
+.picker-confirm {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  color: #d6dde2;
+}
+
+.picker-confirm .picker-confirm-yes {
+  color: #e58a7a;
 }
 
 .hook-dialog-backdrop {

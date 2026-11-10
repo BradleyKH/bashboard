@@ -199,7 +199,7 @@ repo), the default, or **Everywhere**. A global pin lists in the Pins section fo
 the repo's own pins with a globe icon, and runs in the focused pane's folder, so it suits commands
 like `git fetch --prune` or `pnpm install`. Changing Scope when you edit a pin moves it between the
 two lists. The globe at the right of the Pins heading hides global pins from the section, which
-keeps a long list out of the way; while they are hidden, a globe button in the dashboard's top bar
+keeps a long list out of the way; while they are hidden, a pin button in the dashboard's top bar
 drops a menu of them, sorted by name. The command palette lists them too.
 
 Pins are kept in `repos.json` next to `settings.json`, as a list of entries, each with a repo
@@ -563,11 +563,12 @@ that column's top slot. Right-click an empty spot or a section header
 for a menu that shows or hides each section, or use Settings (see
 [Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
 Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
-section appears only while there are some. Hover any favorite, recent folder, card, or session
-for a folder button that opens its folder in File Explorer, and an Open menu beside it that opens
-the row's repo root as a Terminal, as Files (see [Files panes](#files-panes)), as Git (see
-[Git pane](#git-pane), for a git repo only), as Search (see [Code search](#code-search)), or in
-your Editor.
+section appears only while there are some. Hover any card or session for a folder button that
+opens its folder in File Explorer, and an Open menu beside it that opens the row's repo root as a
+Terminal, as Files (see [Files panes](#files-panes)), as Git (see [Git pane](#git-pane), for a
+git repo only), as Search (see [Code search](#code-search)), or in your Editor. Favorites and
+recent folders show the same Open menu, which also lists File Explorer, and a favorite shows a ✎
+to rename it.
 
 **Launch** sits at the top by default and appears while the focused pane is in a folder (a
 scratch pad keeps the last one shown). Its row of icons opens a Terminal, Files, Git, Scratch, Search (see
@@ -584,7 +585,7 @@ menu over the focused pane, outlined in your accent color with the rest of the w
 press a letter (**t** Terminal, **g** Git, **f** Files, **o** Ship, **s** Search, **c**
 Containers, **r** Ports, **b** Local Browser, **p** Scratch), or use the arrows and Enter, with the same preview as you
 move. Containers appears once Docker or Podman is installed. While Launch is turned
-off, a **+** button in the top bar, left of **?**, drops this menu. Ctrl+Shift+X (the `openEditor`
+off, a **+** button at the far left of the top bar drops this menu. Ctrl+Shift+X (the `openEditor`
 action) opens the focused pane's repo in your editor directly, or its folder outside a repo.
 
 **Pins**, the repo's pinned files and folders (see [Pins](#pins)), stay put just below the top
@@ -613,29 +614,35 @@ keeps moving when the background animation is paused (Ctrl+Shift+A), and holds s
 Windows asks apps to reduce motion.
 
 **Favorites** are folders you open terminals in often. By default they live behind the
-**Favorites** button in the panel's top bar, which drops a list that filters as you type;
+heart button in the panel's top bar, which drops a list that filters as you type;
 Ctrl+Shift+O opens the same list in the middle of the window. Enter or a click opens the selection
 as a split of the focused pane, and Ctrl+Enter or Ctrl+click opens it collapsed. The **+ Add**
 button beside the filter adds the focused terminal's folder (and its shell, when that is not the
 default); it is grayed out when that folder is already a favorite. When the focused pane has no
 room for another split, a toast says so and the terminal opens collapsed.
 
+The list also manages your favorites: F2 or the row's **✎** renames the selected one, and
+Delete (once the cursor is at the end of the filter text) or the row's **×** removes it. Right-click a row
+for Open, Rename, and Remove.
+
 Turning Favorites on under "Show on the dashboard" lists them on the panel instead, above the
-terminals, where rows can also be renamed, removed, and reordered by dragging, and the
+terminals, where rows can be renamed, removed, and reordered by dragging, and the
 section's "+" adds the focused folder. Below them, **Recent** lists up to five folders from Claude
 sessions that are not already favorites, each with a star to promote it. While the section is
-shown, the top bar's Favorites button is not.
+shown, the top bar's heart button is not.
 
 ### Layouts
 
 **Layouts** save the active tab's arrangement of panes under a name: each pane's kind, its folder
 and shell (for terminals), its collapsed state, and how the panes are split. Scratch pads are
-saved as panes but open empty. By default they live behind the **Layouts** button in the panel's
+saved as panes but open empty. By default they live behind the grid button in the panel's
 top bar, and Ctrl+Shift+R opens the same list in the middle of the window; both filter as you
 type, and Enter or a click opens the selection. The **+ Save** button beside the filter turns it
 into a name field: type a name and press Enter to save, or Escape to go back to the list. The row
 under the name says "Replace" when a layout already has that name (any capitalization), so you
-see it before you press Enter.
+see it before you press Enter. F2 or the row's **✎** renames the selected layout, and Delete or the row's **×**
+removes it after the row asks "Remove?" (Enter confirms, Escape keeps it). Right-click a row for
+Open, Rename, and Remove.
 
 Turning Layouts on under "Show on the dashboard" lists them on the panel instead, below
 Favorites. Each row shows the name and pane count; click it to open the layout, and use the row's
@@ -934,8 +941,8 @@ bars, and titles follow Interface size in Settings instead.
 Two optional effects, both off until you turn them on under Appearance in Settings. **Agent
 glow** makes a terminal glow softly while an AI agent is working in it. **Border lights** send
 small lights around each pane's border, more of them on larger panes; when a pane needs you, only
-that pane keeps its lights.
-Both follow the accent color.
+that pane keeps its lights. Border light speed and density sliders appear under the toggle while
+it is on. Both effects follow the accent color.
 
 ## Help, settings, and shortcuts
 

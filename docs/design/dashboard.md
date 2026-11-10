@@ -36,9 +36,9 @@ Pins, to the left; until then every element is in the left column. A column's sc
 while the pointer or keyboard focus is in it. Keyboard rows run down the left column, then the
 right.
 
-**Top bar.** One line that stays at the panel's top edge while the panel scrolls. On the left,
-a Favorites button shows while the Favorites element is disabled and a Layouts button while
-Layouts is, each dropping the picker its shortcut opens (Ctrl+Shift+O and Ctrl+Shift+R, 4.5) as a
+**Top bar.** One line that stays at the panel's top edge while the panel scrolls. At the far left sits
+the Launch **+** while the Launch element is disabled. After it, a heart button (Favorites) shows while the Favorites element is disabled and a grid button
+(Layouts) while Layouts is, each dropping the picker its shortcut opens (Ctrl+Shift+O and Ctrl+Shift+R, 4.5) as a
 menu under the button: it filters as you type, Enter opens the selection and Ctrl+Enter opens a
 favorite collapsed, and Escape closes it, handing focus back to the button when the keyboard
 opened it. Beside the filter, the Favorites menu has a "+ Add" button that adds the focused
@@ -46,14 +46,21 @@ terminal's folder as the section's "+" does, disabled when there is none or it i
 favorite, and the Layouts menu has a "+ Save" button that turns the filter into a name field: a
 single row previews "Save as" or, for an existing name in any capitalization, "Replace", Enter
 saves, and Escape returns to the filter. The pickers have these buttons however they open, from the
-top bar or from their shortcuts. Renaming, removing, and reordering stay with the sections. Next, a
-globe button shows while the Pins heading's globe leaves global pins out of the section: it drops a
-menu of the global pins sorted by name without regard to case, and choosing one types its command as
-clicking its row does ("No global pins" stands alone, disabled, when there are none). After
-them come icon buttons for Settings (⚙, also bound to Ctrl+,) and Help (?, also bound to F1),
-which open the app dialog (4.18) on those tabs. The × that hides the
-panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
-parentheses, read on hover so a rebinding shows, and leaves them out when the action is unbound.
+top bar or from their shortcuts. Both pickers also manage their items in place: F2 renames the
+selected row in an inline field (Enter or leaving the field commits, Escape cancels), as does
+the ✎ on the hovered and selected row; Delete removes it once the caret is at the end of the
+filter, as does the × beside the ✎; and right-clicking a row offers Open, Rename, and Remove. Favorites go at once;
+a layout's row asks "Remove?" first, answered by Enter, Delete, or Yes, and declined by Escape,
+No, or any other key. A rename to another layout's name is refused with a toast, as in the
+section. Reordering stays with the Favorites section. Next,
+a pin button shows while the
+Pins heading's globe leaves global pins out of the section: it drops a menu of the global pins
+sorted by name without regard to case, and choosing one types its command as clicking its row does
+("No global pins" stands alone, disabled, when there are none). After them come icon buttons
+for Settings (⚙, also bound to Ctrl+,) and Help (?, also bound to F1), which open the app dialog
+(4.18) on those tabs. The × that hides the panel sits alone at the right end. Each button's
+tooltip ends with its action's current keys in parentheses, read on hover so a rebinding
+shows, and leaves them out when the action is unbound.
 
 **Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports, Ship,
 Local AI models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
@@ -173,7 +180,7 @@ sections:
   leaving the field saves, as it does for a mouse rename.
 - Left on a row goes to its section's header, and on an expanded header collapses the section.
   Right on a collapsed header expands it, and on an expanded one goes to its first row.
-- Tab reaches the buttons inside rows (folder, Open menu, close, remove), which show while their
+- Tab reaches the buttons inside rows (folder, rename, Open menu, close, remove), which show while their
   row has focus as they do on hover.
 - Any other key runs its workspace action (4.5), as it would in a pane.
 
@@ -185,10 +192,11 @@ when it is gone.
 Folder paths under row labels show the home folder as `~`, and an overlong path is cut from the
 left so its last folders stay visible; hovering shows the full path.
 
-Every favorite, recent folder, pane card, and external session row shows a folder button on
-hover that opens its folder in File Explorer (`open_folder`, which accepts only an existing
-absolute directory). Beside it, an Open menu lists Terminal, Files, Git, Search, and Editor,
-each opening for that row's repo (4.11); Git is listed only for a git repo.
+Every pane card and external session row shows a folder button on hover that opens its folder
+in File Explorer (`open_folder`, which accepts only an existing absolute directory). Beside it,
+an Open menu lists Terminal, Files, Git, Search, and Editor, each opening for that row's repo
+(4.11); Git is listed only for a git repo. Favorite and recent folder rows have the Open menu
+without the folder button, and their Open menu ends with File Explorer instead.
 
 **Row menus.** Right-clicking a row opens a menu of the actions its buttons offer (4.4 describes
 the shared module). "The Open entries" below are the Open menu's, listed first, with Git only for
@@ -240,7 +248,7 @@ f, g, b, r, p, s, o); Containers is left out while no container engine is instal
 menu. A letter chooses its entry, and the highlighted entry shows the same preview. The menu has
 an accent border and dims the window behind it, under the preview; a click on the dimmed area
 only closes the menu. While the
-Launch element is disabled, a **+** button in the top bar, left of **?**, drops it, its tooltip
+Launch element is disabled, a **+** button at the top bar's far left drops it, its tooltip
 ending with the keys of openLaunch. openLaunch (Ctrl+Shift+L, 4.5) opens it over the focused pane
 whether or not the element is shown.
 
@@ -259,7 +267,7 @@ in place of `>_`, and reorder by drag among themselves. A global pin runs in the
 folder, or the last one that had a folder, so it is never dimmed as missing, and clicking it with
 no folder anywhere shows a toast instead. Its running mark is per repo: it lights only while the
 terminal it last typed into for the repo the section shows is `working`. The heading's globe toggle,
-pressed by default, shows or hides them; hidden, the top bar's globe menu lists them instead, which
+pressed by default, shows or hides them; hidden, the top bar's pin menu lists them instead, which
 keeps a long list out of the section. The toggle is saved as `hideGlobalPins` (section 7). The
 command palette (4.5) lists global pins with the repo's, marked Global.
 
@@ -303,7 +311,8 @@ folder. A global pin whose command another global pin already holds is not added
 - A "+" button adds the focused terminal's working directory, and records the focused
   terminal's shell profile when it differs from `shell.defaultProfile`. A favorite with a
   profile opens in that shell; one without opens in the default. Rows show a profile badge
-  when the profile is not `shell.defaultProfile`. Rows can be renamed, removed, and reordered by drag.
+  when the profile is not `shell.defaultProfile`. Rows can be renamed (a ✎ on hover, as on a
+  layout row), removed, and reordered by drag.
 - Below the favorites, up to five recent folders taken from the roster's session cwds that are
   not already favorites, each with a star to promote it.
 
@@ -318,7 +327,8 @@ One row per layout, showing its name and pane count:
   other tab is left as it was. A layout with no panes opens as a tab with one default
   terminal. Opening a layout does not resume Claude (4.9).
 - Rows can be renamed and removed; removing asks inline first. Ctrl+Shift+R opens a picker over
-  the layouts that opens the selection the same way. The command palette (Ctrl+Shift+P, 4.5) also
+  the layouts that opens the selection the same way, and renames and removes the same way (see
+  the top bar above). The command palette (Ctrl+Shift+P, 4.5) also
   lists favorites, layouts, pane cards, tabs, pins, and worktrees.
 
 **Panes.** One card per pane in this app, of any kind (4.11), expanded or collapsed, grouped by

@@ -36,17 +36,19 @@ describe('loopRect', () => {
 });
 
 describe('tailPoints', () => {
-  it('runs from the head back to the tail end, rounding the corner', () => {
+  it('runs from one end through the head to the other, rounding the corner', () => {
     const pts = tailPoints(r, 110, 20, 5);
-    expect(pts[0]).toEqual({ x: 100, y: 10, back: 0 });
-    expect(pts[pts.length - 1]).toEqual({ x: 90, y: 0, back: 20 });
+    expect(pts[0]).toEqual({ x: 90, y: 0, off: 20 });
+    expect(pts).toContainEqual({ x: 100, y: 10, off: 0 });
+    expect(pts[pts.length - 1]).toEqual({ x: 100, y: 30, off: 20 });
     expect(pts.some((p) => p.x === 100 && p.y === 0)).toBe(true);
   });
 
   it('never runs longer than the loop', () => {
     const tiny = { x: 0, y: 0, w: 5, h: 5 };
     const pts = tailPoints(tiny, 0, 60, 3);
-    expect(pts[pts.length - 1].back).toBe(20);
+    expect(pts[0].off).toBe(10);
+    expect(pts[pts.length - 1].off).toBe(10);
   });
 });
 

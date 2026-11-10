@@ -141,6 +141,8 @@ pub struct CodeColors {
 /// `uiScale` bounds: 1 is the compact default, and at 1.5 the dashboard's buttons match
 /// the Launch section's (docs/design/README.md section 5).
 pub const UI_SCALE_MIN: f64 = 1.0;
+pub const BORDER_LIGHTS_SPEED_RANGE: std::ops::RangeInclusive<f64> = 10.0..=300.0;
+pub const BORDER_LIGHTS_DENSITY_RANGE: std::ops::RangeInclusive<f64> = 0.25..=4.0;
 pub const UI_SCALE_MAX: f64 = 2.0;
 
 /// Ids `dashboard.side` accepts (docs/design/dashboard.md section 4.6).
@@ -289,6 +291,10 @@ pub struct Settings {
     /// The working-agent glow and the pane border lights (docs/design/sessions.md section 4.23); both off by default.
     pub agent_glow: bool,
     pub border_lights: bool,
+    /// Px per second, `BORDER_LIGHTS_SPEED_RANGE`.
+    pub border_lights_speed: f64,
+    /// Comets per 1000 px of a pane's loop, `BORDER_LIGHTS_DENSITY_RANGE`.
+    pub border_lights_density: f64,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
@@ -338,6 +344,8 @@ impl Default for Settings {
             ui_scale: 1.0,
             agent_glow: false,
             border_lights: false,
+            border_lights_speed: 60.0,
+            border_lights_density: 1.0,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {
                 style: "lights".into(),

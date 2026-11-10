@@ -129,7 +129,7 @@ export interface SavedWorkspace {
   agentPanesOnly?: boolean;
   /** Whether the dashboard's Containers section hides fully stopped groups; absent means shown. */
   hideStoppedContainers?: boolean;
-  /** Whether the dashboard's Pins section leaves out global pins, which the top bar's globe menu then lists; absent means shown. */
+  /** Whether the dashboard's Pins section leaves out global pins, which the top bar's pin menu then lists; absent means shown. */
   hideGlobalPins?: boolean;
   /** Whether hiding the dashboard with × has shown its notice; absent means not yet. */
   dashboardHideNoticeShown?: boolean;

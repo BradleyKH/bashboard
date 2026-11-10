@@ -5,7 +5,7 @@ import { setPathText } from './displayPath';
 import { recentRowMenuItems } from './favoriteMenus';
 import { attachBodyDrag } from './bodyDrag';
 import type { FavoritesCallbacks } from './favoritesSection';
-import { folderButton, openFolder } from './folderButton';
+import { openFolder } from './folderButton';
 import { openInMenuItems, openMenuButton } from './openMenu';
 
 /** One recent folder under the Favorites section (docs/design/dashboard.md section 4.6). */
@@ -46,6 +46,6 @@ export function renderRecentRow(path: string, callbacks: FavoritesCallbacks): HT
       target: el,
     };
   });
-  el.append(name, full, folderButton(path), ...(openIn ? [openMenuButton(path, openIn)] : []), star);
+  el.append(name, full, ...(openIn ? [openMenuButton(path, openIn, { explorer: true })] : []), star);
   return el;
 }

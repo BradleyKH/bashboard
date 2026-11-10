@@ -1,18 +1,21 @@
 /**
  * Agent glow and border lights (docs/design/sessions.md section 4.23): a breathing glow inside
  * panes where an AI agent is working, and a comet of light that loops each pane in the gutter
- * around it. Each has an on/off setting; every look-and-feel number lives here. No DOM.
+ * around it. Each has an on/off setting, and the comets' speed and density are settings too; every
+ * other look-and-feel number lives here. No DOM.
  */
 export const PANE_LIGHTS = {
-  /** Comet speed along a pane's loop. Constant in pixels, so larger panes take longer laps. */
-  speedPxPerSec: 60,
-  /** Loop length each comet gets: a pane runs one comet per this many pixels, and at least one. */
-  pxPerComet: 1000,
+  /**
+   * The loop length `borderLightsDensity` counts comets against: density 1 runs one comet per this
+   * many pixels, and every pane runs at least one.
+   */
+  pxPerDensityUnit: 1000,
   /**
    * How far past the halfway point between two counts a loop must grow or shrink before its count
    * changes, so dragging a divider near the boundary doesn't make a comet flicker in and out.
    */
   countHysteresis: 0.15,
+  /** How far the light trails out on each side of the head; it fades both ways. */
   tailPx: 60,
   /** 0 to 1; scales the comet and the glow together. */
   intensity: 0.3,
@@ -24,12 +27,12 @@ export const PANE_LIGHTS = {
   /** Outward from the pane's edge: half the 4px divider, so the loop runs down the gutter's middle. */
   gutterOffsetPx: 2,
   lineWidthPx: 1.6,
-  headRadiusPx: 9,
+  headRadiusPx: 1,
   /** How fast a comet fades in or out when attention narrows or widens the lit panes. */
   fadePerSec: 4,
   /** Spacing of the tail's drawn steps; smaller is smoother and costs more draws. */
   tailStepPx: 3,
-  maxFps: 30,
+  maxFps: 20,
 } as const;
 
 export interface LoopRect {
@@ -42,8 +45,8 @@ export interface LoopRect {
 export interface TailPoint {
   x: number;
   y: number;
-  /** Distance back from the head along the loop. */
-  back: number;
+  /** Distance from the head along the loop, either way. */
+  off: number;
 }
 
 /** The loop a pane's comet runs: its rect pushed out into the gutter. */
@@ -70,20 +73,20 @@ export function pointAt(r: LoopRect, d: number): { x: number; y: number } {
 }
 
 /**
- * Points from the head back along the tail, `step` apart, ending exactly at the tail's end. The
- * tail never exceeds the loop, so a tiny pane does not draw over its own head.
+ * Points along the trail from one end through the head to the other, `step` apart, ending exactly
+ * at each end. Each side is capped at half the loop, so a tiny pane's ends never overlap.
  */
 export function tailPoints(r: LoopRect, head: number, tail: number, step: number): TailPoint[] {
-  const len = Math.min(tail, perimeter(r));
+  const len = Math.min(tail, perimeter(r) / 2);
   const out: TailPoint[] = [];
-  for (let back = 0; back < len; back += step) out.push({ ...pointAt(r, head - back), back });
-  out.push({ ...pointAt(r, head - len), back: len });
+  for (let d = -len; d < len; d += step) out.push({ ...pointAt(r, head + d), off: Math.abs(d) });
+  out.push({ ...pointAt(r, head + len), off: len });
   return out;
 }
 
-/** Tail opacity at `back` pixels behind the head, before the comet's own fade. */
-export function tailAlpha(back: number, tail: number, intensity: number): number {
-  const fade = Math.max(0, 1 - back / tail);
+/** Tail opacity `off` pixels from the head, before the comet's own fade. */
+export function tailAlpha(off: number, tail: number, intensity: number): number {
+  const fade = Math.max(0, 1 - off / tail);
   return 0.75 * fade * fade * (0.35 + intensity);
 }
 

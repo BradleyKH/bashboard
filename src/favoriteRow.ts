@@ -4,7 +4,7 @@ import { favoriteRowMenuItems } from './favoriteMenus';
 import type { FavoritesCallbacks } from './favoritesSection';
 import { favoritePathText, type Favorite } from './favorites';
 import { setPathText } from './displayPath';
-import { folderButton, openFolder } from './folderButton';
+import { openFolder } from './folderButton';
 import { openMenuButton, openInMenuItems } from './openMenu';
 import { profileBadge } from './profiles';
 import { attachReorder } from './rowReorder';
@@ -64,6 +64,7 @@ export function renderFavoriteRow(
 
   text.append(label, path);
 
+  const rename = iconButton('✎', 'row-rename', 'Rename favorite (F2)', beginRename);
   const remove = iconButton('×', 'favorite-remove', 'Remove favorite', () => callbacks.onRemove(index));
 
   const badge = favorite.profile ? profileBadge(favorite.profile, callbacks.defaultProfile()) : null;
@@ -83,8 +84,8 @@ export function renderFavoriteRow(
     handle,
     text,
     ...(badge ? [badge] : []),
-    folderButton(favorite.path),
-    ...(openIn ? [openMenuButton(favorite.path, openIn)] : []),
+    rename,
+    ...(openIn ? [openMenuButton(favorite.path, openIn, { explorer: true })] : []),
     remove,
   );
   return el;

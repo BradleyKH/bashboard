@@ -85,6 +85,8 @@ describe('isShown', () => {
         ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.wave.${k}`),
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
         'dashboard.clockStyle',
+        'borderLightsSpeed',
+        'borderLightsDensity',
       ].sort(),
     );
   });
@@ -99,8 +101,17 @@ describe('isShown', () => {
         'backdrop.matrix.zoom',
         ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.wave.${k}`),
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
+        'borderLightsSpeed',
+        'borderLightsDensity',
       ].sort(),
     );
+  });
+
+  it('shows the border light speed and density only while border lights are on', () => {
+    const tuning = ['borderLightsSpeed', 'borderLightsDensity'].map(byPath);
+    const on = reader({ ...DEFAULT_SETTINGS, borderLights: true } as Settings);
+    expect(tuning.every((f) => isShown(f, on))).toBe(true);
+    expect(tuning.some((f) => isShown(f, reader(DEFAULT_SETTINGS)))).toBe(false);
   });
 
   it('points every condition at a field the dialog has', () => {

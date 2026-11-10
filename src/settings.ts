@@ -30,6 +30,10 @@ export interface Settings {
   agentGlow: boolean;
   /** A light that circles each pane's border in the gutter (docs/design/sessions.md section 4.23). */
   borderLights: boolean;
+  /** Border light speed in px per second, 10 to 300. */
+  borderLightsSpeed: number;
+  /** Border light comets per 1000 px of a pane's loop, 0.25 to 4; every pane runs at least one. */
+  borderLightsDensity: number;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design/backdrop.md section 6.4). */
   backdrop: {
@@ -101,6 +105,8 @@ export const DEFAULT_SETTINGS: Settings = {
   uiScale: 1,
   agentGlow: false,
   borderLights: false,
+  borderLightsSpeed: 60,
+  borderLightsDensity: 1,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {
     style: 'lights',

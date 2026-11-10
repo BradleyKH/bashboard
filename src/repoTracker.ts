@@ -404,7 +404,7 @@ export class RepoTracker {
     this.deps.focusTerminal();
   }
 
-  /** A global pin's row, the top bar's globe menu, or the palette: types it in the focused pane's folder. */
+  /** A global pin's row, the top bar's pin menu, or the palette: types it in the focused pane's folder. */
   readonly runGlobalPin = (pin: GlobalPin): void => {
     const folder = this.currentFolder();
     if (!folder) {
@@ -466,7 +466,7 @@ export class RepoTracker {
     );
   }
 
-  /** The top bar's globe, shown while the Pins section leaves out global pins: each one by name. */
+  /** The top bar's pin button, shown while the Pins section leaves out global pins: each one by name. */
   readonly openGlobalPinsMenu = (anchor: HTMLElement): void => {
     const sorted = alphabetizedGlobalPins(this.deps.state.globalPins);
     const entries =

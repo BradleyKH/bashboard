@@ -228,8 +228,12 @@ the focused pane's folder.
   "uiScale": 1,
   // Ambient pane effects (section 4.23), both off by default: agentGlow breathes a glow inside
   // panes where an AI agent is working; borderLights runs a light around each pane's border.
+  // borderLightsSpeed is 10 to 300 px per second; borderLightsDensity is 0.25 to 4 lights per
+  // 1000 px of a pane's border. Out of range falls back to the default.
   "agentGlow": false,
   "borderLights": false,
+  "borderLightsSpeed": 60,
+  "borderLightsDensity": 1,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
   // slideshow; a missing or invalid value falls back to lights. animate false freezes lights,

@@ -1,6 +1,7 @@
 import './openMenu.css';
 import { closeContextMenu, contextMenuGeneration, isContextMenuOpenFor, openContextMenu } from './contextMenu';
 import { item, type MenuItem } from './contextMenuModel';
+import { openFolder } from './folderButton';
 import { iconButton } from './rowControls';
 
 /** What the Open menu can open a row's repo as (docs/design/dashboard.md section 4.6). */
@@ -42,8 +43,15 @@ export async function openInMenuItems(path: string, onOpenIn: OpenInHandler): Pr
   return openInItems(path, isGit, onOpenIn);
 }
 
-/** The dashboard rows' Open menu button, placed beside the folder button. */
-export function openMenuButton(path: string, onOpenIn: OpenInHandler): HTMLButtonElement {
+/**
+ * The dashboard rows' Open menu button. `explorer` adds File Explorer as the last entry, for rows
+ * with no folder button of their own.
+ */
+export function openMenuButton(
+  path: string,
+  onOpenIn: OpenInHandler,
+  opts: { explorer?: boolean } = {},
+): HTMLButtonElement {
   const button = iconButton('▾', 'open-menu-button', 'Open in...', () => {
     if (isContextMenuOpenFor(button)) {
       closeContextMenu();
@@ -53,7 +61,8 @@ export function openMenuButton(path: string, onOpenIn: OpenInHandler): HTMLButto
     const generation = contextMenuGeneration();
     void openInMenuItems(path, onOpenIn).then((items) => {
       if (generation !== contextMenuGeneration()) return;
-      openContextMenu(items, { anchorEl: button, align: 'left' });
+      const entries = opts.explorer ? [...items, item('File Explorer', () => openFolder(path))] : items;
+      openContextMenu(entries, { anchorEl: button, align: 'left' });
     });
   });
   return button;

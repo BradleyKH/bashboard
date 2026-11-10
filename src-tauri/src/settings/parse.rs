@@ -293,6 +293,20 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
     );
     let agent_glow = pick(&root, &["agentGlow"], &mut w, boolean, d.agent_glow);
     let border_lights = pick(&root, &["borderLights"], &mut w, boolean, d.border_lights);
+    let border_lights_speed = pick(
+        &root,
+        &["borderLightsSpeed"],
+        &mut w,
+        |v| number(v).filter(|n| BORDER_LIGHTS_SPEED_RANGE.contains(n)),
+        d.border_lights_speed,
+    );
+    let border_lights_density = pick(
+        &root,
+        &["borderLightsDensity"],
+        &mut w,
+        |v| number(v).filter(|n| BORDER_LIGHTS_DENSITY_RANGE.contains(n)),
+        d.border_lights_density,
+    );
     let scrim = Scrim {
         opacity: pick(
             &root,
@@ -598,6 +612,8 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             ui_scale,
             agent_glow,
             border_lights,
+            border_lights_speed,
+            border_lights_density,
             scrim,
             backdrop,
             scrollback,
@@ -650,6 +666,19 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "agentGlow": "yes", "borderLights": 1 }"#);
         assert!(!s.agent_glow && !s.border_lights);
         assert_eq!(w, vec!["agentGlow: invalid value, using default", "borderLights: invalid value, using default"]);
+    }
+
+    #[test]
+    fn border_light_speed_and_density_stay_in_range() {
+        let (s, w) = parse_settings(r#"{ "borderLightsSpeed": 120, "borderLightsDensity": 2.5 }"#);
+        assert_eq!((s.border_lights_speed, s.border_lights_density), (120.0, 2.5));
+        assert!(w.is_empty());
+        let (s, w) = parse_settings(r#"{ "borderLightsSpeed": 5, "borderLightsDensity": 0 }"#);
+        assert_eq!((s.border_lights_speed, s.border_lights_density), (60.0, 1.0));
+        assert_eq!(
+            w,
+            vec!["borderLightsSpeed: invalid value, using default", "borderLightsDensity: invalid value, using default"]
+        );
     }
 
     #[test]

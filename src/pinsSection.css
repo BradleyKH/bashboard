@@ -107,11 +107,11 @@
   cursor: default;
 }
 
-#dashboard .pin-row .layout-rename {
+#dashboard .pin-row .row-rename {
   flex: 0 0 auto;
 }
 
-#dashboard .pin-row:hover .layout-rename {
+#dashboard .pin-row:hover .row-rename {
   opacity: 1;
 }
 

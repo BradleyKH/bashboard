@@ -68,8 +68,8 @@ ${absolute}` : pin.path;
 
   const rename =
     command !== null
-      ? iconButton('✎', 'layout-rename', 'Edit pin (F2)', () => callbacks.onEditPin(index))
-      : iconButton('✎', 'layout-rename', 'Rename pin (F2)', () => {
+      ? iconButton('✎', 'row-rename', 'Edit pin (F2)', () => callbacks.onEditPin(index))
+      : iconButton('✎', 'row-rename', 'Rename pin (F2)', () => {
           startRename(label, name, (value) => callbacks.onRenamePin(index, value));
         });
   // A missing pin's menu disables Rename, so F2 leaves it alone too.

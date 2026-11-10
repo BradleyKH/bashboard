@@ -44,6 +44,8 @@ export class PaneLights {
   private lights = false;
   private visible = true;
   private accent = '#ffffff';
+  private speed = 60;
+  private pxPerComet: number = L.pxPerDensityUnit;
   private frame = 0;
   private last = 0;
 
@@ -67,9 +69,11 @@ export class PaneLights {
     });
   }
 
-  apply(settings: Pick<Settings, 'agentGlow' | 'borderLights' | 'accentColor'>): void {
+  apply(settings: Pick<Settings, 'agentGlow' | 'borderLights' | 'borderLightsSpeed' | 'borderLightsDensity' | 'accentColor'>): void {
     this.glow = settings.agentGlow;
     this.lights = settings.borderLights;
+    this.speed = settings.borderLightsSpeed;
+    this.pxPerComet = L.pxPerDensityUnit / settings.borderLightsDensity;
     this.accent = settings.accentColor;
     this.sync();
   }
@@ -139,7 +143,7 @@ export class PaneLights {
       for (const comet of list) {
         const target = on && !comet.leaving ? 1 : 0;
         comet.alpha = target > comet.alpha ? Math.min(target, comet.alpha + step) : Math.max(target, comet.alpha - step);
-        comet.dist += L.speedPxPerSec * dt;
+        comet.dist += this.speed * dt;
         if (p > 0) comet.dist %= p;
         if (comet.alpha <= 0.01 || p === 0) continue;
         this.drawComet(ctx, loop, comet);
@@ -151,12 +155,12 @@ export class PaneLights {
   }
 
   /**
-   * Larger panes run more comets (PANE_LIGHTS.pxPerComet), so a resize adds or retires them. A new
+   * Larger panes run more comets (`borderLightsDensity`), so a resize adds or retires them. A new
    * one fades in at the middle of the widest gap; a retired one is the most crowded, and fades out.
    */
   private fitCount(list: Comet[], p: number): void {
     const active = list.filter((c) => !c.leaving);
-    const want = cometCount(p, L.pxPerComet, active.length, L.countHysteresis);
+    const want = cometCount(p, this.pxPerComet, active.length, L.countHysteresis);
     while (active.length < want) {
       // The first starts at a random point, so neighboring panes never run in step.
       const dist = active.length ? widestGapMidpoint(active.map((c) => c.dist), p) : Math.random() * p;
@@ -175,7 +179,8 @@ export class PaneLights {
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1];
       const b = pts[i];
-      ctx.strokeStyle = rgba(this.accent, tailAlpha(a.back, L.tailPx, L.intensity) * comet.alpha);
+      // Each segment takes the brightness of its end nearer the head, so the trail peaks there.
+      ctx.strokeStyle = rgba(this.accent, tailAlpha(Math.min(a.off, b.off), L.tailPx, L.intensity) * comet.alpha);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
