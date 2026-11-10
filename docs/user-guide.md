@@ -58,7 +58,7 @@ line.
 A pad saves itself about half a second after you stop typing and comes back with the workspace
 on relaunch. Its toolbar has four buttons, then a − and + pair at the right that zooms the text:
 
-- **Send to last terminal** (Ctrl+Enter) pastes the pad's text into the tab's most recently focused terminal
+- **Send** (Ctrl+Enter) pastes the pad's text into the tab's most recently focused terminal
   without pressing Enter, so you can review it there first. It is disabled in a tab with no
   terminal.
 - **Copy** puts all of the text on the clipboard.
@@ -138,7 +138,10 @@ The text editor saves about a second after you stop typing, when it loses focus,
 If the file changes on disk while you have no unsaved edits, it reloads in place. If it changes
 while you do (or a save finds it changed), a bar offers Reload, which discards your edits, or Keep
 mine, which overwrites the file. Ctrl+Z undoes and Ctrl+Y redoes; Enter starts the next line at
-the left edge, with no auto-indent, and Tab moves focus out of the editor.
+the left edge, with no auto-indent. Tab indents the selected lines, or pads the caret to the next
+indent stop, and Shift+Tab unindents. Indents match the file's own: tabs if it indents with tabs,
+otherwise its usual number of spaces (two in a file with no indented lines yet). To move focus out
+of the editor with the keyboard, press Esc and then Tab.
 
 Code is colored by language, as a code editor does: HTML, CSS (and SCSS, Sass, and Less),
 JavaScript and TypeScript (with JSX and TSX), JSON, C#, Python, Markdown, YAML, Rust, SQL, XML,

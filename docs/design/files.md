@@ -323,7 +323,7 @@ A scratch pad is an untitled text area, like a new tab in Notepad++, in the term
 title is its first non-empty line, shortened, or "Scratch". It saves to `scratch/<id>.txt` (3.7)
 half a second after typing stops and comes back on restore.
 
-- **Send to last terminal** (Ctrl+Enter) pastes the whole text into the tab's most recently focused terminal as a
+- **Send** (Ctrl+Enter) pastes the whole text into the tab's most recently focused terminal as a
   bracketed paste without Enter, so a prompt can be drafted here and reviewed before sending,
   then focuses that terminal. It is disabled while the tab has no terminal.
 - **Copy** copies the whole text. **Clear** empties it.
@@ -468,9 +468,20 @@ change-on-disk bar, CRLF files kept CRLF on save, read-only for a `lossy` read, 
 gutter and sideways scrolling for code, wrapped lines for plain text, `revealLine`'s band, zoom,
 and the text field menu (4.4). Its keymap is CodeMirror's `standardKeymap` (caret motion,
 selection, Backspace, Delete) plus only Ctrl+Z (undo) and Ctrl+Y (redo) from `historyKeymap`, with
-none of `defaultKeymap`'s extras. Ctrl+Shift+Z stays the app's pane zoom, Ctrl+U and Alt+U are
-unbound, and Tab is unbound, so it still moves focus out of the editor. Enter and Shift+Enter
-insert a bare newline with no auto-indent, as a textarea does.
+none of `defaultKeymap`'s extras. Ctrl+Shift+Z stays the app's pane zoom, and Ctrl+U and Alt+U are
+unbound. Enter and Shift+Enter insert a bare newline with no auto-indent, as a textarea does.
+
+Tab indents in every text editor (code, plain text, and markdown and CSV in Edit mode). With a
+selection it adds one indent unit to each selected line (`indentMore`); without one it pads each
+caret to the next indent stop, a tab or the spaces to the next multiple of the unit. Shift+Tab
+removes one unit from each selected line (`indentLess`). In a read-only editor both fall through
+to the browser and move focus. The unit is CodeMirror's `indentUnit`, set per file by
+`detectIndentUnit` (`indentModel.ts`) when the editor opens and again on each reload from disk:
+a tab when more lines start with a tab than with spaces, else the most common step of 2 to 8
+spaces between the indents of successive lines (steps of 1, a block comment's ` * `, and
+dedents are not counted). A file with no indented lines gets a tab for Makefiles and `.go` and
+`.mk` files, else two spaces. Keyboard focus leaves the editor through CodeMirror's tab focus
+mode: Esc and then Tab within two seconds moves focus as a plain Tab would.
 
 The editor's keydown handler runs at the highest precedence, ahead of CodeMirror's keymap, and
 makes the same lookup the panes' key handlers make (4.5): Ctrl+S saves, and any other action

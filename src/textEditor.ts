@@ -1,7 +1,17 @@
-import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
-import { syntaxHighlighting } from '@codemirror/language';
-import { Annotation, Compartment, EditorState as CmState, type Extension, Prec, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, type DecorationSet, EditorView, keymap as cmKeymap, lineNumbers as cmLineNumbers } from '@codemirror/view';
+import { history, historyKeymap, indentLess, indentMore, insertNewline, standardKeymap } from '@codemirror/commands';
+import { indentUnit, syntaxHighlighting } from '@codemirror/language';
+import {
+  Annotation,
+  Compartment,
+  EditorState as CmState,
+  EditorSelection,
+  type Extension,
+  Prec,
+  StateEffect,
+  StateField,
+  countColumn,
+} from '@codemirror/state';
+import { type Command, Decoration, type DecorationSet, EditorView, keymap as cmKeymap, lineNumbers as cmLineNumbers } from '@codemirror/view';
 import './code/syntax.css';
 import { type CodeColorsMode, codeColorsDefault } from './code/codeColorsStore';
 import { type LanguageId, loadLanguage } from './code/languages';
@@ -9,6 +19,7 @@ import { roleHighlighter } from './code/roles';
 import { lookup, type Action, type Keymap } from './keymap';
 import { toFontFamily } from './pane';
 import type { FindSurface, TextFindSurface } from './previewFind';
+import { detectIndentUnit } from './indentModel';
 import { findMatches, type FindMatches } from './previewFindModel';
 import { classifyReadError, fsReadText, fsWriteText } from './repoFiles';
 import type { Settings } from './settings';
@@ -79,8 +90,38 @@ const findField = StateField.define<DecorationSet>({
 /** Only undo and redo: the rest of `historyKeymap` (Mod-u, Alt-u, Linux's Ctrl-Shift-z) stays unbound. */
 const undoRedoKeys = historyKeymap.filter((b) => b.key === 'Mod-z' || b.key === 'Mod-y');
 
-/** Enter inserts a bare newline, as the textarea did, rather than keeping the indent. */
-const editorKeys = [{ key: 'Enter', run: insertNewline, shift: insertNewline }, ...standardKeymap, ...undoRedoKeys];
+/**
+ * Tab with a selection indents its lines; without one it pads the caret to the next indent stop.
+ * Spaces are counted to the stop rather than inserting a whole unit, as other editors do.
+ */
+const insertIndent: Command = (view) => {
+  const { state } = view;
+  if (state.readOnly) return false;
+  if (state.selection.ranges.some((r) => !r.empty)) return indentMore(view);
+  const unit = state.facet(indentUnit);
+  const tx = state.changeByRange((range) => {
+    let insert = '	';
+    if (unit !== '	') {
+      const line = state.doc.lineAt(range.head);
+      const col = countColumn(line.text.slice(0, range.head - line.from), state.tabSize);
+      insert = ' '.repeat(unit.length - (col % unit.length));
+    }
+    return { changes: { from: range.head, insert }, range: EditorSelection.cursor(range.head + insert.length) };
+  });
+  view.dispatch(state.update(tx, { scrollIntoView: true, userEvent: 'input' }));
+  return true;
+};
+
+/**
+ * Enter inserts a bare newline, as the textarea did, rather than keeping the indent. Tab and
+ * Shift+Tab indent; Esc then Tab still moves focus out, through CodeMirror's tab focus mode.
+ */
+const editorKeys = [
+  { key: 'Enter', run: insertNewline, shift: insertNewline },
+  { key: 'Tab', run: insertIndent, shift: indentLess },
+  ...standardKeymap,
+  ...undoRedoKeys,
+];
 
 /** The look of the textarea it replaced: transparent, `--content-fg`, the pane's font. */
 const editorTheme = EditorView.theme({
@@ -108,6 +149,7 @@ export class TextEditor {
   private readonly opts: TextEditorOptions;
   private readonly readOnlyConf = new Compartment();
   private readonly languageConf = new Compartment();
+  private readonly indentConf = new Compartment();
   private language: LanguageId | null;
   private mode: CodeColorsMode;
   /** Bumped on every language or mode change, so a load that lands late is dropped. */
@@ -171,6 +213,7 @@ export class TextEditor {
       CmState.tabSize.of(8),
       this.readOnlyConf.of(CmState.readOnly.of(false)),
       this.languageConf.of([]),
+      this.indentConf.of(indentUnit.of(detectIndentUnit(this.state.text, opts.path))),
       bandField,
       findField,
       editorTheme,
@@ -442,7 +485,9 @@ export class TextEditor {
       if (this.disposed) return;
       this.crlf = file.text.includes('\r\n');
       this.setLossy(file.lossy);
-      this.send({ type: 'reloaded', text: toLf(file.text), modified: file.modified });
+      const text = toLf(file.text);
+      this.view.dispatch({ effects: this.indentConf.reconfigure(indentUnit.of(detectIndentUnit(text, this.opts.path))) });
+      this.send({ type: 'reloaded', text, modified: file.modified });
     } catch (err) {
       this.showError(`Could not reload: ${errorMessage(err)}`);
       this.send({ type: 'reloadFailed' });
