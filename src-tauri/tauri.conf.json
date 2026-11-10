@@ -72,6 +72,9 @@
     "homepage": "https://github.com/BradleyKH/bashboard",
     "licenseFile": "../LICENSE",
     "shortDescription": "A multipurpose terminal built for Claude Code.",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    },
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",

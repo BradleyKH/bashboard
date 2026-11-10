@@ -525,7 +525,7 @@ pub fn refresh(app: &AppHandle) {
 }
 
 fn sessions_dir() -> Option<PathBuf> {
-    std::env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join(".claude").join("sessions"))
+    crate::platform::user_home().map(|home| home.join(".claude").join("sessions"))
 }
 
 fn try_watch(dir: &Path, tx: &mpsc::Sender<notify::Result<notify::Event>>) -> Option<RecommendedWatcher> {

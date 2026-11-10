@@ -111,11 +111,8 @@ struct Target {
 }
 
 fn claude_dir() -> Result<PathBuf, String> {
-    let home = std::env::var_os("USERPROFILE")
-        .filter(|h| !h.is_empty())
-        .or_else(|| std::env::var_os("HOME").filter(|h| !h.is_empty()))
-        .ok_or("could not find the home directory")?;
-    Ok(PathBuf::from(home).join(".claude"))
+    let home = crate::platform::user_home().ok_or("could not find the home directory")?;
+    Ok(home.join(".claude"))
 }
 
 fn git_bash(shell: &crate::settings::Shell) -> Option<PathBuf> {
@@ -136,7 +133,7 @@ fn target(agent: AgentId, shell: &crate::settings::Shell) -> Result<Target, Stri
     }
     let a = agent.agent();
     let home = a.home().ok_or("could not find the home directory")?;
-    let profile = std::env::var_os("USERPROFILE").map(PathBuf::from);
+    let profile = crate::platform::user_home();
     let default_home = a.home_with(|_| None, profile.as_deref()).as_deref() == Some(home.as_path());
     Ok(Target {
         agent,
@@ -327,9 +324,10 @@ fn pretty(value: &Value) -> Result<String, String> {
     Ok(text)
 }
 
-/// Whether `bash.exe` sits in any directory of `path_var`.
+/// Whether `bash` (`bash.exe` on Windows) sits in any directory of `path_var`.
 fn bash_on_path(path_var: &OsStr) -> bool {
-    std::env::split_paths(path_var).any(|dir| dir.join("bash.exe").is_file())
+    let bash = crate::platform::exe_name("bash");
+    std::env::split_paths(path_var).any(|dir| dir.join(&bash).is_file())
 }
 
 fn bash_available(shell: &crate::settings::Shell) -> bool {
@@ -968,7 +966,7 @@ mod tests {
         let without = root.join("without");
         std::fs::create_dir_all(&with).unwrap();
         std::fs::create_dir_all(&without).unwrap();
-        std::fs::write(with.join("bash.exe"), "").unwrap();
+        std::fs::write(with.join(crate::platform::exe_name("bash")), "").unwrap();
         let joined = std::env::join_paths([&without, &with]).unwrap();
         assert!(bash_on_path(&joined));
         assert!(!bash_on_path(

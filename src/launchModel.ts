@@ -52,11 +52,18 @@ export interface LaunchContext {
   isGit: boolean;
   /** False while no container engine is installed, which leaves Containers out as the kind menu does. */
   containers: boolean;
+  /** False on an OS without the Local Browser, which leaves it out as the kind menu does. */
+  localBrowser?: boolean;
 }
 
 /** The launch menu's options in display order: the row's, plus Containers and Ports. */
 export function launchMenuOptions(ctx: LaunchContext): LaunchOption[] {
-  return OPTIONS.filter((o) => (ctx.isGit || !NEEDS_GIT.has(o.kind)) && (ctx.containers || o.kind !== 'containers'));
+  return OPTIONS.filter(
+    (o) =>
+      (ctx.isGit || !NEEDS_GIT.has(o.kind)) &&
+      (ctx.containers || o.kind !== 'containers') &&
+      (ctx.localBrowser !== false || o.kind !== 'browser'),
+  );
 }
 
 export function isFolderless(kind: LaunchKind): kind is FolderlessLaunchKind {

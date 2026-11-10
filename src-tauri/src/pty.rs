@@ -72,12 +72,12 @@ fn path_with(dir: &Path, inherited: Option<&OsStr>) -> OsString {
     let Some(inherited) = inherited else { return dir.as_os_str().to_owned() };
     let dir_text = dir.to_string_lossy();
     let inherited_text = inherited.to_string_lossy();
-    let first = inherited_text.split(';').next().unwrap_or("");
+    let first = inherited_text.split(crate::platform::PATH_LIST_SEP).next().unwrap_or("");
     if first.eq_ignore_ascii_case(&dir_text) {
         return inherited.to_owned();
     }
     let mut out = dir.as_os_str().to_owned();
-    out.push(";");
+    out.push(crate::platform::PATH_LIST_SEP.to_string());
     out.push(inherited);
     out
 }
@@ -724,6 +724,7 @@ mod tests {
         assert_eq!(get(&cmd, HOOK_TOKEN_VAR), None);
     }
 
+    #[cfg(windows)]
     #[test]
     fn path_with_prepends_once() {
         let dir = Path::new(r"C:\Apps\Bashboard");
@@ -738,6 +739,20 @@ mod tests {
             with(Some(r"C:\Windows;C:\Apps\Bashboard")),
             r"C:\Apps\Bashboard;C:\Windows;C:\Apps\Bashboard"
         );
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn path_with_prepends_once() {
+        let dir = Path::new("/Applications/Bashboard.app/Contents/MacOS");
+        let with = |v: Option<&str>| path_with(dir, v.map(OsStr::new)).to_string_lossy().into_owned();
+        assert_eq!(with(None), "/Applications/Bashboard.app/Contents/MacOS");
+        assert_eq!(
+            with(Some("/usr/bin:/bin")),
+            "/Applications/Bashboard.app/Contents/MacOS:/usr/bin:/bin"
+        );
+        let already = "/Applications/Bashboard.app/Contents/MacOS:/usr/bin";
+        assert_eq!(with(Some(already)), already);
     }
 
     #[test]

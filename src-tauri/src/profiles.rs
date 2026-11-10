@@ -1,7 +1,9 @@
-//! Shell profiles a pane can run: Git Bash (configured by `shell.path` and `shell.args`),
-//! PowerShell 7 and Windows PowerShell when installed, and Command Prompt. Only profiles
-//! whose executable exists are offered, and cmd always is, so resolving a profile can
-//! never land on a shell that fails to start.
+//! Shell profiles a pane can run. On Windows: Git Bash (configured by `shell.path` and
+//! `shell.args`), PowerShell 7 and Windows PowerShell when installed, and Command Prompt. On
+//! macOS and other Unix systems: the login shell from `$SHELL`, plus zsh and bash when they are
+//! not already it. Only profiles whose executable exists are offered, and the last resort (cmd,
+//! or the login shell falling back to `/bin/zsh`) always is, so resolving a profile can never
+//! land on a shell that fails to start.
 
 use std::{
     ffi::OsStr,
@@ -18,8 +20,13 @@ pub const GIT_BASH: &str = "gitBash";
 pub const PWSH: &str = "pwsh";
 pub const POWERSHELL: &str = "powershell";
 pub const CMD: &str = "cmd";
-/// Also the fallback order when neither the requested nor the default profile is available.
-pub const PROFILE_IDS: &[&str] = &[GIT_BASH, PWSH, POWERSHELL, CMD];
+pub const LOGIN_SHELL: &str = "loginShell";
+pub const ZSH: &str = "zsh";
+pub const BASH: &str = "bash";
+/// Every id either OS can list, so a settings file shared between machines keeps its choice.
+pub const PROFILE_IDS: &[&str] = &[GIT_BASH, PWSH, POWERSHELL, CMD, LOGIN_SHELL, ZSH, BASH];
+/// The `shell.defaultProfile` default.
+pub const DEFAULT_PROFILE: &str = if cfg!(windows) { GIT_BASH } else { LOGIN_SHELL };
 
 const CMD_FALLBACK: &str = r"C:\Windows\System32\cmd.exe";
 const SYSTEM_ROOT_FALLBACK: &str = r"C:\Windows";
@@ -169,8 +176,44 @@ fn build_profiles(
     list
 }
 
+/// The `/bin/zsh` floor of the Unix list: every supported macOS has it.
+const ZSH_FALLBACK: &str = "/bin/zsh";
+/// Homebrew's bash first: macOS ships bash 3.2.
+const BASH_CANDIDATES: &[&str] = &["/opt/homebrew/bin/bash", "/usr/local/bin/bash", "/bin/bash"];
+
+/// The Unix list, in fallback order. The login shell is `login_shell` (`$SHELL`) when it
+/// exists, else `/bin/zsh`, so the list is never empty. Shells start with `-l` so they read the
+/// user's profile files and build their own `PATH`, as a terminal app's shells do.
+fn unix_profiles(login_shell: Option<&str>, exists: impl Fn(&Path) -> bool) -> Vec<ShellProfile> {
+    let login = login_shell
+        .filter(|s| !s.is_empty() && exists(Path::new(s)))
+        .unwrap_or(ZSH_FALLBACK)
+        .to_string();
+    let login_name = Path::new(&login)
+        .file_name()
+        .map(|n| format!("Login shell ({})", n.to_string_lossy()))
+        .unwrap_or_else(|| "Login shell".into());
+    let args = || vec!["-l".to_string()];
+    let mut list = vec![profile(LOGIN_SHELL, &login_name, login.clone(), args())];
+    if login != ZSH_FALLBACK && exists(Path::new(ZSH_FALLBACK)) {
+        list.push(profile(ZSH, "zsh", ZSH_FALLBACK.into(), args()));
+    }
+    if let Some(bash) = BASH_CANDIDATES
+        .iter()
+        .find(|p| exists(Path::new(p)))
+        .filter(|p| **p != login)
+    {
+        list.push(profile(BASH, "bash", (*bash).into(), args()));
+    }
+    list
+}
+
 /// Git Bash is checked on every call because `shell.path` can change with a settings reload.
 pub fn available_profiles(shell: &Shell) -> Vec<ShellProfile> {
+    if !cfg!(windows) {
+        let login_shell = std::env::var("SHELL").ok();
+        return unix_profiles(login_shell.as_deref(), Path::is_file);
+    }
     let is_default_path = shell.path == settings::DEFAULT_GIT_BASH_PATH;
     let path_var = std::env::var_os("PATH").unwrap_or_default();
     let local_app_data = std::env::var_os("LOCALAPPDATA")
@@ -192,7 +235,7 @@ pub fn available_profiles(shell: &Shell) -> Vec<ShellProfile> {
 }
 
 /// The requested profile if available, else the configured default if available, else the
-/// first available. cmd is always listed, so the list is never empty.
+/// first available. The last resort is always listed, so the list is never empty.
 fn pick(requested: Option<&str>, default: &str, mut list: Vec<ShellProfile>) -> ShellProfile {
     let index = [requested, Some(default)]
         .into_iter()
@@ -425,7 +468,7 @@ mod tests {
             Some(s(&cmd)),
         );
         assert_eq!(ids(&with), [GIT_BASH, PWSH, POWERSHELL, CMD]);
-        assert_eq!(ids(&with), PROFILE_IDS);
+        assert_eq!(ids(&with), PROFILE_IDS[..4]);
         assert_eq!(with[0].path, r"C:\Git\bin\bash.exe");
         assert_eq!(with[0].args, shell().args);
         let no_logo = ["-NoLogo".to_string()];
@@ -509,5 +552,33 @@ mod tests {
             json,
             serde_json::json!({ "id": "cmd", "name": "Command Prompt", "path": "cmd.exe", "args": [] })
         );
+    }
+
+    #[test]
+    fn unix_list_starts_with_the_login_shell_and_skips_duplicates() {
+        let all = |_: &Path| true;
+        let list = unix_profiles(Some("/bin/zsh"), all);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH]);
+        assert_eq!(list[0].name, "Login shell (zsh)");
+        assert_eq!(list[0].args, vec!["-l".to_string()]);
+        assert_eq!(list[1].path, "/opt/homebrew/bin/bash");
+
+        let list = unix_profiles(Some("/opt/homebrew/bin/fish"), all);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, BASH]);
+        assert_eq!(list[0].path, "/opt/homebrew/bin/fish");
+
+        let list = unix_profiles(Some("/opt/homebrew/bin/bash"), all);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH]);
+    }
+
+    #[test]
+    fn unix_login_shell_falls_back_to_zsh() {
+        let only_system = |p: &Path| p == Path::new("/bin/zsh") || p == Path::new("/bin/bash");
+        for login in [None, Some(""), Some("/missing/shell")] {
+            let list = unix_profiles(login, only_system);
+            assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH], "{login:?}");
+            assert_eq!(list[0].path, "/bin/zsh");
+            assert_eq!(list[1].path, "/bin/bash");
+        }
     }
 }

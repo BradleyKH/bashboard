@@ -5,6 +5,7 @@ import type { AgentId } from './savedWorkspace';
 import { profileName, type ShellProfile } from './profiles';
 import { isIntegrationShell, shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
 import { gitRow, hooksRow, shellRow, type StatusFix, type StatusRow } from './setupStatusModel';
+import { supports } from './platform';
 
 export interface SetupStatusCallbacks {
   getProfiles(): ShellProfile[];
@@ -65,7 +66,7 @@ export class SetupStatus {
     ]);
     if (generation !== this.generation) return;
     const rows: StatusRow[] = [
-      gitRow(git),
+      ...(supports('gitInstall') ? [gitRow(git)] : []),
       ...shells.map((shell, i) => shellRow(shell, profileName(shell, profiles), shellPreviews[i], shell === preferred)),
       ...hooks.map(([agent, preview]) => hooksRow(agent, preview)),
     ];

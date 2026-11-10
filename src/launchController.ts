@@ -9,6 +9,7 @@ import { listOllamaModels, pollModelServers } from './modelServersApi';
 import type { RepoTracker } from './repoTracker';
 import { showToast } from './toast';
 import type { Workspace } from './workspace';
+import { supports } from './platform';
 
 export interface LaunchControllerDeps {
   repo: RepoTracker;
@@ -72,7 +73,11 @@ export class LaunchController {
   async openMenu(anchor?: HTMLElement): Promise<void> {
     const local = await this.localLaunch();
     const items = launchMenuItems(
-      { isGit: this.deps.repo.currentRepo?.isGit ?? false, containers: this.deps.containers.available },
+      {
+        isGit: this.deps.repo.currentRepo?.isGit ?? false,
+        containers: this.deps.containers.available,
+        localBrowser: supports('localBrowser'),
+      },
       this.launch,
       this.preview,
       local,

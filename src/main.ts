@@ -18,6 +18,7 @@ import { stopListener } from './portStop';
 import { PortsStore } from './portsStore';
 import { LocalModelsStore } from './localModelsStore';
 import { setKindMenuFilter } from './kindMenu';
+import { loadPlatform, supports } from './platform';
 import { DashboardPanel } from './dashboardPanel';
 import { paneCards, type PaneCardInput } from './dashboardModel';
 import { hiddenNotice } from './dashboardRevealModel';
@@ -134,6 +135,7 @@ const stale = await invoke<{ id: number; pid: number; startedAt: number }[]>('pt
 await Promise.allSettled(stale.map(({ id }) => invoke('pty_kill', { id })));
 
 setHomeDir(await homeDir().catch(() => null));
+await loadPlatform();
 
 const payload = await settingsLoaded;
 const state: AppState = {
@@ -209,7 +211,9 @@ const repo = new RepoTracker(controllerDeps);
 const containers = new ContainersStore();
 const ports = new PortsStore();
 const localModels = new LocalModelsStore();
-setKindMenuFilter((kind) => kind !== 'containers' || containers.available);
+setKindMenuFilter(
+  (kind) => (kind !== 'containers' || containers.available) && (kind !== 'browser' || supports('localBrowser')),
+);
 const launch = new LaunchController({ repo, workspace: controllerDeps.workspace, containers });
 
 /** Design 4.10: lists the panes closing the tab would lose work in; resolves true to close it. */

@@ -1,0 +1,98 @@
+name: macOS preview
+
+# An unsigned (ad-hoc signed) macOS build for hand testing. Run it from the Actions tab. The .dmg
+# is kept as a workflow artifact, and optionally attached to a prerelease so a tester without a
+# GitHub account can download it. A prerelease is never releases/latest, so the updater never
+# serves it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Architecture
+        type: choice
+        options: [aarch64-apple-darwin, universal-apple-darwin]
+        default: aarch64-apple-darwin
+      prerelease:
+        description: Also attach the .dmg to a prerelease
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ inputs.target == 'universal-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || inputs.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Front end tests
+        run: pnpm test
+
+      # Several Rust tests still assume Windows. They report here without blocking the build, so
+      # a failing test is a finding to fix rather than a reason there is no build to try.
+      - name: Rust tests
+        continue-on-error: true
+        working-directory: src-tauri
+        run: cargo test
+
+      # "-" is an ad-hoc signature: Apple silicon will not run unsigned code at all, and without a
+      # Developer ID nothing better is available.
+      - name: Build app and dmg
+        run: >
+          pnpm tauri build --target ${{ inputs.target }} --bundles app,dmg
+          --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+
+      - name: Assert the bundle ships bb
+        run: |
+          app=$(find "src-tauri/target/${{ inputs.target }}/release/bundle/macos" -maxdepth 1 -name '*.app' | head -n 1)
+          if [ ! -x "$app/Contents/MacOS/bb" ]; then
+            echo "::error::$app/Contents/MacOS/bb is missing"
+            ls -la "$app/Contents/MacOS" || true
+            exit 1
+          fi
+          file "$app/Contents/MacOS/"*
+          codesign -dv "$app" 2>&1 | head -n 5
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bashboard-macos-${{ inputs.target }}
+          path: src-tauri/target/${{ inputs.target }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+      - name: Attach to a prerelease
+        if: inputs.prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="macos-preview-$(git rev-parse --short HEAD)"
+          version=$(node -p "require('./package.json').version")
+          gh release create "$tag" --prerelease --target "$GITHUB_SHA" \
+            --title "Bashboard $version macOS preview ($tag)" \
+            --notes "Unsigned macOS test build, not for general use. After dragging Bashboard to Applications, run once in Terminal: xattr -dr com.apple.quarantine /Applications/Bashboard.app" \
+            src-tauri/target/${{ inputs.target }}/release/bundle/dmg/*.dmg

@@ -22,6 +22,7 @@ mod hook_install;
 mod hooks;
 mod links;
 mod model_servers;
+mod platform;
 mod ports;
 mod powershell_prompt;
 mod profiles;
@@ -192,6 +193,7 @@ pub fn run() {
             browser_tls::browser_probe_tls,
             browser_tls::browser_prefer_tls,
             clipboard::clipboard_read_text,
+            platform::platform_info,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

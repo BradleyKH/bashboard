@@ -31,6 +31,10 @@ describe('launchMenuOptions', () => {
     expect(launchMenuOptions({ isGit: true, containers: false }).map((o) => o.kind)).not.toContain('containers');
   });
 
+  it('drops the Local Browser on an OS without it', () => {
+    expect(launchMenuOptions({ ...GIT, localBrowser: false }).map((o) => o.kind)).not.toContain('browser');
+  });
+
   it('gives each option its own menu letter', () => {
     const keys = launchMenuOptions(GIT).map((o) => o.key);
     expect(new Set(keys).size).toBe(keys.length);

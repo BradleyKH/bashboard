@@ -332,7 +332,8 @@ describe('parseInput', () => {
     expect(parseInput(byPath('shell.path'), '  ').ok).toBe(false);
     expect(parseInput(byPath('shell.defaultProfile'), 'cmd')).toEqual({ ok: true, value: 'cmd' });
     expect(parseInput(byPath('shell.defaultProfile'), 'powershell')).toEqual({ ok: true, value: 'powershell' });
-    expect(parseInput(byPath('shell.defaultProfile'), 'zsh').ok).toBe(false);
+    expect(parseInput(byPath('shell.defaultProfile'), 'zsh').ok).toBe(true);
+    expect(parseInput(byPath('shell.defaultProfile'), 'fish').ok).toBe(false);
     expect(parseInput(byPath('shell.defaultProfile'), '').ok).toBe(false);
     expect(parseInput(byPath('font.family'), '').ok).toBe(false);
     expect(parseInput(byPath('shell.startingDirectory'), '')).toEqual({ ok: true, value: '' });

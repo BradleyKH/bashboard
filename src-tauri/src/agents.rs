@@ -101,7 +101,7 @@ impl Agent {
     }
 
     pub fn home(&self) -> Option<PathBuf> {
-        let profile = std::env::var_os("USERPROFILE").map(PathBuf::from);
+        let profile = crate::platform::user_home();
         self.home_with(|k| std::env::var_os(k), profile.as_deref())
     }
 

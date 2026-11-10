@@ -25,6 +25,7 @@ import { shipOverviewStore } from './shipOverviewStore';
 import { pinProvider } from './shipOverviewText';
 import { ShortcutsTab } from './shortcutsTab';
 import type { Workspace } from './workspace';
+import { supports } from './platform';
 
 export interface AppDialogsDeps {
   state: AppState;
@@ -184,7 +185,7 @@ export class AppDialogs {
     this.setupWizard.open({
       agents: agentHooksFrom(previews),
       // An unknown Git state skips the Git step rather than offering an install that may not apply.
-      gitBashFound: git?.gitBashFound ?? true,
+      gitBashFound: !supports('gitInstall') || (git?.gitBashFound ?? true),
       wingetFound: git?.wingetFound ?? false,
     });
   }

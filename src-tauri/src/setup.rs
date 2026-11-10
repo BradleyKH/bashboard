@@ -43,10 +43,7 @@ fn list_repos(dir: &Path) -> Vec<Repo> {
 }
 
 fn default_dir() -> Option<PathBuf> {
-    let home = std::env::var_os("USERPROFILE")
-        .filter(|h| !h.is_empty())
-        .or_else(|| std::env::var_os("HOME").filter(|h| !h.is_empty()))?;
-    let dir = PathBuf::from(home).join("source").join("repos");
+    let dir = crate::platform::user_home()?.join("source").join("repos");
     dir.is_dir().then_some(dir)
 }
 

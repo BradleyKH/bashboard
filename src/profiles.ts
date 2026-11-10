@@ -26,6 +26,9 @@ export const PROFILE_NAMES: Readonly<Record<string, string>> = {
   pwsh: 'PowerShell 7',
   powershell: 'Windows PowerShell',
   cmd: 'Command Prompt',
+  loginShell: 'Login shell',
+  zsh: 'zsh',
+  bash: 'bash',
 };
 
 /** Display name for a profile id: the listed profile's name, else the static name, else the id. */

@@ -331,8 +331,8 @@ impl Default for Settings {
             shell: Shell {
                 path: DEFAULT_GIT_BASH_PATH.into(),
                 args: vec!["--login".into(), "-i".into()],
-                starting_directory: "%USERPROFILE%".into(),
-                default_profile: crate::profiles::GIT_BASH.into(),
+                starting_directory: if cfg!(windows) { "%USERPROFILE%" } else { "%HOME%" }.into(),
+                default_profile: crate::profiles::DEFAULT_PROFILE.into(),
             },
             font: Font {
                 family: "JetBrainsMono Nerd Font Mono, Cascadia Mono".into(),
