@@ -2,23 +2,33 @@
 // (docs/design/browser.md section 4.21).
 import './localBrowser.css';
 import * as browserApi from './browserApi';
+import type { ServedFile } from './browserApi';
 import { BrowserDevtools } from './browserDevtools';
+import { BrowserEgressBar } from './browserEgressBar';
+import { EgressBlocks, blockedPort, hostName, isLoopbackHost } from './browserEgressModel';
 import {
   blockedNotice,
   devicePreset,
+  displayText,
+  filePageStep,
   formatDevice,
+  hostOnly,
   isBlankUrl,
   isErrorPageUrl,
   normalizeDevtools,
   parseDevice,
+  rememberMount,
+  shownUrl,
   unreachableMessage,
   type DeviceState,
   type DevtoolsState,
   type TlsProbe,
 } from './browserPaneModel';
 import { BrowserToolbar } from './browserToolbar';
+import type { ConfirmOptions } from './confirmDialog';
 import type { BrowserEvent } from './devtoolsModel';
 import { fitScale } from './devicePresets';
+import { getHomeDir } from './displayPath';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { KEEP_ALIVE_ATTR } from './layoutView';
@@ -62,6 +72,8 @@ export interface LocalBrowserPaneOptions {
   listeners: () => Listener[];
   /** Opens a non-local address the page tried to visit in the system browser. */
   onOpenExternal: (url: string) => void;
+  /** Asks before allowing a host for a downloaded file page, or a service on this machine. */
+  confirm: (opts: ConfirmOptions) => Promise<boolean>;
   /** The URL, title, drawer, or device changed (title and saved state follow). */
   onStateChange: () => void;
   /** Whether the pane needs the shared listening-ports list (true while expanded, false once hidden or disposed). */
@@ -82,6 +94,10 @@ export class LocalBrowserPane implements PaneView {
   private readonly body: HTMLElement;
   private readonly toolbar: BrowserToolbar;
   private readonly notice: HTMLElement;
+  /** A notice that stays until dismissed or the page changes, with one action button. */
+  private readonly actionNotice: HTMLElement;
+  private readonly egressBar: BrowserEgressBar;
+  private readonly egress = new EgressBlocks();
   private readonly stage: HTMLElement;
   private readonly deviceBox: HTMLElement;
   private readonly frame: HTMLIFrameElement;
@@ -93,10 +109,23 @@ export class LocalBrowserPane implements PaneView {
   private settings: Settings;
   private bookmarks: readonly Bookmark[];
   private device: DeviceState;
-  /** What the frame shows, from bridge events; before the first event, the URL it was sent to. */
+  /**
+   * What the frame shows, from bridge events; before the first event, the URL it was sent to. A file
+   * page's is its `file:///` URL, never the serving address, whose token changes every launch.
+   */
   private url: string | null = null;
   /** The last URL this pane asked the frame to load, for Retry and the unreachable notice. */
   private requested: string | null = null;
+  /** The served file while the frame shows a file page (docs/design/browser.md section 3.21). */
+  private file: ServedFile | null = null;
+  /**
+   * Where this pane's file pages have been served, newest first, for the pane's lifetime: the core
+   * keeps each one's token live, so Back and Forward can land on an address under a listener the
+   * pane has moved off or a file page it has since left (3.21 Mounts).
+   */
+  private mounts: ServedFile[] = [];
+  /** A host Allow wrote to settings; the page reloads once the settings change carries it. */
+  private pendingAllow: { folder: string; host: string } | null = null;
   private pageTitle = '';
   /** Document request ids, so a failed one can show the unreachable notice. */
   private readonly documentRequests = new Map<string, string>();
@@ -151,6 +180,14 @@ export class LocalBrowserPane implements PaneView {
     this.notice = document.createElement('div');
     this.notice.className = 'lb-notice';
     this.notice.hidden = true;
+    this.actionNotice = document.createElement('div');
+    this.actionNotice.className = 'lb-notice lb-action-notice';
+    this.actionNotice.hidden = true;
+    this.actionNotice.setAttribute('role', 'status');
+    this.egressBar = new BrowserEgressBar({
+      onAllow: (host) => void this.allowHost(host),
+      onDismiss: () => this.clearEgress(),
+    });
 
     this.stage = document.createElement('div');
     this.stage.className = 'lb-stage';
@@ -183,7 +220,7 @@ export class LocalBrowserPane implements PaneView {
     });
     this.toolbar.setDevtoolsOpen(this.devtools.isOpen());
 
-    this.body.append(this.toolbar.element, this.notice, this.stage, this.devtools.element);
+    this.body.append(this.toolbar.element, this.egressBar.element, this.notice, this.actionNotice, this.stage, this.devtools.element);
     this.host.appendChild(this.body);
 
     this.resizeObserver = new ResizeObserver(() => {
@@ -229,13 +266,22 @@ export class LocalBrowserPane implements PaneView {
     return { url: this.url, devtools: this.devtools.state(), device: formatDevice(this.device) };
   }
 
-  /** Loads `url` (a loopback address, or shorthand such as `5173`); a refused one shows why in the toolbar. */
+  /**
+   * Loads `url` (a loopback address, shorthand such as `5173`, or a local HTML file's path or
+   * `file:///` URL); a refused one shows why in the toolbar.
+   */
   navigate(url: string): void {
-    const r = normalizeInput(url, this.appOrigin);
+    const r = normalizeInput(url, this.appOrigin, getHomeDir());
     if (!r.ok) {
       this.toolbar.setMessage(r.reason);
       return;
     }
+    if (r.file) {
+      this.openFile(r.url);
+      return;
+    }
+    this.leaveFile();
+    this.hideActionNotice();
     const seq = ++this.navigateSeq;
     this.requested = r.url;
     this.showPage(r.url);
@@ -271,10 +317,22 @@ export class LocalBrowserPane implements PaneView {
   }
 
   applySettings(settings: Settings): void {
+    const trustedBefore = this.settings.localBrowser.trustedFolders;
     this.settings = settings;
     this.bookmarks = settings.localBrowser.bookmarks;
     this.updateBookmarkStar();
     this.renderStartPage();
+    const pending = this.pendingAllow;
+    // `settings_set` resolves before the core reloads its settings; this change is the core's copy
+    // catching up, so only now does a reload get the new policy.
+    if (pending && (settings.localBrowser.allowedHosts[pending.folder] ?? []).includes(pending.host)) {
+      this.pendingAllow = null;
+      this.reload(false);
+    }
+    const trusted = settings.localBrowser.trustedFolders;
+    if (this.file && (trusted.length !== trustedBefore.length || trusted.some((f, i) => f !== trustedBefore[i]))) {
+      this.refreshFile(true);
+    }
   }
 
   cellSize(): CellSize {
@@ -302,6 +360,7 @@ export class LocalBrowserPane implements PaneView {
     void browserApi.detach(this.paneId).catch(() => {});
     window.clearTimeout(this.noticeTimer);
     window.clearInterval(this.startTimer);
+    // `browser_detach` revokes the pane's file tokens itself.
     this.resizeObserver.disconnect();
     for (const off of this.listeners) off();
     this.listeners.length = 0;
@@ -314,7 +373,7 @@ export class LocalBrowserPane implements PaneView {
   private onEvent(ev: BrowserEvent): void {
     if (this.disposed) return;
     switch (ev.kind) {
-      case 'navigated':
+      case 'navigated': {
         if (isErrorPageUrl(ev.url)) {
           if (!this.recentlyBlocked()) this.showUnreachable(ev.unreachableUrl ?? this.requested ?? this.url);
           return;
@@ -323,18 +382,22 @@ export class LocalBrowserPane implements PaneView {
         this.unreachableSeq++;
         this.documentRequests.clear();
         this.devtools.navigated();
+        this.clearEgress();
         this.pageTitle = '';
+        const shown = this.followFile(ev.url);
+        if (shown !== this.url) this.hideActionNotice();
         if (isBlankUrl(ev.url)) {
           this.showPage(null);
         } else {
-          this.showPage(ev.url);
-          recent.add(ev.url);
+          this.showPage(shown);
+          recent.add(shown);
         }
         if (ev.title) this.setTitle(ev.title);
         this.opts.onStateChange();
         return;
+      }
       case 'navigatedInPage':
-        this.showPage(ev.url);
+        this.showPage(this.followFile(ev.url));
         this.opts.onStateChange();
         return;
       case 'title':
@@ -342,8 +405,24 @@ export class LocalBrowserPane implements PaneView {
         return;
       case 'blocked':
         this.lastBlocked = { url: ev.url, at: Date.now() };
+        if (ev.external && this.file) {
+          // A file page's script could put data in the address's query string, so only a click opens it.
+          const target = ev.url;
+          this.showActionNotice(`This page tried to open ${hostOnly(target)}`, 'Open', () => this.opts.onOpenExternal(target));
+          return;
+        }
         if (ev.external) this.opts.onOpenExternal(ev.url);
-        this.showNotice(blockedNotice(ev.url, ev.external, this.appOrigin));
+        this.showNotice(blockedNotice(ev.url, ev.external, this.appOrigin, ev.downloaded));
+        return;
+      case 'fileChanged':
+        if (!this.file) return;
+        // Served again rather than only reloaded: a save can add or drop Mark of the Web, which
+        // moves the page to the other listener.
+        if (this.settings.localBrowser.reloadOnChange) this.refreshFile(true);
+        else this.showActionNotice('Changed on disk', 'Reload', () => this.refreshFile(true));
+        return;
+      case 'egressBlocked':
+        if (this.file && this.egress.add(ev)) this.egressBar.update(this.egress.hosts(), this.file.trust);
         return;
       case 'loadState':
         this.toolbar.setLoading(ev.loading);
@@ -383,7 +462,7 @@ export class LocalBrowserPane implements PaneView {
   /** Switches between the start page (null) and the frame, and syncs the toolbar. */
   private showPage(url: string | null): void {
     this.url = url;
-    this.toolbar.setPage(url);
+    this.toolbar.setPage(url, displayText(url));
     this.updateBookmarkStar();
     const blank = url === null;
     this.startPage.hidden = !blank;
@@ -393,7 +472,8 @@ export class LocalBrowserPane implements PaneView {
   }
 
   /** The overlay for a document that failed to load; the address field and title follow `url`. */
-  private showUnreachable(url: string | null): void {
+  private showUnreachable(failed: string | null): void {
+    const url = failed === null ? null : this.toShown(failed);
     if (url) {
       this.pageTitle = '';
       this.showPage(url);
@@ -446,6 +526,194 @@ export class LocalBrowserPane implements PaneView {
     }, NOTICE_MS);
   }
 
+  /** Serves the file at `fileUrl` and loads it; a refusal shows in the toolbar and leaves the frame alone. */
+  private openFile(fileUrl: string): void {
+    const seq = ++this.navigateSeq;
+    const previous = this.url;
+    // Shown before the core answers, as `navigate` does for a loopback address: a restored pane
+    // focuses its empty field meanwhile, and the toolbar won't overwrite a focused field.
+    this.requested = fileUrl;
+    this.showPage(fileUrl);
+    void this.attached
+      .then(() => browserApi.serveFile(this.paneId, fileUrl))
+      .then(
+        (served) => {
+          if (this.disposed || seq !== this.navigateSeq) return;
+          this.setFile(served);
+          const shown = this.toShown(served.url);
+          this.requested = shown;
+          this.errorPage.hidden = true;
+          this.clearEgress();
+          this.hideActionNotice();
+          this.showPage(shown);
+          recent.add(shown);
+          // Straight to the frame: `preferTls` in `navigate` has no business with a serving address.
+          // Setting src navigates even when it is unchanged, which Retry relies on.
+          this.frame.src = served.url;
+          this.opts.onStateChange();
+        },
+        (err: unknown) => {
+          if (this.disposed || seq !== this.navigateSeq) return;
+          // The frame is left alone: it still shows the previous page, or nothing on a fresh or
+          // restored pane, where the overlay names the file and offers Retry.
+          if (previous !== null) {
+            this.requested = previous;
+            this.showPage(previous);
+          } else {
+            this.renderUnreachable(fileUrl, null);
+          }
+          this.toolbar.setMessage(String(err));
+        },
+      );
+  }
+
+  /**
+   * Serves `fileUrl` (the current file page, by default) again, which refreshes the trust badge
+   * after the frame moves to a sibling file or the trusted folders change; `reload` then reloads.
+   * `frameUrl` is the address the frame landed on. When the file is served from another listener
+   * than that address's (or than the pane's before, without one), the frame loads it there: a
+   * listener answers 404 for a file of the other trust (3.21 Requests).
+   */
+  private refreshFile(reload: boolean, fileUrl: string | null = this.url, frameUrl?: string): void {
+    const before = this.file;
+    if (!before || !fileUrl) return;
+    void browserApi.serveFile(this.paneId, fileUrl).then(
+      (served) => {
+        if (this.disposed || this.file !== before) return;
+        this.setFile(served);
+        const moved = frameUrl === undefined ? served.base !== before.base : !frameUrl.startsWith(served.base);
+        if (moved && frameUrl !== undefined) {
+          this.requested = fileUrl;
+          // The frame sits on the other listener's 404 for this file. A new entry would leave
+          // that 404 behind it, and Back onto it would serve this page forward again.
+          browserApi.replace(this.paneId, frameUrl, served.url).catch(() => {
+            this.frame.src = served.url;
+          });
+        } else if (moved) {
+          this.requested = fileUrl;
+          this.frame.src = served.url;
+        } else if (reload) {
+          this.reload(false);
+        }
+      },
+      (err: unknown) => console.warn('browser_serve_file failed', err),
+    );
+  }
+
+  private setFile(served: ServedFile): void {
+    this.file = served;
+    this.mounts = rememberMount(this.mounts, served);
+    this.toolbar.setTrust(served.trust);
+  }
+
+  /**
+   * Brings file mode in line with a document the frame committed at `url`, and returns the URL to
+   * show for it. Back or Forward onto an earlier file page re-enters file mode with its remembered
+   * mount, then serves the file again for a current trust badge and file watch.
+   */
+  private followFile(url: string): string {
+    const current = this.file && { base: this.file.base, fileUrl: this.url };
+    const step = filePageStep(url, current, this.mounts);
+    if (step.kind === 'leave') {
+      this.leaveFile();
+      return url;
+    }
+    if (step.reenter) this.setFile({ ...step.mount, url });
+    if (step.serve) this.refreshFile(false, step.fileUrl, url);
+    return step.fileUrl;
+  }
+
+  /** Drops the file page's chrome and watch once the frame shows something else; its mounts stay. */
+  private leaveFile(): void {
+    if (!this.file) return;
+    this.file = null;
+    this.pendingAllow = null;
+    void browserApi.unwatchFile(this.paneId).catch(() => {});
+    this.toolbar.setTrust(null);
+    this.clearEgress();
+    this.hideActionNotice();
+  }
+
+  /** A URL as the pane shows and stores it: a serving address becomes its file's `file:///` URL. */
+  private toShown(url: string): string {
+    return shownUrl(url, this.mounts);
+  }
+
+  private clearEgress(): void {
+    this.egress.clear();
+    this.egressBar.update([]);
+  }
+
+  /**
+   * Allow on the egress bar: adds `host` to the folder's allowed hosts, asking first on a Downloaded
+   * page or for a service on this machine. A Downloaded page's policy drops loopback hosts whatever
+   * the setting says (3.21), so its bar offers no Allow for one.
+   */
+  private async allowHost(host: string): Promise<void> {
+    const file = this.file;
+    if (!file) return;
+    const loopback = isLoopbackHost(host);
+    if (loopback && file.trust === 'downloaded') return;
+    if (loopback) {
+      const blocked = this.egress.hosts().find((h) => h.host === host);
+      const port = blockedPort(blocked ?? { host, count: 0, directive: '', url: '' });
+      const ok = await this.opts.confirm({
+        title: 'Allow a local service?',
+        body: [`${hostName(host)} is a service running on this computer, port ${port}. Let this page send requests to it and read its responses?`],
+        confirmLabel: 'Allow',
+      });
+      if (!ok || this.disposed || this.file !== file) return;
+    } else if (file.trust === 'downloaded') {
+      const ok = await this.opts.confirm({
+        title: 'Allow a host',
+        body: [`This file came from the internet. Let it send requests to ${host}?`],
+        confirmLabel: 'Allow',
+      });
+      if (!ok || this.disposed || this.file !== file) return;
+    }
+    this.egress.remove(host);
+    this.egressBar.update(this.egress.hosts(), file.trust);
+    const existing = this.settings.localBrowser.allowedHosts[file.folder] ?? [];
+    if (existing.includes(host)) {
+      this.reload(false);
+      return;
+    }
+    this.pendingAllow = { folder: file.folder, host };
+    // `settings_set` replaces the array, so the write carries the folder's hosts so far.
+    saveSetting(['localBrowser', 'allowedHosts', file.folder], [...existing, host]).catch((err: unknown) => {
+      this.pendingAllow = null;
+      this.showNotice(`Could not allow ${host}: ${String(err)}`);
+    });
+  }
+
+  private showActionNotice(text: string, label: string, action: () => void): void {
+    const message = document.createElement('span');
+    message.className = 'lb-action-text';
+    message.textContent = text;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'lb-btn';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      this.hideActionNotice();
+      action();
+    });
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'lb-icon-btn lb-action-dismiss';
+    dismiss.textContent = '×';
+    dismiss.title = 'Dismiss';
+    dismiss.setAttribute('aria-label', 'Dismiss');
+    dismiss.addEventListener('click', () => this.hideActionNotice());
+    this.actionNotice.replaceChildren(message, button, dismiss);
+    this.actionNotice.hidden = false;
+  }
+
+  private hideActionNotice(): void {
+    this.actionNotice.hidden = true;
+    this.actionNotice.replaceChildren();
+  }
+
   private history(delta: number): void {
     browserApi.history(this.paneId, delta).catch((err: unknown) => this.showNotice(`Could not go ${delta < 0 ? 'back' : 'forward'}: ${String(err)}`));
   }
@@ -468,6 +736,8 @@ export class LocalBrowserPane implements PaneView {
       this.navigate(home);
       return;
     }
+    this.leaveFile();
+    this.navigateSeq++;
     this.requested = null;
     this.errorPage.hidden = true;
     this.frame.src = 'about:blank';

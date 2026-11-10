@@ -18,6 +18,9 @@ mod chords;
 /// the channel.
 const MAX_TEXT: usize = 10 * 1024;
 
+/// Refused Downloaded-page navigations a frame remembers until their requests pause.
+const MAX_REFUSED: usize = 16;
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(
     tag = "kind",
@@ -42,6 +45,9 @@ pub enum BrowserEvent {
     Blocked {
         url: String,
         external: bool,
+        /// A Downloaded page asked for a loopback address outside its own scope.
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        downloaded: bool,
     },
     Console {
         level: String,
@@ -92,6 +98,14 @@ pub enum BrowserEvent {
     LoadState {
         loading: bool,
     },
+    /// The file a file page was served from changed on disk (docs/design/browser.md section 3.21).
+    FileChanged,
+    /// A file page's request that its CSP refused, from the page's CSP report.
+    EgressBlocked {
+        host: String,
+        directive: String,
+        url: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -123,6 +137,14 @@ struct Binding {
     has_page: bool,
     /// Back or Forward was asked for and has not committed yet.
     traversing: bool,
+    /// The document the frame last committed, the source of the navigations it asks for.
+    page_url: Option<String>,
+    /// Loopback addresses a Downloaded page asked for, already reported, for the Fetch path to
+    /// refuse. Several, since a page can ask again before the first request pauses.
+    refused: Vec<String>,
+    /// The address `browser_replace` sends the frame to: the core's own navigation, which the
+    /// frame reports as one it asked for.
+    replacing: Option<String>,
 }
 
 impl Binding {
@@ -138,6 +160,9 @@ impl Binding {
             nested,
             has_page: false,
             traversing: false,
+            page_url: None,
+            refused: Vec::new(),
+            replacing: None,
         }
     }
 }
@@ -158,6 +183,28 @@ impl Registry {
             .iter()
             .find(|(_, b)| b.pane_id == pane_id && !b.nested)
             .map(|(s, _)| s.clone())
+    }
+
+    /// The document the pane's own frame shows, for its Downloaded scope.
+    fn page_url(&self, pane_id: &str) -> Option<String> {
+        self.sessions
+            .values()
+            .find(|b| b.pane_id == pane_id && !b.nested)
+            .and_then(|b| b.page_url.clone())
+    }
+
+    /// True, and forgotten, when the pane's Downloaded page asked for `url` and was refused.
+    fn take_refused(&mut self, pane_id: &str, url: &str) -> bool {
+        self.sessions
+            .values_mut()
+            .filter(|b| b.pane_id == pane_id && !b.nested)
+            .any(|b| {
+                let at = b
+                    .refused
+                    .iter()
+                    .position(|u| without_fragment(u) == without_fragment(url));
+                at.map(|i| b.refused.remove(i)).is_some()
+            })
     }
 
     /// True, and forgotten, when the pane's frame already reported `url` as blocked, so the
@@ -202,7 +249,7 @@ impl BrowserState {
             .is_none_or(|c| c.contains(chord))
     }
 
-    fn emit(&self, pane_id: &str, event: BrowserEvent) {
+    pub(crate) fn emit(&self, pane_id: &str, event: BrowserEvent) {
         let channel = self.lock().channels.get(pane_id).cloned();
         if let Some(channel) = channel {
             let _ = channel.send(event);
@@ -288,6 +335,7 @@ enum Police {
     Block {
         url: String,
         external: bool,
+        downloaded: bool,
     },
     /// The frame committed the error page of a navigation policy refuses. `report` is the
     /// `Blocked` event to send, if it has not been sent; `back` returns the frame to its page.
@@ -302,7 +350,19 @@ enum Police {
 /// first, which is where a link or script navigation is reported. A server redirect, or Forward
 /// onto an entry such a navigation left, is known only by the error page it commits, whose
 /// `unreachableUrl` names the refused address. Either way the error page is undone by going back.
-fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&str>) -> Police {
+///
+/// `scope` is the Downloaded scope of the frame's current page, if it is one. The event reports
+/// only navigations the frame's own document asks for: the pane navigates by setting the
+/// iframe's `src` from the app's document, and Back and Forward are history traversals, neither
+/// of which reaches the frame's session as this event. `classify` allows the loopback address a
+/// Downloaded page asks for, so it is recorded for the Fetch path to refuse.
+fn police(
+    method: &str,
+    p: &Value,
+    binding: &mut Binding,
+    app_origin: Option<&str>,
+    scope: Option<&str>,
+) -> Police {
     let root = |frame_id: &Value| frame_id.as_str() == Some(binding.frame_id.as_str());
     match method {
         "Page.frameRequestedNavigation"
@@ -310,7 +370,26 @@ fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&st
         {
             binding.traversing = false;
             let url = str_of(&p["url"]);
-            match browser_policy::classify(&url, app_origin) {
+            let core_replace = binding.replacing.take().is_some_and(|to| to == url);
+            let class = browser_policy::classify(&url, app_origin);
+            if !core_replace
+                && scope.is_some_and(|s| browser_policy::leaves_downloaded_scope(&url, s))
+            {
+                if class == UrlClass::Allowed {
+                    if binding.refused.len() >= MAX_REFUSED {
+                        binding.refused.remove(0);
+                    }
+                    binding.refused.push(url.clone());
+                } else {
+                    binding.blocked = Some(url.clone());
+                }
+                return Police::Block {
+                    url,
+                    external: false,
+                    downloaded: true,
+                };
+            }
+            match class {
                 UrlClass::Allowed => {
                     binding.blocked = None;
                     Police::Pass
@@ -320,6 +399,7 @@ fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&st
                     Police::Block {
                         url,
                         external: class == UrlClass::External,
+                        downloaded: false,
                     }
                 }
             }
@@ -344,6 +424,7 @@ fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&st
                         let report = BrowserEvent::Blocked {
                             url: failed,
                             external: class == UrlClass::External && !traversing,
+                            downloaded: false,
                         };
                         // Back from a frame's first entry would leave the frame's own history.
                         return Police::Restore {
@@ -354,6 +435,9 @@ fn police(method: &str, p: &Value, binding: &mut Binding, app_origin: Option<&st
                 }
             } else if url != "about:blank" {
                 binding.has_page = true;
+            }
+            if !url.starts_with("chrome-error:") {
+                binding.page_url = Some(url);
             }
             binding.blocked = None;
             binding.restoring = false;
@@ -514,12 +598,15 @@ fn fetched_document(p: &Value) -> Vec<BrowserEvent> {
 
 /// The Console line for a frame inside the framed page that policy kept from loading; unlike the
 /// pane's own frame, it opens nothing in the system browser.
-fn nested_blocked(url: &str) -> BrowserEvent {
+fn nested_blocked(url: &str, downloaded: bool) -> BrowserEvent {
+    let why = if downloaded {
+        "Downloaded pages can't open local services."
+    } else {
+        "Local Browser loads only localhost and 127.0.0.1."
+    };
     BrowserEvent::Console {
         level: "warn".into(),
-        text: format!(
-            "Blocked a frame from loading {url}: Local Browser loads only localhost and 127.0.0.1."
-        ),
+        text: format!("Blocked a frame from loading {url}: {why}"),
         source: Some("local-browser".into()),
         url: None,
         line: None,
@@ -660,14 +747,22 @@ mod win {
 
     struct Ctx {
         state: BrowserState,
+        app: tauri::AppHandle,
         /// The app's own origin when served over loopback (debug builds), refused in frames.
         app_origin: Option<String>,
         /// The app's top-level frame id, which equals the page's target id.
         main_frame: std::cell::RefCell<Option<String>>,
     }
 
+    impl Ctx {
+        fn files(&self) -> tauri::State<'_, crate::browser_files::FileServerState> {
+            self.app.state()
+        }
+    }
+
     pub fn init(window: &tauri::WebviewWindow) {
         let state = window.state::<BrowserState>().inner().clone();
+        let app = window.app_handle().clone();
         #[cfg(debug_assertions)]
         let app_origin = window
             .config()
@@ -686,6 +781,7 @@ mod win {
                 &core,
                 Rc::new(Ctx {
                     state,
+                    app,
                     app_origin,
                     main_frame: Default::default(),
                 }),
@@ -938,7 +1034,20 @@ mod win {
             }
         }
         if !response_stage {
-            if class == UrlClass::Allowed {
+            // A frame inside a Downloaded page is the page's own doing, so only the pane's frame
+            // needs the record of what its page asked for.
+            let downloaded = class == UrlClass::Allowed && {
+                let mut reg = ctx.state.lock();
+                if nested {
+                    let page = reg.page_url(&pane_id);
+                    drop(reg);
+                    page.and_then(|p| ctx.files().downloaded_scope(&p))
+                        .is_some_and(|s| browser_policy::leaves_downloaded_scope(&url, &s))
+                } else {
+                    reg.take_refused(&pane_id, &url)
+                }
+            };
+            if class == UrlClass::Allowed && !downloaded {
                 return continue_request(core, session, id);
             }
             // Aborted cancels the navigation and keeps the current page; BlockedByClient would
@@ -950,9 +1059,9 @@ mod win {
                 serde_json::json!({ "requestId": id, "errorReason": "Aborted" }),
             );
             if nested {
-                return ctx.state.emit(&pane_id, nested_blocked(&url));
+                return ctx.state.emit(&pane_id, nested_blocked(&url, downloaded));
             }
-            if ctx.state.lock().take_blocked(&pane_id, &url) {
+            if downloaded || ctx.state.lock().take_blocked(&pane_id, &url) {
                 return;
             }
             return ctx.state.emit(
@@ -960,6 +1069,7 @@ mod win {
                 BrowserEvent::Blocked {
                     url,
                     external: class == UrlClass::External,
+                    downloaded: false,
                 },
             );
         }
@@ -1034,12 +1144,26 @@ mod win {
         if session.is_empty() {
             return;
         }
+        // Looked up outside the registry lock: the file server takes its own.
+        let page = (method == "Page.frameRequestedNavigation")
+            .then(|| {
+                let reg = ctx.state.lock();
+                reg.sessions.get(session).and_then(|b| b.page_url.clone())
+            })
+            .flatten();
+        let scope = page.and_then(|u| ctx.files().downloaded_scope(&u));
         let (pane_id, events, restore_cache, step, quiet_title) = {
             let mut reg = ctx.state.lock();
             let Some(binding) = reg.sessions.get_mut(session).filter(|b| !b.nested) else {
                 return;
             };
-            let step = police(method, p, binding, ctx.app_origin.as_deref());
+            let step = police(
+                method,
+                p,
+                binding,
+                ctx.app_origin.as_deref(),
+                scope.as_deref(),
+            );
             let events = if matches!(step, Police::Restore { .. }) {
                 Vec::new()
             } else {
@@ -1060,9 +1184,18 @@ mod win {
         };
         match step {
             Police::Pass => {}
-            Police::Block { url, external } => ctx
-                .state
-                .emit(&pane_id, BrowserEvent::Blocked { url, external }),
+            Police::Block {
+                url,
+                external,
+                downloaded,
+            } => ctx.state.emit(
+                &pane_id,
+                BrowserEvent::Blocked {
+                    url,
+                    external,
+                    downloaded,
+                },
+            ),
             Police::Restore { report, back } => {
                 if let Some(event) = report {
                     ctx.state.emit(&pane_id, event);
@@ -1202,7 +1335,12 @@ pub fn browser_attach(
 }
 
 #[tauri::command]
-pub fn browser_detach(state: tauri::State<'_, BrowserState>, pane_id: String) {
+pub fn browser_detach(
+    state: tauri::State<'_, BrowserState>,
+    files: tauri::State<'_, crate::browser_files::FileServerState>,
+    pane_id: String,
+) {
+    files.detach(&pane_id);
     let mut reg = state.lock();
     reg.channels.remove(&pane_id);
     if reg.focused.as_deref() == Some(pane_id.as_str()) {
@@ -1244,6 +1382,42 @@ pub fn browser_history(
     #[cfg(not(windows))]
     {
         let _ = (window, state, pane_id, delta);
+        Err(NOT_WINDOWS.into())
+    }
+}
+
+/// The script that swaps the frame's current history entry for `to`, only while the frame still
+/// shows `from`: a navigation the user made meanwhile is left alone. A one-shot evaluation that
+/// defines nothing, so the page gains no channel to the app (docs/design/security.md 9.1).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn replace_expression(from: &str, to: &str) -> String {
+    let from = Value::from(without_fragment(from)).to_string();
+    let to = Value::from(to).to_string();
+    format!("if (location.href.split('#')[0] === {from}) location.replace({to})")
+}
+
+/// Moves the frame from the serving address it landed on to the same file on another listener,
+/// replacing the entry: the shared listener's 404 for a Downloaded page would otherwise sit in
+/// history behind it, and Back onto it would serve the page forward again (3.21 Requests).
+#[tauri::command]
+pub fn browser_replace(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, BrowserState>,
+    pane_id: String,
+    from: String,
+    to: String,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let session = session_for(&state, &pane_id)?;
+        if let Some(b) = state.lock().sessions.get_mut(&session) {
+            b.replacing = Some(to.clone());
+        }
+        win::evaluate(&window, session, replace_expression(&from, &to))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, state, pane_id, from, to);
         Err(NOT_WINDOWS.into())
     }
 }
@@ -1389,15 +1563,25 @@ mod tests {
         let ext = "https://example.com/#x";
         let req = "Page.frameRequestedNavigation";
         assert_eq!(
-            police(req, &ask("http://127.0.0.1:5199/p2", "F"), &mut b, None),
+            police(
+                req,
+                &ask("http://127.0.0.1:5199/p2", "F"),
+                &mut b,
+                None,
+                None
+            ),
             Police::Pass
         );
-        assert_eq!(police(req, &ask(ext, "NESTED"), &mut b, None), Police::Pass);
         assert_eq!(
-            police(req, &ask(ext, "F"), &mut b, None),
+            police(req, &ask(ext, "NESTED"), &mut b, None, None),
+            Police::Pass
+        );
+        assert_eq!(
+            police(req, &ask(ext, "F"), &mut b, None, None),
             Police::Block {
                 url: ext.into(),
-                external: true
+                external: true,
+                downloaded: false
             }
         );
         let mut reg = Registry::default();
@@ -1408,7 +1592,7 @@ mod tests {
 
         let error = nav("chrome-error://chromewebdata/");
         assert_eq!(
-            police("Page.frameNavigated", &error, &mut b, None),
+            police("Page.frameNavigated", &error, &mut b, None, None),
             Police::Restore {
                 report: None,
                 back: true
@@ -1417,22 +1601,179 @@ mod tests {
         assert!(b.restoring && b.blocked.is_none());
         let back = nav("http://127.0.0.1:5199/p1");
         assert_eq!(
-            police("Page.frameNavigated", &back, &mut b, None),
+            police("Page.frameNavigated", &back, &mut b, None, None),
             Police::Pass
         );
         assert!(!b.restoring);
         // An unreachable server's error page is not a blocked navigation.
         assert_eq!(
-            police("Page.frameNavigated", &error, &mut b, None),
+            police("Page.frameNavigated", &error, &mut b, None, None),
             Police::Pass
         );
         assert_eq!(
-            police(req, &ask("http://tauri.localhost/", "F"), &mut b, None),
+            police(
+                req,
+                &ask("http://tauri.localhost/", "F"),
+                &mut b,
+                None,
+                None
+            ),
             Police::Block {
                 url: "http://tauri.localhost/".into(),
-                external: false
+                external: false,
+                downloaded: false
             }
         );
+    }
+
+    #[test]
+    fn a_downloaded_page_never_navigates_to_a_local_service() {
+        let mut b = binding();
+        let page = "http://127.0.0.1:5200/abc/index.html";
+        let scope = Some("http://127.0.0.1:5200/abc/");
+        let ask = |url: &str, reason: &str| json!({ "frameId": "F", "url": url, "disposition": "currentTab", "reason": reason });
+        let req = "Page.frameRequestedNavigation";
+        police(
+            "Page.frameNavigated",
+            &json!({ "frame": { "id": "F", "url": page } }),
+            &mut b,
+            None,
+            None,
+        );
+        assert_eq!(b.page_url.as_deref(), Some(page));
+        let refused = |url: &str| Police::Block {
+            url: url.into(),
+            external: false,
+            downloaded: true,
+        };
+        for (url, reason) in [
+            ("http://127.0.0.1:8000/", "anchorClick"),
+            ("http://localhost:3000/x#y", "scriptInitiated"),
+            ("http://127.0.0.1:5200/def/a.html", "metaTagRefresh"),
+        ] {
+            assert_eq!(
+                police(req, &ask(url, reason), &mut b, None, scope),
+                refused(url)
+            );
+        }
+        // Already refused addresses outside `classify`'s loopback forms take the error-page path.
+        assert_eq!(
+            police(
+                req,
+                &ask("http://[::1]:3000/", "anchorClick"),
+                &mut b,
+                None,
+                scope
+            ),
+            refused("http://[::1]:3000/")
+        );
+        assert_eq!(b.blocked.as_deref(), Some("http://[::1]:3000/"));
+        // Its own marked siblings and outside sites go as before.
+        assert_eq!(
+            police(
+                req,
+                &ask("http://127.0.0.1:5200/abc/b.html", "anchorClick"),
+                &mut b,
+                None,
+                scope
+            ),
+            Police::Pass
+        );
+        assert_eq!(
+            police(
+                req,
+                &ask("https://example.com/", "anchorClick"),
+                &mut b,
+                None,
+                scope
+            ),
+            Police::Block {
+                url: "https://example.com/".into(),
+                external: true,
+                downloaded: false
+            }
+        );
+        // Another page's loopback navigations are untouched.
+        assert_eq!(
+            police(
+                req,
+                &ask("http://127.0.0.1:8000/", "anchorClick"),
+                &mut b,
+                None,
+                None
+            ),
+            Police::Pass
+        );
+        // The core's own replace is not the page's.
+        b.replacing = Some("http://127.0.0.1:5201/abc/index.html".into());
+        assert_eq!(
+            police(
+                req,
+                &ask("http://127.0.0.1:5201/abc/index.html", "scriptInitiated"),
+                &mut b,
+                None,
+                scope
+            ),
+            Police::Pass
+        );
+        assert!(b.replacing.is_none());
+
+        let mut reg = Registry::default();
+        reg.sessions.insert("S".into(), b.clone());
+        reg.sessions
+            .insert("N".into(), Binding::new("p1".into(), "G".into(), true));
+        assert_eq!(reg.page_url("p1").as_deref(), Some(page));
+        assert!(!reg.take_refused("p2", "http://127.0.0.1:8000/"));
+        assert!(reg.take_refused("p1", "http://localhost:3000/x"));
+        assert!(!reg.take_refused("p1", "http://localhost:3000/x"));
+        assert!(reg.take_refused("p1", "http://127.0.0.1:8000/"));
+        assert!(!reg.take_refused("p1", "http://127.0.0.1:5200/abc/b.html"));
+
+        // The record is bounded.
+        for i in 0..40 {
+            police(
+                req,
+                &ask(
+                    &format!("http://127.0.0.1:{}/", 9000 + i),
+                    "scriptInitiated",
+                ),
+                &mut b,
+                None,
+                scope,
+            );
+        }
+        assert_eq!(b.refused.len(), MAX_REFUSED);
+        assert_eq!(
+            b.refused.last().map(String::as_str),
+            Some("http://127.0.0.1:9039/")
+        );
+    }
+
+    #[test]
+    fn blocked_events_name_a_downloaded_refusal_only_when_true() {
+        let e = BrowserEvent::Blocked {
+            url: "u".into(),
+            external: false,
+            downloaded: true,
+        };
+        assert_eq!(
+            serde_json::to_value(&e).unwrap(),
+            json!({ "kind": "blocked", "url": "u", "external": false, "downloaded": true })
+        );
+        let e = BrowserEvent::Blocked {
+            url: "u".into(),
+            external: true,
+            downloaded: false,
+        };
+        assert_eq!(
+            serde_json::to_value(&e).unwrap(),
+            json!({ "kind": "blocked", "url": "u", "external": true })
+        );
+        let BrowserEvent::Console { text, .. } = nested_blocked("http://127.0.0.1:8000/", true)
+        else {
+            panic!("not a console line");
+        };
+        assert!(text.contains("Downloaded pages can't open local services."));
     }
 
     #[test]
@@ -1443,23 +1784,31 @@ mod tests {
         let fwd = "Page.frameNavigated";
         // A redirect to an outside address on the frame's first page: reported, but no going back.
         assert_eq!(
-            police(fwd, &error("https://example.com/"), &mut b, None),
+            police(fwd, &error("https://example.com/"), &mut b, None, None),
             Police::Restore {
                 report: Some(BrowserEvent::Blocked {
                     url: "https://example.com/".into(),
-                    external: true
+                    external: true,
+                    downloaded: false
                 }),
                 back: false
             }
         );
-        police(fwd, &nav("http://127.0.0.1:5199/p1"), &mut b, None);
+        police(fwd, &nav("http://127.0.0.1:5199/p1"), &mut b, None, None);
         assert!(b.has_page && !b.restoring);
         assert_eq!(
-            police(fwd, &error("http://foo.localhost:5199/"), &mut b, None),
+            police(
+                fwd,
+                &error("http://foo.localhost:5199/"),
+                &mut b,
+                None,
+                None
+            ),
             Police::Restore {
                 report: Some(BrowserEvent::Blocked {
                     url: "http://foo.localhost:5199/".into(),
-                    external: false
+                    external: false,
+                    downloaded: false
                 }),
                 back: true
             }
@@ -1467,11 +1816,12 @@ mod tests {
         // Forward onto a blocked entry says so but opens nothing.
         b.traversing = true;
         assert_eq!(
-            police(fwd, &error("https://example.com/"), &mut b, None),
+            police(fwd, &error("https://example.com/"), &mut b, None, None),
             Police::Restore {
                 report: Some(BrowserEvent::Blocked {
                     url: "https://example.com/".into(),
-                    external: false
+                    external: false,
+                    downloaded: false
                 }),
                 back: true
             }
@@ -1479,7 +1829,7 @@ mod tests {
         assert!(!b.traversing);
         // A dead loopback port is not blocked.
         assert_eq!(
-            police(fwd, &error("http://127.0.0.1:5197/"), &mut b, None),
+            police(fwd, &error("http://127.0.0.1:5197/"), &mut b, None, None),
             Police::Pass
         );
     }
@@ -1608,12 +1958,24 @@ mod tests {
         assert_eq!(reg.session_for_pane("p1"), None);
         reg.sessions.insert("S".into(), binding());
         assert_eq!(reg.session_for_pane("p1").as_deref(), Some("S"));
-        let BrowserEvent::Console { level, text, .. } = nested_blocked("https://example.com/")
+        let BrowserEvent::Console { level, text, .. } =
+            nested_blocked("https://example.com/", false)
         else {
             panic!()
         };
         assert_eq!(level, "warn");
         assert!(text.contains("https://example.com/"));
+    }
+
+    #[test]
+    fn replace_expression_quotes_both_urls_and_guards_on_the_current_page() {
+        assert_eq!(
+            replace_expression("http://127.0.0.1:5/t/a\"b.html#x", "http://127.0.0.1:6/u/a'b.html"),
+            concat!(
+                r#"if (location.href.split('#')[0] === "http://127.0.0.1:5/t/a\"b.html") "#,
+                r#"location.replace("http://127.0.0.1:6/u/a'b.html")"#,
+            )
+        );
     }
 
     #[test]

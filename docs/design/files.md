@@ -214,6 +214,9 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
   split of the Files pane.
 - Search in this folder (folders only): as the title strip button below.
 - Open in editor.
+- Open in Local Browser (a single selected `.html` or `.htm` file, Windows only): a Local Browser
+  pane (4.21) on the file's `file:///` URL, beside the Files pane. A path off a local drive (a
+  network share) shows a toast instead.
 - Copy path.
 - Insert path: pastes the path, relative to the Files pane's root and quoted for the shell of
   the tab's most recently focused terminal (`pathInsertText`, 4.4), as a bracketed paste without

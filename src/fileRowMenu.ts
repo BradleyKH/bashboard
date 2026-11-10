@@ -1,4 +1,5 @@
 import { item, separator, submenu, type MenuEntry } from './contextMenuModel';
+import { isHtmlFile } from './browserPaneModel';
 import type { FileEntry } from './filesModel';
 
 export interface MoveTarget {
@@ -11,6 +12,8 @@ export interface FileRowMenuHandlers {
   openTerminalHere: (entry: FileEntry) => void;
   searchHere: (entry: FileEntry) => void;
   openInEditor: (entry: FileEntry) => void;
+  /** Absent where the Local Browser is unavailable; the item is then left out. */
+  openInLocalBrowser?: (entry: FileEntry) => void;
   copyPath: (entries: FileEntry[]) => void;
   insertPath: (entries: FileEntry[]) => void;
   /** `toDir` is the chosen target's absolute folder; `files` are never folders. */
@@ -42,7 +45,12 @@ export function fileRowMenuItems(
         item('Search in this folder', () => handlers.searchHere(entry)),
       );
     }
-    out.push(item('Open in editor', () => handlers.openInEditor(entry)), separator());
+    out.push(item('Open in editor', () => handlers.openInEditor(entry)));
+    const openLocal = handlers.openInLocalBrowser;
+    if (openLocal && !entry.isDir && isHtmlFile(entry.name)) {
+      out.push(item('Open in Local Browser', () => openLocal(entry)));
+    }
+    out.push(separator());
   }
   out.push(
     item(many ? 'Copy paths' : 'Copy path', () => handlers.copyPath(entries)),

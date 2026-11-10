@@ -5,6 +5,10 @@ export function setHomeDir(dir: string | null): void {
   home = dir;
 }
 
+export function getHomeDir(): string | null {
+  return home;
+}
+
 /** `path` with a leading home folder shown as `~`, compared without regard to case or slash style. */
 export function displayPath(path: string, homeDir: string | null = home): string {
   if (!homeDir) return path;

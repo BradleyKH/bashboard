@@ -30,6 +30,7 @@ function rowHandlers(): FileRowMenuHandlers {
     openTerminalHere: vi.fn(),
     searchHere: vi.fn(),
     openInEditor: vi.fn(),
+    openInLocalBrowser: vi.fn(),
     copyPath: vi.fn(),
     insertPath: vi.fn(),
     moveTo: vi.fn(),
@@ -93,6 +94,44 @@ describe('fileRowMenuItems', () => {
     expect(h.copyPath).toHaveBeenCalledWith([dir]);
     expect(h.insertPath).toHaveBeenCalledWith([dir]);
     expect(h.pin).toHaveBeenCalledWith(dir);
+  });
+});
+
+describe('fileRowMenuItems Open in Local Browser', () => {
+  const html = (name: string): FileEntry => ({ name, isDir: false, size: 1, modified: 0 });
+
+  it('sits after Open in editor for a single .html or .htm file, in any case', () => {
+    for (const name of ['index.html', 'page.HTM', 'a.Html']) {
+      const e = html(name);
+      const ls = labels(fileRowMenuItems(e, [e], [], rowHandlers()));
+      expect(ls.slice(0, 3)).toEqual(['Open in editor', 'Open in Local Browser', '-']);
+    }
+  });
+
+  it('passes the entry to the handler', () => {
+    const h = rowHandlers();
+    const e = html('index.html');
+    find(fileRowMenuItems(e, [e], [], h), 'Open in Local Browser').run();
+    expect(h.openInLocalBrowser).toHaveBeenCalledWith(e);
+  });
+
+  it('is left out for other files and folders', () => {
+    const folder: FileEntry = { ...dir, name: 'site.html' };
+    for (const e of [file, html('notes.html.txt'), html('html'), folder]) {
+      expect(labels(fileRowMenuItems(e, [e], [], rowHandlers()))).not.toContain('Open in Local Browser');
+    }
+  });
+
+  it('is left out for several selected files', () => {
+    const a = html('a.html');
+    const b = html('b.html');
+    expect(labels(fileRowMenuItems(a, [a, b], [], rowHandlers()))).not.toContain('Open in Local Browser');
+  });
+
+  it('is left out when the handler is absent', () => {
+    const e = html('index.html');
+    const { openInLocalBrowser: _omit, ...rest } = rowHandlers();
+    expect(labels(fileRowMenuItems(e, [e], [], rest))).not.toContain('Open in Local Browser');
   });
 });
 

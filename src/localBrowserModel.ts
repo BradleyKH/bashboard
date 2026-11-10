@@ -1,6 +1,8 @@
 // URL entry, suggestions, bookmarks, and recent URLs for the Local Browser pane (docs/design/browser.md
 // section 4.21). Pure, no DOM. The loopback rule matches the Rust browser policy: http or https,
-// hosts `localhost` and `127.0.0.1`, any port, no credentials.
+// hosts `localhost` and `127.0.0.1`, any port, no credentials. A local `.html` or `.htm` file is the
+// other accepted input; the core serves it over loopback (3.21), so the pane keeps the `file:///` URL
+// only as the page's identity and shows its path.
 import type { Listener } from './ports';
 import { localUrl, processLabel } from './portsModel';
 
@@ -9,10 +11,112 @@ export interface Bookmark {
   url: string;
 }
 
-export type NormalizeResult = { ok: true; url: string } | { ok: false; reason: string };
+/**
+ * A loopback result has `file: false`. A file result carries the canonical `file:///C:/...` URL in
+ * `url` and the Windows path to show in the address field in `path`.
+ */
+export type NormalizeResult =
+  | { ok: true; url: string; file: false }
+  | { ok: true; url: string; file: true; path: string }
+  | { ok: false; reason: string };
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
-const LOOPBACK_ONLY = 'Local Browser only opens localhost and 127.0.0.1.';
+const LOOPBACK_ONLY = 'Only loopback addresses and local HTML files open.';
+const NOT_HTML = 'Only .html and .htm files open.';
+const RELATIVE_PATH = 'Enter the full path of the file; relative paths cannot open because the pane has no working folder.';
+const NETWORK_PATH = 'Network paths cannot open; copy the file to a local drive.';
+const HTML_NAME = /\.html?$/i;
+
+/** Drive-letter paths with either slash, e.g. `C:\notes\a.html` or `C:/notes/a.html`. */
+const DRIVE_PATH = /^[a-zA-Z]:([\\/]|$)/;
+/** Git Bash drive form, `/c/notes/a.html`. */
+const GIT_BASH_PATH = /^\/([a-zA-Z])(\/.*)?$/;
+const HOME_PATH = /^~([\\/]|$)/;
+// Characters Windows forbids in a file name. `:` is checked per segment, so it is allowed only as
+// the drive's, which also keeps out NTFS alternate data streams.
+// eslint-disable-next-line no-control-regex
+const BAD_PATH_CHARS = /[<>"|?*\u0000-\u001f]/;
+
+/**
+ * Cleans a drive path into canonical segments: both slashes accepted, `.` and empty segments
+ * dropped, `..` resolved (never above the drive). Returns the upper-case drive letter and the
+ * segments, or null for anything that is not a plain drive path.
+ */
+function splitDrivePath(path: string): { drive: string; segments: string[] } | null {
+  if (!DRIVE_PATH.test(path) || BAD_PATH_CHARS.test(path)) return null;
+  const segments: string[] = [];
+  for (const part of path.slice(2).split(/[\\/]/)) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') segments.pop();
+    else if (part.includes(':')) return null;
+    else segments.push(part);
+  }
+  return { drive: path[0].toUpperCase(), segments };
+}
+
+function fileUrlOf(p: { drive: string; segments: string[] }): string {
+  return `file:///${p.drive}:/${p.segments.map(encodeURIComponent).join('/')}`;
+}
+
+/** `C:\notes\a b.html` to `file:///C:/notes/a%20b.html`; null when `path` is not a drive path. */
+export function pathToFileUrl(path: string): string | null {
+  const p = splitDrivePath(path);
+  return p ? fileUrlOf(p) : null;
+}
+
+/**
+ * `file:///C:/notes/a%20b.html` to `C:\notes\a b.html`. Null for anything else, including a
+ * network share (`file://server/share/...`), which the core refuses.
+ */
+export function fileUrlToPath(url: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'file:' || (u.hostname !== '' && u.hostname !== 'localhost')) return null;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(u.pathname);
+  } catch {
+    return null;
+  }
+  const p = /^\/[a-zA-Z]:(\/|$)/.test(decoded) ? splitDrivePath(decoded.slice(1)) : null;
+  return p ? `${p.drive}:\\${p.segments.join('\\')}` : null;
+}
+
+/** Whether the input is shaped like a file path or file URL, rather than a host or port. */
+function looksLikeFile(t: string): boolean {
+  return /^file:/i.test(t) || DRIVE_PATH.test(t) || t.startsWith('/') || HOME_PATH.test(t) || /^\.{1,2}[\\/]/.test(t) || t.includes('\\');
+}
+
+function normalizeFileInput(t: string, home: string | null): NormalizeResult {
+  const invalid = `"${t}" is not a valid file path. ${LOOPBACK_ONLY}`;
+  let path: string;
+  if (/^file:/i.test(t)) {
+    if (/^file:\/\/(?!\/|localhost\/)/i.test(t)) return { ok: false, reason: NETWORK_PATH };
+    const fromUrl = fileUrlToPath(t);
+    if (fromUrl === null) return { ok: false, reason: invalid };
+    path = fromUrl;
+  } else if (t.startsWith('\\\\')) {
+    return { ok: false, reason: NETWORK_PATH };
+  } else if (HOME_PATH.test(t)) {
+    const base = home ? splitDrivePath(home) : null;
+    if (!base) return { ok: false, reason: 'The home folder is unknown; enter the full path of the file.' };
+    path = `${base.drive}:/${[...base.segments, t.slice(2)].join('/')}`;
+  } else if (DRIVE_PATH.test(t)) {
+    path = t;
+  } else {
+    const git = GIT_BASH_PATH.exec(t);
+    if (!git) return { ok: false, reason: t.startsWith('/') ? invalid : RELATIVE_PATH };
+    path = `${git[1]}:${git[2] ?? '/'}`;
+  }
+  const p = splitDrivePath(path);
+  if (!p) return { ok: false, reason: invalid };
+  if (!HTML_NAME.test(p.segments[p.segments.length - 1] ?? '')) return { ok: false, reason: NOT_HTML };
+  return { ok: true, file: true, url: fileUrlOf(p), path: `${p.drive}:\\${p.segments.join('\\')}` };
+}
 
 function effectivePort(u: URL): string {
   return u.port || (u.protocol === 'https:' ? '443' : '80');
@@ -49,11 +153,16 @@ export function isLoopbackUrl(url: string): boolean {
 
 /**
  * Turns what was typed into a loopback URL: `5173` and `:5173` mean `http://localhost:5173/`, and a
- * missing scheme means http. Anything else, including the app's own origin, is refused with a reason.
+ * missing scheme means http. A path to an `.html` or `.htm` file (Windows, Git Bash, `~/` against
+ * `home`, or a `file:///` URL) becomes a file result. Anything else, including the app's own origin,
+ * is refused with a reason.
  */
-export function normalizeInput(text: string, appOrigin: string | null): NormalizeResult {
-  const t = text.trim();
-  if (t === '') return { ok: false, reason: 'Enter a localhost address or port.' };
+export function normalizeInput(text: string, appOrigin: string | null, home: string | null = null): NormalizeResult {
+  // A path copied with Explorer's "Copy as path" arrives in quotes.
+  const t = text.trim().replace(/^"(.*)"$/, '$1').trim();
+  if (t === '') return { ok: false, reason: 'Enter a localhost address, port, or HTML file.' };
+  // Before the spaces rule, since a file path may contain spaces.
+  if (looksLikeFile(t)) return normalizeFileInput(t, home);
   if (/\s/.test(t)) return { ok: false, reason: 'A URL cannot contain spaces.' };
 
   let candidate = t;
@@ -74,11 +183,15 @@ export function normalizeInput(text: string, appOrigin: string | null): Normaliz
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return { ok: false, reason: LOOPBACK_ONLY };
   if (u.username !== '' || u.password !== '') return { ok: false, reason: 'Addresses with a username or password are not allowed.' };
-  if (!LOOPBACK_HOSTS.has(u.hostname)) return { ok: false, reason: LOOPBACK_ONLY };
+  if (!LOOPBACK_HOSTS.has(u.hostname)) {
+    // `notes/a.html` parses as a host, but the user meant a relative file path.
+    if (candidate !== t && (HTML_NAME.test(u.pathname) || HTML_NAME.test(u.hostname))) return { ok: false, reason: RELATIVE_PATH };
+    return { ok: false, reason: LOOPBACK_ONLY };
+  }
   if (isAppOrigin(u.href, appOrigin)) {
     return { ok: false, reason: 'That is Bashboard itself, which cannot be opened in a pane.' };
   }
-  return { ok: true, url: u.href };
+  return { ok: true, url: u.href, file: false };
 }
 
 /** Compares URLs ignoring a bare trailing slash and letter case in the scheme and host. */
@@ -102,10 +215,11 @@ export function toggleBookmark(bookmarks: readonly Bookmark[], url: string, titl
   return [...bookmarks, { name: title.trim() || hostLabel(url), url }];
 }
 
-/** "localhost:5173/path" for a URL, without the scheme. */
+/** "localhost:5173/path" for a URL, without the scheme; the file name for a `file:///` URL. */
 export function hostLabel(url: string): string {
   try {
     const u = new URL(url);
+    if (u.protocol === 'file:') return decodeURIComponent(u.pathname).split('/').pop() || url;
     const path = u.pathname === '/' && u.search === '' && u.hash === '' ? '' : u.pathname + u.search + u.hash;
     return u.host + path;
   } catch {

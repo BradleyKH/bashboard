@@ -24,6 +24,11 @@ export function history(paneId: string, delta: number): Promise<void> {
   return invoke('browser_history', { paneId, delta });
 }
 
+/** Moves the frame from `from` to `to` in place of its current history entry, if it still shows `from`. */
+export function replace(paneId: string, from: string, to: string): Promise<void> {
+  return invoke('browser_replace', { paneId, from, to });
+}
+
 export function reload(paneId: string, ignoreCache: boolean): Promise<void> {
   return invoke('browser_reload', { paneId, ignoreCache });
 }
@@ -50,4 +55,29 @@ export function setFocus(paneId: string | null): Promise<void> {
 /** The `keys` of every keybinding the keymap accepted; the core claims only these from a page. */
 export function chords(keys: string[]): Promise<void> {
   return invoke('browser_chords', { keys });
+}
+
+/** How a served file page is trusted (docs/design/browser.md section 3.21). */
+export type FileTrust = 'trusted' | 'local' | 'downloaded';
+
+export interface ServedFile {
+  /** The loopback address the frame loads. */
+  url: string;
+  /** The mount's serving address up to its root. */
+  base: string;
+  /** The mount's folder on disk; allowed hosts are kept per folder. */
+  folder: string;
+  trust: FileTrust;
+  /** The file's path on disk, which the address field shows. */
+  path: string;
+}
+
+/** Serves the local HTML file at `fileUrl` (a `file:///` URL) to this pane over loopback. */
+export function serveFile(paneId: string, fileUrl: string): Promise<ServedFile> {
+  return invoke<ServedFile>('browser_serve_file', { paneId, fileUrl });
+}
+
+/** Stops watching this pane's file once it shows something else; its tokens stay live until it closes. */
+export function unwatchFile(paneId: string): Promise<void> {
+  return invoke('browser_unwatch_file', { paneId });
 }

@@ -1,7 +1,9 @@
+import type { FileTrust } from './browserApi';
 import { deviceLabel, devicePreset, type DeviceState } from './browserPaneModel';
 import { openContextMenu } from './contextMenu';
 import { item, separator, type MenuEntry } from './contextMenuModel';
 import { DEVICE_PRESETS } from './devicePresets';
+import { getHomeDir } from './displayPath';
 import {
   hostLabel,
   normalizeInput,
@@ -31,6 +33,16 @@ export interface BrowserToolbarOptions {
   onToggleDevtools: () => void;
 }
 
+const TRUST_LABEL: Record<FileTrust, string> = { trusted: 'Trusted', local: 'Local', downloaded: 'Downloaded' };
+// One sentence per level, matching the trust table in docs/design/browser.md section 3.21.
+const TRUST_TIP: Record<FileTrust, string> = {
+  trusted: 'Trusted: this file is in a trusted folder, so it can reach any host.',
+  local:
+    'Local: this file can load from its own folder and common CDNs only; other hosts are refused until you allow them.',
+  downloaded:
+    'Downloaded: Windows marked this file as from the internet, so it can reach only its own folder and common CDNs, and allowing a host asks first.',
+};
+
 /** The Local Browser's chrome: navigation buttons, the URL field with suggestions, bookmarks, device size, DevTools. */
 export class BrowserToolbar {
   readonly element: HTMLElement;
@@ -45,8 +57,12 @@ export class BrowserToolbar {
   private readonly deviceBtn: HTMLButtonElement;
   private readonly devtoolsBtn: HTMLButtonElement;
   private readonly badge: HTMLElement;
-  /** The page's URL, which the field shows whenever the user is not editing it. */
-  private url: string | null = null;
+  private readonly trustBadge: HTMLElement;
+  /**
+   * What the field shows whenever the user is not editing it: a file page's path, else the URL. The
+   * suggestions treat it as the unedited value.
+   */
+  private shownText = '';
   private shown: Suggestion[] = [];
   private highlighted = -1;
   private messageTimer = 0;
@@ -79,7 +95,10 @@ export class BrowserToolbar {
     this.message = document.createElement('div');
     this.message.className = 'lb-url-message';
     this.message.hidden = true;
-    field.append(this.input, this.star, this.suggestBox, this.message);
+    this.trustBadge = document.createElement('span');
+    this.trustBadge.className = 'lb-trust';
+    this.trustBadge.hidden = true;
+    field.append(this.trustBadge, this.input, this.star, this.suggestBox, this.message);
 
     const bookmarksBtn = this.textButton('Bookmarks ▾', 'Open a bookmark', (b) => this.openBookmarks(b));
     this.deviceBtn = this.textButton('', 'Device size', (b) => this.openDevices(b));
@@ -101,7 +120,7 @@ export class BrowserToolbar {
     });
     this.input.addEventListener('blur', () => {
       this.hideSuggestions();
-      this.input.value = this.url ?? '';
+      this.input.value = this.shownText;
     });
     this.input.addEventListener('keydown', (e) => this.onKeyDown(e));
     // Keeps the field focused through a click on a suggestion, so blur does not hide it first.
@@ -111,10 +130,14 @@ export class BrowserToolbar {
     this.setDevice(opts.device());
   }
 
-  /** The page shown, or null on the start page; the field follows unless it is being edited. */
-  setPage(url: string | null): void {
-    this.url = url;
-    if (document.activeElement !== this.input) this.input.value = url ?? '';
+  /**
+   * The page shown, or null on the start page; the field follows unless it is being edited.
+   * `display` is what the field shows in place of `url`, as a file page's path in place of its
+   * loopback serving address.
+   */
+  setPage(url: string | null, display?: string): void {
+    this.shownText = display ?? url ?? '';
+    if (document.activeElement !== this.input) this.input.value = this.shownText;
     const hasPage = url !== null;
     this.back.disabled = !hasPage;
     this.forward.disabled = !hasPage;
@@ -130,6 +153,14 @@ export class BrowserToolbar {
     this.star.textContent = bookmarked ? '★' : '☆';
     this.star.classList.toggle('active', bookmarked);
     this.star.title = bookmarked ? 'Remove this bookmark' : 'Bookmark this page';
+  }
+
+  /** The trust level of the file page shown; null for a loopback page, which has none. */
+  setTrust(trust: FileTrust | null): void {
+    this.trustBadge.hidden = trust === null;
+    this.trustBadge.dataset.trust = trust ?? '';
+    this.trustBadge.textContent = trust === null ? '' : TRUST_LABEL[trust];
+    this.trustBadge.title = trust === null ? '' : TRUST_TIP[trust];
   }
 
   setErrorCount(n: number): void {
@@ -180,7 +211,7 @@ export class BrowserToolbar {
     } else if (e.key === 'Escape') {
       if (!this.suggestBox.hidden) this.hideSuggestions();
       else {
-        this.input.value = this.url ?? '';
+        this.input.value = this.shownText;
         this.input.select();
       }
       this.setMessage(null);
@@ -194,24 +225,25 @@ export class BrowserToolbar {
   }
 
   private submit(): void {
-    const r = normalizeInput(this.input.value, this.opts.appOrigin);
+    const r = normalizeInput(this.input.value, this.opts.appOrigin, getHomeDir());
     if (!r.ok) {
       this.hideSuggestions();
       this.setMessage(r.reason);
       return;
     }
-    this.go(r.url);
+    this.go(r.url, r.file ? r.path : r.url);
   }
 
-  private go(url: string): void {
+  /** `shown` is what the field keeps while it stays focused, which a file's path replaces its URL with. */
+  private go(url: string, shown: string = url): void {
     this.hideSuggestions();
     this.setMessage(null);
-    this.input.value = url;
+    this.input.value = shown;
     this.opts.onNavigate(url);
   }
 
   private showSuggestions(): void {
-    const query = this.input.value === this.url ? '' : this.input.value;
+    const query = this.input.value === this.shownText ? '' : this.input.value;
     this.shown = suggestions(query, this.opts.suggestionInputs()).slice(0, SUGGESTION_LIMIT);
     this.highlighted = -1;
     if (this.shown.length === 0) {

@@ -211,12 +211,115 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A file page's trust level, inside the address field ahead of the path. */
+.lb-trust {
+  flex: none;
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--lb-border);
+  border-radius: 8px;
+  color: var(--content-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  cursor: help;
+}
+
+.lb-trust[data-trust='trusted'] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.lb-trust[data-trust='downloaded'] {
+  color: var(--lb-warn);
+  border-color: color-mix(in srgb, var(--lb-warn) 60%, transparent);
+}
+
+/* Hosts a file page tried to reach and its CSP refused. */
+.lb-egress {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border-bottom: 1px solid var(--lb-border);
+  background: color-mix(in srgb, var(--lb-warn) 12%, transparent);
+}
+
+.lb-egress-label {
+  flex: none;
+  padding-top: 2px;
+  color: var(--content-muted);
+  line-height: 20px;
+}
+
+.lb-egress-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.lb-egress-host {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-egress-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--content-fg);
+  font: 11px ui-monospace, Consolas, monospace;
+}
+
+.lb-egress-count {
+  flex: none;
+  color: var(--content-faint);
+  font-size: 11px;
+}
+
+.lb-egress-note {
+  flex: none;
+  color: var(--content-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.lb-egress-dismiss {
+  margin-left: auto;
+}
+
 .lb-notice {
   flex: none;
   padding: 4px 10px;
   border-bottom: 1px solid var(--lb-border);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--content-fg);
+}
+
+/* A notice that waits for its action or a dismissal ("Changed on disk", a file page's external link). */
+.lb-action-notice:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px 3px 10px;
+}
+
+.lb-action-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-action-dismiss {
+  margin-left: auto;
 }
 
 /* Page area */

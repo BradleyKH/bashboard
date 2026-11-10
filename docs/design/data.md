@@ -323,9 +323,11 @@ the focused pane's folder.
   // field; bookmarks does not. A bookmark or homeUrl may also be a file:/// URL to an .html or
   // .htm file. trustedFolders are folders whose HTML files may reach any host (3.21); a file
   // with Mark of the Web is never trusted. allowedHosts maps a folder to the hosts its pages may
-  // reach beyond cdnHosts; the pane's Allow button adds to it. cdnHosts are hosts every file page
-  // may load from. reloadOnChange reloads a file page when its file changes on disk. An entry
-  // that is not a string, or a folder that is not an absolute path, is dropped with a warning.
+  // reach beyond cdnHosts; the pane's Allow button adds to it. A key is a folder, or a single
+  // file for a page opened directly from the home folder or a drive root, which is a mount of its
+  // own (3.21). cdnHosts are hosts every file page may load from. reloadOnChange reloads a file
+  // page when its file changes on disk. An entry that is not a string, or a folder or allowedHosts
+  // key that is not an absolute path, is dropped with a warning.
   // reloadOnChange and trustedFolders have Settings tab fields; the rest do not.
   "localBrowser": {
     "bookmarks": [],

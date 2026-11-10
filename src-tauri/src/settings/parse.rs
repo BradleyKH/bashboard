@@ -161,6 +161,18 @@ fn parse_pinned_repos(root: &Value, warnings: &mut Vec<String>) -> Vec<PinnedRep
     pins
 }
 
+/// A `file:///` URL to an `.html` or `.htm` file, the one non-loopback page the Local Browser
+/// accepts as a bookmark or home page.
+fn is_html_file_url(url: &str) -> bool {
+    let Ok(u) = tauri::Url::parse(url.trim()) else { return false };
+    let path = u.path().to_ascii_lowercase();
+    u.scheme() == "file" && u.host_str().is_none_or(str::is_empty) && (path.ends_with(".html") || path.ends_with(".htm"))
+}
+
+fn is_browser_page_url(url: &str) -> bool {
+    crate::browser_policy::is_loopback_url(url) || is_html_file_url(url)
+}
+
 /// Each bad entry is dropped with a warning naming its index and the rest kept.
 fn parse_bookmarks(root: &Value, warnings: &mut Vec<String>) -> Vec<Bookmark> {
     let Some(v) = get(root, &["localBrowser", "bookmarks"]) else {
@@ -176,12 +188,87 @@ fn parse_bookmarks(root: &Value, warnings: &mut Vec<String>) -> Vec<Bookmark> {
         let name = item.get("name").and_then(nonempty);
         let url = item.get("url").and_then(nonempty);
         match (name, url) {
-            (Some(name), Some(url)) if crate::browser_policy::is_loopback_url(&url) => out.push(Bookmark { name, url }),
-            (Some(_), Some(_)) => warnings.push(format!("localBrowser.bookmarks[{i}]: not a loopback http(s) URL, dropped")),
+            (Some(name), Some(url)) if is_browser_page_url(&url) => out.push(Bookmark { name, url }),
+            (Some(_), Some(_)) => {
+                warnings.push(format!("localBrowser.bookmarks[{i}]: not a loopback http(s) URL or an .html file URL, dropped"))
+            }
             _ => warnings.push(format!("localBrowser.bookmarks[{i}]: invalid entry, dropped")),
         }
     }
     out
+}
+
+/// The non-empty string entries of an array setting; anything else is dropped with a warning
+/// naming its position.
+fn string_entries(items: &[Value], name: &str, warnings: &mut Vec<String>) -> Vec<String> {
+    let mut out = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        match item.as_str().filter(|s| !s.is_empty()) {
+            Some(s) => out.push(s.to_string()),
+            None => warnings.push(format!("{name}[{i}]: not a non-empty string, dropped")),
+        }
+    }
+    out
+}
+
+/// Each bad entry is dropped with a warning naming its index and the rest kept.
+fn parse_trusted_folders(root: &Value, warnings: &mut Vec<String>) -> Vec<String> {
+    let Some(v) = get(root, &["localBrowser", "trustedFolders"]) else {
+        return Vec::new();
+    };
+    let Some(items) = v.as_array() else {
+        warnings.push("localBrowser.trustedFolders: invalid value, using default".into());
+        return Vec::new();
+    };
+    string_entries(items, "localBrowser.trustedFolders", warnings)
+        .into_iter()
+        .filter(|folder| {
+            let absolute = std::path::Path::new(folder).is_absolute();
+            if !absolute {
+                warnings.push(format!("localBrowser.trustedFolders: \"{folder}\" is not an absolute folder, dropped"));
+            }
+            absolute
+        })
+        .collect()
+}
+
+/// A key is a folder, or a single file for a page opened directly from the home folder or a drive
+/// root (browser.md section 3.21, Mounts). A bad key or host entry is dropped with a warning naming
+/// it and the rest kept.
+fn parse_allowed_hosts(root: &Value, warnings: &mut Vec<String>) -> HashMap<String, Vec<String>> {
+    let mut out = HashMap::new();
+    let Some(v) = get(root, &["localBrowser", "allowedHosts"]) else {
+        return out;
+    };
+    let Some(map) = v.as_object() else {
+        warnings.push("localBrowser.allowedHosts: invalid value, using default".into());
+        return out;
+    };
+    for (folder, hosts) in map {
+        if !std::path::Path::new(folder).is_absolute() {
+            warnings.push(format!("localBrowser.allowedHosts: \"{folder}\" is not an absolute path, dropped"));
+            continue;
+        }
+        let Some(items) = hosts.as_array() else {
+            warnings.push(format!("localBrowser.allowedHosts.{folder}: invalid value, dropped"));
+            continue;
+        };
+        let name = format!("localBrowser.allowedHosts.{folder}");
+        out.insert(folder.clone(), string_entries(items, &name, warnings));
+    }
+    out
+}
+
+fn parse_cdn_hosts(root: &Value, warnings: &mut Vec<String>) -> Vec<String> {
+    let default = || DEFAULT_CDN_HOSTS.iter().map(|h| h.to_string()).collect();
+    let Some(v) = get(root, &["localBrowser", "cdnHosts"]) else {
+        return default();
+    };
+    let Some(items) = v.as_array() else {
+        warnings.push("localBrowser.cdnHosts: invalid value, using default".into());
+        return default();
+    };
+    string_entries(items, "localBrowser.cdnHosts", warnings)
 }
 
 /// The settings file's root object with comments stripped.
@@ -596,8 +683,18 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             &root,
             &["localBrowser", "homeUrl"],
             &mut w,
-            |v| v.as_str().filter(|s| s.is_empty() || crate::browser_policy::is_loopback_url(s)).map(String::from),
+            |v| v.as_str().filter(|s| s.is_empty() || is_browser_page_url(s)).map(String::from),
             d.local_browser.home_url.clone(),
+        ),
+        trusted_folders: parse_trusted_folders(&root, &mut w),
+        allowed_hosts: parse_allowed_hosts(&root, &mut w),
+        cdn_hosts: parse_cdn_hosts(&root, &mut w),
+        reload_on_change: pick(
+            &root,
+            &["localBrowser", "reloadOnChange"],
+            &mut w,
+            Value::as_bool,
+            d.local_browser.reload_on_change,
         ),
     };
     let keybindings = parse_keybindings(&root, &mut w);
@@ -1129,6 +1226,134 @@ mod tests {
         assert!(s.local_browser.bookmarks.is_empty());
         assert_eq!(w.len(), 1, "{w:?}");
         assert!(w[0].starts_with("localBrowser.bookmarks"), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_accepts_html_file_urls_for_bookmarks_and_home() {
+        let (s, w) = parse_settings(
+            r#"{ "localBrowser": { "homeUrl": "file:///C:/docs/index.html", "bookmarks": [
+                { "name": "a", "url": "file:///C:/docs/a.HTM" },
+                { "name": "b", "url": "file:///home/me/b.html" },
+                { "name": "c", "url": "file:///C:/docs/c.txt" },
+                { "name": "d", "url": "file://server/share/d.html" },
+                { "name": "e", "url": "file:///C:/docs/" }
+            ] } }"#,
+        );
+        assert_eq!(s.local_browser.home_url, "file:///C:/docs/index.html");
+        let names: Vec<&str> = s.local_browser.bookmarks.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(names, ["a", "b"], "{w:?}");
+        for i in [2, 3, 4] {
+            assert!(w.iter().any(|m| m.starts_with(&format!("localBrowser.bookmarks[{i}]"))), "{i}: {w:?}");
+        }
+        let (s, w) = parse_settings(r#"{ "localBrowser": { "homeUrl": "file:///C:/docs/notes.txt" } }"#);
+        assert!(s.local_browser.home_url.is_empty());
+        assert!(w.iter().any(|m| m.starts_with("localBrowser.homeUrl")), "{w:?}");
+    }
+
+    fn abs(p: &str) -> String {
+        if cfg!(windows) { format!("C:/{p}") } else { format!("/{p}") }
+    }
+
+    #[test]
+    fn local_browser_page_fields_default_when_absent() {
+        let (s, w) = parse_settings("{}");
+        let b = s.local_browser;
+        assert!(b.trusted_folders.is_empty() && b.allowed_hosts.is_empty() && b.reload_on_change);
+        assert_eq!(
+            b.cdn_hosts,
+            ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"]
+        );
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_page_fields_parse_valid_values() {
+        let (a, b) = (abs("work/site"), abs("work/other"));
+        let text = format!(
+            r#"{{ "localBrowser": {{
+                "trustedFolders": ["{a}"],
+                "allowedHosts": {{ "{b}": ["api.example.com", "cdn.example.org"] }},
+                "cdnHosts": ["cdn.example.net"],
+                "reloadOnChange": false
+            }} }}"#
+        );
+        let (s, w) = parse_settings(&text);
+        let lb = s.local_browser;
+        assert_eq!(lb.trusted_folders, [a]);
+        assert_eq!(lb.allowed_hosts[&b], ["api.example.com", "cdn.example.org"]);
+        assert_eq!(lb.cdn_hosts, ["cdn.example.net"]);
+        assert!(!lb.reload_on_change);
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_trusted_folders_drop_bad_entries_and_keep_the_rest() {
+        let good = abs("work/site");
+        let text = format!(r#"{{ "localBrowser": {{ "trustedFolders": ["{good}", 7, "relative/dir", ""] }} }}"#);
+        let (s, w) = parse_settings(&text);
+        assert_eq!(s.local_browser.trusted_folders, [good]);
+        for i in [1, 3] {
+            assert!(w.iter().any(|m| m.starts_with(&format!("localBrowser.trustedFolders[{i}]"))), "{i}: {w:?}");
+        }
+        assert!(w.iter().any(|m| m.contains("relative/dir")), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_allowed_hosts_drop_bad_folders_and_hosts_and_keep_the_rest() {
+        let (good, other) = (abs("work/site"), abs("work/other"));
+        let text = format!(
+            r#"{{ "localBrowser": {{ "allowedHosts": {{
+                "{good}": ["api.example.com", 3, null],
+                "relative/dir": ["x.example.com"],
+                "{other}": "x.example.com"
+            }} }} }}"#
+        );
+        let (s, w) = parse_settings(&text);
+        let hosts = s.local_browser.allowed_hosts;
+        assert_eq!(hosts.len(), 1, "{hosts:?}");
+        assert_eq!(hosts[&good], ["api.example.com"]);
+        assert_eq!(w.iter().filter(|m| m.contains(&format!("allowedHosts.{good}["))).count(), 2, "{w:?}");
+        assert!(w.iter().any(|m| m.contains("relative/dir")), "{w:?}");
+        assert!(w.iter().any(|m| m.contains(&format!("allowedHosts.{other}"))), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_allowed_hosts_accept_a_file_key() {
+        let file = abs("a.html");
+        let text = format!(r#"{{ "localBrowser": {{ "allowedHosts": {{ "{file}": ["api.example.com"], "a.html": ["x.example.com"] }} }} }}"#);
+        let (s, w) = parse_settings(&text);
+        let hosts = s.local_browser.allowed_hosts;
+        assert_eq!(hosts.len(), 1, "{hosts:?}");
+        assert_eq!(hosts[&file], ["api.example.com"]);
+        assert!(w.iter().any(|m| m.contains("\"a.html\" is not an absolute path")), "{w:?}");
+    }
+
+    #[test]
+    fn local_browser_cdn_hosts_drop_non_strings_and_fall_back_on_a_non_array() {
+        let (s, w) = parse_settings(r#"{ "localBrowser": { "cdnHosts": ["cdn.example.net", 5, ""] } }"#);
+        assert_eq!(s.local_browser.cdn_hosts, ["cdn.example.net"]);
+        for i in [1, 2] {
+            assert!(w.iter().any(|m| m.starts_with(&format!("localBrowser.cdnHosts[{i}]"))), "{i}: {w:?}");
+        }
+        let (s, w) = parse_settings(r#"{ "localBrowser": { "cdnHosts": "unpkg.com" } }"#);
+        assert_eq!(s.local_browser.cdn_hosts, Settings::default().local_browser.cdn_hosts);
+        assert!(w.iter().any(|m| m.starts_with("localBrowser.cdnHosts")), "{w:?}");
+        let (s, _) = parse_settings(r#"{ "localBrowser": { "cdnHosts": [] } }"#);
+        assert!(s.local_browser.cdn_hosts.is_empty());
+    }
+
+    #[test]
+    fn local_browser_wrong_typed_page_fields_fall_back_with_a_warning() {
+        let (s, w) = parse_settings(
+            r#"{ "localBrowser": { "trustedFolders": "C:/x", "allowedHosts": ["a"], "reloadOnChange": "yes" } }"#,
+        );
+        let d = Settings::default().local_browser;
+        assert_eq!(s.local_browser.trusted_folders, d.trusted_folders);
+        assert_eq!(s.local_browser.allowed_hosts, d.allowed_hosts);
+        assert_eq!(s.local_browser.reload_on_change, d.reload_on_change);
+        for field in ["trustedFolders", "allowedHosts", "reloadOnChange"] {
+            assert!(w.iter().any(|m| m.starts_with(&format!("localBrowser.{field}"))), "{field}: {w:?}");
+        }
     }
 
     #[test]

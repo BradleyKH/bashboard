@@ -764,7 +764,12 @@ export class Workspace {
   /** Design 4.21: a Local Browser pane on `url`, null for its start page. */
   openLocalBrowser(url: string | null, opts: { tab?: boolean; collapsed?: boolean; fromPaneId?: string } = {}): void {
     if (!supports('localBrowser')) {
-      // Links and `bb browse` still reach the page, in the system browser.
+      // Links and `bb browse` still reach the page, in the system browser. The system browser
+      // cannot open file:// urls through open_url, so a local HTML file has nowhere to go here.
+      if (url?.startsWith('file:')) {
+        showToast('Local HTML files open only in the Local Browser, which this platform does not have');
+        return;
+      }
       if (url) void invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err));
       return;
     }

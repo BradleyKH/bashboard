@@ -216,7 +216,20 @@ pub struct LocalBrowser {
     pub bookmarks: Vec<Bookmark>,
     /// Page a new Local Browser pane opens on; empty opens its start page.
     pub home_url: String,
+    /// Absolute folders whose HTML files may reach any host (browser.md section 3.21).
+    pub trusted_folders: Vec<String>,
+    /// Absolute folder (or single file, for a page opened directly from the home folder or a drive
+    /// root) to the hosts its pages may reach beyond `cdn_hosts`.
+    pub allowed_hosts: HashMap<String, Vec<String>>,
+    /// Hosts every local file page may load from.
+    pub cdn_hosts: Vec<String>,
+    /// Reload a local file page when its file changes on disk.
+    pub reload_on_change: bool,
 }
+
+/// The public CDNs a generated page usually loads scripts, styles, and fonts from.
+pub const DEFAULT_CDN_HOSTS: [&str; 5] =
+    ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bookmark {
@@ -393,7 +406,14 @@ impl Default for Settings {
             git: GitSettings { auto_fetch_minutes: 5 },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
             ship: Ship { hosts: HashMap::new(), overview_refresh_minutes: 5, pinned_repos: Vec::new() },
-            local_browser: LocalBrowser { bookmarks: Vec::new(), home_url: String::new() },
+            local_browser: LocalBrowser {
+                bookmarks: Vec::new(),
+                home_url: String::new(),
+                trusted_folders: Vec::new(),
+                allowed_hosts: HashMap::new(),
+                cdn_hosts: DEFAULT_CDN_HOSTS.iter().map(|h| h.to_string()).collect(),
+                reload_on_change: true,
+            },
             keybindings: default_keybindings(),
         }
     }

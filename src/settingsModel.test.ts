@@ -20,8 +20,8 @@ describe('SETTINGS_SECTIONS', () => {
   it('covers every non-keybinding leaf exactly once', () => {
     const { keybindings: _keybindings, ...rest } = DEFAULT_SETTINGS;
     // Pins are edited from the Ship pane and bookmarks from the Local Browser pane, so neither
-    // list has a Settings tab field.
-    const listsWithoutFields = ['ship.pinnedRepos', 'localBrowser.bookmarks'];
+    // list has a Settings tab field; the CDN host list is edited in the file.
+    const listsWithoutFields = ['ship.pinnedRepos', 'localBrowser.bookmarks', 'localBrowser.cdnHosts'];
     const expected = leaves(rest).filter((p) => !listsWithoutFields.includes(p));
     expect(fields.map((f) => f.path.join('.')).sort()).toEqual(expected.sort());
   });
@@ -56,6 +56,24 @@ describe('Dashboard section', () => {
     const style = byPath('dashboard.clockStyle');
     for (const v of ['both', 'time', 'binary']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
     expect(parseInput(style, 'analog').ok).toBe(false);
+  });
+});
+
+describe('Local Browser section', () => {
+  it('has a toggle for reloadOnChange, on by default', () => {
+    const f = byPath('localBrowser.reloadOnChange');
+    expect(f.kind).toBe('toggle');
+    expect(readField(DEFAULT_SETTINGS, f.path)).toBe(true);
+    expect(parseInput(f, false)).toEqual({ ok: true, value: false });
+    expect(parseInput(f, 'off').ok).toBe(false);
+  });
+
+  it('edits trustedFolders as one folder per line, dropping blank lines', () => {
+    const f = byPath('localBrowser.trustedFolders');
+    expect(f.kind).toBe('list');
+    expect(readField(DEFAULT_SETTINGS, f.path)).toEqual([]);
+    expect(parseInput(f, ' C:/work/site \n\nC:/work/docs\r\n')).toEqual({ ok: true, value: ['C:/work/site', 'C:/work/docs'] });
+    expect(parseInput(f, '')).toEqual({ ok: true, value: [] });
   });
 });
 

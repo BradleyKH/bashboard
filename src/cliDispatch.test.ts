@@ -152,6 +152,14 @@ describe('runCliCommand', () => {
     ]);
   });
 
+  it('passes a file:/// url from bb browse through unchanged', () => {
+    const { target, calls } = fake();
+    runCliCommand(cmd({ kind: 'browse', url: 'file:///C:/x/a.html' }, false, true), target);
+    expect(calls.filter((c) => c[0] === 'openLocalBrowser')).toEqual([
+      ['openLocalBrowser', 'file:///C:/x/a.html', 'p3', { tab: true }],
+    ]);
+  });
+
   it('drops browse when no pane runs the pty', () => {
     const { target, calls } = fake(null);
     vi.spyOn(console, 'warn').mockImplementation(() => {});

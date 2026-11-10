@@ -24,6 +24,7 @@ import { DEFAULT_SEARCH_OPTIONS, type SearchOptions } from './searchOptions';
 import { SearchPane } from './searchPane';
 import type { Settings } from './settings';
 import { ShipPane } from './shipPane';
+import { supports } from './platform';
 import { showToast } from './toast';
 import type { PaneStatus } from './paneStatus';
 import type { TabStore } from './tabStore';
@@ -424,6 +425,7 @@ export class PaneFactory {
       onOpenExternal: (url) => {
         invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err));
       },
+      confirm: (o) => ctx.hooks.onConfirm?.(o) ?? Promise.resolve(false),
       onStateChange: () => ctx.paneChanged(id),
       onWantPorts: (wanted) => store.setWanted(`pane:${id}`, wanted),
     });
@@ -453,6 +455,7 @@ export class PaneFactory {
         ctx.openTerminal(folder);
       },
       onSearchHere: (folder) => void this.searchFolder(id, folder),
+      onOpenLocal: supports('localBrowser') ? (url) => ctx.openLocalBrowser(url, { fromPaneId: id }) : undefined,
       onInsertPaths: (paths, baseRoot) => ctx.insertPathIntoTab(id, paths, baseRoot),
       onPathDragStart: (paths, e, move) => ctx.startPathDrag(paths, e, move),
       onPin: (absolute, isDir) => ctx.hooks.onPin?.(root(), absolute, isDir),

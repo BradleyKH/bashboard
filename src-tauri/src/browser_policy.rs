@@ -85,6 +85,30 @@ pub fn classify(url: &str, app_origin: Option<&str>) -> UrlClass {
     UrlClass::Refused
 }
 
+/// True when a Downloaded page whose own listener and token are `scope`
+/// (`http://127.0.0.1:<port>/<token>/`) asks its frame for `url` on a loopback host outside that
+/// scope (docs/design/security.md section 9.1). Its CSP keeps its requests off loopback, but CSP
+/// has no say over where the page navigates its own frame, and a navigation is a GET.
+pub fn leaves_downloaded_scope(url: &str, scope: &str) -> bool {
+    let Some(u) = parse(url) else {
+        return false;
+    };
+    let Some(host) = u.host_str() else {
+        return false;
+    };
+    if !crate::browser_files::trust::is_loopback_host(host) {
+        return false;
+    }
+    let Some(s) = parse(scope) else {
+        return true;
+    };
+    !(u.scheme() == s.scheme()
+        && u.host_str() == s.host_str()
+        && u.port_or_known_default() == s.port_or_known_default()
+        && !has_userinfo(&u)
+        && u.path().starts_with(s.path()))
+}
+
 /// Drops the `frame-ancestors` directive from a CSP header value, keeping the rest. A header may
 /// carry several comma-separated policies. Returns `None` when nothing is left.
 pub fn strip_frame_ancestors(value: &str) -> Option<String> {
@@ -229,6 +253,38 @@ mod tests {
             "http://tauri.localhost/x",
             "http://tauri.localhost"
         ));
+    }
+
+    #[test]
+    fn downloaded_pages_keep_to_their_own_scope() {
+        let scope = "http://127.0.0.1:5200/abc/";
+        for u in [
+            "http://127.0.0.1:5200/abc/other.html",
+            "http://127.0.0.1:5200/abc/sub/x.html?q=1#h",
+            "https://example.com/",
+            "http://localhost.evil.com/",
+            "file:///C:/x.html",
+            "not a url",
+        ] {
+            assert!(!leaves_downloaded_scope(u, scope), "{u}");
+        }
+        for u in [
+            "http://127.0.0.1:8000/",
+            "http://127.0.0.1:5200/def/other.html",
+            "http://127.0.0.1:5200/abcd/x",
+            "http://127.0.0.1:5200/",
+            "https://127.0.0.1:5200/abc/x",
+            "http://user@127.0.0.1:5200/abc/x",
+            "http://localhost:5200/abc/x",
+            "http://LOCALHOST:3000/",
+            "http://api.localhost/",
+            "http://127.0.0.2:80/",
+            "http://127.1/",
+            "http://0.0.0.0:3000/",
+            "http://[::1]:3000/",
+        ] {
+            assert!(leaves_downloaded_scope(u, scope), "{u}");
+        }
     }
 
     #[test]

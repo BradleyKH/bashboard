@@ -153,7 +153,7 @@ colors; plain text and CSV show none. A new pane starts in the mode you last cho
 pane keeps its own across a relaunch. The Code colors setting picks the color scheme (see
 [Settings](settings.md#settings)).
 
-Hover a row for its menu: **Open terminal here** and **Search in this folder** (folders), **Open in editor**, **Copy path**,
+Hover a row for its menu: **Open terminal here** and **Search in this folder** (folders), **Open in editor**, **Open in Local Browser** (an `.html` or `.htm` file, on Windows), **Copy path**,
 **Insert path** (pastes the path relative to the Files pane's root, or the absolute path outside
 it, quoted for the shell of the tab's most recently focused terminal, without pressing Enter),
 **Move to** (files; the repo's pinned
@@ -793,8 +793,9 @@ you. Any pane can also become a Ports pane from its kind menu.
 ## Local Browser
 
 A **Local Browser** pane shows a dev server's page beside the terminal that runs it, with a Console
-and a Network panel one click away. It opens only `localhost` and `127.0.0.1`, over `http` or
-`https`, on any port; anything else is refused, so it is not a general browser. Open one from the
+and a Network panel one click away. It opens `localhost` and `127.0.0.1`, over `http` or `https`,
+on any port, and local `.html` and `.htm` files (Windows only); anything else is refused, so it is
+not a general browser. Open one from the
 kind menu at the top left of any pane, from the Launch menu (**b**), with `bb browse` (see
 [Pane CLI](#pane-cli)), from a Ports pane row (**Open**, or a double-click), from the **Open in
 Local Browser** entry in the port and container menus, or by Ctrl+clicking a `localhost` link in
@@ -810,6 +811,37 @@ addresses you visited recently; use the arrows and Enter, or Escape to put the p
 Back, Forward, and Reload sit to its left (Shift+click Reload to bypass the cache), and Home opens
 the `localBrowser.homeUrl` setting, or the start page, a list of listening ports and bookmarks,
 when that is empty. If nothing is listening on the port, the pane says so and offers Retry.
+
+**Local HTML files.** The address bar also takes the path to an `.html` or `.htm` file, written as
+`C:\reports\q3.html`, `C:/reports/q3.html`, a Git Bash path such as `/c/reports/q3.html`, a path
+starting with `~/`, or a `file:///` URL. The address bar then shows the file's own path. A file also
+opens from `bb browse <file>` (see [Pane CLI](#pane-cli)) and from **Open in Local Browser** in the
+Files pane's menu for an `.html` or `.htm` file. Saving the file reloads the page; with
+`localBrowser.reloadOnChange` off, a "Changed on disk" notice with a Reload button appears instead.
+
+Each file page shows a trust badge in the toolbar. **Trusted** is a file in a folder listed in
+`localBrowser.trustedFolders`, which may reach any host. **Local** is any other file on this
+machine, which may reach its own folder, the CDN hosts a generated page usually loads from, and the
+hosts allowed for its folder. **Downloaded** is a file Windows marks as downloaded from the internet
+(Mark of the Web), even inside a trusted folder; it reaches what Local reaches, but reads only other
+downloaded files in its folder and is kept apart from the folder's Trusted and Local pages. Following
+a link from a Local page to a downloaded file beside it opens that file as a Downloaded page.
+
+When a file page's request to a host is refused, a bar under the toolbar lists each host with a
+count of its refused requests. **Allow** adds the host to that folder's allowed hosts and reloads
+the page, and every file in the folder gets it. A page opened straight from your home folder or a
+drive root keeps its allowed hosts to itself. On a Downloaded page, Allow asks first, and a
+Downloaded page can never reach a service on this machine (`localhost`, `127.0.0.1`, and the like):
+the bar shows "Downloaded pages can't reach local services" for one instead of Allow, and an
+allowed-hosts entry for one is ignored. On a Local page, Allow for a local service asks first,
+naming its port. The four settings behind these, `trustedFolders`, `allowedHosts`, `cdnHosts`, and
+`reloadOnChange`, are described in [Settings](settings.md#local-browser).
+
+A file page never opens another site by itself. When it tries to navigate to one, the pane shows
+"This page tried to open example.com" with an **Open** button, and the address goes to your system
+browser only when you click it. A Downloaded page that tries to navigate to a service on this
+machine stays put, and the pane shows "Downloaded pages can't open local services"; the address
+field, Home, bookmarks, and Back still take you anywhere.
 
 **https.** An https page loads only when Windows trusts its certificate; there is no "proceed
 anyway". When it doesn't, the pane says so and names the fix: for an ASP.NET Core project, run
@@ -831,9 +863,10 @@ drag the line between them to change their widths.
 dimensions, scaled down to fit the pane when it is larger, with **Rotate** to turn it sideways.
 Responsive fills the pane.
 
-A link in the page to another site opens in your system browser and the pane stays where it was;
-so does a page that redirects to one. Frames inside the page load only local addresses too, and
-the Console notes each one it stopped. Pages that forbid framing (`X-Frame-Options` or
+On a loopback page, a link to another site opens in your system browser and the pane stays where it
+was; so does a page that redirects to one. Frames inside a loopback page load only local addresses
+too, and the Console notes each one it stopped. Frames inside a file page load what its trust level
+allows (see Local HTML files above). Pages that forbid framing (`X-Frame-Options` or
 `frame-ancestors`) still show, since Bashboard lifts that restriction for local pages only. Popups
 and downloads are not supported. Bashboard's own keys keep working while the page has focus,
 except the terminal's copy and paste, which the page keeps. A page keeps its state (what you typed,
@@ -1013,7 +1046,7 @@ not apply to them. `bb edit` opens no pane.
 | `bb ship`                     | Shows the current folder's repo in the Ship pane, or the Overview outside a repo |
 | `bb ports`                    | Shows the Ports pane                                                          |
 | `bb containers`               | Shows the Containers pane                                                     |
-| `bb browse [<url>]`           | Opens a Local Browser pane at a localhost address, or on its start page       |
+| `bb browse [<url or file>]`   | Opens a Local Browser pane at a localhost address or an `.html` file, or on its start page |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
@@ -1029,8 +1062,10 @@ the current folder. `bb scratch` uses its arguments as the text when it has any 
 reads standard input, up to 1 MiB.
 
 `bb browse` takes a bare port (`bb browse 5173`), `:port`, `host:port/path`, or a full `http` or
-`https` URL on `localhost` or `127.0.0.1`, and refuses any other address. With no address it opens the
-start page. `--tab` and `--collapsed` work as for the other pane commands.
+`https` URL on `localhost` or `127.0.0.1`, or the path to an `.html` or `.htm` file (`bb browse
+report.html`, `bb browse C:\reports\q3.html`), and refuses any other address. A relative file path
+resolves against the folder the shell is in, as the path arguments above do. With no address it opens
+the start page. `--tab` and `--collapsed` work as for the other pane commands.
 
 `bb term` opens a terminal with your default shell profile. The words after `--` are typed into
 it as one line followed by Enter, the way you would type them, so they follow that shell's

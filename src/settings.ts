@@ -76,10 +76,18 @@ export interface Settings {
     pinnedRepos: { repo: string; root?: string; branches?: string[] }[];
   };
   /**
-   * Local Browser pane: `bookmarks` are http pages on localhost or 127.0.0.1;
-   * `homeUrl` is where a new pane opens, empty for its start page (docs/settings.md).
+   * Local Browser pane: `bookmarks` are http pages on localhost or 127.0.0.1, or file:/// URLs to
+   * .html files; `homeUrl` is where a new pane opens, empty for its start page. `trustedFolders`,
+   * `allowedHosts`, `cdnHosts`, and `reloadOnChange` govern local file pages (docs/settings.md).
    */
-  localBrowser: { bookmarks: { name: string; url: string }[]; homeUrl: string };
+  localBrowser: {
+    bookmarks: { name: string; url: string }[];
+    homeUrl: string;
+    trustedFolders: string[];
+    allowedHosts: { [folder: string]: string[] };
+    cdnHosts: string[];
+    reloadOnChange: boolean;
+  };
   keybindings: KeybindingEntry[];
 }
 
@@ -127,7 +135,14 @@ export const DEFAULT_SETTINGS: Settings = {
   git: { autoFetchMinutes: 5 },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
   ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [] },
-  localBrowser: { bookmarks: [], homeUrl: '' },
+  localBrowser: {
+    bookmarks: [],
+    homeUrl: '',
+    trustedFolders: [],
+    allowedHosts: {},
+    cdnHosts: ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'unpkg.com', 'fonts.googleapis.com', 'fonts.gstatic.com'],
+    reloadOnChange: true,
+  },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

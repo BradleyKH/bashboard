@@ -5,7 +5,7 @@ export type BrowserEvent =
   | { kind: 'navigated'; url: string; title?: string; unreachableUrl?: string }
   | { kind: 'navigatedInPage'; url: string }
   | { kind: 'title'; title: string }
-  | { kind: 'blocked'; url: string; external: boolean }
+  | { kind: 'blocked'; url: string; external: boolean; downloaded?: boolean }
   | { kind: 'console'; level: string; text: string; source?: string; url?: string; line?: number; timestamp: number }
   | { kind: 'exception'; text: string; url?: string; line?: number; timestamp: number }
   | {
@@ -28,7 +28,9 @@ export type BrowserEvent =
     }
   | { kind: 'finished'; requestId: string; encodedLength: number; timestamp: number }
   | { kind: 'failed'; requestId: string; errorText: string; canceled: boolean; timestamp: number }
-  | { kind: 'loadState'; loading: boolean };
+  | { kind: 'loadState'; loading: boolean }
+  | { kind: 'fileChanged' }
+  | { kind: 'egressBlocked'; host: string; directive: string; url: string };
 
 export const CONSOLE_CAP = 2000;
 export const NETWORK_CAP = 1000;

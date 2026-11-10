@@ -51,7 +51,8 @@ pub enum CliAction {
     },
     Ports,
     Containers,
-    /// A Local Browser pane; `url` is a normalized loopback http URL, or none for its start page.
+    /// A Local Browser pane; `url` is a normalized loopback http URL or a `file:///` URL of a local
+    /// HTML file, or none for its start page.
     Browse {
         #[serde(skip_serializing_if = "Option::is_none")]
         url: Option<String>,
@@ -142,7 +143,7 @@ pub fn parse(body: &[u8], pty_id: u32) -> Result<CliCommand, String> {
             no_args("containers", &args)?;
             CliAction::Containers
         }
-        "browse" => browse(&args)?,
+        "browse" => browse(&cwd, &args)?,
         other => return Err(format!("unknown command: {other}")),
     };
     // These show the app's existing pane wherever it is, or open a tab of their own, as the
@@ -242,24 +243,35 @@ fn no_args(command: &str, args: &[String]) -> Result<(), String> {
     }
 }
 
-const BROWSE_USAGE: &str = "usage: bb browse [<url>]";
-const LOOPBACK_ONLY: &str = "Local Browser opens only localhost and 127.0.0.1.";
+const BROWSE_USAGE: &str = "usage: bb browse [<url or .html file>]";
+const LOOPBACK_ONLY: &str =
+    "Local Browser opens only localhost, 127.0.0.1, and local .html or .htm files.";
 
 /// Mirrors `normalizeInput` in `localBrowserModel.ts`: `5173` and `:5173` mean
-/// `http://localhost:5173/`, and a missing scheme means http.
-fn browse(args: &[String]) -> Result<CliAction, String> {
+/// `http://localhost:5173/`, and a missing scheme means http. A path to an `.html` or `.htm`
+/// file, absolute or relative to `cwd`, becomes a `file:///` URL.
+fn browse(cwd: &Path, args: &[String]) -> Result<CliAction, String> {
     let url = match args {
         [] => None,
-        [arg] => Some(normalize_browse_url(arg.trim())?),
+        [arg] => Some(normalize_browse_url(cwd, arg.trim())?),
         _ => return Err(BROWSE_USAGE.into()),
     };
     Ok(CliAction::Browse { url })
 }
 
-fn normalize_browse_url(text: &str) -> Result<String, String> {
+fn normalize_browse_url(cwd: &Path, text: &str) -> Result<String, String> {
     if text.is_empty() {
         return Err(BROWSE_USAGE.into());
     }
+    // Loopback shorthand goes first so `localhost:3000/index.html` stays an address; a path
+    // is tried only for what the address rules reject (a Windows path, or one with spaces).
+    match loopback_url(text) {
+        Ok(url) => Ok(url),
+        Err(refusal) => file_url(cwd, text)?.ok_or(refusal),
+    }
+}
+
+fn loopback_url(text: &str) -> Result<String, String> {
     if text.chars().any(char::is_whitespace) {
         return Err("a URL cannot contain spaces".into());
     }
@@ -282,6 +294,57 @@ fn normalize_browse_url(text: &str) -> Result<String, String> {
         return Err(LOOPBACK_ONLY.into());
     }
     Ok(parsed.to_string())
+}
+
+/// The `file:///` URL for an HTML file named by `text`, or `None` when `text` does not look like
+/// a path to one (it names no existing entry and does not end in `.html` or `.htm`).
+fn file_url(cwd: &Path, text: &str) -> Result<Option<String>, String> {
+    if has_scheme(text) {
+        return Ok(None);
+    }
+    let Ok(joined) = normalize(&display(&cwd.join(text))) else {
+        return Ok(None);
+    };
+    let is_html = joined
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"));
+    if !is_html && !joined.exists() {
+        return Ok(None);
+    }
+    let path = strip_verbatim(joined);
+    if is_unc(&path) {
+        return Err("UNC paths are not supported; map the share to a drive letter".into());
+    }
+    if !path.exists() {
+        return Err(format!("no such file: {}", display(&path)));
+    }
+    if !is_html {
+        return Err(format!("not an .html or .htm file: {}", display(&path)));
+    }
+    if !path.is_file() {
+        return Err(format!("not a file: {}", display(&path)));
+    }
+    tauri::Url::from_file_path(&path)
+        .map(|u| Some(u.to_string()))
+        .map_err(|_| format!("cannot make a file URL from {}", display(&path)))
+}
+
+/// Drops a `\\?\` verbatim prefix, which a browser does not read as a file URL.
+fn strip_verbatim(path: PathBuf) -> PathBuf {
+    let text = display(&path);
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if !rest.starts_with(r"UNC\") => PathBuf::from(rest),
+        _ => path,
+    }
+}
+
+fn is_unc(path: &Path) -> bool {
+    use std::path::{Component, Prefix};
+    matches!(
+        path.components().next(),
+        Some(Component::Prefix(p))
+            if matches!(p.kind(), Prefix::UNC(..) | Prefix::VerbatimUNC(..) | Prefix::DeviceNS(_))
+    )
 }
 
 /// True for a leading `scheme://`, so `localhost:3000` (a host and port) is not read as a scheme.
@@ -721,6 +784,54 @@ mod tests {
         }
         assert!(run("browse", &["a", "b"], &dir).unwrap_err().starts_with("usage: bb browse"));
         assert!(run("browse", &["a b"], &dir).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn browse_url(arg: &str, cwd: &Path) -> Result<String, String> {
+        run("browse", &[arg], cwd).map(|cmd| match cmd.action {
+            CliAction::Browse { url } => url.unwrap(),
+            other => panic!("unexpected {other:?}"),
+        })
+    }
+
+    #[test]
+    fn browse_turns_html_files_into_file_urls() {
+        let dir = temp_dir("browse-file");
+        fs::create_dir_all(dir.join("docs")).unwrap();
+        fs::write(dir.join("docs").join("my page.html"), "x").unwrap();
+        fs::write(dir.join("index.HTM"), "x").unwrap();
+
+        let url = browse_url("docs/my page.html", &dir).unwrap();
+        assert!(url.starts_with("file:///"), "{url}");
+        assert!(url.ends_with("/docs/my%20page.html"), "{url}");
+        assert!(!url.contains('\\') && !url.contains("//?/"), "{url}");
+
+        // Relative with `..` and an absolute path name the same file.
+        let from_docs = browse_url("../docs/my page.html", &dir.join("docs")).unwrap();
+        assert_eq!(from_docs, url);
+        let abs_arg = display(&dir.join("docs").join("my page.html"));
+        assert_eq!(browse_url(&abs_arg, &dir).unwrap(), url);
+
+        // The extension match ignores case, and `.htm` counts.
+        assert!(browse_url("index.HTM", &dir).unwrap().ends_with("/index.HTM"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn browse_refuses_missing_and_non_html_files() {
+        let dir = temp_dir("browse-file-bad");
+        fs::write(dir.join("notes.txt"), "x").unwrap();
+        fs::create_dir_all(dir.join("folder.html")).unwrap();
+
+        assert!(browse_url("missing.html", &dir).unwrap_err().starts_with("no such file"));
+        assert!(browse_url("notes.txt", &dir).unwrap_err().starts_with("not an .html or .htm file"));
+        assert!(browse_url("folder.html", &dir).unwrap_err().starts_with("not a file"));
+        // An address that merely ends in .html is still an address.
+        assert_eq!(
+            browse_url("localhost:3000/index.html", &dir).unwrap(),
+            "http://localhost:3000/index.html"
+        );
+        assert!(browse_url("http://example.com/a.html", &dir).is_err());
         let _ = fs::remove_dir_all(&dir);
     }
 

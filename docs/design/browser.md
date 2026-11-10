@@ -3,7 +3,7 @@
 Section numbers are ids shared across every file in `docs/design/`, so a citation such as
 "section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
 
-## 3.21 Local file server (`src-tauri/src/browser_files.rs`)
+## 3.21 Local file server (`src-tauri/src/browser_files/`)
 
 The Local Browser shows a local HTML file by having the core serve it over loopback, not by
 framing a `file://` URL. WebView2 does not frame `file://` documents in an `http` page, and a
@@ -19,18 +19,34 @@ mount the file alone, serving no other path: a folder that is a drive root, and 
 folder itself, since either would expose far more than the page needs. UNC paths
 (`\\server\share`) are refused.
 
-Each mount has its own listener on `127.0.0.1`, on its own port, so each folder is its own origin.
-Chromium's same-origin policy then keeps a page in one folder from reading another folder's files,
-cookies, or storage, with no check of ours. The core records each folder's port in
-`browser-mounts.json` in the app data folder and asks for the same port on the next launch, so a
-page's `localStorage` (keyed by origin) survives a restart; a port that is taken gets a fresh one.
-Mounts live until the app exits.
+Each mount has two listeners on `127.0.0.1`, each on its own port and so its own origin: the
+shared listener, for the folder's Trusted and Local pages, and the Downloaded listener, for its
+Downloaded pages (Trust levels). Each is started when the first page that needs it opens. Chromium's
+same-origin policy then keeps a page in one folder from reading another folder's files, cookies, or
+storage, and keeps a Downloaded page from reaching the frame, token, or `fetch` of a Trusted or
+Local page in its own folder, with no check of ours. The invariant that makes the split hold: a
+file with Mark of the Web never runs as a document on the shared listener (Requests). The core
+records each listener's port in `browser-mounts.json` in the app data folder, keyed by the mount
+for the shared listener and by `downloaded:` and the mount for the Downloaded one, and asks for the
+same port on the next launch, so a page's `localStorage` (keyed by origin) survives a restart; a
+port that is taken gets a fresh one, and a mount never listens on the app's dev server port, which
+the navigation policy refuses. Mounts live until the app exits.
 
-Each pane that opens a file on a mount registers a token: 128 random bits, hex, made per pane per
-launch. The serving address is `http://127.0.0.1:<port>/<token>/<path>`. The token ties every
-request to one pane, which is how CSP reports and file changes reach the right pane, and it keeps a
-page elsewhere (another pane, or a site in the system browser) from reading a mount it does not
-know the token for.
+A mount is named by its folder, or by its file for a single-file mount. That name keys its
+listeners, its ports, and its entry in `localBrowser.allowedHosts` (Trust levels), so two pages
+opened directly from the home folder are separate mounts with separate allowed hosts.
+
+Each pane that opens a file registers a token on the listener the file's trust calls for: 128
+random bits, hex, made per pane per launch. The serving address is
+`http://127.0.0.1:<port>/<token>/<path>`. The token ties every request to one pane, which is how
+CSP reports and file changes reach the right pane, and it keeps a page elsewhere (another pane, or
+a site in the system browser) from reading a mount it does not know the token for. A pane holds
+one token per mount and listener it has been served: a file on a mount and listener it already
+holds a token for reuses that token, and a file on another mount, or a sibling of the other kind (a
+Downloaded file after a Local one, or the reverse), gets a new token on the right listener beside
+the others. A token is known only on the listener it was made for. The tokens live until the pane
+closes, so Back and Forward into a file page the pane has left, or across a move between listeners,
+still load; a pane holds at most 20, and a new one past that revokes the one served longest ago.
 
 ### Requests
 
@@ -44,11 +60,28 @@ Before serving, it:
    (so `.git`, `.env`, and `.ssh` are never served), and refuses a path with `:` (alternate data
    streams);
 4. joins it to the mount root, canonicalizes, and requires the result to sit under the root, so a
-   junction inside the folder cannot point out of it;
+   junction inside the folder cannot point out of it, with no part below the root starting with
+   `.`, so an 8.3 short name (`GIT~1`) cannot stand in for a dot-leading one;
 5. serves files only. A folder answers 404; there are no directory listings.
 
-A Downloaded page's mount (Trust levels) also refuses any file that lacks Mark of the Web, so a
-downloaded page reads only what arrived with it.
+The two listeners then split the mount's files by Mark of the Web (a `ZoneId` of 3 or 4, Trust
+levels):
+
+- The Downloaded listener serves only files with Mark of the Web, so a downloaded page reads only
+  what arrived with it.
+- The shared listener answers 404 for a marked HTML or XML file, and for a marked SVG file unless
+  the request's `Sec-Fetch-Dest` is `image`. Each of those can run script once loaded as a document,
+  which would give a downloaded file the shared origin's reach; Chromium sets `Sec-Fetch-Dest` and a
+  page cannot, and a request without it counts as a document. This holds for frames nested in a
+  page too: a Local page that frames a marked sibling gets the 404, not the sibling running in its
+  origin. Other marked files (scripts, stylesheets, images, fonts) are served, since a Local page
+  that loads one has chosen to run it with its own authority.
+
+The refusal is a 404 rather than a redirect to the other listener: a redirect would mint a token for
+whatever asked, including a nested frame or a `fetch` the pane never sees, and leave it live beside
+the pane's own. Only the pane moves its registration. When its own frame lands on a file of the
+other kind, the pane serves that file again and loads it from the right listener (4.21, File
+pages).
 
 Every response carries:
 
@@ -59,21 +92,27 @@ Every response carries:
 | `Cross-Origin-Resource-Policy` | `same-origin`, so no other origin can embed a mount's files |
 | `Referrer-Policy` | `no-referrer` |
 | `Cache-Control` | `no-store`, so a reload after a change always reads the disk |
-| `Content-Security-Policy` | On HTML only, by trust level (below) |
+| `Content-Security-Policy` | On HTML, SVG, XML, and JavaScript, by trust level (below) |
 
 No response carries `Access-Control-Allow-Origin`, so no other origin can read one.
+
+Chromium takes a document's policy from its own response, an SVG or XML document's as much as an
+HTML one's, and a worker's from its script's, so each of those carries the CSP; a page that framed
+an SVG file or started a worker from a script without one would reach every host. A service
+worker script (`Sec-Fetch-Dest: serviceworker`) answers 404 on both listeners: a service worker
+could answer navigations in its scope with documents it makes up, which carry no policy of ours.
 
 ### Trust levels
 
 A file page's trust level decides where it may send requests. The browser enforces it through the
-CSP header the core puts on the HTML response; nothing is injected into the page. The level is
+CSP header the core puts on each document and script response; nothing is injected into the page. The level is
 fixed when the document loads, and changing it reloads the page.
 
 | Level | Applies to | Can reach |
 | --- | --- | --- |
 | Trusted | A file under a folder in `localBrowser.trustedFolders` (8), without Mark of the Web | Any host |
 | Local | Any other file without Mark of the Web | Its own mount, `localBrowser.cdnHosts`, and its folder's allowed hosts |
-| Downloaded | A file with Mark of the Web, wherever it is, including inside a trusted folder | The same as Local; allowing a host asks first |
+| Downloaded | A file with Mark of the Web, wherever it is, including inside a trusted folder | The same as Local, except any loopback service; allowing a host asks first |
 
 Mark of the Web is the `Zone.Identifier` alternate data stream Windows writes on files from a
 browser download, an email attachment, or an archive extracted from one. The core reads it with
@@ -85,6 +124,16 @@ The CSPs, with `<cdn>` the CDN hosts and `<allowed>` the folder's allowed hosts:
 | --- | --- |
 | Trusted | `default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; form-action 'self'` |
 | Local, Downloaded | `default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval' <cdn> <allowed>; form-action 'self'; report-uri /<token>/__csp-report` |
+
+A Downloaded page's policy leaves out every source that could match this machine, whether it came
+from `localBrowser.cdnHosts` or `localBrowser.allowedHosts`, including one typed into
+`settings.json`: `localhost`, any `*.localhost`, `127.0.0.0/8`, `0.0.0.0`, and `[::1]`, with or
+without a scheme or port and in any case, plus scheme-only sources (`https:`), `*`, and wildcards
+such as `*.localhost` or `*.0.0.1`. `'self'` is the page's own Downloaded listener and no other
+port, so a Downloaded page never fetches from, loads from, or frames a loopback service
+(`trust::is_loopback_host`). CSP does not govern where a page navigates its own frame, so the
+bridge refuses that route (4.21 Navigation policy, File pages). Trusted and Local policies keep
+these sources.
 
 Inline scripts and `eval` are allowed at every level. Generated reports are mostly inline, and a
 script that cannot send anything out has nothing to leak. Every directive falls back to
@@ -98,20 +147,27 @@ an image or script URL can carry data in its query string as easily as a `fetch`
 is not a way to send data out.
 
 **Refused requests.** Chromium sends a report for each request the CSP refuses to
-`/<token>/__csp-report` (JSON, at most 16 KB, with at most 100 reports a second per token). The
-core sends the pane an `egressBlocked` event with the refused URL's host, the directive, and the
-URL. The pane collects the hosts in a bar under the toolbar, each with an Allow button. Allow adds
-the host to the folder's entry in `localBrowser.allowedHosts` (8) through `settings_set`, and the
-page reloads with the host in its policy. On a Downloaded page Allow first asks "This file came
-from the internet. Let it send requests to example.com?". Allowed hosts belong to a folder, not to
-one file, since every file in a folder shares one origin.
+`/<token>/__csp-report` (JSON, at most 16 KB, with at most 100 reports a second per token). The core
+sends the pane an `egressBlocked` event with the refused URL's host, the directive, and the URL. The
+pane collects the hosts in a bar under the toolbar, each with an Allow button. Allow adds the host
+to the mount's entry in `localBrowser.allowedHosts` (8) through `settings_set`, and the page reloads
+with the host in its policy. On a Downloaded page Allow first asks "This file came from the
+internet. Let it send requests to example.com?", and a refused loopback host shows "Downloaded pages
+can't reach local services" in place of Allow, since its policy would leave the host out anyway. On
+a Local page Allow for a loopback host first asks "localhost is a service running on this computer,
+port 3000. Let this page send requests to it and read its responses?". Allowed hosts belong to a
+mount, not to one page: a folder's entry covers every page in it, Downloaded pages included, and a
+page opened directly from the home folder or a drive root has an entry of its own, keyed by its
+file.
 
 ### Changes on disk
 
 The core watches each served HTML file (the `notify` crate, as `settings/watch.rs` does) and
 sends its pane `fileChanged`, debounced by 300 ms, since generators often write a file in several
-steps. With `localBrowser.reloadOnChange` (8) on, the default, the pane reloads the frame; off, it
-shows a "Changed on disk" notice with a Reload button. Only the opened file is watched, not its
+steps. Only a pane's current file page is watched: the watch moves with each file the pane is
+served and stops when the pane leaves file pages. With `localBrowser.reloadOnChange` (8) on, the default, the pane serves the file again and
+reloads the frame, so a save that adds or drops Mark of the Web moves the page to the right
+listener; off, it shows a "Changed on disk" notice with a Reload button that does the same. Only the opened file is watched, not its
 stylesheets or scripts.
 
 ## 4.21 Local Browser
@@ -123,7 +179,7 @@ and a Network panel. It shows two kinds of page: loopback addresses (`http` or `
 loopback itself (3.21). The front end is `src/localBrowserPane.ts` (`LocalBrowserPane`) with its
 chrome in `src/browserToolbar.ts` and `src/browserDevtools.ts`; the core side is
 `src-tauri/src/browser.rs`, `src-tauri/src/browser/chords.rs`, `src-tauri/src/browser_policy.rs`,
-`src-tauri/src/browser_tls.rs`, and `src-tauri/src/browser_files.rs`. The pane's threat model and
+`src-tauri/src/browser_tls.rs`, and `src-tauri/src/browser_files/`. The pane's threat model and
 every measure that contains a framed page are collected in [security.md](security.md) (9.1).
 
 ### Design
@@ -216,6 +272,39 @@ script can navigate with data in the query string, and opening that address auto
 carry the data out. The pane shows "This page tried to open example.com" with an Open button, and
 only a click sends the address to `open_url`.
 
+A Downloaded page never navigates its frame to a loopback service. When the frame's current
+document is on a Downloaded listener, which the core learns by asking the file server about the
+address the frame last committed (`downloaded_scope`), never from the page or the pane, a
+navigation it asks for to a loopback host (`trust::is_loopback_host`) outside its own listener and
+token is refused (`browser_policy::leaves_downloaded_scope`). The rule reads
+`Page.frameRequestedNavigation` on the pane's frame, which reports the navigations the frame's own
+document starts (a link, a script setting `location`, a form, a meta refresh) and not the pane's:
+the address field, Home, a bookmark, or Retry set the iframe's `src` from the app's document, and
+Back and Forward are history traversals, so the user can always leave the page. A refused address
+that `classify` would allow is remembered, and the Fetch Request stage fails it with `Aborted`,
+so no request reaches the service; `location.replace` from `browser_replace` is the core's own
+navigation and is exempt. The pane gets a `blocked` event with `downloaded` and shows "Blocked
+127.0.0.1:8000. Downloaded pages can't open local services.", with no Open button. Its own marked
+siblings, under the same token, load as before, and an external address still waits for a click.
+A frame nested in a Downloaded page cannot load a loopback service either: the page's `frame-src`
+names none, and the Fetch path refuses one that leaves the pane's page's scope, with a `console`
+warning.
+
+The pane keeps every serving base it has been given, with its file and folder, for its lifetime
+(at most 20, matching the core's tokens), so an address under any of them maps back to its file.
+When the frame commits a document under one, the pane shows the file's path, and if that is a
+different file from the one it shows, the address is not under its current token, or the pane was
+not showing a file page (Back or Forward from a loopback page), serves the file again with
+`browser_serve_file`. That restores file mode with the folder used for Allow, refreshes the trust
+badge and the file watch, and when the file belongs on the other listener (a Local page's link to a
+downloaded sibling, which the shared listener answered with 404, or a file whose Mark of the Web
+changed since), the pane loads the file from the address the core returns with
+`browser_replace`, in place of the frame's current history entry. A new entry would leave the 404
+behind it, and Back onto that would serve the file forward again, so Back could never reach the
+page before it. A document under no
+known base leaves file mode: the badge, egress bar, and notices clear, and the file watch stops,
+while the bases and their tokens stay.
+
 The pane takes an error page or failed document request that follows a `blocked` event within a
 few seconds as that navigation's, not as an unreachable server. Any other document that fails to
 load (a `chrome-error://` frame, or a failed document request) shows a "nothing is listening"
@@ -280,7 +369,7 @@ The core sends the pane `BrowserEvent` values (`kind` in camelCase) on a Tauri `
 | `navigated` | `url`, `title?`, `unreachableUrl?` (on an error page, the address that failed) |
 | `navigatedInPage` | `url` (a hash or `history.pushState` change) |
 | `title` | `title` (can arrive twice for one navigation; the pane de-duplicates) |
-| `blocked` | `url`, `external` |
+| `blocked` | `url`, `external`, `downloaded?` (a Downloaded page asked for a loopback service) |
 | `console` | `level`, `text`, `source?`, `url?`, `line?`, `timestamp` |
 | `exception` | `text`, `url?`, `line?`, `timestamp` |
 | `request` | `requestId`, `url`, `method`, `resourceType`, `headers`, `timestamp` |
@@ -301,11 +390,13 @@ a later report from the frame's session updates the same row.
 
 The commands are `browser_attach(paneId, onEvent)`, `browser_detach(paneId)`,
 `browser_history(paneId, delta)`, `browser_reload(paneId, ignoreCache)`,
+`browser_replace(paneId, from, to)`,
 `browser_response_body(paneId, requestId)` (returning the body and whether it is base64),
 `browser_focus(paneId | null)`, and `browser_chords(keys)` (see App chords), wrapped by
 `src/browserApi.ts`. A frame target has no navigation
 history to query, so Back, Forward, and Reload run `history.go(delta)` and `location.reload()` in
-the frame's session; a hard reload also turns the cache off for that session.
+the frame's session; a hard reload also turns the cache off for that session. `browser_replace`
+runs `location.replace(to)` there, only while the frame still shows `from` (File pages).
 
 ### Chrome
 
@@ -320,12 +411,15 @@ Anything else shows a message by the field saying that only loopback addresses a
 files open.
 
 On a file page the toolbar shows a trust badge (Trusted, Local, or Downloaded, 3.21), and a bar
-under the toolbar lists the hosts the page tried to reach and was refused, each with an Allow
-button (Trust levels). Suggestions come from bookmarks, listening ports (the Ports
-pane's list, 4.19), and recently visited addresses (kept for the session, at most 50); arrows move
-through them, Enter opens one, and Escape reverts the field. When the pane is 600 px wide or less
-(a container query on the pane body), the toolbar wraps: the address field takes a row of its own,
-so it and its suggestions span the pane, and the text buttons shrink before they overflow.
+under the toolbar lists the hosts the page tried to reach and was refused, each with its count of
+refused requests and an Allow button, or on a Downloaded page, for a loopback host, the note
+"Downloaded pages can't reach local services" (Trust levels). The pane decides which with
+`isLoopbackHost` (`src/browserEgressModel.ts`), which mirrors the core's check case for case.
+Suggestions come from bookmarks, listening ports (the Ports pane's list, 4.19), and recently visited
+addresses (kept for the session, at most 50); arrows move through them, Enter opens one, and Escape
+reverts the field. When the pane is 600 px wide or less (a container query on the pane body), the
+toolbar wraps: the address field takes a row of its own, so it and its suggestions span the pane,
+and the text buttons shrink before they overflow.
 
 The start page, shown while the pane has no page, lists the listening ports as buttons and the
 bookmarks. The star toggles the current page in `localBrowser.bookmarks` through `settings_set`.

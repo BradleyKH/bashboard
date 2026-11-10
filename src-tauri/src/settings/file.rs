@@ -69,8 +69,11 @@ pub(super) fn default_file_text() -> String {
     .replace(
         "  \"localBrowser\": {",
         "  // bookmarks are { \"name\", \"url\" } pages for the Local Browser pane; only http URLs on
-  // localhost or 127.0.0.1 are kept. homeUrl is the page a new pane opens on, empty for
-  // its start page.
+  // localhost or 127.0.0.1, and file:/// URLs to .html or .htm files, are kept. homeUrl is the
+  // page a new pane opens on, empty for its start page. trustedFolders lists folders whose HTML
+  // files may reach any host; allowedHosts maps a folder (or a file opened directly from the home
+  // folder or a drive root) to extra hosts; cdnHosts lists the hosts every HTML file may load
+  // from; reloadOnChange reloads a file page when its file is saved.
   \"localBrowser\": {",
     )
     .replace(

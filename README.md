@@ -22,8 +22,8 @@ with previews for OpenAI Codex and GitHub Copilot CLI, and it works with any sta
   repo; find a line across it.
 - **Ship:** CI runs, job logs, and pull requests from GitHub, GitLab, Bitbucket, and Azure
   DevOps, ranked by what needs you.
-- **Ports and Local Browser:** see and stop dev servers, and preview `localhost` beside the
-  terminal.
+- **Ports and Local Browser:** see and stop dev servers, preview `localhost` beside the
+  terminal, and open local HTML files (such as a generated report) in the same pane.
 - **Containers:** start, stop, tail, and shell into Docker or Podman containers.
 - **Tabs, layouts, and the command palette:** workspaces restore on relaunch, named layouts
   rebuild one in a click, and Ctrl+Shift+P reaches everything.

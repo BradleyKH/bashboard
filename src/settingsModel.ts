@@ -487,7 +487,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Local Browser',
     fields: [
-      { path: ['localBrowser', 'homeUrl'], label: 'Home page', kind: 'text', allowEmpty: true, hint: 'An http or https URL on localhost or 127.0.0.1; empty opens the start page', applies: 'live' },
+      { path: ['localBrowser', 'homeUrl'], label: 'Home page', kind: 'text', allowEmpty: true, hint: 'An http or https URL on localhost or 127.0.0.1, or a file:/// URL to an .html file; empty opens the start page', applies: 'live' },
+      { path: ['localBrowser', 'trustedFolders'], label: 'Trusted folders', kind: 'list', hint: 'One absolute folder per line; HTML files in them may reach any host', applies: 'live' },
+      { path: ['localBrowser', 'reloadOnChange'], label: 'Reload on file change', kind: 'toggle', hint: 'Reload an HTML page when its file changes on disk', applies: 'live' },
     ],
   },
   {

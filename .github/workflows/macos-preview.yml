@@ -57,6 +57,20 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      # A universal tauri build lipos only the main binary; the bundler then looks for a universal
+      # bb that nothing made. Build bb per architecture and merge it first. The features match
+      # the tauri build below so cargo reuses these artifacts there.
+      - name: Build universal bb
+        if: inputs.target == 'universal-apple-darwin'
+        working-directory: src-tauri
+        run: |
+          for arch in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release --bin bb --features devtools --target "$arch"
+          done
+          mkdir -p target/universal-apple-darwin/release
+          lipo -create -output target/universal-apple-darwin/release/bb \
+            target/aarch64-apple-darwin/release/bb target/x86_64-apple-darwin/release/bb
+
       # "-" is an ad-hoc signature: Apple silicon will not run unsigned code at all, and without a
       # Developer ID nothing better is available. devtools lets a tester open Safari's Web
       # Inspector on the app.

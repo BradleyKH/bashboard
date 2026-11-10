@@ -376,21 +376,55 @@ is shorter. It applies on save and is also in the Ship section of the Settings t
 
 `localBrowser.bookmarks` (default `[]`) lists the pages saved in the Local Browser pane, in order.
 Each entry is `{ "name": "...", "url": "..." }`. A URL must be `http` or `https` on `localhost`
-or `127.0.0.1`, with an optional port and path. An entry with an empty or missing name or
-URL, or a URL outside that rule, is dropped with a notice naming its position, and the other
-entries still apply. The list has no field in the Settings tab; edit the file.
+or `127.0.0.1`, with an optional port and path, or a `file:///` URL to an `.html` or `.htm` file. An
+entry with an empty or missing name or URL, or a URL outside that rule, is dropped with a notice
+naming its position, and the other entries still apply. The list has no field in the Settings tab;
+edit the file.
 
 `localBrowser.homeUrl` (default `""`) is the page a new Local Browser pane opens on, under the same
 URL rule. Empty opens the pane's start page. It applies on save and is also in the Local Browser
 section of the Settings tab.
+
+`localBrowser.trustedFolders` (default `[]`) lists folders whose HTML files the pane may let reach
+any host. Each entry is an absolute folder path. A file in any other folder reaches only its own
+folder's files, the CDN hosts below, and the hosts you allow for its folder. A file that Windows marks as
+downloaded from the internet (Mark of the Web) is never trusted, even in a trusted folder. An entry
+that is not a string, or is not an absolute path, is dropped with a notice, and the other entries
+still apply. It applies on save and is also in the Local Browser section of the Settings tab, one
+folder per line.
+
+`localBrowser.allowedHosts` (default `{}`) maps a folder to the hosts its pages may reach beyond the
+CDN hosts. A key is an absolute folder path, or the absolute path of a single file for a page opened
+directly from your home folder or a drive root, since each such page stands alone; its value is a
+list of host names. The pane's Allow button adds to it when a page's request to a new host is
+blocked. A Downloaded page (one with Mark of the Web) never reaches a loopback host, so for it a
+`localhost`, `*.localhost`, `127.x.x.x`, `0.0.0.0`, or `[::1]` entry here or in `cdnHosts` is
+ignored, as is a scheme-only entry (`https:`) or a wildcard that could match one (`*`). A key that
+is not an absolute path, a value that is not a list, or a host that is not a string is dropped with
+a notice naming it, and the other entries still apply. It has no field in the Settings tab; edit the
+file.
+
+`localBrowser.cdnHosts` (default `["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com",
+"fonts.googleapis.com", "fonts.gstatic.com"]`) lists the hosts every HTML file page may load
+scripts, styles, and fonts from, whatever its folder. An entry that is not a string is dropped
+with a notice naming its position. An empty list means pages load nothing from the network unless
+their folder allows it. It has no field in the Settings tab; edit the file.
+
+`localBrowser.reloadOnChange` (default `true`) reloads an HTML file page in the pane when its file
+changes on disk. Off, the pane shows a "Changed on disk" notice with a Reload button instead. It applies on save and is
+also in the Local Browser section of the Settings tab.
 
 ```jsonc
 "localBrowser": {
   "homeUrl": "http://localhost:5173",
   "bookmarks": [
     { "name": "App", "url": "http://localhost:5173" },
-    { "name": "API health", "url": "http://127.0.0.1:8080/health" }
-  ]
+    { "name": "API health", "url": "http://127.0.0.1:8080/health" },
+    { "name": "Report", "url": "file:///C:/Users/me/reports/q3.html" }
+  ],
+  "trustedFolders": ["C:/Users/me/reports"],
+  "allowedHosts": { "C:/Users/me/sketches": ["api.example.com"] },
+  "reloadOnChange": true
 }
 ```
 

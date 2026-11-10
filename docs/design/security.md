@@ -58,7 +58,9 @@ Each rule lives in one place, with tests beside it.
 
 **No channel to the app.** Nothing is injected into a framed page, and the app has no `message`
 listener, so a page has nothing to call. The core reads the frame from outside over the DevTools
-Protocol (4.21 Design). The frame's owner is read from the app's own DOM (`data-browser-pane`),
+Protocol (4.21 Design). The scripts it runs in the frame (`history.go`, `location.reload`, and
+`location.replace` for a move between listeners) are one-shot evaluations that define nothing a
+page could later call. The frame's owner is read from the app's own DOM (`data-browser-pane`),
 which the page cannot forge.
 
 **No route to the app's origin.** `browser_policy::classify` refuses the app's origin, and the dev
@@ -76,27 +78,51 @@ failed in the frame. From a dev server page an external `http(s)` address opens 
 browser; from a file page it does not open until the user clicks Open, since a script can put data
 in the address (4.21 Navigation policy).
 
+**A Downloaded page never navigates to a local service.** The core asks the file server whether
+the frame's current document is on a Downloaded listener, and fails any navigation that page
+starts toward a loopback host outside its own listener and token before a request is sent. The
+pane's own navigations (the address field, Home, a bookmark, Back) are not the page's and still
+leave it (4.21 Navigation policy, File pages).
+
 **Header rewriting is narrow.** The core removes `X-Frame-Options` and the `frame-ancestors`
 directive, and nothing else, only from loopback documents inside a Local Browser frame (4.21
 Header rewriting). The rest of a page's CSP stays in force.
 
 **File serving is scoped** (3.21):
 
-- one origin per folder, so folders cannot read each other;
-- a per-pane random token in every address, so a page that does not know it reads nothing;
+- one origin per folder for its Trusted and Local pages, so folders cannot read each other;
+- a second origin per folder for its Downloaded pages, so a Downloaded page cannot reach a Trusted
+  or Local page's frame, token, or `fetch` in the same folder, and through them its unmarked files
+  or its wider egress;
+- a file with Mark of the Web never runs as a document in the Trusted and Local origin: that
+  listener answers 404 for a marked HTML or XML file, and for a marked SVG file except as an image,
+  in the pane's frame and in frames nested in a page alike, and only the pane, never the server,
+  moves a page to the Downloaded origin;
+- a per-pane random token in every address, so a page that does not know it reads nothing; each
+  token is known only on the listener it was made for, so it never carries a page to the other
+  origin. A pane's tokens live until it closes (at most 20, the oldest revoked first), so its Back
+  and Forward keep working. The longer life exposes nothing new: a token is 128 random bits, it
+  appears only in that pane's frame history, every response sends `Referrer-Policy: no-referrer`,
+  and no other origin can read the frame's history, so a page learns no token but its own;
 - an exact `Host` check against DNS rebinding;
 - canonicalized paths that must stay under the mount root, with no dot segments, no alternate data
   streams, and no directory listings;
 - a drive root or the home folder mounts the single file, not the folder;
 - `GET` and `HEAD` only, besides the CSP report path;
 - `nosniff`, `Cross-Origin-Resource-Policy: same-origin`, and no CORS headers;
-- a Downloaded page's mount serves only files that also carry Mark of the Web.
+- the trust level's CSP on every HTML, SVG, XML, and JavaScript response, so a framed SVG file or
+  a worker is held to the page's egress list, and no service worker scripts;
+- the Downloaded origin serves only files that carry Mark of the Web.
 
 **Egress follows trust** (3.21 Trust levels). Reading local files and sending data out is the
 combination that does harm, so a page outside a trusted folder may load from its own mount and
 known CDNs, and anything else waits for the user to allow that host. A refused request is reported
 to the pane, which names the host, so a page that wants a legitimate API is one click from working
-and a page that wants to leak data is visible doing it.
+and a page that wants to leak data is visible doing it. A Downloaded page never reaches a loopback
+service through its policy or a navigation, even with an allowed-hosts or CDN-hosts entry for one:
+the core drops every source that could match this machine from a Downloaded page's CSP, the pane
+offers no Allow for a loopback host there, and the bridge refuses the page's navigations to one. On a Local page, Allow for a loopback host names it as a service
+on this computer, with its port, and asks first.
 
 ### What is deliberately not done
 
@@ -118,9 +144,19 @@ would break the rule that a framed page has no contact with the app.
   data through a STUN or TURN server of its choosing. Closing this needs either a WebView2 switch
   that turns WebRTC off for the whole app or script injection, and both cost more than the risk
   here, which needs a page written specifically to use it.
+- **Loopback by DNS.** CSP matches names, not resolved addresses, so an allowed host whose DNS
+  answers with `127.0.0.1` reaches this machine from a Downloaded page.
 - **DNS prefetch.** CSP does not govern `<link rel="dns-prefetch">`, so a page can make the
   machine resolve a name it picks, which leaks a few bytes to whoever runs that name's DNS server.
-- **Downloads folder.** A Downloaded page in the Downloads folder can read the other downloads,
-  since they carry the mark too; it cannot send them anywhere without an Allow the user confirmed.
+- **Downloaded pages share their folder's Downloaded origin.** Two Downloaded pages from one
+  folder can reach each other's frames and read each other's marked files. In the Downloads folder
+  that means a Downloaded page can read the other downloads, since they carry the mark too; it
+  cannot send them anywhere without an Allow the user confirmed.
+- **Marked subresources in a Local page.** A Local page that loads a marked script, stylesheet, or
+  image gets it, and a marked script runs with the Local page's authority. The Local page chose to
+  load it, as it would a script from a CDN.
+- **Allowed hosts are per folder.** A host allowed on a folder's Local page also applies to its
+  Downloaded pages, and the reverse, since both read one `localBrowser.allowedHosts` entry. A page
+  opened directly from the home folder or a drive root has an entry of its own.
 - **Dev server pages** carry no trust levels: their CSP is the dev server's own. The server
   decides what it exposes, and the pane frames it as it is (4.21).

@@ -6,6 +6,7 @@ import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
 import { copiedPathText } from './displayPath';
 import { platformOs } from './platform';
+import { pathToFileUrl } from './localBrowserModel';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import { FilePreview } from './filePreview';
@@ -75,6 +76,8 @@ export interface FilesPaneOptions {
    */
   onPathDragStart?: (paths: string[], e: PointerEvent, move?: { paneId: string; folder: string }) => void;
   onPin: (absolute: string, isDir: boolean) => void;
+  /** Open a `file:///` URL in a Local Browser pane; absent where the Local Browser is unavailable. */
+  onOpenLocal?: (url: string) => void;
   /** The breadcrumb's pin button on an already pinned folder; without it the button only pins. */
   onUnpin?: (absolute: string) => void;
   /** Absolute paths of the repo's pinned folders that exist. */
@@ -641,6 +644,12 @@ export class FilesPane implements PaneView {
     return out;
   }
 
+  private openLocal(path: string): void {
+    const url = pathToFileUrl(path);
+    if (url === null) showToast('Only files on a local drive can open in the Local Browser');
+    else this.opts.onOpenLocal?.(url);
+  }
+
   // Paths are fixed when a menu is built, so a choice acts on the folder the menu was opened in.
   private rowMenu(entry: FileEntry, selection: FileEntry[]): MenuEntry[] {
     const folder = this.currentPath;
@@ -649,6 +658,7 @@ export class FilesPane implements PaneView {
       openTerminalHere: (e) => this.opts.onOpenTerminalHere(pathOf(e)),
       searchHere: (e) => this.opts.onSearchHere(pathOf(e)),
       openInEditor: (e) => this.openInEditor(pathOf(e)),
+      openInLocalBrowser: this.opts.onOpenLocal && ((e) => this.openLocal(pathOf(e))),
       copyPath: (es) => {
         if (es.length === 1) void copyPath(pathOf(es[0]));
         else void copyText(es.map((e) => copiedPathText(pathOf(e), platformOs())).join('\n'), 'paths');

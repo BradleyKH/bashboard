@@ -1,6 +1,7 @@
 mod agents;
 mod backdrop_image;
 mod browser;
+mod browser_files;
 pub mod browser_policy;
 mod browser_tls;
 mod cli;
@@ -161,6 +162,7 @@ pub fn run() {
         .manage(transcript::Transcripts::default())
         .manage(forge::ForgeState::default())
         .manage(browser::BrowserState::default())
+        .manage(browser_files::FileServerState::default())
         .manage(second_instance::StartupFolder::from_args())
         .setup(|app| {
             let window = create_main_window(app.handle())?;
@@ -189,9 +191,12 @@ pub fn run() {
             browser::browser_detach,
             browser::browser_history,
             browser::browser_reload,
+            browser::browser_replace,
             browser::browser_response_body,
             browser::browser_focus,
             browser::browser_chords,
+            browser_files::browser_serve_file,
+            browser_files::browser_unwatch_file,
             browser_tls::browser_probe_tls,
             browser_tls::browser_prefer_tls,
             clipboard::clipboard_read_text,
