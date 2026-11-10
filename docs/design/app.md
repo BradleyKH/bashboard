@@ -22,7 +22,7 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb ship` | The Ship pane (4.20) on the working directory's repo, or the Overview outside a repo |
 | `bb ports` | The Ports pane (4.19) |
 | `bb containers` | The Containers pane (4.16) |
-| `bb browse [<url>]` | A Local Browser pane (4.21) at a loopback address, or on its start page; a bare port, `:port`, and `host:port/path` are accepted, and a non-loopback address is refused |
+| `bb browse [<url>]` | A Local Browser pane (4.21) at a loopback address, or on its start page; a bare port, `:port`, `host:port/path`, and a path to an `.html` or `.htm` file (resolved against the shell's working folder) are accepted, and a non-loopback address is refused |
 | `bb term [<folder>] [-- <command>]` | A terminal of the default profile in the working directory or `<folder>`, typing the command after `--` as one line once its shell is ready |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane (3.20), or removes it with `--clear` |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` |

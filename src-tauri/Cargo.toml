@@ -16,6 +16,11 @@ default-run = "bashboard"
 name = "bashboard_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Web Inspector in a release build, for the macOS preview workflow's testers (frame time, WebGL
+# context limit). Release builds leave it off.
+devtools = ["tauri/devtools"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

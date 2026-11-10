@@ -34,6 +34,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.18 Single instance (`src-tauri/src/second_instance.rs`) | [app.md](app.md) |
 | 3.19 Local model servers (`src-tauri/src/model_servers.rs`) | [containers.md](containers.md) |
 | 3.20 Ship (`src-tauri/src/forge/`) | [ship.md](ship.md) |
+| 3.21 Local file server (`src-tauri/src/browser_files.rs`) | [browser.md](browser.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |
@@ -69,6 +70,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 7 Data model | [data.md](data.md) |
 | 8 Settings | [data.md](data.md) |
 | 9 Security | [README.md](README.md) |
+| 9.1 Local Browser | [security.md](security.md) |
 | 10 Testing | [README.md](README.md) |
 | 11 Risks | [README.md](README.md) |
 
@@ -209,20 +211,14 @@ rename box out.
   hyperlinks, open only `http` and `https` URLs, through the system browser, on Ctrl+click; a
   loopback link opens the Local Browser pane (4.21) instead, and Ctrl+Shift+click sends it to
   the system browser.
-- The Local Browser pane (4.21) frames only loopback pages. The CSP `frame-src` lists exactly
+- The Local Browser pane (4.21) runs pages the app did not write, so its threat model and every
+  measure that contains a framed page, including the local file server (3.21) and its trust
+  levels, are in [security.md](security.md) (9.1). The CSP `frame-src` lists exactly
   `http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:*`, in both `csp`
   and `devCsp` (WebView2 rejects an IPv6 host such as `[::1]` there, so the pane does not open
-  one), and deliberately omits `*.localhost`: the release app is served from `http://tauri.localhost`, so a
-  framed copy of it with `allow-same-origin` would share its origin and reach the Tauri IPC bridge.
-  The core also refuses the app's own origin, and the dev server's port on every loopback host, for
-  typed and in-frame navigations. Frames are sandboxed with `allow-scripts allow-forms
-  allow-same-origin allow-modals` (no popups, no top navigation) and `no-referrer`, and the app has
-  no `message` listener, so a page has no channel to the app. The bridge drives the frame over the
-  DevTools Protocol without injecting anything. It removes `X-Frame-Options` and `frame-ancestors`
-  only from loopback documents inside a Local Browser frame, never from the app's own documents,
-  and fails any document navigation there to a non-loopback address or the app (an external
-  `http(s)` address goes to the system browser instead). Nested iframes inside a framed page are
-  not policed.
+  one), and deliberately omits `*.localhost`: the release app is served from
+  `http://tauri.localhost`, so a framed copy of it with `allow-same-origin` would share its origin
+  and reach the Tauri IPC bridge.
 - Markdown is the only file content rendered as HTML: `markdown-it` with raw HTML off, then
   `DOMPurify`, with no remote images and links opened only through `open_url` (4.12).
 - The file commands (3.8) normalize every path, write only to existing files, and create or

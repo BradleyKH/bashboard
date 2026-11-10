@@ -320,8 +320,21 @@ the focused pane's folder.
   // empty or missing name or url, or a url that is not http or https on localhost or 127.0.0.1,
   // is dropped with a warning naming its position. homeUrl is the page a new pane opens
   // on, with the same host rule; empty opens the pane's start page. homeUrl has a Settings tab
-  // field; bookmarks does not.
-  "localBrowser": { "bookmarks": [], "homeUrl": "" },
+  // field; bookmarks does not. A bookmark or homeUrl may also be a file:/// URL to an .html or
+  // .htm file. trustedFolders are folders whose HTML files may reach any host (3.21); a file
+  // with Mark of the Web is never trusted. allowedHosts maps a folder to the hosts its pages may
+  // reach beyond cdnHosts; the pane's Allow button adds to it. cdnHosts are hosts every file page
+  // may load from. reloadOnChange reloads a file page when its file changes on disk. An entry
+  // that is not a string, or a folder that is not an absolute path, is dropped with a warning.
+  // reloadOnChange and trustedFolders have Settings tab fields; the rest do not.
+  "localBrowser": {
+    "bookmarks": [],
+    "homeUrl": "",
+    "trustedFolders": [],
+    "allowedHosts": {},
+    "cdnHosts": ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"],
+    "reloadOnChange": true
+  },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
   // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in

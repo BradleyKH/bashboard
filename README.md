@@ -82,6 +82,8 @@ from **Settings > Apps > Installed apps**. To build from source, see
   in to GitHub, GitLab, Bitbucket, and Azure DevOps for the Ship pane.
 - [Settings](docs/settings.md): the settings file and what each setting does.
 - [Development](docs/development.md): building from source, releasing, and debugging input.
+- [Testing a macOS preview build](docs/macos-testing.md): installing an early macOS build and
+  what to check.
 - [Design](docs/design/README.md): the spec, for anyone changing Bashboard itself.
 
 ## License

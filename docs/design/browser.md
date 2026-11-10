@@ -3,15 +3,128 @@
 Section numbers are ids shared across every file in `docs/design/`, so a citation such as
 "section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
 
+## 3.21 Local file server (`src-tauri/src/browser_files.rs`)
+
+The Local Browser shows a local HTML file by having the core serve it over loopback, not by
+framing a `file://` URL. WebView2 does not frame `file://` documents in an `http` page, and a
+`file://` page gets no `fetch` and no ES modules. Served over loopback, a file page is an ordinary
+loopback document to the rest of 4.21: the navigation policy, header rewriting, events, and
+DevTools drawer apply unchanged, and relative stylesheets, scripts, and images resolve.
+
+### Mounts
+
+Opening a file mounts its folder. The mount root is the file's parent folder, canonicalized
+(`std::fs::canonicalize`, so junctions and symlinks resolve before any check). Two exceptions
+mount the file alone, serving no other path: a folder that is a drive root, and the user's home
+folder itself, since either would expose far more than the page needs. UNC paths
+(`\\server\share`) are refused.
+
+Each mount has its own listener on `127.0.0.1`, on its own port, so each folder is its own origin.
+Chromium's same-origin policy then keeps a page in one folder from reading another folder's files,
+cookies, or storage, with no check of ours. The core records each folder's port in
+`browser-mounts.json` in the app data folder and asks for the same port on the next launch, so a
+page's `localStorage` (keyed by origin) survives a restart; a port that is taken gets a fresh one.
+Mounts live until the app exits.
+
+Each pane that opens a file on a mount registers a token: 128 random bits, hex, made per pane per
+launch. The serving address is `http://127.0.0.1:<port>/<token>/<path>`. The token ties every
+request to one pane, which is how CSP reports and file changes reach the right pane, and it keeps a
+page elsewhere (another pane, or a site in the system browser) from reading a mount it does not
+know the token for.
+
+### Requests
+
+The listener answers `GET` and `HEAD` for files, and `POST` only at `/<token>/__csp-report`.
+Before serving, it:
+
+1. checks that `Host` is exactly `127.0.0.1:<port>`, refusing anything else with 421, which stops a
+   DNS rebinding page from reading through a name it controls;
+2. looks up the token, answering 404 for an unknown one, as for a missing file;
+3. percent-decodes the path, refuses any segment that is empty, `.`, `..`, or starts with `.`
+   (so `.git`, `.env`, and `.ssh` are never served), and refuses a path with `:` (alternate data
+   streams);
+4. joins it to the mount root, canonicalizes, and requires the result to sit under the root, so a
+   junction inside the folder cannot point out of it;
+5. serves files only. A folder answers 404; there are no directory listings.
+
+A Downloaded page's mount (Trust levels) also refuses any file that lacks Mark of the Web, so a
+downloaded page reads only what arrived with it.
+
+Every response carries:
+
+| Header | Value |
+| --- | --- |
+| `Content-Type` | From the extension; unknown extensions are `application/octet-stream` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Cross-Origin-Resource-Policy` | `same-origin`, so no other origin can embed a mount's files |
+| `Referrer-Policy` | `no-referrer` |
+| `Cache-Control` | `no-store`, so a reload after a change always reads the disk |
+| `Content-Security-Policy` | On HTML only, by trust level (below) |
+
+No response carries `Access-Control-Allow-Origin`, so no other origin can read one.
+
+### Trust levels
+
+A file page's trust level decides where it may send requests. The browser enforces it through the
+CSP header the core puts on the HTML response; nothing is injected into the page. The level is
+fixed when the document loads, and changing it reloads the page.
+
+| Level | Applies to | Can reach |
+| --- | --- | --- |
+| Trusted | A file under a folder in `localBrowser.trustedFolders` (8), without Mark of the Web | Any host |
+| Local | Any other file without Mark of the Web | Its own mount, `localBrowser.cdnHosts`, and its folder's allowed hosts |
+| Downloaded | A file with Mark of the Web, wherever it is, including inside a trusted folder | The same as Local; allowing a host asks first |
+
+Mark of the Web is the `Zone.Identifier` alternate data stream Windows writes on files from a
+browser download, an email attachment, or an archive extracted from one. The core reads it with
+the file, and a `ZoneId` of 3 (Internet) or 4 (Restricted) makes the page Downloaded.
+
+The CSPs, with `<cdn>` the CDN hosts and `<allowed>` the folder's allowed hosts:
+
+| Level | Policy |
+| --- | --- |
+| Trusted | `default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; form-action 'self'` |
+| Local, Downloaded | `default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval' <cdn> <allowed>; form-action 'self'; report-uri /<token>/__csp-report` |
+
+Inline scripts and `eval` are allowed at every level. Generated reports are mostly inline, and a
+script that cannot send anything out has nothing to leak. Every directive falls back to
+`default-src`, so `connect-src` (`fetch`, XHR, WebSocket, EventSource), `img-src`, `script-src`,
+`style-src`, `font-src`, `media-src`, and `frame-src` all share the one list. That matters because
+an image or script URL can carry data in its query string as easily as a `fetch` can.
+
+`localBrowser.cdnHosts` defaults to the public CDNs a generated page usually loads from:
+`cdnjs.cloudflare.com`, `cdn.jsdelivr.net`, `unpkg.com`, `fonts.googleapis.com`, and
+`fonts.gstatic.com`. A CDN serves files but does not show who requested them, so loading from one
+is not a way to send data out.
+
+**Refused requests.** Chromium sends a report for each request the CSP refuses to
+`/<token>/__csp-report` (JSON, at most 16 KB, with at most 100 reports a second per token). The
+core sends the pane an `egressBlocked` event with the refused URL's host, the directive, and the
+URL. The pane collects the hosts in a bar under the toolbar, each with an Allow button. Allow adds
+the host to the folder's entry in `localBrowser.allowedHosts` (8) through `settings_set`, and the
+page reloads with the host in its policy. On a Downloaded page Allow first asks "This file came
+from the internet. Let it send requests to example.com?". Allowed hosts belong to a folder, not to
+one file, since every file in a folder shares one origin.
+
+### Changes on disk
+
+The core watches each served HTML file (the `notify` crate, as `settings/watch.rs` does) and
+sends its pane `fileChanged`, debounced by 300 ms, since generators often write a file in several
+steps. With `localBrowser.reloadOnChange` (8) on, the default, the pane reloads the frame; off, it
+shows a "Changed on disk" notice with a Reload button. Only the opened file is watched, not its
+stylesheets or scripts.
+
 ## 4.21 Local Browser
 
 The `browser` pane kind (4.11) shows a dev server's page beside the terminals that run it, with
 URL entry, Back, Forward, Reload, Home, bookmarks, device sizes, and a drawer holding a Console
-and a Network panel. It is limited to loopback: `http` or `https` on `localhost` or `127.0.0.1`, on
-any port. The front end is `src/localBrowserPane.ts` (`LocalBrowserPane`) with its
+and a Network panel. It shows two kinds of page: loopback addresses (`http` or `https` on
+`localhost` or `127.0.0.1`, on any port), and local HTML files, which the core serves over
+loopback itself (3.21). The front end is `src/localBrowserPane.ts` (`LocalBrowserPane`) with its
 chrome in `src/browserToolbar.ts` and `src/browserDevtools.ts`; the core side is
 `src-tauri/src/browser.rs`, `src-tauri/src/browser/chords.rs`, `src-tauri/src/browser_policy.rs`,
-and `src-tauri/src/browser_tls.rs`.
+`src-tauri/src/browser_tls.rs`, and `src-tauri/src/browser_files.rs`. The pane's threat model and
+every measure that contains a framed page are collected in [security.md](security.md) (9.1).
 
 ### Design
 
@@ -97,6 +210,12 @@ not opened in the system browser a second time. Back is skipped while the frame 
 of its own, since going back from its first entry would leave its history; the error page stays,
 with the notice.
 
+**File pages.** A page served from a local file (3.21) follows the same classes, with one
+difference: an external navigation it makes is never opened in the system browser on its own. A
+script can navigate with data in the query string, and opening that address automatically would
+carry the data out. The pane shows "This page tried to open example.com" with an Open button, and
+only a click sends the address to `open_url`.
+
 The pane takes an error page or failed document request that follows a `blocked` event within a
 few seconds as that navigation's, not as an unreachable server. Any other document that fails to
 load (a `chrome-error://` frame, or a failed document request) shows a "nothing is listening"
@@ -169,6 +288,8 @@ The core sends the pane `BrowserEvent` values (`kind` in camelCase) on a Tauri `
 | `finished` | `requestId`, `encodedLength`, `timestamp` |
 | `failed` | `requestId`, `errorText`, `canceled`, `timestamp` |
 | `loadState` | `loading` |
+| `fileChanged` | (none; the served file changed on disk, 3.21) |
+| `egressBlocked` | `host`, `directive`, `url` (a file page's request that its CSP refused, 3.21) |
 
 Every `timestamp` is milliseconds since the Unix epoch. Console and exception text is cut at 10
 KB. Page events count only for the frame's root frame, not frames nested in the page.
@@ -192,8 +313,15 @@ The toolbar has Back, Forward, Reload (Shift+click bypasses the cache), Home, th
 a bookmark star, a Bookmarks menu, a device size menu, and a DevTools button with a badge counting
 console errors and exceptions. Home opens `localBrowser.homeUrl` (8), or the start page when it
 is empty. The address field accepts a bare port (`5173`), `:port`, `host:port/path`, or a full
-loopback URL; a missing host means `localhost`. Anything else shows a message by the field saying
-that only loopback addresses open. Suggestions come from bookmarks, listening ports (the Ports
+loopback URL; a missing host means `localhost`. It also accepts a path to an `.html` or `.htm`
+file: Windows (`C:\notes\a.html`, `C:/notes/a.html`), Git Bash (`/c/notes/a.html`), `~/`, or a
+`file:///` URL. A file page shows its path in the field, never the core's serving address.
+Anything else shows a message by the field saying that only loopback addresses and local HTML
+files open.
+
+On a file page the toolbar shows a trust badge (Trusted, Local, or Downloaded, 3.21), and a bar
+under the toolbar lists the hosts the page tried to reach and was refused, each with an Allow
+button (Trust levels). Suggestions come from bookmarks, listening ports (the Ports
 pane's list, 4.19), and recently visited addresses (kept for the session, at most 50); arrows move
 through them, Enter opens one, and Escape reverts the field. When the pane is 600 px wide or less
 (a container query on the pane body), the toolbar wraps: the address field takes a row of its own,
@@ -249,7 +377,8 @@ reports none when focus returns to the app, the pane collapses, or it is dispose
 
 The workspace saves `{ kind: "browser", url, devtools, device }` per pane (4.9); each field is
 read leniently, with missing or invalid values falling back to the start page, a closed, split
-drawer on Console, and Responsive. A pane saved on its start page (a null `url`) reopens on it;
+drawer on Console, and Responsive. A file page saves its `file:///` URL, never the serving
+address, whose token changes every launch. A pane saved on its start page (a null `url`) reopens on it;
 only a pane created with no `url` at all opens on `localBrowser.homeUrl`. Bookmarks and the home page live in
 settings (8), not in the workspace.
 
@@ -257,7 +386,9 @@ settings (8), not in the workspace.
 
 The kind menu (4.11) and the Launch menu (4.6, key **b**) open a pane on `localBrowser.homeUrl`, or on the start page when it is empty.
 `bb browse [<url>] [--tab|-t] [--collapsed]` (3.13) opens one at an address in the same shorthand
-as the address field and refuses a non-loopback address. The Ports pane's Open button and a row's
+as the address field and refuses a non-loopback address; a file path is resolved against the
+shell's working folder. In the Files pane, an `.html` or `.htm` file's menu offers **Open in Local
+Browser**. The Ports pane's Open button and a row's
 double-click open the port in Local Browser, and the port and container menus offer **Open in
 Local Browser** and **Open in system browser**. In a terminal, Ctrl+click on a loopback
 link opens Local Browser beside the terminal, and Ctrl+Shift+click opens the system browser;
@@ -265,7 +396,8 @@ other links open the system browser as before (9).
 
 ### Limits
 
-- Loopback only: no remote hosts, no `*.localhost`.
+- Loopback and local HTML files only: no remote hosts, no `*.localhost`, no UNC paths.
+- A file page reaches the web only as its trust level allows (3.21).
 - `https` loads only with a certificate Windows trusts; there is no way to proceed past a
   certificate error.
 - Frames nested in the page load only what the pane's own frame may (see Nested frames).

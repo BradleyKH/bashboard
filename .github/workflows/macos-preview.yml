@@ -58,10 +58,11 @@ jobs:
         run: cargo test
 
       # "-" is an ad-hoc signature: Apple silicon will not run unsigned code at all, and without a
-      # Developer ID nothing better is available.
+      # Developer ID nothing better is available. devtools lets a tester open Safari's Web
+      # Inspector on the app.
       - name: Build app and dmg
         run: >
-          pnpm tauri build --target ${{ inputs.target }} --bundles app,dmg
+          pnpm tauri build --target ${{ inputs.target }} --bundles app,dmg --features devtools
           --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
 
       - name: Assert the bundle ships bb
@@ -73,6 +74,19 @@ jobs:
             exit 1
           fi
           file "$app/Contents/MacOS/"*
+          # A universal build must make every binary universal, not only the main one: a thin bb
+          # would fail to run on the other architecture and still pass the check above.
+          case "${{ inputs.target }}" in
+            universal-apple-darwin) want="arm64 x86_64" ;;
+            aarch64-apple-darwin) want="arm64" ;;
+          esac
+          for bin in bashboard bb; do
+            have=$(lipo -archs "$app/Contents/MacOS/$bin" | tr ' ' '\n' | sort | xargs)
+            if [ "$have" != "$want" ]; then
+              echo "::error::$bin has architectures '$have', expected '$want'"
+              exit 1
+            fi
+          done
           codesign -dv "$app" 2>&1 | head -n 5
 
       - name: Upload artifact
@@ -97,6 +111,6 @@ jobs:
           else
             gh release create "$tag" --prerelease --target "$GITHUB_SHA" \
               --title "Bashboard $version macOS preview ($tag)" \
-              --notes "Unsigned macOS test build, not for general use. Bashboard_*_universal.dmg runs on every Mac; *_aarch64.dmg only on Apple silicon. After dragging Bashboard to Applications, run once in Terminal: xattr -dr com.apple.quarantine /Applications/Bashboard.app" \
+              --notes "Unsigned macOS test build, not for general use. Bashboard_*_universal.dmg runs on every Mac; *_aarch64.dmg only on Apple silicon. After dragging Bashboard to Applications, run once in Terminal: xattr -dr com.apple.quarantine /Applications/Bashboard.app. What to test: https://github.com/${{ github.repository }}/blob/$GITHUB_SHA/docs/macos-testing.md" \
               "$dmg"
           fi
