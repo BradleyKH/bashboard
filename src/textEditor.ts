@@ -248,17 +248,22 @@ export class TextEditor {
   }
 
   /**
-   * Scrolls the 1-based `line` to the middle, marks it, and puts the caret at its start without
-   * taking focus.
+   * Scrolls the 1-based `line` to the middle, marks it, and puts the caret at its start (or at
+   * the 1-based `column`, clamped to the line) without taking focus.
    */
-  revealLine(line: number): void {
+  revealLine(line: number, column: number | null = null): void {
     const doc = this.view.state.doc;
     const at = Math.min(Math.max(1, line), doc.lines);
-    const from = doc.line(at).from;
+    const target = doc.line(at);
+    const caret = column === null ? target.from : target.from + Math.min(Math.max(0, column - 1), target.length);
     this.view.dispatch({
-      selection: { anchor: from },
-      effects: [setBand.of(at), EditorView.scrollIntoView(from, { y: 'center', x: 'start' })],
+      selection: { anchor: caret },
+      effects: [setBand.of(at), EditorView.scrollIntoView(caret, { y: 'center', x: column === null ? 'start' : 'nearest' })],
     });
+  }
+
+  get lineCount(): number {
+    return this.view.state.doc.lines;
   }
 
   /** Measures again after the text size changed (a zoom step). */

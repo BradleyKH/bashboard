@@ -162,6 +162,41 @@ body.resizing.column {
   border-color: var(--accent);
 }
 
+/* Agent glow and border lights (docs/design/sessions.md section 4.23). The border lights' canvas sits between the backdrop and
+   #panes, outside the scrim's filter, so the comets are not dimmed with the backdrop. Timing and
+   strength come from PANE_LIGHTS in src/paneLightsModel.ts through the --agent-glow-* properties. */
+#pane-lights {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Only opacity animates, so the breath composites without repainting the terminal under it. */
+body.agent-glow .pane.agent-working::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 22px 2px color-mix(in srgb, var(--accent) 38%, transparent),
+    inset 0 0 3px 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: agent-glow-breathe var(--agent-glow-period) ease-in-out infinite;
+}
+
+@keyframes agent-glow-breathe {
+  0%,
+  100% {
+    opacity: var(--agent-glow-low);
+  }
+  50% {
+    opacity: var(--agent-glow-high);
+  }
+}
+
 /* Title strip (docs/design/terminal.md section 4.4): always in the flow, even for a lone pane.
    Never make it a hover overlay; it would sit over the buttons and first row at the top of the
    pane. */
@@ -558,6 +593,17 @@ body.dashboard-resizing {
 
 /* Fonts center "+" on the math axis, below the cap-height glyphs beside it. The shorter line box
    raises the glyph 1px; the extra bottom padding keeps the button the bar's height. */
+#dashboard .dashboard-global-pins:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#dashboard .dashboard-global-pins svg {
+  width: 13px;
+  height: 13px;
+}
+
 #dashboard .dashboard-top .dashboard-launch {
   line-height: 16px;
   padding-bottom: 4px;
@@ -656,6 +702,15 @@ body.dashboard-resizing {
   color: #6c777e;
   padding: 2px 8px;
   font-size: 12px;
+}
+
+.panes-others.switchable {
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.panes-others.switchable:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .terminal-card,

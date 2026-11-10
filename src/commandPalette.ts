@@ -1,6 +1,7 @@
 import type { Action } from './keymap';
 import { buildPaletteItems, pushRecent, rankPalette, type PaletteCommand, type PaletteInput, type PaletteItem } from './paletteModel';
 import { Picker, type PickerItem } from './picker';
+import type { GlobalPin } from './globalPins';
 import type { Pin } from './repos';
 
 export interface CommandPaletteDeps {
@@ -11,6 +12,7 @@ export interface CommandPaletteDeps {
   openFavorite(path: string, opts: { collapsed: boolean }): void;
   openLayout(name: string): void;
   openPin(pin: Pin): void;
+  runGlobalPin(pin: GlobalPin): void;
   openWorktree(path: string, opts: { collapsed: boolean }): void;
   runAction(action: Action): void;
   runCommand(command: PaletteCommand): void;
@@ -77,6 +79,9 @@ export class CommandPalette {
         break;
       case 'pin':
         this.deps.openPin(c.pin);
+        break;
+      case 'globalPin':
+        this.deps.runGlobalPin(c.pin);
         break;
       case 'worktree':
         this.deps.openWorktree(c.path, { collapsed });

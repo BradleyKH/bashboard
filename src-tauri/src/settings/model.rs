@@ -286,6 +286,9 @@ pub struct Settings {
     pub code_colors: CodeColors,
     /// Multiplier on the app's chrome (controls, bars, titles, dialog text), `UI_SCALE_MIN..=UI_SCALE_MAX`.
     pub ui_scale: f64,
+    /// The working-agent glow and the pane border lights (docs/design/sessions.md section 4.23); both off by default.
+    pub agent_glow: bool,
+    pub border_lights: bool,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
@@ -333,6 +336,8 @@ impl Default for Settings {
             content_text_color: DEFAULT_CONTENT_TEXT_MODE.into(),
             code_colors: CodeColors { scheme: DEFAULT_CODE_SCHEME.into() },
             ui_scale: 1.0,
+            agent_glow: false,
+            border_lights: false,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {
                 style: "lights".into(),

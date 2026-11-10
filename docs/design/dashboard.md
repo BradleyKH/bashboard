@@ -46,7 +46,10 @@ terminal's folder as the section's "+" does, disabled when there is none or it i
 favorite, and the Layouts menu has a "+ Save" button that turns the filter into a name field: a
 single row previews "Save as" or, for an existing name in any capitalization, "Replace", Enter
 saves, and Escape returns to the filter. The pickers have these buttons however they open, from the
-top bar or from their shortcuts. Renaming, removing, and reordering stay with the sections. After
+top bar or from their shortcuts. Renaming, removing, and reordering stay with the sections. Next, a
+globe button shows while the Pins heading's globe leaves global pins out of the section: it drops a
+menu of the global pins sorted by name without regard to case, and choosing one types its command as
+clicking its row does ("No global pins" stands alone, disabled, when there are none). After
 them come icon buttons for Settings (⚙, also bound to Ctrl+,) and Help (?, also bound to F1),
 which open the app dialog (4.18) on those tabs. The × that hides the
 panel sits alone at the right end. Each button's tooltip ends with its action's current keys in
@@ -200,6 +203,7 @@ a git repo; "Explorer" is Open in File Explorer.
 | Layout | Open, Rename, Remove (asking inline, as its button does) |
 | Repo pin | Open, Explorer (a file pin's folder), Copy path, Rename, Remove pin |
 | Command pin | Type in terminal, Edit, Copy command, Explorer (its folder), Copy path, Remove pin |
+| Global pin | Type in terminal, Edit, Copy command, Remove pin |
 | Tab group header | Rename (an empty name follows the focused pane's title, as in the tab strip) |
 | Containers | Start when any container in the group is stopped, Stop when any runs, Open Containers |
 | Ports | Open localhost:&lt;port&gt;, Go to pane (when a pane started it), Show in Ports, Copy URL, Copy command line, Copy folder, Copy PID, Stop &lt;program&gt;... |
@@ -244,9 +248,20 @@ whether or not the element is shown.
 like any section. Like Launch, it is shown once some pane has a folder, whether or not the repo
 has pins yet, and a folder outside any repo holds pins of its own. The heading names the folder
 after the title ("Pins · bashboard"), dropping the name rather than wrapping when it does not
-fit, and ends with a "+" button that opens the new pin popup for a command pin in the focused
-pane's folder. File and folder pins show a file or folder icon and their label or path; clicking
-one opens it. Pins of every kind share one list, reorder by drag, and can be removed.
+fit, and ends with a globe toggle and a "+" button that opens the new pin popup for a command pin
+in the focused pane's folder. File and folder pins show a file or folder icon and their label or
+path; clicking one opens it. The repo's pins of every kind share one list, reorder by drag, and can
+be removed.
+
+**Global pins** are command pins listed for every folder rather than one repo's, kept in
+`pins.json` (3.7). They follow the repo's own pins, set off by a faint rule, each with a globe icon
+in place of `>_`, and reorder by drag among themselves. A global pin runs in the focused pane's
+folder, or the last one that had a folder, so it is never dimmed as missing, and clicking it with
+no folder anywhere shows a toast instead. Its running mark is per repo: it lights only while the
+terminal it last typed into for the repo the section shows is `working`. The heading's globe toggle,
+pressed by default, shows or hides them; hidden, the top bar's globe menu lists them instead, which
+keeps a long list out of the section. The toggle is saved as `hideGlobalPins` (section 7). The
+command palette (4.5) lists global pins with the repo's, marked Global.
 
 **Command pins** hold a shell command, a name, and the folder it runs in. The row shows a `>_`
 icon and the name, or the command when the name is empty, with the command and folder in its
@@ -267,13 +282,18 @@ it lights the row too, and it goes out when the terminal closes. Its accuracy is
 working status, exact in Git Bash with the OSC 133 lines (docs/setup.md) and within a couple of
 seconds in the other shells.
 
-**New pin popup.** A small popup with Name and Command fields over the folder the pin will run
+**New pin popup.** A small popup with Name, Command, and Scope over the folder the pin will run
 in, shown read only; the folder is fixed once the pin exists, and a pin whose folder is gone is
 dimmed like a missing file pin. Command is one field holding the whole command line, any syntax
-and flags, and is required; Name is optional. Enter or the Pin button saves, and Escape cancels.
+and flags, and is required; Name is optional. Scope is a button pair, **This repo** (**This
+folder** outside a git repo) or **Everywhere**, defaulting to the first; with Everywhere the folder
+line reads "Runs in the focused pane's folder", and with no folder at all only Everywhere is
+enabled. Enter or the Pin button saves, and Escape cancels.
 The title strip's "+" (4.4) prefills Command with the terminal's selected text, if any. A command
 pin's pencil button, F2, and its menu's Edit open the same popup with its values, and saving
-replaces them in place.
+replaces them in place. Changing Scope there moves the pin: a repo pin made global leaves the
+repo's list, and a global pin made This repo joins the current repo's list in the focused pane's
+folder. A global pin whose command another global pin already holds is not added or saved.
 
 **Favorites.** One row per favorite folder (3.7), showing its label and path:
 
@@ -314,8 +334,8 @@ are no headers and the section reads as a plain list.
 
 Left of the paths toggle, an AI toggle (a sparkle, filled while on) narrows each group to the
 terminals bound to an agent session (3.4) of any agent, Claude Code, Codex, or Copilot. The tab's
-other panes fold into one dimmed row after its cards, "(2 other panes)", which does nothing when
-clicked; a tab with no agent session shows only that row, worded "(2 panes)". Headers keep the tab's full pane count
+other panes fold into one dimmed row after its cards, "(2 other panes)", which switches to its tab when
+clicked, as its header does; a tab with no agent session shows only that row, worded "(2 panes)". Headers keep the tab's full pane count
 and status. It starts off, is saved with the workspace, and is hidden while the section is
 collapsed.
 

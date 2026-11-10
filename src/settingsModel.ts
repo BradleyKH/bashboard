@@ -208,6 +208,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         hint: 'Buttons, bars, titles, and labels; not pane content',
         applies: 'live',
       },
+      { path: ['agentGlow'], label: 'Agent glow', kind: 'toggle', hint: 'Panes glow softly while an AI agent works in them', applies: 'live', half: true },
+      { path: ['borderLights'], label: 'Border lights', kind: 'toggle', hint: 'Lights circle the panes', applies: 'live', half: true },
     ],
   },
   {

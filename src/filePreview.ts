@@ -7,6 +7,7 @@ import { CsvView } from './csvView';
 import { canOpenWithDefaultApp, openWithDefaultApp } from './editors';
 import { ExpandPreviewButton } from './expandPreviewButton';
 import { previewKind } from './filesModel';
+import { GoToLine } from './goToLine';
 import { ImageView } from './imageView';
 import type { Action, Keymap } from './keymap';
 import { MarkdownModeToggle } from './markdownModeToggle';
@@ -51,7 +52,7 @@ export interface FilePreviewOptions {
 
 type Current =
   | { kind: 'markdown'; path: string; view: MarkdownView }
-  | { kind: 'plain' | 'code'; path: string; view: TextEditor; find: PreviewFind }
+  | { kind: 'plain' | 'code'; path: string; view: TextEditor; find: PreviewFind; goTo: GoToLine | null }
   | { kind: 'csv'; path: string; view: CsvView }
   | { kind: 'image'; path: string; view: ImageView }
   | { kind: 'notice'; path: string; view: BinaryNotice };
@@ -246,6 +247,14 @@ export class FilePreview {
     return true;
   }
 
+  /** Opens the Go to line bar on a code view (line numbers); false for any other preview. */
+  openGoToLine(): boolean {
+    const c = this.current;
+    if (c?.kind !== 'code' || !c.goTo) return false;
+    c.goTo.open();
+    return true;
+  }
+
   applySettings(settings: Settings): void {
     this.settings = settings;
     const c = this.current;
@@ -317,8 +326,17 @@ export class FilePreview {
         mode,
       });
       const find = new PreviewFind(() => view.findSurface());
-      this.current = { kind, path, view, find };
-      this.el.replaceChildren(framed(view.el, find, [...colorEls, this.zoom.el, ...modeEls, ...this.expandButton()], this.fileName(path)));
+      // Only code has line numbers to aim at; plain text wraps.
+      const goTo = lineNumbers
+        ? new GoToLine({
+            lineCount: () => view.lineCount,
+            reveal: ({ line, column }) => view.revealLine(line, column),
+            done: () => view.focus(),
+          })
+        : null;
+      this.current = { kind, path, view, find, goTo };
+      const bars = goTo ? [find.bar, goTo.bar] : [find.bar];
+      this.el.replaceChildren(framed(view.el, find, bars, [...colorEls, this.zoom.el, ...modeEls, ...this.expandButton()], this.fileName(path)));
     }
   }
 
@@ -381,20 +399,23 @@ export class FilePreview {
 
   private clear(): void {
     const c = this.current;
-    if (c?.kind === 'plain' || c?.kind === 'code') c.find.dispose();
+    if (c?.kind === 'plain' || c?.kind === 'code') {
+      c.find.dispose();
+      c.goTo?.dispose();
+    }
     c?.view.dispose();
     this.current = null;
     this.el.replaceChildren();
   }
 }
 
-/** A view under a toolbar holding the file name, its find button and bar, then the zoom and expand buttons. */
-function framed(view: HTMLElement, find: PreviewFind, trailing: HTMLElement[], name: HTMLElement): HTMLElement {
+/** A view under a toolbar holding the file name, its find button, its bars, then the zoom and expand buttons. */
+function framed(view: HTMLElement, find: PreviewFind, bars: HTMLElement[], trailing: HTMLElement[], name: HTMLElement): HTMLElement {
   const frame = document.createElement('div');
   frame.className = 'preview-frame';
   const toolbar = document.createElement('div');
   toolbar.className = 'preview-toolbar';
-  toolbar.append(name, find.button, find.bar, ...trailing);
+  toolbar.append(name, find.button, ...bars, ...trailing);
   frame.append(toolbar, view);
   return frame;
 }

@@ -14,6 +14,7 @@
   { "keys": "alt+shift+up", "action": "resizePane", "direction": "up" },
   { "keys": "alt+shift+down", "action": "resizePane", "direction": "down" },
   { "keys": "ctrl+shift+f", "action": "find" },
+  { "keys": "ctrl+g", "action": "goToLine" },
   { "keys": "ctrl+c", "action": "copy" },
   { "keys": "ctrl+shift+c", "action": "copy" },
   { "keys": "ctrl+v", "action": "paste" },

@@ -96,6 +96,14 @@ describe('buildPaletteItems', () => {
     expect(root.find((i) => i.category === 'Pin')).toMatchObject({ label: 'Home', detail: 'bashboard' });
   });
 
+  it('lists global pins as pins marked Global', () => {
+    const items = buildPaletteItems(
+      input({ globalPins: [{ command: 'git fetch --prune' }, { label: 'Resume', command: 'claude --resume' }] }),
+    );
+    expect(byLabel(items, 'git fetch --prune')).toMatchObject({ category: 'Pin', detail: 'Global', choice: { kind: 'globalPin' } });
+    expect(byLabel(items, 'Resume')).toMatchObject({ detail: 'Global · claude --resume' });
+  });
+
   it('labels a command pin by its name, else its command', () => {
     const pins = [
       { pin: { path: 'src/Api', label: 'API', command: 'dotnet run' }, absolute: 'C:\\repos\\bashboard\\src\\Api', exists: true },
@@ -125,7 +133,7 @@ describe('palette actions', () => {
   const types = actions.map((a) => (a.choice.kind === 'action' ? a.choice.action.type : ''));
 
   it('excludes text, number, and palette actions', () => {
-    for (const name of ['copy', 'paste', 'sendInput', 'switchToTab', 'openPalette']) {
+    for (const name of ['copy', 'paste', 'sendInput', 'goToLine', 'switchToTab', 'openPalette']) {
       expect(EXCLUDED_ACTIONS).toContain(name);
       expect(types).not.toContain(name);
     }

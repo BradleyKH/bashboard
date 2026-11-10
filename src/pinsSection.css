@@ -42,6 +42,44 @@
   font-size: 0.8em;
 }
 
+/* The heading's global pins toggle, sized and lit like the Panes section's AI filter. */
+#dashboard .pins-global {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  margin-right: 2px;
+}
+
+#dashboard .pins-global svg {
+  width: 13px;
+  height: 13px;
+}
+
+#dashboard .pins-global[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: #eef3f5;
+}
+
+.dashboard-section.collapsed .pins-global {
+  display: none;
+}
+
+.pin-row .pin-icon-global {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pin-row .pin-icon-global svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The first global pin after the repo's own pins; the rule sets the two lists apart. */
+.pin-row:not(.global-pin-row) + .global-pin-row {
+  margin-top: 3px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .pin-row .pin-running {
   flex: 0 0 auto;
   width: 7px;

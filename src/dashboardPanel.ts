@@ -47,6 +47,8 @@ import type { LayoutsCallbacks } from './layoutsSection';
 import type { NamedLayout } from './layouts';
 import type { OpenInHandler } from './openMenu';
 import type { PinRowCallbacks } from './pinRow';
+import type { GlobalPinRowCallbacks } from './globalPinRow';
+import { globeIcon } from './globeIcon';
 import { LaunchSection } from './launchSection';
 import type { LaunchKind } from './launchModel';
 import { PinsSection, type RepoState } from './pinsSection';
@@ -62,6 +64,7 @@ export interface DashboardCallbacks
   extends Partial<FavoritesCallbacks>,
     Partial<LayoutsCallbacks>,
     Partial<PinRowCallbacks>,
+    Partial<GlobalPinRowCallbacks>,
     Partial<ContainersSectionCallbacks> {
   /** The Pins heading's "+" (docs/design/dashboard.md section 4.6). */
   onNewPin?: () => void;
@@ -85,6 +88,8 @@ export interface DashboardCallbacks
   onPanePathsChange?: (shown: boolean) => void;
   /** The user toggled the Panes section's AI filter. */
   onAgentPanesOnlyChange?: (only: boolean) => void;
+  /** The user toggled whether the Pins section lists global pins. */
+  onShowGlobalPinsChange?: (shown: boolean) => void;
   /** The user finished dragging the panel's inner edge. */
   onWidthChange?: (width: number) => void;
   /** An element or Pins moved, by a drag or the first split into two columns; save the placement. */
@@ -104,6 +109,8 @@ export interface DashboardCallbacks
   /** The top bar's Favorites and Layouts buttons, shown while their section is hidden; the menu drops from `anchor`. */
   onOpenFavoritesMenu?: (anchor: HTMLElement) => void;
   onOpenLayoutsMenu?: (anchor: HTMLElement) => void;
+  /** The top bar's globe, shown while the Pins section leaves out global pins; the menu drops from `anchor`. */
+  onOpenGlobalPinsMenu?: (anchor: HTMLElement) => void;
   /** The panel came on screen (open or peeking) or left it. */
   onShownChange?: (shown: boolean) => void;
   onInstallHooks: (agent: AgentId) => void;
@@ -177,7 +184,7 @@ export class DashboardPanel {
   private favoritesKey = '';
   private layouts: NamedLayout[] = [];
   private layoutsKey = '';
-  private repo: RepoState = { repo: null, pins: [] };
+  private repo: RepoState = { repo: null, pins: [], globalPins: [] };
   private wasShown = false;
   private repoKey = '';
   private timer: number | undefined;
@@ -192,6 +199,7 @@ export class DashboardPanel {
   private readonly favoritesMenuButton: HTMLButtonElement;
   private readonly layoutsMenuButton: HTMLButtonElement;
   private readonly launchMenuButton: HTMLButtonElement;
+  private readonly globalPinsMenuButton: HTMLButtonElement;
   private readonly launchSection: LaunchSection;
   private readonly pinsSection: PinsSection;
   private readonly favoritesSection: FavoritesSection;
@@ -225,6 +233,14 @@ export class DashboardPanel {
       onNewPin: () => this.callbacks.onNewPin?.(),
       onRemovePin: (index) => this.callbacks.onRemovePin?.(index),
       onReorderPin: (from, to) => this.callbacks.onReorderPin?.(from, to),
+      onRunGlobalPin: (index) => this.callbacks.onRunGlobalPin?.(index),
+      onEditGlobalPin: (index) => this.callbacks.onEditGlobalPin?.(index),
+      onRemoveGlobalPin: (index) => this.callbacks.onRemoveGlobalPin?.(index),
+      onReorderGlobalPin: (from, to) => this.callbacks.onReorderGlobalPin?.(from, to),
+      onShowGlobalChange: (shown) => {
+        this.syncGlobalPinsMenuButton();
+        this.callbacks.onShowGlobalPinsChange?.(shown);
+      },
     });
     this.favoritesSection = new FavoritesSection({
       onOpen: (path, opts) => this.callbacks.onOpen?.(path, opts),
@@ -254,6 +270,10 @@ export class DashboardPanel {
     this.layoutsMenuButton = topButton('dashboard-top-menu', 'Layouts ▾', 'Open a layout', keys('openLayout'), (b) =>
       this.callbacks.onOpenLayoutsMenu?.(b),
     );
+    this.globalPinsMenuButton = topButton('dashboard-top-icon dashboard-global-pins', '', 'Global pins', () => undefined, (b) =>
+      this.callbacks.onOpenGlobalPinsMenu?.(b),
+    );
+    this.globalPinsMenuButton.append(globeIcon());
     const spacer = document.createElement('span');
     spacer.className = 'dashboard-top-spacer';
     this.launchMenuButton = topButton('dashboard-top-icon dashboard-launch', '+', 'Launch', keys('openLaunch'), (b) =>
@@ -296,7 +316,7 @@ export class DashboardPanel {
     this.applyWidth();
     const top = document.createElement('div');
     top.className = 'dashboard-top';
-    top.append(this.favoritesMenuButton, this.layoutsMenuButton, settingsButton, this.launchMenuButton, helpButton, spacer, hideButton);
+    top.append(this.favoritesMenuButton, this.layoutsMenuButton, this.globalPinsMenuButton, settingsButton, this.launchMenuButton, helpButton, spacer, hideButton);
     // Only the hooks offer lives here: one button per detected agent without them.
     const footer = document.createElement('div');
     footer.className = 'dashboard-footer';
@@ -559,6 +579,7 @@ export class DashboardPanel {
     this.favoritesMenuButton.hidden = this.shown.favorites;
     this.layoutsMenuButton.hidden = this.shown.layouts;
     this.launchMenuButton.hidden = this.shown.launch;
+    this.syncGlobalPinsMenuButton();
     this.columns.layout();
   }
 
@@ -835,6 +856,21 @@ export class DashboardPanel {
     return this.agentPanesOnly;
   }
 
+  /** Applies the saved global pins toggle without firing `onShowGlobalPinsChange`. */
+  setShowGlobalPins(shown: boolean): void {
+    this.pinsSection.setShowGlobal(shown);
+    this.syncGlobalPinsMenuButton();
+  }
+
+  /** The globe stands in for the global pins the Pins section leaves out (docs/design/dashboard.md section 4.6). */
+  private syncGlobalPinsMenuButton(): void {
+    this.globalPinsMenuButton.hidden = this.pinsSection.globalShown();
+  }
+
+  globalPinsShown(): boolean {
+    return this.pinsSection.globalShown();
+  }
+
   /** Applies the saved Containers stopped-groups toggle without firing `onShowStoppedChange`. */
   setShowStoppedContainers(shown: boolean): void {
     this.containersSection.setShowStopped(shown);
@@ -923,13 +959,19 @@ export class DashboardPanel {
       },
     });
     // The AI filter leaves each tab's count and status alone; only the card list narrows.
-    const renderCards = (list: PaneCard[]): HTMLElement[] => {
+    // With group headers, the folded row switches to its tab like the header does.
+    const renderCards = (list: PaneCard[], tabId?: string): HTMLElement[] => {
       const { cards: kept, others } = agentCards(list, this.agentPanesOnly);
       const els = kept.map((card) => renderPaneCard(card, cardOptions(card)));
       if (others > 0) {
         const row = document.createElement('div');
         row.className = 'panes-others';
         row.textContent = otherPanesLabel(others, kept.length === 0);
+        if (tabId !== undefined) {
+          row.classList.add('switchable');
+          row.title = 'Switch to this tab';
+          row.addEventListener('click', () => this.callbacks.onSwitchTab?.(tabId));
+        }
         els.push(row);
       }
       return els;
@@ -944,7 +986,7 @@ export class DashboardPanel {
         ? groups.map((g) =>
             renderPaneGroup(
               g,
-              renderCards(g.cards),
+              renderCards(g.cards, g.tabId),
               {
                 onSwitchTab: (tabId) => this.callbacks.onSwitchTab?.(tabId),
                 onRename: (tabId, name) => this.callbacks.onRenameTab?.(tabId, name),

@@ -179,6 +179,8 @@ built app:
 - in the file preview editor (Files or Search), Ctrl+Z undoes, Ctrl+Y redoes, and Tab moves focus
   out; Ctrl+Shift+Z (pane zoom), Ctrl+Shift+F (find), Ctrl+S (save), and Ctrl+Shift+Left and
   Ctrl+Shift+Right (split) still reach the app
+- Ctrl+G in the file preview editor opens the Line field, and in a terminal running Claude Code
+  it still opens the prompt in an external editor
 - F6 moves focus into the dashboard (peeking it when hidden), the arrows and Enter work there,
   and F6 or Esc returns to the pane
 - Ctrl+Shift+N jumps to the next waiting, done, or failed terminal

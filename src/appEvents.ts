@@ -15,7 +15,8 @@ import type { FavoritesLayouts } from './favoritesLayouts';
 import { setKeyHintBindings } from './keyHints';
 import { parseLayouts } from './layouts';
 import { onNotificationActivated } from './notificationsApi';
-import { onFavoritesChanged, onLayoutsChanged, onPtyActivity, onReposChanged } from './persistence';
+import { onFavoritesChanged, onGlobalPinsChanged, onLayoutsChanged, onPtyActivity, onReposChanged } from './persistence';
+import { parseGlobalPins } from './globalPins';
 import type { RepoTracker } from './repoTracker';
 import { parseRepos } from './repos';
 import { onSecondLaunch } from './secondLaunch';
@@ -84,6 +85,9 @@ export function listenAppEvents(deps: AppEventsDeps): void {
     // A hand edit of primaryBranch changes every worktree row's comparison.
     workspace.reloadWorktrees();
   }).catch((e) => console.warn('repos updates unavailable:', e));
+  onGlobalPinsChanged((raw) => repo.reloadGlobalPins(parseGlobalPins(raw))).catch((e) =>
+    console.warn('global pins updates unavailable:', e),
+  );
   onLayoutsChanged((raw) => {
     state.layouts = parseLayouts(raw);
     favorites.showLayouts();

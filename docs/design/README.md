@@ -56,6 +56,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.20 Ship pane | [ship.md](ship.md) |
 | 4.21 Local Browser (`src/localBrowserPane.ts`, `src-tauri/src/browser.rs`) | [browser.md](browser.md) |
 | 4.22 Code colors (`src/code/`) | [files.md](files.md) |
+| 4.23 Agent glow and border lights (`src/paneLights.ts`) | [sessions.md](sessions.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |

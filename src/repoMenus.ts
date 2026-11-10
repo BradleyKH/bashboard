@@ -45,6 +45,24 @@ export function commandPinRowMenuItems(state: { exists: boolean }, h: CommandPin
   ];
 }
 
+export interface GlobalPinRowMenuHandlers {
+  run: () => void;
+  edit: () => void;
+  copyCommand: () => void;
+  remove: () => void;
+}
+
+/** The menu for a global pin row, which has no folder of its own to open or copy. */
+export function globalPinRowMenuItems(h: GlobalPinRowMenuHandlers): MenuEntry[] {
+  return [
+    item('Type in terminal', h.run),
+    item('Edit', h.edit),
+    item('Copy command', h.copyCommand),
+    separator(),
+    item('Remove pin', h.remove),
+  ];
+}
+
 export interface WorktreeRowMenuHandlers {
   openInExplorer: () => void;
   copyPath: () => void;

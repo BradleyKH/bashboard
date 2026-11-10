@@ -26,6 +26,10 @@ export interface Settings {
   codeColors: { scheme: CodeScheme };
   /** Multiplier on the app's chrome, 1 to 2; the Interface size slider (docs/design/README.md section 5). */
   uiScale: number;
+  /** A breathing glow inside panes where an AI agent is working (docs/design/sessions.md section 4.23). */
+  agentGlow: boolean;
+  /** A light that circles each pane's border in the gutter (docs/design/sessions.md section 4.23). */
+  borderLights: boolean;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design/backdrop.md section 6.4). */
   backdrop: {
@@ -95,6 +99,8 @@ export const DEFAULT_SETTINGS: Settings = {
   contentTextColor: DEFAULT_CONTENT_TEXT_MODE,
   codeColors: { scheme: DEFAULT_CODE_SCHEME },
   uiScale: 1,
+  agentGlow: false,
+  borderLights: false,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {
     style: 'lights',

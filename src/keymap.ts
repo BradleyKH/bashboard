@@ -17,6 +17,7 @@ export type Action =
   | { type: 'paste' }
   | { type: 'sendInput'; input: string }
   | { type: 'find' }
+  | { type: 'goToLine' }
   | { type: 'toggleDashboard' }
   | { type: 'focusDashboard' }
   | { type: 'cycleScrim' }

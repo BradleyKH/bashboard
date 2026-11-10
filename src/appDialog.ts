@@ -1,5 +1,5 @@
 import './appDialog.css';
-import { DIALOG_TABS, DIALOG_TAB_LABELS, stepTab, type DialogTab } from './appDialogModel';
+import { DIALOG_TABS, DIALOG_TAB_LABELS, dialogScrollDelta, stepTab, type DialogTab } from './appDialogModel';
 
 /** What the dialog needs from a tab; each tab mounts on its first visit and unmounts on close. */
 export interface DialogTabView {
@@ -149,6 +149,25 @@ export class AppDialog {
     this.box?.focus();
   }
 
+  /** Design 4.18: plain Up, Down, Page Up, and Page Down scroll the open tab; true when one did. */
+  private scrollForKey(e: KeyboardEvent): boolean {
+    const host = this.current ? this.slots.get(this.current)?.host : undefined;
+    if (!host) return false;
+    const t = e.target instanceof HTMLElement ? e.target : null;
+    const info = {
+      tag: t?.tagName ?? '',
+      type: t instanceof HTMLInputElement ? t.type.toLowerCase() : undefined,
+      role: t?.getAttribute('role'),
+      editable: t?.isContentEditable ?? false,
+    };
+    // Checked before the scroller search, so ordinary typing never walks the DOM.
+    if (dialogScrollDelta(e, info, 1) === 0) return false;
+    const scroller = scrollerFor(host, t);
+    if (!scroller) return false;
+    scroller.scrollBy({ top: dialogScrollDelta(e, info, scroller.clientHeight) });
+    return true;
+  }
+
   private dismiss(): void {
     this.close();
     this.callbacks.onClose();
@@ -166,6 +185,10 @@ export class AppDialog {
       this.dismiss();
       return;
     }
+    if (this.scrollForKey(e)) {
+      e.preventDefault();
+      return;
+    }
     const step = tabStep(e);
     if (step !== 0 && this.current) {
       e.preventDefault();
@@ -181,6 +204,26 @@ export class AppDialog {
     if (tab === this.current) this.dismiss();
     else this.select(tab);
   }
+}
+
+/**
+ * The scroller a key should move: the nearest scrollable ancestor of the focused element inside
+ * the tab, else the tab's tallest scrollable area. Focus usually rests on the dialog box itself,
+ * outside every scroller, which is why the browser's own arrow scrolling never reaches them.
+ */
+function scrollerFor(host: HTMLElement, target: EventTarget | null): HTMLElement | null {
+  const scrolls = (el: HTMLElement) => {
+    const y = getComputedStyle(el).overflowY;
+    return (y === 'auto' || y === 'scroll') && el.scrollHeight > el.clientHeight + 1;
+  };
+  for (let el = target instanceof HTMLElement ? target : null; el && host.contains(el); el = el.parentElement) {
+    if (scrolls(el)) return el;
+  }
+  let best: HTMLElement | null = null;
+  for (const el of host.querySelectorAll<HTMLElement>('*')) {
+    if (scrolls(el) && (!best || el.clientHeight > best.clientHeight)) best = el;
+  }
+  return best;
 }
 
 /** Ctrl+Tab and Ctrl+PageDown step right, their Shift and PageUp forms left; arrows do too on the tab strip. */

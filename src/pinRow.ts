@@ -52,7 +52,8 @@ export function renderPinRow(
   handle.className = 'favorite-handle';
   handle.textContent = '⠇';
   handle.title = 'Drag to reorder';
-  attachReorder(handle, el, index, '.pin-row', callbacks.onReorderPin);
+  // Global pins share the list but reorder among themselves (globalPinRow.ts).
+  attachReorder(handle, el, index, '.pin-row:not(.global-pin-row)', callbacks.onReorderPin);
 
   const icon = document.createElement('span');
   icon.className = 'pin-icon';

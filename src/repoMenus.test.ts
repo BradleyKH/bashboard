@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { item, type MenuEntry, type MenuItem } from './contextMenuModel';
-import { pinRowMenuItems, worktreeRowMenuItems } from './repoMenus';
+import { globalPinRowMenuItems, pinRowMenuItems, worktreeRowMenuItems } from './repoMenus';
 
 const items = (entries: MenuEntry[]) => entries.filter((e): e is MenuItem => e.kind === 'item');
 const enabledLabels = (entries: MenuEntry[]) => items(entries).filter((i) => i.enabled !== false).map((i) => i.label);
@@ -31,6 +31,16 @@ describe('pinRowMenuItems', () => {
   it('runs each handler', () => {
     const h = pinHandlers();
     items(pinRowMenuItems({ exists: true }, h)).forEach((i) => i.run());
+    for (const fn of Object.values(h)) expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('globalPinRowMenuItems', () => {
+  it('offers no folder entries and runs each handler', () => {
+    const h = { run: vi.fn(), edit: vi.fn(), copyCommand: vi.fn(), remove: vi.fn() };
+    const entries = globalPinRowMenuItems(h);
+    expect(enabledLabels(entries)).toEqual(['Type in terminal', 'Edit', 'Copy command', 'Remove pin']);
+    items(entries).forEach((i) => i.run());
     for (const fn of Object.values(h)) expect(fn).toHaveBeenCalledTimes(1);
   });
 });

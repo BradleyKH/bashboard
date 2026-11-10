@@ -152,6 +152,10 @@
   min-width: 60px;
 }
 
+.preview-goto .find-input {
+  flex: 0 1 90px;
+}
+
 .preview-toolbar .preview-find .find-button {
   padding: 0 6px;
   border: none;

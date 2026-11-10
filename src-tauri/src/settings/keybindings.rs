@@ -378,6 +378,7 @@ mod tests {
             ("alt+shift+up", "resizePane", Some("up"), None, None),
             ("alt+shift+down", "resizePane", Some("down"), None, None),
             ("ctrl+shift+f", "find", None, None, None),
+            ("ctrl+g", "goToLine", None, None, None),
             ("ctrl+c", "copy", None, None, None),
             ("ctrl+shift+c", "copy", None, None, None),
             ("ctrl+v", "paste", None, None, None),

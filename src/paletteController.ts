@@ -32,6 +32,7 @@ export class PaletteController {
         favorites: state.favorites,
         layouts: state.layouts.map((l) => ({ name: l.name, paneCount: l.tab.panes.length })),
         pins: repo.pins,
+        globalPins: state.globalPins,
         worktrees: this.worktrees(),
         keybindings: state.settings.keybindings,
       }),
@@ -41,6 +42,7 @@ export class PaletteController {
       openFavorite: favorites.openFolder,
       openLayout: favorites.openLayout,
       openPin: repo.openPin,
+      runGlobalPin: repo.runGlobalPin,
       openWorktree: (path, opts) => {
         workspace().openTerminal(path, { collapsed: opts.collapsed });
         focusTerminal();

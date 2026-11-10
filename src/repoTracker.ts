@@ -1,15 +1,28 @@
 // The repo of the focused pane's folder, or of the last focused pane that had one, and the pins
 // repos.json lists for it: the dashboard's Pins section, the Files panes' pin buttons, and the Open
-// menu (docs/design/dashboard.md section 4.6).
+// menu (docs/design/dashboard.md section 4.6). Also the global command pins from pins.json, which
+// list for every repo and run in the focused pane's folder.
 import type { AppState } from './appState';
-import { CommandPinDialog } from './commandPinDialog';
+import { CommandPinDialog, type CommandPinValues } from './commandPinDialog';
+import { openContextMenu } from './contextMenu';
+import { item } from './contextMenuModel';
 import type { DashboardPanel } from './dashboardPanel';
 import { openInEditor } from './editors';
 import { pinTarget } from './filesRouting';
-import { reposSave } from './persistence';
+import {
+  addGlobalPin,
+  alphabetizedGlobalPins,
+  editGlobalPin,
+  globalPinName,
+  moveGlobalPin,
+  removeGlobalPin,
+  type GlobalPin,
+  type GlobalPinsFile,
+} from './globalPins';
+import { globalPinsSave, reposSave } from './persistence';
 import type { FolderlessLaunchKind, LaunchKind } from './launchModel';
 import { setOpenMenuGitProbe } from './openMenu';
-import type { RepoPinState } from './pinsSection';
+import type { GlobalPinState, RepoPinState } from './pinsSection';
 import { fsList, repoRoot, type RepoInfo } from './repoFiles';
 import {
   addPin,
@@ -52,10 +65,16 @@ function commandKey(root: string, pin: Pin): string {
   return `${pathKey(root)}\n${pathKey(pin.path)}\n${pin.command ?? ''}`;
 }
 
+/** Keyed by the repo it ran for, so a run in one repo leaves the row unlit in another. */
+function globalKey(root: string, pin: GlobalPin): string {
+  return `global\n${pathKey(root)}\n${pin.command}`;
+}
+
 export class RepoTracker {
   private repo: RepoInfo | null = null;
   private repoFolder: string | null = null;
   private repoPins: RepoPinState[] = [];
+  private globalPinStates: GlobalPinState[] = [];
   private readonly repoRoots = new Map<string, Promise<RepoInfo>>();
   /** Whether each pinned path is a folder, or null when it no longer exists; keyed by lowercased path. */
   private readonly pinKinds = new Map<string, boolean | null>();
@@ -111,14 +130,28 @@ export class RepoTracker {
     );
   }
 
-  private repoPinStates(root: string): RepoPinState[] {
-    const working = new Set(
+  private workingPanes(): Set<string> {
+    return new Set(
       this.deps
         .workspace()
         .panes()
         .filter((p) => p.kind === 'terminal' && p.shell.status === 'working')
         .map((p) => p.paneId),
     );
+  }
+
+  private globalStates(root: string | null): GlobalPinState[] {
+    // With no repo yet, render runs during startup before the workspace exists, so skip the panes.
+    if (root === null) return this.deps.state.globalPins.map((pin) => ({ pin, running: false }));
+    const working = this.workingPanes();
+    return this.deps.state.globalPins.map((pin) => {
+      const paneId = this.commandPanes.get(globalKey(root, pin));
+      return { pin, running: paneId !== undefined && working.has(paneId) };
+    });
+  }
+
+  private repoPinStates(root: string): RepoPinState[] {
+    const working = this.workingPanes();
     return pinsFor(this.deps.state.repos, root).map((pin) => {
       const absolute = resolvePin(root, pin);
       const kind = this.pinKinds.get(pathKey(absolute));
@@ -138,12 +171,25 @@ export class RepoTracker {
     for (const [key, paneId] of this.commandPanes) if (!live.has(paneId)) this.commandPanes.delete(key);
     if (!this.repo) return;
     const next = this.repoPinStates(this.repo.root);
-    if (next.some((p, i) => (p.running ?? false) !== (this.repoPins[i]?.running ?? false))) this.render();
+    const globals = this.globalStates(this.repo.root);
+    if (
+      next.some((p, i) => (p.running ?? false) !== (this.repoPins[i]?.running ?? false)) ||
+      globals.some((g, i) => g.running !== this.globalPinStates[i]?.running)
+    ) {
+      this.render();
+    }
   }
 
   render(): void {
     this.repoPins = this.repo ? this.repoPinStates(this.repo.root) : [];
-    this.deps.panel().setRepo({ repo: this.repo, pins: this.repoPins });
+    this.globalPinStates = this.globalStates(this.repo?.root ?? null);
+    this.deps.panel().setRepo({ repo: this.repo, pins: this.repoPins, globalPins: this.globalPinStates });
+  }
+
+  /** Takes a pins.json read from disk. */
+  reloadGlobalPins(next: GlobalPinsFile): void {
+    this.deps.state.globalPins = next;
+    this.render();
   }
 
   /** Re-checks the current repo's pins, then redraws the section and the Files panes' pin buttons. */
@@ -214,6 +260,14 @@ export class RepoTracker {
     return reposSave(state.repos).catch((err: unknown) => showToast(`Could not save repos.json: ${String(err)}`));
   }
 
+  private updateGlobalPins(next: GlobalPinsFile): void {
+    const { state } = this.deps;
+    if (next === state.globalPins) return;
+    state.globalPins = next;
+    this.render();
+    globalPinsSave(next).catch((err: unknown) => showToast(`Could not save pins.json: ${String(err)}`));
+  }
+
   readonly pinPath = (root: string, absolute: string, isDir: boolean): void => {
     this.pinKinds.set(pathKey(absolute), isDir);
     void this.updateRepos(addPin(this.deps.state.repos, root, { path: toPinPath(root, absolute) }));
@@ -248,31 +302,48 @@ export class RepoTracker {
    * (docs/design/dashboard.md section 4.6). The pin goes under the folder's repo root.
    */
   readonly newCommandPin = (folder?: string | null, selection = ''): void => {
-    const target = folder ?? this.focusedFolder() ?? this.repoFolder;
+    const target = folder ?? this.currentFolder();
+    // A selection spanning lines is one command wrapped by the terminal; joined, it stays one line.
+    const initial: CommandPinValues = {
+      label: '',
+      command: selection.replace(/\s*[\r\n]+\s*/g, ' ').trim(),
+      scope: 'repo',
+    };
     if (!target) {
-      showToast('Open a terminal in a folder to pin a command there');
+      // With no folder to pin to, the popup offers only a global pin.
+      void this.pinDialog.open({ title: 'New pin', folder: null, isGit: false, initial }).then((values) => {
+        if (values) this.updateGlobalPins(addGlobalPin(this.deps.state.globalPins, values.label, values.command));
+      });
       return;
     }
     this.cachedRepoRoot(target).then(
-      async ({ root }) => {
-        const values = await this.pinDialog.open({
-          title: 'New pin',
-          folder: target,
-          // A selection spanning lines is one command wrapped by the terminal; joined, it stays one line.
-          initial: { label: '', command: selection.replace(/\s*[\r\n]+\s*/g, ' ').trim() },
-        });
-        if (!values) return;
-        this.pinKinds.set(pathKey(target), true);
-        const pin: Pin = {
-          path: toPinPath(root, target),
-          ...(values.label ? { label: values.label } : {}),
-          command: values.command,
-        };
-        void this.updateRepos(addPin(this.deps.state.repos, root, pin));
+      async ({ root, isGit }) => {
+        const values = await this.pinDialog.open({ title: 'New pin', folder: target, isGit, initial });
+        if (values) this.saveNewPin(values, root, target);
       },
       (err: unknown) => showToast(`Could not pin a command in ${target}: ${String(err)}`),
     );
   };
+
+  /** Where a new pin and a global pin's run go: the focused pane's folder, else the last one with a folder. */
+  private currentFolder(): string | null {
+    return this.focusedFolder() ?? this.repoFolder;
+  }
+
+  /** Adds a pin from the popup to the repo's list or the global one, as its scope says. */
+  private saveNewPin(values: CommandPinValues, root: string, folder: string): void {
+    if (values.scope === 'global') {
+      this.updateGlobalPins(addGlobalPin(this.deps.state.globalPins, values.label, values.command));
+      return;
+    }
+    this.pinKinds.set(pathKey(folder), true);
+    const pin: Pin = {
+      path: toPinPath(root, folder),
+      ...(values.label ? { label: values.label } : {}),
+      command: values.command,
+    };
+    void this.updateRepos(addPin(this.deps.state.repos, root, pin));
+  }
 
   /** A command pin's pencil, F2, or Edit: the popup with its values, replaced in place. */
   editCommandPin(index: number): void {
@@ -281,12 +352,22 @@ export class RepoTracker {
     if (!repo || !state || !isCommandPin(state.pin)) return;
     const { pin } = state;
     void this.pinDialog
-      .open({ title: 'Edit pin', folder: state.absolute, initial: { label: pin.label ?? '', command: pin.command } })
+      .open({
+        title: 'Edit pin',
+        folder: state.absolute,
+        isGit: repo.isGit,
+        initial: { label: pin.label ?? '', command: pin.command, scope: 'repo' },
+      })
       .then((values) => {
         if (!values || this.repo !== repo) return;
         // The list may have changed while the popup was open, so find the pin again.
         const at = pinsFor(this.deps.state.repos, repo.root).findIndex((p) => samePin(p, pin));
         if (at < 0) return;
+        if (values.scope === 'global') {
+          this.updateGlobalPins(addGlobalPin(this.deps.state.globalPins, values.label, values.command));
+          void this.updateRepos(removePin(this.deps.state.repos, repo.root, at));
+          return;
+        }
         const key = commandKey(repo.root, pin);
         const paneId = this.commandPanes.get(key);
         if (paneId !== undefined) {
@@ -302,21 +383,98 @@ export class RepoTracker {
    * focused terminal when it is idle in the pin's folder, else into a new one opened there.
    */
   private runCommandPin(root: string, absolute: string, pin: Pin & { command: string }): void {
+    this.typeCommand(commandKey(root, pin), absolute, pin.command);
+  }
+
+  /** Types `command` into the focused terminal when it is idle in `folder`, else into a new one there. */
+  private typeCommand(key: string, folder: string, command: string): void {
     const workspace = this.deps.workspace();
     const focused = workspace.panes().find((p) => p.focused);
     const terminal = focused?.kind === 'terminal' ? focused : null;
     // A busy terminal would hand the text to its running program, not to the shell.
     const busy = terminal !== null && workspace.busyPanes().some((p) => p.paneId === terminal.paneId);
     let paneId: string | undefined;
-    if (terminal && !busy && terminal.cwd !== null && pathKey(terminal.cwd) === pathKey(absolute)) {
+    if (terminal && !busy && terminal.cwd !== null && pathKey(terminal.cwd) === pathKey(folder)) {
       paneId = terminal.paneId;
-      workspace.pasteIntoTerminal(paneId, pin.command);
+      workspace.pasteIntoTerminal(paneId, command);
     } else {
-      paneId = workspace.openTerminalWithPaste(absolute, pin.command, { profile: terminal?.profile });
+      paneId = workspace.openTerminalWithPaste(folder, command, { profile: terminal?.profile });
     }
-    if (paneId !== undefined) this.commandPanes.set(commandKey(root, pin), paneId);
+    if (paneId !== undefined) this.commandPanes.set(key, paneId);
     this.deps.focusTerminal();
   }
+
+  /** A global pin's row, the top bar's globe menu, or the palette: types it in the focused pane's folder. */
+  readonly runGlobalPin = (pin: GlobalPin): void => {
+    const folder = this.currentFolder();
+    if (!folder) {
+      showToast('Open a terminal in a folder to run a global pin there');
+      return;
+    }
+    this.typeCommand(globalKey(this.repo?.root ?? folder, pin), folder, pin.command);
+  };
+
+  runGlobalPinAt(index: number): void {
+    const pin = this.deps.state.globalPins[index];
+    if (pin) this.runGlobalPin(pin);
+  }
+
+  removeGlobalPin(index: number): void {
+    this.updateGlobalPins(removeGlobalPin(this.deps.state.globalPins, index));
+  }
+
+  moveGlobalPin(from: number, to: number): void {
+    this.updateGlobalPins(moveGlobalPin(this.deps.state.globalPins, from, to));
+  }
+
+  /**
+   * A global pin's pencil, F2, or Edit: the popup with its values. Choosing This repo moves it into
+   * the current repo's list, running in the folder the popup shows.
+   */
+  editGlobalPin(index: number): void {
+    const pin = this.deps.state.globalPins[index];
+    if (!pin) return;
+    const folder = this.currentFolder();
+    const open = (target: { root: string; folder: string; isGit: boolean } | null): void => {
+      void this.pinDialog
+        .open({
+          title: 'Edit pin',
+          folder: target?.folder ?? null,
+          isGit: target?.isGit ?? false,
+          initial: { label: pin.label ?? '', command: pin.command, scope: 'global' },
+        })
+        .then((values) => {
+          if (!values) return;
+          // The list may have changed while the popup was open, so find the pin again.
+          const at = this.deps.state.globalPins.findIndex((p) => p.command === pin.command);
+          if (at < 0) return;
+          if (values.scope === 'global' || !target) {
+            this.updateGlobalPins(editGlobalPin(this.deps.state.globalPins, at, values.label, values.command));
+            return;
+          }
+          this.updateGlobalPins(removeGlobalPin(this.deps.state.globalPins, at));
+          this.saveNewPin(values, target.root, target.folder);
+        });
+    };
+    if (!folder) {
+      open(null);
+      return;
+    }
+    this.cachedRepoRoot(folder).then(
+      ({ root, isGit }) => open({ root, folder, isGit }),
+      () => open(null),
+    );
+  }
+
+  /** The top bar's globe, shown while the Pins section leaves out global pins: each one by name. */
+  readonly openGlobalPinsMenu = (anchor: HTMLElement): void => {
+    const sorted = alphabetizedGlobalPins(this.deps.state.globalPins);
+    const entries =
+      sorted.length === 0
+        ? [item('No global pins', () => {}, { enabled: false })]
+        : sorted.map(({ pin }) => item(globalPinName(pin), () => this.runGlobalPin(pin)));
+    openContextMenu(entries, { anchorEl: anchor, align: 'left' });
+  };
 
   readonly openPin = (pin: Pin): void => {
     if (!this.repo) return;

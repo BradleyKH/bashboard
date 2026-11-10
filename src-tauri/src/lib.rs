@@ -221,6 +221,8 @@ pub fn run() {
             workspace::layouts_save,
             workspace::repos_load,
             workspace::repos_save,
+            workspace::pins_load,
+            workspace::pins_save,
             workspace::scratch_save,
             workspace::scratch_load,
             workspace::scratch_delete,

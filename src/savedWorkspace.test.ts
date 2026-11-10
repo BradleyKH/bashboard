@@ -661,6 +661,12 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace(v3([]))?.hideStoppedContainers).toBeUndefined();
   });
 
+  it('keeps only a true hideGlobalPins flag', () => {
+    expect(parseSavedWorkspace({ ...v3([]), hideGlobalPins: true })?.hideGlobalPins).toBe(true);
+    expect(parseSavedWorkspace({ ...v3([]), hideGlobalPins: false })?.hideGlobalPins).toBeUndefined();
+    expect(parseSavedWorkspace(v3([]))?.hideGlobalPins).toBeUndefined();
+  });
+
   it('keeps only a true Panes AI filter flag', () => {
     expect(parseSavedWorkspace({ ...v3([]), agentPanesOnly: true })?.agentPanesOnly).toBe(true);
     expect(parseSavedWorkspace({ ...v3([]), agentPanesOnly: 'yes' })?.agentPanesOnly).toBeUndefined();

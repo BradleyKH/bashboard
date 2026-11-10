@@ -1,21 +1,28 @@
 import './commandPinDialog.css';
 
+/** A command pin listed for its own repo (or folder outside one), or for every folder. */
+export type PinScope = 'repo' | 'global';
+
 export interface CommandPinValues {
   label: string;
   command: string;
+  scope: PinScope;
 }
 
 export interface CommandPinDialogOptions {
   /** "New pin" or "Edit pin". */
   title: string;
-  /** The folder the command runs in, shown read only. */
-  folder: string;
+  /** The folder a repo-scoped pin runs in, shown read only; null offers only global scope. */
+  folder: string | null;
+  /** Whether that folder is in a git repo, which names the scope This repo rather than This folder. */
+  isGit: boolean;
   initial: CommandPinValues;
 }
 
 /**
- * The new pin popup (docs/design/dashboard.md section 4.6): Name and Command over the pin's
- * folder. Resolves the trimmed values on save, or null on Escape, Cancel, or an outside click.
+ * The new pin popup (docs/design/dashboard.md section 4.6): Name, Command, and Scope over the
+ * folder the pin runs in. Resolves the trimmed values on save, or null on Escape, Cancel, or an
+ * outside click.
  */
 export class CommandPinDialog {
   private backdrop: HTMLElement | null = null;
@@ -52,8 +59,43 @@ export class CommandPinDialog {
 
       const folder = document.createElement('p');
       folder.className = 'hook-dialog-line command-pin-folder';
-      folder.textContent = `Runs in ${options.folder}`;
-      folder.title = options.folder;
+      let scope: PinScope = options.folder === null ? 'global' : options.initial.scope;
+      const scopeRow = document.createElement('div');
+      scopeRow.className = 'command-pin-field command-pin-scope';
+      const scopeText = document.createElement('span');
+      scopeText.textContent = 'Scope';
+      const group = document.createElement('span');
+      group.className = 'command-pin-scope-group';
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-label', 'Scope');
+      const scopeButton = (value: PinScope, text: string, tip: string): HTMLButtonElement => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = text;
+        b.title = tip;
+        b.addEventListener('click', () => {
+          scope = value;
+          syncScope();
+        });
+        return b;
+      };
+      const local = scopeButton(
+        'repo',
+        options.isGit ? 'This repo' : 'This folder',
+        options.isGit ? 'Listed while a pane is in this repo' : 'Listed while a pane is in this folder',
+      );
+      local.disabled = options.folder === null;
+      const everywhere = scopeButton('global', 'Everywhere', 'Listed for every folder, and runs in the focused pane’s');
+      group.append(local, everywhere);
+      scopeRow.append(scopeText, group);
+      const syncScope = (): void => {
+        local.setAttribute('aria-pressed', String(scope === 'repo'));
+        everywhere.setAttribute('aria-pressed', String(scope === 'global'));
+        const text = scope === 'repo' && options.folder !== null ? options.folder : 'the focused pane’s folder';
+        folder.textContent = `Runs in ${text}`;
+        folder.title = text;
+      };
+      syncScope();
 
       const cancel = document.createElement('button');
       cancel.type = 'button';
@@ -85,10 +127,10 @@ export class CommandPinDialog {
       box.addEventListener('submit', (e) => {
         e.preventDefault();
         if (save.disabled) return;
-        this.finish({ label: name.input.value.trim(), command: command.input.value.trim() });
+        this.finish({ label: name.input.value.trim(), command: command.input.value.trim(), scope });
       });
 
-      box.append(title, name.row, command.row, folder, buttons);
+      box.append(title, name.row, command.row, scopeRow, folder, buttons);
       backdrop.append(box);
       document.body.append(backdrop);
       this.backdrop = backdrop;

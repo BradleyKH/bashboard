@@ -13,6 +13,7 @@ import type { TabInfo, TerminalInfo } from './workspaceTypes';
 export interface PaneStatusContext {
   readonly store: TabStore;
   readonly paneViews: ReadonlyMap<string, PaneView>;
+  readonly hosts: ReadonlyMap<string, HTMLElement>;
   readonly containerShells: ReadonlyMap<string, string>;
   readonly sessions: WorkspaceSessions;
   defaultProfile(): string;
@@ -106,6 +107,9 @@ export class PaneStatus {
       ...(status === 'waiting' && { reason }),
     });
     this.stripShown.set(id, `${status}|${reason}`);
+    // Agent glow (design 4.23) is for an agent at work, not a busy shell command.
+    const agentBusy = this.ctx.sessions.bound(pane.ptyId)?.status === 'busy';
+    this.ctx.hosts.get(id)?.classList.toggle('agent-working', agentBusy);
     return this.ctx.observeAttention(id, status);
   }
 

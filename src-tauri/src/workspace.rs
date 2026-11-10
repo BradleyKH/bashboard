@@ -17,12 +17,14 @@ const WORKSPACE_FILE: &str = "workspace.json";
 const FAVORITES_FILE: &str = "favorites.json";
 const LAYOUTS_FILE: &str = "layouts.json";
 const REPOS_FILE: &str = "repos.json";
+const PINS_FILE: &str = "pins.json";
 
 /// Files the watcher reloads and the event each one emits.
 const WATCHED: &[(&str, &str)] = &[
     (FAVORITES_FILE, "favorites://changed"),
     (LAYOUTS_FILE, "layouts://changed"),
     (REPOS_FILE, "repos://changed"),
+    (PINS_FILE, "pins://changed"),
 ];
 
 /// Missing files and invalid JSON both read as `None`; the latter is logged.
@@ -108,6 +110,16 @@ pub fn repos_load(app: AppHandle) -> Result<Option<Value>, String> {
 #[tauri::command]
 pub fn repos_save(app: AppHandle, data: Value) -> Result<(), String> {
     save_file(&config_file(&app, REPOS_FILE)?, &data)
+}
+
+#[tauri::command]
+pub fn pins_load(app: AppHandle) -> Result<Option<Value>, String> {
+    Ok(load_file(&config_file(&app, PINS_FILE)?))
+}
+
+#[tauri::command]
+pub fn pins_save(app: AppHandle, data: Value) -> Result<(), String> {
+    save_file(&config_file(&app, PINS_FILE)?, &data)
 }
 
 /// The `primaryBranch` repos.json sets for the repo whose main worktree is `main_root`
@@ -266,11 +278,11 @@ pub struct WorkspaceState {
     watcher: Mutex<Option<RecommendedWatcher>>,
 }
 
-/// Watches the config directory and emits `favorites://changed`, `layouts://changed`, or
-/// `repos://changed` with the reloaded file.
+/// Watches the config directory and emits `favorites://changed`, `layouts://changed`,
+/// `repos://changed`, or `pins://changed` with the reloaded file.
 pub fn init(app: &AppHandle) {
     let Some(dir) = config_file(app, FAVORITES_FILE).ok().and_then(|p| p.parent().map(Path::to_path_buf)) else {
-        return eprintln!("workspace: no config directory, favorites, layouts, and repos will not hot reload");
+        return eprintln!("workspace: no config directory, favorites, layouts, repos, and pins will not hot reload");
     };
     let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
     // Watch the directory: editors save by replacing the file, which drops a file-level watch.

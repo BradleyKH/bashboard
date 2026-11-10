@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { Favorite } from './favorites';
 import type { NamedLayout } from './layouts';
+import type { GlobalPinsFile } from './globalPins';
 import type { ReposFile } from './repos';
 import type { SavedWorkspace } from './savedWorkspace';
 
@@ -54,6 +55,18 @@ export function reposSave(file: ReposFile): Promise<void> {
 
 export function onReposChanged(cb: (raw: unknown) => void): Promise<UnlistenFn> {
   return listen<unknown>('repos://changed', (e) => cb(e.payload));
+}
+
+export function globalPinsLoad(): Promise<unknown> {
+  return invoke<unknown>('pins_load');
+}
+
+export function globalPinsSave(file: GlobalPinsFile): Promise<void> {
+  return invoke<void>('pins_save', { data: file });
+}
+
+export function onGlobalPinsChanged(cb: (raw: unknown) => void): Promise<UnlistenFn> {
+  return listen<unknown>('pins://changed', (e) => cb(e.payload));
 }
 
 export function scratchSave(id: string, text: string): Promise<void> {

@@ -271,6 +271,9 @@ Keys: Escape closes. Ctrl+Tab and Ctrl+PageDown move one tab right, Ctrl+Shift+T
 left, wrapping, and Left and Right do the same while a tab button has focus. A chord or function
 key bound to one of the six actions above switches to its tab, or closes the dialog when that tab
 already shows, so F1 toggles Help. Plain keys never switch, since they may be typing into a field.
+Up and Down scroll the open tab by a line and Page Up and Page Down by a page, whatever has focus,
+except in a control that steps a value or moves through lines with them (a text area, select,
+number or range input, or list); a one-line text field scrolls the tab too.
 The Shortcuts tab's recorder sees keys first while it records (4.5).
 
 - **Help** (`helpTab.ts`) is a short tour of the user guide (`helpTour.ts`), a paragraph or two

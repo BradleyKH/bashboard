@@ -486,7 +486,7 @@ export class SearchPane implements PaneView {
     if (e.defaultPrevented) return;
     const action = lookup(this.opts.keymap(), e);
     const inPreview = this.preview.el.contains(e.target as Node);
-    if (inPreview && action?.type === 'find' && this.preview.openFind()) {
+    if (inPreview && ((action?.type === 'find' && this.preview.openFind()) || (action?.type === 'goToLine' && this.preview.openGoToLine()))) {
       e.preventDefault();
       e.stopPropagation();
       return;

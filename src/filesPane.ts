@@ -770,7 +770,7 @@ export class FilesPane implements PaneView {
 
   private onKeyDown(e: KeyboardEvent): void {
     const action = lookup(this.opts.keymap(), e);
-    if (action?.type === 'find' && this.preview.openFind()) {
+    if ((action?.type === 'find' && this.preview.openFind()) || (action?.type === 'goToLine' && this.preview.openGoToLine())) {
       e.preventDefault();
       e.stopPropagation();
       return;

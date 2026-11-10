@@ -38,6 +38,7 @@ Defaults mirror the current Windows Terminal settings:
 | Alt+Arrow | Move focus | `moveFocus` |
 | Alt+Shift+Arrow | Resize pane | `resizePane` |
 | Ctrl+Shift+F | Find in scrollback, or in the file preview of a Files pane (4.12) | `find` |
+| Ctrl+G | Go to a line, or `line:column`, in the code view of a Files or Search pane (4.12); anywhere else the key goes to the shell, so Claude Code's Ctrl+G still opens its prompt in an editor | `goToLine` |
 | Ctrl+C | Copy if there's a selection, otherwise pass ^C | `copy` |
 | Ctrl+Shift+C | Copy | `copy` |
 | Ctrl+V, Ctrl+Shift+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image | `paste` |
@@ -123,10 +124,12 @@ and comments inside it are not kept. The tab does not update itself after a save
 `settings://changed` rebuilds the keymap and re-renders the tab, as a hand edit does. A failed
 save leaves the rows as they were and shows the error in the notice.
 
-In panes other than terminals, copy, paste, Shift+Enter, Ctrl+Shift+F, and typing act on the
-pane's own text fields as a browser would; every other action applies as it does in a
+In panes other than terminals, copy, paste, Shift+Enter, Ctrl+Shift+F, Ctrl+G, and typing act
+on the pane's own text fields as a browser would; every other action applies as it does in a
 terminal. The Files pane is the exception for Ctrl+Shift+F, which opens its preview's find bar
-(4.12).
+(4.12). Ctrl+G (`goToLine`) acts only where a code view shows line numbers, in the Files and
+Search previews; the workspace never handles it, so in a terminal, as with Ctrl+C and no
+selection, the key reaches the shell.
 
 **Command palette.** Ctrl+Shift+P (`openPalette`) opens one filterable list over every pane, tab,
 favorite, layout, the focused repo's pins and worktrees, and every keymap action that makes sense

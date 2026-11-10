@@ -281,3 +281,35 @@ on focus, so repeated presses walk the whole list; `done` and `failed` clear on 
 drop out as they are visited. The jump switches to the pane's tab if needed and focuses it; a
 collapsed terminal expands as clicking its card does (4.3), and a zoomed pane (4.2) in the
 target tab unzooms first. An empty list shows a toast, "Nothing needs you".
+
+## 4.23 Agent glow and border lights (`src/paneLights.ts`)
+
+Two ambient effects, each off by default and turned on by its own setting (`agentGlow`,
+`borderLights`). Neither has tuning settings: speed, tail length, intensity, breath cycle, and
+the rest are constants in `PANE_LIGHTS` (`src/paneLightsModel.ts`), so they can be adjusted in
+one place. Under `prefers-reduced-motion` both stay off whatever the settings say.
+
+**Agent glow.** A terminal whose bound session (3.4) is `busy` gets the `agent-working` class,
+whichever agent it runs (Claude Code, Codex, or Copilot). A busy shell command without an agent
+does not count. While `agentGlow` is on, that pane shows a soft inner glow in the accent color
+that breathes from dim to bright and back over 7 seconds. It is an inset shadow on a
+`::after` overlay, so it fits inside the 4px gutters, and only its opacity animates, so it
+composites without repainting the terminal under it.
+
+**Border lights.** While `borderLights` is on, comets of accent light run clockwise around
+each pane of the active tab, along the middle of the gutter, at 60 px per second with a 60 px
+tail. A pane runs one comet per 800 px of loop, rounded, and at least one, so larger panes carry
+more. A pane's first comet starts at a random point on its loop, so neighbors don't run in step;
+the rest spread out from it. When a pane or window resize changes the count, a new comet fades in
+at the middle of the widest gap, and a retired one is the one with its neighbors closest, which
+fades out. The count only changes once the loop is 0.15 comets past the halfway point, so a
+divider dragged near the boundary doesn't make a comet flicker. When any pane on screen has
+attention (4.7), only those panes keep their comets; the rest fade out, and they fade back in
+once attention clears. Attention keeps its own 1-second border pulse; the comets never take on
+that rhythm, so the pulse stays the strongest signal on screen.
+
+The comets draw on one Canvas2D layer, `#pane-lights`, fixed over the window between the
+backdrop and `#panes`. It sits outside the scrim's filter (4.1), so the scrim does not dim it,
+and it uses no WebGL context, so it costs nothing from the terminal budget (4.4). It reads the
+pane rects each frame, so splits, drags, zoom, and the dashboard's width need no extra wiring. It
+draws at up to 30 fps and stops while the window is hidden or minimized.

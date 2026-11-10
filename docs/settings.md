@@ -84,6 +84,13 @@ them grow to fit, and pane titles, tab titles, and the dashboard's section title
 pane content and terminal text follow `font.size` instead. The Interface size slider in the
 Appearance section sets it live.
 
+`agentGlow` (default `false`) gives a terminal a soft glow in the accent color while an AI agent
+(Claude Code, Codex, or Copilot) is working in it; the glow slowly brightens and dims, and stops
+when the agent finishes or waits for you. `borderLights` (default `false`) sends a small light
+around the border of every pane in the active tab. When a pane needs you, only that pane keeps
+its light until you get to it. Both are toggles in the Appearance section, Agent glow and Border
+lights, and apply live. Neither appears while Windows is set to reduce animations.
+
 The Shortcuts tab of the app dialog (open it with F1 or the dashboard's **?** button, then click
 Shortcuts) lists every key in effect, including your own bindings. It is also where keys are changed: click a key to
 replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all

@@ -19,7 +19,7 @@ fails.
 
 ## 3.7 Workspace and favorites (`src-tauri/src/workspace.rs`)
 
-Four app-owned files next to `settings.json`, each read and written whole through a pair of
+Five app-owned files next to `settings.json`, each read and written whole through a pair of
 commands, with writes going to a temp file and renamed into place so a crash never leaves half
 a file:
 
@@ -29,12 +29,13 @@ a file:
 | `favorites.json` | `favorites_load`, `favorites_save` | Favorite folders (4.6) |
 | `layouts.json` | `layouts_load`, `layouts_save` | Named layouts (4.6) |
 | `repos.json` | `repos_load`, `repos_save` | Pinned files and folders per repo (4.12), and the branch worktrees are compared with (4.13) |
+| `pins.json` | `pins_load`, `pins_save` | Global command pins (4.6) |
 
-The core treats all four as opaque JSON, except that the worktree commands (3.9) read each repo's
+The core treats all five as opaque JSON, except that the worktree commands (3.9) read each repo's
 `primaryBranch` from `repos.json`; the front end owns their shape and validation.
-`favorites.json`, `layouts.json`, and `repos.json` are hand-editable, so they are watched and
-hot-reloaded like `settings.json`, emitting `favorites://changed`, `layouts://changed`, and
-`repos://changed`. They are kept out of `settings.json` because the app rewrites them from the
+`favorites.json`, `layouts.json`, `repos.json`, and `pins.json` are hand-editable, so they are
+watched and hot-reloaded like `settings.json`, emitting `favorites://changed`, `layouts://changed`,
+`repos://changed`, and `pins://changed`. They are kept out of `settings.json` because the app rewrites them from the
 dashboard, and rewriting a hand-edited JSONC file would drop its comments.
 
 Scratch pads (4.15) live beside them as `scratch/<id>.txt`, written by `scratch_save(id, text)`
@@ -58,6 +59,7 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 | `Favorite` | `src/favorites.ts` | `favorites.json` (3.7), in display order |
 | `NamedLayout` | `src/layouts.ts` | `layouts.json` (3.7), in display order |
 | `RepoPins` | `src/repos.ts` | `repos.json` (3.7, 4.12) |
+| `GlobalPin` | `src/globalPins.ts` | `pins.json` (3.7, 4.6), in display order |
 | `SearchOptions` | `src/searchOptions.ts` | An empty `include` glob searches every file |
 | `Container`, `EngineState`, `ContainersSnapshot`, `ContainerStats` | `src/containers.ts` | `containers_list` and `containers://changed` (3.10) |
 | `SystemSample`, `DiskRow` | `src/systemModel.ts` | `system_sample` (4.6); `disks` is null unless the call passed `includeDisks` |
@@ -150,6 +152,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   `true` reads as absent.
 - `hideStoppedContainers` (the Containers section's eye toggle, 4.6): false, so stopped groups
   show; anything but `true` reads as absent.
+- `hideGlobalPins` (the Pins heading's globe toggle, 4.6): false, so global pins list in the
+  section; anything but `true` reads as absent.
 - `dashboardHideNoticeShown` (whether hiding the dashboard with × has shown its toast, 4.6):
   false; anything but `true` reads as absent.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
@@ -180,6 +184,11 @@ line, as one string) is a command pin, and its path is the folder the command ru
 optional on either kind. `primaryBranch`, the branch the Git pane
 compares worktrees with (4.13), is keyed by the main worktree's path; an entry may hold
 it with no pins, and Automatic omits it.
+
+**pins.json.** A list of `{ label?, command }`, the global command pins in display order. Both are
+trimmed; an entry with a blank command is dropped, and so is a repeat of an earlier entry's command
+(commands compare exactly, since case can matter to a shell). A pin has no path, since it runs in
+the focused pane's folder.
 
 ## 8. Settings
 
@@ -217,6 +226,10 @@ it with no pins, and Automatic omits it.
   // 1 to 2, the Settings tab's Interface size: zoom on controls, the bars that hold them, chrome
   // titles, and the app dialog's tabs (section 5). Out of range falls back to 1.
   "uiScale": 1,
+  // Ambient pane effects (section 4.23), both off by default: agentGlow breathes a glow inside
+  // panes where an AI agent is working; borderLights runs a light around each pane's border.
+  "agentGlow": false,
+  "borderLights": false,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
   // slideshow; a missing or invalid value falls back to lights. animate false freezes lights,

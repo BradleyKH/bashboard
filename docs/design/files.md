@@ -155,6 +155,14 @@ decorations in its own document, since it draws only the lines in view (4.22). T
 follows the text as it changes: an edit, a reload, or the Edit toggle re-runs it. Esc closes the
 bar and selects the current match (in the editor, as the caret's selection).
 
+**Go to line** (`goToLine.ts`, `goToLineModel.ts`): Ctrl+G in a Files pane showing code, or in
+a Search pane's preview, opens a Line field in the toolbar beside Find, its placeholder giving
+the file's line count. It takes `42` or the compiler's `42:7` (or `42,7`); the editor follows the
+typed line as it changes, banding it and placing the caret as a search match does (4.14), with a
+column putting the caret there. Enter or Esc closes the field and focuses the editor; so does
+leaving it. Plain text, markdown's rendered view, and CSV have no line numbers, so there Ctrl+G
+does nothing.
+
 **Zoom.** The preview toolbar ends in − and + buttons that step the preview's text size through
 browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
 the sort button and the pin button. Ctrl+wheel over the list or the preview steps that

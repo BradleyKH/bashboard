@@ -19,6 +19,7 @@ import type { CellSize, Direction, Layout, Rect } from './layout';
 import { LiveSettings } from './liveSettings';
 import { TerminalPane } from './pane';
 import { PaneAttention } from './paneAttention';
+import { PaneLights } from './paneLights';
 import { PaneDrag, type PaneDragContext } from './paneDrag';
 import { PaneFactory, type PaneFactoryContext } from './paneFactory';
 import { knownForgeSources as forgeSourcesOf } from './paneInfo';
@@ -89,6 +90,7 @@ export class Workspace {
   /** Container shell pane ids to their container's name. */
   private readonly containerShells = new Map<string, string>();
   private readonly attention: PaneAttention;
+  private readonly lights: PaneLights;
   private readonly findBar = new FindBar();
   /** Pane ids, most recently focused first; Send targets the newest terminal in the pad's tab. */
   private focusOrder: string[] = [];
@@ -118,6 +120,11 @@ export class Workspace {
       host: (id) => this.hosts.get(id),
       onRaised: (id, cause) => this.hooks.onAttention?.(id, cause),
     });
+    this.lights = new PaneLights(() => ({
+      rects: this.tabView.paneRects(),
+      attention: new Set([...this.hosts.keys()].filter((id) => this.attention.has(id))),
+    }));
+    this.lights.apply(payload.settings);
     window.addEventListener('focus', () => {
       const cleared = this.attention.clearIfSeen(this.store.focusedId);
       if (this.clearDoneIfSeen() || cleared) this.notify();
@@ -284,6 +291,7 @@ export class Workspace {
     applyUiScale(document.documentElement, this.config.settings.uiScale);
     applyTextScale(document.documentElement, this.fontSize);
     for (const pane of this.paneViews.values()) pane.applySettings(this.config.settings);
+    this.lights.apply(this.config.settings);
   }
 
   private setFontSize(size: number): void {

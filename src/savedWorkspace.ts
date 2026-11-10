@@ -129,6 +129,8 @@ export interface SavedWorkspace {
   agentPanesOnly?: boolean;
   /** Whether the dashboard's Containers section hides fully stopped groups; absent means shown. */
   hideStoppedContainers?: boolean;
+  /** Whether the dashboard's Pins section leaves out global pins, which the top bar's globe menu then lists; absent means shown. */
+  hideGlobalPins?: boolean;
   /** Whether hiding the dashboard with × has shown its notice; absent means not yet. */
   dashboardHideNoticeShown?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
@@ -408,6 +410,7 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (typeof raw.showPanePaths === 'boolean') saved.showPanePaths = raw.showPanePaths;
   if (raw.agentPanesOnly === true) saved.agentPanesOnly = true;
   if (raw.hideStoppedContainers === true) saved.hideStoppedContainers = true;
+  if (raw.hideGlobalPins === true) saved.hideGlobalPins = true;
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   if (raw.codeColors !== undefined) saved.codeColors = parseCodeColorsMode(raw.codeColors);

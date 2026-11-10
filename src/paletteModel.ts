@@ -1,5 +1,6 @@
 import { actionLabel, actionOrder, formatChord } from './helpModel';
 import { parseChord, type Action, type Direction, type KeybindingEntry } from './keymap';
+import { globalPinName, type GlobalPin } from './globalPins';
 import type { Pin } from './repos';
 
 export type PaletteCategory = 'Pane' | 'Tab' | 'Favorite' | 'Layout' | 'Pin' | 'Worktree' | 'Action';
@@ -12,6 +13,7 @@ export type PaletteChoice =
   | { kind: 'favorite'; path: string }
   | { kind: 'layout'; name: string }
   | { kind: 'pin'; pin: Pin }
+  | { kind: 'globalPin'; pin: GlobalPin }
   | { kind: 'worktree'; path: string }
   | { kind: 'action'; action: Action }
   | { kind: 'command'; command: PaletteCommand };
@@ -32,6 +34,8 @@ export interface PaletteInput {
   favorites: { label: string; path: string }[];
   layouts: { name: string; paneCount: number }[];
   pins: { pin: Pin; absolute: string; exists: boolean }[];
+  /** Listed after the repo's pins; absent means none. */
+  globalPins?: GlobalPin[];
   /** `branch` is the branch name, or the short hash when detached. */
   worktrees: { path: string; name: string; branch: string }[];
   keybindings: KeybindingEntry[];
@@ -47,8 +51,8 @@ export const PALETTE_COMMANDS: readonly { command: PaletteCommand; label: string
   { command: 'checkForUpdates', label: 'Check for updates' },
 ];
 
-/** Actions that act on terminal text or need a number; tabs are items of their own. */
-export const EXCLUDED_ACTIONS: readonly string[] = ['copy', 'paste', 'sendInput', 'switchToTab', 'openPalette'];
+/** Actions that act on terminal or preview text, or need a number; tabs are items of their own. */
+export const EXCLUDED_ACTIONS: readonly string[] = ['copy', 'paste', 'sendInput', 'goToLine', 'switchToTab', 'openPalette'];
 
 const DIRECTIONS: readonly Direction[] = ['left', 'right', 'up', 'down'];
 
@@ -146,6 +150,13 @@ export function buildPaletteItems(input: PaletteInput): PaletteItem[] {
         choice: { kind: 'pin', pin: p.pin },
       };
     }),
+    ...(input.globalPins ?? []).map((pin): PaletteItem => ({
+      id: `globalPin:${pin.command}`,
+      category: 'Pin',
+      label: globalPinName(pin),
+      detail: pin.label ? `Global · ${pin.command}` : 'Global',
+      choice: { kind: 'globalPin', pin },
+    })),
     ...input.worktrees.map((w): PaletteItem => ({
       id: `worktree:${w.path}`,
       category: 'Worktree',

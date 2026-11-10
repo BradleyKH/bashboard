@@ -29,7 +29,8 @@ import { moveItem, parseFavorites } from './favorites';
 import { shipOverviewStore } from './shipOverviewStore';
 import { parseLayouts } from './layouts';
 import { BackdropHost } from './backdrop/backdropHost';
-import { favoritesLoad, layoutsLoad, reposLoad, workspaceLoad, workspaceSave } from './persistence';
+import { favoritesLoad, globalPinsLoad, layoutsLoad, reposLoad, workspaceLoad, workspaceSave } from './persistence';
+import { parseGlobalPins } from './globalPins';
 import { GIT_BASH_PROFILE, loadProfiles } from './profiles';
 import { parseRepos } from './repos';
 import { deleteWorktree } from './worktreeDelete';
@@ -143,6 +144,7 @@ const state: AppState = {
   favorites: [],
   layouts: [],
   repos: [],
+  globalPins: [],
   hideNoticeShown: false,
 };
 setKeyHintBindings(state.settings.keybindings);
@@ -177,6 +179,12 @@ try {
   state.repos = parseRepos(await reposLoad());
 } catch (err) {
   console.warn('repos unavailable:', err);
+}
+
+try {
+  state.globalPins = parseGlobalPins(await globalPinsLoad());
+} catch (err) {
+  console.warn('global pins unavailable:', err);
 }
 
 /** Refocuses the focused pane, of any kind, after a dialog or picker closes. */
@@ -266,6 +274,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onSectionsChange: () => saver.schedule(),
   onPanePathsChange: () => saver.schedule(),
   onAgentPanesOnlyChange: () => saver.schedule(),
+  onShowGlobalPinsChange: () => saver.schedule(),
   onShowStoppedChange: () => saver.schedule(),
   onWidthChange: () => saver.schedule(),
   onOrderChange: () => saver.schedule(),
@@ -335,6 +344,11 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onNewPin: () => repo.newCommandPin(),
   onRemovePin: (index) => repo.removePin(index),
   onReorderPin: (from, to) => repo.movePin(from, to),
+  onRunGlobalPin: (index) => repo.runGlobalPinAt(index),
+  onEditGlobalPin: (index) => repo.editGlobalPin(index),
+  onRemoveGlobalPin: (index) => repo.removeGlobalPin(index),
+  onReorderGlobalPin: (from, to) => repo.moveGlobalPin(from, to),
+  onOpenGlobalPinsMenu: repo.openGlobalPinsMenu,
   onOpenFavoritesMenu: (anchor) => favorites.openFavoritePicker(anchor),
   onOpenLayoutsMenu: (anchor) => favorites.openLayoutPicker(anchor),
   onShownChange: () => repo.render(),
@@ -440,6 +454,7 @@ const saver = new DebouncedSaver(
     showPanePaths: panel.panePathsShown(),
     agentPanesOnly: panel.agentPanesOnlyShown() || undefined,
     hideStoppedContainers: !panel.stoppedContainersShown() || undefined,
+    hideGlobalPins: !panel.globalPinsShown() || undefined,
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
     textZoom: textZoomSnapshot(),
     codeColors: codeColorsDefault(),
@@ -483,6 +498,7 @@ try {
   if (saved?.showPanePaths) panel.setShowPanePaths(true);
   if (saved?.agentPanesOnly) panel.setAgentPanesOnly(true);
   if (saved?.hideStoppedContainers) panel.setShowStoppedContainers(false);
+  if (saved?.hideGlobalPins) panel.setShowGlobalPins(false);
   if (saved?.dashboardHideNoticeShown) state.hideNoticeShown = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (saved?.codeColors) loadCodeColorsDefault(saved.codeColors);

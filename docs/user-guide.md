@@ -125,6 +125,11 @@ closes the bar and selects the current match, so the editor's caret lands on it.
 buttons beside Find zoom the preview, and the pair in the breadcrumb zooms the list; Ctrl+wheel
 over either one zooms it as well. A new Files pane starts at the zoom you last chose for each.
 
+In a code file, Ctrl+G (the `goToLine` action) opens a Line field beside Find: type a line
+number, or `line:column` as compilers print it, and the editor scrolls there as you type and
+marks the line. Enter or Esc puts you back in the editor with the caret on it. Anywhere else,
+including a terminal, Ctrl+G goes to the shell, so Claude Code's own Ctrl+G still works.
+
 The Expand preview button after the zoom buttons fills the pane with the preview and shows the
 file's name in the toolbar. The same button, or Esc (a second Esc when the find bar is open),
 brings the list back. The expanded state is kept on relaunch and in layouts.
@@ -186,11 +191,20 @@ terminal uses the focused terminal's shell, or your default shell when no termin
 row shows a running mark while the terminal it last typed into is busy. Its pencil button, F2,
 or Edit in its menu changes the name and command; the folder stays as it was pinned.
 
+The popup's **Scope** chooses where the pin lists: **This repo** (**This folder** outside a git
+repo), the default, or **Everywhere**. A global pin lists in the Pins section for every folder, after
+the repo's own pins with a globe icon, and runs in the focused pane's folder, so it suits commands
+like `git fetch --prune` or `pnpm install`. Changing Scope when you edit a pin moves it between the
+two lists. The globe at the right of the Pins heading hides global pins from the section, which
+keeps a long list out of the way; while they are hidden, a globe button in the dashboard's top bar
+drops a menu of them, sorted by name. The command palette lists them too.
+
 Pins are kept in `repos.json` next to `settings.json`, as a list of entries, each with a repo
 `root` and its `pins`. A pin's
 `path` is relative to the root with forward slashes when it is inside the repo, and absolute
-otherwise; `label` is optional, and a command pin adds a `command`. Roots and pins match without regard to case. The file is plain
-JSON you can edit by hand, and the panel updates when you save it.
+otherwise; `label` is optional, and a command pin adds a `command`. Roots and pins match without regard to case. Global pins are
+kept in `pins.json` beside it, as a list of `{ "label": ..., "command": ... }` entries. Both files
+are plain JSON you can edit by hand, and the panel updates when you save them.
 
 ## Git pane
 
@@ -488,8 +502,8 @@ Up and Down move through the file names and matching lines, and the preview on t
 selected file scrolled to its line, which is highlighted. The preview is the same text editor as
 the Files pane's, with line numbers, so you can fix a match in place: it
 saves as you type, and once you leave the preview after a save the search runs again, so the list
-follows your edit. Esc in the preview goes back to the list, and Find (or Ctrl+Shift+F in the
-preview) searches the file. The divider between the list and the preview can be dragged.
+follows your edit. Esc in the preview goes back to the list, Find (or Ctrl+Shift+F in the
+preview) searches the file, and Ctrl+G goes to a line. The divider between the list and the preview can be dragged.
 
 Code in the preview is colored, with the same **Plain | Syntax** buttons as in a Files pane, before the zoom
 buttons. A markdown file opens rendered, with **Raw** and **Preview** buttons after the zoom buttons. Switch
@@ -534,7 +548,7 @@ kind's icon and the pane's title. Folder paths under the card titles are hidden 
 **↳** button on the Panes header shows them, and the choice is saved with the workspace. While
 they're hidden, hover a card's title to see its full path. The sparkle button beside it shows only the
 terminals running a coding agent (Claude Code, Codex, or Copilot); each tab's other panes fold into a single
-"(2 other panes)" row ("(2 panes)" in a tab with no agent), and that choice is saved too. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
+"(2 other panes)" row ("(2 panes)" in a tab with no agent) that switches to the tab when clicked, and that choice is saved too. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's
@@ -912,6 +926,14 @@ terminal and to the text in other panes (file lists, previews, diffs, scratch pa
 code lines, and container logs); each pane's own zoom buttons adjust from there. The app's buttons,
 bars, and titles follow Interface size in Settings instead.
 
+## Agent glow and border lights
+
+Two optional effects, both off until you turn them on under Appearance in Settings. **Agent
+glow** makes a terminal glow softly while an AI agent is working in it. **Border lights** send
+small lights around each pane's border, more of them on larger panes; when a pane needs you, only
+that pane keeps its lights.
+Both follow the accent color.
+
 ## Help, settings, and shortcuts
 
 One dialog holds six tabs: **Help**, **Settings**, **Accounts**, **Shortcuts**, **CLI**, and
@@ -919,7 +941,9 @@ One dialog holds six tabs: **Help**, **Settings**, **Accounts**, **Shortcuts**, 
 The command palette lists all six, and Accounts, Shortcuts, CLI, and About can be given keys of
 their own. Ctrl+Tab and
 Ctrl+Shift+Tab (or Ctrl+PageDown and Ctrl+PageUp) move between tabs, pressing a tab's own key
-again closes the dialog, and Escape or a click outside closes it too.
+again closes the dialog, and Escape or a click outside closes it too. Up, Down, Page Up, and Page
+Down scroll the tab you're on, except in a dropdown, a number field, a slider, or a list, which use
+those keys themselves.
 
 - **Help** is a short tour of the main features with your current keys, and a Setup list that
   checks Git Bash, each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),

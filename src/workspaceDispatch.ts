@@ -197,6 +197,10 @@ export function dispatchAction(ctx: DispatchContext, action: Action): boolean {
     case 'paste':
     case 'sendInput':
       return false;
+    // Only a code preview acts on it (its pane handles the key first). Unhandled, the default
+    // Ctrl+G reaches the shell, where Claude Code opens the prompt in an editor.
+    case 'goToLine':
+      return false;
     default: {
       // A registry action with no case above fails tsc here.
       const unhandled: never = action;

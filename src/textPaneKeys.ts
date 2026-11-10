@@ -11,6 +11,7 @@ export function textFieldOwns(action: Action): boolean {
     case 'paste':
     case 'sendInput':
     case 'find':
+    case 'goToLine':
       return true;
     default:
       return false;

@@ -291,6 +291,8 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
         |v| number(v).filter(|n| (UI_SCALE_MIN..=UI_SCALE_MAX).contains(n)),
         d.ui_scale,
     );
+    let agent_glow = pick(&root, &["agentGlow"], &mut w, boolean, d.agent_glow);
+    let border_lights = pick(&root, &["borderLights"], &mut w, boolean, d.border_lights);
     let scrim = Scrim {
         opacity: pick(
             &root,
@@ -594,6 +596,8 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             content_text_color,
             code_colors,
             ui_scale,
+            agent_glow,
+            border_lights,
             scrim,
             backdrop,
             scrollback,
@@ -632,6 +636,20 @@ mod tests {
             assert_eq!(s.accent_color, DEFAULT_ACCENT, "{bad}");
             assert_eq!(w, vec!["accentColor: invalid value, using default"], "{bad}");
         }
+    }
+
+    #[test]
+    fn agent_glow_and_border_lights_are_separate_opt_ins() {
+        let (s, w) = parse_settings("{}");
+        assert!(!s.agent_glow && !s.border_lights);
+        assert!(w.is_empty());
+        let (s, _) = parse_settings(r#"{ "borderLights": true }"#);
+        assert!(s.border_lights && !s.agent_glow);
+        let (s, _) = parse_settings(r#"{ "agentGlow": true }"#);
+        assert!(s.agent_glow && !s.border_lights);
+        let (s, w) = parse_settings(r#"{ "agentGlow": "yes", "borderLights": 1 }"#);
+        assert!(!s.agent_glow && !s.border_lights);
+        assert_eq!(w, vec!["agentGlow: invalid value, using default", "borderLights: invalid value, using default"]);
     }
 
     #[test]

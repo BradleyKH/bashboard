@@ -60,6 +60,13 @@ export const ACTION_REGISTRY = [
     note: 'With no text on the clipboard, the key goes to the shell so Claude Code can paste an image',
   },
   { name: 'find', arg: 'none', label: 'Find in scrollback or file preview', section: 'Terminal' },
+  {
+    name: 'goToLine',
+    arg: 'none',
+    label: 'Go to line in a code preview',
+    section: 'Terminal',
+    note: 'Only in the code view of a Files or Search pane; elsewhere the key goes to the shell',
+  },
   { name: 'sendInput', arg: 'input', section: 'Terminal' },
   { name: 'increaseFontSize', arg: 'none', label: 'Increase text size', section: 'Terminal' },
   { name: 'decreaseFontSize', arg: 'none', label: 'Decrease text size', section: 'Terminal' },
