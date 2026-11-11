@@ -46,6 +46,8 @@ export function renderPaneGroup(group: PaneGroup, cards: HTMLElement[], handlers
   const list = document.createElement('div');
   list.className = 'terminal-group-cards';
   list.append(...cards);
+  // The AI filter can leave a tab with no cards; an empty list would still take the group's gap.
+  list.hidden = cards.length === 0;
 
   el.append(header, list);
   return el;

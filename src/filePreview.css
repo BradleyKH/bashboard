@@ -462,3 +462,56 @@
   max-height: 100%;
   cursor: zoom-in;
 }
+
+/*
+ * The save indicator (saveIndicator.ts) holds the toolbar's right end, so appearing never moves
+ * the buttons before it. Idle keeps its text, transparent, which lets "Saved" fade out in place.
+ */
+.save-indicator {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  font: 11px system-ui, sans-serif;
+  white-space: nowrap;
+  color: var(--content-muted);
+}
+
+/* Only the way out is animated: a state appears at once, and "Saved" fades. */
+.save-indicator[data-state='idle'] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+
+.save-indicator[data-state='saved'] {
+  color: #8fc79a;
+}
+
+.save-indicator[data-state='failed'] {
+  color: #e08a8a;
+  cursor: pointer;
+}
+
+.save-indicator[data-state='failed']:hover {
+  text-decoration: underline;
+}
+
+.save-indicator[data-state='conflict'] {
+  color: #e0b56a;
+}
+
+/* A failed save in a Files or Search preview marks the pane's title, seen even when the preview is not. */
+.pane.save-failed .strip-title {
+  color: #e08a8a;
+}
+
+.pane.save-failed .strip-title::before {
+  content: '⚠ ';
+}
+
+/* A bare dot at 11px is a speck; this matches its weight to the words in the other states. */
+.save-indicator[data-state='pending'],
+.save-indicator[data-state='conflict'] {
+  font-size: 14px;
+  line-height: 1;
+}

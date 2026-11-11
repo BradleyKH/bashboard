@@ -5,8 +5,12 @@ import { showToast } from './toast';
 /** Writes `text` to the clipboard, toasting `Copied <what>` or the failure. */
 export function copyText(text: string, what: string): Promise<void> {
   return navigator.clipboard.writeText(text).then(
-    () => showToast(`Copied ${what}`, 1500),
-    (err) => showToast(`Could not copy: ${String(err)}`),
+    () => {
+      showToast(`Copied ${what}`, 1500);
+    },
+    (err) => {
+      showToast(`Could not copy: ${String(err)}`);
+    },
   );
 }
 

@@ -4,6 +4,7 @@ import {
   editorStep,
   initialEditorState,
   isDirty,
+  saveStatus,
   type EditorEvent,
   type EditorState,
 } from './textEditorModel';
@@ -160,5 +161,46 @@ describe('conflict bar', () => {
     const step = editorStep(conflicted(), { type: 'keepMine', modified: 150 });
     expect(step.effects).toEqual([{ type: 'cancel' }, { type: 'save', text: 'mine', expectedModified: 150 }]);
     expect(step.state).toMatchObject({ conflict: false, saving: true });
+  });
+});
+
+describe('saveStatus', () => {
+  it('walks clean, pending, saving, clean through a save', () => {
+    let s = fresh();
+    expect(saveStatus(s)).toBe('clean');
+    s = run(s, { type: 'edit', text: 'new' });
+    expect(saveStatus(s)).toBe('pending');
+    s = run(s, { type: 'saveRequested' });
+    expect(saveStatus(s)).toBe('saving');
+    s = run(s, { type: 'saved', modified: 200 });
+    expect(saveStatus(s)).toBe('clean');
+  });
+
+  it('holds failed through a retry until a save lands', () => {
+    let s = run(fresh(), { type: 'edit', text: 'new' }, { type: 'saveRequested' }, { type: 'saveFailed', conflict: false });
+    expect(saveStatus(s)).toBe('failed');
+    s = run(s, { type: 'edit', text: 'newer' }, { type: 'saveRequested' });
+    expect(saveStatus(s)).toBe('failed');
+    s = run(s, { type: 'saved', modified: 200 });
+    expect(saveStatus(s)).toBe('clean');
+    expect(saveStatus(run(s, { type: 'edit', text: 'again' }))).toBe('pending');
+  });
+
+  it('drops a failure once the text returns to what is on disk', () => {
+    const s = run(fresh(), { type: 'edit', text: 'new' }, { type: 'saveRequested' }, { type: 'saveFailed', conflict: false });
+    const undone = run(s, { type: 'edit', text: 'hello' });
+    expect(saveStatus(undone)).toBe('clean');
+    expect(saveStatus(run(undone, { type: 'edit', text: 'x' }))).toBe('pending');
+  });
+
+  it('reports a conflict over a failure', () => {
+    const s = run(fresh(), { type: 'edit', text: 'new' }, { type: 'saveRequested' }, { type: 'saveFailed', conflict: true });
+    expect(saveStatus(s)).toBe('conflict');
+  });
+
+  it('clears a failure when a reload replaces the text', () => {
+    let s = run(fresh(), { type: 'edit', text: 'new' }, { type: 'saveRequested' }, { type: 'saveFailed', conflict: false });
+    s = run(s, { type: 'diskChanged', modified: 150 }, { type: 'reloaded', text: 'new', modified: 150 });
+    expect(saveStatus(s)).toBe('clean');
   });
 });

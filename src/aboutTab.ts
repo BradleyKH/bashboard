@@ -22,7 +22,10 @@ export class AboutTab {
     name.className = 'about-tab-name';
     name.textContent = 'Bashboard';
     const tagline = document.createElement('p');
-    tagline.textContent = 'A multipurpose terminal built for Claude Code.';
+    tagline.textContent = 
+      'A terminal workspace for developers running coding agents. Bashboard puts your shells, a live board ' +
+      'of every AI agent session, and Git, file, search, CI, port, and container views in one window, so you ' +
+      'stop juggling apps while your agents work.';
     const version = document.createElement('p');
     version.className = 'app-dialog-note';
     version.textContent = 'Version unknown';

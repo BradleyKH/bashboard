@@ -23,7 +23,9 @@ import { detectIndentUnit } from './indentModel';
 import { findMatches, type FindMatches } from './previewFindModel';
 import { classifyReadError, fsReadText, fsWriteText } from './repoFiles';
 import type { Settings } from './settings';
-import { editorStep, initialEditorState, type EditorEffect, type EditorEvent, type EditorState } from './textEditorModel';
+import type { SaveStatusSink } from './saveIndicator';
+import { editorStep, initialEditorState, isDirty, saveStatus, type EditorEffect, type EditorEvent, type EditorState, type SaveStatus } from './textEditorModel';
+import { showToast } from './toast';
 import { textFieldOwns } from './textPaneKeys';
 
 export interface TextEditorOptions {
@@ -42,6 +44,13 @@ export interface TextEditorOptions {
   onSaved?: () => void;
   /** The language to color by; null (the default) leaves the text uncolored. */
   language?: LanguageId | null;
+  /** Where the save state shows: the preview toolbar's indicator. */
+  saveStatus?: SaveStatusSink;
+  /**
+   * The editor closed with edits that never reached the disk (a failed save, an unanswered
+   * conflict, or a save still in flight that then failed); `text` is the whole edited file.
+   */
+  onUnsaved?: (text: string) => void;
 }
 
 /** Marks a transaction the editor made itself (a reload), which is not an edit to save. */
@@ -163,6 +172,11 @@ export class TextEditor {
   private readonly changeListeners = new Set<() => void>();
   private findRanges: [number, number][] = [];
   private disposed = false;
+  private status: SaveStatus = 'clean';
+  /** Why the last save failed, for the indicator's tooltip and the toast. */
+  private saveError: string | null = null;
+  /** Closes the failed-save toast, whose Retry means nothing once a save lands or the editor closes. */
+  private closeFailureToast: (() => void) | null = null;
 
   constructor(opts: TextEditorOptions) {
     this.opts = opts;
@@ -338,10 +352,19 @@ export class TextEditor {
     while (this.pending) await this.pending;
   }
 
+  /** Edits that have not reached the disk; after `flush`, ones that could not be saved. */
+  get unsaved(): boolean {
+    return isDirty(this.state);
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.clearTimer();
+    this.closeFailureToast?.();
+    this.opts.saveStatus?.reset();
+    // A save still in flight hands its outcome to `save`, which rescues the text if it fails.
+    if (isDirty(this.state) && !this.state.saving) this.opts.onUnsaved?.(this.state.text);
     this.changeListeners.clear();
     this.view.destroy();
     this.el.remove();
@@ -406,6 +429,28 @@ export class TextEditor {
     this.state = step.state;
     for (const effect of step.effects) this.run(effect);
     this.bar.hidden = !this.state.conflict;
+    this.reportStatus();
+  }
+
+  private reportStatus(): void {
+    const status = saveStatus(this.state);
+    if (status === this.status) return;
+    const was = this.status;
+    this.status = status;
+    if (status !== 'failed') {
+      this.saveError = null;
+      this.closeFailureToast?.();
+      this.closeFailureToast = null;
+    }
+    this.opts.saveStatus?.update(status, this.saveError);
+    // Once per run of failures: a retry that fails again keeps the indicator, without a new toast.
+    if (status === 'failed' && was !== 'failed') {
+      const name = this.opts.path.split(/[\\/]/).pop() ?? this.opts.path;
+      this.closeFailureToast = showToast(`Could not save ${name}: ${this.saveError ?? 'unknown error'}`, 8000, {
+        label: 'Retry',
+        run: () => this.send({ type: 'saveRequested' }),
+      });
+    }
   }
 
   private run(effect: EditorEffect): void {
@@ -455,19 +500,27 @@ export class TextEditor {
   private save(text: string, expectedModified: number): void {
     const run: { done?: Promise<void> } = {};
     run.done = (async () => {
+      let landed = false;
       try {
         const onDisk = this.crlf ? text.replace(/\n/g, '\r\n') : text;
         const modified = await fsWriteText(this.opts.path, onDisk, expectedModified);
+        landed = true;
         this.showError(null);
         this.send({ type: 'saved', modified });
+        // Only a landed save confirms; an undo or reload back to the disk's text says nothing.
+        if (this.status === 'clean') this.opts.saveStatus?.saved();
         this.opts.onSaved?.();
       } catch (err) {
         const conflict = classifyReadError(err) === 'conflict';
-        if (!conflict) this.showError(`Could not save: ${errorMessage(err)}`);
+        // Shown by the save indicator and a toast rather than the error line.
+        if (!conflict) this.saveError = errorMessage(err);
         this.send({ type: 'saveFailed', conflict });
       } finally {
         // A follow-up save started by the handlers above has already replaced `pending`.
         if (this.pending === run.done) this.pending = null;
+        // Closed while this save ran: no retry or follow-up save can start now, so whatever did
+        // not land goes to the owner.
+        if (this.disposed && (!landed || this.state.text !== text)) this.opts.onUnsaved?.(this.state.text);
       }
     })();
     this.pending = run.done;
@@ -500,6 +553,7 @@ export class TextEditor {
 
   private setLossy(lossy: boolean): void {
     this.lossyNote.hidden = !lossy;
+    this.opts.saveStatus?.readOnly(lossy);
     if (lossy === this.readOnly) return;
     this.readOnly = lossy;
     this.view.dispatch({ effects: this.readOnlyConf.reconfigure(CmState.readOnly.of(lossy)) });
@@ -523,6 +577,8 @@ export class TextEditor {
       e.preventDefault();
       e.stopPropagation();
       this.send({ type: 'saveRequested' });
+      // Ctrl+S with nothing to save still confirms, for the habit of pressing it.
+      if (this.status === 'clean') this.opts.saveStatus?.saved();
       return true;
     }
     const action = lookup(this.opts.keymap(), e);

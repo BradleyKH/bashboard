@@ -2,6 +2,7 @@ import { delimiterFor, MAX_TABLE_ROWS, parseCsv } from './csvModel';
 import type { Action, Keymap } from './keymap';
 import { PreviewFind, revealIn, selectRange, type FindSurface } from './previewFind';
 import { fsReadText } from './repoFiles';
+import type { SaveStatusSink } from './saveIndicator';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
 
@@ -14,6 +15,10 @@ export interface CsvViewOptions {
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onSaved?: () => void;
+  /** Where the editor's save state shows. */
+  saveStatus?: SaveStatusSink;
+  /** The editor closed with edits it could not save (`TextEditorOptions.onUnsaved`). */
+  onUnsaved?: (text: string) => void;
 }
 
 /** A CSV or TSV file as a table, with an Edit toggle to the text editor (docs/design/files.md section 4.12). */
@@ -93,6 +98,11 @@ export class CsvView {
     await this.editor?.flush();
   }
 
+  /** The editor, if open, has edits that have not reached the disk. */
+  get unsaved(): boolean {
+    return this.editor?.unsaved ?? false;
+  }
+
   dispose(): void {
     this.disposed = true;
     this.find.dispose();
@@ -103,6 +113,8 @@ export class CsvView {
   private async toggleEdit(): Promise<void> {
     if (this.editor) {
       await this.editor.flush();
+      // Edits that could not be saved keep the editor open, under its Not saved indicator.
+      if (this.editor.unsaved) return;
       this.text = this.editor.text;
       this.modified = this.editor.modified;
       this.lossy = this.editor.lossy;
@@ -122,6 +134,8 @@ export class CsvView {
       dispatch: this.opts.dispatch,
       lineNumbers: true,
       onSaved: this.opts.onSaved,
+      saveStatus: this.opts.saveStatus,
+      onUnsaved: this.opts.onUnsaved,
     });
     this.body.replaceChildren(this.editor.el);
     this.body.classList.add('editing');

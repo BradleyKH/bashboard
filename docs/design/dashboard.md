@@ -343,11 +343,11 @@ accent color, and clicking a header switches to that tab. Its menu or F2 renames
 are no headers and the section reads as a plain list.
 
 Left of the paths toggle, an AI toggle (a sparkle, filled while on) narrows each group to the
-terminals bound to an agent session (3.4) of any agent, Claude Code, Codex, or Copilot. The tab's
-other panes fold into one dimmed row after its cards, "(2 other panes)", which switches to its tab when
-clicked, as its header does; a tab with no agent session shows only that row, worded "(2 panes)". Headers keep the tab's full pane count
-and status. It starts off, is saved with the workspace, and is hidden while the section is
-collapsed.
+terminals bound to an agent session (3.4) of any agent, Claude Code, Codex, or Copilot. Headers
+keep the tab's full pane count and status, so a tab with no agent session shows only its header.
+With one tab there is no header to carry the count, so the other panes fold into one dimmed row
+after the cards, "(2 other panes)", worded "(2 panes)" when no card is shown. It starts off, is
+saved with the workspace, and is hidden while the section is collapsed.
 
 Dragging a card or a title strip onto another tab's group (its header or cards) highlights the
 group, and dropping there moves the pane into that tab without switching to it. A collapsed pane

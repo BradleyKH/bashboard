@@ -257,7 +257,9 @@ export class RepoTracker {
     state.repos = next;
     this.render();
     this.deps.workspace().pinsChanged();
-    return reposSave(state.repos).catch((err: unknown) => showToast(`Could not save repos.json: ${String(err)}`));
+    return reposSave(state.repos).catch((err: unknown) => {
+      showToast(`Could not save repos.json: ${String(err)}`);
+    });
   }
 
   private updateGlobalPins(next: GlobalPinsFile): void {

@@ -23,8 +23,11 @@ export interface ToastAction {
   run: () => void;
 }
 
-/** With `action`, the toast carries one button that runs it and closes the toast. */
-export function showToast(message: string, ms = 6000, action?: ToastAction): void {
+/**
+ * With `action`, the toast carries one button that runs it and closes the toast. Returns a
+ * function that closes it early.
+ */
+export function showToast(message: string, ms = 6000, action?: ToastAction): () => void {
   const parent = getContainer();
   const el = document.createElement('div');
   el.textContent = message;
@@ -62,4 +65,5 @@ export function showToast(message: string, ms = 6000, action?: ToastAction): voi
   });
   parent.appendChild(el);
   setTimeout(() => el.remove(), ms);
+  return () => el.remove();
 }

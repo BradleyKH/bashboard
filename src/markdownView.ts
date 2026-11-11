@@ -6,6 +6,7 @@ import { isOpenableUrl } from './links';
 import { classifyLink, renderMarkdown, samePath } from './markdownRender';
 import { PreviewFind, revealIn, selectRange, type FindSurface } from './previewFind';
 import { fsReadText } from './repoFiles';
+import type { SaveStatusSink } from './saveIndicator';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
 
@@ -21,6 +22,10 @@ export interface MarkdownViewOptions {
   onOpenFile: (path: string, fragment?: string) => void;
   /** False hides the Edit toggle: the Search preview edits markdown through its Raw mode instead. */
   editable?: boolean;
+  /** Where the editor's save state shows. */
+  saveStatus?: SaveStatusSink;
+  /** The editor closed with edits it could not save (`TextEditorOptions.onUnsaved`). */
+  onUnsaved?: (text: string) => void;
 }
 
 /** Rendered markdown with an Edit toggle (docs/design/files.md section 4.12). */
@@ -121,6 +126,11 @@ export class MarkdownView {
     await this.editor?.flush();
   }
 
+  /** The editor, if open, has edits that have not reached the disk. */
+  get unsaved(): boolean {
+    return this.editor?.unsaved ?? false;
+  }
+
   dispose(): void {
     this.disposed = true;
     this.find.dispose();
@@ -131,6 +141,8 @@ export class MarkdownView {
   private async toggleEdit(): Promise<void> {
     if (this.editor) {
       await this.editor.flush();
+      // Edits that could not be saved keep the editor open, under its Not saved indicator.
+      if (this.editor.unsaved) return;
       this.text = this.editor.text;
       this.modified = this.editor.modified;
       this.lossy = this.editor.lossy;
@@ -149,6 +161,8 @@ export class MarkdownView {
       keymap: this.opts.keymap,
       dispatch: this.opts.dispatch,
       language: 'markdown',
+      saveStatus: this.opts.saveStatus,
+      onUnsaved: this.opts.onUnsaved,
     });
     this.fenceGeneration++;
     this.body.replaceChildren(this.editor.el);

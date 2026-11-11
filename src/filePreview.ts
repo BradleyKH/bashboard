@@ -12,6 +12,7 @@ import { MarkdownModeToggle } from './markdownModeToggle';
 import { samePath } from './markdownRender';
 import { MarkdownView } from './markdownView';
 import { PreviewFind } from './previewFind';
+import { SaveIndicator } from './saveIndicator';
 import { classifyReadError, fsReadText, type FileText } from './repoFiles';
 import type { Settings } from './settings';
 import { TextEditor } from './textEditor';
@@ -39,6 +40,10 @@ export interface FilePreviewOptions {
   emptyText?: string;
   /** An edit in the preview was saved. */
   onSaved?: () => void;
+  /** A save failed, or the failure ended (a save landed, or the file closed): marks the pane. */
+  onSaveFailed?: (failed: boolean) => void;
+  /** A file's editor closed with edits it could not save; `text` is the whole edited file. */
+  onUnsavedEdits?: (path: string, text: string) => void;
   /**
    * A `show(path)` with a path settled; `expandable` is whether the file is a text preview that
    * can fill the pane. Not called for `show(null)`.
@@ -62,6 +67,8 @@ export class FilePreview {
   private readonly expand: ExpandPreviewButton;
   /** The file's name, shown on the toolbar while expanded. */
   private readonly nameEl: HTMLSpanElement;
+  /** Kept across files; each editor reports to it and resets it when disposed. */
+  private readonly saveIndicator: SaveIndicator;
   /** Source mode's Raw / Preview toggle for markdown; kept across files, so the choice holds. */
   private readonly mdMode: MarkdownModeToggle | null;
   /** The last `show`'s line, so switching a markdown match to Raw lands on it. */
@@ -95,6 +102,10 @@ export class FilePreview {
     this.nameEl = document.createElement('span');
     this.nameEl.className = 'preview-file-name';
     this.nameEl.hidden = true;
+    this.saveIndicator = new SaveIndicator({
+      onRetry: () => void this.flush(),
+      onFailedChange: (failed) => this.opts.onSaveFailed?.(failed),
+    });
     this.mdMode = opts.source
       ? new MarkdownModeToggle(() => {
           const path = this.path;
@@ -243,6 +254,12 @@ export class FilePreview {
     if (c && c.kind !== 'notice' && c.kind !== 'image') c.view.applySettings(settings);
   }
 
+  /** The previewed file has edits that have not reached the disk (after `flush`, could not). */
+  get unsaved(): boolean {
+    const c = this.current;
+    return (c?.kind === 'plain' || c?.kind === 'code' || c?.kind === 'markdown' || c?.kind === 'csv') && c.view.unsaved;
+  }
+
   /** Saves pending edits; resolves once nothing is in flight. */
   async flush(): Promise<void> {
     const c = this.current;
@@ -252,6 +269,7 @@ export class FilePreview {
   dispose(): void {
     this.generation++;
     this.clear();
+    this.saveIndicator.dispose();
     this.el.remove();
   }
 
@@ -273,19 +291,32 @@ export class FilePreview {
         keymap,
         dispatch,
         editable: !this.opts.source,
+        saveStatus: this.saveIndicator,
+        onUnsaved: (edited) => this.opts.onUnsavedEdits?.(path, edited),
         onOpenFile: (target, fragment) => {
           this.pendingAnchor = fragment === undefined ? null : { path: target, fragment };
           this.opts.onOpenFile(target);
         },
       });
       view.toolbar.prepend(this.fileName(path));
-      view.toolbar.append(this.zoom.el, ...modeEls, ...this.expandButton());
+      view.toolbar.append(this.zoom.el, ...modeEls, ...this.expandButton(), this.saveIndicator.el);
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
     } else if (kind === 'csv') {
-      const view = new CsvView({ path, text, modified, lossy, settings: this.settings, keymap, dispatch, onSaved: this.opts.onSaved });
+      const view = new CsvView({
+        path,
+        text,
+        modified,
+        lossy,
+        settings: this.settings,
+        keymap,
+        dispatch,
+        onSaved: this.opts.onSaved,
+        saveStatus: this.saveIndicator,
+        onUnsaved: (edited) => this.opts.onUnsavedEdits?.(path, edited),
+      });
       view.toolbar.prepend(this.fileName(path));
-      view.toolbar.append(this.zoom.el, ...this.expandButton());
+      view.toolbar.append(this.zoom.el, ...this.expandButton(), this.saveIndicator.el);
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
     } else {
@@ -301,6 +332,8 @@ export class FilePreview {
         lineNumbers,
         onSaved: this.opts.onSaved,
         language,
+        saveStatus: this.saveIndicator,
+        onUnsaved: (edited) => this.opts.onUnsavedEdits?.(path, edited),
       });
       const find = new PreviewFind(() => view.findSurface());
       // Only code has line numbers to aim at; plain text wraps.
@@ -313,7 +346,7 @@ export class FilePreview {
         : null;
       this.current = { kind, path, view, find, goTo };
       const bars = goTo ? [find.bar, goTo.bar] : [find.bar];
-      this.el.replaceChildren(framed(view.el, find, bars, [this.zoom.el, ...modeEls, ...this.expandButton()], this.fileName(path)));
+      this.el.replaceChildren(framed(view.el, find, bars, [this.zoom.el, ...modeEls, ...this.expandButton(), this.saveIndicator.el], this.fileName(path)));
     }
   }
 
@@ -386,7 +419,7 @@ export class FilePreview {
   }
 }
 
-/** A view under a toolbar holding the file name, its find button, its bars, then the zoom and expand buttons. */
+/** A view under a toolbar holding the file name, its find button, its bars, then the zoom and expand buttons and the save indicator. */
 function framed(view: HTMLElement, find: PreviewFind, bars: HTMLElement[], trailing: HTMLElement[], name: HTMLElement): HTMLElement {
   const frame = document.createElement('div');
   frame.className = 'preview-frame';

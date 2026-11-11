@@ -293,6 +293,7 @@ export class PaneFactory {
       onPathDragStart: (paths, e) => ctx.startPathDrag(paths, e),
       onInsertPath: (absolute, baseRoot) => ctx.insertPathIntoTab(id, [absolute], baseRoot),
       onShowInFiles: (absolute, root) => ctx.showFiles({ root, ...pinTarget(root, absolute, false) }),
+      onUnsavedEdits: (path, text) => this.keepUnsaved(path, text),
     });
   }
 
@@ -458,8 +459,23 @@ export class PaneFactory {
       onPin: (absolute, isDir) => ctx.hooks.onPin?.(root(), absolute, isDir),
       onUnpin: (absolute) => ctx.hooks.onUnpin?.(root(), absolute),
       getPinnedFolders: () => ctx.hooks.getPinnedFolders?.(root()) ?? [],
+      onUnsavedEdits: (path, text) => this.keepUnsaved(path, text),
     });
     return pane;
+  }
+
+  /**
+   * A Files or Search preview's editor closed with edits it could not save (docs/design/files.md
+   * section 4.12, Save status): they open in a scratch pad rather than being lost.
+   */
+  private keepUnsaved(path: string, text: string): void {
+    const name = path.split(/[\\/]/).pop() ?? path;
+    // Deferred: closing a pane gets here from inside its dispose, partway through the
+    // workspace's own update of the tab.
+    setTimeout(() => {
+      this.ctx.openPane({ kind: 'scratch', text });
+      showToast(`Could not save ${name}; your unsaved edits are in a new scratch pad`, 10000);
+    }, 0);
   }
 
   /**

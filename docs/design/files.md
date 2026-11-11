@@ -198,6 +198,31 @@ in front of you. With unsaved edits, a bar offers Reload (discarding them) or Ke
 note saying why, since saving the decoded text would replace its invalid bytes; a reload
 re-checks, so the editor unlocks once the file on disk is valid UTF-8.
 
+**Save status.** Since the editor saves on its own, the question it answers is whether an edit
+has reached the disk, and it says nothing while the answer is yes. An indicator holds the right
+end of the preview toolbar (`saveIndicator.ts`), where it never shifts the buttons before it and
+shows whether or not the expanded toolbar's file name does. `saveStatus` in `textEditorModel.ts`
+derives its state:
+
+- Clean: nothing. A save that lands, or Ctrl+S with nothing left to save, shows "✓ Saved" for
+  1.5 seconds and then fades it; an undo or reload back to the disk's text shows nothing.
+- Pending (the one-second wait) and saving: a muted dot. A save still running after 300 ms reads
+  "Saving…", since a local write normally finishes long before that.
+- Failed: "⚠ Not saved" in red until a save lands, even through retries, with the reason in its
+  tooltip; clicking it retries. The first failure in a run shows a toast with the reason and a
+  Retry button, and marks the Files or Search pane's title strip red with a ⚠, since a save on
+  blur fails after focus has moved elsewhere and the toolbar may be out of sight. A save that
+  lands closes the toast.
+- Conflict: an amber dot beside the Reload or Keep mine bar.
+- Read-only (a `lossy` read): a lock, beside the note.
+
+Edits that could not be saved are never dropped. Done (leaving Edit for the rendered markdown or
+table) keeps the editor open, and moving or renaming the file stops with a toast, since the editor
+would go on saving to the old path. Anything else that closes the editor (showing another file, a
+folder, or closing the pane) goes ahead, and the unsaved text, a failed save's or an unanswered
+conflict's, opens in a new scratch pad (`onUnsaved` on the editor, kept by `paneFactory.ts`) with
+a toast saying so. A save still running when the editor closes does the same if it then fails.
+
 **Rows.** Clicking a row selects it; double-clicking a folder opens it, and double-clicking a
 file opens it in the editor (3.12). Selection follows File Explorer (`fileSelection.ts`):
 Ctrl+click toggles a row, Shift+click selects from the anchor (the last plain or Ctrl click) to

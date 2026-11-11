@@ -962,20 +962,16 @@ export class DashboardPanel {
         this.render();
       },
     });
-    // The AI filter leaves each tab's count and status alone; only the card list narrows.
-    // With group headers, the folded row switches to its tab like the header does.
-    const renderCards = (list: PaneCard[], tabId?: string): HTMLElement[] => {
+    // The AI filter leaves each tab's count and status alone; only the card list narrows. A
+    // group header already shows its tab's pane count, so the folded row appears only without
+    // headers, where it is the sole sign the filtered-out panes exist.
+    const renderCards = (list: PaneCard[], withHeader: boolean): HTMLElement[] => {
       const { cards: kept, others } = agentCards(list, this.agentPanesOnly);
       const els = kept.map((card) => renderPaneCard(card, cardOptions(card)));
-      if (others > 0) {
+      if (others > 0 && !withHeader) {
         const row = document.createElement('div');
         row.className = 'panes-others';
         row.textContent = otherPanesLabel(others, kept.length === 0);
-        if (tabId !== undefined) {
-          row.classList.add('switchable');
-          row.title = 'Switch to this tab';
-          row.addEventListener('click', () => this.callbacks.onSwitchTab?.(tabId));
-        }
         els.push(row);
       }
       return els;
@@ -990,14 +986,14 @@ export class DashboardPanel {
         ? groups.map((g) =>
             renderPaneGroup(
               g,
-              renderCards(g.cards, g.tabId),
+              renderCards(g.cards, true),
               {
                 onSwitchTab: (tabId) => this.callbacks.onSwitchTab?.(tabId),
                 onRename: (tabId, name) => this.callbacks.onRenameTab?.(tabId, name),
               },
             ),
           )
-        : renderCards(cards)),
+        : renderCards(cards, false)),
     );
 
     this.sessionList.parentElement!.hidden = external.length === 0;

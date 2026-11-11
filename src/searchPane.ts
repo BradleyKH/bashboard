@@ -51,6 +51,8 @@ export interface SearchPaneOptions {
   onInsertPath: (absolute: string, baseRoot: string) => void;
   /** Show in Files on a row: the file's absolute path and this pane's root. */
   onShowInFiles: (absolute: string, root: string) => void;
+  /** The preview's editor closed with edits it could not save; the workspace keeps them. */
+  onUnsavedEdits?: (path: string, text: string) => void;
 }
 
 function baseName(p: string): string {
@@ -184,6 +186,8 @@ export class SearchPane implements PaneView {
       onOpenFile: (path) => void this.preview.show(path),
       onOpenInEditor: (path) => void openInEditor(path),
       onSaved: () => (this.editedSinceRun = true),
+      onSaveFailed: (failed) => this.host.classList.toggle('save-failed', failed),
+      onUnsavedEdits: (path, text) => this.opts.onUnsavedEdits?.(path, text),
     });
     this.split.append(this.left, this.divider, right);
 

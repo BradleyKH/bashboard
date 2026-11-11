@@ -17,7 +17,12 @@ export interface EditorState {
   savingText: string | null;
   /** A read for a disk change is in flight; saves wait for it. */
   reloading: boolean;
+  /** The last save failed for a reason other than a conflict; cleared by the next one that lands. */
+  failed: boolean;
 }
+
+/** What the toolbar's save indicator shows (docs/design/files.md section 4.12, Save status). */
+export type SaveStatus = 'clean' | 'pending' | 'saving' | 'failed' | 'conflict';
 
 export type EditorEvent =
   | { type: 'edit'; text: string }
@@ -48,11 +53,19 @@ export interface EditorStep {
 }
 
 export function initialEditorState(text: string, modified: number): EditorState {
-  return { text, savedText: text, modified, saving: false, conflict: false, savingText: null, reloading: false };
+  return { text, savedText: text, modified, saving: false, conflict: false, savingText: null, reloading: false, failed: false };
 }
 
 export function isDirty(s: EditorState): boolean {
   return s.text !== s.savedText;
+}
+
+/** A failure outranks an in-flight retry, so the warning holds until a save actually lands. */
+export function saveStatus(s: EditorState): SaveStatus {
+  if (s.conflict) return 'conflict';
+  if (!isDirty(s)) return 'clean';
+  if (s.failed) return 'failed';
+  return s.saving ? 'saving' : 'pending';
 }
 
 function startSave(s: EditorState): EditorStep {
@@ -66,6 +79,8 @@ export function editorStep(s: EditorState, e: EditorEvent): EditorStep {
   switch (e.type) {
     case 'edit': {
       const next = { ...s, text: e.text };
+      // Undoing back to the disk's text leaves nothing that failed to save.
+      if (!isDirty(next)) next.failed = false;
       if (s.conflict) return { state: next, effects: [] };
       const effect: EditorEffect = isDirty(next) ? { type: 'schedule', ms: EDITOR_SAVE_DELAY_MS } : { type: 'cancel' };
       return { state: next, effects: [effect] };
@@ -81,12 +96,13 @@ export function editorStep(s: EditorState, e: EditorEvent): EditorStep {
         savedText: s.savingText ?? s.text,
         savingText: null,
         modified: e.modified,
+        failed: false,
       };
       return isDirty(next) && !next.conflict ? startSave(next) : { state: next, effects: [] };
     }
     case 'saveFailed':
       return {
-        state: { ...s, saving: false, savingText: null, conflict: s.conflict || e.conflict },
+        state: { ...s, saving: false, savingText: null, conflict: s.conflict || e.conflict, failed: s.failed || !e.conflict },
         effects: e.conflict ? [{ type: 'cancel' }] : [],
       };
     case 'diskChanged':
@@ -98,14 +114,14 @@ export function editorStep(s: EditorState, e: EditorEvent): EditorStep {
     case 'reloaded': {
       const read = { ...s, reloading: false };
       if (!s.conflict && isDirty(s)) {
-        if (e.text === s.text) return { state: { ...read, savedText: e.text, modified: e.modified }, effects: [{ type: 'cancel' }] };
+        if (e.text === s.text) return { state: { ...read, savedText: e.text, modified: e.modified, failed: false }, effects: [{ type: 'cancel' }] };
         if (e.text === s.savedText) {
           return { state: { ...read, modified: e.modified }, effects: [{ type: 'schedule', ms: EDITOR_SAVE_DELAY_MS }] };
         }
         return { state: { ...read, conflict: true }, effects: [{ type: 'cancel' }] };
       }
       return {
-        state: { ...read, text: e.text, savedText: e.text, modified: e.modified, conflict: false },
+        state: { ...read, text: e.text, savedText: e.text, modified: e.modified, conflict: false, failed: false },
         effects: [{ type: 'cancel' }, { type: 'setText', text: e.text }],
       };
     }

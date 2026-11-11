@@ -22,6 +22,7 @@
 - [Command palette](#command-palette)
 - [Find and links](#find-and-links)
 - [Text size](#text-size)
+- [Agent glow and border lights](#agent-glow-and-border-lights)
 - [Help, settings, and shortcuts](#help-settings-and-shortcuts)
 - [Pane CLI](#pane-cli)
 
@@ -135,7 +136,13 @@ file's name in the toolbar. The same button, or Esc (a second Esc when the find 
 brings the list back. The expanded state is kept on relaunch and in layouts.
 
 The text editor saves about a second after you stop typing, when it loses focus, and on Ctrl+S.
-If the file changes on disk while you have no unsaved edits, it reloads in place. If it changes
+The right end of the preview's toolbar shows where that stands: a dot while an edit waits to be
+saved, then a brief "✓ Saved" once it reaches the disk (Ctrl+S shows it too when there is nothing
+left to save). If a save fails, "⚠ Not saved" stays there until one succeeds, a toast gives the
+reason with a Retry button, and the pane's title turns red; click the indicator to try again.
+Edits that could not be saved are never thrown away: Done, moving, and renaming wait until they
+are saved, and if you show another file or close the pane, they open in a new scratch pad. A
+lock marks a file the editor opened read-only. If the file changes on disk while you have no unsaved edits, it reloads in place. If it changes
 while you do (or a save finds it changed), a bar offers Reload, which discards your edits, or Keep
 mine, which overwrites the file. Ctrl+Z undoes and Ctrl+Y redoes; Enter starts the next line at
 the left edge, with no auto-indent. Tab indents the selected lines, or pads the caret to the next
@@ -545,8 +552,9 @@ and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k t
 kind's icon and the pane's title. Folder paths under the card titles are hidden by default; the
 **↳** button on the Panes header shows them, and the choice is saved with the workspace. While
 they're hidden, hover a card's title to see its full path. The sparkle button beside it shows only the
-terminals running a coding agent (Claude Code, Codex, or Copilot); each tab's other panes fold into a single
-"(2 other panes)" row ("(2 panes)" in a tab with no agent) that switches to the tab when clicked, and that choice is saved too. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
+terminals running a coding agent (Claude Code, Codex, or Copilot), and that choice is saved too.
+Each tab's header still counts all its panes, so a tab with no agent shows just its header; with a
+single tab, the other panes fold into one "(2 other panes)" row instead. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
 the zoom in its tab), or use its close button, which
 asks first when a Claude session is running there or a scratch pad has text. Click a section's
 header to collapse or expand it; the choice is remembered across launches. Drag a section's

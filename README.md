@@ -1,11 +1,10 @@
 Bashboard
 =========
 
-**A beautiful tool that enhances productivity and reduces friction** for developers and devops
-people running coding agents on Windows. Bashboard puts your terminal panes, a live board of every
-agent session, and the Git, file, search, and CI views you'd otherwise open an IDE or a browser
-for into one window, so you stop juggling apps while your agents work. It is built for Claude Code,
-with previews for OpenAI Codex and GitHub Copilot CLI, and it works with any stack.
+**A terminal workspace for developers running AI coding agents.** Bashboard puts your shells, a
+live board of every AI agent session, and the Git, file, search, CI, port, and container views in one window, so you stop juggling apps while your
+agents work. It tracks Claude Code sessions in full, with previews for OpenAI Codex and GitHub
+Copilot CLI, and it works with any stack. It runs on Windows, with an early macOS preview.
 
 ## Why Bashboard
 
@@ -18,8 +17,12 @@ with previews for OpenAI Codex and GitHub Copilot CLI, and it works with any sta
 
 ## Also included
 
-- **Git, Files, and Search:** stage, commit, and branch beside the diff; browse and preview a
-  repo; find a line across it.
+- **Git, Files, and Search:** stage, commit, and branch beside the diff; browse a repo and
+  preview images, tables, and markdown; find a line across it.
+- **A built-in text editor:** edit files in place, with code colors and go to line, and it
+  saves as you type.
+- **Pins:** keep the files, folders, and commands you use most one click away, per repo or
+  everywhere.
 - **Ship:** CI runs, job logs, and pull requests from GitHub, GitLab, Bitbucket, and Azure
   DevOps, ranked by what needs you.
 - **Ports and Local Browser:** see and stop dev servers, preview `localhost` beside the
@@ -29,7 +32,9 @@ with previews for OpenAI Codex and GitHub Copilot CLI, and it works with any sta
   rebuild one in a click, and Ctrl+Shift+P reaches everything.
 - **The `bb` CLI and scratch pads:** open panes from any prompt, and draft longer prompts
   before sending them.
-- **Backdrops:** a live colony simulation, Galaxy, Matrix, a load-driven wave, or your own image, dimmed to taste.
+- **Backdrops and effects:** a live colony simulation, Galaxy, Matrix, a load-driven wave, or
+  your own image, dimmed to taste, plus an optional glow on working agents and lights around
+  pane borders.
 - **Codex, Copilot, and local AI models:** the same status and notifications for other agents,
   plus what Ollama and LM Studio have loaded.
 
@@ -41,7 +46,8 @@ Download `Bashboard_<version>_x64-setup.exe` from the
 [latest release](https://github.com/BradleyKH/bashboard/releases/latest) and run it. It installs
 for the current user without admin rights and includes everything Bashboard needs: the app, the
 `bb` pane CLI, and the terminal font. Bashboard checks for new releases at launch and updates
-itself from inside the app.
+itself from inside the app. It also adds **Open in Bashboard** to File Explorer's right-click
+menu.
 
 The installer is not code-signed, so Windows SmartScreen shows "Windows protected your PC" the
 first time. Click **More info**, then **Run anyway**.
@@ -74,8 +80,8 @@ from **Settings > Apps > Installed apps**. To build from source, see
 
 ## Documentation
 
-- [User guide](docs/user-guide.md): tabs, panes, layouts, the dashboard, Files, Git, code
-  search, containers, ports, Local Browser, the Ship pane, local AI models, attention, and the
+- [User guide](docs/user-guide.md): tabs, panes, layouts, the dashboard, Files and the text
+  editor, pins, Git, code search, containers, ports, Local Browser, the Ship pane, local AI models, attention, and the
   `bb` pane CLI.
 - [Shell and coding agent setup](docs/setup.md): the `~/.bashrc` lines that let new panes open
   in the current folder, the hooks for Claude Code, Codex, and Copilot, and signing

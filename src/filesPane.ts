@@ -80,6 +80,8 @@ export interface FilesPaneOptions {
   /** Absolute paths of the repo's pinned folders that exist. */
   getPinnedFolders: () => string[];
   onOpenInEditor?: (path: string) => void;
+  /** The preview's editor closed with edits it could not save; the workspace keeps them. */
+  onUnsavedEdits?: (path: string, text: string) => void;
 }
 
 function errorText(err: unknown): string {
@@ -214,6 +216,8 @@ export class FilesPane implements PaneView {
         void this.showFolder(t.folder, t.select);
       },
       onOpenInEditor: (path) => this.openInEditor(path),
+      onSaveFailed: (failed) => this.host.classList.toggle('save-failed', failed),
+      onUnsavedEdits: (path, text) => this.opts.onUnsavedEdits?.(path, text),
       onToggleExpand: () => (this.previewExpanded ? this.showList(true) : this.setPreviewExpanded(true)),
       onShown: (expandable) => {
         const refocus = this.refocusPreview && document.activeElement === document.body;
@@ -366,7 +370,8 @@ export class FilesPane implements PaneView {
   /** Moves files into `toDir`, one at a time, toasting any that fail, then re-lists. */
   async movePaths(paths: string[], toDir: string): Promise<void> {
     // The preview's unsaved text goes to the file before it moves.
-    if (this.preview.path !== null && paths.some((p) => samePath(p, this.preview.path!))) await this.flush();
+    const previewed = this.preview.path;
+    if (previewed !== null && paths.some((p) => samePath(p, previewed)) && !(await this.savedBefore('nothing was moved'))) return;
     const failed: string[] = [];
     for (const p of paths) {
       try {
@@ -385,7 +390,7 @@ export class FilesPane implements PaneView {
   private async renameEntry(entry: FileEntry, newName: string): Promise<boolean> {
     const path = childPath(this.currentPath, entry.name);
     // The preview's unsaved text goes to the file before its name changes.
-    if (this.preview.path !== null && samePath(path, this.preview.path)) await this.flush();
+    if (this.preview.path !== null && samePath(path, this.preview.path) && !(await this.savedBefore('it was not renamed'))) return false;
     try {
       await fsRename(path, newName);
     } catch (e) {
@@ -399,6 +404,18 @@ export class FilesPane implements PaneView {
   /** The repo's pins changed; refreshes the breadcrumb's pin button. */
   pinsChanged(): void {
     this.renderCrumb();
+  }
+
+  /**
+   * Saves the preview's edits before its file moves or is renamed; false, with a toast, when
+   * they could not be saved, since the editor would go on saving to the old path.
+   */
+  private async savedBefore(outcome: string): Promise<boolean> {
+    await this.flush();
+    if (!this.preview.unsaved) return true;
+    const name = baseName(this.preview.path ?? '');
+    showToast(`Could not save ${name}, so ${outcome}`);
+    return false;
   }
 
   /** Saves pending editor text. */
