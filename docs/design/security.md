@@ -80,9 +80,11 @@ in the address (4.21 Navigation policy).
 
 **A Downloaded page never navigates to a local service.** The core asks the file server whether
 the frame's current document is on a Downloaded listener, and fails any navigation that page
-starts toward a loopback host outside its own listener and token before a request is sent. The
-pane's own navigations (the address field, Home, a bookmark, Back) are not the page's and still
-leave it (4.21 Navigation policy, File pages).
+starts toward a loopback host outside its own listener and token before a request is sent,
+including a history traversal (`history.back()`, `history.go(n)`) onto an earlier loopback entry
+of its frame. The pane's own navigations (the address field, Home, a bookmark, Back and Forward,
+which the core marks as the pane's for one traversal) are not the page's and still leave it (4.21
+Navigation policy, File pages).
 
 **Header rewriting is narrow.** The core removes `X-Frame-Options` and the `frame-ancestors`
 directive, and nothing else, only from loopback documents inside a Local Browser frame (4.21

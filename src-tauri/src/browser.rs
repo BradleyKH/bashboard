@@ -21,6 +21,10 @@ const MAX_TEXT: usize = 10 * 1024;
 /// Refused Downloaded-page navigations a frame remembers until their requests pause.
 const MAX_REFUSED: usize = 16;
 
+/// How long the pane's own Back or Forward stays expected. `history.go` starts its navigation
+/// within a task, so a mark older than this is stale and must not excuse the page's own traversal.
+const TRAVERSAL_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(
     tag = "kind",
@@ -145,6 +149,9 @@ struct Binding {
     /// The address `browser_replace` sends the frame to: the core's own navigation, which the
     /// frame reports as one it asked for.
     replacing: Option<String>,
+    /// Until when a history traversal is the pane's own (`browser_history`, or the core undoing
+    /// an error page) rather than the page's. Consumed by the first traversal that starts.
+    pane_traversal: Option<std::time::Instant>,
 }
 
 impl Binding {
@@ -163,7 +170,17 @@ impl Binding {
             page_url: None,
             refused: Vec::new(),
             replacing: None,
+            pane_traversal: None,
         }
+    }
+
+    fn expect_traversal(&mut self, now: std::time::Instant) {
+        self.pane_traversal = Some(now + TRAVERSAL_GRACE);
+    }
+
+    /// True when the pane started the traversal now starting; the mark is spent either way.
+    fn take_traversal(&mut self, now: std::time::Instant) -> bool {
+        self.pane_traversal.take().is_some_and(|until| now <= until)
     }
 }
 
@@ -356,6 +373,11 @@ enum Police {
 /// iframe's `src` from the app's document, and Back and Forward are history traversals, neither
 /// of which reaches the frame's session as this event. `classify` allows the loopback address a
 /// Downloaded page asks for, so it is recorded for the Fetch path to refuse.
+///
+/// A traversal the page starts itself (`history.back()`, `history.go(n)`) raises no
+/// `frameRequestedNavigation` either, so `Page.frameStartedNavigating`, whose `navigationType`
+/// names history navigations, polices those: one leaving a Downloaded scope for a loopback address
+/// is refused the same way unless the pane marked it as its own.
 fn police(
     method: &str,
     p: &Value,
@@ -404,12 +426,39 @@ fn police(
                 }
             }
         }
+        "Page.frameStartedNavigating"
+            if root(&p["frameId"])
+                && browser_policy::is_history_traversal(
+                    p["navigationType"].as_str().unwrap_or_default(),
+                ) =>
+        {
+            let url = str_of(&p["url"]);
+            let own = binding.take_traversal(std::time::Instant::now());
+            // Only an address `classify` allows has a request for Fetch to fail; any other one
+            // commits an error page, which the frameNavigated arm undoes.
+            if own
+                || !scope.is_some_and(|s| browser_policy::leaves_downloaded_scope(&url, s))
+                || browser_policy::classify(&url, app_origin) != UrlClass::Allowed
+            {
+                return Police::Pass;
+            }
+            if binding.refused.len() >= MAX_REFUSED {
+                binding.refused.remove(0);
+            }
+            binding.refused.push(url.clone());
+            Police::Block {
+                url,
+                external: false,
+                downloaded: true,
+            }
+        }
         "Page.frameNavigated" if root(&p["frame"]["id"]) => {
             let url = str_of(&p["frame"]["url"]);
             let traversing = std::mem::take(&mut binding.traversing);
             if url.starts_with("chrome-error:") {
                 if binding.blocked.take().is_some() {
                     binding.restoring = true;
+                    binding.expect_traversal(std::time::Instant::now());
                     return Police::Restore {
                         report: None,
                         back: true,
@@ -426,6 +475,9 @@ fn police(
                             external: class == UrlClass::External && !traversing,
                             downloaded: false,
                         };
+                        if binding.has_page {
+                            binding.expect_traversal(std::time::Instant::now());
+                        }
                         // Back from a frame's first entry would leave the frame's own history.
                         return Police::Restore {
                             report: Some(report),
@@ -816,6 +868,7 @@ mod win {
         );
         for event in [
             "Page.frameRequestedNavigation",
+            "Page.frameStartedNavigating",
             "Page.frameNavigated",
             "Page.navigatedWithinDocument",
             "Page.frameStartedLoading",
@@ -1145,12 +1198,15 @@ mod win {
             return;
         }
         // Looked up outside the registry lock: the file server takes its own.
-        let page = (method == "Page.frameRequestedNavigation")
-            .then(|| {
-                let reg = ctx.state.lock();
-                reg.sessions.get(session).and_then(|b| b.page_url.clone())
-            })
-            .flatten();
+        let page = matches!(
+            method,
+            "Page.frameRequestedNavigation" | "Page.frameStartedNavigating"
+        )
+        .then(|| {
+            let reg = ctx.state.lock();
+            reg.sessions.get(session).and_then(|b| b.page_url.clone())
+        })
+        .flatten();
         let scope = page.and_then(|u| ctx.files().downloaded_scope(&u));
         let (pane_id, events, restore_cache, step, quiet_title) = {
             let mut reg = ctx.state.lock();
@@ -1376,6 +1432,7 @@ pub fn browser_history(
         let session = session_for(&state, &pane_id)?;
         if let Some(b) = state.lock().sessions.get_mut(&session) {
             b.traversing = true;
+            b.expect_traversal(std::time::Instant::now());
         }
         win::evaluate(&window, session, format!("history.go({delta})"))
     }
@@ -1747,6 +1804,136 @@ mod tests {
             b.refused.last().map(String::as_str),
             Some("http://127.0.0.1:9039/")
         );
+    }
+
+    #[test]
+    fn traversal_marks_are_spent_once_and_expire() {
+        let now = std::time::Instant::now();
+        let mut b = binding();
+        assert!(!b.take_traversal(now));
+        b.expect_traversal(now);
+        assert!(b.take_traversal(now + std::time::Duration::from_millis(500)));
+        assert!(!b.take_traversal(now));
+        b.expect_traversal(now);
+        assert!(!b.take_traversal(now + TRAVERSAL_GRACE + std::time::Duration::from_millis(1)));
+        assert!(b.pane_traversal.is_none());
+    }
+
+    #[test]
+    fn a_downloaded_page_never_traverses_to_a_local_service() {
+        let page = "http://127.0.0.1:5200/abc/index.html";
+        let scope = Some("http://127.0.0.1:5200/abc/");
+        let start = |url: &str, kind: &str| json!({ "frameId": "F", "url": url, "navigationType": kind, "loaderId": "L" });
+        let started = "Page.frameStartedNavigating";
+        let on_page = || {
+            let mut b = binding();
+            police(
+                "Page.frameNavigated",
+                &json!({ "frame": { "id": "F", "url": page } }),
+                &mut b,
+                None,
+                None,
+            );
+            b
+        };
+        let dev = "http://127.0.0.1:8000/";
+        let refused = Police::Block {
+            url: dev.into(),
+            external: false,
+            downloaded: true,
+        };
+
+        // The page's own traversal out of its scope is refused and left for Fetch to fail.
+        let mut b = on_page();
+        assert_eq!(
+            police(
+                started,
+                &start(dev, "historyDifferentDocument"),
+                &mut b,
+                None,
+                scope
+            ),
+            refused
+        );
+        let mut reg = Registry::default();
+        reg.sessions.insert("S".into(), b.clone());
+        assert!(reg.take_refused("p1", dev));
+
+        // The pane's own Back is spent by the first traversal, and only for this pane's frame.
+        let mut other = Binding::new("p2".into(), "G".into(), false);
+        other.expect_traversal(std::time::Instant::now());
+        b.expect_traversal(std::time::Instant::now());
+        assert_eq!(
+            police(
+                started,
+                &start(dev, "historyDifferentDocument"),
+                &mut b,
+                None,
+                scope
+            ),
+            Police::Pass
+        );
+        assert!(other.pane_traversal.is_some());
+        assert_eq!(
+            police(
+                started,
+                &start(dev, "historyDifferentDocument"),
+                &mut b,
+                None,
+                scope
+            ),
+            refused
+        );
+        // A stale mark excuses nothing.
+        b.pane_traversal = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+        assert_eq!(
+            police(
+                started,
+                &start(dev, "historyDifferentDocument"),
+                &mut b,
+                None,
+                scope
+            ),
+            refused
+        );
+
+        // Within the scope, outside loopback, non-traversals, and other pages pass.
+        let mut b = on_page();
+        for (url, kind, scope) in [
+            (
+                "http://127.0.0.1:5200/abc/b.html",
+                "historyDifferentDocument",
+                scope,
+            ),
+            ("https://example.com/", "historyDifferentDocument", scope),
+            (dev, "differentDocument", scope),
+            (dev, "reload", scope),
+            (dev, "historyDifferentDocument", None),
+        ] {
+            assert_eq!(
+                police(started, &start(url, kind), &mut b, None, scope),
+                Police::Pass,
+                "{url} {kind}"
+            );
+        }
+        assert!(b.refused.is_empty());
+        // Only the pane's root frame.
+        let nested = json!({ "frameId": "NESTED", "url": dev, "navigationType": "historyDifferentDocument" });
+        assert_eq!(police(started, &nested, &mut b, None, scope), Police::Pass);
+
+        // Undoing an error page is the core's own traversal.
+        b.blocked = Some("https://example.com/".into());
+        assert!(matches!(
+            police(
+                "Page.frameNavigated",
+                &json!({ "frame": { "id": "F", "url": "chrome-error://chromewebdata/" } }),
+                &mut b,
+                None,
+                None
+            ),
+            Police::Restore { back: true, .. }
+        ));
+        assert!(b.pane_traversal.is_some());
     }
 
     #[test]

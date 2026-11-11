@@ -279,11 +279,17 @@ navigation it asks for to a loopback host (`trust::is_loopback_host`) outside it
 token is refused (`browser_policy::leaves_downloaded_scope`). The rule reads
 `Page.frameRequestedNavigation` on the pane's frame, which reports the navigations the frame's own
 document starts (a link, a script setting `location`, a form, a meta refresh) and not the pane's:
-the address field, Home, a bookmark, or Retry set the iframe's `src` from the app's document, and
-Back and Forward are history traversals, so the user can always leave the page. A refused address
-that `classify` would allow is remembered, and the Fetch Request stage fails it with `Aborted`,
-so no request reaches the service; `location.replace` from `browser_replace` is the core's own
-navigation and is exempt. The pane gets a `blocked` event with `downloaded` and shows "Blocked
+the address field, Home, a bookmark, or Retry set the iframe's `src` from the app's document. A
+history traversal raises no such event, so the rule also reads `Page.frameStartedNavigating`, whose
+`navigationType` of `historyDifferentDocument` or `historySameDocument` marks one, and refuses the
+page's own `history.back()` or `history.go(n)` onto an earlier loopback entry of its frame. The
+pane's Back and Forward are told apart by a mark: `browser_history` records it on the pane's frame
+just before running `history.go`, the first traversal that starts spends it, and it lapses after
+two seconds, so the user can always leave the page. The core's own `history.back()` that undoes an
+error page carries the same mark. A refused address that `classify` would allow is remembered, and
+the Fetch Request stage fails it with `Aborted`, so no request reaches the service and a refused
+traversal leaves the frame on its page and its history index where it was; `location.replace`
+from `browser_replace` is the core's own navigation and is exempt. The pane gets a `blocked` event with `downloaded` and shows "Blocked
 127.0.0.1:8000. Downloaded pages can't open local services.", with no Open button. Its own marked
 siblings, under the same token, load as before, and an external address still waits for a click.
 A frame nested in a Downloaded page cannot load a loopback service either: the page's `frame-src`

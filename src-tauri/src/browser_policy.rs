@@ -109,6 +109,15 @@ pub fn leaves_downloaded_scope(url: &str, scope: &str) -> bool {
         && u.path().starts_with(s.path()))
 }
 
+/// True for a `Page.frameStartedNavigating` `navigationType` that moves through session history,
+/// which reaches a frame without a `frameRequestedNavigation`.
+pub fn is_history_traversal(navigation_type: &str) -> bool {
+    matches!(
+        navigation_type,
+        "historySameDocument" | "historyDifferentDocument"
+    )
+}
+
 /// Drops the `frame-ancestors` directive from a CSP header value, keeping the rest. A header may
 /// carry several comma-separated policies. Returns `None` when nothing is left.
 pub fn strip_frame_ancestors(value: &str) -> Option<String> {
@@ -174,6 +183,15 @@ mod tests {
     use super::*;
 
     const APP: &str = "http://localhost:1420";
+
+    #[test]
+    fn history_traversals_by_navigation_type() {
+        assert!(is_history_traversal("historyDifferentDocument"));
+        assert!(is_history_traversal("historySameDocument"));
+        for other in ["differentDocument", "sameDocument", "reload", "restore", ""] {
+            assert!(!is_history_traversal(other));
+        }
+    }
 
     #[test]
     fn loopback_forms() {
