@@ -37,7 +37,8 @@ pnpm version:set <version>                  # set the app version in package.jso
 Rust tests run from `src-tauri/` with `cargo test` (`cargo test settings` for one module). In
 Git Bash, cargo may need `export PATH="$HOME/.cargo/bin:$PATH"` first. The Rust sources are not
 `cargo fmt` clean, so don't run `cargo fmt` repo-wide; format only what you touch. CI
-(`.github/workflows/ci.yml`) runs the type check, Vitest, `cargo test`, and an installer build.
+(`.github/workflows/ci.yml`) runs the type check, Vitest, `cargo test`, and an installer build
+on Windows, and the same checks plus a universal `.app` build on macOS.
 
 Debug builds keep settings and saved state in `%APPDATA%\dev.bashboard\dev`, not the installed
 app's folder; the first debug run seeds `settings.json` from the installed app unless

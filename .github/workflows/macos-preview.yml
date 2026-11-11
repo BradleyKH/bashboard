@@ -57,19 +57,10 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-      # A universal tauri build lipos only the main binary; the bundler then looks for a universal
-      # bb that nothing made. Build bb per architecture and merge it first. The features match
-      # the tauri build below so cargo reuses these artifacts there.
       - name: Build universal bb
         if: inputs.target == 'universal-apple-darwin'
         working-directory: src-tauri
-        run: |
-          for arch in aarch64-apple-darwin x86_64-apple-darwin; do
-            cargo build --release --bin bb --features devtools --target "$arch"
-          done
-          mkdir -p target/universal-apple-darwin/release
-          lipo -create -output target/universal-apple-darwin/release/bb \
-            target/aarch64-apple-darwin/release/bb target/x86_64-apple-darwin/release/bb
+        run: bash ../scripts/macos/universal-bb.sh --features devtools
 
       # "-" is an ad-hoc signature: Apple silicon will not run unsigned code at all, and without a
       # Developer ID nothing better is available. devtools lets a tester open Safari's Web
@@ -80,28 +71,7 @@ jobs:
           --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
 
       - name: Assert the bundle ships bb
-        run: |
-          app=$(find "src-tauri/target/${{ inputs.target }}/release/bundle/macos" -maxdepth 1 -name '*.app' | head -n 1)
-          if [ ! -x "$app/Contents/MacOS/bb" ]; then
-            echo "::error::$app/Contents/MacOS/bb is missing"
-            ls -la "$app/Contents/MacOS" || true
-            exit 1
-          fi
-          file "$app/Contents/MacOS/"*
-          # A universal build must make every binary universal, not only the main one: a thin bb
-          # would fail to run on the other architecture and still pass the check above.
-          case "${{ inputs.target }}" in
-            universal-apple-darwin) want="arm64 x86_64" ;;
-            aarch64-apple-darwin) want="arm64" ;;
-          esac
-          for bin in bashboard bb; do
-            have=$(lipo -archs "$app/Contents/MacOS/$bin" | tr ' ' '\n' | sort | xargs)
-            if [ "$have" != "$want" ]; then
-              echo "::error::$bin has architectures '$have', expected '$want'"
-              exit 1
-            fi
-          done
-          codesign -dv "$app" 2>&1 | head -n 5
+        run: bash scripts/macos/assert-bundle.sh ${{ inputs.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

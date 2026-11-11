@@ -268,7 +268,8 @@ requests; it needs `BASHBOARD_ADO_LIVE=<org>/<project>/<repo>` and `AZURE_DEVOPS
 
 CI: a GitHub Actions workflow (`.github/workflows/ci.yml`) on `windows-latest` runs the type
 check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS installer as the
-`bashboard-installer` artifact.
+`bashboard-installer` artifact. A second job on `macos-latest` runs the same checks and builds
+an ad-hoc signed universal `.app`, failing unless `bb` ships inside it for both architectures.
 
 ## 11. Risks
 

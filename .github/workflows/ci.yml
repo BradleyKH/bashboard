@@ -71,3 +71,53 @@ jobs:
           name: bashboard-installer
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
+
+  # Development happens on Windows, so this job is the only thing that compiles and tests the
+  # macOS code paths on every push. It builds the universal bundle because that is what ships.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Front end tests
+        run: pnpm test
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build universal bb
+        working-directory: src-tauri
+        run: bash ../scripts/macos/universal-bb.sh
+
+      # Ad-hoc signed, since Apple silicon will not run unsigned code.
+      - name: Build app
+        run: >
+          pnpm tauri build --target universal-apple-darwin --bundles app
+          --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+
+      - name: Assert the bundle ships bb
+        run: bash scripts/macos/assert-bundle.sh universal-apple-darwin

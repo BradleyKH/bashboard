@@ -117,7 +117,9 @@ shares the installed app's lock and saved workspace.
 `src-tauri\target\release\bundle\nsis\*-setup.exe`. The
 `.github/workflows/ci.yml` workflow runs the type check, tests, and Rust tests on every push to
 `main` and every pull request, then builds the installer and uploads it as the
-`bashboard-installer` artifact on the workflow run.
+`bashboard-installer` artifact on the workflow run. Its `macos` job runs the same checks on a
+Mac runner and builds a universal `.app` (not uploaded); for a `.dmg` to hand to a tester, run
+the `macOS preview` workflow from the Actions tab.
 
 To publish a release:
 
