@@ -47,7 +47,7 @@ Defaults mirror the current Windows Terminal settings:
 | F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) | `focusDashboard` |
 | Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) | `cycleScrim` |
 | Ctrl+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None | `toggleBackdrop` |
-| Ctrl+Shift+N | Focus the next terminal that needs you, across all tabs (4.7) | `nextAttention` |
+| Ctrl+Shift+N | Focus the next terminal that needs you, across all tabs, else cycle the agent terminals (4.7) | `nextAttention` |
 | Ctrl+= or Ctrl+Numpad+ | Increase the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `increaseFontSize` |
 | Ctrl+- | Decrease the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `decreaseFontSize` |
 | Ctrl+0 | Reset the text size to the default, 14 px (saved to `font.size`; applies to terminals and pane text) | `resetFontSize` |

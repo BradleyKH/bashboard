@@ -14,7 +14,7 @@ import type { ProviderKind } from './forgeApi';
 import { GitPane } from './gitPane';
 import { forget, recentTerminal, touch } from './focusHistory';
 import { lookup, type Action } from './keymap';
-import { autoDir, close, computeRects, findPath, insertAtEdge, neighbor, resizePane } from './layout';
+import { autoDir, close, computeRects, findPath, insertAtEdge, leaves, neighbor, resizePane } from './layout';
 import type { CellSize, Direction, Layout, Rect } from './layout';
 import { LiveSettings } from './liveSettings';
 import { TerminalPane } from './pane';
@@ -389,15 +389,19 @@ export class Workspace {
   nextAttention(): void {
     const entries: AttentionEntry[] = [];
     for (const tab of this.store.state.tabs) {
-      for (const paneId of tab.panes) {
-        if (!this.terminal(paneId)) continue;
-        entries.push({ paneId, tabId: tab.id, ...this.status.resolved(paneId) });
+      // Reading order, then collapsed cards, so the agent-cycling fallback walks the screen.
+      const order = [...(tab.tree ? leaves(tab.tree) : []), ...tab.collapsed];
+      for (const paneId of order) {
+        const term = this.terminal(paneId);
+        if (!term) continue;
+        const agent = this.sessions.bound(term.ptyId) !== null;
+        entries.push({ paneId, tabId: tab.id, agent, ...this.status.resolved(paneId) });
       }
     }
     const tabOrder = this.store.state.tabs.map((t) => t.id);
     const target = nextAttentionId(entries, tabOrder, this.store.focusedId);
     if (target === null) {
-      showToast('Nothing needs you');
+      showToast('Nothing needs you, and no agent sessions are open');
       return;
     }
     this.revealPane(target);

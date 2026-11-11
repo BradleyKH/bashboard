@@ -280,7 +280,10 @@ jump goes to the entry after it, wrapping; otherwise to the first entry. `waitin
 on focus, so repeated presses walk the whole list; `done` and `failed` clear on focus, so they
 drop out as they are visited. The jump switches to the pane's tab if needed and focuses it; a
 collapsed terminal expands as clicking its card does (4.3), and a zoomed pane (4.2) in the
-target tab unzooms first. An empty list shows a toast, "Nothing needs you".
+target tab unzooms first. When the list is empty, the chord cycles the terminals with a bound
+agent session (3.4) instead, in reading order within each tab (collapsed cards last) and tab
+order across tabs, with the same after-the-focused-one rule. With no agent terminals either, it
+shows a toast, "Nothing needs you, and no agent sessions are open".
 
 ## 4.23 Agent glow and border lights (`src/paneLights.ts`)
 

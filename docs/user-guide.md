@@ -924,8 +924,8 @@ example that it needs your permission to use a tool), or "Waiting for you" when 
 
 Ctrl+Shift+N jumps to the next terminal that needs you, across all tabs: waiting ones first,
 oldest first, then done and failed ones. It switches to the pane's tab, expands a collapsed card,
-and ends a zoom in the way. Repeated presses walk the list, and a toast says "Nothing needs you"
-when it is empty.
+and ends a zoom in the way. Repeated presses walk the list. When nothing needs you, it cycles
+through the terminals running an agent session (Claude Code, Codex, or Copilot) instead.
 
 When an agent session's turn ends, its `Stop` hook marks the terminal `done` unless you are
 looking at it. The status dot becomes a still green check mark on the terminal's title strip,

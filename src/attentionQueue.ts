@@ -6,6 +6,8 @@ export interface AttentionEntry {
   status: TerminalStatus;
   /** `statusChangedAt` for `waiting`; the mark time for `done` and `failed`. */
   changedAt: number;
+  /** True when an agent session (Claude Code, Codex, Copilot) is bound to the pane. */
+  agent: boolean;
 }
 
 /**
@@ -31,14 +33,19 @@ export function attentionQueue(entries: AttentionEntry[], tabOrder: string[]): s
   return ranked.map(({ entry }) => entry.paneId);
 }
 
-/** The pane after `focusedId` in the queue (wrapping), or the first when it is not queued. */
+/**
+ * The pane after `focusedId` in the queue (wrapping), or the first when it is not queued. With
+ * nothing queued it cycles the agent terminals instead, in input order, so the chord still walks
+ * the AI sessions; null when there are none.
+ */
 export function nextAttention(
   entries: AttentionEntry[],
   tabOrder: string[],
   focusedId: string,
 ): string | null {
   const queue = attentionQueue(entries, tabOrder);
-  if (queue.length === 0) return null;
-  const at = queue.indexOf(focusedId);
-  return at < 0 ? queue[0] : queue[(at + 1) % queue.length];
+  const ring = queue.length > 0 ? queue : entries.filter((entry) => entry.agent).map((entry) => entry.paneId);
+  if (ring.length === 0) return null;
+  const at = ring.indexOf(focusedId);
+  return at < 0 ? ring[0] : ring[(at + 1) % ring.length];
 }
