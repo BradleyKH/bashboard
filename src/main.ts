@@ -37,11 +37,6 @@ import { parseRepos } from './repos';
 import { deleteWorktree } from './worktreeDelete';
 import { parseSavedWorkspace } from './savedWorkspace';
 import { loadSessions } from './sessions';
-import {
-  codeColorsDefault,
-  loadCodeColorsDefault,
-  onCodeColorsDefaultChange,
-} from './code/codeColorsStore';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
 import { showToast } from './toast';
 import { TabStrip } from './tabStrip';
@@ -461,7 +456,6 @@ const saver = new DebouncedSaver(
     hideGlobalPins: !panel.globalPinsShown() || undefined,
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
     textZoom: textZoomSnapshot(),
-    codeColors: codeColorsDefault(),
   }),
   workspaceSave,
   1000,
@@ -482,13 +476,12 @@ workspace.onChange(() => {
   closeContextMenu();
 });
 onTextZoomChange(() => saver.schedule());
-onCodeColorsDefaultChange(() => saver.schedule());
 listenAppEvents({ state, workspace, saver, refreshPanel, favorites, repo, appWindow });
 
 let restored = false;
 try {
   const saved = parseSavedWorkspace(await workspaceLoad());
-  // Collapsed sections, the panel width, text zoom, and code colors apply even when restoring panes is switched off.
+  // Collapsed sections, the panel width, and text zoom apply even when restoring panes is switched off.
   if (saved) panel.setCollapsedSections(saved.collapsedSections);
   if (saved?.dashboardWidth !== undefined) panel.setWidth(saved.dashboardWidth);
   if (saved) {
@@ -505,7 +498,6 @@ try {
   if (saved?.hideGlobalPins) panel.setShowGlobalPins(false);
   if (saved?.dashboardHideNoticeShown) state.hideNoticeShown = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
-  if (saved?.codeColors) loadCodeColorsDefault(saved.codeColors);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, {
       resumeSessions: payload.settings.restore.resumeSessions,

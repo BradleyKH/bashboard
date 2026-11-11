@@ -101,6 +101,7 @@ const SLIDESHOW_INTERVALS = [
 
 /** Match accent names the scheme the current accent resolves to; the other options keep their labels. */
 export function codeColorsLabel(value: string, settings: Settings): string {
+  if (value === 'none') return 'None';
   if (value !== 'matchAccent') return SCHEMES.find((s) => s.id === value)?.label ?? value;
   return `Match accent (${resolveScheme('matchAccent', settings.accentColor).label})`;
 }
@@ -198,7 +199,11 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         path: ['codeColors', 'scheme'],
         label: 'Code colors',
         kind: 'select',
-        options: [{ value: 'matchAccent', label: 'Match accent' }, ...SCHEMES.map((s) => ({ value: s.id, label: s.label }))],
+        options: [
+          { value: 'matchAccent', label: 'Match accent' },
+          ...SCHEMES.map((s) => ({ value: s.id, label: s.label })),
+          { value: 'none', label: 'None' },
+        ],
         optionLabel: codeColorsLabel,
         preview: 'codeColors',
         applies: 'live',

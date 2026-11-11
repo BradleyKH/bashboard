@@ -31,8 +31,8 @@ pub(super) fn default_file_text() -> String {
     )
     .replace(
         "  \"codeColors\": {",
-        "  // scheme is matchAccent (follows the accent color) or one of nord, ayu, gruvbox, monokai,
-  // tokyoNight, oneDark, catppuccinMocha, dracula. Colors code in text previews.
+        "  // scheme is matchAccent (follows the accent color), none (no code colors), or one of nord, ayu,
+  // gruvbox, monokai, tokyoNight, oneDark, catppuccinMocha, dracula. Colors code in text previews.
   \"codeColors\": {",
     )
     .replace(

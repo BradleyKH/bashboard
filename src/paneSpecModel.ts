@@ -43,10 +43,9 @@ export function restoredSpec(
         root: p.root,
         expanded: p.expanded ?? false,
         sort: p.sort,
-        codeColors: p.codeColors ?? 'syntax',
       };
     case 'git':
-      return { kind: 'git', root: p.root, tab: p.tab, codeColors: p.codeColors ?? 'syntax' };
+      return { kind: 'git', root: p.root, tab: p.tab };
     case 'ship':
       return {
         kind: 'ship',
@@ -57,7 +56,7 @@ export function restoredSpec(
         allPulls: p.allPulls,
       };
     case 'search':
-      return { kind: 'search', root: p.root, query: p.query, options: p.options, codeColors: p.codeColors ?? 'syntax' };
+      return { kind: 'search', root: p.root, query: p.query, options: p.options };
     case 'containers':
       return { kind: 'containers' };
     case 'ports':

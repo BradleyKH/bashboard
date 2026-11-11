@@ -31,7 +31,7 @@
   font: 12px ui-monospace, Consolas, monospace;
 }
 
-/* Scope: one joined pair of buttons, drawn like the Plain | Syntax toggle. */
+/* Scope: one joined pair of buttons, drawn like the markdown Raw / Preview toggle. */
 .command-pin-scope {
   flex-direction: row;
   align-items: center;

@@ -288,9 +288,8 @@ at the first 5,000. Up and Down move through matches.
 **Preview.** Selecting a result previews its file beside the list in the Files pane's preview
 (`FilePreview`, 4.12) in source mode: every text file opens in the text editor with line numbers,
 since results point at source lines. A markdown file adds a Raw / Preview button group after the
-zoom buttons (`markdownModeToggle.ts`), Preview on by default. Code and markdown files also show the
-Plain | Syntax button group (4.22), before the zoom buttons and so before Raw / Preview; plain
-text and CSV, which open as uncolored source, show none. Preview renders the file as the
+zoom buttons (`markdownModeToggle.ts`), Preview on by default. Code and markdown files take code
+colors (4.22); plain text and CSV open as uncolored source. Preview renders the file as the
 Files pane does, without its Edit toggle, followed by a muted "View raw to edit"; a match row in a
 markdown file stays in Preview, showing the file from the top, and switching to Raw then scrolls
 to and marks its line. A relative link there shows its
@@ -350,12 +349,13 @@ pads that are not empty lists them in the tab's confirm dialog (4.10).
 ## 4.22 Code colors (`src/code/`)
 
 Text previews color code by language, as a code editor does. The colors are on by default, and
-a Plain | Syntax button group on each surface that shows code turns them off for that pane.
-Plain looks exactly like an uncolored preview: every character in the content text color
-(`--content-fg`, section 8).
+the Code colors setting's None choice turns them off everywhere (plain mode, `codeColorsMode` in
+`schemes.ts`). Plain looks exactly like an uncolored preview: every character in the content
+text color (`--content-fg`, section 8). Each surface reads the mode from the settings it is
+given, so changing the setting recolors open panes in place.
 
 **Engine.** The text editor (4.12) is a CodeMirror 6 `EditorView` in both modes, so there is one
-editor whatever the toggle says. Plain leaves the language and highlighting extensions out of the
+editor whatever the setting says. Plain leaves the language and highlighting extensions out of the
 editor's language `Compartment` and Syntax puts them back, which keeps the caret, scroll
 position, selection, and undo history. Read-only code (rendered markdown fences, Git diffs) runs
 the same Lezer parsers and the same role highlighter through `highlightTree` from
@@ -367,22 +367,17 @@ CSP already allows.
 
 **Surfaces.**
 
-| Surface | Colors | Toggle |
-| --- | --- | --- |
-| Files preview, code files (4.12) | The file's language | On the preview toolbar, before the zoom buttons |
-| Search preview (4.14) | The file's language; Raw markdown as markdown | Same place, for code and markdown; none for plain text and CSV |
-| Markdown Edit and CSV Edit (4.12) | Markdown; CSV stays plain | Same place for markdown, which keeps it while editing; none for CSV |
-| Rendered markdown (4.12, 4.14) | Fenced blocks, by the fence's info string | Same place |
-| Git diff (4.13) | Each file's language | In the diff bar, before the zoom buttons |
+| Surface | Colors |
+| --- | --- |
+| Files preview, code files (4.12) | The file's language |
+| Search preview (4.14) | The file's language; Raw markdown as markdown |
+| Markdown Edit and CSV Edit (4.12) | Markdown; CSV stays plain |
+| Rendered markdown (4.12, 4.14) | Fenced blocks, by the fence's info string |
+| Git diff (4.13) | Each file's language |
 
-Plain text (`.txt`, no extension) opens in the same editor with lines wrapped and has no toggle.
-A file whose language is not in the table shows uncolored with the toggle disabled, its tooltip
-reading "No colors for this file type". Scratch pads (4.15) keep their own textarea and have no
-colors.
-
-Each pane keeps its own mode in its saved state (`codeColors` on the files, search, and git
-entries, section 7), and the latest choice made in any pane is saved to `codeColors` in
-workspace.json, the mode a new pane starts in. A saved pane without the field starts in Syntax.
+Plain text (`.txt`, no extension) opens in the same editor with lines wrapped and uncolored, as
+does a file whose language is not in the table. Scratch pads (4.15) keep their own textarea and
+have no colors.
 
 **Languages** (`languages.ts`) map file names to CodeMirror language support, each loaded by a
 dynamic `import()` the first time a file needs it, so the start-up bundle carries none of them. A
@@ -458,9 +453,10 @@ accent changes the code colors with it. A custom accent (a hand-edited `accentCo
 nearest hue among the presets, and one with HSV saturation under 0.2 pairs as Silver does
 (`pairedScheme`). The schemes' palettes are MIT-licensed, and the About tab (4.18) credits each.
 
-**Settings.** `codeColors.scheme` (section 8) is `matchAccent` or a scheme's id, set under
-Appearance in the Settings tab, after Text color. Below the dropdown a preview shows a short TSX
-snippet that exercises every role, in the terminal font, colored with the chosen scheme. With
+**Settings.** `codeColors.scheme` (section 8) is `matchAccent`, a scheme's id, or `none`, set
+under Appearance in the Settings tab, after Text color. Below the dropdown a preview shows a short
+TSX snippet that exercises every role, in the terminal font, colored with the chosen scheme, or
+all in the text color for None. With
 Match accent, the dropdown names the scheme it resolves to, as "Match accent (Tokyo Night)". The
 preview redraws when the scheme, accent, Text color, or font changes, without waiting for a
 save. It is a `preview: 'codeColors'` option on the select field (`settingsModel.ts`), rendered

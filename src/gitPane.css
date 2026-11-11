@@ -440,14 +440,10 @@
   display: none;
 }
 
-/* Undo commit stays at the left; the code colors toggle and the zoom buttons hold the right end. */
-.git-diff-bar .code-colors {
-  flex: none;
-  margin-left: auto;
-}
-
+/* Undo commit stays at the left; the zoom buttons hold the right end. */
 .git-diff-bar .zoom-buttons {
   flex: none;
+  margin-left: auto;
   display: flex;
   gap: 2px;
 }

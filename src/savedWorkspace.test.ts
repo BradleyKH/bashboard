@@ -236,7 +236,7 @@ describe('parseSavedTab', () => {
     expect(r?.layout).toEqual(pane('b'));
   });
 
-  it('keeps a pane saved Plain, leaves a missing codeColors absent, and reads junk as Syntax', () => {
+  it('drops the per-pane codeColors an older version saved', () => {
     const entries = [
       { key: 'a', kind: 'files', collapsed: false, folder: '/c/a', selected: null },
       { key: 'a', kind: 'git', collapsed: false, root: '/c/a' },
@@ -252,10 +252,7 @@ describe('parseSavedTab', () => {
     const parse = (p: object) => parseSavedTab({ panes: [p], layout: pane('a'), focused: 'a' })?.panes[0];
     for (const e of entries) {
       expect(parse(e)).toEqual(e);
-      expect(parse(e)).not.toHaveProperty('codeColors');
-      expect(parse({ ...e, codeColors: 'plain' })).toEqual({ ...e, codeColors: 'plain' });
-      expect(parse({ ...e, codeColors: 'syntax' })).toEqual({ ...e, codeColors: 'syntax' });
-      expect(parse({ ...e, codeColors: 'bogus' })).toEqual({ ...e, codeColors: 'syntax' });
+      expect(parse({ ...e, codeColors: 'plain' })).toEqual(e);
     }
   });
 

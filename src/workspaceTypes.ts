@@ -11,7 +11,6 @@ import type { DockZone, Rect } from './layout';
 import type { OpenInHandler } from './openMenu';
 import type { PaneKind } from './paneKinds';
 import type { PortsStore } from './portsStore';
-import type { CodeColorsMode } from './code/codeColorsStore';
 import type { SearchOptions } from './searchOptions';
 import type { ShipTab } from './shipModel';
 import type { ShellStatus, TerminalStatus } from './terminalStatus';
@@ -161,10 +160,6 @@ export type PaneSpec =
       replay?: Promise<string>;
     }
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
-  /**
-   * `codeColors` unset opens in the mode last chosen (docs/design/files.md section 4.22); restore
-   * always sets it, since a saved pane without the field was in Syntax.
-   */
   | {
       kind: 'files';
       folder: string;
@@ -172,9 +167,8 @@ export type PaneSpec =
       root?: string;
       expanded?: boolean;
       sort?: FilesSort;
-      codeColors?: CodeColorsMode;
     }
-  | { kind: 'git'; root: string; tab?: GitTab; codeColors?: CodeColorsMode }
+  | { kind: 'git'; root: string; tab?: GitTab }
   /** No `root` opens on the Overview. */
   | {
       kind: 'ship';
@@ -184,7 +178,7 @@ export type PaneSpec =
       thisBranchPulls?: boolean;
       allPulls?: boolean;
     }
-  | { kind: 'search'; root: string; query?: string; options?: SearchOptions; codeColors?: CodeColorsMode }
+  | { kind: 'search'; root: string; query?: string; options?: SearchOptions }
   | { kind: 'containers' }
   | { kind: 'ports' }
   /** No `url` opens the start page. */

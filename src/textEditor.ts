@@ -13,9 +13,9 @@ import {
 } from '@codemirror/state';
 import { type Command, Decoration, type DecorationSet, EditorView, keymap as cmKeymap, lineNumbers as cmLineNumbers } from '@codemirror/view';
 import './code/syntax.css';
-import { type CodeColorsMode, codeColorsDefault } from './code/codeColorsStore';
 import { type LanguageId, loadLanguage } from './code/languages';
 import { roleHighlighter } from './code/roles';
+import { type CodeColorsMode, codeColorsMode } from './code/schemes';
 import { lookup, type Action, type Keymap } from './keymap';
 import { toFontFamily } from './pane';
 import type { FindSurface, TextFindSurface } from './previewFind';
@@ -42,8 +42,6 @@ export interface TextEditorOptions {
   onSaved?: () => void;
   /** The language to color by; null (the default) leaves the text uncolored. */
   language?: LanguageId | null;
-  /** Plain or Syntax; defaults to the mode a new pane starts in. */
-  mode?: CodeColorsMode;
 }
 
 /** Marks a transaction the editor made itself (a reload), which is not an edit to save. */
@@ -171,7 +169,7 @@ export class TextEditor {
     this.crlf = opts.text.includes('\r\n');
     this.state = initialEditorState(toLf(opts.text), opts.modified);
     this.language = opts.language ?? null;
-    this.mode = opts.mode ?? codeColorsDefault();
+    this.mode = codeColorsMode(opts.settings.codeColors.scheme);
 
     this.el = document.createElement('div');
     this.el.className = 'text-editor';
@@ -261,11 +259,6 @@ export class TextEditor {
     return this.readOnly;
   }
 
-  /** Whether the editor has a language to color by, which enables the Plain | Syntax toggle. */
-  get hasColors(): boolean {
-    return this.language !== null;
-  }
-
   focus(): void {
     this.view.focus();
   }
@@ -274,6 +267,7 @@ export class TextEditor {
     this.field.style.fontFamily = toFontFamily(settings.font.family);
     this.field.style.fontSize = `calc(${settings.font.size}px * var(--preview-zoom, 1))`;
     this.view.requestMeasure();
+    this.setMode(codeColorsMode(settings.codeColors.scheme));
   }
 
   /** Colors by `id` in Syntax mode; null leaves the text uncolored. */
@@ -284,7 +278,7 @@ export class TextEditor {
   }
 
   /** Plain or Syntax; keeps the caret, scroll position, selection, and undo history. */
-  setMode(mode: CodeColorsMode): void {
+  private setMode(mode: CodeColorsMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
     void this.applyLanguage();

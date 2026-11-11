@@ -159,10 +159,6 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
-- `codeColors` (`plain` or `syntax`, the mode of the Plain | Syntax toggle on code surfaces,
-  4.22): the last mode chosen in any pane, which new panes start in; anything but `plain` reads
-  as `syntax`. A Files, Search, or Git pane's own `codeColors` is `plain` and written only then;
-  a pane without it opens in Syntax.
 - A terminal pane's `profile`: the default profile. Its `permissionMode` (letters only, kept
   only beside a `sessionId`): the default mode. Its `agent` (`claude`, `codex`, or `copilot`):
   Claude Code, which an unknown value also reads as. Its `resumeModel` (kept only beside a

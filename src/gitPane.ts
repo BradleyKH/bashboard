@@ -35,7 +35,7 @@ import { GitBranchRow } from './gitBranchRow';
 import { GitBranchesView } from './gitBranchesView';
 import { openBranchSwitcher } from './gitBranchSwitcher';
 import { GitCommitBox } from './gitCommitBox';
-import { type CodeColorsMode, codeColorsDefault, setCodeColorsDefault } from './code/codeColorsStore';
+import { codeColorsMode } from './code/schemes';
 import { GitDiffView } from './gitDiffView';
 import { GitFileList } from './gitFileList';
 import { GitLogList } from './gitLogList';
@@ -101,8 +101,6 @@ export interface GitPaneOptions {
   onSetPrimaryBranch: (root: string, branch: string | null) => void;
   /** The tab the pane opens on; absent means Changes. */
   tab?: GitTab;
-  /** The diff's code colors; absent starts from the latest choice made in any pane. */
-  codeColors?: CodeColorsMode;
 }
 
 const LOG_COUNT = 20;
@@ -150,7 +148,6 @@ export class GitPane implements PaneView {
   private readonly changesList: GitFileList;
   private readonly logList: GitLogList;
   private readonly diffView: GitDiffView;
-  private codeColors: CodeColorsMode;
   private readonly tabStrip: GitTabStrip;
   private readonly branchesView: GitBranchesView;
   private readonly branchActions: GitBranchActions;
@@ -263,18 +260,12 @@ export class GitPane implements PaneView {
 
     this.right = document.createElement('div');
     this.right.className = 'git-right';
-    this.codeColors = opts.codeColors ?? codeColorsDefault();
     this.diffView = new GitDiffView(
       () => {
         if (this.selection?.type === 'commit') void this.undo(this.selection.hash);
       },
       textZoom('gitDiff'),
-      this.codeColors,
-      (mode) => {
-        this.codeColors = mode;
-        setCodeColorsDefault(mode);
-        this.opts.onChange();
-      },
+      codeColorsMode(opts.settings.codeColors.scheme),
     );
     this.right.append(this.diffView.el);
 
@@ -373,11 +364,10 @@ export class GitPane implements PaneView {
     return baseName(this.rootPath);
   }
 
-  /** The `git` saved-pane fields; `tab` and `codeColors` only when they are not the default. */
-  saved(): { root: string; tab?: GitTab; codeColors?: CodeColorsMode } {
-    const out: { root: string; tab?: GitTab; codeColors?: CodeColorsMode } = { root: this.rootPath };
+  /** The `git` saved-pane fields; `tab` only when it is not Changes. */
+  saved(): { root: string; tab?: GitTab } {
+    const out: { root: string; tab?: GitTab } = { root: this.rootPath };
     if (this.tab !== 'changes') out.tab = this.tab;
-    if (this.codeColors === 'plain') out.codeColors = 'plain';
     return out;
   }
 
@@ -493,6 +483,7 @@ export class GitPane implements PaneView {
 
   applySettings(settings: Settings): void {
     this.settings = settings;
+    this.diffView.setCodeColors(codeColorsMode(settings.codeColors.scheme));
   }
 
   cellSize(): CellSize {

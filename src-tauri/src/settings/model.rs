@@ -123,11 +123,12 @@ pub const DEFAULT_ACCENT: &str = "#4fb3c8";
 pub const CONTENT_TEXT_MODES: [&str; 2] = ["accent", "white"];
 pub const DEFAULT_CONTENT_TEXT_MODE: &str = "accent";
 
-/// Ids `codeColors.scheme` accepts: `matchAccent` follows the accent preset, the rest are fixed
-/// schemes (docs/design/files.md section 4.22). The front end owns the palettes (src/code/).
-pub const CODE_SCHEMES: [&str; 9] = [
+/// Ids `codeColors.scheme` accepts: `matchAccent` follows the accent preset, `none` turns code
+/// coloring off, the rest are fixed schemes (docs/design/files.md section 4.22). The front end
+/// owns the palettes (src/code/).
+pub const CODE_SCHEMES: [&str; 10] = [
     "matchAccent", "nord", "ayu", "gruvbox", "monokai", "tokyoNight", "oneDark", "catppuccinMocha",
-    "dracula",
+    "dracula", "none",
 ];
 pub const DEFAULT_CODE_SCHEME: &str = "matchAccent";
 

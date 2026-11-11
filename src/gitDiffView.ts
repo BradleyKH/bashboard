@@ -1,6 +1,5 @@
 import type { GitDiff } from './gitApi';
-import type { CodeColorsMode } from './code/codeColorsStore';
-import { CodeColorsToggle } from './code/codeColorsToggle';
+import type { CodeColorsMode } from './code/schemes';
 import { buildDiffColorModel, type DiffColorModel } from './code/diffColorModel';
 import { renderLine, tokenize, type Token } from './code/highlightStatic';
 import { languageIdFor } from './code/languages';
@@ -26,7 +25,6 @@ export class GitDiffView {
   private readonly undoError: HTMLElement;
   private readonly note: HTMLElement;
   private readonly body: HTMLElement;
-  private readonly toggle: CodeColorsToggle;
   private mode: CodeColorsMode;
   private shown: Shown | null = null;
   private lines: DiffLine[] = [];
@@ -37,14 +35,9 @@ export class GitDiffView {
 
   /**
    * `onUndo` is the Undo commit button in the bar above a commit's diff; `zoom` is the starting zoom;
-   * `codeColors` the starting mode, and `onCodeColors` hears a change made with the toggle.
+   * `codeColors` the starting mode.
    */
-  constructor(
-    onUndo: () => void,
-    zoom: number,
-    codeColors: CodeColorsMode,
-    onCodeColors: (mode: CodeColorsMode) => void,
-  ) {
+  constructor(onUndo: () => void, zoom: number, codeColors: CodeColorsMode) {
     this.mode = codeColors;
     this.el = document.createElement('div');
     this.el.className = 'git-diff';
@@ -58,17 +51,11 @@ export class GitDiffView {
     this.undo.addEventListener('click', onUndo);
     this.undoError = document.createElement('span');
     this.undoError.className = 'git-undo-error';
-    this.toggle = new CodeColorsToggle((mode) => {
-      this.mode = mode;
-      onCodeColors(mode);
-      this.rerender();
-    });
-    this.toggle.set(codeColors);
     const zoomButtons = new ZoomButtons('git-row-btn', 'gitDiff', zoom, (z) =>
       this.el.style.setProperty('--diff-zoom', String(z)),
       this.el,
     );
-    bar.append(this.undo, this.undoError, this.toggle.el, zoomButtons.el);
+    bar.append(this.undo, this.undoError, zoomButtons.el);
     this.note = document.createElement('div');
     this.note.className = 'git-diff-note';
     this.note.textContent = 'Diff truncated at 1 MiB';
@@ -93,12 +80,10 @@ export class GitDiffView {
     if (this.lines.length === 0) {
       this.gen++;
       this.model = null;
-      this.toggle.setAvailable(false);
       this.placeholder('No changes to show');
       return;
     }
     this.model = buildDiffColorModel(diff.text, path);
-    this.toggle.setAvailable(this.model.files.some((f) => languageIdFor(f.path) !== null));
     this.renderPlain();
     this.body.scrollTop = 0;
     this.startColoring();
@@ -128,7 +113,6 @@ export class GitDiffView {
     this.model = null;
     this.lines = [];
     this.note.hidden = true;
-    this.toggle.setAvailable(false);
   }
 
   private placeholder(text: string): void {
@@ -149,8 +133,10 @@ export class GitDiffView {
     this.body.replaceChildren(...this.rowEls);
   }
 
-  /** The toggle flipped: repaint the shown diff in the new mode, keeping the scroll position. */
-  private rerender(): void {
+  /** Plain or Syntax, from the Code colors setting; repaints the shown diff, keeping the scroll position. */
+  setCodeColors(mode: CodeColorsMode): void {
+    if (mode === this.mode) return;
+    this.mode = mode;
     if (this.lines.length === 0 || this.model === null) return;
     const top = this.body.scrollTop;
     this.renderPlain();

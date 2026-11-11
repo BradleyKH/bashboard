@@ -1,6 +1,7 @@
 import './codeColorsPreview.css';
 import { toFontFamily } from '../pane';
 import { renderLine, tokenize } from './highlightStatic';
+import { ROLES } from './roles';
 import { applyScheme, type Scheme } from './schemes';
 
 /** A short TSX sample that exercises every role (docs/design/files.md section 4.22). */
@@ -41,8 +42,11 @@ export class CodeColorsPreview {
       .catch(() => undefined);
   }
 
-  update(scheme: Scheme, fontFamily: string, textColor: string): void {
-    applyScheme(this.el, scheme);
+  /** A null `scheme` (the None choice) draws every role in the text color. */
+  update(scheme: Scheme | null, fontFamily: string, textColor: string): void {
+    if (scheme) applyScheme(this.el, scheme);
+    // currentColor in `color` takes the parent's, so every token falls back to the text color.
+    else for (const role of ROLES) this.el.style.setProperty(`--syn-${role}`, 'currentColor');
     this.el.style.color = textColor;
     this.el.style.fontFamily = toFontFamily(fontFamily);
   }

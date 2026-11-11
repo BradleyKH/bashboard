@@ -1,6 +1,5 @@
 import './filesPane.css';
 import { startSplitDrag } from './splitDrag';
-import type { CodeColorsMode } from './code/codeColorsStore';
 import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
@@ -58,8 +57,6 @@ export interface FilesPaneOptions {
   expanded?: boolean;
   /** The list's order; defaults to newest modified first. */
   sort?: FilesSort;
-  /** The preview's Plain | Syntax mode; defaults to the mode a new pane starts in. */
-  codeColors?: CodeColorsMode;
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
@@ -211,7 +208,6 @@ export class FilesPane implements PaneView {
       settings: opts.settings,
       keymap: opts.keymap,
       dispatch: opts.dispatch,
-      codeColors: opts.codeColors,
       onOpenFile: (path) => {
         const t = pinTarget(this.rootPath, path, false);
         this.refocusPreview = this.hasFocus();
@@ -283,8 +279,7 @@ export class FilesPane implements PaneView {
 
   /**
    * The `files` saved-pane fields; `selected` is the selected entry's name within `folder`, and
-   * `expanded` whether the preview fills the pane. `codeColors` is present only for Plain, since a
-   * pane saved without it starts in Syntax.
+   * `expanded` whether the preview fills the pane.
    */
   saved(): {
     folder: string;
@@ -292,7 +287,6 @@ export class FilesPane implements PaneView {
     root: string;
     expanded: boolean;
     sort: FilesSort;
-    codeColors?: CodeColorsMode;
   } {
     return {
       folder: this.currentPath,
@@ -300,7 +294,6 @@ export class FilesPane implements PaneView {
       root: this.rootPath,
       expanded: this.previewExpanded,
       sort: this.sort,
-      ...(this.preview.codeColors === 'plain' ? { codeColors: 'plain' as const } : {}),
     };
   }
 

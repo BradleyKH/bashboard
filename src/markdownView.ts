@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { CodeColorsMode } from './code/codeColorsStore';
 import { colorFences, stripFences } from './code/fenceColors';
+import { type CodeColorsMode, codeColorsMode } from './code/schemes';
 import type { Action, Keymap } from './keymap';
 import { isOpenableUrl } from './links';
 import { classifyLink, renderMarkdown, samePath } from './markdownRender';
@@ -21,8 +21,6 @@ export interface MarkdownViewOptions {
   onOpenFile: (path: string, fragment?: string) => void;
   /** False hides the Edit toggle: the Search preview edits markdown through its Raw mode instead. */
   editable?: boolean;
-  /** Plain or Syntax, for fenced blocks and the Edit mode editor. */
-  codeColors: CodeColorsMode;
 }
 
 /** Rendered markdown with an Edit toggle (docs/design/files.md section 4.12). */
@@ -50,7 +48,7 @@ export class MarkdownView {
     this.modified = opts.modified;
     this.lossy = opts.lossy;
     this.settings = opts.settings;
-    this.codeColors = opts.codeColors;
+    this.codeColors = codeColorsMode(opts.settings.codeColors.scheme);
 
     this.el = document.createElement('div');
     this.el.className = 'markdown-view';
@@ -84,13 +82,13 @@ export class MarkdownView {
   applySettings(settings: Settings): void {
     this.settings = settings;
     this.editor?.applySettings(settings);
+    this.setCodeColors(codeColorsMode(settings.codeColors.scheme));
   }
 
-  /** Colors or uncolors fenced blocks, or the editor while editing. */
-  setCodeColors(mode: CodeColorsMode): void {
+  /** Colors or uncolors fenced blocks; the editor, while editing, follows the settings itself. */
+  private setCodeColors(mode: CodeColorsMode): void {
     if (mode === this.codeColors) return;
     this.codeColors = mode;
-    this.editor?.setMode(mode);
     if (this.editor) return;
     if (mode === 'plain') {
       this.fenceGeneration++;
@@ -151,7 +149,6 @@ export class MarkdownView {
       keymap: this.opts.keymap,
       dispatch: this.opts.dispatch,
       language: 'markdown',
-      mode: this.codeColors,
     });
     this.fenceGeneration++;
     this.body.replaceChildren(this.editor.el);

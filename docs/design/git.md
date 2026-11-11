@@ -156,9 +156,7 @@ checks it out (as Check out does below); Create makes the branch from HEAD and s
 
 Diffs show in a panel beside the lists, unified, with added and removed lines colored and hunk
 headers kept. Code in the diff takes the colors of its language (4.22), under the added and
-removed tints; the bar above the diff has the Plain | Syntax button group before its zoom
-buttons, disabled while no file in the diff has a language, and each pane saves its mode in
-workspace.json. A diff over the cap says so. The bar ends in − and + zoom buttons,
+removed tints, unless the Code colors setting is None. A diff over the cap says so. The bar ends in − and + zoom buttons,
 and Ctrl+wheel over the diff panel steps them, as the Files pane's do (4.12), saving to
 `textZoom.gitDiff` in workspace.json.
 

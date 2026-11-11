@@ -1,7 +1,5 @@
 import './filePreview.css';
 import { BinaryNotice } from './binaryNotice';
-import { codeColorsDefault, setCodeColorsDefault, type CodeColorsMode } from './code/codeColorsStore';
-import { CodeColorsToggle } from './code/codeColorsToggle';
 import { languageIdFor } from './code/languages';
 import { CsvView } from './csvView';
 import { canOpenWithDefaultApp, openWithDefaultApp } from './editors';
@@ -46,8 +44,6 @@ export interface FilePreviewOptions {
    * can fill the pane. Not called for `show(null)`.
    */
   onShown?: (expandable: boolean) => void;
-  /** Plain or Syntax at start; defaults to the mode a new pane starts in. */
-  codeColors?: CodeColorsMode;
 }
 
 type Current =
@@ -68,8 +64,6 @@ export class FilePreview {
   private readonly nameEl: HTMLSpanElement;
   /** Source mode's Raw / Preview toggle for markdown; kept across files, so the choice holds. */
   private readonly mdMode: MarkdownModeToggle | null;
-  /** Plain | Syntax; kept across files, so the choice holds, and the pane's saved mode. */
-  private readonly colors: CodeColorsToggle;
   /** The last `show`'s line, so switching a markdown match to Raw lands on it. */
   private line: number | null = null;
   private settings: Settings;
@@ -109,20 +103,8 @@ export class FilePreview {
           void this.show(path, 0, this.line);
         })
       : null;
-    this.colors = new CodeColorsToggle((mode) => {
-      const c = this.current;
-      if (c?.kind === 'code' || c?.kind === 'plain') c.view.setMode(mode);
-      else if (c?.kind === 'markdown') c.view.setCodeColors(mode);
-      setCodeColorsDefault(mode);
-    });
-    this.colors.set(opts.codeColors ?? codeColorsDefault());
     opts.host.appendChild(this.el);
     this.showEmpty();
-  }
-
-  /** The Plain | Syntax choice. */
-  get codeColors(): CodeColorsMode {
-    return this.colors.mode;
   }
 
   /** True when the current file has a preview that can fill the pane (anything but a notice). */
@@ -281,9 +263,6 @@ export class FilePreview {
     const modeEls = mdMode ? mdMode.els : [];
     // By the file's own kind: Search's source mode shows csv and txt as code, uncolored.
     const language = fileKind === 'markdown' ? 'markdown' : fileKind === 'code' ? languageIdFor(path) : null;
-    const colorEls = fileKind === 'code' || fileKind === 'markdown' ? [this.colors.el] : [];
-    this.colors.setAvailable(language !== null);
-    const mode = this.colors.mode;
     if (kind === 'markdown') {
       const view = new MarkdownView({
         path,
@@ -294,14 +273,13 @@ export class FilePreview {
         keymap,
         dispatch,
         editable: !this.opts.source,
-        codeColors: mode,
         onOpenFile: (target, fragment) => {
           this.pendingAnchor = fragment === undefined ? null : { path: target, fragment };
           this.opts.onOpenFile(target);
         },
       });
       view.toolbar.prepend(this.fileName(path));
-      view.toolbar.append(...colorEls, this.zoom.el, ...modeEls, ...this.expandButton());
+      view.toolbar.append(this.zoom.el, ...modeEls, ...this.expandButton());
       this.current = { kind, path, view };
       this.el.replaceChildren(view.el);
     } else if (kind === 'csv') {
@@ -323,7 +301,6 @@ export class FilePreview {
         lineNumbers,
         onSaved: this.opts.onSaved,
         language,
-        mode,
       });
       const find = new PreviewFind(() => view.findSurface());
       // Only code has line numbers to aim at; plain text wraps.
@@ -336,7 +313,7 @@ export class FilePreview {
         : null;
       this.current = { kind, path, view, find, goTo };
       const bars = goTo ? [find.bar, goTo.bar] : [find.bar];
-      this.el.replaceChildren(framed(view.el, find, bars, [...colorEls, this.zoom.el, ...modeEls, ...this.expandButton()], this.fileName(path)));
+      this.el.replaceChildren(framed(view.el, find, bars, [this.zoom.el, ...modeEls, ...this.expandButton()], this.fileName(path)));
     }
   }
 

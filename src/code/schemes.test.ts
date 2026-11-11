@@ -4,6 +4,7 @@ import { ROLES } from './roles';
 import {
   applyScheme,
   CODE_SCHEME_IDS,
+  codeColorsMode,
   DEFAULT_CODE_SCHEME,
   pairedScheme,
   resolveScheme,
@@ -17,8 +18,8 @@ function contrast(a: string, b: string): number {
 }
 
 describe('SCHEMES', () => {
-  it('lists the eight schemes in table order, after matchAccent in the ids', () => {
-    expect(SCHEMES.map((s) => s.id)).toEqual(CODE_SCHEME_IDS.slice(1));
+  it('lists the eight schemes in table order, between matchAccent and none in the ids', () => {
+    expect(SCHEMES.map((s) => s.id)).toEqual(CODE_SCHEME_IDS.slice(1, -1));
     expect(DEFAULT_CODE_SCHEME).toBe('matchAccent');
   });
 
@@ -87,5 +88,12 @@ describe('applyScheme', () => {
     applyScheme({ style: { setProperty: (n, v) => set.set(n, v) } }, SCHEMES[0]);
     expect(set.size).toBe(ROLES.length);
     expect(set.get('--syn-comment')).toBe(SCHEMES[0].colors.comment);
+  });
+});
+
+describe('codeColorsMode', () => {
+  it('turns coloring off for none only, and none still resolves to a scheme', () => {
+    for (const id of CODE_SCHEME_IDS) expect(codeColorsMode(id), id).toBe(id === 'none' ? 'plain' : 'syntax');
+    expect(resolveScheme('none', '#a68bff').id).toBe('catppuccinMocha');
   });
 });

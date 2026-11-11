@@ -201,7 +201,8 @@ export class SettingsTab {
     const cc = this.codeColors;
     const s = this.effectiveSettings();
     if (!cc || !s) return;
-    cc.preview.update(resolveScheme(s.codeColors.scheme, s.accentColor), s.font.family, contentTextColor(s.contentTextColor, s.accentColor));
+    const scheme = s.codeColors.scheme === 'none' ? null : resolveScheme(s.codeColors.scheme, s.accentColor);
+    cc.preview.update(scheme, s.font.family, contentTextColor(s.contentTextColor, s.accentColor));
     // Rebuilding the options would close a dropdown that is open.
     if (!cc.control.cell.contains(document.activeElement)) cc.control.show(cc.control.last);
   }

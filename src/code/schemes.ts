@@ -13,12 +13,21 @@ export const CODE_SCHEME_IDS = [
   'oneDark',
   'catppuccinMocha',
   'dracula',
+  'none',
 ] as const;
 
-/** `codeColors.scheme`: Match accent or one scheme's id. Mirrors the ids src-tauri accepts. */
+/** `codeColors.scheme`: Match accent, one scheme's id, or none. Mirrors the ids src-tauri accepts. */
 export type CodeScheme = (typeof CODE_SCHEME_IDS)[number];
 
-export type SchemeId = Exclude<CodeScheme, 'matchAccent'>;
+export type SchemeId = Exclude<CodeScheme, 'matchAccent' | 'none'>;
+
+/** Whether code surfaces color by language or show every character in the content text color. */
+export type CodeColorsMode = 'syntax' | 'plain';
+
+/** `none` turns coloring off on every surface that shows code. */
+export function codeColorsMode(setting: CodeScheme): CodeColorsMode {
+  return setting === 'none' ? 'plain' : 'syntax';
+}
 
 export const DEFAULT_CODE_SCHEME: CodeScheme = 'matchAccent';
 
@@ -245,9 +254,9 @@ export function pairedScheme(accentHex: string): Scheme {
   return best;
 }
 
-/** The concrete scheme for the `codeColors.scheme` setting. */
+/** The concrete scheme for the `codeColors.scheme` setting; `none` resolves as Match accent. */
 export function resolveScheme(setting: CodeScheme, accentHex: string): Scheme {
-  return (setting !== 'matchAccent' && BY_ID.get(setting)) || pairedScheme(accentHex);
+  return (setting !== 'matchAccent' && setting !== 'none' && BY_ID.get(setting)) || pairedScheme(accentHex);
 }
 
 export function applyScheme(root: { style: { setProperty(name: string, value: string): void } }, scheme: Scheme): void {

@@ -145,12 +145,9 @@ of the editor with the keyboard, press Esc and then Tab.
 
 Code is colored by language, as a code editor does: HTML, CSS (and SCSS, Sass, and Less),
 JavaScript and TypeScript (with JSX and TSX), JSON, C#, Python, Markdown, YAML, Rust, SQL, XML,
-shell, PowerShell, TOML, and Dockerfiles. A **Plain | Syntax** button group before the zoom
-buttons turns the colors off for the pane, which then shows every character in the text color.
-It appears for code and markdown files (colors apply to the fenced blocks of rendered markdown
-and to the source in Edit), and is disabled, with a tooltip, for a code file whose type has no
-colors; plain text and CSV show none. A new pane starts in the mode you last chose, and each
-pane keeps its own across a relaunch. The Code colors setting picks the color scheme (see
+shell, PowerShell, TOML, and Dockerfiles, including the fenced blocks of rendered markdown and
+the source in Edit. The Code colors setting picks the color scheme, or None to turn the colors
+off everywhere and show every character in the text color (see
 [Settings](settings.md#settings)).
 
 Hover a row for its menu: **Open terminal here** and **Search in this folder** (folders), **Open in editor**, **Open in Local Browser** (an `.html` or `.htm` file, on Windows), **Copy path**,
@@ -255,8 +252,7 @@ a row in Staged. An untracked file shows its whole content as added. Click a com
 changes. A diff over 1 MiB is cut off with a note that it was truncated. The − and + buttons above
 the diff, or Ctrl+wheel over it, zoom it, and a new Git pane starts at the zoom you last chose.
 The divider between the lists and the diff can be dragged. Code in the diff is colored by the file's
-language, under the green and red of added and removed lines; the **Plain | Syntax** buttons before
-the zoom buttons turn that off for the pane, and a new Git pane starts in the mode you last chose.
+language, under the green and red of added and removed lines, unless the Code colors setting is None.
 
 Push never forces. A rejected push shows git's message, and after undoing a pushed commit the
 force push stays in a terminal.
@@ -508,8 +504,7 @@ saves as you type, and once you leave the preview after a save the search runs a
 follows your edit. Esc in the preview goes back to the list, Find (or Ctrl+Shift+F in the
 preview) searches the file, and Ctrl+G goes to a line. The divider between the list and the preview can be dragged.
 
-Code in the preview is colored, with the same **Plain | Syntax** buttons as in a Files pane, before the zoom
-buttons. A markdown file opens rendered, with **Raw** and **Preview** buttons after the zoom buttons. Switch
+Code in the preview is colored, as in a Files pane. A markdown file opens rendered, with **Raw** and **Preview** buttons after the zoom buttons. Switch
 to Raw to see its source with line numbers and edit it; the pane remembers the choice for the next
 markdown file you select. Links in the rendered file open their target in the preview.
 

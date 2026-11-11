@@ -266,7 +266,7 @@ describe('Matrix settings', () => {
 describe('Code colors setting', () => {
   const field = () => byPath('codeColors.scheme');
 
-  it('follows Text color in Appearance and offers Match accent plus every scheme', () => {
+  it('follows Text color in Appearance and offers Match accent, every scheme, and None', () => {
     const appearance = SETTINGS_SECTIONS.find((s) => s.title === 'Appearance')?.fields.map((f) => f.path.join('.')) ?? [];
     expect(appearance.indexOf('codeColors.scheme')).toBe(appearance.indexOf('contentTextColor') + 1);
     expect(field().options?.map((o) => o.value)).toEqual([...CODE_SCHEME_IDS]);
@@ -285,6 +285,7 @@ describe('Code colors setting', () => {
     expect(label('#e07ad8')).toBe('Match accent (Dracula)');
     expect(field().optionLabel?.('nord', DEFAULT_SETTINGS)).toBe('Nord');
     expect(field().optionLabel?.('tokyoNight', DEFAULT_SETTINGS)).toBe('Tokyo Night');
+    expect(field().optionLabel?.('none', DEFAULT_SETTINGS)).toBe('None');
   });
 });
 

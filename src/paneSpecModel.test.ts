@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { restoredSpec, specForKind } from './paneSpecModel';
-import { DEFAULT_SEARCH_OPTIONS } from './searchOptions';
 
 function loaders() {
   return {
@@ -62,21 +61,7 @@ describe('restoredSpec', () => {
       root: 'C:\\r',
       expanded: false,
       sort: undefined,
-      codeColors: 'syntax',
     });
-  });
-
-  it('restores a Files, Git, or Search pane saved without codeColors in Syntax, and one saved Plain in Plain', () => {
-    const opts = { loadScratch: true, loadScrollback: true };
-    const panes = [
-      { key: 'f', collapsed: false, kind: 'files' as const, folder: 'C:\\r', selected: null },
-      { key: 'g', collapsed: false, kind: 'git' as const, root: 'C:\\r' },
-      { key: 's', collapsed: false, kind: 'search' as const, root: 'C:\\r', query: 'q', options: DEFAULT_SEARCH_OPTIONS },
-    ];
-    for (const p of panes) {
-      expect(restoredSpec(p, opts, loaders())).toHaveProperty('codeColors', 'syntax');
-      expect(restoredSpec({ ...p, codeColors: 'plain' }, opts, loaders())).toHaveProperty('codeColors', 'plain');
-    }
   });
 
   it('carries the other kinds through', () => {
@@ -85,7 +70,6 @@ describe('restoredSpec', () => {
       kind: 'git',
       root: 'C:\\r',
       tab: 'branches',
-      codeColors: 'syntax',
     });
     expect(restoredSpec({ key: 'v', collapsed: false, kind: 'containers' }, opts, loaders())).toEqual({ kind: 'containers' });
     expect(restoredSpec({ key: 'v', collapsed: false, kind: 'ports' }, opts, loaders())).toEqual({ kind: 'ports' });
@@ -100,12 +84,6 @@ describe('specForKind', () => {
     expect(specForKind('git', null, 'C:\\b', repo)).toEqual({ kind: 'git', root: 'C:\\b' });
     expect(specForKind('search', null, undefined, repo)).toEqual({ kind: 'search', root: 'C:\\repo' });
     expect(specForKind('files', null, undefined, () => null)).toEqual({ kind: 'files', folder: '' });
-  });
-
-  it('leaves codeColors unset so a new pane starts in the latest mode chosen', () => {
-    for (const kind of ['files', 'git', 'search'] as const) {
-      expect(specForKind(kind, 'C:\\a', undefined, repo)).not.toHaveProperty('codeColors');
-    }
   });
 
   it('never falls back to the Repo section for a terminal', () => {
