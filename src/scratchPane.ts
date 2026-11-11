@@ -11,6 +11,7 @@ import { textFieldOwns } from './textPaneKeys';
 import { textZoom } from './textZoomStore';
 import { showToast } from './toast';
 import { ZoomButtons } from './zoomButtons';
+import { primaryName, primaryOnly } from './platform';
 
 export interface ScratchPaneOptions {
   host: HTMLElement;
@@ -63,7 +64,7 @@ export class ScratchPane implements PaneView {
 
     const toolbar = document.createElement('div');
     toolbar.className = 'scratch-toolbar';
-    this.sendBtn = this.button(toolbar, 'Send', 'Paste into the last focused terminal (Ctrl+Enter)', () => this.send());
+    this.sendBtn = this.button(toolbar, 'Send', `Paste into the last focused terminal (${primaryName()}+Enter)`, () => this.send());
     this.button(toolbar, 'Copy', 'Copy all text', () => this.copy());
     this.button(toolbar, 'Clear', 'Empty the pad', () => this.clear());
     this.button(toolbar, 'Save as', 'Save to a file', () => void this.saveToFile());
@@ -245,7 +246,7 @@ export class ScratchPane implements PaneView {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Enter' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+    if (e.key === 'Enter' && primaryOnly(e) && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       e.stopPropagation();
       this.send();

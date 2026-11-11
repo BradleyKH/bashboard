@@ -1,3 +1,4 @@
+import { formatModifiers } from './helpModel';
 import { chordFromEvent, type Chord } from './keymap';
 
 export interface RecorderCallbacks {
@@ -12,7 +13,7 @@ export interface RecorderCallbacks {
 const KEY_TYPES = ['keydown', 'keypress', 'keyup'] as const;
 
 function heldText(e: KeyboardEvent): string {
-  return (e.ctrlKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + (e.shiftKey ? 'Shift+' : '') + (e.metaKey ? 'Win+' : '');
+  return formatModifiers({ ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, meta: e.metaKey });
 }
 
 function keyId(e: KeyboardEvent): string {

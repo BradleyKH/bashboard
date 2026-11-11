@@ -8,52 +8,60 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 The custom key handler (`keys.ts`) runs before xterm.js. Any key it handles is swallowed for
 keydown, keypress, and keyup alike, since xterm.js acts on the keypress that follows a keydown.
 
-Defaults mirror the current Windows Terminal settings:
+Each OS has its own defaults table, sharing one action list: `src/defaultKeybindings.json` for
+Windows and Linux, `src/defaultKeybindings.macos.json` for macOS. The front end and the Rust
+loader read the same files. The Windows table mirrors Windows Terminal and keeps app chords on
+Ctrl+Shift and Alt+Shift, the corners of the Ctrl and Alt space the shell uses least. macOS has a
+modifier the shell never sees, Cmd, so its table puts app actions on Cmd and follows Mac
+convention (iTerm2's split and pane chords, Cmd+T, Cmd+1 to Cmd+9), leaving every Ctrl and
+Option chord to the shell. Ctrl+Tab is the one Ctrl chord the macOS table keeps; the shell has no
+use for it. The macOS table also stays off the chords its Edit menu and the system claim (Cmd+Z,
+Cmd+Shift+Z, Cmd+X, Cmd+A, Cmd+Q, Cmd+H, Cmd+M), which is why zoom is Cmd+Shift+Enter there.
 
-| Keys | Action | Name |
-| --- | --- | --- |
-| Ctrl+Shift+Right | Split right (duplicate) | `splitRight` |
-| Ctrl+Shift+Down | Split down (duplicate) | `splitDown` |
-| Ctrl+Shift+Left | Split left (duplicate) | `splitLeft` |
-| Ctrl+Shift+Up | Split up (duplicate) | `splitUp` |
-| Alt+Shift+D | Split auto (duplicate) | `splitAuto` |
-| Ctrl+W | Close pane | `closePane` |
-| Ctrl+Shift+M | Collapse pane | `collapsePane` |
-| Ctrl+Shift+Z | Zoom or unzoom the focused pane (4.2) | `togglePaneZoom` |
-| Ctrl+Shift+O | Open a favorite (picker; Enter opens it as a split, Ctrl+Enter opens it collapsed) | `openFavorite` |
-| Ctrl+Shift+R | Open a named layout (picker; opens it as a new tab, 4.6) | `openLayout` |
-| Ctrl+Shift+L | Open the Launch menu over the focused pane (4.6) | `openLaunch` |
-| Ctrl+Shift+P | Open the command palette (below) | `openPalette` |
-| Alt+Shift+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) | `splitWithProfile` |
-| Ctrl+Shift+T | New tab (4.10) | `newTab` |
-| Ctrl+Shift+W | Close tab | `closeTab` |
-| Ctrl+Shift+S | New scratch pad (4.15) | `newScratch` |
-| Ctrl+Shift+E | Files pane for the focused pane's repo (4.12) | `openFiles` |
-| Ctrl+Shift+G | Git pane for the focused pane's repo (4.13) | `openGit` |
-| Ctrl+Shift+H | Search pane for the focused pane's repo (4.14) | `openSearch` |
-| Ctrl+Shift+X | Open the focused pane's repo in the preferred editor, or its folder outside a repo (3.12) | `openEditor` |
-| Ctrl+Tab, Ctrl+Shift+Tab | Next tab, previous tab (wrapping) | `nextTab`, `prevTab` |
-| Ctrl+Alt+1 to Ctrl+Alt+8 | Switch to that tab | `switchToTab` |
-| Ctrl+Alt+9 | Switch to the last tab | `switchToLastTab` |
-| Alt+Arrow | Move focus | `moveFocus` |
-| Alt+Shift+Arrow | Resize pane | `resizePane` |
-| Ctrl+Shift+F | Find in scrollback, or in the file preview of a Files pane (4.12) | `find` |
-| Ctrl+G | Go to a line, or `line:column`, in the code view of a Files or Search pane (4.12); anywhere else the key goes to the shell, so Claude Code's Ctrl+G still opens its prompt in an editor | `goToLine` |
-| Ctrl+C | Copy if there's a selection, otherwise pass ^C | `copy` |
-| Ctrl+Shift+C | Copy | `copy` |
-| Ctrl+V, Ctrl+Shift+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image | `paste` |
-| Shift+Enter | Send ESC+CR (Claude Code's newline) | `sendInput` |
-| Ctrl+Shift+D | Toggle dashboard panel | `toggleDashboard` |
-| F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) | `focusDashboard` |
-| Ctrl+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) | `cycleScrim` |
-| Ctrl+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None | `toggleBackdrop` |
-| Ctrl+Shift+N | Focus the next terminal that needs you, across all tabs, else cycle the agent terminals (4.7) | `nextAttention` |
-| Ctrl+= or Ctrl+Numpad+ | Increase the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `increaseFontSize` |
-| Ctrl+- | Decrease the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `decreaseFontSize` |
-| Ctrl+0 | Reset the text size to the default, 14 px (saved to `font.size`; applies to terminals and pane text) | `resetFontSize` |
-| F1 | Open the app dialog on its Help tab (4.18) | `showHelp` |
-| Ctrl+, | Open the app dialog on its Settings tab | `openSettings` |
-| F11 | Toggle full screen | `toggleFullscreen` |
+| Windows and Linux | macOS | Action | Name |
+| --- | --- | --- | --- |
+| Ctrl+Shift+Right | Cmd+D | Split right (duplicate) | `splitRight` |
+| Ctrl+Shift+Down | Cmd+Shift+D | Split down (duplicate) | `splitDown` |
+| Ctrl+Shift+Left | None | Split left (duplicate) | `splitLeft` |
+| Ctrl+Shift+Up | None | Split up (duplicate) | `splitUp` |
+| Alt+Shift+D | Cmd+Option+D | Split auto (duplicate) | `splitAuto` |
+| Ctrl+W | Cmd+W | Close pane | `closePane` |
+| Ctrl+Shift+M | Cmd+Shift+M | Collapse pane | `collapsePane` |
+| Ctrl+Shift+Z | Cmd+Shift+Enter | Zoom or unzoom the focused pane (4.2) | `togglePaneZoom` |
+| Ctrl+Shift+O | Cmd+Shift+O | Open a favorite (picker; Enter opens it as a split, Ctrl+Enter opens it collapsed) | `openFavorite` |
+| Ctrl+Shift+R | Cmd+Shift+R | Open a named layout (picker; opens it as a new tab, 4.6) | `openLayout` |
+| Ctrl+Shift+L | Cmd+Shift+L | Open the Launch menu over the focused pane (4.6) | `openLaunch` |
+| Ctrl+Shift+P | Cmd+Shift+P | Open the command palette (below) | `openPalette` |
+| Alt+Shift+T | Cmd+Option+T | Split with a chosen shell (picker of the available profiles; Enter opens a split, Ctrl+Enter opens it collapsed) | `splitWithProfile` |
+| Ctrl+Shift+T | Cmd+T | New tab (4.10) | `newTab` |
+| Ctrl+Shift+W | Cmd+Shift+W | Close tab | `closeTab` |
+| Ctrl+Shift+S | Cmd+Shift+S | New scratch pad (4.15) | `newScratch` |
+| Ctrl+Shift+E | Cmd+Shift+E | Files pane for the focused pane's repo (4.12) | `openFiles` |
+| Ctrl+Shift+G | Cmd+Shift+G | Git pane for the focused pane's repo (4.13) | `openGit` |
+| Ctrl+Shift+H | Cmd+Shift+H | Search pane for the focused pane's repo (4.14) | `openSearch` |
+| Ctrl+Shift+X | Cmd+Shift+X | Open the focused pane's repo in the preferred editor, or its folder outside a repo (3.12) | `openEditor` |
+| Ctrl+Tab, Ctrl+Shift+Tab | Cmd+Shift+], Cmd+Shift+[ (and Ctrl+Tab, Ctrl+Shift+Tab) | Next tab, previous tab (wrapping) | `nextTab`, `prevTab` |
+| Ctrl+Alt+1 to Ctrl+Alt+8 | Cmd+1 to Cmd+8 | Switch to that tab | `switchToTab` |
+| Ctrl+Alt+9 | Cmd+9 | Switch to the last tab | `switchToLastTab` |
+| Alt+Arrow | Cmd+Option+Arrow | Move focus | `moveFocus` |
+| Alt+Shift+Arrow | Cmd+Ctrl+Arrow | Resize pane | `resizePane` |
+| Ctrl+Shift+F | Cmd+F | Find in scrollback, or in the file preview of a Files pane (4.12) | `find` |
+| Ctrl+G | Cmd+L | Go to a line, or `line:column`, in the code view of a Files or Search pane (4.12); anywhere else the key goes to the shell, so Claude Code's Ctrl+G still opens its prompt in an editor | `goToLine` |
+| Ctrl+C | Cmd+C | Copy if there's a selection, otherwise pass ^C | `copy` |
+| Ctrl+Shift+C | None | Copy | `copy` |
+| Ctrl+V, Ctrl+Shift+V | Cmd+V | Paste text (bracketed when the app enabled it); with no text on the clipboard, pass ^V so Claude Code can paste an image | `paste` |
+| Shift+Enter | Shift+Enter | Send ESC+CR (Claude Code's newline) | `sendInput` |
+| Ctrl+Shift+D | Cmd+B | Toggle dashboard panel | `toggleDashboard` |
+| F6 | F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) | `focusDashboard` |
+| Ctrl+Shift+B | Cmd+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) | `cycleScrim` |
+| Ctrl+Shift+A | Cmd+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None | `toggleBackdrop` |
+| Ctrl+Shift+N | Cmd+Shift+N | Focus the next terminal that needs you, across all tabs, else cycle the agent terminals (4.7) | `nextAttention` |
+| Ctrl+= or Ctrl+Numpad+ | Cmd+= or Cmd+Numpad+ | Increase the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `increaseFontSize` |
+| Ctrl+- | Cmd+- | Decrease the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `decreaseFontSize` |
+| Ctrl+0 | Cmd+0 | Reset the text size to the default, 14 px (saved to `font.size`; applies to terminals and pane text) | `resetFontSize` |
+| F1 | F1 | Open the app dialog on its Help tab (4.18) | `showHelp` |
+| Ctrl+, | Cmd+, | Open the app dialog on its Settings tab | `openSettings` |
+| F11 | Cmd+Ctrl+F | Toggle full screen | `toggleFullscreen` |
 
 Four more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
 open the app dialog on its Accounts, Shortcuts, CLI, and About tabs.
@@ -61,6 +69,19 @@ open the app dialog on its Accounts, Shortcuts, CLI, and About tabs.
 These are built-in defaults. Entries in the settings file (section 8) layer on top, as in
 Windows Terminal: an entry for a chord that has a default replaces it, a new chord adds a
 binding, and `"action": "unbound"` removes a default so the key reaches the shell.
+
+A chord is spelled with `ctrl`, `alt`, `shift`, and `win` or `cmd` (the same Meta bit), plus
+`option` and `opt` for `alt` and `command` for `cmd`. On macOS the Shortcuts tab writes `cmd` and
+`option` and labels them Cmd and Option; elsewhere it writes `win` and `alt`.
+
+**macOS.** The command modifier outside the keymap follows the OS as well: Cmd+S saves in the
+text editor, Cmd+Enter commits, sends a scratch pad, and opens a favorite collapsed, and
+Cmd+click opens a link or toggles a Files row (`primaryHeld` in `platform.ts`). Ctrl+click is a
+right click on macOS, so none of these use Ctrl there. The menu bar (`mac_menu.rs`) replaces
+Tauri's default menu. WKWebView offers a Cmd chord to the page before the menu, so a chord the
+keymap handles never reaches a menu item; the Edit items are there because text fields get Cmd+C,
+Cmd+V, Cmd+A, and Cmd+Z only through them. The menu has no Close Window item, so Cmd+W stays the
+keymap's, and its Quit closes the main window rather than exiting, so the workspace saves first.
 
 **Keybinding editor.** Keys are changed in the app dialog's Shortcuts tab (`shortcutsTab.ts`, 4.18), which lists every
 action by section with its live chords. Every action in the name list has a row, including one

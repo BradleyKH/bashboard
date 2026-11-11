@@ -9,6 +9,11 @@ describe('formatChord', () => {
     expect(formatChord(parseChord('f1')!)).toBe('F1');
     expect(formatChord(parseChord('win+right')!)).toBe('Win+Right');
   });
+
+  it('uses Mac names and order on macOS', () => {
+    expect(formatChord(parseChord('alt+shift+cmd+d')!, 'macos')).toBe('Cmd+Option+Shift+D');
+    expect(formatChord(parseChord('ctrl+cmd+left')!, 'macos')).toBe('Cmd+Ctrl+Left');
+  });
 });
 
 describe('actionLabel and actionOrder', () => {

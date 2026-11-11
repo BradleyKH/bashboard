@@ -3,7 +3,7 @@
  */
 
 export interface FileSelection {
-  /** The focused row, which the preview follows; it can be unmarked after a Ctrl+click. */
+  /** The focused row, which the preview follows; it can be unmarked after a Ctrl+click (Cmd+click on macOS). */
   cursor: string | null;
   /** Where a Shift range starts. */
   anchor: string | null;

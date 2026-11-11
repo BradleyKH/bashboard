@@ -23,6 +23,9 @@ mod hook_install;
 mod hooks;
 mod links;
 mod login_path;
+// Built on every OS so a Windows build type-checks it; only macOS installs it.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+mod mac_menu;
 mod model_servers;
 mod platform;
 mod ports;
@@ -142,6 +145,8 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
         second_instance::on_second_launch(app, args, cwd)
     }));
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(mac_menu::build).on_menu_event(mac_menu::on_event);
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

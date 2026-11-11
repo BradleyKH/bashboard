@@ -33,3 +33,23 @@ export function platformOs(): Os {
 export function supports(feature: Feature, os: Os = current): boolean {
   return !(UNSUPPORTED[os] ?? []).includes(feature);
 }
+
+type Mods = Pick<KeyboardEvent, 'ctrlKey' | 'metaKey'>;
+
+/**
+ * Whether the OS's command modifier is held: Cmd on macOS, Ctrl elsewhere. On macOS Ctrl
+ * belongs to the shell, and Ctrl+click is a right click.
+ */
+export function primaryHeld(e: Mods, os: Os = current): boolean {
+  return os === 'macos' ? e.metaKey : e.ctrlKey;
+}
+
+/** The command modifier held without the other one (Cmd without Ctrl, or Ctrl without Win). */
+export function primaryOnly(e: Mods, os: Os = current): boolean {
+  return os === 'macos' ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+}
+
+/** The command modifier's name for labels: "Cmd" on macOS, "Ctrl" elsewhere. */
+export function primaryName(os: Os = current): string {
+  return os === 'macos' ? 'Cmd' : 'Ctrl';
+}

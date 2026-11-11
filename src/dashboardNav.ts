@@ -1,6 +1,7 @@
 import { retargetContextMenu } from './contextMenu';
 import { restoreIndex, stepIndex, type NavMove } from './dashboardNavModel';
 import { rowRename } from './rowControls';
+import { platformOs, primaryOnly } from './platform';
 
 export interface DashboardNavOptions {
   /** Escape: hand focus back to the panes. */
@@ -149,10 +150,10 @@ export class DashboardNav {
   }
 
   private navigate(e: KeyboardEvent, target: HTMLElement): boolean {
-    if (e.altKey || e.metaKey || e.shiftKey) return false;
+    if (e.altKey || e.shiftKey) return false;
     const item = target.closest<HTMLElement>(ITEM_SELECTOR);
-    if (e.ctrlKey) {
-      if (e.key !== 'Enter' || !item || target !== item) return false;
+    if (e.ctrlKey || e.metaKey) {
+      if (!primaryOnly(e) || e.key !== 'Enter' || !item || target !== item) return false;
       this.click(item, true);
       return true;
     }
@@ -218,7 +219,9 @@ export class DashboardNav {
   }
 
   /** Acts as a click on the row itself, so a row's own click handler decides what happens. */
-  private click(item: HTMLElement, ctrlKey: boolean): void {
-    item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey, detail: 1 }));
+  private click(item: HTMLElement, primary: boolean): void {
+    const mac = platformOs() === 'macos';
+    const mods = { ctrlKey: primary && !mac, metaKey: primary && mac };
+    item.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...mods, detail: 1 }));
   }
 }

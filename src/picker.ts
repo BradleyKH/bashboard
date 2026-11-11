@@ -2,6 +2,7 @@ import { openContextMenu } from './contextMenu';
 import { item, separator } from './contextMenuModel';
 import { pickerConfirmControls, pickerRemoveButton, pickerRenameButton, pickerRenameInput } from './pickerRowEdit';
 import { selectionAfterRefresh } from './pickerSelection';
+import { primaryHeld } from './platform';
 
 export interface PickerItem {
   label: string;
@@ -14,7 +15,7 @@ export interface PickerItem {
 }
 
 export interface PickerCallbacks {
-  /** Enter opens normally; Ctrl+Enter reports `collapsed`. */
+  /** Enter opens normally; Ctrl+Enter (Cmd+Enter on macOS) reports `collapsed`. */
   onOpen(value: string, opts: { collapsed: boolean }): void;
   /** Dismissed with Escape or an outside click; the caller refocuses the terminal. */
   onClose(): void;
@@ -314,7 +315,7 @@ export class Picker {
       this.renderList();
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      this.choose(this.selected, e.ctrlKey);
+      this.choose(this.selected, primaryHeld(e));
     }
   }
 
@@ -504,7 +505,7 @@ export class Picker {
     row.addEventListener('mousedown', (e) => e.preventDefault());
     row.addEventListener('click', (e) => {
       if (this.editing?.value === this.shown[index]?.value) return;
-      this.choose(index, e.ctrlKey);
+      this.choose(index, primaryHeld(e));
     });
     if (this.manage) row.addEventListener('contextmenu', (e) => this.openRowMenu(e, index, row));
     return row;

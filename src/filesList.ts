@@ -21,6 +21,7 @@ import {
   type FileSelection,
   type SelectMods,
 } from './fileSelection';
+import { primaryHeld, primaryOnly } from './platform';
 
 export interface FilesListOptions {
   /** A click or a keyboard move put the cursor on an entry (the preview follows). */
@@ -247,15 +248,15 @@ export class FilesList {
   }
 
   private onKeyDown(e: KeyboardEvent): void {
-    if (e.altKey || e.metaKey) return;
-    if (e.key === 'F2' && !e.ctrlKey && !e.shiftKey) {
+    if (e.altKey) return;
+    if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
       this.startRename();
       return;
     }
-    if (e.ctrlKey) {
-      if (!e.shiftKey && e.key.toLowerCase() === 'a') {
+    if (e.ctrlKey || e.metaKey) {
+      if (primaryOnly(e) && !e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         e.stopPropagation();
         this.sel = selectAll(this.sel, this.visibleNames());
@@ -309,7 +310,7 @@ export class FilesList {
       renderFileRow(entry, {
         selected: isMarked(this.sel, entry.name),
         cursor: entry.name === this.sel.cursor,
-        onSelect: (e) => this.clicked(entry, { shift: e.shiftKey, ctrl: e.ctrlKey }),
+        onSelect: (e) => this.clicked(entry, { shift: e.shiftKey, ctrl: primaryHeld(e) }),
         onActivate: () => this.opts.onActivate(entry),
         onMenu: (anchor) => {
           if (!isMarked(this.sel, entry.name)) this.clicked(entry, {});

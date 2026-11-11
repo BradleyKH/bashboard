@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isLoopbackUrl } from './localBrowserModel';
+import { primaryHeld } from './platform';
 
 /**
  * True only for http: and https: URLs. Anything else (file:, javascript:,
@@ -21,13 +22,13 @@ export interface OpenLinkOptions {
 }
 
 /**
- * Opens a link. Ctrl+click is required so that a plain click on terminal
+ * Opens a link. Ctrl+click (Cmd+click on macOS) is required so that a plain click on terminal
  * output keeps selecting text instead of navigating away. A loopback link
  * goes to the Local Browser (when the pane supplies one); Ctrl+Shift+click
  * sends it to the system browser instead, like any other link.
  */
 export function openLink(event: MouseEvent, url: string, opts: OpenLinkOptions = {}): void {
-  if (!event.ctrlKey || !isOpenableUrl(url)) return;
+  if (!primaryHeld(event) || !isOpenableUrl(url)) return;
   if (opts.onOpenLocal && !event.shiftKey && isLoopbackUrl(url)) {
     opts.onOpenLocal(url);
     return;

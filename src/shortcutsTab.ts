@@ -1,5 +1,5 @@
 import type { ConfirmOptions } from './confirmDialog';
-import { FIXED_SECTION, formatChord, type HelpSection } from './helpModel';
+import { fixedSection, formatChord, type HelpSection } from './helpModel';
 import {
   addOps,
   checkChord,
@@ -235,9 +235,10 @@ export class ShortcutsTab {
     this.stripElement = null;
     const visible = filterSections(this.sections, this.filter);
     const q = this.filter.trim().toLowerCase();
-    const fixedRows = FIXED_SECTION.rows.filter((r) => r.label.toLowerCase().includes(q));
+    const fixed = fixedSection();
+    const fixedRows = fixed.rows.filter((r) => r.label.toLowerCase().includes(q));
     body.replaceChildren(...visible.map((s) => this.sectionElement(s)));
-    if (fixedRows.length > 0) body.append(this.fixedElement({ ...FIXED_SECTION, rows: fixedRows }));
+    if (fixedRows.length > 0) body.append(this.fixedElement({ ...fixed, rows: fixedRows }));
     body.scrollTop = scroll;
 
     if (focusRow !== undefined) {

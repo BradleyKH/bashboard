@@ -19,8 +19,6 @@ testing only. This page lists what to check and what to send back.
 
 ## Not expected to work yet
 
-- The keys are the Windows defaults (Ctrl+Shift chords). Cmd chords for app actions come
-  later.
 - The Local Browser pane and the Git install step are hidden.
 - Notifications, saved Forge sign-ins (Keychain), Listening ports, font lists, and editor
   detection are not implemented yet.
@@ -41,25 +39,30 @@ For each check, report pass or fail, plus what you saw if it failed.
 **PATH and Claude Code**
 
 5. `claude` starts Claude Code in a pane, and the dashboard lists that session.
-6. In a pane inside a git repo, Ctrl+Shift+G opens a Git pane that shows the repo's status.
+6. In a pane inside a git repo, Cmd+Shift+G opens a Git pane that shows the repo's status.
    An error saying git was not found means the app didn't pick up your `PATH`.
 
 **Keys**
 
 7. Option+B and Option+F move back and forward by word at the shell prompt.
-8. Ctrl+R starts reverse history search, and Ctrl+A and Ctrl+E move to the start and end of
-   the line.
-9. Select text in a pane, then Cmd+C copies it and Cmd+V pastes it. Ctrl+Shift+C and
-   Ctrl+Shift+V do the same.
-10. Ctrl+Shift+T opens a tab, Ctrl+Shift+Arrow splits the pane, and Ctrl+Shift+W closes it.
-11. In Claude Code, Shift+Enter starts a new line and Esc interrupts.
-12. Cmd+Q quits.
+8. Ctrl+R starts reverse history search, Ctrl+A and Ctrl+E move to the start and end of
+   the line, Ctrl+W deletes the previous word, and Ctrl+C interrupts a running command.
+9. Select text in a pane, then Cmd+C copies it and Cmd+V pastes it once (not twice). Cmd+C,
+   Cmd+V, Cmd+A, and Cmd+Z also work in a text field, such as the Settings tab's filter.
+10. Cmd+T opens a tab, Cmd+D and Cmd+Shift+D split the pane, Cmd+Option+Arrow moves focus
+    between panes, Cmd+W closes the pane (not the window), and Cmd+Shift+W closes the tab.
+11. Cmd+1 and Cmd+2 switch tabs, and Cmd+Shift+] and Cmd+Shift+[ step through them.
+12. Cmd+Shift+P opens the command palette, Cmd+, opens Settings, and Cmd+F opens find over a
+    terminal.
+13. Cmd+click on a link in terminal output opens it in your browser.
+14. In Claude Code, Shift+Enter starts a new line and Esc interrupts.
+15. Cmd+Q quits.
 
 **Files and restore**
 
-13. Right-click the empty space in a Files pane. Copy path copies a path that uses `/`, and
+16. Right-click the empty space in a Files pane. Copy path copies a path that uses `/`, and
     "Open in File Explorer" (still the Windows label) opens the folder in Finder.
-14. Make a layout with two tabs and a split, quit, and start the app again. The layout comes
+17. Make a layout with two tabs and a split, quit, and start the app again. The layout comes
     back.
 
 ## Measurements

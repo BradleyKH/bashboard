@@ -1,5 +1,7 @@
+import { primaryName, primaryOnly } from './platform';
+
 export interface GitCommitBoxOptions {
-  /** Ctrl+Enter in the field, or the Commit button while enabled. */
+  /** Ctrl+Enter (Cmd+Enter on macOS) in the field, or the Commit button while enabled. */
   onCommit: (message: string) => void;
   /** The message text changed by typing; the caller recomputes `canCommit` and calls `setEnabled`. */
   onInput: (message: string) => void;
@@ -20,12 +22,12 @@ export class GitCommitBox {
     this.field = document.createElement('textarea');
     this.field.className = 'git-commit-field';
     this.field.rows = 3;
-    this.field.placeholder = 'Commit message (Ctrl+Enter to commit)';
+    this.field.placeholder = `Commit message (${primaryName()}+Enter to commit)`;
     this.field.spellcheck = false;
     this.field.addEventListener('input', () => this.opts.onInput(this.field.value));
     this.field.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
-        // Ctrl+Enter is not a keymap action; keep the pane's key routing from seeing it.
+      if (e.key === 'Enter' && primaryOnly(e) && !e.shiftKey && !e.altKey) {
+        // Ctrl+Enter (Cmd+Enter on macOS) is not a keymap action; keep the pane's key routing from seeing it.
         e.preventDefault();
         e.stopPropagation();
         this.commit();

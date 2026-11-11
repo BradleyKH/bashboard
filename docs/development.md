@@ -195,6 +195,19 @@ built app:
 - with a Local Browser page focused, typing and Ctrl+A reach the page, and Ctrl+Tab, Ctrl+Shift+Tab,
   Ctrl+, and the pane focus chords still act on the app
 
+On macOS, run this list as well:
+
+- Ctrl+C, Ctrl+W, Ctrl+R, Ctrl+A, and Ctrl+E reach the shell, and Option+B and Option+F move by word
+- Cmd+C copies a selection and Cmd+V pastes once; in a text field Cmd+C, Cmd+V, Cmd+A, and Cmd+Z
+  work through the Edit menu
+- Cmd+W closes the pane, not the window, and Cmd+Q saves the workspace before quitting
+- Cmd+D, Cmd+Shift+D, Cmd+Option+Arrow, Cmd+Ctrl+Arrow, and Cmd+Shift+Enter split, move focus,
+  resize, and zoom; confirm the system does not take Cmd+Ctrl+Arrow
+- Cmd+T, Cmd+Shift+W, Cmd+Shift+] and Cmd+Shift+[, and Cmd+1 through 9 work on tabs
+- Cmd+Shift+P, Cmd+,, Cmd+F, Cmd+L in a code view, Cmd+B, and Cmd+Ctrl+F act on the app
+- Cmd+S saves in the text editor, Cmd+Enter commits in the Git pane, and Cmd+click opens a
+  terminal link
+
 ## Debugging input
 
 Set `BASHBOARD_KEYLOG` to a file path before launching, and every keystroke and paste sent to a

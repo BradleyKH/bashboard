@@ -4,8 +4,10 @@ import {
   buildKeymap,
   chordKeys,
   chordFromEvent,
+  chordId,
   actionFromEntry,
   DEFAULT_KEYBINDINGS,
+  MAC_DEFAULT_KEYBINDINGS,
   lookup,
   parseChord,
   type KeybindingEntry,
@@ -23,6 +25,10 @@ describe('parseChord', () => {
   it('accepts win and meta', () => {
     expect(parseChord('win+e')?.meta).toBe(true);
     expect(parseChord('meta+e')?.meta).toBe(true);
+    expect(parseChord('cmd+e')).toEqual(parseChord('win+e'));
+    expect(parseChord('command+e')).toEqual(parseChord('win+e'));
+    expect(parseChord('option+e')).toEqual(parseChord('alt+e'));
+    expect(parseChord('opt+e')).toEqual(parseChord('alt+e'));
   });
   it('parses named keys, function keys, digits, and punctuation', () => {
     expect(parseChord('ctrl+f24')?.key).toBe('f24');
@@ -65,8 +71,11 @@ describe('chordFromEvent', () => {
   });
 });
 
-describe('default keybindings', () => {
-  const { keymap, warnings } = buildKeymap(DEFAULT_KEYBINDINGS);
+describe.each([
+  ['Windows', DEFAULT_KEYBINDINGS],
+  ['macOS', MAC_DEFAULT_KEYBINDINGS],
+])('%s default keybindings', (_os, table) => {
+  const { keymap, warnings } = buildKeymap(table);
 
   it('build without warnings', () => {
     expect(warnings).toEqual([]);
@@ -87,8 +96,12 @@ describe('default keybindings', () => {
       '+': ['+', 'NumpadAdd'],
       '-': ['-', 'Minus'],
       tab: ['Tab', 'Tab'],
+      '[': ['[', 'BracketLeft'],
+      ']': [']', 'BracketRight'],
+      '{': ['{', 'BracketLeft'],
+      '}': ['}', 'BracketRight'],
     };
-    for (const entry of DEFAULT_KEYBINDINGS) {
+    for (const entry of table) {
       const chord = parseChord(entry.keys)!;
       const fallback = /^[0-9]$/.test(chord.key) ? `Digit${chord.key}` : `Key${chord.key.toUpperCase()}`;
       const [key, code] = codes[chord.key] ?? [chord.key, fallback];
@@ -101,6 +114,10 @@ describe('default keybindings', () => {
       if (entry.index) expect(action).toMatchObject({ index: entry.index });
     }
   });
+});
+
+describe('Windows default keybindings', () => {
+  const { keymap } = buildKeymap(DEFAULT_KEYBINDINGS);
 
   it('maps collapsePane and openFavorite to their chords', () => {
     expect(lookup(keymap, ev({ key: 'M', code: 'KeyM', ctrlKey: true, shiftKey: true }))).toEqual({
@@ -299,6 +316,35 @@ describe('buildKeymap', () => {
   });
 });
 
+describe('macOS default keybindings', () => {
+  const chords = MAC_DEFAULT_KEYBINDINGS.map((e) => ({ keys: e.keys, chord: parseChord(e.keys)! }));
+
+  it('leave every Ctrl and Option chord to the shell', () => {
+    // Ctrl+Tab is the one Ctrl chord kept: it is the Mac tab chord too, and the shell has no use for it.
+    const shellSide = chords.filter(({ chord }) => !chord.meta && (chord.ctrl || chord.alt) && chord.key !== 'tab');
+    expect(shellSide.map((c) => c.keys)).toEqual([]);
+  });
+
+  it('stay off the chords the Edit menu and macOS claim', () => {
+    const claimed = ['cmd+z', 'cmd+shift+z', 'cmd+x', 'cmd+a', 'cmd+q', 'cmd+h', 'cmd+option+h', 'cmd+m', 'cmd+space', 'cmd+tab', 'cmd+`'];
+    const ids = new Set(claimed.map((k) => chordId(parseChord(k)!)));
+    expect(chords.filter(({ chord }) => ids.has(chordId(chord))).map((c) => c.keys)).toEqual([]);
+  });
+
+  it('bind each chord once', () => {
+    const ids = chords.map(({ chord }) => chordId(chord));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('cover every action the Windows table binds', () => {
+    // Directional splits beyond right and down have no Mac convention to follow.
+    const unboundOnMac = new Set(['splitLeft', 'splitUp']);
+    const mac = new Set(MAC_DEFAULT_KEYBINDINGS.map((e) => e.action));
+    const missing = [...new Set(DEFAULT_KEYBINDINGS.map((e) => e.action))].filter((a) => !mac.has(a) && !unboundOnMac.has(a));
+    expect(missing).toEqual([]);
+  });
+});
+
 describe('chordKeys', () => {
   it('round-trips through parseChord', () => {
     for (const keys of ['ctrl+a', 'ctrl+alt+5', 'ctrl++', 'ctrl+,', 'f11', 'alt+shift+left', 'win+left', 'ctrl+shift+win+k']) {
@@ -310,7 +356,13 @@ describe('chordKeys', () => {
   it('writes modifiers in canonical order', () => {
     expect(chordKeys(parseChord('shift+ctrl+L')!)).toBe('ctrl+shift+l');
     expect(chordKeys(parseChord('ctrl++')!)).toBe('ctrl++');
-    expect(chordKeys(parseChord('meta+left')!)).toBe('win+left');
+    expect(chordKeys(parseChord('meta+left')!, 'windows')).toBe('win+left');
+  });
+
+  it('spells chords the macOS way on macOS', () => {
+    expect(chordKeys(parseChord('shift+win+d')!, 'macos')).toBe('cmd+shift+d');
+    expect(chordKeys(parseChord('alt+ctrl+meta+left')!, 'macos')).toBe('cmd+ctrl+option+left');
+    expect(parseChord(chordKeys(parseChord('cmd+option+t')!, 'macos'))).toEqual(parseChord('cmd+option+t'));
   });
 });
 

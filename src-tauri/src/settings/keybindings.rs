@@ -7,18 +7,29 @@ use serde_json::Value;
 use super::model::Keybinding;
 use super::parse::parse_root;
 
-/// The front end imports the same file as `DEFAULT_KEYBINDINGS`, so the two cannot drift.
+/// The front end imports the same files (`defaultKeybindings()` in `src/keymap.ts`), so the two
+/// cannot drift.
 const DEFAULT_KEYBINDINGS_JSON: &str = include_str!("../../../src/defaultKeybindings.json");
+const MACOS_DEFAULT_KEYBINDINGS_JSON: &str = include_str!("../../../src/defaultKeybindings.macos.json");
 
+/// The running OS's built-in keybindings (docs/design/keys.md section 4.5). Tests always get the
+/// Windows table, so the merge and edit tests below assert the same chords on every CI runner;
+/// the macOS table has its own pinned test.
 pub fn default_keybindings() -> Vec<Keybinding> {
-    serde_json::from_str(DEFAULT_KEYBINDINGS_JSON).expect("src/defaultKeybindings.json parses as keybindings")
+    default_keybindings_table(cfg!(all(target_os = "macos", not(test))))
+}
+
+fn default_keybindings_table(macos: bool) -> Vec<Keybinding> {
+    let json = if macos { MACOS_DEFAULT_KEYBINDINGS_JSON } else { DEFAULT_KEYBINDINGS_JSON };
+    serde_json::from_str(json).expect("the default keybindings files parse as keybindings")
 }
 
 /// Same aliases as `parseChord` in `src/keymap.ts`, so the file and the front end agree on
 /// which entry a chord is.
 fn chord_alias(part: String) -> String {
     match part.as_str() {
-        "win" => "meta".into(),
+        "win" | "cmd" | "command" => "meta".into(),
+        "option" | "opt" => "alt".into(),
         "esc" => "escape".into(),
         "del" => "delete".into(),
         "ins" => "insert".into(),
@@ -435,6 +446,81 @@ mod tests {
         assert_eq!(default_keybindings(), expected);
     }
 
+    #[test]
+    fn macos_default_keybindings_are_pinned() {
+        let pinned: Vec<(&str, &str, Option<&str>, Option<&str>, Option<u32>)> = vec![
+            ("cmd+d", "splitRight", None, None, None),
+            ("cmd+shift+d", "splitDown", None, None, None),
+            ("cmd+option+d", "splitAuto", None, None, None),
+            ("cmd+w", "closePane", None, None, None),
+            ("cmd+option+left", "moveFocus", Some("left"), None, None),
+            ("cmd+option+right", "moveFocus", Some("right"), None, None),
+            ("cmd+option+up", "moveFocus", Some("up"), None, None),
+            ("cmd+option+down", "moveFocus", Some("down"), None, None),
+            ("cmd+ctrl+left", "resizePane", Some("left"), None, None),
+            ("cmd+ctrl+right", "resizePane", Some("right"), None, None),
+            ("cmd+ctrl+up", "resizePane", Some("up"), None, None),
+            ("cmd+ctrl+down", "resizePane", Some("down"), None, None),
+            ("cmd+f", "find", None, None, None),
+            ("cmd+l", "goToLine", None, None, None),
+            ("cmd+c", "copy", None, None, None),
+            ("cmd+v", "paste", None, None, None),
+            ("shift+enter", "sendInput", None, Some("\u{1b}\r"), None),
+            ("cmd+b", "toggleDashboard", None, None, None),
+            ("f6", "focusDashboard", None, None, None),
+            ("cmd+shift+b", "cycleScrim", None, None, None),
+            ("cmd+shift+a", "toggleBackdrop", None, None, None),
+            ("cmd+shift+n", "nextAttention", None, None, None),
+            ("cmd+shift+m", "collapsePane", None, None, None),
+            ("cmd+shift+enter", "togglePaneZoom", None, None, None),
+            ("cmd+shift+o", "openFavorite", None, None, None),
+            ("cmd+shift+r", "openLayout", None, None, None),
+            ("cmd+shift+l", "openLaunch", None, None, None),
+            ("cmd+shift+p", "openPalette", None, None, None),
+            ("cmd+option+t", "splitWithProfile", None, None, None),
+            ("cmd+t", "newTab", None, None, None),
+            ("cmd+shift+s", "newScratch", None, None, None),
+            ("cmd+shift+e", "openFiles", None, None, None),
+            ("cmd+shift+g", "openGit", None, None, None),
+            ("cmd+shift+h", "openSearch", None, None, None),
+            ("cmd+shift+x", "openEditor", None, None, None),
+            ("cmd+shift+w", "closeTab", None, None, None),
+            ("cmd+shift+]", "nextTab", None, None, None),
+            ("cmd+shift+}", "nextTab", None, None, None),
+            ("cmd+shift+[", "prevTab", None, None, None),
+            ("cmd+shift+{", "prevTab", None, None, None),
+            ("ctrl+tab", "nextTab", None, None, None),
+            ("ctrl+shift+tab", "prevTab", None, None, None),
+            ("f1", "showHelp", None, None, None),
+            ("cmd+,", "openSettings", None, None, None),
+            ("cmd+ctrl+f", "toggleFullscreen", None, None, None),
+            ("cmd+9", "switchToLastTab", None, None, None),
+            ("cmd+=", "increaseFontSize", None, None, None),
+            ("cmd++", "increaseFontSize", None, None, None),
+            ("cmd+-", "decreaseFontSize", None, None, None),
+            ("cmd+0", "resetFontSize", None, None, None),
+            ("cmd+1", "switchToTab", None, None, Some(1)),
+            ("cmd+2", "switchToTab", None, None, Some(2)),
+            ("cmd+3", "switchToTab", None, None, Some(3)),
+            ("cmd+4", "switchToTab", None, None, Some(4)),
+            ("cmd+5", "switchToTab", None, None, Some(5)),
+            ("cmd+6", "switchToTab", None, None, Some(6)),
+            ("cmd+7", "switchToTab", None, None, Some(7)),
+            ("cmd+8", "switchToTab", None, None, Some(8)),
+        ];
+        let expected: Vec<Keybinding> = pinned
+            .into_iter()
+            .map(|(keys, action, direction, input, index)| Keybinding {
+                keys: keys.into(),
+                action: action.into(),
+                direction: direction.map(Into::into),
+                input: input.map(Into::into),
+                index,
+            })
+            .collect();
+        assert_eq!(default_keybindings_table(true), expected);
+    }
+
     fn bind(keys: &str, action: &str) -> KeybindingOp {
         let (keys, action) = (keys.into(), action.into());
         KeybindingOp::Bind { keys, action, direction: None, index: None, input: None }
@@ -702,6 +788,9 @@ mod tests {
     #[test]
     fn chord_aliases_match_keymap_ts() {
         assert_eq!(normalize_chord("win+left"), normalize_chord("meta+left"));
+        assert_eq!(normalize_chord("cmd+left"), normalize_chord("meta+left"));
+        assert_eq!(normalize_chord("Command+Option+D"), normalize_chord("alt+meta+d"));
+        assert_eq!(normalize_chord("opt+x"), "alt+x");
         assert_eq!(normalize_chord("Ctrl+Esc"), "ctrl+escape");
         assert_eq!(normalize_chord("shift+del"), normalize_chord("shift+delete"));
         assert_eq!(normalize_chord("ctrl+ins"), "ctrl+insert");

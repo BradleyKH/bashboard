@@ -6,6 +6,7 @@ import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
 import { fontSuggestions, isSuggestionPick, listFonts } from './fonts';
 import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { primaryHeld } from './platform';
 
 export interface SettingsTabCallbacks {
   onSave(path: string[], value: unknown): Promise<void>;
@@ -419,7 +420,7 @@ export class SettingsTab {
       area.spellcheck = false;
       area.addEventListener('blur', () => this.commit(c, area.value));
       area.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && e.ctrlKey) {
+        if (e.key === 'Enter' && primaryHeld(e)) {
           e.preventDefault();
           this.commit(c, area.value);
         }

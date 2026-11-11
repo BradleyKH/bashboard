@@ -27,6 +27,7 @@ import type { SaveStatusSink } from './saveIndicator';
 import { editorStep, initialEditorState, isDirty, saveStatus, type EditorEffect, type EditorEvent, type EditorState, type SaveStatus } from './textEditorModel';
 import { showToast } from './toast';
 import { textFieldOwns } from './textPaneKeys';
+import { primaryOnly } from './platform';
 
 export interface TextEditorOptions {
   path: string;
@@ -573,11 +574,11 @@ export class TextEditor {
 
   /** True when the key was handled here, which keeps it from CodeMirror's keymap. */
   private onKeyDown(e: KeyboardEvent): boolean {
-    if (e.key.toLowerCase() === 's' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+    if (e.key.toLowerCase() === 's' && primaryOnly(e) && !e.shiftKey && !e.altKey) {
       e.preventDefault();
       e.stopPropagation();
       this.send({ type: 'saveRequested' });
-      // Ctrl+S with nothing to save still confirms, for the habit of pressing it.
+      // Save with nothing to save still confirms, for the habit of pressing it.
       if (this.status === 'clean') this.opts.saveStatus?.saved();
       return true;
     }

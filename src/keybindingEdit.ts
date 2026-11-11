@@ -1,8 +1,8 @@
 import {
-  DEFAULT_KEYBINDINGS,
   actionFromEntry,
   chordId,
   chordKeys,
+  defaultKeybindings,
   parseChord,
   type Chord,
   type Direction,
@@ -116,7 +116,13 @@ function boundByChord(entries: KeybindingEntry[]): Map<string, Bound> {
   return map;
 }
 
-const DEFAULTS = boundByChord(DEFAULT_KEYBINDINGS);
+// Built on use, not at import: the OS, and so the defaults table, is known only after loadPlatform.
+let defaultsMap: { table: KeybindingEntry[]; map: Map<string, Bound> } | null = null;
+function defaultsByChord(): Map<string, Bound> {
+  const table = defaultKeybindings();
+  if (defaultsMap?.table !== table) defaultsMap = { table, map: boundByChord(table) };
+  return defaultsMap.map;
+}
 
 function rowLabel(action: string, args: EditArgs): string {
   if (args.direction) return `${ACTION_LABELS[action]} ${args.direction}`;
@@ -133,7 +139,7 @@ function rowArgs(action: string, live: Map<string, Bound>): EditArgs[] {
       return Array.from({ length: 8 }, (_, i) => ({ index: i + 1 }));
     case 'input': {
       const inputs: string[] = [];
-      for (const b of [...DEFAULTS.values(), ...live.values()]) {
+      for (const b of [...defaultsByChord().values(), ...live.values()]) {
         if (b.entry.action === action && !inputs.includes(b.entry.input!)) inputs.push(b.entry.input!);
       }
       return inputs.map((input) => ({ input }));
@@ -159,9 +165,9 @@ export function editSections(live: KeybindingEntry[]): EditSection[] {
       rowArgs(action, bound).map((args): EditRow => {
         const id = rowId(action, args);
         const chords = [...bound.values()].filter((b) => b.row === id).map((b) => b.entry.keys);
-        const defaults = [...DEFAULTS.values()].filter((b) => b.row === id).map((b) => b.entry.keys);
+        const defaults = [...defaultsByChord().values()].filter((b) => b.row === id).map((b) => b.entry.keys);
         const shellNotes = chords.flatMap((keys) => {
-          if (DEFAULTS.get(chordId(parseChord(keys)!))?.row === id) return [];
+          if (defaultsByChord().get(chordId(parseChord(keys)!))?.row === id) return [];
           const note = shellNoteFor(keys);
           return note ? [note] : [];
         });
@@ -225,7 +231,7 @@ export function checkChord(chord: Chord, row: EditRow, live: KeybindingEntry[]):
   if (row.chords.some((k) => chordId(parseChord(k)!) === id)) return { kind: 'same' };
   const owner = ownerOf(chord, live);
   if (owner) return { kind: 'conflict', owner, leavesEmpty: owner.chords.length === 1 };
-  if (DEFAULTS.get(id)?.row === row.id) return { kind: 'free' };
+  if (defaultsByChord().get(id)?.row === row.id) return { kind: 'free' };
   const shellNote = shellNoteFor(chordKeys(chord));
   return shellNote ? { kind: 'free', shellNote } : { kind: 'free' };
 }
@@ -265,7 +271,7 @@ export function resetPlan(row: EditRow, live: KeybindingEntry[]): { ops: Keybind
     if (seen.has(id)) continue;
     seen.add(id);
     const now = bound.get(id);
-    const def = DEFAULTS.get(id);
+    const def = defaultsByChord().get(id);
     if (now?.row === def?.row) continue;
     const liveKeys = now?.entry.keys ?? keys;
     ops.push({ op: 'reset', keys: liveKeys });
@@ -294,8 +300,8 @@ export function inverseOps(ops: KeybindingOp[], live: KeybindingEntry[], previou
   const touched = new Map<string, string>();
   for (const op of ops) {
     if (op.op === 'resetAll' || op.op === 'replaceAll') {
-      for (const [id, b] of [...DEFAULTS, ...bound]) {
-        if (bound.get(id)?.row !== DEFAULTS.get(id)?.row) touched.set(id, b.entry.keys);
+      for (const [id, b] of [...defaultsByChord(), ...bound]) {
+        if (bound.get(id)?.row !== defaultsByChord().get(id)?.row) touched.set(id, b.entry.keys);
       }
       continue;
     }
@@ -304,7 +310,7 @@ export function inverseOps(ops: KeybindingOp[], live: KeybindingEntry[], previou
   }
   return [...touched].map(([id, opKeys]): KeybindingOp => {
     const now = bound.get(id);
-    const def = DEFAULTS.get(id);
+    const def = defaultsByChord().get(id);
     const keys = now?.entry.keys ?? def?.entry.keys ?? opKeys;
     if (now?.row === def?.row) return { op: 'reset', keys };
     if (now) return bindOp(keys, now.entry.action, argsOf(now.entry));
@@ -325,11 +331,11 @@ export function applyOps(live: KeybindingEntry[], ops: KeybindingOp[]): Keybindi
   let entries = [...live];
   for (const op of ops) {
     if (op.op === 'resetAll') {
-      entries = [...DEFAULT_KEYBINDINGS];
+      entries = [...defaultKeybindings()];
       continue;
     }
     if (op.op === 'replaceAll') {
-      entries = applyOps(DEFAULT_KEYBINDINGS, op.entries.flatMap(rawEntryOp));
+      entries = applyOps(defaultKeybindings(), op.entries.flatMap(rawEntryOp));
       continue;
     }
     const chord = parseChord(op.keys);
@@ -342,7 +348,7 @@ export function applyOps(live: KeybindingEntry[], ops: KeybindingOp[]): Keybindi
     if (op.op === 'bind') {
       entries.push({ keys: op.keys, action: op.action, ...argsOf(op) });
     } else if (op.op === 'reset') {
-      const def = DEFAULTS.get(id);
+      const def = defaultsByChord().get(id);
       if (def) entries.push(def.entry);
     }
   }

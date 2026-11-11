@@ -7,13 +7,14 @@ import { attachBodyDrag } from './bodyDrag';
 import type { FavoritesCallbacks } from './favoritesSection';
 import { openFolder } from './folderButton';
 import { openInMenuItems, openMenuButton } from './openMenu';
+import { primaryHeld } from './platform';
 
 /** One recent folder under the Favorites section (docs/design/dashboard.md section 4.6). */
 export function renderRecentRow(path: string, callbacks: FavoritesCallbacks): HTMLElement {
   const el = document.createElement('div');
   el.className = 'recent-row';
   el.title = path;
-  el.addEventListener('click', (e) => callbacks.onOpen(path, { collapsed: e.ctrlKey }));
+  el.addEventListener('click', (e) => callbacks.onOpen(path, { collapsed: primaryHeld(e) }));
   attachBodyDrag(el, (e) => callbacks.onDragStart(path, e));
 
   const name = document.createElement('span');

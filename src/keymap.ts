@@ -1,6 +1,8 @@
 import { ACTION_REGISTRY, actionArg, type ActionName } from './actionRegistry';
-import defaultKeybindings from './defaultKeybindings.json';
+import windowsDefaultKeybindings from './defaultKeybindings.json';
+import macDefaultKeybindings from './defaultKeybindings.macos.json';
 import type { Direction } from './layout';
+import { platformOs, type Os } from './platform';
 
 export type { Direction };
 
@@ -105,7 +107,17 @@ const EVENT_KEY_NAMES: Record<string, string> = {
 
 const MODIFIER_KEYS = new Set(['Control', 'Alt', 'Shift', 'Meta', 'AltGraph', 'OS']);
 
-const ALIASES: Record<string, string> = { win: 'meta', esc: 'escape', del: 'delete', ins: 'insert' };
+// cmd and win are both the Meta bit, so a settings file reads naturally on either OS.
+const ALIASES: Record<string, string> = {
+  win: 'meta',
+  cmd: 'meta',
+  command: 'meta',
+  option: 'alt',
+  opt: 'alt',
+  esc: 'escape',
+  del: 'delete',
+  ins: 'insert',
+};
 
 export function parseChord(s: string): Chord | null {
   const text = s.trim().toLowerCase();
@@ -135,10 +147,13 @@ export function parseChord(s: string): Chord | null {
   return chord.key ? chord : null;
 }
 
-/** The canonical settings spelling of a chord, in the style of DEFAULT_KEYBINDINGS ("ctrl++" is the plus key). */
-export function chordKeys(c: Chord): string {
-  const mods = [c.ctrl && 'ctrl', c.alt && 'alt', c.shift && 'shift', c.meta && 'win'].filter(Boolean) as string[];
-  return [...mods, c.key].join('+');
+/** The canonical settings spelling of a chord, in the style of the OS's defaults table ("ctrl++" is the plus key). */
+export function chordKeys(c: Chord, os: Os = platformOs()): string {
+  const mods =
+    os === 'macos'
+      ? [c.meta && 'cmd', c.ctrl && 'ctrl', c.alt && 'option', c.shift && 'shift']
+      : [c.ctrl && 'ctrl', c.alt && 'alt', c.shift && 'shift', c.meta && 'win'];
+  return [...mods.filter(Boolean), c.key].join('+');
 }
 
 export function chordFromEvent(e: KeyboardEvent): Chord {
@@ -221,5 +236,16 @@ export function lookup(keymap: Keymap, e: KeyboardEvent): Action | null {
   return keymap.get(chordId(chord)) ?? null;
 }
 
-/** The built-in defaults; default_keybindings() in src-tauri/src/settings/keybindings.rs reads the same file. */
-export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = defaultKeybindings as KeybindingEntry[];
+/**
+ * The built-in defaults for Windows and Linux; default_keybindings() in
+ * src-tauri/src/settings/keybindings.rs reads the same file.
+ */
+export const DEFAULT_KEYBINDINGS: KeybindingEntry[] = windowsDefaultKeybindings as KeybindingEntry[];
+
+/** The macOS defaults: app actions on Cmd, so every Ctrl and Option chord reaches the shell. */
+export const MAC_DEFAULT_KEYBINDINGS: KeybindingEntry[] = macDefaultKeybindings as KeybindingEntry[];
+
+/** The defaults table for `os`, matching the one the Rust loader layers the user's entries over. */
+export function defaultKeybindings(os: Os = platformOs()): KeybindingEntry[] {
+  return os === 'macos' ? MAC_DEFAULT_KEYBINDINGS : DEFAULT_KEYBINDINGS;
+}

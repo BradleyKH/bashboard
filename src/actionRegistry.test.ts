@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { ACTION_REGISTRY, actionArg } from './actionRegistry';
 import keysDoc from '../docs/design/keys.md?raw';
 import userGuide from '../docs/user-guide.md?raw';
-import defaultKeybindings from './defaultKeybindings.json';
+import windowsKeybindings from './defaultKeybindings.json';
+import macKeybindings from './defaultKeybindings.macos.json';
+
+const defaultKeybindings = [...windowsKeybindings, ...macKeybindings];
 
 const names = ACTION_REGISTRY.map((r) => r.name as string);
 
@@ -21,7 +24,7 @@ describe('ACTION_REGISTRY', () => {
     }
   });
 
-  it('knows every action in defaultKeybindings.json', () => {
+  it('knows every action in both default keybinding files', () => {
     for (const e of defaultKeybindings) expect(names, e.action).toContain(e.action);
   });
 

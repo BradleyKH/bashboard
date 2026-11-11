@@ -10,6 +10,7 @@ import { profileBadge } from './profiles';
 import { attachReorder } from './rowReorder';
 import { iconButton, setRowRename, startRename } from './rowControls';
 import { attachBodyDrag } from './bodyDrag';
+import { primaryHeld } from './platform';
 
 const DOUBLE_CLICK_MS = 300;
 
@@ -25,7 +26,7 @@ export function renderFavoriteRow(
   // A click on the label waits out a possible double-click, which renames instead of opening.
   let openTimer: number | undefined;
   el.addEventListener('click', (e) => {
-    const collapsed = e.ctrlKey;
+    const collapsed = primaryHeld(e);
     if (!(e.target as HTMLElement).closest('.favorite-label')) {
       callbacks.onOpen(favorite.path, { collapsed });
       return;

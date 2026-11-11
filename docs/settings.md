@@ -122,6 +122,10 @@ Ctrl+Alt+1 through Ctrl+Alt+8 to it:
 Keys that type text (`sendInput`) are added in the file; the guide lists them but has no field
 for their text.
 
+A chord names its modifiers with `ctrl`, `alt`, `shift`, and `win`. On macOS, write `cmd` for
+Command and `option` for Option (`win` and `alt` still work); the macOS defaults are Cmd chords,
+so there the first example above is `{ "keys": "cmd+w", "action": "unbound" }`.
+
 The background (the backdrop) has seven styles, chosen with `backdrop.style` or the Background
 select in the Background section of the Settings tab: `lights` (Swirling Lights, the
 default, a living colony simulation), `galaxy` (Galaxy, a slowly turning spiral galaxy), `matrix` (Matrix, falling glyph rain), `wave` (Wave, a large version of the

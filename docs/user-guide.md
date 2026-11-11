@@ -25,6 +25,11 @@
 - [Agent glow and border lights](#agent-glow-and-border-lights)
 - [Help, settings, and shortcuts](#help-settings-and-shortcuts)
 - [Pane CLI](#pane-cli)
+- [Keys on macOS](#keys-on-macos)
+
+This guide names the Windows keys. On macOS the app's keys move onto Cmd and every Ctrl and
+Option chord goes to the shell; see [Keys on macOS](#keys-on-macos). The Shortcuts tab (F1, then
+Shortcuts) always shows the keys for the machine you are on.
 
 ## Tabs
 
@@ -1094,3 +1099,35 @@ pane's `PATH`. `bb help` and `bb auth` work anywhere; outside a Bashboard pane e
 unknown option, or an app that cannot be reached, prints a `bb: ` message to standard error and
 exits 1. A successful command prints nothing, apart from `bb auth` saying what it stored or removed, and
 exits 0.
+
+## Keys on macOS
+
+On macOS the shell never sees Cmd, so Bashboard puts its keys there and leaves Ctrl and Option
+to the shell: Ctrl+C interrupts, Ctrl+W deletes a word, and Option+B and Option+F move by word.
+The splits and pane keys follow iTerm2.
+
+| Action | Windows | macOS |
+| --- | --- | --- |
+| Copy, paste | Ctrl+C, Ctrl+V | Cmd+C, Cmd+V |
+| Split right, split down | Ctrl+Shift+Right, Ctrl+Shift+Down | Cmd+D, Cmd+Shift+D |
+| Split auto, split with a chosen shell | Alt+Shift+D, Alt+Shift+T | Cmd+Option+D, Cmd+Option+T |
+| Close pane | Ctrl+W | Cmd+W |
+| Move focus | Alt+Arrow | Cmd+Option+Arrow |
+| Resize pane | Alt+Shift+Arrow | Cmd+Ctrl+Arrow |
+| Zoom pane | Ctrl+Shift+Z | Cmd+Shift+Enter |
+| New tab, close tab | Ctrl+Shift+T, Ctrl+Shift+W | Cmd+T, Cmd+Shift+W |
+| Next tab, previous tab | Ctrl+Tab, Ctrl+Shift+Tab | Cmd+Shift+], Cmd+Shift+[ (Ctrl+Tab works too) |
+| Go to tab 1 to 8, last tab | Ctrl+Alt+1 to 8, Ctrl+Alt+9 | Cmd+1 to 8, Cmd+9 |
+| Find | Ctrl+Shift+F | Cmd+F |
+| Go to line | Ctrl+G | Cmd+L |
+| Toggle the dashboard | Ctrl+Shift+D | Cmd+B |
+| Settings | Ctrl+, | Cmd+, |
+| Full screen | F11 | Cmd+Ctrl+F |
+| Text size | Ctrl+=, Ctrl+-, Ctrl+0 | Cmd+=, Cmd+-, Cmd+0 |
+| Save in the text editor | Ctrl+S | Cmd+S |
+| Commit, send a scratch pad, open a favorite collapsed | Ctrl+Enter | Cmd+Enter |
+| Open a link, toggle a Files row | Ctrl+click | Cmd+click |
+
+Every other Ctrl+Shift key in this guide is Cmd+Shift on macOS: Cmd+Shift+P for the palette,
+Cmd+Shift+N for the next terminal that needs you, Cmd+Shift+E, G, H, and X for Files, Git,
+Search, and the editor, and so on. Cmd+Q quits, saving the workspace first.

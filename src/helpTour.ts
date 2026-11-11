@@ -1,5 +1,6 @@
 import { chordHint } from './paletteModel';
 import type { Direction, KeybindingEntry } from './keymap';
+import { primaryName } from './platform';
 
 /** One run of a tour paragraph: plain text, or the live keys of an action. */
 export type TourPart = { text: string } | { keys: string[] } | { unbound: string };
@@ -11,7 +12,8 @@ export interface TourSection {
 
 /**
  * The Help tab's short tour of docs/user-guide.md. `{action}` or `{action:direction}` stands for
- * the keys bound to that action, read from the live keymap so overrides show.
+ * the keys bound to that action, read from the live keymap so overrides show. "Mod" is the OS's
+ * command modifier: Cmd on macOS, Ctrl elsewhere.
  */
 const TOUR: { title: string; paragraphs: string[] }[] = [
   {
@@ -43,7 +45,7 @@ const TOUR: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Finding things',
     paragraphs: [
-      '{openPalette} opens the command palette over panes, tabs, favorites, layouts, and every action. {find} searches the focused terminal\'s scrollback, and Ctrl+click opens a link in the output.',
+      '{openPalette} opens the command palette over panes, tabs, favorites, layouts, and every action. {find} searches the focused terminal\'s scrollback, and Mod+click opens a link in the output.',
     ],
   },
   {
@@ -75,7 +77,11 @@ export function tourParagraph(text: string, entries: KeybindingEntry[]): TourPar
 }
 
 export function tourSections(entries: KeybindingEntry[]): TourSection[] {
-  return TOUR.map((s) => ({ title: s.title, paragraphs: s.paragraphs.map((p) => tourParagraph(p, entries)) }));
+  const mod = primaryName();
+  return TOUR.map((s) => ({
+    title: s.title,
+    paragraphs: s.paragraphs.map((p) => tourParagraph(p.split('Mod+').join(`${mod}+`), entries)),
+  }));
 }
 
 /** Every `{action}` the tour names, for checking it against the keymap's action list. */
