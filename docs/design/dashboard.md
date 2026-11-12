@@ -467,8 +467,9 @@ the same as a card. The section is hidden while there are none.
 
 **Footer.** One install button sits at the bottom of the panel for each detected agent whose
 hooks are not installed (3.3): "Install Claude Code hooks", "Install Codex hooks (preview)", and
-"Install Copilot hooks (preview)". A button reads "Update <agent> hooks" instead when the
-agent's hook config is complete and only the hook program is out of date. With every detected
+"Install Copilot hooks (preview)". A button reads "Update <agent> hooks" instead when
+nothing would be added to the agent's hook config but its existing Bashboard entries or the hook
+program are out of date. With every detected
 agent's hooks in, the footer takes no space.
 
 The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the

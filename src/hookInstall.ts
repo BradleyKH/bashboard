@@ -16,7 +16,10 @@ export interface HookInstallPreview {
   /** The agent's hook config file: `settings.json`, `hooks.json`, or `hooks/bashboard.json`. */
   settingsPath: string;
   scriptPath: string;
+  /** Events install would append a group to, each with the group it registers. */
   additions: Record<string, unknown[]>;
+  /** Events whose existing Bashboard handlers install would rewrite, in the same shape. */
+  updates: Record<string, unknown[]>;
   alreadyInstalled: boolean;
   scriptState: HookScriptState;
   /** `detected` for Claude Code, false for other agents. */

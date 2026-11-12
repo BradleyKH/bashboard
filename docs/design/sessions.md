@@ -147,10 +147,15 @@ exact transitions as they happen.
 
   The dashboard panel has an "Install Claude Code hooks" button, shown while Claude Code is
   detected (`~/.claude` exists, checked at startup) and the hooks are not fully installed. It shows the exact JSON it will merge and writes it only after
-  confirmation; it never edits `settings.json` silently. When every group is already registered
-  with the current command and only the program is outdated, the button, the dialog title, and its confirm button say
-  "Update" instead of "Install", and the dialog says the hooks in settings are already in place
-  and only the hook program will be updated, with no JSON. The install copies the program to
+  confirmation; it never edits `settings.json` silently. The preview lists the hooks it would
+  rewrite ("Updates these hooks in") and the hooks it would append ("Adds these hooks to")
+  separately, showing both blocks when both apply. When nothing would be added and either
+  existing Bashboard handlers run an older command or the program is outdated, the button, the
+  dialog title, and its confirm button say "Update" instead of "Install". When every handler is
+  already current and only the program needs writing, the dialog says the hooks in settings are
+  already in place and only the hook program will be written or updated, with no JSON. Copilot's
+  `hooks/bashboard.json` is written whole, so a file that exists but differs is listed as updated
+  and a missing one as added. The install copies the program to
   `~/.claude/hooks/bashboard-hook.exe` (home is `USERPROFILE`, else `HOME`) when it is missing or
   outdated, then re-reads
   `settings.json` and merges the groups, through a temporary file and a rename. A missing

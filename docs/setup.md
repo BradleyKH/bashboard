@@ -99,8 +99,10 @@ has run on this machine (`~/.claude` exists when Bashboard starts) and is hidden
 is installed. Claude sessions started after the install report `waiting`.
 
 The hook program carries a version. When the hooks are registered but the installed program is
-older than the app's, or has no version, the button reads **Update Claude Code hooks** and the
-Setup list shows that the hook is out of date; updating rewrites only the program. A program
+older than the app's (or has no version), or the registered entries run an older command, the
+button reads **Update Claude Code hooks** and the Setup list shows that the hooks are out of date.
+The confirmation lists the entries it rewrites apart from any it adds, and updating changes only
+what is out of date. A program
 from a newer Bashboard counts as installed and is never replaced by an older one, and a copy at
 the app's version is left alone. The same applies to the Codex and Copilot hooks below. An
 older installed copy of Bashboard recognizes only the old `bashboard-hook.sh` entries, so

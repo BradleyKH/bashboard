@@ -95,7 +95,7 @@ export function hooksRow(agent: AgentId, preview: HookInstallPreview | null): St
     return {
       ...base,
       level: 'missing',
-      text: 'Hook program out of date; the hooks are registered, but the program needs updating',
+      text: 'Out of date; Update brings the hook entries and hook program current',
       fix: { kind: 'hooks', agent, label: 'Update' },
     };
   }

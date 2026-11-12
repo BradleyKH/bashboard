@@ -718,7 +718,7 @@ export class SetupWizard {
       } else {
         if (update) {
           const status = document.createElement('span');
-          status.textContent = 'Hook program out of date';
+          status.textContent = 'Hooks out of date';
           row.append(status);
         }
         const install = this.button(`${update ? 'Update' : 'Install'} ${name} hooks`, () => void this.install(agent));

@@ -674,7 +674,8 @@ export class DashboardPanel {
 
   /**
    * Shows an install button for each of `agents`, the detected ones whose hooks are missing;
-   * `update` labels it Update when only the hook program needs refreshing.
+   * `update` labels it Update when nothing is missing but existing entries or the hook program
+   * are out of date.
    */
   setMissingHooks(agents: { agent: AgentId; update: boolean }[]): void {
     this.hooksFooter.replaceChildren(

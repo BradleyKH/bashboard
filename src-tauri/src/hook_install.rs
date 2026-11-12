@@ -86,8 +86,10 @@ pub struct Preview {
     pub settings_path: String,
     /// The installed hook binary.
     pub script_path: String,
-    /// Events install would append to or rewrite, each with the group it would register.
+    /// Events install would append a group to, each with the group it would register.
     pub additions: Map<String, Value>,
+    /// Events whose existing Bashboard handlers install would rewrite, in the same shape.
+    pub updates: Map<String, Value>,
     pub already_installed: bool,
     pub script_state: ScriptState,
     /// Whether the agent's home folder exists, i.e. the agent has run on this machine.
@@ -359,24 +361,40 @@ fn merge_into(
     Ok(())
 }
 
-/// The hook file as install would leave it, and the preview's additions: events gaining a group
-/// plus events whose Bashboard handler is rewritten. Empty additions mean nothing changes.
+/// The hook file as install would leave it, as computed by `merged`.
+struct Merged {
+    file: Value,
+    /// Events gaining a group.
+    additions: Map<String, Value>,
+    /// Events whose Bashboard handlers are rewritten.
+    updates: Map<String, Value>,
+}
+
+impl Merged {
+    fn changes(&self) -> bool {
+        !self.additions.is_empty() || !self.updates.is_empty()
+    }
+}
+
 fn merged(
     settings: &Value,
     events: &[&str],
     new_group: &Value,
     label: &str,
-) -> Result<(Value, Map<String, Value>), String> {
-    let mut additions = additions_for(settings, events, new_group, label)?;
-    let mut out = settings.clone();
-    let rewritten = rewrite_ours(&mut out, &new_group["hooks"][0]);
-    merge_into(&mut out, &additions, label)?;
-    for event in rewritten {
-        additions
-            .entry(event)
-            .or_insert_with(|| json!([new_group.clone()]));
-    }
-    Ok((out, additions))
+) -> Result<Merged, String> {
+    let additions = additions_for(settings, events, new_group, label)?;
+    let mut file = settings.clone();
+    let rewritten = rewrite_ours(&mut file, &new_group["hooks"][0]);
+    merge_into(&mut file, &additions, label)?;
+    let updates = rewritten
+        .into_iter()
+        .map(|event| (event, json!([new_group.clone()])))
+        .collect();
+    Ok(Merged {
+        file,
+        additions,
+        updates,
+    })
 }
 
 fn pretty(value: &Value) -> Result<String, String> {
@@ -456,7 +474,7 @@ fn remove_legacy_script(home: &Path) {
 fn preview_in(claude_dir: &Path) -> Result<Preview, String> {
     let settings_path = settings_path(claude_dir);
     let hook_path = hook_path(claude_dir);
-    let (_, additions) = merged(
+    let m = merged(
         &read_settings(&settings_path)?,
         &EVENTS,
         &group(),
@@ -469,11 +487,12 @@ fn preview_in(claude_dir: &Path) -> Result<Preview, String> {
         agent: AgentId::Claude,
         settings_path: settings_path.to_string_lossy().into_owned(),
         script_path: hook_path.to_string_lossy().into_owned(),
-        already_installed: additions.is_empty() && script_state.installed(),
+        already_installed: !m.changes() && script_state.installed(),
         script_state,
         detected,
         claude_detected: detected,
-        additions,
+        additions: m.additions,
+        updates: m.updates,
         trust: None,
     })
 }
@@ -481,7 +500,7 @@ fn preview_in(claude_dir: &Path) -> Result<Preview, String> {
 fn install_in(claude_dir: &Path, source: &Path) -> Result<(), String> {
     let settings_path = settings_path(claude_dir);
     // Validate before writing anything so a bad settings.json leaves the disk untouched.
-    let (settings, additions) = merged(
+    let m = merged(
         &read_settings(&settings_path)?,
         &EVENTS,
         &group(),
@@ -490,8 +509,8 @@ fn install_in(claude_dir: &Path, source: &Path) -> Result<(), String> {
 
     write_hook(&hook_path(claude_dir), source)?;
 
-    if !additions.is_empty() {
-        write_atomic(&settings_path, pretty(&settings)?)?;
+    if m.changes() {
+        write_atomic(&settings_path, pretty(&m.file)?)?;
     }
     remove_legacy_script(claude_dir);
     Ok(())
@@ -631,25 +650,26 @@ fn codex_preview(t: &Target) -> Result<Preview, String> {
     let hooks_path = codex_hooks_path(&t.home);
     let hook_path = hook_path(&t.home);
     let hooks = read_settings(&hooks_path)?;
-    let (_, additions) = merged(&hooks, &CODEX_EVENTS, &codex_group(t), "hooks.json")?;
+    let m = merged(&hooks, &CODEX_EVENTS, &codex_group(t), "hooks.json")?;
     let config = std::fs::read_to_string(t.home.join("config.toml")).ok();
     let script_state = hook_state(&hook_path);
     Ok(Preview {
         agent: AgentId::Codex,
         settings_path: hooks_path.to_string_lossy().into_owned(),
         script_path: hook_path.to_string_lossy().into_owned(),
-        already_installed: additions.is_empty() && script_state.installed(),
+        already_installed: !m.changes() && script_state.installed(),
         script_state,
         detected: t.agent.agent().detected_at(Some(&t.home)),
         claude_detected: false,
         trust: codex_trust(&hooks_path, &hooks, config.as_deref()),
-        additions,
+        additions: m.additions,
+        updates: m.updates,
     })
 }
 
 fn codex_install(t: &Target, source: &Path) -> Result<(), String> {
     let hooks_path = codex_hooks_path(&t.home);
-    let (hooks, additions) = merged(
+    let m = merged(
         &read_settings(&hooks_path)?,
         &CODEX_EVENTS,
         &codex_group(t),
@@ -658,8 +678,8 @@ fn codex_install(t: &Target, source: &Path) -> Result<(), String> {
 
     write_hook(&hook_path(&t.home), source)?;
 
-    if !additions.is_empty() {
-        write_atomic(&hooks_path, pretty(&hooks)?)?;
+    if m.changes() {
+        write_atomic(&hooks_path, pretty(&m.file)?)?;
     }
     remove_legacy_script(&t.home);
     Ok(())
@@ -696,10 +716,14 @@ fn copilot_preview(t: &Target) -> Result<Preview, String> {
         .and_then(|s| serde_json::from_str::<Value>(&s).ok());
     let file_current = current.as_ref() == Some(&expected);
     let script_state = hook_state(&hook_path);
-    let additions = if file_current {
-        Map::new()
+    // The file is written whole, so a differing one is updated rather than added to. Unreadable
+    // JSON counts as present: install overwrites it all the same.
+    let (additions, updates) = if file_current {
+        (Map::new(), Map::new())
+    } else if file_path.exists() {
+        (Map::new(), copilot_hooks(t))
     } else {
-        copilot_hooks(t)
+        (copilot_hooks(t), Map::new())
     };
     Ok(Preview {
         agent: AgentId::Copilot,
@@ -710,6 +734,7 @@ fn copilot_preview(t: &Target) -> Result<Preview, String> {
         detected: t.agent.agent().detected_at(Some(&t.home)),
         claude_detected: false,
         additions,
+        updates,
         trust: None,
     })
 }
@@ -820,6 +845,7 @@ mod tests {
         let dir = temp_dir("missing");
         let p = preview_in(&dir).unwrap();
         assert_eq!(p.additions.len(), 5);
+        assert!(p.updates.is_empty());
         assert!(!p.already_installed);
         assert_eq!(p.script_state, ScriptState::Missing);
         install_in(&dir, src()).unwrap();
@@ -884,7 +910,7 @@ mod tests {
         install_in(&dir, src()).unwrap();
         let first = std::fs::read(dir.join("settings.json")).unwrap();
         let p = preview_in(&dir).unwrap();
-        assert!(p.additions.is_empty());
+        assert!(p.additions.is_empty() && p.updates.is_empty());
         assert!(p.already_installed);
         install_in(&dir, src()).unwrap();
         assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), first);
@@ -1058,7 +1084,9 @@ mod tests {
         std::fs::write(legacy_script_path(&dir), "#!/usr/bin/env bash\n").unwrap();
 
         let p = preview_in(&dir).unwrap();
-        assert_eq!(p.additions.len(), EVENTS.len());
+        assert!(p.additions.is_empty());
+        assert_eq!(p.updates.len(), EVENTS.len());
+        assert_eq!(p.updates["Stop"], json!([group()]));
         assert!(!p.already_installed);
         install_in(&dir, src()).unwrap();
 
@@ -1080,7 +1108,36 @@ mod tests {
         assert_eq!(stop[0]["command"], "notify.sh");
         assert_eq!(stop[1]["command"], claude_command());
         assert!(!legacy_script_path(&dir).exists());
-        assert!(preview_in(&dir).unwrap().already_installed);
+        let p = preview_in(&dir).unwrap();
+        assert!(p.additions.is_empty() && p.updates.is_empty() && p.already_installed);
+    }
+
+    #[test]
+    fn missing_events_are_additions_and_old_entries_are_updates() {
+        let dir = temp_dir("claude-split");
+        let old = json!({ "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/bashboard-hook.sh", "timeout": 5 }] });
+        let settings = json!({ "hooks": {
+            "Stop": [old.clone()],
+            "Notification": [old],
+            "SessionStart": [group()]
+        } });
+        std::fs::write(dir.join("settings.json"), pretty(&settings).unwrap()).unwrap();
+        std::fs::create_dir_all(dir.join("hooks")).unwrap();
+        std::fs::write(hook_path(&dir), binary(HOOK_VERSION)).unwrap();
+        let p = preview_in(&dir).unwrap();
+        let mut updated: Vec<&String> = p.updates.keys().collect();
+        updated.sort();
+        assert_eq!(updated, ["Notification", "Stop"]);
+        let added: Vec<&String> = p.additions.keys().collect();
+        assert_eq!(added.len(), EVENTS.len() - 3);
+        for event in ["Stop", "Notification", "SessionStart"] {
+            assert!(!p.additions.contains_key(event), "{event}");
+        }
+        assert!(!p.updates.contains_key("SessionStart"));
+        assert!(!p.already_installed);
+        install_in(&dir, src()).unwrap();
+        let p = preview_in(&dir).unwrap();
+        assert!(p.additions.is_empty() && p.updates.is_empty() && p.already_installed);
     }
 
     #[test]
@@ -1133,6 +1190,7 @@ mod tests {
         assert_eq!(v["claudeDetected"], true);
         assert!(v.get("bashFound").is_none());
         assert!(v["additions"]["Stop"].is_array());
+        assert!(v["updates"].as_object().unwrap().is_empty());
     }
 
     fn target_in(agent: AgentId, home: &Path) -> Target {
@@ -1276,7 +1334,7 @@ mod tests {
 
         let first = std::fs::read(home.join("hooks.json")).unwrap();
         let p = preview_for(&t).unwrap();
-        assert!(p.additions.is_empty());
+        assert!(p.additions.is_empty() && p.updates.is_empty());
         assert!(p.already_installed);
         install_for(&t, src()).unwrap();
         assert_eq!(std::fs::read(home.join("hooks.json")).unwrap(), first);
@@ -1315,7 +1373,9 @@ mod tests {
 
         let t = target_in(AgentId::Codex, &home);
         let p = preview_for(&t).unwrap();
-        assert_eq!(p.additions.len(), CODEX_EVENTS.len());
+        assert!(p.additions.is_empty());
+        assert_eq!(p.updates.len(), CODEX_EVENTS.len());
+        assert!(!p.already_installed);
         install_for(&t, src()).unwrap();
 
         let after = read_file(&home.join("hooks.json"));
@@ -1337,7 +1397,8 @@ mod tests {
         let before_keys: Vec<&String> = hooks["hooks"].as_object().unwrap().keys().collect();
         assert_eq!(hook_keys, before_keys);
         assert!(!legacy_script_path(&home).exists());
-        assert!(preview_for(&t).unwrap().already_installed);
+        let p = preview_for(&t).unwrap();
+        assert!(p.additions.is_empty() && p.updates.is_empty() && p.already_installed);
     }
 
     #[test]
@@ -1423,6 +1484,7 @@ mod tests {
         assert_eq!(p.agent, AgentId::Copilot);
         assert!(p.detected && !p.already_installed);
         assert_eq!(p.additions.len(), COPILOT_EVENTS.len());
+        assert!(p.updates.is_empty());
         assert!(p.settings_path.ends_with(COPILOT_FILE));
         install_for(&t, src()).unwrap();
         let file_path = home.join("hooks").join(COPILOT_FILE);
@@ -1440,11 +1502,13 @@ mod tests {
         assert_eq!(e["timeoutSec"], 5);
         assert_eq!(installed_bytes(&home), binary(HOOK_VERSION));
         let p = preview_for(&t).unwrap();
-        assert!(p.already_installed && p.additions.is_empty());
+        assert!(p.already_installed && p.additions.is_empty() && p.updates.is_empty());
 
         let first = std::fs::read(&file_path).unwrap();
         std::fs::write(&file_path, "garbage").unwrap();
-        assert!(!preview_for(&t).unwrap().already_installed);
+        let p = preview_for(&t).unwrap();
+        assert!(!p.already_installed && p.additions.is_empty());
+        assert_eq!(p.updates.len(), COPILOT_EVENTS.len());
         install_for(&t, src()).unwrap();
         assert_eq!(std::fs::read(&file_path).unwrap(), first);
         assert!(!home.join("hooks").join("bashboard.json.tmp").exists());
@@ -1469,7 +1533,8 @@ mod tests {
         std::fs::write(legacy_script_path(&home), "#!/usr/bin/env bash\n").unwrap();
         let t = target_in(AgentId::Copilot, &home);
         let p = preview_for(&t).unwrap();
-        assert_eq!(p.additions.len(), COPILOT_EVENTS.len());
+        assert!(p.additions.is_empty());
+        assert_eq!(p.updates.len(), COPILOT_EVENTS.len());
         assert!(!p.already_installed);
         install_for(&t, src()).unwrap();
         assert_eq!(read_file(&copilot_file_path(&home)), copilot_file(&t));

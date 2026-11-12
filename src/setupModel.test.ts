@@ -97,6 +97,7 @@ describe('agentHooksFrom', () => {
     settingsPath: '',
     scriptPath: '',
     additions: {},
+    updates: {},
     alreadyInstalled: false,
     scriptState: 'missing',
     claudeDetected: false,
@@ -119,6 +120,8 @@ describe('agentHooksFrom', () => {
   it('marks an agent whose only gap is an outdated hook program as an update', () => {
     const [claude] = agentHooksFrom([preview({ claudeDetected: true, scriptState: 'outdated' })]);
     expect(claude).toMatchObject({ installed: false, update: true });
+    const [old] = agentHooksFrom([preview({ claudeDetected: true, scriptState: 'current', updates: { Stop: [] } })]);
+    expect(old).toMatchObject({ installed: false, update: true });
     const [fresh] = agentHooksFrom([preview({ claudeDetected: true, additions: { Stop: [] } })]);
     expect(fresh).toMatchObject({ installed: false, update: false });
   });

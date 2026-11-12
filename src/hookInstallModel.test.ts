@@ -4,11 +4,18 @@ import { hookAction, hookActionVerb, scriptLineLabel } from './hookInstallModel'
 describe('hookAction', () => {
   const stop = { Stop: [{}] };
 
-  it('is an update only when nothing is added and the hook program is outdated', () => {
-    expect(hookAction({ additions: {}, scriptState: 'outdated' })).toBe('update');
-    expect(hookAction({ additions: stop, scriptState: 'outdated' })).toBe('install');
-    expect(hookAction({ additions: {}, scriptState: 'missing' })).toBe('install');
-    expect(hookAction({ additions: stop, scriptState: 'newer' })).toBe('install');
+  it('is an update when nothing is added and the hook program is outdated', () => {
+    expect(hookAction({ additions: {}, updates: {}, scriptState: 'outdated' })).toBe('update');
+    expect(hookAction({ additions: stop, updates: {}, scriptState: 'outdated' })).toBe('install');
+    expect(hookAction({ additions: {}, updates: {}, scriptState: 'missing' })).toBe('install');
+    expect(hookAction({ additions: stop, updates: {}, scriptState: 'newer' })).toBe('install');
+  });
+
+  it('is an update when nothing is added and existing entries are out of date', () => {
+    expect(hookAction({ additions: {}, updates: stop, scriptState: 'current' })).toBe('update');
+    expect(hookAction({ additions: {}, updates: stop, scriptState: 'outdated' })).toBe('update');
+    expect(hookAction({ additions: {}, updates: stop, scriptState: 'missing' })).toBe('update');
+    expect(hookAction({ additions: { Notification: [{}] }, updates: stop, scriptState: 'current' })).toBe('install');
   });
 
   it('names the verb', () => {

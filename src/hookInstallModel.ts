@@ -3,12 +3,16 @@ import type { HookInstallPreview, HookScriptState } from './hookInstall';
 export type HookAction = 'install' | 'update';
 
 /**
- * `update` when the agent's hook config already has every entry and only the hook program needs
- * writing, so the dialog and buttons say "Update" rather than offering an install.
+ * `update` when the agent's hook config already has every entry and install would only rewrite
+ * existing entries or the outdated hook program, so the dialog and buttons say "Update" rather
+ * than offering an install. Any event to add makes it an install.
  */
-export function hookAction(preview: Pick<HookInstallPreview, 'additions' | 'scriptState'>): HookAction {
-  const nothingToAdd = Object.keys(preview.additions).length === 0;
-  return nothingToAdd && preview.scriptState === 'outdated' ? 'update' : 'install';
+export function hookAction(
+  preview: Pick<HookInstallPreview, 'additions' | 'updates' | 'scriptState'>,
+): HookAction {
+  if (Object.keys(preview.additions).length > 0) return 'install';
+  const entriesOld = Object.keys(preview.updates).length > 0;
+  return entriesOld || preview.scriptState === 'outdated' ? 'update' : 'install';
 }
 
 /** "Install" or "Update", for titles and buttons. */

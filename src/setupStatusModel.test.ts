@@ -18,6 +18,7 @@ const hooks = (over: Partial<HookInstallPreview>): HookInstallPreview => ({
   settingsPath: '',
   scriptPath: '',
   additions: {},
+  updates: {},
   alreadyInstalled: false,
   scriptState: 'missing',
   claudeDetected: true,
@@ -91,7 +92,13 @@ describe('hooksRow', () => {
 
   it('offers an update when only the hook program is out of date', () => {
     const row = hooksRow('claude', hooks({ scriptState: 'outdated' }));
-    expect(row).toMatchObject({ level: 'missing', text: expect.stringContaining('Hook program out of date') });
+    expect(row).toMatchObject({ level: 'missing', text: expect.stringContaining('Out of date') });
+    expect(row.fix).toEqual({ kind: 'hooks', agent: 'claude', label: 'Update' });
+  });
+
+  it('offers an update when registered entries run an older command', () => {
+    const row = hooksRow('claude', hooks({ scriptState: 'current', updates: { Stop: [{}] } }));
+    expect(row).toMatchObject({ level: 'missing', text: expect.stringContaining('Out of date') });
     expect(row.fix).toEqual({ kind: 'hooks', agent: 'claude', label: 'Update' });
   });
 

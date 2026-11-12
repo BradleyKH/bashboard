@@ -59,12 +59,15 @@ export class HookInstallDialog {
     const details: HTMLElement[] = [];
     const scriptLabel = scriptLineLabel(preview.scriptState);
     if (scriptLabel) details.push(this.line(scriptLabel, preview.scriptPath));
-    if (Object.keys(preview.additions).length > 0) {
-      const pre = document.createElement('pre');
-      pre.className = 'hook-dialog-json';
-      pre.textContent = JSON.stringify(preview.additions, null, 2);
-      details.push(this.line('Adds these hooks to', preview.settingsPath), pre);
-    } else {
+    const updates = Object.keys(preview.updates).length > 0;
+    const additions = Object.keys(preview.additions).length > 0;
+    if (updates) {
+      details.push(this.line('Updates these hooks in', preview.settingsPath), this.json(preview.updates));
+    }
+    if (additions) {
+      details.push(this.line('Adds these hooks to', preview.settingsPath), this.json(preview.additions));
+    }
+    if (!updates && !additions) {
       const change = preview.scriptState === 'missing' ? 'written' : 'updated';
       details.push(
         this.line('The hooks in', preview.settingsPath, ` are already in place; only the hook program will be ${change}.`),
@@ -116,6 +119,13 @@ export class HookInstallDialog {
     p.className = 'hook-dialog-line';
     p.textContent = text;
     return p;
+  }
+
+  private json(value: unknown): HTMLElement {
+    const pre = document.createElement('pre');
+    pre.className = 'hook-dialog-json';
+    pre.textContent = JSON.stringify(value, null, 2);
+    return pre;
   }
 
   private line(label: string, path: string, after = ''): HTMLElement {

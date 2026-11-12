@@ -33,7 +33,7 @@ export interface SetupStepOptions {
 export interface AgentHooks {
   agent: AgentId;
   installed: boolean;
-  /** Not installed, and only the hook program needs refreshing; buttons say Update. */
+  /** Not installed, but nothing is missing: existing entries or the hook program are out of date; buttons say Update. */
   update?: boolean;
   /** Codex only, once installed; null or absent otherwise. */
   trust?: CodexTrust | null;
