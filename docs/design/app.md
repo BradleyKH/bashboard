@@ -201,6 +201,36 @@ per-user verbs under `HKCU\Software\Classes` for `Directory\Background`, `Direct
 these verbs sit in the classic menu ("Show more options"), since the top-level menu takes only
 shell extensions registered by a signed package.
 
+## 3.22 Crash recovery and log (`src-tauri/src/crash_recovery.rs`, `src-tauri/src/app_log.rs`)
+
+The core and its ptys outlive the page, so a WebView2 failure must not leave a live process
+behind a dead window. The main window's `ProcessFailed` event drives recovery:
+
+- **Browser process exited.** The whole WebView is gone and cannot be reloaded. The core marks a
+  rebuild, destroys the window, holds off the exit that destroying the only window requests, and
+  once the runtime has released the `main` label builds the window again from its config entry,
+  with the same per-window setup as at startup. The new page starts as a reload does: it kills
+  the old ptys, whose channels died with the old page (3.1), and restores the saved workspace
+  (4.9). If the window cannot be rebuilt, the app exits rather than run with no window.
+- **Page renderer exited.** The WebView reloads the page.
+- **Page renderer unresponsive**, and every other kind (GPU, utility, a Local Browser frame's
+  renderer): logged only. An unresponsive page can recover, and reloading would kill every
+  pane's shell.
+
+Either recovery also clears the Local Browser registry (4.21), whose bindings name CDP sessions
+of the old page.
+
+The close button waits on the front end's close handler, which saves before destroying the
+window. Each `CloseRequested` arms a fallback: if the same window is still open 8 seconds later,
+the core destroys it, so a hung or dead page cannot hold the window open. A window rebuilt in
+the meantime is not affected.
+
+A release build has no console, so `app_log` points the process's stderr handle at
+`bashboard.log` in the app's log folder (`%LOCALAPPDATA%\dev.bashboard\logs` on Windows) at
+startup, and every `eprintln!` in the core lands there. A file over 1 MB is set aside as
+`bashboard.old.log` first. Startup, each failed WebView2 process, each rebuild, and each forced
+close write a line with a UTC timestamp. Debug builds keep stderr on the terminal.
+
 ## 4.17 Setup wizard
 
 Shown at launch when `settings.json` did not exist before that launch (the settings payload's

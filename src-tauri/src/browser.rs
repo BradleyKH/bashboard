@@ -251,6 +251,13 @@ impl BrowserState {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// Forgets every session, channel, and chord report, for a page that reloaded or a WebView
+    /// that was rebuilt (docs/design/app.md section 3.22). A stale binding would otherwise
+    /// answer `session_for_pane` for a restored pane with a session that no longer exists.
+    pub fn reset(&self) {
+        *self.lock() = Registry::default();
+    }
+
     /// The pane whose frame holds keyboard focus, if any. A pane that has detached no longer
     /// counts, so a focus report that raced its pane's disposal cannot claim keys.
     pub fn focused_pane_attached(&self) -> Option<String> {

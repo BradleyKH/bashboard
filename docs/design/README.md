@@ -35,6 +35,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.19 Local model servers (`src-tauri/src/model_servers.rs`) | [containers.md](containers.md) |
 | 3.20 Ship (`src-tauri/src/forge/`) | [ship.md](ship.md) |
 | 3.21 Local file server (`src-tauri/src/browser_files/`) | [browser.md](browser.md) |
+| 3.22 Crash recovery and log (`src-tauri/src/crash_recovery.rs`, `src-tauri/src/app_log.rs`) | [app.md](app.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |

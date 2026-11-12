@@ -208,6 +208,18 @@ On macOS, run this list as well:
 - Cmd+S saves in the text editor, Cmd+Enter commits in the Git pane, and Cmd+click opens a
   terminal link
 
+## Logs and crashes
+
+The installed app writes the core's diagnostics to `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`
+(the previous file, once it passes 1 MB, is `bashboard.old.log`); a debug build prints them to
+the terminal that ran it instead. A WebView2 crash also leaves a minidump under
+`%LOCALAPPDATA%\dev.bashboard\EBWebView\Crashpad\reports` (`dev\EBWebView` for a debug build),
+and the `watson_metadata` file beside `reports` names the process type and module that failed.
+
+To exercise crash recovery against a `pnpm tauri dev` run, end the `msedgewebview2.exe` that is
+a direct child of `target\debug\bashboard.exe` (the window rebuilds), or its `--type=renderer`
+child (the page reloads).
+
 ## Debugging input
 
 Set `BASHBOARD_KEYLOG` to a file path before launching, and every keystroke and paste sent to a

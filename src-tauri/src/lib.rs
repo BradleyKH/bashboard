@@ -1,4 +1,5 @@
 mod agents;
+mod app_log;
 mod backdrop_image;
 mod browser;
 mod browser_files;
@@ -8,6 +9,7 @@ mod cli;
 mod clipboard;
 mod config_dir;
 mod containers;
+mod crash_recovery;
 mod credential_store;
 mod editors;
 mod files;
@@ -44,6 +46,7 @@ mod toast;
 mod transcript;
 mod workspace;
 
+#[cfg(debug_assertions)]
 use tauri::Manager;
 
 /// WebView2 claims browser shortcuts (Ctrl+F find, Ctrl+R reload, Ctrl+P print, zoom, ...)
@@ -134,6 +137,16 @@ fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWin
     builder.build()
 }
 
+/// What every main window needs once built, at startup and again when one replaces a window
+/// whose WebView died (docs/design/app.md section 3.22).
+fn setup_main_window(window: &tauri::WebviewWindow) {
+    #[cfg(windows)]
+    disable_browser_accelerators(window);
+    #[cfg(windows)]
+    browser::init(window);
+    crash_recovery::watch(window);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     login_path::adopt();
@@ -170,6 +183,7 @@ pub fn run() {
         .manage(browser_files::FileServerState::default())
         .manage(second_instance::StartupFolder::from_args())
         .setup(|app| {
+            app_log::init(app.handle());
             let window = create_main_window(app.handle())?;
             settings::init(app.handle());
             git_fetch::init(app.handle());
@@ -179,12 +193,7 @@ pub fn run() {
             workspace::init(app.handle());
             pty::init_activity(app.handle());
             containers::init(app.handle());
-            #[cfg(windows)]
-            disable_browser_accelerators(&window);
-            #[cfg(windows)]
-            browser::init(&window);
-            #[cfg(not(windows))]
-            let _ = window;
+            setup_main_window(&window);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -324,6 +333,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            crash_recovery::on_run_event(app, &event);
             if let tauri::RunEvent::Exit = event {
                 containers::shutdown(app);
             }

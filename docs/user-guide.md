@@ -705,6 +705,10 @@ prompt below it. It is saved when you close the window, so after a crash you get
 from the last normal close. Container shells and terminals opened from a layout start empty. Turn
 off **Restore terminal scrollback** in Settings (`restore.scrollback`) to stop saving it.
 
+If the window's web view crashes, Bashboard rebuilds the window and restores your workspace the
+same way, with fresh shells. If the window ever stops responding, the close button still closes
+it after a few seconds. Either event is recorded in `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`.
+
 When a terminal starts waiting while the panel is hidden, the panel peeks open over the panes for
 a few seconds and stays while the pointer is over it. Set `dashboard.peekOnWaiting` to `false`
 to turn the peek off. It comes in from the dashboard's side:
