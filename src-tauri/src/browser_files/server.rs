@@ -1626,9 +1626,14 @@ mod tests {
         h.serve("p2", "index.html");
         let body = r#"{"csp-report":{"blocked-uri":"https://a.example/","effective-directive":"img-src"}}"#;
         assert_eq!(post_report(&a, body, body.len()).status, 204);
+        // FSEvents can deliver the harness's own writes as FileChanged after the watch starts.
         let events = lock(&h.events);
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].0, "p1");
+        let reports: Vec<_> = events
+            .iter()
+            .filter(|(_, e)| matches!(e, BrowserEvent::EgressBlocked { .. }))
+            .collect();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].0, "p1");
     }
 
     #[test]
