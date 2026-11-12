@@ -720,6 +720,11 @@ export class Workspace {
     await persistence.saveScrollback(this.ctx, enabled);
   }
 
+  /** Design 4.9: saves the scrollback of terminals with new output, each after `idle` resolves. */
+  async saveChangedScrollback(idle: () => Promise<void>): Promise<void> {
+    await persistence.saveChangedScrollback(this.ctx, idle);
+  }
+
   /** Saves every pad's and Files editor's pending text now, for the window closing. */
   async flushPanes(): Promise<void> {
     await persistence.flushPanes(this.ctx);

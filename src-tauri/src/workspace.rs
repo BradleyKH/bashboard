@@ -12,6 +12,8 @@ use std::{
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
+use crate::atomic_file::{with_suffix, write_atomic};
+use crate::lock::LockExt;
 
 const WORKSPACE_FILE: &str = "workspace.json";
 const FAVORITES_FILE: &str = "favorites.json";
@@ -27,43 +29,81 @@ const WATCHED: &[(&str, &str)] = &[
     (PINS_FILE, "pins://changed"),
 ];
 
-/// Missing files and invalid JSON both read as `None`; the latter is logged.
-fn load_file(path: &Path) -> Option<Value> {
+enum Loaded {
+    Value(Value),
+    Missing,
+    Invalid,
+    Unreadable,
+}
+
+/// Reads and parses `path`, logging why a file that exists could not be used.
+fn read_json(path: &Path) -> Loaded {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Loaded::Missing,
         Err(e) => {
             eprintln!("workspace: could not read {}: {e}", path.display());
-            return None;
+            return Loaded::Unreadable;
         }
     };
     match serde_json::from_str(&text) {
-        Ok(v) => Some(v),
+        Ok(v) => Loaded::Value(v),
         Err(e) => {
             eprintln!("workspace: {} is not valid JSON ({e})", path.display());
-            None
+            Loaded::Invalid
         }
     }
 }
 
-/// Writes `<name>.tmp` then renames it over the target, so a crash never leaves a torn file.
-pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+/// Missing files and invalid JSON both read as `None`. For the watcher's reloads, which can
+/// land mid-edit when the file is edited by hand, so the file is left as it is.
+fn load_file(path: &Path) -> Option<Value> {
+    match read_json(path) {
+        Loaded::Value(v) => Some(v),
+        _ => None,
     }
-    let mut tmp = path.as_os_str().to_owned();
-    tmp.push(".tmp");
-    let tmp = PathBuf::from(tmp);
-    std::fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, path).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        e.to_string()
-    })
 }
 
+/// The front end's load (design section 3.7). A file that exists but does not parse is renamed
+/// to `<name>.corrupt-<unix seconds>` so the save that follows a fresh start cannot overwrite
+/// it, and the previous good save in `<name>.bak` is loaded instead.
+fn load_recovering(path: &Path) -> Option<Value> {
+    match read_json(path) {
+        Loaded::Value(v) => return Some(v),
+        Loaded::Missing => return None,
+        Loaded::Invalid => {
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let aside = with_suffix(path, &format!(".corrupt-{secs}"));
+            match std::fs::rename(path, &aside) {
+                Ok(()) => eprintln!("workspace: kept the unreadable file as {}", aside.display()),
+                Err(e) => eprintln!("workspace: could not set {} aside: {e}", path.display()),
+            }
+        }
+        Loaded::Unreadable => {}
+    }
+    let backup = with_suffix(path, ".bak");
+    match read_json(&backup) {
+        Loaded::Value(v) => {
+            eprintln!("{} workspace: loaded {} instead", crate::app_log::stamp(), backup.display());
+            Some(v)
+        }
+        _ => None,
+    }
+}
+
+/// Keeps the file being replaced as `<name>.bak` when it parses, so `load_recovering` has a
+/// good copy to fall back on and a half-typed hand edit never becomes the backup.
 fn save_file(path: &Path, data: &Value) -> Result<(), String> {
     let text = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
-    write_atomic(path, text.as_bytes())
+    if let Ok(current) = std::fs::read(path) {
+        if serde_json::from_slice::<serde::de::IgnoredAny>(&current).is_ok() {
+            let _ = std::fs::write(with_suffix(path, ".bak"), current);
+        }
+    }
+    write_atomic(path, text)
 }
 
 fn config_file(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
@@ -74,7 +114,7 @@ fn config_file(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
 
 #[tauri::command]
 pub fn workspace_load(app: AppHandle) -> Result<Option<Value>, String> {
-    Ok(load_file(&config_file(&app, WORKSPACE_FILE)?))
+    Ok(load_recovering(&config_file(&app, WORKSPACE_FILE)?))
 }
 
 #[tauri::command]
@@ -84,7 +124,7 @@ pub fn workspace_save(app: AppHandle, data: Value) -> Result<(), String> {
 
 #[tauri::command]
 pub fn favorites_load(app: AppHandle) -> Result<Option<Value>, String> {
-    Ok(load_file(&config_file(&app, FAVORITES_FILE)?))
+    Ok(load_recovering(&config_file(&app, FAVORITES_FILE)?))
 }
 
 #[tauri::command]
@@ -94,7 +134,7 @@ pub fn favorites_save(app: AppHandle, data: Value) -> Result<(), String> {
 
 #[tauri::command]
 pub fn layouts_load(app: AppHandle) -> Result<Option<Value>, String> {
-    Ok(load_file(&config_file(&app, LAYOUTS_FILE)?))
+    Ok(load_recovering(&config_file(&app, LAYOUTS_FILE)?))
 }
 
 #[tauri::command]
@@ -104,7 +144,7 @@ pub fn layouts_save(app: AppHandle, data: Value) -> Result<(), String> {
 
 #[tauri::command]
 pub fn repos_load(app: AppHandle) -> Result<Option<Value>, String> {
-    Ok(load_file(&config_file(&app, REPOS_FILE)?))
+    Ok(load_recovering(&config_file(&app, REPOS_FILE)?))
 }
 
 #[tauri::command]
@@ -114,7 +154,7 @@ pub fn repos_save(app: AppHandle, data: Value) -> Result<(), String> {
 
 #[tauri::command]
 pub fn pins_load(app: AppHandle) -> Result<Option<Value>, String> {
-    Ok(load_file(&config_file(&app, PINS_FILE)?))
+    Ok(load_recovering(&config_file(&app, PINS_FILE)?))
 }
 
 #[tauri::command]
@@ -166,7 +206,7 @@ fn scratch_path(dir: &Path, id: &str) -> Result<PathBuf, String> {
 }
 
 fn scratch_write(dir: &Path, id: &str, text: &str) -> Result<(), String> {
-    write_atomic(&scratch_path(dir, id)?, text.as_bytes())
+    write_atomic(&scratch_path(dir, id)?, text)
 }
 
 fn scratch_read(dir: &Path, id: &str) -> Result<String, String> {
@@ -243,6 +283,14 @@ pub fn scrollback_save_all(app: AppHandle, entries: Vec<ScrollbackEntry>) -> Res
     scrollback_write_all(&config_root(&app)?, &entries)
 }
 
+/// Saves one terminal's scrollback between closes (design section 4.9), so a core that dies
+/// without closing still leaves recent output to restore. Async so the flushed write runs off
+/// the main thread.
+#[tauri::command]
+pub async fn scrollback_save(app: AppHandle, id: String, text: String) -> Result<(), String> {
+    write_atomic(&id_path(&config_root(&app)?, "scrollback", &id)?, text)
+}
+
 /// An empty string when the terminal has no saved scrollback.
 #[tauri::command]
 pub fn scrollback_load(app: AppHandle, id: String) -> Result<String, String> {
@@ -293,7 +341,7 @@ pub fn init(app: &AppHandle) {
     if let Err(e) = watcher.watch(&dir, RecursiveMode::NonRecursive) {
         return eprintln!("workspace: could not watch {}: {e}", dir.display());
     }
-    *app.state::<WorkspaceState>().watcher.lock().unwrap() = Some(watcher);
+    *app.state::<WorkspaceState>().watcher.lock_or_recover() = Some(watcher);
 
     let app = app.clone();
     thread::spawn(move || {
@@ -360,6 +408,49 @@ mod tests {
         let path = dir.join(FAVORITES_FILE);
         std::fs::write(&path, "{ nope").unwrap();
         assert_eq!(load_file(&path), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn saving_keeps_the_previous_good_file_as_the_backup() {
+        let dir = temp_dir("bak");
+        let path = dir.join(WORKSPACE_FILE);
+        save_file(&path, &json!(1)).unwrap();
+        save_file(&path, &json!(2)).unwrap();
+        assert_eq!(load_file(&with_suffix(&path, ".bak")), Some(json!(1)));
+        // A file that does not parse never replaces the backup.
+        std::fs::write(&path, "{ half typed").unwrap();
+        save_file(&path, &json!(3)).unwrap();
+        assert_eq!(load_file(&with_suffix(&path, ".bak")), Some(json!(1)));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_invalid_file_is_set_aside_and_the_backup_loads() {
+        let dir = temp_dir("recover");
+        let path = dir.join(WORKSPACE_FILE);
+        save_file(&path, &json!({ "good": true })).unwrap();
+        save_file(&path, &json!({ "good": "newer" })).unwrap();
+        std::fs::write(&path, [0u8; 64]).unwrap();
+        assert_eq!(load_recovering(&path), Some(json!({ "good": true })));
+        assert!(!path.exists());
+        let aside: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .filter(|n| n.starts_with("workspace.json.corrupt-"))
+            .collect();
+        assert_eq!(aside.len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_missing_file_does_not_load_the_backup() {
+        let dir = temp_dir("nobak");
+        let path = dir.join(WORKSPACE_FILE);
+        save_file(&path, &json!(1)).unwrap();
+        save_file(&path, &json!(2)).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(load_recovering(&path), None);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

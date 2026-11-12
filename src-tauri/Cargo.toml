@@ -52,7 +52,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 codegen-units = 1
 lto = true
 opt-level = 3
-panic = "abort"
+# Unwind, not abort: a panic on one background thread must not take down the process and with
+# it every pty (docs/design/app.md section 3.22).
+panic = "unwind"
 strip = true
 
 [target."cfg(windows)".dependencies]

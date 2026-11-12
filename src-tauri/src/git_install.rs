@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::State;
 
+use crate::lock::LockExt;
 use crate::profiles;
 use crate::settings::SettingsState;
 
@@ -88,7 +89,7 @@ fn drain<R: Read + Send + 'static>(mut r: R, buf: Arc<Mutex<Vec<u8>>>) {
             if n == 0 {
                 break;
             }
-            buf.lock().unwrap().extend_from_slice(&chunk[..n]);
+            buf.lock_or_recover().extend_from_slice(&chunk[..n]);
         }
     });
 }
@@ -132,7 +133,7 @@ fn run_install(winget: &Path, timeout: Duration) -> Result<(), String> {
     if status.success() {
         return Ok(());
     }
-    let text = String::from_utf8_lossy(&out.lock().unwrap()).into_owned();
+    let text = String::from_utf8_lossy(&out.lock_or_recover()).into_owned();
     let code = status.code().map_or("unknown".to_string(), |c| format!("{c:#x}"));
     Err(format!("winget exited with code {code}\n{}", tail_lines(&text, TAIL_LINES)))
 }

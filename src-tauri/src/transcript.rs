@@ -22,6 +22,7 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::lock::LockExt;
 use crate::agents::{self, AgentId};
 use crate::hooks::HookOverlay;
 use crate::roster::Session;
@@ -323,13 +324,13 @@ pub struct Transcripts {
 
 impl Transcripts {
     fn send(&self, msg: Msg) {
-        if let Some(tx) = self.tx.lock().unwrap().as_ref() {
+        if let Some(tx) = self.tx.lock_or_recover().as_ref() {
             let _ = tx.send(msg);
         }
     }
 
     pub fn prune(&self, live: &HashSet<&str>) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock_or_recover();
         inner.tracked.retain(|id, _| live.contains(id.as_str()));
         inner.contexts.retain(|id, _| live.contains(id.as_str()));
     }
@@ -340,7 +341,7 @@ impl Transcripts {
 #[tauri::command]
 pub fn agent_context(state: State<'_, Transcripts>) -> Vec<AgentContext> {
     let (woke, mut out) = {
-        let mut inner = state.inner.lock().unwrap();
+        let mut inner = state.inner.lock_or_recover();
         let woke = !inner.active;
         inner.active = true;
         (woke, inner.contexts.values().cloned().collect::<Vec<_>>())
@@ -356,7 +357,7 @@ pub fn agent_context(state: State<'_, Transcripts>) -> Vec<AgentContext> {
 /// `agent_context` starts it again.
 #[tauri::command]
 pub fn agent_context_stop(state: State<'_, Transcripts>) {
-    let mut inner = state.inner.lock().unwrap();
+    let mut inner = state.inner.lock_or_recover();
     inner.active = false;
     inner.tracked.clear();
     inner.contexts.clear();
@@ -438,7 +439,7 @@ impl Worker {
         match msg {
             Msg::Sync(list) => self.pending = Some(list),
             Msg::Fs(Ok(event)) => mark_dirty(
-                &mut self.app.state::<Transcripts>().inner.lock().unwrap(),
+                &mut self.app.state::<Transcripts>().inner.lock_or_recover(),
                 &event,
             ),
             Msg::Fs(Err(_)) | Msg::Wake => {}
@@ -449,7 +450,7 @@ impl Worker {
         let app = self.app.clone();
         let state = app.state::<Transcripts>();
         let to_search: Vec<(String, AgentId)> = {
-            let mut inner = state.inner.lock().unwrap();
+            let mut inner = state.inner.lock_or_recover();
             if !inner.active {
                 drop(inner);
                 // Release the file watches a stopped tracker left behind.
@@ -481,7 +482,7 @@ impl Worker {
             .collect();
 
         let (to_read, wanted) = {
-            let mut inner = state.inner.lock().unwrap();
+            let mut inner = state.inner.lock_or_recover();
             for (id, path) in found {
                 if let Some(t) = inner.tracked.get_mut(&id).filter(|t| t.path.is_none()) {
                     t.path = Some(path);
@@ -524,7 +525,7 @@ impl Worker {
             return;
         }
         let changed: Vec<AgentContext> = {
-            let mut inner = state.inner.lock().unwrap();
+            let mut inner = state.inner.lock_or_recover();
             let inner = &mut *inner;
             let mut changed = Vec::new();
             for (id, r) in readings {
@@ -586,7 +587,7 @@ impl Worker {
 /// Starts the worker thread. Nothing is tracked until `agent_context` first runs.
 pub fn init(app: &AppHandle) {
     let (tx, rx) = mpsc::channel::<Msg>();
-    *app.state::<Transcripts>().tx.lock().unwrap() = Some(tx.clone());
+    *app.state::<Transcripts>().tx.lock_or_recover() = Some(tx.clone());
     let mut worker = Worker {
         app: app.clone(),
         homes: Homes::detect(),
@@ -803,14 +804,14 @@ mod tests {
     fn prune_drops_non_live_sessions() {
         let t = Transcripts::default();
         {
-            let mut inner = t.inner.lock().unwrap();
+            let mut inner = t.inner.lock_or_recover();
             for id in ["live", "gone"] {
                 inner.tracked.insert(id.into(), Tracked::default());
                 inner.contexts.insert(id.into(), ctx(id));
             }
         }
         t.prune(&HashSet::from(["live"]));
-        let inner = t.inner.lock().unwrap();
+        let inner = t.inner.lock_or_recover();
         assert_eq!(inner.tracked.keys().collect::<Vec<_>>(), ["live"]);
         assert_eq!(inner.contexts.keys().collect::<Vec<_>>(), ["live"]);
     }

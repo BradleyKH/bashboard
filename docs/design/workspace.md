@@ -125,19 +125,24 @@ and again when the window closes. On launch:
   `--resume=<id>` exits at once on Windows, and the model is passed back because a resumed
   Copilot session otherwise falls back to the default model. The session id and model are held to
   a safe character set, since they are typed into a shell.
-- Each terminal's scrollback is saved as the window closes: xterm.js's serialize addon writes
+- Each terminal's scrollback is saved as the window closes, and once a minute in between: xterm.js's serialize addon writes
   the normal buffer as escape sequences, leaving out terminal modes (so a replay cannot turn on
   mouse reporting or bracketed paste) and the alternate buffer. On launch the saved text is
   written into the terminal before its shell spawns, followed by a gray "restored scrollback"
   rule, so the new prompt (and any resumed Claude session) appears below it. Container shells
-  and terminals opened from a layout start empty. Only a normal close saves it, so after the app crashes
-  the scrollback is the one from the last clean close.
+  and terminals opened from a layout start empty. The periodic save (`src/scrollbackAutosave.ts`)
+  covers a core that dies without closing: each pass serializes only the terminals that had
+  output since the last one, one at a time when the page is idle, and writes each with
+  `scrollback_save`. The close-time save stays the one that removes stale files.
+- A saved pane that cannot be rebuilt (its constructor throws) does not stop the rest of the
+  restore: it is logged (3.22), a toast names its kind, and a terminal opens in its place, in
+  the pane's folder when it had one and reattached to its pty when it named a live one.
 - A missing or empty workspace opens one tab with one terminal in `startingDirectory`. Closing
   the last tab saves an empty workspace, so the next launch starts fresh.
 
 `restore.enabled`, `restore.resumeSessions`, and `restore.scrollback` (section 8) turn each part
 off. `restore.resumeSessions` covers every agent; a settings file that holds the older
-`restore.resumeClaude` key and no `restore.resumeSessions` supplies the value from it. With `restore.scrollback` off, closing saves no scrollback and deletes what was saved.
+`restore.resumeClaude` key and no `restore.resumeSessions` supplies the value from it. With `restore.scrollback` off, closing saves no scrollback and deletes what was saved, and the periodic save does not run.
 
 Opening a named layout (4.6) rebuilds one tab the same way, appended as a new tab with the
 layout's terminals in their saved directories and profiles. Session ids are always null in a

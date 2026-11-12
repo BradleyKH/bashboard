@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::hook_install::write_atomic;
+use crate::atomic_file::write_atomic;
 use crate::profiles::GIT_BASH;
 
 const BEGIN: &str = "# >>> bashboard shell integration >>>";

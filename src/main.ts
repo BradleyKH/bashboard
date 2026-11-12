@@ -57,6 +57,12 @@ import { HookOffer } from './hookOffer';
 import { PaletteController } from './paletteController';
 import { AppDialogs } from './appDialogs';
 import { listenAppEvents, listenSettingsChanges } from './appEvents';
+import { answerWatchdog } from './pageWatchdog';
+import { reportError, reportUncaughtErrors } from './errorReport';
+import { startScrollbackAutosave } from './scrollbackAutosave';
+
+reportUncaughtErrors();
+answerWatchdog();
 
 // The built-in menu's Refresh would reload the whole page.
 window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
@@ -477,6 +483,10 @@ workspace.onChange(() => {
 });
 onTextZoomChange(() => saver.schedule());
 listenAppEvents({ state, workspace, saver, refreshPanel, favorites, repo, appWindow });
+startScrollbackAutosave(
+  () => state.settings.restore.scrollback,
+  (idle) => workspace.saveChangedScrollback(idle),
+);
 
 let restored = false;
 let claimedPtys: PtyRef[] = [];
@@ -509,6 +519,7 @@ try {
     claimedPtys = saved.tabs.flatMap((t) => t.panes.flatMap((p) => livePty(p, livePtys) ?? []));
   }
 } catch (err) {
+  reportError('could not restore the workspace', err);
   showToast(`Could not restore the workspace: ${String(err)}`);
 }
 // A pty no restored pane claimed has no page to show it. Any of them can exit on its own before

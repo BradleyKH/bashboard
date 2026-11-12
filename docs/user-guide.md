@@ -701,14 +701,16 @@ resumes in that mode. The mode saved is the one Claude Code last reported throug
 Shift+Tab change made just before closing, with no prompt after it, may not be saved.
 
 Each terminal's scrollback comes back too, above a gray "restored scrollback" line, with the new
-prompt below it. It is saved when you close the window, so if the app itself crashes you get the scrollback
-from the last normal close. Container shells and terminals opened from a layout start empty. Turn
+prompt below it. It is saved when you close the window and about once a minute while terminals
+have new output, so if the app itself crashes you lose at most the last minute or so. Container shells and terminals opened from a layout start empty. Turn
 off **Restore terminal scrollback** in Settings (`restore.scrollback`) to stop saving it.
 
 If the window's web view crashes, Bashboard rebuilds the window and reconnects each terminal to
 its shell, which kept running, so commands and agent sessions carry on and the screen redraws
-with recent output. If the window ever stops responding, the close button still closes
-it after a few seconds. Either event is recorded in `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`.
+with recent output. If the window stops responding for 30 seconds, Bashboard asks whether to
+reload it; your shells keep running through the reload. The close button also still closes a
+window that stopped responding, after a few seconds. If a saved pane cannot be restored, a
+terminal opens in its place and a message says so. Either event is recorded in `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`.
 
 When a terminal starts waiting while the panel is hidden, the panel peeks open over the panes for
 a few seconds and stays while the pointer is over it. Set `dashboard.peekOnWaiting` to `false`

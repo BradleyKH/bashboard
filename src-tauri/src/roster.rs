@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::lock::LockExt;
 use crate::agents::AgentId;
 use crate::hooks::{self, HookOverlay, HookStatus, Hooks};
 use crate::pty::Ptys;
@@ -500,7 +501,7 @@ impl Default for Roster {
 
 #[tauri::command]
 pub fn sessions_get(state: State<'_, Roster>) -> Vec<Session> {
-    state.lists.lock().unwrap().emitted.clone()
+    state.lists.lock_or_recover().emitted.clone()
 }
 
 /// Re-applies the current hook overlay to the last scan and emits `sessions://changed` if the
@@ -510,7 +511,7 @@ pub fn refresh(app: &AppHandle) {
     let state = app.state::<Roster>();
     // Emitting under the lock keeps emissions from the scan and hook threads in order.
     let merged = {
-        let mut lists = state.lists.lock().unwrap();
+        let mut lists = state.lists.lock_or_recover();
         let mut merged = lists.scanned.clone();
         apply_overlay(&mut merged, &overlay);
         merged.extend(hook_born_sessions(&overlay, &lists.hook_born));
@@ -553,14 +554,14 @@ pub fn init(app: &AppHandle) {
             let now = hooks::now_ms();
             // Only this thread writes `hook_born`, so sweeping a copy outside the lock is safe and
             // keeps the hook thread's refresh from waiting on process and file reads.
-            let mut born = roster.lists.lock().unwrap().hook_born.clone();
+            let mut born = roster.lists.lock_or_recover().hook_born.clone();
             scanner.sweep_hook_born(&mut born, &overlay, now);
             let born_ids = hook_born_ids(&overlay, &born);
             let live = live_ids(&list, &born_ids);
             app.state::<Hooks>().prune(&live, now);
             app.state::<Transcripts>().prune(&live);
             {
-                let mut lists = roster.lists.lock().unwrap();
+                let mut lists = roster.lists.lock_or_recover();
                 lists.hook_born = born;
                 lists.scanned = list;
             }
@@ -573,7 +574,7 @@ pub fn init(app: &AppHandle) {
     let app = app.clone();
     let watch = move |tx: &mpsc::Sender<_>| {
         let state = app.state::<Roster>();
-        let mut slot = state.watcher.lock().unwrap();
+        let mut slot = state.watcher.lock_or_recover();
         if slot.is_none() {
             *slot = try_watch(&dir, tx);
         }

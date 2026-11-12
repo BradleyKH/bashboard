@@ -31,6 +31,28 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     (y, m, d)
 }
 
+/// Logs each panic as one stamped line naming its thread. Release builds unwind, so a panic
+/// ends only its own thread and the app keeps running; this line is the only trace it leaves.
+/// Debug builds keep the default hook, which honors `RUST_BACKTRACE`.
+pub fn install_panic_hook() {
+    if cfg!(debug_assertions) {
+        return;
+    }
+    std::panic::set_hook(Box::new(|info| {
+        let thread = std::thread::current();
+        let name = thread.name().unwrap_or("unnamed");
+        eprintln!("{} panic on thread '{name}': {info}", stamp());
+    }));
+}
+
+/// An uncaught error the page reports. The page caps how often it sends; the length is capped
+/// here too, since the page is the less trusted side.
+#[tauri::command]
+pub fn frontend_error(text: String) {
+    let text: String = text.chars().take(4000).collect();
+    eprintln!("{} page: {text}", stamp());
+}
+
 /// Debug builds keep stderr on the terminal that ran `pnpm tauri dev`, so only release builds
 /// redirect it.
 #[cfg(all(windows, not(debug_assertions)))]

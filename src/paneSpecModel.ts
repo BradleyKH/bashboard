@@ -21,6 +21,17 @@ export function livePty(p: SavedPane, live: readonly PtyRef[]): PtyRef | null {
 }
 
 /**
+ * A plain terminal standing in for a saved pane that could not be rebuilt (docs/design/workspace.md
+ * section 4.9), opened in the pane's folder when it had one. A live pty the pane named is kept,
+ * since nothing else would claim or kill it.
+ */
+export function fallbackSpec(p: SavedPane, livePtys: readonly PtyRef[] = []): PaneSpec {
+  const folder = p.kind === 'terminal' ? p.cwd : p.kind === 'files' ? p.folder : p.kind === 'git' ? p.root : undefined;
+  const attach = livePty(p, livePtys);
+  return { kind: 'terminal', ...(folder && { cwd: folder }), ...(attach && { attach }) };
+}
+
+/**
  * A pad keeps its saved file, and a terminal its saved scrollback, only when restoring the
  * workspace; layouts and missing ids open fresh. A terminal whose pty is in `livePtys` reattaches
  * to it.

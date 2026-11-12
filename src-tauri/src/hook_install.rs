@@ -11,6 +11,7 @@ use serde_json::{Map, Value, json};
 use tauri::State;
 
 use crate::agents::{self, AgentId};
+use crate::atomic_file::write_atomic;
 use crate::profiles;
 use crate::settings::SettingsState;
 
@@ -301,21 +302,6 @@ fn merge_into(
             .extend(new.iter().cloned());
     }
     Ok(())
-}
-
-/// Writes `<name>.tmp` then renames it over the target, so a crash never leaves a torn file.
-pub(crate) fn write_atomic(path: &Path, text: impl AsRef<[u8]>) -> Result<(), String> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    let mut tmp = path.as_os_str().to_owned();
-    tmp.push(".tmp");
-    let tmp = PathBuf::from(tmp);
-    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, path).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        e.to_string()
-    })
 }
 
 fn pretty(value: &Value) -> Result<String, String> {

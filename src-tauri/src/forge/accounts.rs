@@ -19,6 +19,7 @@ use super::{
     AZURE_DEVOPS_PAT_VAR, ForgeState, azure_devops, azure_signed_out_message, bare_host, blocking,
     forge_hosts, git_value, github, home_git, open_git, remote, token_sources,
 };
+use crate::lock::LockExt;
 use crate::credential_store;
 use crate::git::Git;
 use crate::settings::SettingsState;
@@ -292,7 +293,7 @@ fn auth_changed(app: &AppHandle, kind: ProviderKind, host: &str) {
     let state = app.state::<ForgeState>();
     let bare = bare_host(host);
     state.tokens.drop_host(kind, bare);
-    state.repos.lock().unwrap().retain(|_, (_, r)| {
+    state.repos.lock_or_recover().retain(|_, (_, r)| {
         !(r.repo.provider == kind && bare_host(&r.repo.host).eq_ignore_ascii_case(bare))
     });
     let _ = app.emit(

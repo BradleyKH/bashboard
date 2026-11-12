@@ -14,6 +14,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::types::{AccountSource, ForgeError, ForgeErrorKind, ProviderKind, Token};
+use crate::lock::LockExt;
 use crate::git::Git;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -386,7 +387,7 @@ pub struct TokenCache(Mutex<HashMap<TokenKey, Token>>);
 
 impl TokenCache {
     pub fn get(&self, kind: ProviderKind, host: &str, account: Option<&str>) -> Option<Token> {
-        let mut map = self.0.lock().unwrap();
+        let mut map = self.0.lock_or_recover();
         let key = (kind, host.to_string(), account.map(str::to_string));
         match map.get(&key) {
             Some(t) if t.is_expired() => {
@@ -399,12 +400,12 @@ impl TokenCache {
 
     pub fn put(&self, kind: ProviderKind, host: &str, account: Option<&str>, token: Token) {
         let key = (kind, host.to_string(), account.map(str::to_string));
-        self.0.lock().unwrap().insert(key, token);
+        self.0.lock_or_recover().insert(key, token);
     }
 
     pub fn drop_one(&self, kind: ProviderKind, host: &str, account: Option<&str>) {
         let key = (kind, host.to_string(), account.map(str::to_string));
-        self.0.lock().unwrap().remove(&key);
+        self.0.lock_or_recover().remove(&key);
     }
 
     pub fn drop_host(&self, kind: ProviderKind, host: &str) {

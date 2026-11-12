@@ -25,6 +25,7 @@ use tauri::{
     State,
     ipc::{Channel, Response},
 };
+use crate::lock::LockExt;
 
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
 const BINARY_PROBE_BYTES: usize = 8 * 1024;
@@ -248,7 +249,7 @@ fn write_text(path: &str, text: &str, expected_modified: u64) -> Result<Written,
     if std::str::from_utf8(&current).is_err() {
         return Err(format!("lossy: {name} is not valid UTF-8"));
     }
-    crate::workspace::write_atomic(&path, text.as_bytes())?;
+    crate::atomic_file::write_atomic(&path, text.as_bytes())?;
     let meta = fs::metadata(&path).map_err(|e| format!("{name}: {e}"))?;
     Ok(Written {
         modified: modified_ms(&meta),
@@ -404,13 +405,13 @@ pub fn fs_watch(
     }
     let watcher = watch_dir(&dir, move || on_change.send(()).is_ok())?;
     let id = state.next_id.fetch_add(1, Ordering::Relaxed) + 1;
-    state.watchers.lock().unwrap().insert(id, watcher);
+    state.watchers.lock_or_recover().insert(id, watcher);
     Ok(id)
 }
 
 #[tauri::command]
 pub fn fs_unwatch(state: State<'_, FilesState>, id: u32) {
-    state.watchers.lock().unwrap().remove(&id);
+    state.watchers.lock_or_recover().remove(&id);
 }
 
 #[cfg(test)]

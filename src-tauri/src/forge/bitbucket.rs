@@ -17,6 +17,7 @@ use super::types::{
     PullChecks, PullChecksQuery, PullState, RepoRef, ReviewState, Reviewer, Run, RunStatus,
 };
 use super::{Cx, ForgeProvider};
+use crate::lock::LockExt;
 
 const API: &str = "https://api.bitbucket.org/2.0";
 const HOST: &str = "bitbucket.org";
@@ -402,7 +403,7 @@ impl Bitbucket {
     /// Only a success is cached, so a token replaced after a failure is asked again.
     fn viewer(&self, cx: &Cx) -> Result<Option<String>, ForgeError> {
         let key = token_key(cx);
-        if let Some(v) = VIEWERS.lock().unwrap().get(&key) {
+        if let Some(v) = VIEWERS.lock_or_recover().get(&key) {
             return Ok(v.clone());
         }
         let user = cx
@@ -410,7 +411,7 @@ impl Bitbucket {
             .get_json::<Value>(&format!("{API}/user"), Some(&auth(cx)), ACCEPT)
             .map_err(|e| reword(e, &cx.token.source))?;
         let uuid = string_at(&user, "/uuid");
-        VIEWERS.lock().unwrap().insert(key, uuid.clone());
+        VIEWERS.lock_or_recover().insert(key, uuid.clone());
         Ok(uuid)
     }
 
@@ -423,7 +424,7 @@ impl Bitbucket {
                 continue;
             }
             let key = (base.to_string(), hash.to_string());
-            if let Some(title) = COMMITS.lock().unwrap().get(&key) {
+            if let Some(title) = COMMITS.lock_or_recover().get(&key) {
                 out.insert(hash.to_string(), title.clone());
                 continue;
             }
@@ -434,7 +435,7 @@ impl Bitbucket {
             let Some(title) = str_at(&commit, "/message").and_then(first_line) else {
                 continue;
             };
-            let mut cache = COMMITS.lock().unwrap();
+            let mut cache = COMMITS.lock_or_recover();
             if cache.len() >= COMMITS_MAX {
                 cache.clear();
             }
@@ -447,7 +448,7 @@ impl Bitbucket {
     /// Cached checks for the listed pull requests whose `updated_on` has not moved. Those
     /// missing are fetched later by `pull_checks`, so the list shows without waiting on them.
     fn cached_checks(base: &str, pulls: &[Value]) -> HashMap<u64, Option<RunStatus>> {
-        let cache = CHECKS.lock().unwrap();
+        let cache = CHECKS.lock_or_recover();
         pulls
             .iter()
             .filter_map(|pr| {
@@ -467,7 +468,7 @@ impl Bitbucket {
         let url = format!("{base}/pullrequests/{id}/statuses");
         let statuses = cx.http.get_json::<Value>(&url, Some(&auth(cx)), ACCEPT).ok()?;
         let checks = checks_rollup(&statuses);
-        let mut cache = CHECKS.lock().unwrap();
+        let mut cache = CHECKS.lock_or_recover();
         if cache.len() >= CHECKS_MAX {
             cache.clear();
         }
@@ -654,7 +655,7 @@ impl ForgeProvider for Bitbucket {
                     while let Some(q) = pulls.get(next.fetch_add(1, Ordering::Relaxed)) {
                         let Ok(id) = q.id.parse::<u64>() else { continue };
                         let checks = Self::fetch_checks(cx, &base, id, &q.updated_at);
-                        found.lock().unwrap().push(PullChecks {
+                        found.lock_or_recover().push(PullChecks {
                             id: q.id.clone(),
                             checks,
                         });

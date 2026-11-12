@@ -13,6 +13,7 @@ use serde_json::Value;
 use ureq::tls::{RootCerts, TlsConfig};
 
 use super::types::{ForgeError, ForgeErrorKind};
+use crate::lock::LockExt;
 
 const TIMEOUT: Duration = Duration::from_secs(15);
 const ETAG_CAP: usize = 256;
@@ -336,7 +337,7 @@ impl Http {
         headers: &[(&str, &str)],
     ) -> Result<T, ForgeError> {
         let key = etag_key("GET", url, auth);
-        let cached = self.etags.lock().unwrap().get(&key);
+        let cached = self.etags.lock_or_recover().get(&key);
         let mut all: Vec<(&str, &str)> = headers.to_vec();
         if let Some((etag, _)) = &cached {
             all.push(("If-None-Match", etag.as_str()));
@@ -351,7 +352,7 @@ impl Http {
         let ok = reply.status == 200;
         let body = Self::read_body(reply, url)?;
         if let (true, Some(etag)) = (ok, etag) {
-            self.etags.lock().unwrap().put(key, etag, body.clone());
+            self.etags.lock_or_recover().put(key, etag, body.clone());
         }
         Self::parse(&body)
     }

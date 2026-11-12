@@ -114,6 +114,8 @@ export class TerminalPane implements PaneView {
    * nor should old bells and command markers raise attention.
    */
   private muted = false;
+  /** Set by every write xterm.js parses, so the periodic scrollback save skips idle terminals. */
+  private outputUnsaved = false;
   private readonly host: HTMLElement;
   /** xterm's container; the workspace may put a title strip in the host ahead of it. */
   private readonly body: HTMLElement;
@@ -198,6 +200,9 @@ export class TerminalPane implements PaneView {
     this.term.unicode.activeVersion = '11';
     this.term.attachCustomKeyEventHandler((e) => opts.keyHandler(e, this.term, (data) => this.write(data)));
     this.term.onData((data) => this.write(data));
+    this.term.onWriteParsed(() => {
+      this.outputUnsaved = true;
+    });
     this.term.onBell(() => {
       if (!this.muted) opts.onBell?.();
     });
@@ -477,6 +482,13 @@ export class TerminalPane implements PaneView {
   serialize(): string {
     if (this.disposed) return '';
     return this.serializer.serialize({ excludeModes: true, excludeAltBuffer: true });
+  }
+
+  /** True when output arrived since the last call. */
+  takeUnsavedOutput(): boolean {
+    const unsaved = this.outputUnsaved;
+    this.outputUnsaved = false;
+    return unsaved && !this.disposed;
   }
 
   /** The terminal's selected text, or '' when nothing is selected. */

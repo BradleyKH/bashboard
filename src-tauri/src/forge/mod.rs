@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager};
 
+use crate::lock::LockExt;
 use crate::git::{self, Git};
 use crate::settings::SettingsState;
 use auth::{TokenCache, TokenSource};
@@ -417,7 +418,7 @@ impl ForgeState {
         key: &str,
         resolve: impl FnOnce() -> Result<Resolved, ForgeError>,
     ) -> Result<Resolved, ForgeError> {
-        if let Some((at, r)) = self.repos.lock().unwrap().get(key) {
+        if let Some((at, r)) = self.repos.lock_or_recover().get(key) {
             if at.elapsed() < REPO_TTL {
                 return Ok(r.clone());
             }
@@ -460,7 +461,7 @@ impl ForgeState {
     /// The host's default branch, cached for an hour. A failed lookup caches nothing.
     fn default_branch(&self, git: &Git, r: &Resolved) -> Option<String> {
         let key = (r.repo.provider, r.repo.host.clone(), r.repo.path.clone());
-        if let Some((at, b)) = self.default_branches.lock().unwrap().get(&key) {
+        if let Some((at, b)) = self.default_branches.lock_or_recover().get(&key) {
             if at.elapsed() < DEFAULT_BRANCH_TTL {
                 return b.clone();
             }
@@ -886,7 +887,7 @@ pub async fn forge_set_account(
             .write(["config", "--local", "credential.username", user.as_str()])
             .map_err(ForgeError::other)?;
         Git::ok(out).map_err(ForgeError::other)?;
-        state.repos.lock().unwrap().remove(&root);
+        state.repos.lock_or_recover().remove(&root);
         state
             .tokens
             .drop_host(r.repo.provider, bare_host(&r.repo.host));

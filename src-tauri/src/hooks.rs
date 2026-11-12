@@ -9,6 +9,7 @@
 use std::{
     collections::{HashMap, HashSet},
     io::Read,
+    panic::{self, AssertUnwindSafe},
     sync::{Mutex, OnceLock},
     thread,
     time::{SystemTime, UNIX_EPOCH},
@@ -16,8 +17,9 @@ use std::{
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
-use tiny_http::{Header, Method, Response, Server, StatusCode};
+use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
+use crate::lock::LockExt;
 use crate::{agents::AgentId, cli, pty::Ptys, roster};
 
 const MAX_BODY: usize = 64 * 1024;
@@ -100,11 +102,11 @@ impl Hooks {
     }
 
     pub fn overlay(&self) -> HashMap<String, HookOverlay> {
-        self.overlay.lock().unwrap().clone()
+        self.overlay.lock_or_recover().clone()
     }
 
     pub fn prune(&self, live: &HashSet<&str>, now: u64) {
-        prune(&mut self.overlay.lock().unwrap(), live, now);
+        prune(&mut self.overlay.lock_or_recover(), live, now);
     }
 }
 
@@ -140,7 +142,7 @@ pub fn init(app: &AppHandle) {
             &server,
             &token,
             |ev| {
-                apply(&mut app.state::<Hooks>().overlay.lock().unwrap(), &ev);
+                apply(&mut app.state::<Hooks>().overlay.lock_or_recover(), &ev);
                 let _ = app.emit("sessions://hook", ev);
                 roster::refresh(&app);
             },
@@ -176,57 +178,71 @@ fn serve(
     pane_live: impl Fn(u32) -> bool,
     mut on_cli: impl FnMut(cli::CliCommand),
 ) {
-    for mut req in server.incoming_requests() {
-        let is_cli = req.url().split('?').next() == Some("/cli");
-        let cap = if is_cli { MAX_CLI_BODY } else { MAX_BODY };
-        let content_length = req.body_length();
-        let mut body = Vec::new();
-        // An oversized declared length is rejected without reading; otherwise read one byte
-        // past the cap so an undeclared or understated length still trips the limit.
-        if content_length.is_none_or(|n| n <= cap) {
-            let _ = req.as_reader().take(cap as u64 + 1).read_to_end(&mut body);
-        }
-        if is_cli {
-            let (code, error, cmd) = handle_cli(
-                token,
-                req.method(),
-                header(req.headers(), "X-Bashboard-Token"),
-                header(req.headers(), "X-Bashboard-Pane"),
-                &body,
-                content_length,
-                &pane_live,
-            );
-            if let Some(cmd) = cmd {
-                on_cli(cmd);
-            }
-            let _ = match error {
-                Some(json) => {
-                    let mut resp = Response::from_string(json).with_status_code(StatusCode(code));
-                    if let Ok(h) = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]) {
-                        resp.add_header(h);
-                    }
-                    req.respond(resp)
-                }
-                None => req.respond(Response::empty(StatusCode(code))),
-            };
-            continue;
-        }
-        let (code, ev) = handle(
+    for req in server.incoming_requests() {
+        // A request whose handling panics is dropped unanswered instead of ending this loop,
+        // which would silence every later hook event and `bb` command.
+        let _ = panic::catch_unwind(AssertUnwindSafe(|| {
+            answer(req, token, &mut on_event, &pane_live, &mut on_cli)
+        }));
+    }
+}
+
+fn answer(
+    mut req: Request,
+    token: &str,
+    on_event: &mut impl FnMut(HookEvent),
+    pane_live: &impl Fn(u32) -> bool,
+    on_cli: &mut impl FnMut(cli::CliCommand),
+) {
+    let is_cli = req.url().split('?').next() == Some("/cli");
+    let cap = if is_cli { MAX_CLI_BODY } else { MAX_BODY };
+    let content_length = req.body_length();
+    let mut body = Vec::new();
+    // An oversized declared length is rejected without reading; otherwise read one byte
+    // past the cap so an undeclared or understated length still trips the limit.
+    if content_length.is_none_or(|n| n <= cap) {
+        let _ = req.as_reader().take(cap as u64 + 1).read_to_end(&mut body);
+    }
+    if is_cli {
+        let (code, error, cmd) = handle_cli(
             token,
             req.method(),
-            req.url(),
             header(req.headers(), "X-Bashboard-Token"),
             header(req.headers(), "X-Bashboard-Pane"),
-            header(req.headers(), "X-Bashboard-Agent"),
             &body,
             content_length,
-            now_ms(),
+            pane_live,
         );
-        if let Some(ev) = ev {
-            on_event(ev);
+        if let Some(cmd) = cmd {
+            on_cli(cmd);
         }
-        let _ = req.respond(Response::empty(StatusCode(code)));
+        let _ = match error {
+            Some(json) => {
+                let mut resp = Response::from_string(json).with_status_code(StatusCode(code));
+                if let Ok(h) = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]) {
+                    resp.add_header(h);
+                }
+                req.respond(resp)
+            }
+            None => req.respond(Response::empty(StatusCode(code))),
+        };
+        return;
     }
+    let (code, ev) = handle(
+        token,
+        req.method(),
+        req.url(),
+        header(req.headers(), "X-Bashboard-Token"),
+        header(req.headers(), "X-Bashboard-Pane"),
+        header(req.headers(), "X-Bashboard-Agent"),
+        &body,
+        content_length,
+        now_ms(),
+    );
+    if let Some(ev) = ev {
+        on_event(ev);
+    }
+    let _ = req.respond(Response::empty(StatusCode(code)));
 }
 
 /// Equal-length strings are compared without early exit so timing does not reveal a prefix.

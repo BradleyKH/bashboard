@@ -30,6 +30,7 @@ use tauri::{
     ipc::{Channel, InvokeResponseBody},
 };
 
+use crate::lock::LockExt;
 use crate::editors::hide_console;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -823,7 +824,7 @@ impl Inner {
     }
 
     fn slots(&self) -> Vec<Slot> {
-        let guard = self.engines.lock().unwrap();
+        let guard = self.engines.lock_or_recover();
         let (guard, _) = self
             .detected
             .wait_timeout_while(guard, DETECTION_WAIT, |e| e.is_none())
@@ -844,7 +845,7 @@ impl Inner {
 
     /// Records how an engine is controlled; true when it changed.
     fn set_control(&self, engine: Engine, control: Control) -> bool {
-        let mut guard = self.engines.lock().unwrap();
+        let mut guard = self.engines.lock_or_recover();
         match guard.iter_mut().flatten().find(|s| s.engine == engine) {
             Some(slot) if slot.control != control => {
                 slot.control = control;
@@ -856,16 +857,16 @@ impl Inner {
 
     /// Asks the engine's watcher to re-probe without waiting out its retry interval.
     fn poke(&self, engine: Engine) {
-        self.pokes.lock().unwrap().insert(engine);
+        self.pokes.lock_or_recover().insert(engine);
     }
 
     fn take_poke(&self, engine: Engine) -> bool {
-        self.pokes.lock().unwrap().remove(&engine)
+        self.pokes.lock_or_recover().remove(&engine)
     }
 
     /// Records an engine's running flag; true when it changed.
     fn set_running(&self, engine: Engine, running: bool) -> bool {
-        let mut guard = self.engines.lock().unwrap();
+        let mut guard = self.engines.lock_or_recover();
         match guard.iter_mut().flatten().find(|s| s.engine == engine) {
             Some(slot) if slot.running != running => {
                 slot.running = running;
@@ -885,7 +886,7 @@ impl Inner {
     /// nothing else will refresh that engine's state, so the caller should list again soon.
     fn snapshot_checked(&self) -> (ContainersSnapshot, bool) {
         let mut failed = false;
-        let pending = self.pending.lock().unwrap().clone();
+        let pending = self.pending.lock_or_recover().clone();
         let mut engines = Vec::new();
         let mut containers = Vec::new();
         for slot in self.slots() {
@@ -939,7 +940,7 @@ impl Inner {
     }
 
     fn end_logs(&self, stream_id: u32) {
-        let child = self.logs.lock().unwrap().remove(&stream_id);
+        let child = self.logs.lock_or_recover().remove(&stream_id);
         if let Some(mut child) = child {
             let _ = child.kill();
             let _ = child.wait();
@@ -966,7 +967,7 @@ pub fn init(app: &AppHandle) {
                 })
             })
             .collect();
-        *inner.engines.lock().unwrap() = Some(slots.clone());
+        *inner.engines.lock_or_recover() = Some(slots.clone());
         inner.detected.notify_all();
         let (tx, rx) = mpsc::channel();
         for slot in slots {
@@ -1048,7 +1049,7 @@ fn engine_lifecycle(
 ) -> Result<(), String> {
     let slot = inner.slot(engine)?;
     {
-        let mut pending = inner.pending.lock().unwrap();
+        let mut pending = inner.pending.lock_or_recover();
         if pending.contains_key(&engine) {
             return Err(format!(
                 "{} is already starting or stopping",
@@ -1070,7 +1071,7 @@ fn engine_lifecycle(
             }
         }
     }
-    inner.pending.lock().unwrap().remove(&engine);
+    inner.pending.lock_or_recover().remove(&engine);
     let _ = app.emit("containers://changed", inner.snapshot());
     result
 }
@@ -1091,7 +1092,7 @@ fn follow_events(inner: &Inner, slot: &Slot, changed: &mpsc::Sender<()>) {
     };
     let stdout = child.stdout.take();
     {
-        let mut events = inner.events.lock().unwrap();
+        let mut events = inner.events.lock_or_recover();
         // Checked under the lock so a shutdown that has already drained the map cannot miss
         // this child.
         if inner.stopping() || stdout.is_none() {
@@ -1109,7 +1110,7 @@ fn follow_events(inner: &Inner, slot: &Slot, changed: &mpsc::Sender<()>) {
             break;
         }
     }
-    let child = inner.events.lock().unwrap().remove(&slot.engine);
+    let child = inner.events.lock_or_recover().remove(&slot.engine);
     if let Some(mut child) = child {
         let _ = child.kill();
         let _ = child.wait();
@@ -1127,7 +1128,7 @@ pub fn shutdown(app: &AppHandle) {
         .drain()
         .map(|(_, c)| c)
         .collect();
-    let logs: Vec<Child> = inner.logs.lock().unwrap().drain().map(|(_, c)| c).collect();
+    let logs: Vec<Child> = inner.logs.lock_or_recover().drain().map(|(_, c)| c).collect();
     for mut child in events.into_iter().chain(logs) {
         let _ = child.kill();
         let _ = child.wait();
@@ -1180,7 +1181,7 @@ fn start_logs(
     let stderr = child.stderr.take();
     let stream_id = inner.next_stream.fetch_add(1, Ordering::SeqCst) + 1;
     {
-        let mut logs = inner.logs.lock().unwrap();
+        let mut logs = inner.logs.lock_or_recover();
         if inner.stopping() {
             let _ = child.kill();
             let _ = child.wait();

@@ -98,6 +98,11 @@ export function scrollbackSaveAll(entries: ScrollbackEntry[]): Promise<void> {
   return invoke<void>('scrollback_save_all', { entries });
 }
 
+/** Saves one terminal's scrollback, leaving the others as they are. */
+export function scrollbackSave(entry: ScrollbackEntry): Promise<void> {
+  return invoke<void>('scrollback_save', { id: entry.id, text: entry.text });
+}
+
 /** An empty string when the terminal has no saved scrollback. */
 export function scrollbackLoad(id: string): Promise<string> {
   return invoke<string>('scrollback_load', { id });

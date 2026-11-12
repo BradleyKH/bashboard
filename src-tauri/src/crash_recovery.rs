@@ -60,11 +60,11 @@ fn arm_close_fallback(app: &AppHandle) {
 
 /// Starts a rebuild by destroying the dead window; `on_run_event` builds the replacement once
 /// the runtime has let go of it, since the new window needs the same label.
-#[cfg_attr(not(windows), allow(dead_code))]
-fn begin_rebuild(window: &tauri::WebviewWindow) {
+pub(crate) fn begin_rebuild(window: &tauri::WebviewWindow) {
     if REBUILDING.swap(true, Ordering::SeqCst) {
         return;
     }
+    crate::page_watchdog::disarm();
     let window = window.clone();
     // Off the WebView2 callback's stack: destroying the window from inside it re-enters WebView2.
     std::thread::spawn(move || {
@@ -140,6 +140,7 @@ pub fn watch(window: &tauri::WebviewWindow) {
                 begin_rebuild(&target);
             } else if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
                 target.state::<crate::browser::BrowserState>().reset();
+                crate::page_watchdog::disarm();
                 if let Some(core) = sender {
                     core.Reload()?;
                 }

@@ -5,9 +5,11 @@ import type { Layout } from './layout';
 import { LocalBrowserPane } from './localBrowserPane';
 import { TerminalPane } from './pane';
 import type { PaneKind } from './paneKinds';
-import { restoredSpec } from './paneSpecModel';
+import { fallbackSpec, restoredSpec } from './paneSpecModel';
+import { reportError } from './errorReport';
+import { showToast } from './toast';
 import type { PaneView } from './paneView';
-import { scratchLoad, scrollbackLoad, scrollbackSaveAll, type ScrollbackEntry } from './persistence';
+import { scratchLoad, scrollbackLoad, scrollbackSave, scrollbackSaveAll, type ScrollbackEntry } from './persistence';
 import { PortsPane } from './portsPane';
 import { restoredTab, snapshotTabs } from './savedTabs';
 import { resumeCommand, type PtyRef, type SavedPane, type SavedTab, type SavedWorkspace } from './savedWorkspace';
@@ -156,11 +158,22 @@ function buildTab(
         onReady = () => ctx.terminal(id)?.typeText(`${command}\r`);
       }
     }
-    const spec = restoredSpec(p, opts, { scratch: scratchLoad, scrollback: scrollbackLoad });
-    if (visible && !p.collapsed) {
-      ctx.startPane(id, ctx.buildPane(id, ctx.hosts.get(id)!, spec, true, onReady));
-    } else {
-      ctx.openOffscreen(id, spec, onReady);
+    const open = (spec: PaneSpec): void => {
+      if (visible && !p.collapsed) ctx.startPane(id, ctx.buildPane(id, ctx.hosts.get(id)!, spec, true, onReady));
+      else ctx.openOffscreen(id, spec, onReady);
+    };
+    // One pane that cannot be rebuilt, from saved data its kind no longer accepts or a bug,
+    // must not abort the panes and tabs after it.
+    try {
+      open(restoredSpec(p, opts, { scratch: scratchLoad, scrollback: scrollbackLoad }));
+    } catch (e) {
+      reportError(`could not restore a ${p.kind} pane`, e);
+      showToast(`Could not restore a ${p.kind} pane; opened a terminal in its place.`);
+      try {
+        open(fallbackSpec(p, opts.livePtys));
+      } catch (e2) {
+        reportError('could not open a terminal in place of a pane', e2);
+      }
     }
   }
 }
@@ -179,6 +192,21 @@ export async function saveScrollback(ctx: PersistenceContext, enabled: boolean):
     }
   }
   await scrollbackSaveAll(entries);
+}
+
+/**
+ * Design 4.9: saves the scrollback of each terminal that had output since the last pass, one at
+ * a time after `idle` resolves, so a core that dies without closing still leaves recent output
+ * for the next launch. The close-time save stays the one that removes stale files.
+ */
+export async function saveChangedScrollback(ctx: PersistenceContext, idle: () => Promise<void>): Promise<void> {
+  for (const [id, pane] of [...ctx.paneViews]) {
+    if (!(pane instanceof TerminalPane) || ctx.containerShells.has(id) || !pane.takeUnsavedOutput()) continue;
+    await idle();
+    // Empty once the pane closed while this pass waited.
+    const text = pane.serialize();
+    if (text) await scrollbackSave({ id: pane.scrollbackId, text });
+  }
 }
 
 /** Saves every pad's and Files editor's pending text now, for the window closing. */

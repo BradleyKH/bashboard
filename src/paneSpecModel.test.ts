@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { livePty, restoredSpec, specForKind } from './paneSpecModel';
+import { fallbackSpec, livePty, restoredSpec, specForKind } from './paneSpecModel';
+import type { SavedPane } from './savedWorkspace';
 
 function loaders() {
   return {
@@ -120,5 +121,26 @@ describe('specForKind', () => {
     for (const kind of ['scratch', 'containers', 'ports', 'browser'] as const) {
       expect(specForKind(kind, 'C:\\a', 'C:\\b', repo)).toEqual({ kind });
     }
+  });
+});
+
+describe('fallbackSpec', () => {
+  it('opens a terminal in the folder of a pane that had one', () => {
+    expect(fallbackSpec({ key: 'a', kind: 'files', folder: 'C:/src', selected: null, collapsed: false })).toEqual({
+      kind: 'terminal',
+      cwd: 'C:/src',
+    });
+    expect(fallbackSpec({ key: 'a', kind: 'git', root: 'C:/repo', collapsed: false })).toEqual({
+      kind: 'terminal',
+      cwd: 'C:/repo',
+    });
+    expect(fallbackSpec({ key: 'a', kind: 'ports', collapsed: false })).toEqual({ kind: 'terminal' });
+  });
+
+  it('keeps the live pty a terminal named, and drops its saved scrollback', () => {
+    const pty = { id: 3, startedAt: 99 };
+    const saved: SavedPane = { key: 'a', kind: 'terminal', cwd: 'C:/x', sessionId: null, scrollbackId: 's', pty, collapsed: false };
+    expect(fallbackSpec(saved, [pty])).toEqual({ kind: 'terminal', cwd: 'C:/x', attach: pty });
+    expect(fallbackSpec(saved, [])).toEqual({ kind: 'terminal', cwd: 'C:/x' });
   });
 });

@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
+use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -14,6 +15,7 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::lock::LockExt;
 use crate::hooks::Hooks;
 use crate::profiles;
 use crate::pty_tail::{OutputTail, TAIL_BYTES};
@@ -210,7 +212,7 @@ impl Ptys {
             on_exit: Some(Box::new(on_exit)),
         }));
         // Registered before the exit watcher starts, so a shell that dies at once is still removed.
-        self.inner.panes.lock().unwrap().insert(
+        self.inner.panes.lock_or_recover().insert(
             id,
             Pane { master: pair.master, writer, killer, pid, started_at, stream: Arc::clone(&stream) },
         );
@@ -224,10 +226,13 @@ impl Ptys {
                     Ok(n) => {
                         // The sink runs under the lock so an attach cannot slip between the
                         // tail it replays and the next live chunk.
-                        let mut s = reading.lock().unwrap();
+                        let mut s = reading.lock_or_recover();
                         s.tail.push(&buf[..n]);
                         if let Some(sink) = s.on_data.as_mut() {
-                            if !sink(&buf[..n]) {
+                            // A sink that panics is dropped rather than ending this thread, so
+                            // the tail keeps filling and a reattached page still gets output.
+                            let keep = panic::catch_unwind(AssertUnwindSafe(|| sink(&buf[..n])));
+                            if !keep.unwrap_or(false) {
                                 s.on_data = None;
                             }
                         }
@@ -241,10 +246,10 @@ impl Ptys {
         let inner = Arc::clone(&self.inner);
         thread::spawn(move || {
             let code = child.wait().map(|s| s.exit_code()).unwrap_or(1);
-            let pane = inner.panes.lock().unwrap().remove(&id);
+            let pane = inner.panes.lock_or_recover().remove(&id);
             // Closing the pseudoconsole can block until output drains, so not under the lock.
             drop(pane);
-            let on_exit = stream.lock().unwrap().on_exit.take();
+            let on_exit = stream.lock_or_recover().on_exit.take();
             if let Some(on_exit) = on_exit {
                 on_exit(code);
             }
@@ -264,9 +269,9 @@ impl Ptys {
         mut on_data: impl FnMut(&[u8]) -> bool + Send + 'static,
         on_exit: impl FnOnce(u32) + Send + 'static,
     ) -> Result<(), String> {
-        let panes = self.inner.panes.lock().unwrap();
+        let panes = self.inner.panes.lock_or_recover();
         let pane = panes.get(&id).filter(|p| p.started_at == started_at).ok_or("no such pty")?;
-        let mut s = pane.stream.lock().unwrap();
+        let mut s = pane.stream.lock_or_recover();
         if !on_data(s.tail.replay()) {
             return Err("receiver closed".into());
         }
@@ -276,19 +281,19 @@ impl Ptys {
     }
 
     pub fn write(&self, id: u32, data: &[u8]) -> Result<(), String> {
-        let mut panes = self.inner.panes.lock().unwrap();
+        let mut panes = self.inner.panes.lock_or_recover();
         let pane = panes.get_mut(&id).ok_or("no such pty")?;
         pane.writer.write_all(data).map_err(|e| e.to_string())
     }
 
     pub fn resize(&self, id: u32, cols: u16, rows: u16) -> Result<(), String> {
-        let panes = self.inner.panes.lock().unwrap();
+        let panes = self.inner.panes.lock_or_recover();
         let pane = panes.get(&id).ok_or("no such pty")?;
         pane.master.resize(size(cols, rows)).map_err(|e| e.to_string())
     }
 
     pub fn kill(&self, id: u32) -> Result<(), String> {
-        let mut panes = self.inner.panes.lock().unwrap();
+        let mut panes = self.inner.panes.lock_or_recover();
         let pane = panes.get_mut(&id).ok_or("no such pty")?;
         // portable-pty's Windows killer reports an error when TerminateProcess succeeds, so the
         // result is meaningless; the exit waiter is what confirms the child is gone.
@@ -297,11 +302,11 @@ impl Ptys {
     }
 
     pub fn contains(&self, id: u32) -> bool {
-        self.inner.panes.lock().unwrap().contains_key(&id)
+        self.inner.panes.lock_or_recover().contains_key(&id)
     }
 
     pub fn list(&self) -> Vec<PtyInfo> {
-        let panes = self.inner.panes.lock().unwrap();
+        let panes = self.inner.panes.lock_or_recover();
         let mut list: Vec<PtyInfo> = panes
             .iter()
             .map(|(&id, p)| PtyInfo { id, pid: p.pid, started_at: p.started_at })
@@ -700,7 +705,7 @@ mod tests {
 
     impl Run {
         fn text(&self) -> String {
-            strip_ansi(&String::from_utf8_lossy(&self.output.lock().unwrap()))
+            strip_ansi(&String::from_utf8_lossy(&self.output.lock_or_recover()))
         }
 
         fn wait_exit(&self) -> u32 {
@@ -737,7 +742,7 @@ mod tests {
                     if b.windows(4).any(|w| w == b"\x1b[6n") {
                         let _ = dsr_tx.send(());
                     }
-                    sink.lock().unwrap().extend_from_slice(b);
+                    sink.lock_or_recover().extend_from_slice(b);
                     true
                 },
                 move |code| {
@@ -772,7 +777,7 @@ mod tests {
             run.id,
             run.started_at,
             move |b| {
-                sink.lock().unwrap().push(b.to_vec());
+                sink.lock_or_recover().push(b.to_vec());
                 true
             },
             move |code| {
@@ -780,14 +785,14 @@ mod tests {
             },
         )
         .expect("attach failed");
-        let replay = String::from_utf8_lossy(&output.lock().unwrap()[0]).to_string();
+        let replay = String::from_utf8_lossy(&output.lock_or_recover()[0]).to_string();
         assert!(strip_ansi(&replay).contains("before"), "replay was {replay:?}");
 
         ptys.write(run.id, b"x\r").unwrap();
         assert_eq!(exit.recv_timeout(TIMEOUT).expect("no exit after attach"), 0);
         let deadline = Instant::now() + TIMEOUT;
         let live = loop {
-            let live = strip_ansi(&String::from_utf8_lossy(&output.lock().unwrap()[1..].concat()));
+            let live = strip_ansi(&String::from_utf8_lossy(&output.lock_or_recover()[1..].concat()));
             if live.contains("after-x") || Instant::now() > deadline {
                 break live;
             }

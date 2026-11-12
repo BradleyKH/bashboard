@@ -22,6 +22,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use file::{edit_settings_file, ensure_default_file, load, reload, settings_path, FILE_NAME};
 use keybindings::edit_keybindings_text;
 use watch::watch_file;
+use crate::lock::LockExt;
 
 pub(crate) use keybindings::normalize_chord;
 #[cfg(test)]
@@ -50,11 +51,11 @@ impl Default for SettingsState {
 impl SettingsState {
     /// Snapshot of the effective settings (keybindings already merged).
     pub fn current(&self) -> Settings {
-        self.current.lock().unwrap().0.clone()
+        self.current.lock_or_recover().0.clone()
     }
 
     fn payload(&self) -> SettingsPayload {
-        let g = self.current.lock().unwrap();
+        let g = self.current.lock_or_recover();
         SettingsPayload {
             settings: g.0.clone(),
             warnings: g.1.clone(),
@@ -119,7 +120,7 @@ pub fn init(app: &AppHandle) {
     };
     let state = app.state::<SettingsState>();
     state.first_run.store(created, Ordering::Relaxed);
-    *state.current.lock().unwrap() = load(&path);
+    *state.current.lock_or_recover() = load(&path);
 
     let Some(dir) = path.parent().map(Path::to_path_buf) else {
         return;
@@ -129,11 +130,11 @@ pub fn init(app: &AppHandle) {
     let on_change = move || {
         let state = app.state::<SettingsState>();
         let next = reload(&reload_path, &state.current());
-        *state.current.lock().unwrap() = next;
+        *state.current.lock_or_recover() = next;
         let _ = app.emit("settings://changed", state.payload());
     };
     match watch_file(&path, on_change) {
-        Ok(watcher) => *state.watcher.lock().unwrap() = Some(watcher),
+        Ok(watcher) => *state.watcher.lock_or_recover() = Some(watcher),
         Err(e) => eprintln!("settings: could not watch {}: {e}", dir.display()),
     }
 }

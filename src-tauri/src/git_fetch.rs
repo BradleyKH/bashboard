@@ -14,6 +14,7 @@ use std::{
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::lock::LockExt;
 use crate::{files::display, git::Git, settings::SettingsState};
 
 /// The scheduler wakes at least this often to pick up due repos and setting changes.
@@ -157,7 +158,7 @@ fn resolve_key(git: &Git) -> Result<String, String> {
 
 impl GitFetches {
     fn key_for_root(&self, settings: &SettingsState, root: &str) -> Result<String, String> {
-        if let Some(key) = self.inner.lock().unwrap().keys.get(root) {
+        if let Some(key) = self.inner.lock_or_recover().keys.get(root) {
             return Ok(key.clone());
         }
         let key = resolve_key(&Git::open(settings, root)?)?;
@@ -194,7 +195,7 @@ impl GitFetches {
         extra: Option<&str>,
     ) {
         let mut roots = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.lock_or_recover();
             inner.schedule.record(key, now_ms(), outcome, background);
             inner.schedule.roots_for(key)
         };
@@ -207,7 +208,7 @@ impl GitFetches {
     }
 
     fn wait(&self) {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.lock_or_recover();
         let (mut inner, _) = self
             .wake
             .wait_timeout_while(inner, TICK, |i| !i.wake)
@@ -221,14 +222,14 @@ fn run_due(app: &AppHandle) {
     let state = app.state::<GitFetches>();
     let interval = settings.current().git.auto_fetch_minutes;
     let due = {
-        let inner = state.inner.lock().unwrap();
+        let inner = state.inner.lock_or_recover();
         if !inner.visible {
             return;
         }
         inner.schedule.due(now_ms(), interval)
     };
     for (key, root) in due {
-        if !state.inner.lock().unwrap().visible {
+        if !state.inner.lock_or_recover().visible {
             return;
         }
         let lock = state.fetch_lock(&key);
@@ -275,7 +276,7 @@ pub async fn git_fetch(app: AppHandle, root: String, background: bool) -> Result
         let git = Git::open(&settings, &root)?;
         let outcome = {
             let lock = state.fetch_lock(&key);
-            let _guard = lock.lock().unwrap();
+            let _guard = lock.lock_or_recover();
             git.fetch(background)
         };
         state.finish(&app, &key, &outcome, background, Some(&root));
@@ -293,7 +294,7 @@ pub async fn git_pull(app: AppHandle, root: String) -> Result<(), String> {
         let git = Git::open(&settings, &root)?;
         let outcome = {
             let lock = state.fetch_lock(&key);
-            let _guard = lock.lock().unwrap();
+            let _guard = lock.lock_or_recover();
             git.pull()
         };
         // A pull fetches, so a successful one counts as this repo's latest fetch.
@@ -328,7 +329,7 @@ pub async fn git_last_fetch(app: AppHandle, root: String) -> Result<Option<Fetch
         let settings = app.state::<SettingsState>();
         let state = app.state::<GitFetches>();
         let key = state.key_for_root(&settings, &root)?;
-        Ok(state.inner.lock().unwrap().schedule.last(&key))
+        Ok(state.inner.lock_or_recover().schedule.last(&key))
     })
     .await
 }
@@ -346,7 +347,7 @@ pub async fn git_fetch_roots(app: AppHandle, roots: Vec<String>) -> Result<(), S
                 Some((root, key))
             })
             .collect();
-        let mut inner = state.inner.lock().unwrap();
+        let mut inner = state.inner.lock_or_recover();
         inner.schedule.set_roots(keyed);
         state.notify(&mut inner);
         Ok(())
@@ -358,7 +359,7 @@ pub async fn git_fetch_roots(app: AppHandle, roots: Vec<String>) -> Result<(), S
 /// catches up when it turns true.
 #[tauri::command]
 pub fn git_fetch_visible(state: State<'_, GitFetches>, visible: bool) {
-    let mut inner = state.inner.lock().unwrap();
+    let mut inner = state.inner.lock_or_recover();
     let was = inner.visible;
     inner.visible = visible;
     if visible && !was {

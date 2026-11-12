@@ -20,6 +20,7 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+use crate::lock::LockExt;
 use crate::files::{display, git_dir, normalize};
 
 const WATCH_DEBOUNCE: Duration = Duration::from_millis(300);
@@ -288,7 +289,7 @@ fn start_watcher(
 pub fn git_watch(app: AppHandle, state: State<'_, GitWatches>, root: String) -> Result<(), String> {
     let normalized = normalize(&root)?;
     let dirs = resolve_dirs(&normalized)?;
-    let mut map = state.watchers.lock().unwrap();
+    let mut map = state.watchers.lock_or_recover();
     acquire(&mut map, key_for(&normalized), || {
         start_watcher(app, root, normalized.clone(), dirs)
             .inspect_err(|e| eprintln!("git watch failed: {e}"))
@@ -298,7 +299,7 @@ pub fn git_watch(app: AppHandle, state: State<'_, GitWatches>, root: String) -> 
 #[tauri::command]
 pub fn git_unwatch(state: State<'_, GitWatches>, root: String) -> Result<(), String> {
     let normalized = normalize(&root)?;
-    release(&mut state.watchers.lock().unwrap(), &key_for(&normalized));
+    release(&mut state.watchers.lock_or_recover(), &key_for(&normalized));
     Ok(())
 }
 

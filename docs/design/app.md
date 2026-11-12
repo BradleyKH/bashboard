@@ -203,6 +203,14 @@ shell extensions registered by a signed package.
 
 ## 3.22 Crash recovery and log (`src-tauri/src/crash_recovery.rs`, `src-tauri/src/app_log.rs`)
 
+**Panics.** Release builds unwind rather than abort, so a panic ends only the thread it happens
+on, and the ptys, which would die with the process, keep running. The panic hook writes one
+stamped line naming the thread. Shared state is locked through `lock_or_recover`
+(`src-tauri/src/lock.rs`), which takes back a lock a panicking thread poisoned instead of
+spreading the panic to every later caller. Two long-lived loops also contain panics per item:
+the hook receiver answers each request inside `catch_unwind`, and a pty's reader drops a sink
+that panics while it keeps filling the output tail, so a reattached page still gets output.
+
 The core and its ptys outlive the page, so a WebView2 failure must not leave a live process
 behind a dead window. The main window's `ProcessFailed` event drives recovery:
 
@@ -214,11 +222,22 @@ behind a dead window. The main window's `ProcessFailed` event drives recovery:
   If the window cannot be rebuilt, the app exits rather than run with no window.
 - **Page renderer exited.** The WebView reloads the page.
 - **Page renderer unresponsive**, and every other kind (GPU, utility, a Local Browser frame's
-  renderer): logged only. An unresponsive page can recover on its own, and the close fallback
-  below is the way out when it does not.
+  renderer): logged only. An unresponsive page can recover on its own; the watchdog below and
+  the close fallback are the ways out when it does not.
 
 Either recovery also clears the Local Browser registry (4.21), whose bindings name CDP sessions
 of the old page.
+
+**Hung-page watchdog** (`src-tauri/src/page_watchdog.rs`). Every 5 seconds the core emits
+`watchdog://ping`, and the page answers with `page_pong` (`src/pageWatchdog.ts`, registered first
+thing at startup). Events run promptly in a hidden page, unlike its throttled timers, so the
+check holds while the window is covered; time spent minimized does not count. Until the first
+answer after a load, nothing is judged. After 30 seconds without an answer, a native dialog
+offers Reload or Wait. Wait allows another 30 seconds; Reload reloads the page, unless it has
+answered meanwhile, and a page still silent 30 seconds after that is rebuilt as for a dead
+browser process. Either crash recovery path above disarms the watchdog until the new page
+answers. Debug builds skip it, since a page paused at a breakpoint looks hung;
+`BASHBOARD_WATCHDOG=1` turns it on.
 
 The close button waits on the front end's close handler, which saves before destroying the
 window. Each `CloseRequested` arms a fallback: if the same window is still open 8 seconds later,
@@ -229,7 +248,11 @@ A release build has no console, so `app_log` points the process's stderr handle 
 `bashboard.log` in the app's log folder (`%LOCALAPPDATA%\dev.bashboard\logs` on Windows) at
 startup, and every `eprintln!` in the core lands there. A file over 1 MB is set aside as
 `bashboard.old.log` first. Startup, each failed WebView2 process, each rebuild, and each forced
-close write a line with a UTC timestamp. Debug builds keep stderr on the terminal.
+close write a line with a UTC timestamp, as do each panic and each watchdog action. The page
+sends its uncaught errors, unhandled rejections, and failed pane restores through
+`frontend_error(text)` (`src/errorReport.ts`), which logs them as `page:` lines; the page drops
+an immediate repeat and anything past 20 a minute, and the core caps each at 4000 characters.
+Debug builds keep stderr on the terminal.
 
 ## 4.17 Setup wizard
 

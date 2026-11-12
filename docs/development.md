@@ -216,9 +216,13 @@ the terminal that ran it instead. A WebView2 crash also leaves a minidump under
 `%LOCALAPPDATA%\dev.bashboard\EBWebView\Crashpad\reports` (`dev\EBWebView` for a debug build),
 and the `watson_metadata` file beside `reports` names the process type and module that failed.
 
+The log also holds core panics (`panic on thread ...`), the page's uncaught errors (`page: ...`),
+and the hung-page watchdog's actions.
+
 To exercise crash recovery against a `pnpm tauri dev` run, end the `msedgewebview2.exe` that is
 a direct child of `target\debug\bashboard.exe` (the window rebuilds), or its `--type=renderer`
-child (the page reloads).
+child (the page reloads). The hung-page watchdog is off in debug builds; launch with
+`BASHBOARD_WATCHDOG=1` and run `while (true) {}` in DevTools to see its dialog after 30 seconds.
 
 ## Debugging input
 

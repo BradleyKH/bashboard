@@ -17,6 +17,7 @@ use super::types::{
     RunStatus, Step, Token,
 };
 use super::{Cx, ForgeProvider};
+use crate::lock::LockExt;
 
 pub struct AzureDevOps;
 
@@ -753,7 +754,7 @@ fn send(cx: &Cx, req: &Request) -> Result<(), ForgeError> {
 }
 
 fn note_repo_reader(cx: &Cx, repo: &RepoRef) {
-    let mut readers = REPO_READERS.lock().unwrap();
+    let mut readers = REPO_READERS.lock_or_recover();
     if readers.len() >= CACHE_MAX {
         readers.clear();
     }
@@ -768,14 +769,14 @@ impl AzureDevOps {
             repo.path[1].to_lowercase(),
             repo.path[2].to_lowercase(),
         );
-        if let Some(info) = REPOS.lock().unwrap().get(&key) {
+        if let Some(info) = REPOS.lock_or_recover().get(&key) {
             return Ok(info.clone());
         }
         let v = get(cx, &repo_url(&org, &proj, &name))?;
         let info = map_repo(&v)
             .ok_or_else(|| ForgeError::other("Azure DevOps did not describe this repo."))?;
         note_repo_reader(cx, repo);
-        REPOS.lock().unwrap().insert(key, info.clone());
+        REPOS.lock_or_recover().insert(key, info.clone());
         Ok(info)
     }
 
@@ -783,7 +784,7 @@ impl AzureDevOps {
     /// token, or asked now with one GET.
     fn token_reads_repo(&self, cx: &Cx, repo: &RepoRef) -> bool {
         let entry = (token_key(cx), repo_key(repo));
-        if REPO_READERS.lock().unwrap().contains(&entry) {
+        if REPO_READERS.lock_or_recover().contains(&entry) {
             return true;
         }
         let Ok([org, proj, name]) = segments(repo) else {
@@ -805,11 +806,11 @@ impl AzureDevOps {
     fn viewer(&self, cx: &Cx, repo: &RepoRef) -> Result<Option<String>, ForgeError> {
         let [org, ..] = segments(repo)?;
         let key = (token_key(cx), org.to_lowercase());
-        if let Some(v) = VIEWERS.lock().unwrap().get(&key) {
+        if let Some(v) = VIEWERS.lock_or_recover().get(&key) {
             return Ok(v.clone());
         }
         let id = map_viewer(&get(cx, &connection_url(&org))?);
-        VIEWERS.lock().unwrap().insert(key, id.clone());
+        VIEWERS.lock_or_recover().insert(key, id.clone());
         Ok(id)
     }
 }
@@ -930,8 +931,8 @@ impl ForgeProvider for AzureDevOps {
             .unwrap_or_default();
         let viewer = self.viewer(cx, repo)?;
         let key = repo_key(repo);
-        let checks = CHECKS.lock().unwrap();
-        let mut sources = SOURCES.lock().unwrap();
+        let checks = CHECKS.lock_or_recover();
+        let mut sources = SOURCES.lock_or_recover();
         if sources.len() >= CACHE_MAX {
             sources.clear();
         }
@@ -975,9 +976,9 @@ impl ForgeProvider for AzureDevOps {
                 continue;
             };
             let checks = policy_rollup(&v);
-            let commit = SOURCES.lock().unwrap().get(&(key.clone(), id)).cloned();
+            let commit = SOURCES.lock_or_recover().get(&(key.clone(), id)).cloned();
             if let Some(commit) = commit {
-                let mut cache = CHECKS.lock().unwrap();
+                let mut cache = CHECKS.lock_or_recover();
                 if cache.len() >= CACHE_MAX {
                     cache.clear();
                 }

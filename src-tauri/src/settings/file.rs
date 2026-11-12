@@ -128,7 +128,7 @@ pub(super) fn edit_settings_file(
     ensure_default_file(&file).map_err(|e| e.to_string())?;
     let text = std::fs::read_to_string(&file).map_err(|e| format!("could not read settings file ({e})"))?;
     let next = edit(&text)?;
-    crate::hook_install::write_atomic(&file, &next)
+    crate::atomic_file::write_atomic(&file, &next)
 }
 
 #[cfg(test)]

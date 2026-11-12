@@ -1,5 +1,6 @@
 mod agents;
 mod app_log;
+mod atomic_file;
 mod backdrop_image;
 mod browser;
 mod browser_files;
@@ -24,11 +25,13 @@ mod git_worktrees;
 mod hook_install;
 mod hooks;
 mod links;
+mod lock;
 mod login_path;
 // Built on every OS so a Windows build type-checks it; only macOS installs it.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod mac_menu;
 mod model_servers;
+mod page_watchdog;
 mod platform;
 mod ports;
 mod powershell_prompt;
@@ -150,6 +153,7 @@ fn setup_main_window(window: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    app_log::install_panic_hook();
     login_path::adopt();
     let builder = tauri::Builder::default();
     // Release builds only: the lock is keyed on the app identifier, which debug builds share,
@@ -190,6 +194,7 @@ pub fn run() {
             git_fetch::init(app.handle());
             transcript::init(app.handle());
             hooks::init(app.handle());
+            page_watchdog::start(app.handle());
             roster::init(app.handle());
             workspace::init(app.handle());
             pty::init_activity(app.handle());
@@ -253,6 +258,9 @@ pub fn run() {
             workspace::scratch_delete,
             workspace::scratch_save_as,
             workspace::scrollback_save_all,
+            workspace::scrollback_save,
+            page_watchdog::page_pong,
+            app_log::frontend_error,
             workspace::scrollback_load,
             toast::toast_show,
             files::repo_root,

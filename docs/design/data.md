@@ -20,8 +20,9 @@ fails.
 ## 3.7 Workspace and favorites (`src-tauri/src/workspace.rs`)
 
 Five app-owned files next to `settings.json`, each read and written whole through a pair of
-commands, with writes going to a temp file and renamed into place so a crash never leaves half
-a file:
+commands. Every write the core makes to these and to the scrollback and pad files below goes to
+a temp file, is flushed to disk, and is renamed into place, so neither a crash nor a power cut
+leaves half a file (`src-tauri/src/atomic_file.rs`):
 
 | File | Commands | Contents |
 | --- | --- | --- |
@@ -38,13 +39,20 @@ watched and hot-reloaded like `settings.json`, emitting `favorites://changed`, `
 `repos://changed`, and `pins://changed`. They are kept out of `settings.json` because the app rewrites them from the
 dashboard, and rewriting a hand-edited JSONC file would drop its comments.
 
+Each save first copies the file it replaces to `<name>.bak`, when that file parses, so a
+half-typed hand edit never becomes the backup. The `*_load` commands recover from a file that
+exists but does not parse: it is moved aside as `<name>.corrupt-<unix seconds>`, which keeps the
+next save from overwriting it, and `<name>.bak` is loaded instead. A missing file loads as
+nothing without consulting the backup, so deleting a file still resets it. The watcher's reloads
+leave an unparsable file alone, since it may be mid-edit.
+
 Scratch pads (4.15) live beside them as `scratch/<id>.txt`, written by `scratch_save(id, text)`
 and removed by `scratch_delete(id)`; `scratch_load(id)` reads one back on restore.
 
 Terminal scrollback (4.9) lives in `scrollback/<id>.txt`. `scrollback_save_all(entries)` writes
 each `{ id, text }` and deletes every other file in the folder, so it holds exactly the terminals
-of the last saved workspace; `scrollback_load(id)` reads one back, as an empty string when it is
-missing. Ids use the scratch pads' alphabet.
+of the last saved workspace; `scrollback_save(id, text)` writes one without touching the
+others; `scrollback_load(id)` reads one back, as an empty string when it is missing. Ids use the scratch pads' alphabet.
 
 ## 7. Data model
 

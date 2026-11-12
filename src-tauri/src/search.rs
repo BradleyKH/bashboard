@@ -25,6 +25,7 @@ use ignore::{
 };
 use serde::{Deserialize, Serialize};
 use tauri::{State, ipc::Channel};
+use crate::lock::LockExt;
 
 /// The same 2 MiB as the Files pane's read limit.
 const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
@@ -369,19 +370,19 @@ pub fn search_start(
     let search = Search::new(&root, &query, &options)?;
     let id = state.next_id.fetch_add(1, Ordering::Relaxed) + 1;
     let cancel = Arc::new(AtomicBool::new(false));
-    state.running.lock().unwrap().insert(id, cancel.clone());
+    state.running.lock_or_recover().insert(id, cancel.clone());
     let running = state.running.clone();
     thread::spawn(move || {
         // A failed send means the page went away, which ends the search like a cancel.
         search.run(&cancel, &mut |batch| on_batch.send(batch).is_ok());
-        running.lock().unwrap().remove(&id);
+        running.lock_or_recover().remove(&id);
     });
     Ok(id)
 }
 
 #[tauri::command]
 pub fn search_cancel(state: State<'_, SearchState>, id: u32) -> Result<(), String> {
-    if let Some(flag) = state.running.lock().unwrap().get(&id) {
+    if let Some(flag) = state.running.lock_or_recover().get(&id) {
         flag.store(true, Ordering::Relaxed);
     }
     Ok(())

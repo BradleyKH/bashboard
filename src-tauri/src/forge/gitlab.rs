@@ -17,6 +17,7 @@ use super::types::{
     RunStatus,
 };
 use super::{Cx, ForgeProvider, MAX_PULLS, MAX_RUNS};
+use crate::lock::LockExt;
 
 const LOG_MAX: usize = 1024 * 1024;
 const ACCEPT: &[(&str, &str)] = &[("Accept", "application/json")];
@@ -373,7 +374,7 @@ fn parallel<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R>
                     let i = next.fetch_add(1, Ordering::Relaxed);
                     let Some(item) = items.get(i) else { break };
                     let r = f(item);
-                    out.lock().unwrap()[i] = Some(r);
+                    out.lock_or_recover()[i] = Some(r);
                 }
             });
         }
@@ -386,7 +387,7 @@ impl GitLab {
     /// review. Only a success is cached, so a token replaced after a failure is asked again.
     fn viewer(&self, cx: &Cx, repo: &RepoRef) -> Result<Option<u64>, ForgeError> {
         let key = (repo.host.to_ascii_lowercase(), token_key(cx));
-        if let Some(id) = VIEWERS.lock().unwrap().get(&key) {
+        if let Some(id) = VIEWERS.lock_or_recover().get(&key) {
             return Ok(Some(*id));
         }
         let user: Value =
@@ -394,7 +395,7 @@ impl GitLab {
                 .get_json(&format!("{}/user", api_root(repo)), Some(&auth(cx)), ACCEPT)?;
         let id = u64_at(&user, "/id");
         if let Some(id) = id {
-            VIEWERS.lock().unwrap().insert(key, id);
+            VIEWERS.lock_or_recover().insert(key, id);
         }
         Ok(id)
     }
@@ -405,7 +406,7 @@ impl GitLab {
         let id = u64_at(item, "/id")?;
         let updated = str_at(item, "/updated_at").unwrap_or_default();
         let key = (base.to_string(), id);
-        if let Some((at, d)) = DETAILS.lock().unwrap().get(&key) {
+        if let Some((at, d)) = DETAILS.lock_or_recover().get(&key) {
             if at == updated {
                 return Some(d.clone());
             }
@@ -417,7 +418,7 @@ impl GitLab {
                 .ok()?,
         );
         bounded_insert(
-            &mut DETAILS.lock().unwrap(),
+            &mut DETAILS.lock_or_recover(),
             key,
             (updated.to_string(), d.clone()),
         );
@@ -426,7 +427,7 @@ impl GitLab {
 
     fn commit_title(cx: &Cx, base: &str, sha: &str) -> Option<String> {
         let key = (base.to_string(), sha.to_string());
-        if let Some(t) = COMMITS.lock().unwrap().get(&key) {
+        if let Some(t) = COMMITS.lock_or_recover().get(&key) {
             return Some(t.clone());
         }
         let url = format!("{base}/repository/commits/{}", percent_encode(sha));
@@ -435,7 +436,7 @@ impl GitLab {
             .get_json::<Value>(&url, Some(&auth(cx)), ACCEPT)
             .ok()?;
         let title = string_at(&commit, "/title")?;
-        bounded_insert(&mut COMMITS.lock().unwrap(), key, title.clone());
+        bounded_insert(&mut COMMITS.lock_or_recover(), key, title.clone());
         Some(title)
     }
 
@@ -461,7 +462,7 @@ impl GitLab {
             approved_by: map_approved_by(&approvals),
         };
         bounded_insert(
-            &mut MR_EXTRAS.lock().unwrap(),
+            &mut MR_EXTRAS.lock_or_recover(),
             (base.to_string(), iid),
             extra.clone(),
         );
@@ -585,7 +586,7 @@ impl ForgeProvider for GitLab {
             ACCEPT,
         )?;
         let viewer = self.viewer(cx, repo)?;
-        let extras = MR_EXTRAS.lock().unwrap().clone();
+        let extras = MR_EXTRAS.lock_or_recover().clone();
         let items = list
             .as_array()
             .into_iter()
