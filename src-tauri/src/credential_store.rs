@@ -70,6 +70,7 @@ pub fn wipe(secret: String) {
 }
 
 /// A credential blob as UTF-8, or as UTF-16LE (what `cmdkey` and most Windows tools write).
+#[cfg(windows)]
 pub fn decode_blob(bytes: &[u8]) -> Option<String> {
     if bytes.is_empty() {
         return None;
@@ -229,6 +230,7 @@ pub use imp::{delete, exists, list_targets, read, write};
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
     #[test]
     fn blobs_decode_either_encoding() {
         assert_eq!(decode_blob(b"fake-token"), Some("fake-token".into()));

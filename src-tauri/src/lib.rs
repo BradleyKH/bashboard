@@ -50,9 +50,6 @@ mod toast;
 mod transcript;
 mod workspace;
 
-#[cfg(debug_assertions)]
-use tauri::Manager;
-
 /// WebView2 claims browser shortcuts (Ctrl+F find, Ctrl+R reload, Ctrl+P print, zoom, ...)
 /// before the page sees them; a terminal needs those keys delivered to the shell instead.
 #[cfg(windows)]
@@ -134,7 +131,7 @@ fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWin
         .unwrap_or_default();
     let builder = tauri::WebviewWindowBuilder::from_config(app, &config)?;
     #[cfg(debug_assertions)]
-    let builder = match app.path().app_local_data_dir() {
+    let builder = match tauri::Manager::path(app).app_local_data_dir() {
         Ok(dir) => builder.data_directory(dir.join("dev")),
         Err(_) => builder,
     };

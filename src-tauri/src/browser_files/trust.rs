@@ -31,6 +31,7 @@ pub fn zone_id(_path: &Path) -> Option<u8> {
 }
 
 /// Some writers save the stream as UTF-16 with a byte order mark rather than ANSI.
+#[cfg(windows)]
 fn decode(bytes: &[u8]) -> String {
     if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
         let units: Vec<u16> = rest
@@ -42,6 +43,7 @@ fn decode(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
+#[cfg(windows)]
 fn parse_zone_id(text: &str) -> Option<u8> {
     text.lines().find_map(|line| {
         let (key, value) = line.split_once('=')?;
@@ -194,6 +196,7 @@ mod tests {
         items.iter().map(|s| s.to_string()).collect()
     }
 
+    #[cfg(windows)]
     #[test]
     fn parses_zone_ids() {
         assert_eq!(

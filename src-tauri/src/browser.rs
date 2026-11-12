@@ -3,6 +3,10 @@
 //! framed page. The main session auto-attaches every out-of-process iframe as its own session;
 //! a session whose frame is owned by a `data-browser-pane` iframe is bound to that pane and its
 //! events are translated into `BrowserEvent`s on the pane's channel.
+//!
+//! Only WebView2 hosts the bridge, so off Windows the commands answer with an error and the
+//! CDP translation below is reached only by its tests.
+#![cfg_attr(not(windows), allow(dead_code))]
 
 use serde::Serialize;
 use serde_json::Value;
@@ -1453,7 +1457,6 @@ pub fn browser_history(
 /// The script that swaps the frame's current history entry for `to`, only while the frame still
 /// shows `from`: a navigation the user made meanwhile is left alone. A one-shot evaluation that
 /// defines nothing, so the page gains no channel to the app (docs/design/security.md 9.1).
-#[cfg_attr(not(windows), allow(dead_code))]
 fn replace_expression(from: &str, to: &str) -> String {
     let from = Value::from(without_fragment(from)).to_string();
     let to = Value::from(to).to_string();

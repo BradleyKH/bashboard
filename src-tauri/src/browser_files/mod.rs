@@ -28,6 +28,7 @@ impl FileServerState {
     }
 
     /// See `FileServer::downloaded_scope`; `None` before the server starts.
+    #[cfg(windows)]
     pub fn downloaded_scope(&self, url: &str) -> Option<String> {
         self.0.get()?.downloaded_scope(url)
     }

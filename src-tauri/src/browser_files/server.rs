@@ -283,7 +283,9 @@ impl FileServer {
     /// The scope of the Downloaded page at `url`, `http://127.0.0.1:<port>/<token>/`, when `url`
     /// is on a Downloaded listener; `None` for any other address. Read from the listeners, not
     /// from anything the page or the pane says. The token need not be live: a page whose token
-    /// was revoked keeps running in its frame.
+    /// was revoked keeps running in its frame. Only the Local Browser bridge, which needs
+    /// WebView2, asks.
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn downloaded_scope(&self, url: &str) -> Option<String> {
         let u = tauri::Url::parse(url).ok()?;
         if u.scheme() != "http" || u.host_str() != Some("127.0.0.1") {

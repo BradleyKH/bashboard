@@ -2,7 +2,9 @@
 //! a toast brings the window forward and emits `toast://activated` with the pane id, so the
 //! front end can focus that pane.
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::AppHandle;
+#[cfg(windows)]
+use tauri::{Emitter, Manager};
 
 /// The AppUserModelID toasts are sent under. The installer's Start menu shortcut registers the
 /// bundle identifier, so an installed build uses it; a debug build has no such shortcut, and
