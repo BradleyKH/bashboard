@@ -1,6 +1,16 @@
 import { item, separator, submenu, type MenuEntry } from './contextMenuModel';
 import { isHtmlFile } from './browserPaneModel';
 import type { FileEntry } from './filesModel';
+import { platformOs, primaryName } from './platform';
+
+/** The shortcut hints beside Cut, Copy, Paste, and Delete; the Files list handles these keys itself. */
+function clipKey(letter: string): string {
+  return `${primaryName()}+${letter}`;
+}
+
+function deleteKey(): string {
+  return platformOs() === 'macos' ? 'Cmd+Backspace' : 'Del';
+}
 
 export interface MoveTarget {
   label: string;
@@ -20,13 +30,20 @@ export interface FileRowMenuHandlers {
   moveTo: (files: FileEntry[], toDir: string) => void;
   rename: (entry: FileEntry) => void;
   pin: (entry: FileEntry) => void;
+  cut: (entries: FileEntry[]) => void;
+  copy: (entries: FileEntry[]) => void;
+  /** Pastes the clipboard's files into a folder row. */
+  pasteInto: (folder: FileEntry) => void;
+  /** Sends the entries to the Recycle Bin. */
+  delete: (entries: FileEntry[]) => void;
 }
 
 /**
  * A Files row's menu (docs/design/files.md section 4.12), from its ⋯ button or a right-click.
  * `selection` is what the menu acts on: the row, or every selected row when it is one of several,
  * which leaves only the items that take many paths. Move to moves the selection's files
- * (`fs_move` moves files) and appears only when there are files and targets.
+ * (`fs_move` moves files) and appears only when there are files and targets. Paste appears on a
+ * single folder row and pastes into that folder, as File Explorer's does.
  */
 export function fileRowMenuItems(
   entry: FileEntry,
@@ -53,6 +70,12 @@ export function fileRowMenuItems(
     out.push(separator());
   }
   out.push(
+    item('Cut', () => handlers.cut(entries), { hint: clipKey('X') }),
+    item('Copy', () => handlers.copy(entries), { hint: clipKey('C') }),
+  );
+  if (!many && entry.isDir) out.push(item('Paste', () => handlers.pasteInto(entry)));
+  out.push(
+    separator(),
     item(many ? 'Copy paths' : 'Copy path', () => handlers.copyPath(entries)),
     item(many ? 'Insert paths' : 'Insert path', () => handlers.insertPath(entries)),
   );
@@ -69,6 +92,7 @@ export function fileRowMenuItems(
     if (files.length === 0 || moveTargets.length === 0) out.push(separator());
     out.push(item('Rename', () => handlers.rename(entry)), item('Pin', () => handlers.pin(entry)));
   }
+  out.push(separator(), item('Delete', () => handlers.delete(entries), { hint: deleteKey() }));
   return out;
 }
 
@@ -82,6 +106,8 @@ export interface FolderMenuHandlers {
   openInExplorer: () => void;
   searchHere: () => void;
   copyPath: () => void;
+  /** Pastes the clipboard's files into the current folder. */
+  paste: () => void;
   /** Pins the current folder, or unpins it when pinned, as the breadcrumb's pin button does. */
   togglePin: () => void;
 }
@@ -93,6 +119,7 @@ export function folderMenuItems(state: FolderMenuState, handlers: FolderMenuHand
     item('Open in File Explorer', handlers.openInExplorer),
     item('Search in this folder', handlers.searchHere),
     separator(),
+    item('Paste', handlers.paste, { hint: clipKey('V') }),
     item('Copy path', handlers.copyPath),
     separator(),
     item(state.pinned ? 'Unpin' : 'Pin', handlers.togglePin),

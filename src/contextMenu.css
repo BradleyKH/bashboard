@@ -63,6 +63,13 @@
   flex: 1;
 }
 
+/* Sized to its text, unlike the fixed mark column, so a long shortcut never overflows the menu. */
+.context-menu-hint {
+  flex: none;
+  margin-left: 16px;
+  color: rgba(214, 221, 226, 0.55);
+}
+
 .context-menu-mark {
   flex: none;
   width: 12px;

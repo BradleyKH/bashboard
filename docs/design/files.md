@@ -19,11 +19,20 @@ Branches tab lists them together through the worktree commands in 3.9.
 | `fs_write_text(path, text, expectedModified)` | Writes through a temp file and a rename; refused when the file's modified time differs from `expectedModified`, so a save never overwrites a change made on disk since the read, and refused when the file on disk is not valid UTF-8 |
 | `fs_move(path, toDir)` | Moves a file into another folder; refused when the target name exists |
 | `fs_rename(path, newName) -> path` | Renames a file or folder within its folder; refused (`invalid:`) for a name Windows forbids and (`exists:`) when another entry has the name, though a change of case alone goes through |
+| `fs_paste(paths, toDir, cut) -> { pasted, failed }` | Copies files and folders into `toDir` (`file_ops.rs`), or moves them when `cut`; each entry succeeds or fails on its own, as a `name: reason` line. A copy into its own folder takes File Explorer's `name - Copy.ext` name (then `- Copy (2)`); elsewhere a taken name is refused (`exists:`). A folder is never copied or moved into itself, a link inside a copied folder is refused rather than followed, a half-finished folder copy is removed, and a cross-drive move removes the original only once the copy is whole. A move into the folder the entry is already in does nothing |
+| `fs_trash(paths)` | Sends files and folders to the Recycle Bin (the Trash on macOS and Linux) through the `trash` crate; an entry the bin refuses, such as one on a network drive, fails rather than being deleted permanently |
 | `fs_watch(dir, onChange) -> id`, `fs_unwatch(id)` | One folder, not recursive, debounced 200 ms |
 
+The clipboard commands in `clipboard.rs` carry the file list: `clipboard_write_files(paths, cut)`
+puts it on the system clipboard, where File Explorer and Finder paste it too, and on Windows adds
+Explorer's `Preferred DropEffect` (move for a cut, copy and link otherwise) so Explorer pastes a
+cut as a move. `clipboard_read_files() -> { paths, cut }?` reads a list from any app, `cut` when
+that flag says move, and `clipboard_clear()` empties the clipboard after a cut is pasted.
+
 Paths must be absolute and are normalized before use, so `..` segments cannot step outside the
-folder they name. `fs_write_text`, `fs_move`, and `fs_rename` work on any existing entry, and nothing creates or
-deletes files except the scratch commands above.
+folder they name. `fs_write_text`, `fs_move`, `fs_rename`, `fs_paste`, and `fs_trash` work on any
+existing entry. Nothing deletes a file permanently except the scratch commands above and a finished
+cross-drive move, which removes its source.
 
 ## 3.11 Code search (`src-tauri/src/search.rs`)
 
@@ -233,7 +242,8 @@ outline marks when it is not selected. A refresh or a filter drops selected rows
 Each row's menu, from its menu button or a right-click (through the keyboard, the cursor's row),
 has the items below. A right-click or menu button on a row outside the selection selects just
 that row first; on a row inside a selection of several, the menu acts on all of them and offers
-only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
+only Cut, Copy, Copy paths (one per line), Insert paths, Move <n> files to (its files), and
+Delete.
 
 - Open terminal here (folders only): a new terminal of the default profile in that folder, as a
   split of the Files pane.
@@ -242,6 +252,9 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
 - Open in Local Browser (a single selected `.html` or `.htm` file, Windows only): a Local Browser
   pane (4.21) on the file's `file:///` URL, beside the Files pane. A path off a local drive (a
   network share) shows a toast instead.
+- Cut and Copy: as Ctrl+X and Ctrl+C, below.
+- Paste (a single folder row): pastes the clipboard's files into that folder, as Ctrl+V does into
+  the folder shown.
 - Copy path.
 - Insert path: pastes the path, relative to the Files pane's root and quoted for the shell of
   the tab's most recently focused terminal (`pathInsertText`, 4.4), as a bracketed paste without
@@ -250,6 +263,7 @@ only Copy paths (one per line), Insert paths, and Move <n> files to (its files).
   current folder's subfolders (`fs_move`), as a submenu.
 - Rename: as F2, below.
 - Pin.
+- Delete: as the Delete key, below.
 
 The title strip's Search in this folder button shows the Search pane's kind icon (⌕). It opens a new Search pane (4.14) as a split of the Files pane, on the
 folder's own repo root (`repo_root`, since a Files pane opened outside any repo can browse into
@@ -257,7 +271,7 @@ one), with Files to include set to the folder as an anchored glob (`/src/ui/**`,
 escaped and a comma standing in as `?`; `folderInclude`), or empty at the repo root, and focuses
 its query field. A right-click on the breadcrumb, or on the list outside any row (or the
 Menu key with no row selected), opens a menu for the current folder: Open terminal here, Open in
-File Explorer, Search in this folder, Copy path, and Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
+File Explorer, Search in this folder, Paste (into the current folder), Copy path, and Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
 does.
 
 A right-click in the preview outside the text editor offers Copy (with text selected), Find
@@ -283,6 +297,21 @@ each failure, such as a name already taken, is toasted and the rest still move.
   pending text, and the renamed entry stays selected and previewed; a failure is toasted. Escape
   or leaving the field cancels, so a stray click never renames on disk. The list holds its
   refreshes while the field is open.
+- Delete (Cmd+Backspace on macOS) sends the selection to the Recycle Bin through `fs_trash`,
+  without asking, since the bin can restore it; the preview's pending text is saved first, so a
+  restored file keeps it. A failure is toasted.
+- Ctrl+C and Ctrl+X (Cmd on macOS) put the selection's paths on the system clipboard as files
+  (`fileClipboard.ts`), so File Explorer can paste them too, and toast `Copied <n> items` or
+  `Cut <n> items`. Cut rows draw dimmed in every Files pane until pasted or replaced on the
+  clipboard. These keys are the list's own, not keybinding actions; elsewhere in the pane Ctrl+C
+  copies text.
+- Ctrl+V pastes the clipboard's files, from this app or File Explorer, into the folder shown
+  (`fs_paste`). The paste moves them when they were cut (`pasteMoves`): the clipboard says so, as
+  Explorer's Cut does on Windows, or this app cut exactly those paths, which is how a cut is known
+  on macOS and Linux. A move that fully succeeds empties the clipboard, as Explorer does; one that
+  partly fails stays, so the rest can be pasted again. A paste still running after half a second
+  toasts `Copying <n> items…` until it ends, each failure is toasted, and what landed in the folder
+  is selected. With no files on the clipboard it toasts that instead.
 - Typing a printable character filters the list to names containing the typed text, ignoring
   case, and shows the filter above the list with a clear button. Backspace edits it, and Esc
   clears it. Moving to another folder clears it too.

@@ -52,6 +52,22 @@ export function fsRename(path: string, newName: string): Promise<string> {
   return invoke<string>('fs_rename', { path, newName });
 }
 
+/** One `fs_paste`: the new paths, and a `name: reason` line for each entry that failed. */
+export interface PasteReport {
+  pasted: string[];
+  failed: string[];
+}
+
+/** Copies, or moves when `cut`, files and folders into `toDir`. */
+export function fsPaste(paths: string[], toDir: string, cut: boolean): Promise<PasteReport> {
+  return invoke<PasteReport>('fs_paste', { paths, toDir, cut });
+}
+
+/** Sends files and folders to the Recycle Bin; rejects, naming them, for any it refused. */
+export function fsTrash(paths: string[]): Promise<void> {
+  return invoke<void>('fs_trash', { paths });
+}
+
 /** Watches one folder (not recursive); resolves to the id to pass to `fsUnwatch`. */
 export function fsWatch(dir: string, onChange: () => void): Promise<number> {
   const channel = new Channel<null>();

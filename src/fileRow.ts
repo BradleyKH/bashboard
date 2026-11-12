@@ -7,6 +7,8 @@ export interface FileRowOptions {
   selected: boolean;
   /** The keyboard cursor's row, which the preview shows. */
   cursor: boolean;
+  /** Cut and not yet pasted, drawn dimmed as File Explorer draws one. */
+  cut?: boolean;
   /** A click, with its Ctrl and Shift state. */
   onSelect: (e: MouseEvent) => void;
   onActivate: () => void;
@@ -35,6 +37,7 @@ export function renderFileRow(entry: FileEntry, opts: FileRowOptions): HTMLEleme
   row.dataset.name = entry.name;
   if (opts.selected) row.classList.add('selected');
   if (opts.cursor) row.classList.add('cursor');
+  if (opts.cut) row.classList.add('cut');
   if (entry.isDir) row.classList.add('dir');
 
   const icon = document.createElement('span');

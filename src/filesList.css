@@ -134,6 +134,12 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Cut and not yet pasted. */
+.file-row.cut .file-row-icon,
+.file-row.cut .file-row-name {
+  opacity: 0.5;
+}
+
 /* The focused row of a multi-selection, or an unselected one after a Ctrl+click. */
 .files-list-rows:focus .file-row.cursor {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);

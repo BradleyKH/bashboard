@@ -36,6 +36,10 @@ function rowHandlers(): FileRowMenuHandlers {
     moveTo: vi.fn(),
     rename: vi.fn(),
     pin: vi.fn(),
+    cut: vi.fn(),
+    copy: vi.fn(),
+    pasteInto: vi.fn(),
+    delete: vi.fn(),
   };
 }
 
@@ -46,11 +50,17 @@ describe('fileRowMenuItems', () => {
       'Search in this folder',
       'Open in editor',
       '-',
+      'Cut',
+      'Copy',
+      'Paste',
+      '-',
       'Copy path',
       'Insert path',
       '-',
       'Rename',
       'Pin',
+      '-',
+      'Delete',
     ]);
   });
 
@@ -58,12 +68,17 @@ describe('fileRowMenuItems', () => {
     expect(labels(fileRowMenuItems(file, [file], targets, rowHandlers()))).toEqual([
       'Open in editor',
       '-',
+      'Cut',
+      'Copy',
+      '-',
       'Copy path',
       'Insert path',
       '-',
       'Move to',
       'Rename',
       'Pin',
+      '-',
+      'Delete',
     ]);
   });
 
@@ -88,6 +103,14 @@ describe('fileRowMenuItems', () => {
     find(items, 'Copy path').run();
     find(items, 'Insert path').run();
     find(items, 'Pin').run();
+    find(items, 'Cut').run();
+    find(items, 'Copy').run();
+    find(items, 'Paste').run();
+    find(items, 'Delete').run();
+    expect(h.cut).toHaveBeenCalledWith([dir]);
+    expect(h.copy).toHaveBeenCalledWith([dir]);
+    expect(h.pasteInto).toHaveBeenCalledWith(dir);
+    expect(h.delete).toHaveBeenCalledWith([dir]);
     expect(h.openTerminalHere).toHaveBeenCalledWith(dir);
     expect(h.searchHere).toHaveBeenCalledWith(dir);
     expect(h.openInEditor).toHaveBeenCalledWith(dir);
@@ -140,10 +163,15 @@ describe('fileRowMenuItems with several selected', () => {
 
   it('keeps only the items that take many paths', () => {
     expect(labels(fileRowMenuItems(file, [dir, file, other], targets, rowHandlers()))).toEqual([
+      'Cut',
+      'Copy',
+      '-',
       'Copy paths',
       'Insert paths',
       '-',
       'Move 2 files to',
+      '-',
+      'Delete',
     ]);
   });
 
@@ -152,6 +180,8 @@ describe('fileRowMenuItems with several selected', () => {
     const items = fileRowMenuItems(file, [dir, file, other], targets, h);
     find(items, 'Copy paths').run();
     expect(h.copyPath).toHaveBeenCalledWith([dir, file, other]);
+    find(items, 'Delete').run();
+    expect(h.delete).toHaveBeenCalledWith([dir, file, other]);
     const sub = items.find((e) => e.kind === 'submenu') as MenuSubmenu;
     (sub.items[0] as MenuItem).run();
     expect(h.moveTo).toHaveBeenCalledWith([file, other], 'C:/r/docs');
@@ -159,7 +189,15 @@ describe('fileRowMenuItems with several selected', () => {
 
   it('leaves Move to out when only folders are selected', () => {
     const lib: FileEntry = { ...dir, name: 'lib' };
-    expect(labels(fileRowMenuItems(dir, [dir, lib], targets, rowHandlers()))).toEqual(['Copy paths', 'Insert paths']);
+    expect(labels(fileRowMenuItems(dir, [dir, lib], targets, rowHandlers()))).toEqual([
+      'Cut',
+      'Copy',
+      '-',
+      'Copy paths',
+      'Insert paths',
+      '-',
+      'Delete',
+    ]);
   });
 });
 
@@ -169,6 +207,7 @@ describe('folderMenuItems', () => {
     openInExplorer: vi.fn(),
     searchHere: vi.fn(),
     copyPath: vi.fn(),
+    paste: vi.fn(),
     togglePin: vi.fn(),
   });
 
@@ -178,6 +217,7 @@ describe('folderMenuItems', () => {
       'Open in File Explorer',
       'Search in this folder',
       '-',
+      'Paste',
       'Copy path',
       '-',
       'Pin',
@@ -193,6 +233,8 @@ describe('folderMenuItems', () => {
     find(items, 'Search in this folder').run();
     find(items, 'Copy path').run();
     find(items, 'Unpin').run();
+    find(items, 'Paste').run();
+    expect(h.paste).toHaveBeenCalledOnce();
     expect(h.openTerminalHere).toHaveBeenCalledOnce();
     expect(h.openInExplorer).toHaveBeenCalledOnce();
     expect(h.searchHere).toHaveBeenCalledOnce();

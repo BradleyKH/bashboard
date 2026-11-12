@@ -102,7 +102,13 @@ Enter or double-click to open it: a folder is entered, a file opens in your edit
 adds or removes a row, Shift+click (or Shift+Up and Down) selects a range, and Ctrl+A selects
 every row, as in File Explorer. Up and Down move the selection, Backspace goes up a folder, typing filters the list by name (Backspace edits
 the filter, Esc clears it), and the list refreshes when files change on disk. F2 renames the
-selected file or folder in place: Enter saves, and Escape or clicking away cancels. The divider between
+selected file or folder in place: Enter saves, and Escape or clicking away cancels. Delete sends
+the selection to the Recycle Bin (Cmd+Backspace to the Trash on macOS), with no prompt since you
+can restore it from there. Ctrl+C and Ctrl+X copy or cut the selection and Ctrl+V pastes into the
+folder shown, as in File Explorer, and they work with File Explorer itself: copy there and paste
+in a Files pane, or the other way round. Cut rows show dimmed until pasted. Pasting a copy into
+its own folder names it `name - Copy`, as Explorer does; a name already taken anywhere else is
+reported rather than overwritten. The divider between
 the list and the preview can be dragged; until a file is selected, the list fills the pane.
 
 The preview depends on the file:
@@ -162,12 +168,13 @@ the source in Edit. The Code colors setting picks the color scheme, or None to t
 off everywhere and show every character in the text color (see
 [Settings](settings.md#settings)).
 
-Hover a row for its menu: **Open terminal here** and **Search in this folder** (folders), **Open in editor**, **Open in Local Browser** (an `.html` or `.htm` file, on Windows), **Copy path**,
+Hover a row for its menu: **Open terminal here** and **Search in this folder** (folders), **Open in editor**, **Open in Local Browser** (an `.html` or `.htm` file, on Windows), **Cut**, **Copy**, **Paste** (a folder, into it), **Copy path**,
 **Insert path** (pastes the path relative to the Files pane's root, or the absolute path outside
 it, quoted for the shell of the tab's most recently focused terminal, without pressing Enter),
 **Move to** (files; the repo's pinned
-folders and the current folder's subfolders), **Rename**, and **Pin**. With several rows selected, the menu
-offers Copy paths, Insert paths, and Move to for all of them.
+folders and the current folder's subfolders), **Rename**, **Pin**, and **Delete**. With several rows selected, the menu
+offers Cut, Copy, Copy paths, Insert paths, Move to, and Delete for all of them. A right-click on
+empty space below the rows, or on the breadcrumb, offers **Paste** into the current folder.
 
 Drag files onto a folder row to move them there, for example a finished plan into `done/`. A
 breadcrumb segment takes them too (to move them back up), and so does another Files pane's list,

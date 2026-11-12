@@ -181,6 +181,9 @@ built app:
 - in the file preview editor (Files or Search), Ctrl+Z undoes, Ctrl+Y redoes, and Tab moves focus
   out; Ctrl+Shift+Z (pane zoom), Ctrl+Shift+F (find), Ctrl+S (save), and Ctrl+Shift+Left and
   Ctrl+Shift+Right (split) still reach the app
+- in a Files list, Delete sends the selection to the Recycle Bin, and Ctrl+C, Ctrl+X, and Ctrl+V
+  copy, cut, and paste files, including to and from File Explorer; Ctrl+C in the preview still
+  copies text
 - Ctrl+G in the file preview editor opens the Line field, and in a terminal running Claude Code
   it still opens the prompt in an external editor
 - F6 moves focus into the dashboard (peeking it when hidden), the arrows and Enter work there,

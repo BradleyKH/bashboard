@@ -243,10 +243,18 @@ function renderList(entries: MenuEntry[], className: string): MenuList {
     const label = document.createElement('span');
     label.className = 'context-menu-label';
     label.textContent = entry.label;
+    if (entry.kind === 'item' && entry.hint) {
+      const hint = document.createElement('span');
+      hint.className = 'context-menu-hint';
+      hint.textContent = entry.hint;
+      button.append(icon, label, hint);
+    } else {
+      button.append(icon, label);
+    }
     const mark = document.createElement('span');
     mark.className = 'context-menu-mark';
     mark.textContent = entry.kind === 'submenu' ? '▸' : checked ? '✓' : entry.kind === 'item' ? (entry.key ?? '') : '';
-    button.append(icon, label, mark);
+    button.append(mark);
     el.append(button);
     return button;
   });

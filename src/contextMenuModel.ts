@@ -10,6 +10,8 @@ export interface MenuItem {
   icon?: string;
   /** A letter that chooses the item while the menu has focus, shown at the right. */
   key?: string;
+  /** A shortcut shown at the right for reference (e.g. "Ctrl+C"); it does not choose the item. */
+  hint?: string;
   /** Runs when the item takes the highlight, from the pointer or the keyboard. */
   onHighlight?: () => void;
 }
@@ -36,6 +38,7 @@ export interface MenuItemOptions {
   checked?: boolean;
   icon?: string;
   key?: string;
+  hint?: string;
   onHighlight?: () => void;
 }
 

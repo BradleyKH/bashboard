@@ -8,6 +8,7 @@ import { platformOs } from './platform';
 import { pathToFileUrl } from './localBrowserModel';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
+import { currentCut, cutPasted, onCutChange, putFiles, readFiles } from './fileClipboard';
 import { FilePreview } from './filePreview';
 import {
   filePreviewMenuItems,
@@ -38,7 +39,7 @@ import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import { paneKindInfo } from './paneKinds';
 import type { PaneView } from './paneView';
-import { fsList, fsMove, fsRename, fsUnwatch, fsWatch, repoRoot } from './repoFiles';
+import { fsList, fsMove, fsPaste, fsRename, fsTrash, fsUnwatch, fsWatch, repoRoot } from './repoFiles';
 import type { Settings } from './settings';
 import { textFieldOwns } from './textPaneKeys';
 import { textZoom } from './textZoomStore';
@@ -93,6 +94,10 @@ function errorText(err: unknown): string {
 function baseName(p: string): string {
   const parts = p.split(/[\\/]+/).filter((s) => s !== '');
   return parts.length > 0 ? parts[parts.length - 1] : p;
+}
+
+function itemCount(n: number): string {
+  return n === 1 ? '1 item' : `${n} items`;
 }
 
 function childPath(folder: string, name: string): string {
@@ -194,6 +199,14 @@ export class FilesPane implements PaneView {
       folderMenu: () => this.folderMenu(),
       onDragStart: (entries, e) => this.startRowDrag(entries, e),
       onRename: (entry, newName) => this.renameEntry(entry, newName),
+      onCut: (entries) => void putFiles(this.pathsOf(entries), true),
+      onCopy: (entries) => void putFiles(this.pathsOf(entries), false),
+      onPaste: () => void this.pasteInto(this.currentPath),
+      onDelete: (entries) => void this.deletePaths(this.pathsOf(entries)),
+      isCut: (entry) => {
+        const path = childPath(this.currentPath, entry.name);
+        return currentCut().some((p) => samePath(p, path));
+      },
     });
     this.list.setSort(this.sort);
     this.notice = document.createElement('div');
@@ -240,6 +253,7 @@ export class FilesPane implements PaneView {
     }
 
     this.listeners.push(attachContextMenu(this.preview.el, () => ({ entries: this.previewMenu() })));
+    this.listeners.push(onCutChange(() => this.list.repaint()));
     this.listen(this.host, 'focusin', () => opts.onFocus());
     this.listen(this.host, 'keydown', (e) => this.onKeyDown(e as KeyboardEvent));
     this.listen(this.divider, 'pointerdown', (e) =>
@@ -383,6 +397,62 @@ export class FilesPane implements PaneView {
     if (failed.length === 1) showToast(`Could not move ${failed[0]}`);
     else if (failed.length > 1) showToast(`Could not move ${failed.length} files; ${failed[0]}`);
     // The folder watch re-lists too; this makes the rows disappear without waiting for it.
+    if (!this.disposed) await this.relist(this.generation);
+  }
+
+  private pathsOf(entries: readonly FileEntry[]): string[] {
+    return entries.map((e) => childPath(this.currentPath, e.name));
+  }
+
+  /**
+   * Pastes the clipboard's files into `toDir`, moving them when they were cut, toasting any that
+   * fail. What lands in the folder shown is selected.
+   */
+  private async pasteInto(toDir: string): Promise<void> {
+    const files = await readFiles();
+    if (files === null) {
+      showToast('The clipboard holds no files');
+      return;
+    }
+    const { paths, move } = files;
+    const previewed = this.preview.path;
+    if (move && previewed !== null && paths.some((p) => samePath(p, previewed)) && !(await this.savedBefore('nothing was moved'))) return;
+    // Only a paste that takes a while says so, as a large folder copy can.
+    const progress: { dismiss?: () => void } = {};
+    const slow = window.setTimeout(() => {
+      progress.dismiss = showToast(`${move ? 'Moving' : 'Copying'} ${itemCount(paths.length)}…`, 10 * 60 * 1000);
+    }, 500);
+    let report;
+    try {
+      report = await fsPaste(paths, toDir, move);
+    } catch (e) {
+      showToast(`Could not paste: ${errorText(e)}`);
+      return;
+    } finally {
+      window.clearTimeout(slow);
+      progress.dismiss?.();
+    }
+    // A partly failed cut stays on the clipboard, so the rest can be pasted again.
+    if (move && report.failed.length === 0) cutPasted();
+    const verb = move ? 'move' : 'paste';
+    if (report.failed.length === 1) showToast(`Could not ${verb} ${report.failed[0]}`);
+    else if (report.failed.length > 1) showToast(`Could not ${verb} ${report.failed.length} items; ${report.failed[0]}`);
+    if (this.disposed || !samePath(toDir, this.currentPath)) return;
+    const gen = this.generation;
+    await this.relist(gen);
+    if (gen === this.generation) this.list.selectNames(report.pasted.map(baseName));
+  }
+
+  /** Sends entries to the Recycle Bin, toasting a failure, then re-lists. */
+  private async deletePaths(paths: string[]): Promise<void> {
+    const previewed = this.preview.path;
+    // Unsaved edits are saved first, so restoring the file from the bin brings them back.
+    if (previewed !== null && paths.some((p) => samePath(p, previewed)) && !(await this.savedBefore('nothing was deleted'))) return;
+    try {
+      await fsTrash(paths);
+    } catch (e) {
+      showToast(`Could not delete: ${errorText(e)}`);
+    }
     if (!this.disposed) await this.relist(this.generation);
   }
 
@@ -677,6 +747,10 @@ export class FilesPane implements PaneView {
       moveTo: (files, toDir) => void this.movePaths(files.map(pathOf), toDir),
       rename: (e) => this.list.startRename(e),
       pin: (e) => this.opts.onPin(pathOf(e), e.isDir),
+      cut: (es) => void putFiles(es.map(pathOf), true),
+      copy: (es) => void putFiles(es.map(pathOf), false),
+      pasteInto: (e) => void this.pasteInto(pathOf(e)),
+      delete: (es) => void this.deletePaths(es.map(pathOf)),
     };
     return fileRowMenuItems(entry, selection, this.moveTargets(selection), handlers);
   }
@@ -696,6 +770,7 @@ export class FilesPane implements PaneView {
         openInExplorer: () => openFolder(folder),
         searchHere: () => this.opts.onSearchHere(folder),
         copyPath: () => void copyPath(folder),
+        paste: () => void this.pasteInto(folder),
         togglePin: () => this.togglePin(folder),
       },
     );

@@ -21,7 +21,7 @@ import {
   type FileSelection,
   type SelectMods,
 } from './fileSelection';
-import { primaryHeld, primaryOnly } from './platform';
+import { platformOs, primaryHeld, primaryOnly } from './platform';
 
 export interface FilesListOptions {
   /** A click or a keyboard move put the cursor on an entry (the preview follows). */
@@ -43,6 +43,15 @@ export interface FilesListOptions {
   onDragStart?: (entries: FileEntry[], e: PointerEvent) => void;
   /** Enter in a rename field with a new, valid name; resolves true when the rename went through. */
   onRename: (entry: FileEntry, newName: string) => Promise<boolean>;
+  /** Ctrl+X and Ctrl+C (Cmd on macOS) on the selection. */
+  onCut: (entries: FileEntry[]) => void;
+  onCopy: (entries: FileEntry[]) => void;
+  /** Ctrl+V: paste into the folder shown. */
+  onPaste: () => void;
+  /** Delete (Cmd+Backspace on macOS) on the selection. */
+  onDelete: (entries: FileEntry[]) => void;
+  /** Whether a row was cut and not yet pasted, which draws it dimmed. */
+  isCut: (entry: FileEntry) => boolean;
 }
 
 /**
@@ -130,6 +139,22 @@ export class FilesList {
   /** Reorders the rows; the selection and filter stay. */
   setSort(sort: FilesSort): void {
     this.sort = sort;
+    this.render();
+  }
+
+  /** Redraws the rows, keeping the selection; the cut marks changed. */
+  repaint(): void {
+    this.render();
+  }
+
+  /**
+   * Selects the named entries that are listed, the first one as the cursor, without firing
+   * `onSelect`; what a paste created.
+   */
+  selectNames(names: readonly string[]): void {
+    const listed = this.visibleNames().filter((n) => names.includes(n));
+    if (listed.length === 0) return;
+    this.sel = { cursor: listed[0], anchor: listed[0], marked: listed };
     this.render();
   }
 
@@ -255,12 +280,31 @@ export class FilesList {
       this.startRename();
       return;
     }
+    // Finder's Move to Trash is Cmd+Backspace; a Mac keyboard's Delete key sends Backspace.
+    const deleteKey =
+      platformOs() === 'macos'
+        ? e.key === 'Backspace' && primaryOnly(e) && !e.shiftKey
+        : e.key === 'Delete' && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+    if (deleteKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      const sel = this.selection();
+      if (sel.length > 0) this.opts.onDelete(sel);
+      return;
+    }
     if (e.ctrlKey || e.metaKey) {
-      if (primaryOnly(e) && !e.shiftKey && e.key.toLowerCase() === 'a') {
+      const key = primaryOnly(e) && !e.shiftKey ? e.key.toLowerCase() : '';
+      if (key === 'a') {
         e.preventDefault();
         e.stopPropagation();
         this.sel = selectAll(this.sel, this.visibleNames());
         this.render();
+      } else if (key === 'x' || key === 'c' || key === 'v') {
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = this.selection();
+        if (key === 'v') this.opts.onPaste();
+        else if (sel.length > 0) (key === 'x' ? this.opts.onCut : this.opts.onCopy)(sel);
       }
       // Other chords belong to the pane's keymap handler, which runs as the event bubbles.
       return;
@@ -310,6 +354,7 @@ export class FilesList {
       renderFileRow(entry, {
         selected: isMarked(this.sel, entry.name),
         cursor: entry.name === this.sel.cursor,
+        cut: this.opts.isCut(entry),
         onSelect: (e) => this.clicked(entry, { shift: e.shiftKey, ctrl: primaryHeld(e) }),
         onActivate: () => this.opts.onActivate(entry),
         onMenu: (anchor) => {

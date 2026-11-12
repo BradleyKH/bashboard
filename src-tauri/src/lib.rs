@@ -13,6 +13,7 @@ mod containers;
 mod crash_recovery;
 mod credential_store;
 mod editors;
+mod file_ops;
 mod files;
 mod fonts;
 mod forge;
@@ -217,6 +218,9 @@ pub fn run() {
             browser_tls::browser_probe_tls,
             browser_tls::browser_prefer_tls,
             clipboard::clipboard_read_text,
+            clipboard::clipboard_write_files,
+            clipboard::clipboard_read_files,
+            clipboard::clipboard_clear,
             platform::platform_info,
             pty::pty_attach,
             pty::pty_spawn,
@@ -269,6 +273,8 @@ pub fn run() {
             files::fs_rename,
             files::fs_watch,
             files::fs_unwatch,
+            file_ops::fs_paste,
+            file_ops::fs_trash,
             editors::editors,
             editors::open_in_editor,
             editors::can_open_with_default_app,
