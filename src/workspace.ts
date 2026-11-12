@@ -30,7 +30,7 @@ import type { PathDrag } from './pathDragLayer';
 import type { PaneKind } from './paneKinds';
 import type { PaneView } from './paneView';
 import { scratchDelete, type PtyActivity } from './persistence';
-import type { SavedTab, SavedWorkspace } from './savedWorkspace';
+import type { PtyRef, SavedTab, SavedWorkspace } from './savedWorkspace';
 import type { SearchOptions } from './searchOptions';
 import { SearchPane } from './searchPane';
 import { ScratchPane } from './scratchPane';
@@ -711,7 +711,7 @@ export class Workspace {
    * Design 4.9: a new shell per saved terminal and each pad with its saved text, tab by tab in
    * saved order. Expects an empty workspace and at least one saved tab.
    */
-  restore(saved: SavedWorkspace, opts: { resumeSessions: boolean; scrollback: boolean }): void {
+  restore(saved: SavedWorkspace, opts: { resumeSessions: boolean; scrollback: boolean; livePtys: readonly PtyRef[] }): void {
     persistence.restore(this.ctx, saved, opts);
   }
 

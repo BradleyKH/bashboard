@@ -12,12 +12,13 @@ a terminal's pane id to its pty id.
 
 | Command | Purpose |
 | --- | --- |
-| `pty_spawn(cols, rows, cwd?, profile?, command?, onData, onExit) -> { id, profile }` | Start a shell; `profile` is the id actually started. `command`, an argument list, runs in place of the profile's interactive shell (container shells, 4.16) |
+| `pty_spawn(cols, rows, cwd?, profile?, command?, onData, onExit) -> { id, startedAt, profile }` | Start a shell; `profile` is the id actually started. `command`, an argument list, runs in place of the profile's interactive shell (container shells, 4.16) |
+| `pty_attach(id, startedAt, onData, onExit)` | Take over a running pty's output and exit from the page that spawned it (Reattach, below) |
 | `shell_profiles() -> ShellProfile[]` | The shells that can be started (section 7) |
 | `pty_write(id, data)` | Keystrokes and pastes |
 | `pty_resize(id, cols, rows)` | After a fit |
 | `pty_kill(id)` | Close a terminal |
-| `pty_list() -> [{ id, pid, startedAt }]` | Reconcile after a reload |
+| `pty_list() -> [{ id, pid, startedAt }]` | Reconcile after a reload or a rebuilt window |
 
 Behavior:
 
@@ -82,8 +83,18 @@ Behavior:
   foreground one, so a job left running with `&` keeps the pane busy until it exits. The
   front end uses the verdicts for working and idle when a shell emits no OSC 133 markers
   (4.8).
-- **Orphans.** On front-end load, `pty_list` returns ptys from before a reload. In development
-  they are killed; in release builds a reload does not happen in normal use.
+- **Reattach.** A pty outlives the page that spawned it: a page reload, or a window rebuilt after
+  WebView2's browser process died (3.22), leaves its shell running. Each pty keeps its newest
+  1 MB of output whether or not a page is listening, so a shell never blocks on a full pipe
+  while no page reads it. `pty_attach` sends that tail, starting after its first line break when
+  older output was dropped, as the first `onData` message (always, even when empty), then live
+  output, and moves `onExit` to the new page; the sink runs under the same lock as the swap, so
+  no chunk is lost or repeated between the two. The pty must match on `startedAt` as well as
+  `id`, since ids restart with the core and a saved id from an earlier run would otherwise name
+  a different shell. A pty that exits while no page listens is removed as usual.
+- **Orphans.** On front-end load, `pty_list` returns the ptys that outlived the last page. The
+  restored workspace reattaches the ones its saved terminals name (4.9), and the rest are
+  killed.
 
 ## 3.5 Platform glue
 
@@ -150,8 +161,7 @@ with it, in every profile, and no menu opens. `main.ts` registers one `contextme
 `window` in the capture phase, before anything else mounts, that cancels the default and never
 stops propagation, so xterm.js still sees the event (it moves its hidden textarea under the
 pointer, and passes the button to a program that turned on mouse reporting). The cancelled
-default is WebView2's built-in menu, whose Refresh reloads the page and kills every pty as an
-orphan. The app adds no terminal menu and no right-click handling of its own.
+default is WebView2's built-in menu, whose Refresh reloads the page. The app adds no terminal menu and no right-click handling of its own.
 
 **Context menus** (`contextMenu.ts`, `contextMenuModel.ts`). Right-clicking an element the app
 knows opens a menu of that element's actions; right-clicking anything else does nothing. One

@@ -168,6 +168,13 @@ describe('layoutFromSnapshot', () => {
     expect(layout.tab).not.toBe(s.tabs[1]);
   });
 
+  it('never names a running pty', () => {
+    const s = snap();
+    const first = s.tabs[1].panes[0];
+    if (first.kind === 'terminal') first.pty = { id: 2, startedAt: 5 };
+    expect(layoutFromSnapshot('Dev', s).tab.panes[0]).not.toHaveProperty('pty');
+  });
+
   it('drops the tab name', () => {
     const s = { ...snap(), activeTab: 0 };
     expect(layoutFromSnapshot('Dev', s).tab.name).toBeNull();

@@ -1078,7 +1078,7 @@ mod tests {
         }
         let ptys = Ptys::default();
         let (dsr_tx, dsr_rx) = mpsc::channel::<()>();
-        let id = ptys
+        let (id, _) = ptys
             .spawn(
                 crate::pty::SpawnSpec {
                     program: sh,

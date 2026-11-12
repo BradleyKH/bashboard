@@ -144,8 +144,8 @@ pub fn watch(window: &tauri::WebviewWindow) {
                     core.Reload()?;
                 }
             }
-            // An unresponsive renderer can still recover, and reloading would kill every
-            // pane's shell; the close fallback is the way out if it never does.
+            // An unresponsive renderer can still recover on its own; the close fallback is
+            // the way out if it never does.
             Ok(())
         }));
         let mut token = 0i64;

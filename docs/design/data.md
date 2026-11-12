@@ -163,14 +163,16 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   only beside a `sessionId`): the default mode. Its `agent` (`claude`, `codex`, or `copilot`):
   Claude Code, which an unknown value also reads as. Its `resumeModel` (kept only beside a
   `sessionId`): none. Its `scrollbackId` (the scratch id alphabet):
-  none, so the terminal starts without saved scrollback. A Files pane's `root`: resolved from its
+  none, so the terminal starts without saved scrollback. Its `pty` (`{ id, startedAt }`, both
+  integers, valid only while the core that spawned it runs): none, so the terminal starts a new
+  shell. A Files pane's `root`: resolved from its
   `folder`. Its `expanded`: false. A Ship pane's `root`: none, which opens on the Overview;
   a drilled pane saves its local repo root or `remote:<host>/<path>`. Its `tab`: `pipelines`, the
   other being `pulls`; it is omitted from the file when it is `pipelines`. Its `thisBranch`, `thisBranchPulls`, and
   `allPulls`: false, and each omitted when false; any value but `true` reads as false.
 
 **layouts.json.** Names are unique without regard to case. A layout holds one tab whose
-terminals carry no session ids, permission modes, or scrollback ids and whose scratch pads have a null
+terminals carry no session ids, permission modes, scrollback ids, or ptys and whose scratch pads have a null
 `scratchId`, so they open fresh; the tab's own `name` is ignored, since it takes the layout's. An
 entry whose `workspace` holds a version 1 workspace loads as that one tab.
 

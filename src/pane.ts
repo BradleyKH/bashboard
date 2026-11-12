@@ -16,6 +16,7 @@ import { noteShellFallback } from './shellFallback';
 import type { CellSize } from './layout';
 import type { PaneView } from './paneView';
 import { platformOs } from './platform';
+import type { PtyRef } from './savedWorkspace';
 import type { Settings } from './settings';
 import type { OscShellState } from './terminalStatus';
 
@@ -81,6 +82,10 @@ export interface TerminalPaneOptions {
   scrollbackId: string;
   /** Saved scrollback, written above the shell's first output when it resolves non-blank. */
   replay?: Promise<string>;
+  /** A running pty to reattach to instead of spawning; a gone pty falls back to a spawn. */
+  attach?: PtyRef;
+  /** Fires once the pane holds a pty, spawned or reattached. */
+  onSpawned?: () => void;
 }
 
 export function toFontFamily(family: string): string {
@@ -99,6 +104,16 @@ export class TerminalPane implements PaneView {
   readonly scrollbackId: string;
   /** Assigned by the Rust side on spawn; null before spawn and after the shell exits. */
   private id: number | null = null;
+  /** The pty's start time from the core, which with `id` lets a later page reattach to it. */
+  private startedAt: number | null = null;
+  private readonly attachTo: PtyRef | undefined;
+  private readonly onSpawnedCb: (() => void) | undefined;
+  /**
+   * True while a reattach replays old output. xterm.js answers queries it parses (cursor
+   * position, device attributes), and answers to old queries must not reach the shell as input;
+   * nor should old bells and command markers raise attention.
+   */
+  private muted = false;
   private readonly host: HTMLElement;
   /** xterm's container; the workspace may put a title strip in the host ahead of it. */
   private readonly body: HTMLElement;
@@ -143,6 +158,8 @@ export class TerminalPane implements PaneView {
     this.onCommandCb = opts.onCommand;
     this.onReadyCb = opts.onReady;
     this.replay = opts.replay;
+    this.attachTo = opts.attach;
+    this.onSpawnedCb = opts.onSpawned;
     this.currentCwd = opts.cwd ?? null;
     this.expanded = opts.expanded ?? true;
     this.accent = opts.settings.accentColor;
@@ -181,7 +198,9 @@ export class TerminalPane implements PaneView {
     this.term.unicode.activeVersion = '11';
     this.term.attachCustomKeyEventHandler((e) => opts.keyHandler(e, this.term, (data) => this.write(data)));
     this.term.onData((data) => this.write(data));
-    this.term.onBell(() => opts.onBell?.());
+    this.term.onBell(() => {
+      if (!this.muted) opts.onBell?.();
+    });
     this.term.onResize(({ cols, rows }) => {
       if (this.id !== null) void invoke('pty_resize', { id: this.id, cols, rows });
     });
@@ -214,6 +233,11 @@ export class TerminalPane implements PaneView {
     return this.id;
   }
 
+  /** The running pty, for the saved workspace; null before it starts and after it exits. */
+  get pty(): PtyRef | null {
+    return this.id !== null && this.startedAt !== null ? { id: this.id, startedAt: this.startedAt } : null;
+  }
+
   /** The command this pane runs instead of a shell profile, when it is not a shell. */
   get command(): readonly string[] | undefined {
     return this.spawnCommand;
@@ -244,6 +268,8 @@ export class TerminalPane implements PaneView {
 
   async start(): Promise<void> {
     this.fitIfReady();
+    if (this.attachTo && (await this.attach(this.attachTo))) return;
+    if (this.disposed) return;
     if (this.replay) {
       // Written before the spawn so the shell's first output lands under it.
       const saved = await this.replay.catch(() => '');
@@ -257,18 +283,13 @@ export class TerminalPane implements PaneView {
       this.term.write(new Uint8Array(bytes));
       this.fireReady();
     };
-    const onExit = new Channel<number>();
-    onExit.onmessage = (code) => {
-      this.id = null;
-      if (this.disposed) return;
-      this.term.write(`\r\n[process exited with code ${code}]\r\n`);
-      this.onExitCb(code);
-    };
+    const onExit = this.exitChannel();
 
     const cols = this.term.cols;
     const rows = this.term.rows;
-    const { id, profile, fallbackFrom } = await invoke<{
+    const { id, startedAt, profile, fallbackFrom } = await invoke<{
       id: number;
+      startedAt: number;
       profile: string;
       fallbackFrom: string | null;
     }>('pty_spawn', {
@@ -285,6 +306,7 @@ export class TerminalPane implements PaneView {
       return;
     }
     this.id = id;
+    this.startedAt = startedAt;
     this.resolvedProfile = profile;
     if (fallbackFrom) noteShellFallback(fallbackFrom, profile);
     this.spawned = true;
@@ -294,7 +316,70 @@ export class TerminalPane implements PaneView {
     if (this.term.cols !== cols || this.term.rows !== rows) {
       void invoke('pty_resize', { id, cols: this.term.cols, rows: this.term.rows });
     }
+    this.observeResize();
+    this.onSpawnedCb?.();
+  }
 
+  /**
+   * Reattaches to a pty that outlived the page that spawned it (docs/design/terminal.md section
+   * 3.1); false when the core no longer runs it, so the caller spawns instead. The core's first
+   * message is always the replay of its recent output; nothing runs the ready callback, since the
+   * shell is not starting and a resume command typed into a live agent would reach the agent.
+   */
+  private async attach(target: PtyRef): Promise<boolean> {
+    let first = true;
+    const onData = new Channel<ArrayBuffer>();
+    onData.onmessage = (bytes) => {
+      if (this.disposed) return;
+      if (!first) {
+        this.term.write(new Uint8Array(bytes));
+        return;
+      }
+      first = false;
+      this.muted = true;
+      this.term.write(new Uint8Array(bytes), () => {
+        this.muted = false;
+      });
+    };
+    try {
+      await invoke('pty_attach', { id: target.id, startedAt: target.startedAt, onData, onExit: this.exitChannel() });
+    } catch {
+      return false;
+    }
+    if (this.disposed) {
+      invoke('pty_kill', { id: target.id }).catch(() => {});
+      return true;
+    }
+    this.id = target.id;
+    this.startedAt = target.startedAt;
+    this.onReadyCb = undefined;
+    this.spawned = true;
+    for (const data of this.pending) this.write(data);
+    this.pending = [];
+    // ConPTY redraws its screen on a resize, which repairs whatever the replay could not: a
+    // full-screen program whose mode switch fell outside the replay, or a cut-off sequence. A
+    // resize to the size it already has is ignored, so step one column away and back.
+    const { cols, rows } = this.term;
+    await invoke('pty_resize', { id: target.id, cols: Math.max(2, cols - 1), rows }).catch(() => {});
+    await invoke('pty_resize', { id: target.id, cols, rows }).catch(() => {});
+    this.observeResize();
+    this.onSpawnedCb?.();
+    return true;
+  }
+
+  private exitChannel(): Channel<number> {
+    const onExit = new Channel<number>();
+    onExit.onmessage = (code) => {
+      this.id = null;
+      this.startedAt = null;
+      if (this.disposed) return;
+      this.term.write(`\r\n[process exited with code ${code}]\r\n`);
+      this.onExitCb(code);
+    };
+    return onExit;
+  }
+
+  private observeResize(): void {
     this.resizeObserver = new ResizeObserver(() => this.fitIfReady());
     this.resizeObserver.observe(this.body);
   }
@@ -465,11 +550,11 @@ export class TerminalPane implements PaneView {
     if (kind === 'A') this.fireReady();
     if (kind === 'C') {
       this.commandStartedAt = Date.now();
-      this.onCommandCb?.({ kind: 'start' });
+      if (!this.muted) this.onCommandCb?.({ kind: 'start' });
     } else if (kind === 'D' && this.commandStartedAt !== null) {
       const durationMs = Date.now() - this.commandStartedAt;
       this.commandStartedAt = null;
-      this.onCommandCb?.({ kind: 'end', durationMs, exitCode: marker.exitCode ?? null });
+      if (!this.muted) this.onCommandCb?.({ kind: 'end', durationMs, exitCode: marker.exitCode ?? null });
     }
     if (running !== wasRunning) this.onShellChangeCb?.();
   }
@@ -488,7 +573,7 @@ export class TerminalPane implements PaneView {
   }
 
   private write(data: string): void {
-    if (this.disposed) return;
+    if (this.disposed || this.muted) return;
     if (this.id === null) {
       if (!this.spawned) this.pending.push(data);
       return;

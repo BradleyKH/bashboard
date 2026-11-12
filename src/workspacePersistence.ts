@@ -10,7 +10,7 @@ import type { PaneView } from './paneView';
 import { scratchLoad, scrollbackLoad, scrollbackSaveAll, type ScrollbackEntry } from './persistence';
 import { PortsPane } from './portsPane';
 import { restoredTab, snapshotTabs } from './savedTabs';
-import { resumeCommand, type SavedPane, type SavedTab, type SavedWorkspace } from './savedWorkspace';
+import { resumeCommand, type PtyRef, type SavedPane, type SavedTab, type SavedWorkspace } from './savedWorkspace';
 import { ScratchPane } from './scratchPane';
 import { SearchPane } from './searchPane';
 import { ShipPane } from './shipPane';
@@ -57,6 +57,7 @@ export function snapshot(ctx: PersistenceContext): SavedWorkspace {
         ...ctx.sessions.saved(id, pane.ptyId),
         ...(pane.profile !== undefined && { profile: pane.profile }),
         scrollbackId: pane.scrollbackId,
+        ...(pane.pty && { pty: pane.pty }),
       };
     }
     if (pane instanceof ScratchPane) return { key: id, collapsed, kind: 'scratch', scratchId: pane.scratchId };
@@ -72,13 +73,14 @@ export function snapshot(ctx: PersistenceContext): SavedWorkspace {
 }
 
 /**
- * Design 4.9: a new shell per saved terminal and each pad with its saved text, tab by tab in
- * saved order. Expects an empty workspace and at least one saved tab.
+ * Design 4.9: each saved terminal reattached to its pty when `livePtys` has it, else a new shell,
+ * and each pad with its saved text, tab by tab in saved order. Expects an empty workspace and at
+ * least one saved tab.
  */
 export function restore(
   ctx: PersistenceContext,
   saved: SavedWorkspace,
-  opts: { resumeSessions: boolean; scrollback: boolean },
+  opts: { resumeSessions: boolean; scrollback: boolean; livePtys: readonly PtyRef[] },
 ): void {
   if (saved.tabs.length === 0) return;
   const built = saved.tabs.map((t) => ({
@@ -95,6 +97,7 @@ export function restore(
       resumeSessions: opts.resumeSessions,
       loadScratch: true,
       loadScrollback: opts.scrollback,
+      livePtys: opts.livePtys,
     });
   }
   for (const [hid, host] of ctx.hosts) host.classList.toggle('focused', hid === ctx.store.focusedId);
@@ -135,7 +138,7 @@ function buildTab(
   saved: SavedTab,
   ids: Map<string, string>,
   visible: boolean,
-  opts: { resumeSessions: boolean; loadScratch: boolean; loadScrollback: boolean },
+  opts: { resumeSessions: boolean; loadScratch: boolean; loadScrollback: boolean; livePtys?: readonly PtyRef[] },
 ): void {
   for (const p of saved.panes) {
     const id = ids.get(p.key)!;

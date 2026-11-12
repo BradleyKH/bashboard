@@ -35,7 +35,8 @@ import { parseGlobalPins } from './globalPins';
 import { GIT_BASH_PROFILE, loadProfiles } from './profiles';
 import { parseRepos } from './repos';
 import { deleteWorktree } from './worktreeDelete';
-import { parseSavedWorkspace } from './savedWorkspace';
+import { livePty } from './paneSpecModel';
+import { parseSavedWorkspace, type PtyRef } from './savedWorkspace';
 import { loadSessions } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
 import { showToast } from './toast';
@@ -57,7 +58,7 @@ import { PaletteController } from './paletteController';
 import { AppDialogs } from './appDialogs';
 import { listenAppEvents, listenSettingsChanges } from './appEvents';
 
-// The built-in menu's Refresh reloads the page, and a reload kills every pane's pty as an orphan.
+// The built-in menu's Refresh would reload the whole page.
 window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true });
 installTextFieldMenu();
 
@@ -76,7 +77,7 @@ function applyBackdropSettings(settings: Settings): void {
 }
 
 // The style comes from the settings, so they load first; the mount then runs alongside the font
-// and stale-pty awaits below rather than after them.
+// and pty-list awaits below rather than after them.
 const settingsLoaded: Promise<SettingsPayload> = loadSettings().catch((err: unknown) => {
   showToast(`Could not load settings, using defaults: ${String(err)}`);
   return { settings: DEFAULT_SETTINGS, warnings: [], firstRun: false };
@@ -124,10 +125,9 @@ function toggleFullscreen(): void {
     .catch((err: unknown) => showToast(`Could not toggle full screen: ${String(err)}`));
 }
 
-// Ptys from before a reload are unreachable since their channels died with the old page
-// (docs/design/terminal.md section 3.1). Any of them can exit on its own before the kill lands.
-const stale = await invoke<{ id: number; pid: number; startedAt: number }[]>('pty_list').catch(() => []);
-await Promise.allSettled(stale.map(({ id }) => invoke('pty_kill', { id })));
+// Ptys outlive a page that crashed or reloaded (docs/design/terminal.md section 3.1). Restore
+// reattaches the ones its saved terminals name, and the rest are killed once it has.
+const livePtys = await invoke<PtyRef[]>('pty_list').catch((): PtyRef[] => []);
 
 setHomeDir(await homeDir().catch(() => null));
 await loadPlatform();
@@ -479,6 +479,7 @@ onTextZoomChange(() => saver.schedule());
 listenAppEvents({ state, workspace, saver, refreshPanel, favorites, repo, appWindow });
 
 let restored = false;
+let claimedPtys: PtyRef[] = [];
 try {
   const saved = parseSavedWorkspace(await workspaceLoad());
   // Collapsed sections, the panel width, and text zoom apply even when restoring panes is switched off.
@@ -502,12 +503,18 @@ try {
     workspace.restore(saved, {
       resumeSessions: payload.settings.restore.resumeSessions,
       scrollback: payload.settings.restore.scrollback,
+      livePtys,
     });
     restored = true;
+    claimedPtys = saved.tabs.flatMap((t) => t.panes.flatMap((p) => livePty(p, livePtys) ?? []));
   }
 } catch (err) {
   showToast(`Could not restore the workspace: ${String(err)}`);
 }
+// A pty no restored pane claimed has no page to show it. Any of them can exit on its own before
+// the kill lands.
+const unclaimed = livePtys.filter((l) => !claimedPtys.some((c) => c.id === l.id));
+void Promise.allSettled(unclaimed.map(({ id }) => invoke('pty_kill', { id })));
 const startupFolder = await takeStartupFolder().catch(() => null);
 if (!restored) workspace.addPane(startupFolder ?? undefined);
 else if (startupFolder) workspace.newTab(startupFolder);

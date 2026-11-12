@@ -16,6 +16,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::hooks::Hooks;
 use crate::profiles;
+use crate::pty_tail::{OutputTail, TAIL_BYTES};
 use crate::settings::{self, SettingsState};
 
 /// Per-session markers Claude Code sets in its own environment. User configuration such as
@@ -110,6 +111,19 @@ struct Pane {
     killer: Box<dyn ChildKiller + Send + Sync>,
     pid: u32,
     started_at: u64,
+    stream: Arc<Mutex<Stream>>,
+}
+
+type DataSink = Box<dyn FnMut(&[u8]) -> bool + Send>;
+type ExitSink = Box<dyn FnOnce(u32) + Send>;
+
+/// Where a pty's output goes. The sinks belong to whichever page last spawned or attached the
+/// pty, and are dropped when that page goes away; the tail keeps filling either way, so a shell
+/// never blocks on a full pipe while no page reads it.
+struct Stream {
+    tail: OutputTail,
+    on_data: Option<DataSink>,
+    on_exit: Option<ExitSink>,
 }
 
 #[derive(Default)]
@@ -168,17 +182,17 @@ fn build_command(spec: &SpawnSpec, id: u32) -> CommandBuilder {
 }
 
 impl Ptys {
-    /// Starts `spec` in a new pty and returns its id. `on_data` receives output until it returns
-    /// false or the pty closes; `on_exit` receives the exit code once the child has exited and
-    /// the pane has been removed.
+    /// Starts `spec` in a new pty and returns its id and start time. `on_data` receives output
+    /// until it returns false or the pty closes; `on_exit` receives the exit code once the child
+    /// has exited and the pane has been removed. `attach` can hand both to another receiver.
     pub fn spawn(
         &self,
         spec: SpawnSpec,
         cols: u16,
         rows: u16,
-        mut on_data: impl FnMut(&[u8]) -> bool + Send + 'static,
+        on_data: impl FnMut(&[u8]) -> bool + Send + 'static,
         on_exit: impl FnOnce(u32) + Send + 'static,
-    ) -> Result<u32, String> {
+    ) -> Result<(u32, u64), String> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed) + 1;
         let pair = native_pty_system().openpty(size(cols, rows)).map_err(|e| e.to_string())?;
 
@@ -189,20 +203,33 @@ impl Ptys {
         let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
         let killer = child.clone_killer();
         let pid = child.process_id().unwrap_or(0);
+        let started_at = now_ms();
+        let stream = Arc::new(Mutex::new(Stream {
+            tail: OutputTail::new(TAIL_BYTES),
+            on_data: Some(Box::new(on_data)),
+            on_exit: Some(Box::new(on_exit)),
+        }));
         // Registered before the exit watcher starts, so a shell that dies at once is still removed.
         self.inner.panes.lock().unwrap().insert(
             id,
-            Pane { master: pair.master, writer, killer, pid, started_at: now_ms() },
+            Pane { master: pair.master, writer, killer, pid, started_at, stream: Arc::clone(&stream) },
         );
 
+        let reading = Arc::clone(&stream);
         thread::spawn(move || {
             let mut buf = [0u8; 16 * 1024];
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        if !on_data(&buf[..n]) {
-                            break;
+                        // The sink runs under the lock so an attach cannot slip between the
+                        // tail it replays and the next live chunk.
+                        let mut s = reading.lock().unwrap();
+                        s.tail.push(&buf[..n]);
+                        if let Some(sink) = s.on_data.as_mut() {
+                            if !sink(&buf[..n]) {
+                                s.on_data = None;
+                            }
                         }
                     }
                 }
@@ -217,10 +244,35 @@ impl Ptys {
             let pane = inner.panes.lock().unwrap().remove(&id);
             // Closing the pseudoconsole can block until output drains, so not under the lock.
             drop(pane);
-            on_exit(code);
+            let on_exit = stream.lock().unwrap().on_exit.take();
+            if let Some(on_exit) = on_exit {
+                on_exit(code);
+            }
         });
 
-        Ok(id)
+        Ok((id, started_at))
+    }
+
+    /// Hands a running pty to a new receiver, for a page that replaced the one that spawned it
+    /// (docs/design/terminal.md section 3.1). `on_data` first gets the replay, always, even when
+    /// empty, then live output. `started_at` must match, since ids restart with the process and
+    /// a saved id from an earlier run could otherwise name a different shell.
+    pub fn attach(
+        &self,
+        id: u32,
+        started_at: u64,
+        mut on_data: impl FnMut(&[u8]) -> bool + Send + 'static,
+        on_exit: impl FnOnce(u32) + Send + 'static,
+    ) -> Result<(), String> {
+        let panes = self.inner.panes.lock().unwrap();
+        let pane = panes.get(&id).filter(|p| p.started_at == started_at).ok_or("no such pty")?;
+        let mut s = pane.stream.lock().unwrap();
+        if !on_data(s.tail.replay()) {
+            return Err("receiver closed".into());
+        }
+        s.on_data = Some(Box::new(on_data));
+        s.on_exit = Some(Box::new(on_exit));
+        Ok(())
     }
 
     pub fn write(&self, id: u32, data: &[u8]) -> Result<(), String> {
@@ -456,6 +508,8 @@ fn cmd_prompt(inherited: Option<&str>) -> String {
 #[serde(rename_all = "camelCase")]
 pub struct Spawned {
     pub id: u32,
+    /// Epoch ms; with `id`, what `pty_attach` checks.
+    pub started_at: u64,
     /// The profile id actually started, after fallbacks.
     pub profile: String,
     /// The profile that was asked for, when it is not installed and `profile` replaced it.
@@ -513,7 +567,7 @@ pub fn pty_spawn(
     let mut env = hook_env(hooks.url(), hooks.token());
     env.extend(path_env());
     let spec = spawn_spec(command, &resolved, env, resolve_cwd(cwd, &shell.starting_directory))?;
-    let id = state.spawn(
+    let (id, started_at) = state.spawn(
         spec,
         cols,
         rows,
@@ -522,7 +576,25 @@ pub fn pty_spawn(
             let _ = on_exit.send(code);
         },
     )?;
-    Ok(Spawned { id, profile: resolved.id, fallback_from })
+    Ok(Spawned { id, started_at, profile: resolved.id, fallback_from })
+}
+
+#[tauri::command]
+pub fn pty_attach(
+    state: State<'_, Ptys>,
+    id: u32,
+    started_at: u64,
+    on_data: Channel<InvokeResponseBody>,
+    on_exit: Channel<u32>,
+) -> Result<(), String> {
+    state.attach(
+        id,
+        started_at,
+        move |bytes| on_data.send(InvokeResponseBody::Raw(bytes.to_vec())).is_ok(),
+        move |code| {
+            let _ = on_exit.send(code);
+        },
+    )
 }
 
 #[tauri::command]
@@ -621,6 +693,7 @@ mod tests {
 
     struct Run {
         id: u32,
+        started_at: u64,
         output: Arc<Mutex<Vec<u8>>>,
         exit: mpsc::Receiver<u32>,
     }
@@ -655,7 +728,7 @@ mod tests {
         let sink = Arc::clone(&output);
         let (tx, exit) = mpsc::channel();
         let (dsr_tx, dsr_rx) = mpsc::channel::<()>();
-        let id = ptys
+        let (id, started_at) = ptys
             .spawn(
                 spec,
                 200,
@@ -680,7 +753,50 @@ mod tests {
                 let _ = responder.write(id, b"\x1b[1;1R");
             }
         });
-        Run { id, output, exit }
+        Run { id, started_at, output, exit }
+    }
+
+    #[test]
+    fn attach_replays_then_takes_over_live_output_and_exit() {
+        let Some(sh) = shell() else { return };
+        let ptys = Ptys::default();
+        let run = start(&ptys, spec(&sh, &["-c", "echo before; read x; echo after-$x"], None));
+        assert!(run.wait_for("before").contains("before"));
+
+        assert!(ptys.attach(run.id, run.started_at + 1, |_| true, |_| {}).is_err());
+
+        let output = Arc::new(Mutex::new(Vec::<Vec<u8>>::new()));
+        let sink = Arc::clone(&output);
+        let (tx, exit) = mpsc::channel();
+        ptys.attach(
+            run.id,
+            run.started_at,
+            move |b| {
+                sink.lock().unwrap().push(b.to_vec());
+                true
+            },
+            move |code| {
+                let _ = tx.send(code);
+            },
+        )
+        .expect("attach failed");
+        let replay = String::from_utf8_lossy(&output.lock().unwrap()[0]).to_string();
+        assert!(strip_ansi(&replay).contains("before"), "replay was {replay:?}");
+
+        ptys.write(run.id, b"x\r").unwrap();
+        assert_eq!(exit.recv_timeout(TIMEOUT).expect("no exit after attach"), 0);
+        let deadline = Instant::now() + TIMEOUT;
+        let live = loop {
+            let live = strip_ansi(&String::from_utf8_lossy(&output.lock().unwrap()[1..].concat()));
+            if live.contains("after-x") || Instant::now() > deadline {
+                break live;
+            }
+            thread::sleep(Duration::from_millis(20));
+        };
+        assert!(live.contains("after-x"), "live output was {live:?}");
+        // The first receiver was replaced, so it saw neither the answer nor the exit.
+        assert!(!run.text().contains("after-x"));
+        assert!(run.exit.try_recv().is_err());
     }
 
     #[test]

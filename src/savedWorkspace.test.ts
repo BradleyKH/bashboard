@@ -433,6 +433,14 @@ describe('parseSavedTab', () => {
     }
   });
 
+  it('keeps a well-formed pty and drops any other', () => {
+    const pty = (v: unknown) => parseSavedTab({ panes: [{ ...term('a'), pty: v }], layout: null, focused: null })?.panes[0];
+    expect(pty({ id: 4, startedAt: 1794441811754 })).toMatchObject({ pty: { id: 4, startedAt: 1794441811754 } });
+    for (const bad of [null, 4, { id: 4 }, { id: '4', startedAt: 1 }, { id: 1.5, startedAt: 1 }]) {
+      expect(pty(bad)).not.toHaveProperty('pty');
+    }
+  });
+
   it('filters scratchId to the same alphabet, keeping the pad', () => {
     for (const [input, expected] of ids) {
       const r = parseSavedTab({ panes: [{ ...scratch('a'), scratchId: input }], layout: null, focused: null });

@@ -1,4 +1,5 @@
 import type { DialogTab } from './appDialogModel';
+import type { PtyRef } from './savedWorkspace';
 import type { AttentionCause } from './attention';
 import type { DevtoolsState } from './browserPaneModel';
 import type { ConfirmOptions } from './confirmDialog';
@@ -158,6 +159,8 @@ export type PaneSpec =
       scrollbackId?: string;
       /** Saved scrollback to write before the shell starts (design 4.9). */
       replay?: Promise<string>;
+      /** A running pty to reattach to; when it is gone, the pane starts a shell as usual. */
+      attach?: PtyRef;
     }
   | { kind: 'scratch'; scratchId?: string; text?: string | Promise<string> }
   | {

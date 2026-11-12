@@ -1,5 +1,5 @@
 import type { PaneKind } from './paneKinds';
-import type { SavedPane } from './savedWorkspace';
+import type { PtyRef, SavedPane } from './savedWorkspace';
 import type { PaneSpec } from './workspaceTypes';
 
 /**
@@ -13,25 +13,36 @@ export interface SavedTextLoaders {
   scrollback: (scrollbackId: string) => Promise<string>;
 }
 
+/** The saved terminal's pty when the core still runs it, matched on start time as well as id. */
+export function livePty(p: SavedPane, live: readonly PtyRef[]): PtyRef | null {
+  if (p.kind !== 'terminal' || !p.pty) return null;
+  const { id, startedAt } = p.pty;
+  return live.find((l) => l.id === id && l.startedAt === startedAt) ?? null;
+}
+
 /**
  * A pad keeps its saved file, and a terminal its saved scrollback, only when restoring the
- * workspace; layouts and missing ids open fresh.
+ * workspace; layouts and missing ids open fresh. A terminal whose pty is in `livePtys` reattaches
+ * to it.
  */
 export function restoredSpec(
   p: SavedPane,
-  opts: { loadScratch: boolean; loadScrollback: boolean },
+  opts: { loadScratch: boolean; loadScrollback: boolean; livePtys?: readonly PtyRef[] },
   load: SavedTextLoaders,
 ): PaneSpec {
   switch (p.kind) {
-    case 'terminal':
+    case 'terminal': {
+      const attach = livePty(p, opts.livePtys ?? []);
       // An empty cwd lets the core fall back to startingDirectory.
       return {
         kind: 'terminal',
         cwd: p.cwd || undefined,
         profile: p.profile,
         scrollbackId: p.scrollbackId,
+        ...(attach && { attach }),
         ...(opts.loadScrollback && p.scrollbackId && { replay: load.scrollback(p.scrollbackId) }),
       };
+    }
     case 'scratch':
       if (opts.loadScratch && p.scratchId) return { kind: 'scratch', scratchId: p.scratchId, text: load.scratch(p.scratchId) };
       return { kind: 'scratch' };

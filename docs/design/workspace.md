@@ -93,12 +93,19 @@ is not active are off the DOM in the same way, expanded or not.
 ## 4.9 Restore
 
 The front end saves the workspace (3.7, shape in section 7) one second after any change to the
-tabs, layouts, collapsed terminals, working directories, or session bindings, and again when
-the window closes. On launch:
+tabs, layouts, collapsed terminals, working directories, session bindings, or a terminal's pty,
+and again when the window closes. On launch:
 
-- Each saved terminal gets a new shell of its saved profile (the default profile when none is
-  saved or the profile is unavailable) in its saved directory, or in `startingDirectory` if that
-  folder is missing. Each tab's layout and collapsed terminals are rebuilt around the new
+- A saved terminal whose `pty` the core still runs (after a page reload or a rebuilt window,
+  3.22) reattaches to it (3.1): the replayed output is written with the terminal's input,
+  bells, and command events muted, since xterm.js answers queries in old output and those
+  answers must not reach the shell, then the terminal resizes one column narrower and back,
+  which makes ConPTY redraw the screen and repairs anything the replay could not, such as a
+  full-screen program whose mode switch fell outside it. A reattached terminal skips its saved
+  scrollback and its resume command, since its shell and any agent in it are still running.
+- Every other saved terminal gets a new shell of its saved profile (the default profile when
+  none is saved or the profile is unavailable) in its saved directory, or in
+  `startingDirectory` if that folder is missing. Each tab's layout and collapsed terminals are rebuilt around the new
   pane ids, the tabs keep their order and names, the same tab is active, and each tab's focus
   returns to the same terminal.
 - A terminal that had a live agent session bound when last saved gets its agent's resume command
@@ -123,7 +130,7 @@ the window closes. On launch:
   mouse reporting or bracketed paste) and the alternate buffer. On launch the saved text is
   written into the terminal before its shell spawns, followed by a gray "restored scrollback"
   rule, so the new prompt (and any resumed Claude session) appears below it. Container shells
-  and terminals opened from a layout start empty. Only a normal close saves it, so after a crash
+  and terminals opened from a layout start empty. Only a normal close saves it, so after the app crashes
   the scrollback is the one from the last clean close.
 - A missing or empty workspace opens one tab with one terminal in `startingDirectory`. Closing
   the last tab saves an empty workspace, so the next launch starts fresh.

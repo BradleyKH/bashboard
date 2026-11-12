@@ -72,8 +72,9 @@ browser accelerator keys so Ctrl+F, Ctrl+R, and similar reach the shell.
 
 **Front end (`src`)** is no-framework TypeScript, one class or module per file, with pure
 `*Model.ts` modules (no DOM, unit-tested) beside the DOM classes that use them. Don't introduce
-React. `main.ts` mounts the backdrop first (so it draws while settings load), kills ptys
-orphaned by a page reload, then builds the `Workspace`, the `DashboardPanel`, and the
+React. `main.ts` mounts the backdrop first (so it draws while settings load), lists the ptys
+that outlived the last page (the restore reattaches its own and kills the rest), then builds
+the `Workspace`, the `DashboardPanel`, and the
 `AppDialog` and `SetupWizard` (`appDialogs.ts`; the dialog's Help, Settings, Shortcuts, CLI, and
 About tabs are one `<name>Tab.ts` each). The shared startup state lives in `appState.ts`, and
 `main.ts` wires it to controllers: `repoTracker.ts`, `launchController.ts`,

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { restoredSpec, specForKind } from './paneSpecModel';
+import { livePty, restoredSpec, specForKind } from './paneSpecModel';
 
 function loaders() {
   return {
@@ -34,6 +34,26 @@ describe('restoredSpec', () => {
       load,
     );
     expect(none).not.toHaveProperty('replay');
+  });
+
+  it('reattaches a terminal only to a live pty with the same id and start time', () => {
+    const saved = {
+      key: 'p1',
+      collapsed: false,
+      kind: 'terminal' as const,
+      cwd: 'C:\\r',
+      sessionId: null,
+      pty: { id: 3, startedAt: 100 },
+    };
+    const opts = { loadScratch: false, loadScrollback: false };
+    expect(restoredSpec(saved, { ...opts, livePtys: [{ id: 3, startedAt: 100 }] }, loaders())).toMatchObject({
+      attach: { id: 3, startedAt: 100 },
+    });
+    // Ids restart with the core, so the same id from a later run is a different shell.
+    expect(restoredSpec(saved, { ...opts, livePtys: [{ id: 3, startedAt: 200 }] }, loaders())).not.toHaveProperty('attach');
+    expect(restoredSpec(saved, opts, loaders())).not.toHaveProperty('attach');
+    expect(livePty({ ...saved, pty: undefined }, [{ id: 3, startedAt: 100 }])).toBeNull();
+    expect(livePty({ key: 'p2', collapsed: false, kind: 'scratch', scratchId: null }, [{ id: 3, startedAt: 100 }])).toBeNull();
   });
 
   it('loads a pad only when restoring the workspace and the pad has a file', async () => {

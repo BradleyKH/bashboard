@@ -225,6 +225,7 @@ export class PaneFactory {
       command: spec.command,
       scrollbackId: spec.scrollbackId ?? newScratchId(),
       replay: spec.replay,
+      attach: spec.attach,
       expanded,
       keyHandler: (e, term, send) =>
         handleKey(e, { keymap: () => ctx.keymap(), term, send, dispatch: (a) => ctx.dispatch(a) }),
@@ -235,6 +236,8 @@ export class PaneFactory {
         if (code === 0) ctx.closePane(id);
         else ctx.paneChanged(id);
       },
+      // A changed pty is saved promptly, so a crash right after a shell starts can still find it.
+      onSpawned: () => ctx.paneChanged(id),
       onCwdChange: () => ctx.paneChanged(id),
       onShellChange: () => ctx.paneChanged(id),
       onCommand: (ev) => ctx.onCommand(id, ev),

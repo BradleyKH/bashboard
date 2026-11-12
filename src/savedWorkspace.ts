@@ -18,6 +18,22 @@ import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
 import { type TextZoom, parseTextZoom } from './textZoomStore';
 
+/**
+ * The core's pty behind a saved terminal, as `pty_spawn` reported it. Valid only while that core
+ * process runs: a page that replaces a crashed or reloaded one reattaches to it rather than
+ * starting a new shell (docs/design/workspace.md section 4.9).
+ */
+export interface PtyRef {
+  id: number;
+  startedAt: number;
+}
+
+function parsePtyRef(v: unknown): PtyRef | null {
+  if (typeof v !== 'object' || v === null) return null;
+  const { id, startedAt } = v as Record<string, unknown>;
+  return Number.isSafeInteger(id) && Number.isSafeInteger(startedAt) ? { id: id as number, startedAt: startedAt as number } : null;
+}
+
 /** A coding agent Bashboard can resume; absent or unknown in a saved pane reads as Claude. */
 export type AgentId = 'claude' | 'codex' | 'copilot';
 
@@ -43,6 +59,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
       profile?: string;
       /** Names the file holding the terminal's scrollback as the window last closed; absent in layouts. */
       scrollbackId?: string;
+      /** The running pty at the last save; absent in layouts and before the shell started. */
+      pty?: PtyRef;
     }
   /** null in layouts, which open fresh pads. */
   | { kind: 'scratch'; scratchId: string | null }
@@ -202,6 +220,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
     const scrollbackId = safeId(raw.scrollbackId);
     const agent = parseAgent(raw.agent);
     const resumeModel = sessionId ? safeModel(raw.resumeModel) : undefined;
+    const pty = parsePtyRef(raw.pty);
     return {
       ...base,
       kind: 'terminal',
@@ -212,6 +231,7 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
       ...(resumeModel ? { resumeModel } : {}),
       ...(profileId ? { profile: profileId } : {}),
       ...(scrollbackId ? { scrollbackId } : {}),
+      ...(pty ? { pty } : {}),
     };
   },
   scratch: (raw, base) => ({ ...base, kind: 'scratch', scratchId: safeId(raw.scratchId) }),

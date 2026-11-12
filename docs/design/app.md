@@ -209,13 +209,13 @@ behind a dead window. The main window's `ProcessFailed` event drives recovery:
 - **Browser process exited.** The whole WebView is gone and cannot be reloaded. The core marks a
   rebuild, destroys the window, holds off the exit that destroying the only window requests, and
   once the runtime has released the `main` label builds the window again from its config entry,
-  with the same per-window setup as at startup. The new page starts as a reload does: it kills
-  the old ptys, whose channels died with the old page (3.1), and restores the saved workspace
-  (4.9). If the window cannot be rebuilt, the app exits rather than run with no window.
+  with the same per-window setup as at startup. The new page starts as a reload does: it
+  restores the saved workspace, reattaching each terminal to its still-running shell (3.1, 4.9).
+  If the window cannot be rebuilt, the app exits rather than run with no window.
 - **Page renderer exited.** The WebView reloads the page.
 - **Page renderer unresponsive**, and every other kind (GPU, utility, a Local Browser frame's
-  renderer): logged only. An unresponsive page can recover, and reloading would kill every
-  pane's shell.
+  renderer): logged only. An unresponsive page can recover on its own, and the close fallback
+  below is the way out when it does not.
 
 Either recovery also clears the Local Browser registry (4.21), whose bindings name CDP sessions
 of the old page.

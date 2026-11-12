@@ -34,6 +34,7 @@ mod ports;
 mod powershell_prompt;
 mod profiles;
 mod pty;
+mod pty_tail;
 mod roster;
 mod search;
 mod second_instance;
@@ -215,6 +216,7 @@ pub fn run() {
             browser_tls::browser_prefer_tls,
             clipboard::clipboard_read_text,
             platform::platform_info,
+            pty::pty_attach,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,
