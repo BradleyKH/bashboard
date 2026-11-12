@@ -109,7 +109,7 @@ whether the file or `.bash_profile` would be created, and a warning.
 
 ## 3.15 Git install (`src-tauri/src/git_install.rs`)
 
-Git Bash is the default shell, and the Claude Code hooks run through its `bash.exe`. When no
+Git Bash is the default shell. When no
 Git Bash is found (3.1), the setup wizard's Git step (4.17) installs Git for Windows with
 winget. `git_install_status` reports whether Git Bash was found and whether `winget.exe` was;
 winget is looked up on `PATH`, then at the App Execution Alias under

@@ -82,33 +82,37 @@ happen. They map to status like this:
 | `SessionEnd` | Unbinds the session |
 
 Each pane's shell has `BASHBOARD_HOOK_URL`, `BASHBOARD_HOOK_TOKEN`, and `BASHBOARD_PANE_ID` set,
-and the hook script posts the event to the app with the pane id, which binds the session to its
-pane. The script does nothing outside a Bashboard pane, so the same global hooks are harmless
-in Windows Terminal or VS Code.
+and the hook program, `bb hook claude`, posts the event to the app with the pane id, which binds
+the session to its pane. It does nothing outside a Bashboard pane, so the same global hooks are
+harmless in Windows Terminal or VS Code. The hooks need no Git Bash: they run a small program,
+not a shell script.
 
 Open the dashboard and click **Install Claude Code hooks**, use the Coding agents step of the
-setup wizard, or click Install beside Claude Code hooks in the Setup list of the Help tab (F1). The install needs `bash.exe` on `PATH`
-(Git for Windows) and refuses with an explanation without it. It shows the JSON it will add and
-writes only after you confirm. It writes `~/.claude/hooks/bashboard-hook.sh` and appends one
-group per event to `~/.claude/settings.json`; your existing hooks are left untouched, and an
-event that already has the Bashboard hook is skipped. If `settings.json` has comments or other
+setup wizard, or click Install beside Claude Code hooks in the Setup list of the Help tab (F1). The
+install shows the JSON it will add and writes only after you confirm. It copies `bb.exe` from the
+install folder to `~/.claude/hooks/bashboard-hook.exe` and appends one group per event to
+`~/.claude/settings.json`; your existing hooks are left untouched, and an event that already has
+the Bashboard hook is skipped (a Bashboard hook with a different command is rewritten in place).
+It also deletes a leftover `~/.claude/hooks/bashboard-hook.sh`. If `settings.json` has comments or other
 non-JSON syntax, the install refuses and changes nothing. The button appears only when Claude Code
 has run on this machine (`~/.claude` exists when Bashboard starts) and is hidden once everything
 is installed. Claude sessions started after the install report `waiting`.
 
-The hook script carries a version line (`# bashboard-hook-version: N`). When the hooks are
-registered but the installed script is older than the app's, or has no version line, the button
-reads **Update Claude Code hooks** and the Setup list shows "Hook script out of date"; updating
-rewrites only the script. A script from a newer Bashboard counts as installed and is never
-replaced by an older one, and a hand-edited script at the app's version is left alone. The same
-applies to the Codex and Copilot hooks below.
+The hook program carries a version. When the hooks are registered but the installed program is
+older than the app's, or has no version, the button reads **Update Claude Code hooks** and the
+Setup list shows that the hook is out of date; updating rewrites only the program. A program
+from a newer Bashboard counts as installed and is never replaced by an older one, and a copy at
+the app's version is left alone. The same applies to the Codex and Copilot hooks below. An
+older installed copy of Bashboard recognizes only the old `bashboard-hook.sh` entries, so
+update every installed copy.
 
-To add them by hand, copy `hooks/bashboard-hook.sh` to `~/.claude/hooks/` and add this group to
-the `SessionStart`, `UserPromptSubmit`, `Notification`, `Stop`, and `SessionEnd` arrays under
-`hooks` in `~/.claude/settings.json`:
+To add them by hand, copy `bb.exe` from the install folder to
+`~/.claude/hooks/bashboard-hook.exe` and add this group to the `SessionStart`,
+`UserPromptSubmit`, `Notification`, `Stop`, and `SessionEnd` arrays under `hooks` in
+`~/.claude/settings.json`:
 
 ```json
-{ "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/bashboard-hook.sh", "timeout": 5 } ] }
+{ "hooks": [ { "type": "command", "command": "~/.claude/hooks/bashboard-hook.exe hook claude", "timeout": 5 } ] }
 ```
 
 ## Telling an agent about `bb`
@@ -129,25 +133,26 @@ output in a scratch pad. `bb help` lists the rest.
 ## Agent hooks
 
 Claude Code's hooks are described [above](#claude-code-hooks). Codex and Copilot use the same
-hook script, `bashboard-hook.sh`, which takes the agent's name as its argument and does nothing
-outside a Bashboard pane. Each install shows what it will write, and writes only after you confirm.
-It needs `bash.exe` on `PATH` (Git for Windows). An agent's button appears only when its home
+hook program, `bb hook <agent>`, installed as `bashboard-hook.exe` in each agent's `hooks/`
+folder; it does nothing outside a Bashboard pane. Each install shows what it will write, and
+writes only after you confirm. An agent's button appears only when its home
 folder exists when Bashboard starts (for Copilot, once the CLI has run a session and created
 `~/.copilot/session-state`), and is hidden once everything is installed.
 
 ### Codex hooks (preview)
 
-The install writes the script to `~/.codex/hooks/bashboard-hook.sh` and merges one group per
+The install copies the hook program to `~/.codex/hooks/bashboard-hook.exe` and merges one group per
 event (`SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PostToolUse`, `Stop`,
 `SessionEnd`, and `Interrupt`) into `~/.codex/hooks.json`, leaving your existing hooks untouched.
 When `CODEX_HOME` is set, that folder is used instead of `~/.codex`.
 
 Codex asks you to trust new hooks the next time it starts, and runs them only after you do. Until
-then the Setup list shows "Installed, not yet trusted".
+then the Setup list shows "Installed, not yet trusted". An update that changes the hooks' command
+makes Codex ask again.
 
 ### Copilot hooks (preview)
 
-The install writes the script to `~/.copilot/hooks/bashboard-hook.sh` and the whole of
+The install copies the hook program to `~/.copilot/hooks/bashboard-hook.exe` and writes the whole of
 `~/.copilot/hooks/bashboard.json`, a file Bashboard owns, for the events `SessionStart`,
 `UserPromptSubmit`, `Notification`, `PostToolUse`, `Stop`, and `SessionEnd`. When `COPILOT_HOME` is
 set, that folder is used instead of `~/.copilot`.
@@ -155,7 +160,7 @@ set, that folder is used instead of `~/.copilot`.
 ### Reporting a problem with an agent
 
 Set `BASHBOARD_HOOK_LOG` to a file path in the environment Bashboard starts from, and the hook
-script appends every raw payload it receives to that file, each under a line with a timestamp and
+program appends every raw payload it receives to that file, each under a line with a timestamp and
 the agent's name. Attach a few of those entries, the agent's version, and a few lines of its
 transcript (with anything private redacted) to an issue from the agent report template.
 

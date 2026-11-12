@@ -25,6 +25,9 @@ mod git_watch;
 mod git_worktrees;
 mod hook_install;
 mod hooks;
+// The hook itself runs in `bb`; the app uses only the version marker and binary name.
+#[allow(dead_code)]
+mod hook_client;
 mod links;
 mod lock;
 mod login_path;

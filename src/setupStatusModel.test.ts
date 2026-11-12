@@ -21,7 +21,6 @@ const hooks = (over: Partial<HookInstallPreview>): HookInstallPreview => ({
   alreadyInstalled: false,
   scriptState: 'missing',
   claudeDetected: true,
-  bashFound: true,
   ...over,
 });
 
@@ -90,13 +89,13 @@ describe('hooksRow', () => {
     expect(row.text).toBe('Copilot has not run on this machine');
   });
 
-  it('offers an update when only the hook script is out of date', () => {
+  it('offers an update when only the hook program is out of date', () => {
     const row = hooksRow('claude', hooks({ scriptState: 'outdated' }));
-    expect(row).toMatchObject({ level: 'missing', text: expect.stringContaining('Hook script out of date') });
+    expect(row).toMatchObject({ level: 'missing', text: expect.stringContaining('Hook program out of date') });
     expect(row.fix).toEqual({ kind: 'hooks', agent: 'claude', label: 'Update' });
   });
 
-  it('reports a newer script from another build as installed', () => {
+  it('reports a newer hook program from another build as installed', () => {
     expect(hooksRow('claude', hooks({ alreadyInstalled: true, scriptState: 'newer' }))).toMatchObject({
       level: 'ok',
       text: 'Installed',

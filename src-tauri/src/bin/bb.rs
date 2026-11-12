@@ -2,7 +2,7 @@
 //! hook receiver as `POST /cli`; parsing and path resolution happen in the core.
 
 use std::io::{self, IsTerminal, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -10,6 +10,11 @@ use std::time::Duration;
 #[allow(dead_code, unused_imports)]
 #[path = "../credential_store.rs"]
 mod credential_store;
+
+// The version reader and binary name serve the app's installer only.
+#[allow(dead_code)]
+#[path = "../hook_client.rs"]
+mod hook_client;
 
 use credential_store::{AZURE_DEVOPS_USER, BITBUCKET_TARGET, BITBUCKET_USER, clean_token};
 
@@ -43,9 +48,15 @@ fn help_text() -> String {
 
 const MAX_STDIN: u64 = 1024 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(5);
+/// Agents wait on every hook call, so the hook gives up on Bashboard much sooner.
+const HOOK_TIMEOUT: Duration = Duration::from_secs(1);
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // Ahead of `run`: outside a pane the hook must exit 0 quietly, not fail like other commands.
+    if let Some(("hook", rest)) = args.split_first().map(|(c, r)| (c.as_str(), r)) {
+        return ExitCode::from(hook_client::run(rest, &post_hook));
+    }
     match run(&args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(msg) => {
@@ -86,8 +97,10 @@ fn run(args: &[String]) -> Result<(), String> {
     };
     let body = request_body(command, rest, &cwd, stdin.as_deref());
     let addr = parse_url(&url)?;
-    let request = build_request(&addr, &token, &pane, &body);
-    let response = send(&addr, &request).map_err(|e| format!("could not reach Bashboard: {e}"))?;
+    let headers = [("X-Bashboard-Token", token.as_str()), ("X-Bashboard-Pane", pane.as_str())];
+    let request = build_request("/cli", &addr, &headers, &body);
+    let response =
+        send(&addr, &request, TIMEOUT).map_err(|e| format!("could not reach Bashboard: {e}"))?;
     answer(&response)
 }
 
@@ -317,26 +330,37 @@ fn parse_url(url: &str) -> Result<String, String> {
     Ok(addr.to_string())
 }
 
-fn build_request(addr: &str, token: &str, pane: &str, body: &[u8]) -> Vec<u8> {
-    let mut req = format!(
-        "POST /cli HTTP/1.1\r\n\
-         Host: {addr}\r\n\
-         X-Bashboard-Token: {token}\r\n\
-         X-Bashboard-Pane: {pane}\r\n\
-         Content-Type: application/json\r\n\
+/// Forwards an agent hook event to `POST /hook`, ignoring every failure.
+fn post_hook(url: &str, headers: &[(&str, &str)], body: &[u8]) {
+    let Ok(addr) = parse_url(url) else { return };
+    let request = build_request("/hook", &addr, headers, body);
+    let _ = send(&addr, &request, HOOK_TIMEOUT);
+}
+
+fn build_request(path: &str, addr: &str, headers: &[(&str, &str)], body: &[u8]) -> Vec<u8> {
+    let mut req = format!("POST {path} HTTP/1.1\r\nHost: {addr}\r\n");
+    for (name, value) in headers {
+        req.push_str(&format!("{name}: {value}\r\n"));
+    }
+    req.push_str(&format!(
+        "Content-Type: application/json\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\r\n",
         body.len()
-    )
-    .into_bytes();
+    ));
+    let mut req = req.into_bytes();
     req.extend_from_slice(body);
     req
 }
 
-fn send(addr: &str, request: &[u8]) -> io::Result<Vec<u8>> {
-    let mut stream = TcpStream::connect(addr)?;
-    stream.set_read_timeout(Some(TIMEOUT))?;
-    stream.set_write_timeout(Some(TIMEOUT))?;
+fn send(addr: &str, request: &[u8], timeout: Duration) -> io::Result<Vec<u8>> {
+    let target = addr
+        .to_socket_addrs()?
+        .next()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "no address"))?;
+    let mut stream = TcpStream::connect_timeout(&target, timeout)?;
+    stream.set_read_timeout(Some(timeout))?;
+    stream.set_write_timeout(Some(timeout))?;
     stream.write_all(request)?;
     let mut response = Vec::new();
     match stream.read_to_end(&mut response) {
@@ -512,7 +536,8 @@ mod tests {
 
     #[test]
     fn request_text() {
-        let req = build_request("127.0.0.1:9", "tok", "3", b"{}");
+        let headers = [("X-Bashboard-Token", "tok"), ("X-Bashboard-Pane", "3")];
+        let req = build_request("/cli", "127.0.0.1:9", &headers, b"{}");
         let text = String::from_utf8(req).unwrap();
         assert!(text.starts_with("POST /cli HTTP/1.1\r\n"));
         assert!(text.contains("\r\nX-Bashboard-Token: tok\r\n"));

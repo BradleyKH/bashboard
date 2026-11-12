@@ -9,7 +9,7 @@ Bashboard targets Windows 11, which already includes the WebView2 runtime. Every
 installs with `winget` from a terminal; admin rights are needed for the Visual Studio build
 tools and for machine-wide installs of the rest.
 
-1. **Git for Windows**, which provides Git Bash and the `bash.exe` that the Claude Code hooks run through:
+1. **Git for Windows**, which provides Git Bash, the default shell:
 
    ```sh
    winget install --id Git.Git -e

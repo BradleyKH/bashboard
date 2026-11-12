@@ -71,49 +71,51 @@ exact transitions as they happen.
 
 - On startup the core binds `127.0.0.1:0` (an OS-assigned port) and generates a random
   128-bit token. Every pane's environment gets `BASHBOARD_HOOK_URL` and `BASHBOARD_HOOK_TOKEN`.
-- The app ships `hooks/bashboard-hook.sh`, installed to `~/.claude/hooks/`:
+- The hook program is `bb hook <agent> [event]` (`src-tauri/src/hook_client.rs`, which `bb`
+  includes by path). Agents run it on every hook event. `<agent>` is `claude`, `codex`, or
+  `copilot`. The optional `event` is sent as `X-Bashboard-Event`, for an agent whose payload
+  lacks `hook_event_name`; the three current agents put it in the payload, so the registered
+  commands omit it. Each run:
 
-  ```sh
-  #!/usr/bin/env bash
-  # bashboard-hook-version: 2
-  # Forwards an agent hook event to Bashboard. Silent no-op outside a Bashboard pane.
-  # Usage: bashboard-hook.sh [agent]   (agent defaults to claude)
-  [ -n "$BASHBOARD_HOOK_URL" ] || exit 0
-  agent="${1:-claude}"
-  post() {
-    curl -s -m 1 -X POST \
-      -H "X-Bashboard-Token: $BASHBOARD_HOOK_TOKEN" \
-      -H "X-Bashboard-Pane: $BASHBOARD_PANE_ID" \
-      -H "X-Bashboard-Agent: $agent" \
-      --data-binary @- "$BASHBOARD_HOOK_URL/hook" >/dev/null 2>&1
-  }
-  if [ -n "$BASHBOARD_HOOK_LOG" ]; then
-    printf -- '--- %s agent=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" \
-      >>"$BASHBOARD_HOOK_LOG" 2>/dev/null
-    tee -a "$BASHBOARD_HOOK_LOG" 2>/dev/null | post
-    echo >>"$BASHBOARD_HOOK_LOG" 2>/dev/null
-  else
-    post
-  fi
-  exit 0
-  ```
+  1. Exits 0 silently outside a Bashboard pane (`BASHBOARD_HOOK_URL` unset or empty), without
+     reading standard input.
+  2. Prints the agent's expected reply to standard output before any network work, so a failed
+     post cannot cost the agent its reply. For Claude Code, Codex, and Copilot the reply is
+     nothing, because Codex's `PermissionRequest` and Copilot's `permissionRequest` read a
+     hook's stdout as an allow or deny decision, and empty output leaves the normal prompt.
+  3. Reads standard input with bounds: at most 64 KiB (`MAX_BODY` in `hooks.rs`), a 2 second
+     deadline, and an early stop as soon as the bytes read are one complete JSON object or
+     array, which returns promptly when an agent writes its payload and leaves stdin open.
+  4. When `BASHBOARD_HOOK_LOG` names a file, appends `--- <UTC ISO time> agent=<agent>`, the
+     body, and a newline to it, for bug reports about an agent's payload shape.
+  5. Skips the post when the body is empty, since the receiver answers 400 to it.
+  6. Posts the body to `$BASHBOARD_HOOK_URL/hook` with `X-Bashboard-Token`
+     (`BASHBOARD_HOOK_TOKEN`), `X-Bashboard-Pane` (`BASHBOARD_PANE_ID`), `X-Bashboard-Agent`, and
+     `X-Bashboard-Event` when given, with 1 second connect, write, and read timeouts. Every error
+     is ignored, and the exit code is always 0, because a failing hook would surface as an
+     error in the agent, and Bashboard being away is not one.
 
-  The script never writes to stdout, because Codex and Copilot read a permission hook's stdout
-  as an allow or deny decision, and empty output leaves the normal prompt. When
-  `BASHBOARD_HOOK_LOG` names a file, each payload is appended to it with its time and agent, for
-  bug reports about an agent's payload shape. The same script serves every agent, installed
-  once per agent home (`~/.claude/hooks/`, `~/.codex/hooks/`, `~/.copilot/hooks/`) and told
-  which agent it forwards for by its argument.
+  `bb hook --version` prints the embedded marker `bashboard-hook-version:3;`.
 
-  The `# bashboard-hook-version: N` line near the top versions the script, and
-  `HOOK_VERSION` in `hook_install.rs` must match it (a test checks); any change to the script
-  bumps both. The installed copy is compared by version, not by bytes, as the preview's
-  `scriptState`: `missing`; `outdated` when its version is lower or it has no readable marker
-  (scripts written before versioning); `current` at the same version, even when its bytes differ,
-  so hand edits survive; and `newer` when a newer Bashboard wrote it. `current` and `newer`
-  count as installed, and the install writes the script only when it is missing or outdated, so
-  an older build never downgrades a newer build's script and two installed builds never swap it
-  back and forth.
+  The install copies the `bb` that sits beside the running app into each agent's `hooks/` folder
+  as `bashboard-hook.exe` (`bashboard-hook` on macOS and Linux): `~/.claude/hooks/`,
+  `~/.codex/hooks/`, and `~/.copilot/hooks/`. One binary serves every agent, told which agent it
+  forwards for by its argument, and a hook run starts no shell and needs no `curl`.
+
+  `HOOK_VERSION` in `hook_client.rs` versions the program; any change to its behavior bumps it,
+  and a test holds it to the marker. The installer reads an installed file's version by scanning
+  its bytes for `bashboard-hook-version:` and parsing the digits up to `;`, never by running it,
+  as the preview's `scriptState`: `missing`; `outdated` when its version is lower or it has no
+  marker; `current` at the same version, even when its bytes differ, so a hand-placed copy
+  survives; and `newer` when a newer Bashboard wrote it. `current` and `newer` count as
+  installed, and the install writes the program only when it is missing or outdated, so an older
+  build never downgrades a newer build's program and two installed builds never swap it back and
+  forth.
+
+  An existing program is replaced by renaming it aside to `<name>.old`, which lets Windows
+  replace an executable that a hook is running, then copying the new binary to a temporary file
+  in the same folder and renaming that into place (mode 0755 on Unix). The next install removes
+  the `.old` file, best effort.
 
   Because the variables exist only inside this app's panes, the same global hook config does
   nothing for sessions in Windows Terminal or VS Code.
@@ -131,31 +133,36 @@ exact transitions as they happen.
   Each event gets one group appended, and the registered command is exactly:
 
   ```json
-  { "hooks": [ { "type": "command", "command": "bash ~/.claude/hooks/bashboard-hook.sh", "timeout": 5 } ] }
+  { "hooks": [ { "type": "command", "command": "~/.claude/hooks/bashboard-hook.exe hook claude", "timeout": 5 } ] }
   ```
 
-  An event that already holds a hook whose command contains `bashboard-hook.sh` is skipped, and
-  existing groups are never altered. The install checks that `bash.exe` is on `PATH`, since the
-  registered command runs through bash.
+  The command has no `.exe` on macOS and Linux. Claude Code runs hook commands through its own
+  bash on Windows, so `~` expands; Bashboard's handlers need no Git Bash on `PATH`. A handler
+  is Bashboard's when its command contains `bashboard-hook.sh` or `bashboard-hook` followed by a
+  non-word character or the end of the string. The install rewrites a Bashboard handler
+  whose command differs from the current one in place (same group, same handler index, so
+  Codex's trust keys stay stable), appends a group to an event that lacks one, and never alters
+  other groups. A home other than the default is named by its full path. The install also
+  deletes a leftover `hooks/bashboard-hook.sh` in that agent's home.
 
-  Installing hooks requires bash, which comes with Git for Windows; without it the install is
-  refused with an explanation. The dashboard panel has an "Install Claude Code hooks" button, shown while Claude Code is
+  The dashboard panel has an "Install Claude Code hooks" button, shown while Claude Code is
   detected (`~/.claude` exists, checked at startup) and the hooks are not fully installed. It shows the exact JSON it will merge and writes it only after
   confirmation; it never edits `settings.json` silently. When every group is already registered
-  and only the script is outdated, the button, the dialog title, and its confirm button say
+  with the current command and only the program is outdated, the button, the dialog title, and its confirm button say
   "Update" instead of "Install", and the dialog says the hooks in settings are already in place
-  and only the hook script will be updated, with no JSON. The install writes the script to
-  `~/.claude/hooks/bashboard-hook.sh` (home is `USERPROFILE`, else `HOME`) when it is missing or
+  and only the hook program will be updated, with no JSON. The install copies the program to
+  `~/.claude/hooks/bashboard-hook.exe` (home is `USERPROFILE`, else `HOME`) when it is missing or
   outdated, then re-reads
   `settings.json` and merges the groups, through a temporary file and a rename. A missing
   `settings.json` is created. A `settings.json` that is not plain JSON (comments, trailing
   commas) is refused with an error naming the file, and nothing is written.
-- **Codex hooks** go in `hooks.json` under the Codex home, merged the same way (an event that
-  already holds Bashboard's hook is skipped, existing groups are never altered, a file that is not
-  plain JSON is refused) and registered as `bash ~/.codex/hooks/bashboard-hook.sh codex` (the full path of the script when `CODEX_HOME` relocates the home).
-  The Windows command (`commandWindows` for Codex, `powershell` for Copilot) names Git Bash by its
-  full path when one is found, since a bare `bash` there can resolve to WSL's
-  `System32\bash.exe`:
+- **Codex hooks** go in `hooks.json` under the Codex home, merged the same way as Claude Code's
+  (a Bashboard handler whose command differs is rewritten in place, an event lacking one gets a
+  group appended, other groups are never altered, a file that is not plain JSON is refused). The
+  registered handler has `command` `~/.codex/hooks/bashboard-hook hook codex` and
+  `commandWindows` `"%USERPROFILE%\.codex\hooks\bashboard-hook.exe" hook codex`; when
+  `CODEX_HOME` relocates the home, both name the full path of the program. The install also
+  deletes a leftover `hooks/bashboard-hook.sh` in the Codex home:
 
   | Event | Meaning in the app |
   | --- | --- |
@@ -170,11 +177,14 @@ exact transitions as they happen.
   Codex runs a hook only once the user has trusted it. The install preview reports the trust
   state, read from the `[hooks.state]` tables of the Codex home's `config.toml` (`trusted`,
   `untrusted`, or `unknown` when the tables are in a form the reader does not parse), and an
-  installed but untrusted hook says Codex will ask to trust it on its next start. Bashboard never
-  edits `config.toml`.
+  installed but untrusted hook says Codex will ask to trust it on its next start. An update that
+  changes a hook's command makes Codex ask again. Bashboard never edits `config.toml`.
 - **Copilot hooks** are written whole to `hooks/bashboard.json` under the Copilot home, a file
   Bashboard owns (`{ "version": 1, "hooks": { ... } }`, each event holding one command entry with
-  `bash` and `powershell` commands and `timeoutSec` 5). The events use PascalCase names, which
+  `bash` and `powershell` commands and `timeoutSec` 5). The `bash` command is
+  `~/.copilot/hooks/bashboard-hook hook copilot` and the `powershell` command is
+  `& "$env:USERPROFILE\.copilot\hooks\bashboard-hook.exe" hook copilot`; a Copilot home other
+  than the default is named by its full path. The events use PascalCase names, which
   select Copilot's VS Code compatible payload (snake_case fields and `hook_event_name`):
 
   | Event | Meaning in the app |
@@ -187,16 +197,17 @@ exact transitions as they happen.
   | `SessionEnd` | Session unbound from its pane |
 
 - The install is per agent: `hooks_install_preview(agent)` returns the file it will change, the
-  JSON it will add, whether the hooks are already in, whether the agent is detected, whether
-  whether `bash.exe` exists, and for Codex the trust state; `hooks_install(agent)` writes it. An absent
-  agent means Claude Code.
+  JSON it will add, whether the hooks are already in, whether the agent is detected, and for
+  Codex the trust state; `hooks_install(agent)` writes it. An absent agent means Claude Code.
 - The receiver accepts `POST /hook` and `POST /cli` (3.13). For `/hook` it answers with these
   codes, checked in this order:
   404 for any other path or method, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a
   body over 64 KiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on
   success. The `X-Bashboard-Agent` header names the sending agent; an absent header means Claude
-  Code (a script from before agents were tagged), and an unknown value is a 400. The receiver
+  Code, and an unknown value is a 400. A payload without a `hook_event_name` takes it from the
+  optional `X-Bashboard-Event` header. The receiver
   keeps only `session_id`, `hook_event_name`, `cwd`, `message`, `transcript_path`,
+  `permission_mode`, and for Codex's waiting reason the tool's name and description, and emits
   `permission_mode`, and for Codex's waiting reason the tool's name and description, and emits
   `sessions://hook` with the first four plus the pane id from the header, the agent, and the
   receive time. Each event is mapped to a status by its agent's table above; an event that table

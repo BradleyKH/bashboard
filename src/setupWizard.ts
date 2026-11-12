@@ -42,7 +42,7 @@ export interface SetupWizardCallbacks {
   addFavorites(list: Favorite[]): void;
   /** Runs the agent's install with its confirmation; resolves when that closes, true if installed. */
   installHooks(agent: AgentId): Promise<boolean>;
-  /** Re-read after Git installs, since the hook install's contents depend on Git Bash. */
+  /** Re-read after Git installs, so the agents step shows current hook state. */
   getHookState(): Promise<AgentHooks[]>;
   /** Installs Git and refreshes the shell profiles; rejects with the installer's error. */
   installGit(): Promise<void>;
@@ -696,7 +696,7 @@ export class SetupWizard {
         "Each agent's hooks tell this app when a session is working, waiting for you, or done, so the dashboard and the pane borders can show it.",
       ),
       this.note(
-        "The install adds a hook script and entries in the agent's hook config, and shows them for confirmation first. Sessions outside this app's panes are not affected.",
+        "The install adds a hook program and entries in the agent's hook config, and shows them for confirmation first. Sessions outside this app's panes are not affected.",
       ),
     );
     for (const { agent, installed, update, trust } of this.base.agents) {
@@ -718,7 +718,7 @@ export class SetupWizard {
       } else {
         if (update) {
           const status = document.createElement('span');
-          status.textContent = 'Hook script out of date';
+          status.textContent = 'Hook program out of date';
           row.append(status);
         }
         const install = this.button(`${update ? 'Update' : 'Install'} ${name} hooks`, () => void this.install(agent));

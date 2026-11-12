@@ -100,7 +100,6 @@ describe('agentHooksFrom', () => {
     alreadyInstalled: false,
     scriptState: 'missing',
     claudeDetected: false,
-    bashFound: true,
     ...over,
   });
 
@@ -117,7 +116,7 @@ describe('agentHooksFrom', () => {
     ]);
   });
 
-  it('marks an agent whose only gap is an outdated script as an update', () => {
+  it('marks an agent whose only gap is an outdated hook program as an update', () => {
     const [claude] = agentHooksFrom([preview({ claudeDetected: true, scriptState: 'outdated' })]);
     expect(claude).toMatchObject({ installed: false, update: true });
     const [fresh] = agentHooksFrom([preview({ claudeDetected: true, additions: { Stop: [] } })]);

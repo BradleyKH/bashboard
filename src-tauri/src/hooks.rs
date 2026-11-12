@@ -235,6 +235,7 @@ fn answer(
         header(req.headers(), "X-Bashboard-Token"),
         header(req.headers(), "X-Bashboard-Pane"),
         header(req.headers(), "X-Bashboard-Agent"),
+        header(req.headers(), "X-Bashboard-Event"),
         &body,
         content_length,
         now_ms(),
@@ -259,6 +260,7 @@ fn handle(
     token_header: Option<&str>,
     pane_header: Option<&str>,
     agent_header: Option<&str>,
+    event_header: Option<&str>,
     body: &[u8],
     content_length: Option<usize>,
     now: u64,
@@ -273,7 +275,7 @@ fn handle(
     if content_length.is_some_and(|n| n > MAX_BODY) || body.len() > MAX_BODY {
         return (413, None);
     }
-    // An absent header is a hook script from before agents were tagged, which only Claude ran.
+    // An absent header is a hook from before agents were tagged, which only Claude ran.
     let agent = match agent_header {
         None => AgentId::Claude,
         Some(a) => match AgentId::parse(a.trim()) {
@@ -292,7 +294,11 @@ fn handle(
     };
     let ev = HookEvent {
         session_id,
-        hook_event_name: field("hook_event_name").unwrap_or_default(),
+        // `bb hook <agent> <event>` sends the event as a header for agents whose payload
+        // does not name it; the payload wins when it does.
+        hook_event_name: field("hook_event_name")
+            .or_else(|| event_header.map(|e| e.trim().to_owned()).filter(|e| !e.is_empty()))
+            .unwrap_or_default(),
         cwd: field("cwd"),
         message: field("message"),
         notification_type: field("notification_type"),
@@ -434,11 +440,11 @@ mod tests {
     const TOKEN: &str = "abc123";
 
     fn post(token: Option<&str>, pane: Option<&str>, body: &str) -> (u16, Option<HookEvent>) {
-        handle(TOKEN, &Method::Post, "/hook", token, pane, None, body.as_bytes(), Some(body.len()), 42)
+        handle(TOKEN, &Method::Post, "/hook", token, pane, None, None, body.as_bytes(), Some(body.len()), 42)
     }
 
     fn post_as(agent: Option<&str>, body: &str) -> (u16, Option<HookEvent>) {
-        handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, agent, body.as_bytes(), Some(body.len()), 42)
+        handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, agent, None, body.as_bytes(), Some(body.len()), 42)
     }
 
     fn event(name: &str, pane_id: Option<u32>, at: u64) -> HookEvent {
@@ -463,6 +469,20 @@ mod tests {
     }
 
     #[test]
+    fn event_header_names_the_event_when_the_payload_does_not() {
+        let call = |event: Option<&str>, body: &str| {
+            handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, Some("codex"), event, body.as_bytes(), None, 0)
+        };
+        let (code, ev) = call(Some("Stop"), r#"{"session_id":"s1"}"#);
+        assert_eq!(code, 204);
+        assert_eq!(ev.unwrap().hook_event_name, "Stop");
+        let (_, ev) = call(Some("Stop"), r#"{"session_id":"s1","hook_event_name":"SessionStart"}"#);
+        assert_eq!(ev.unwrap().hook_event_name, "SessionStart");
+        let (_, ev) = call(None, r#"{"session_id":"s1"}"#);
+        assert_eq!(ev.unwrap().hook_event_name, "");
+    }
+
+    #[test]
     fn token_must_match() {
         let body = r#"{"session_id":"s1"}"#;
         assert_eq!(post(None, None, body).0, 403);
@@ -475,10 +495,10 @@ mod tests {
     fn oversized_bodies_are_rejected() {
         let small = br#"{"session_id":"s1"}"#;
         let by_header =
-            handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, small, Some(MAX_BODY + 1), 0);
+            handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, None, small, Some(MAX_BODY + 1), 0);
         assert_eq!(by_header.0, 413);
         let big = vec![b' '; MAX_BODY + 1];
-        let by_length = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, &big, None, 0);
+        let by_length = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, None, &big, None, 0);
         assert_eq!(by_length.0, 413);
     }
 
@@ -492,9 +512,9 @@ mod tests {
     #[test]
     fn other_paths_and_methods_are_404() {
         let body = br#"{"session_id":"s1"}"#;
-        let get = handle(TOKEN, &Method::Get, "/hook", Some(TOKEN), None, None, body, None, 0);
+        let get = handle(TOKEN, &Method::Get, "/hook", Some(TOKEN), None, None, None, body, None, 0);
         assert_eq!(get.0, 404);
-        let other = handle(TOKEN, &Method::Post, "/other", Some(TOKEN), None, None, body, None, 0);
+        let other = handle(TOKEN, &Method::Post, "/other", Some(TOKEN), None, None, None, body, None, 0);
         assert_eq!(other.0, 404);
     }
 
@@ -926,7 +946,7 @@ mod tests {
     #[test]
     fn hook_stays_capped_at_64_kib() {
         let big = vec![b' '; MAX_BODY + 1];
-        let r = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, &big, Some(big.len()), 0);
+        let r = handle(TOKEN, &Method::Post, "/hook", Some(TOKEN), None, None, None, &big, Some(big.len()), 0);
         assert_eq!(r.0, 413);
     }
 

@@ -6,9 +6,9 @@ export type HookAgentId = 'claude' | 'codex' | 'copilot';
 export type CodexTrust = 'trusted' | 'untrusted' | 'unknown';
 
 /**
- * The installed hook script against the bundled one, by its version marker: `outdated` covers
- * a lower version or none, `current` the same version (hand edits included), and `newer` a
- * script from a newer Bashboard, which counts as installed and is never overwritten.
+ * The installed hook program against the bundled one: `outdated` covers an older build and a
+ * shell script left by an earlier Bashboard, `current` the same version, and `newer` a program
+ * from a newer Bashboard, which counts as installed and is never overwritten.
  */
 export type HookScriptState = 'missing' | 'outdated' | 'current' | 'newer';
 
@@ -21,8 +21,6 @@ export interface HookInstallPreview {
   scriptState: HookScriptState;
   /** `detected` for Claude Code, false for other agents. */
   claudeDetected: boolean;
-  /** Whether bash is reachable; the hook command runs through it. */
-  bashFound: boolean;
   /** The core always sends these three; optional so hand-built previews still type-check. */
   agent?: HookAgentId;
   /** Whether the agent's home folder exists, i.e. the agent has run on this machine. */

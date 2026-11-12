@@ -22,7 +22,7 @@ export function renderGitStep(
 ): void {
   content.append(
     ui.note(
-      "Git Bash was not found. It is the default shell for new panes, and Claude Code's hooks run through it.",
+      "Git Bash was not found. It is the default shell for new panes.",
     ),
   );
   const actionsRow = document.createElement('div');

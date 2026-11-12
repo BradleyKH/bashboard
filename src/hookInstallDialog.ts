@@ -13,7 +13,6 @@ export interface HookInstallDialogCallbacks {
 export class HookInstallDialog {
   private backdrop: HTMLElement | null = null;
   private busy = false;
-  private bashFound = true;
   private agent: HookAgentId = 'claude';
   private install!: HTMLButtonElement;
   private cancel!: HTMLButtonElement;
@@ -33,7 +32,6 @@ export class HookInstallDialog {
   open(preview: HookInstallPreview, onClosed?: (installed: boolean) => void): void {
     if (this.backdrop) this.close();
     this.busy = false;
-    this.bashFound = preview.bashFound;
     this.agent = preview.agent ?? 'claude';
     const name = agentName(this.agent);
     this.onClosed = onClosed;
@@ -69,7 +67,7 @@ export class HookInstallDialog {
     } else {
       const change = preview.scriptState === 'missing' ? 'written' : 'updated';
       details.push(
-        this.line('The hooks in', preview.settingsPath, ` are already in place; only the hook script will be ${change}.`),
+        this.line('The hooks in', preview.settingsPath, ` are already in place; only the hook program will be ${change}.`),
       );
     }
 
@@ -81,7 +79,6 @@ export class HookInstallDialog {
     this.install.type = 'button';
     this.install.className = 'hook-dialog-install';
     this.install.textContent = verb;
-    this.install.disabled = !preview.bashFound;
     this.install.addEventListener('click', () => void this.confirm());
 
     this.cancel = document.createElement('button');
@@ -94,13 +91,6 @@ export class HookInstallDialog {
     buttons.append(this.cancel, this.install);
 
     box.append(title);
-    if (!preview.bashFound) {
-      const warning = document.createElement('p');
-      warning.className = 'hook-dialog-error';
-      warning.textContent =
-        'The hooks run through Git Bash, which was not found. Install Git for Windows, then open this dialog again.';
-      box.append(warning);
-    }
     box.append(...details);
     if (isPreviewAgent(this.agent)) {
       box.append(this.note(`${name} support is a preview.`));
@@ -166,7 +156,7 @@ export class HookInstallDialog {
 
   private setBusy(busy: boolean): void {
     this.busy = busy;
-    this.install.disabled = busy || !this.bashFound;
+    this.install.disabled = busy;
     this.cancel.disabled = busy;
   }
 
