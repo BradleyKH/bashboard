@@ -1,6 +1,6 @@
 [package]
 name = "bashboard"
-version = "0.4.4"
+version = "0.4.5"
 description = "A multipurpose terminal built for Claude Code"
 authors = ["Bradley Harris"]
 license = "MIT"
