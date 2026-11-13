@@ -91,6 +91,8 @@ export interface Job {
 export interface JobLog {
   text: string;
   truncated: boolean;
+  /** 0-based line in `text` of the first diagnostic line; absent when none was found. */
+  firstError?: number;
 }
 
 export interface Reviewer {
@@ -203,6 +205,11 @@ export function forgeJobs(root: string, runId: string): Promise<Job[]> {
 
 export function forgeLog(root: string, runId: string, jobId: string): Promise<JobLog> {
   return invoke<JobLog>('forge_log', { root, runId, jobId });
+}
+
+/** A failed run's failure report as prompt text for an agent (docs/design/ship.md section 3.23). */
+export function forgeFixPrompt(root: string, runId: string): Promise<string> {
+  return invoke<string>('forge_fix_prompt', { root, runId });
 }
 
 export function forgeRerun(root: string, runId: string, failedOnly: boolean): Promise<void> {

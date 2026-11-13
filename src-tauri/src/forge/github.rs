@@ -73,6 +73,10 @@ fn repo_url(repo: &RepoRef, rest: &str) -> Result<String, ForgeError> {
     ))
 }
 
+fn run_url(repo: &RepoRef, run_id: &str) -> Result<String, ForgeError> {
+    repo_url(repo, &format!("/actions/runs/{}", percent_encode(run_id)))
+}
+
 fn bearer(cx: &Cx) -> String {
     format!("Bearer {}", cx.token.value)
 }
@@ -376,6 +380,13 @@ impl ForgeProvider for GitHub {
         Ok(map_runs(&v))
     }
 
+    fn run(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Run, ForgeError> {
+        let v: Value = cx
+            .http
+            .get_json(&run_url(repo, run_id)?, Some(&bearer(cx)), &[ACCEPT])?;
+        Ok(map_run(&v))
+    }
+
     fn jobs(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Vec<Job>, ForgeError> {
         let rest = format!("/actions/runs/{}/jobs?per_page=100", percent_encode(run_id));
         let v: Value = cx
@@ -398,7 +409,7 @@ impl ForgeProvider for GitHub {
             &[ACCEPT],
             LOG_TAIL_BYTES,
         )?;
-        Ok(JobLog { text, truncated })
+        Ok(JobLog::new(text, truncated))
     }
 
     fn rerun(
@@ -492,6 +503,14 @@ mod tests {
         assert_eq!(
             repo_url(&repo("github.com"), "/actions/runs").unwrap(),
             "https://api.github.com/repos/o/r/actions/runs"
+        );
+        assert_eq!(
+            run_url(&repo("github.com"), "41470427661").unwrap(),
+            "https://api.github.com/repos/o/r/actions/runs/41470427661"
+        );
+        assert_eq!(
+            run_url(&repo("github.com"), "1/../x").unwrap(),
+            "https://api.github.com/repos/o/r/actions/runs/1%2F..%2Fx"
         );
         let mut bad = repo("github.com");
         bad.path = vec!["only".into()];
@@ -886,6 +905,12 @@ mod tests {
         assert!(
             runs.iter()
                 .all(|r| !r.id.is_empty() && !r.web_url.is_empty())
+        );
+        let one = GitHub.run(&cx, &r, &runs[0].id).unwrap();
+        assert_eq!(
+            (&one.id, &one.sha, &one.branch, &one.web_url),
+            (&runs[0].id, &runs[0].sha, &runs[0].branch, &runs[0].web_url),
+            "the single-run fetch agrees with the list"
         );
         let pulls = GitHub.pulls(&cx, &r, true, None).unwrap();
         assert!(

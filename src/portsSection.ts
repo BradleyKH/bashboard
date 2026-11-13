@@ -44,19 +44,21 @@ export class PortsSection {
 
   /** `ready` is false until the first poll answers, which shows a placeholder rather than "none". */
   update(all: readonly Listener[], ready: boolean): void {
-    const { rows, others } = dashboardListeners(all);
+    const { rows, more: hidden, others } = dashboardListeners(all);
     const fresh = ready ? newKeys(this.seen, rows) : new Set<string>();
     if (ready) this.seen = new Set(rows.map(listenerKey));
     const cb = this.callbacks;
     const more: HTMLElement[] = [];
-    if (others > 0) {
+    const countRow = (text: string): void => {
       const row = document.createElement('div');
       row.className = 'favorite-row port-row port-others';
-      row.textContent = `+ ${others} other ${others === 1 ? 'program' : 'programs'}`;
+      row.textContent = text;
       row.title = 'Open the Ports tab to see them';
       row.addEventListener('click', () => cb.onOpenPorts(undefined, true));
       more.push(row);
-    }
+    };
+    if (hidden > 0) countRow(`+ ${hidden} more`);
+    if (others > 0) countRow(`+ ${others} other ${others === 1 ? 'program' : 'programs'}`);
     if (rows.length === 0 && more.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'dashboard-empty';

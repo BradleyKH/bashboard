@@ -124,10 +124,27 @@ describe('runMenuItems', () => {
     expect(h.onCancel).not.toHaveBeenCalled();
   });
 
+  it('offers Fix with agent only for a failed run, with a handler, on a host with job logs', () => {
+    const fix = { ...handlers(), onFixWithAgent: vi.fn() };
+    expect(labels(runMenuItems(run('failure'), GITHUB, fix))).toEqual([
+      'Open in browser',
+      'Re-run',
+      'Re-run failed jobs',
+      'Fix with agent',
+      'Copy link',
+    ]);
+    find(runMenuItems(run('failure'), GITHUB, fix), 'Fix with agent')!.run();
+    expect(fix.onFixWithAgent).toHaveBeenCalledOnce();
+    expect(labels(runMenuItems(run('success'), GITHUB, fix))).not.toContain('Fix with agent');
+    expect(labels(runMenuItems(run('failure'), { ...GITHUB, jobLogs: false }, fix))).not.toContain('Fix with agent');
+    expect(labels(runMenuItems(run('failure'), GITHUB, handlers()))).not.toContain('Fix with agent');
+  });
+
   it('never starts or ends with a separator, or doubles one', () => {
+    const withFix = { ...handlers(), onFixWithAgent: vi.fn() };
     for (const caps of [GITHUB, BITBUCKET, READ_ONLY]) {
       for (const status of ['queued', 'success', 'failure'] as RunStatus[]) {
-        const entries = runMenuItems(run(status), caps, handlers());
+        const entries = runMenuItems(run(status), caps, status === 'failure' ? withFix : handlers());
         expect(entries[0].kind).toBe('item');
         expect(entries[entries.length - 1].kind).toBe('item');
         entries.forEach((e, i) => {

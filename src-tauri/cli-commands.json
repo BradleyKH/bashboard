@@ -86,6 +86,48 @@
       "examples": ["bb auth azure-devops contoso", "bb auth azure-devops contoso --clear"]
     },
     {
+      "name": "ci",
+      "usage": "bb ci [status] [--branch B] [--json]",
+      "summary": "Show CI runs on this branch's head commit, and its pull request",
+      "details": "Works on GitHub, GitLab, Bitbucket, and Azure DevOps, for the repo of the current folder. Prints the repo, branch, short SHA, one line per run (status, name, duration, link), and the pull request. --branch reads another branch (its newest run per workflow, since the head commit is known only for the checked-out branch). Run and job IDs are not printed; --json shows each run's id. --json prints the raw answer, and goes with every bb ci command. Exits 1 only when the request fails.",
+      "examples": ["bb ci", "bb ci --branch main", "bb ci status --json"]
+    },
+    {
+      "name": "ci wait",
+      "usage": "bb ci wait [--timeout DUR] [--json]",
+      "summary": "Wait for CI on the head commit and exit with its outcome",
+      "details": "Polls every --interval seconds (default 30, at least 10) and prints one line when anything changes. Exits 0 when every run is final and none failed, or the pull request merged; 1 when a run failed or was cancelled; 2 when it gives up: --timeout passed (default 30m; accepts 90s, 30m, 1h), no run appeared on the head commit within 5 minutes (the clock restarts when the head commit changes), 8 reads in a row failed, the pull request was closed without merging, or the request itself was refused, including bad arguments and running outside a pane. A run waiting on a person keeps it waiting. Also takes --branch.",
+      "examples": ["bb ci wait", "bb ci wait --timeout 1h --interval 60", "bb ci wait --json"]
+    },
+    {
+      "name": "ci log",
+      "usage": "bb ci log [--run ID] [--job ID]",
+      "summary": "Print why the newest failed run failed, or a job's full log",
+      "details": "Without --job, prints a failure report for --run, or for the newest failed run on the branch: up to 5 failed jobs, each with its failed steps, link, and a log excerpt that starts near the first real error. With --job (which needs --run), prints that job's whole log, up to its last 1 MiB. With no failed run on the branch, prints \"No failed run on <branch>.\" and exits 1. Also takes --branch.",
+      "examples": ["bb ci log", "bb ci log --run 1234", "bb ci log --run 1234 --job 5678"]
+    },
+    {
+      "name": "ci rerun",
+      "usage": "bb ci rerun [--failed] [--run ID]",
+      "summary": "Re-run a run, or only its failed jobs",
+      "details": "Acts on --run, or the newest run on the branch. Pipelines often deploy, so this is refused unless the ship.cliWrites setting is true. Bitbucket cannot re-run only the failed jobs, so --failed fails there rather than re-running everything; Azure DevOps re-runs only failed jobs, so it needs --failed.",
+      "examples": ["bb ci rerun --failed", "bb ci rerun --run 1234"]
+    },
+    {
+      "name": "ci cancel",
+      "usage": "bb ci cancel [--run ID]",
+      "summary": "Cancel a run",
+      "details": "Acts on --run, or the newest run on the branch. Refused unless the ship.cliWrites setting is true.",
+      "examples": ["bb ci cancel", "bb ci cancel --run 1234"]
+    },
+    {
+      "name": "skill install",
+      "usage": "bb skill install",
+      "summary": "Teach Claude Code the bb commands",
+      "details": "Writes the Bashboard skill to ~/.claude/skills/bashboard/SKILL.md, replacing an earlier copy but never a file of the same name that Bashboard did not write. Works outside Bashboard too.",
+      "examples": ["bb skill install"]
+    },
+    {
       "name": "help",
       "usage": "bb help",
       "summary": "List the commands",

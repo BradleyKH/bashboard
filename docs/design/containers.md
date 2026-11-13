@@ -120,7 +120,16 @@ container row has Logs and Shell, so its three buttons sit over its containers' 
 - **Logs**, which follow the container's output in a panel beside the list. Scrolling up stops
   following; scrolling to the end resumes it. The panel's header has − and + zoom buttons before
   Close that, with Ctrl+wheel over the panel, work as the Files pane's do (4.12) and save to
-  `textZoom.containerLogs`; a zoom keeps a following panel at the end.
+  `textZoom.containerLogs`; a zoom keeps a following panel at the end. A **Fix with agent**
+  button between the end-follow button and the zoom buttons appears when the container has a
+  compose `com.docker.compose.project.working_dir` label (`Container.workingDir`, 3.10), the
+  project's folder on the host, when that folder exists here; a container with no project, a
+  project without the label, or one whose label names a path this machine lacks (an engine in
+  WSL or a Podman machine labels its own Linux path) has none, since the agent needs a folder
+  to work in. It hands the last 150 lines of the
+  panel's cleaned text, with the container's name, image, engine, and compose service, to an
+  agent in that folder, as the Ship pane's Fix with agent does (4.20, which describes the
+  delivery).
 - **Shell**, which opens a terminal running a shell in the container (3.10) as a split beside
   the pane, titled with the container's name. Container shells are not saved by restore or in
   layouts.

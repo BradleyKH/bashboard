@@ -9,6 +9,7 @@ import { FilesPane } from './filesPane';
 import { pinTarget, type FilesRequest } from './filesRouting';
 import { applyDock, expandInto, focusAfterRemoval, type DockTarget, type DragSource } from './docking';
 import { FindBar } from './findBar';
+import type { AgentTerminal } from './fixWithAgentModel';
 import type { ShipTab } from './shipModel';
 import type { ProviderKind } from './forgeApi';
 import { GitPane } from './gitPane';
@@ -145,6 +146,7 @@ export class Workspace {
       containerShells: this.containerShells,
       sessions: this.sessions,
       findBar: this.findBar,
+      fixAgentHost: this,
       keymap: () => this.config.keymap,
       paneSettings: () => this.paneSettings(),
       defaultProfile: () => this.config.settings.shell.defaultProfile,
@@ -697,9 +699,30 @@ export class Workspace {
     this.terminal(id)?.pasteText(text);
   }
 
-  /** Opens a terminal in `cwd` and types `command` once its shell is ready, as restore does for a resume. */
-  openTerminalWithCommand(cwd: string | undefined, command: string, opts: OpenTerminalOptions = {}): void {
-    this.openPane({ kind: 'terminal', cwd, profile: opts.profile, initialInput: command }, opts);
+  /**
+   * Opens a terminal in `cwd` and types `command` once its shell is ready, as restore does for a
+   * resume. Returns the new pane's id, or undefined when there was no room for it.
+   */
+  openTerminalWithCommand(cwd: string | undefined, command: string, opts: OpenTerminalOptions = {}): string | undefined {
+    return this.openPane({ kind: 'terminal', cwd, profile: opts.profile, initialInput: command }, opts);
+  }
+
+  /** Every terminal in every tab with its folder, agent, status, and focus recency, for Fix with agent. */
+  agentTerminals(): AgentTerminal[] {
+    const out: AgentTerminal[] = [];
+    for (const paneId of this.paneViews.keys()) {
+      const term = this.terminal(paneId);
+      if (!term) continue;
+      const rank = this.focusOrder.indexOf(paneId);
+      out.push({
+        paneId,
+        folder: term.cwd,
+        agent: this.sessions.bound(term.ptyId) !== null,
+        status: this.status.status(paneId),
+        recency: rank < 0 ? null : rank,
+      });
+    }
+    return out;
   }
 
   /** Design 4.9: layout leaves already hold pane ids, which double as saved keys. */

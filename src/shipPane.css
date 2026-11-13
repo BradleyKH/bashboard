@@ -401,12 +401,40 @@
   margin: 4px 0 0 20px;
 }
 
+.ship-log-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
 .ship-log-trunc {
   padding: 2px 0;
   font-size: 11px;
 }
 
+.ship-log-jump {
+  margin-left: auto;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--ship-accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ship-log-jump:hover {
+  text-decoration: underline;
+}
+
+.ship-log-error {
+  background: color-mix(in srgb, var(--ship-bad) 22%, transparent);
+  box-shadow: -4px 0 0 var(--ship-bad);
+  color: var(--ship-bad);
+}
+
 .ship-log {
+  position: relative;
   margin: 0;
   padding: 6px 8px;
   max-height: 360px;

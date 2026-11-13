@@ -14,6 +14,7 @@ import {
   isActive,
   noticeFor,
   pollSecs,
+  splitLogAtLine,
   pullLimitNote,
   prNounOf,
   pullPollSecs,
@@ -716,5 +717,26 @@ describe('noticeFor', () => {
         expect(JSON.stringify(noticeFor(err(k, { message: 'x' }), r))).not.toMatch(new RegExp(`[${String.fromCharCode(0x2013, 0x2014)}]`));
       }
     }
+  });
+});
+
+describe('splitLogAtLine', () => {
+  const text = 'one\ntwo\nthree';
+
+  it('cuts around a middle line and joins back to the text', () => {
+    const split = splitLogAtLine(text, 1)!;
+    expect(split).toEqual({ before: 'one\n', line: 'two', after: '\nthree' });
+    expect(split.before + split.line + split.after).toBe(text);
+  });
+
+  it('handles the first and last lines', () => {
+    expect(splitLogAtLine(text, 0)).toEqual({ before: '', line: 'one', after: '\ntwo\nthree' });
+    expect(splitLogAtLine(text, 2)).toEqual({ before: 'one\ntwo\n', line: 'three', after: '' });
+  });
+
+  it('returns null for a line outside the text', () => {
+    expect(splitLogAtLine(text, 3)).toBeNull();
+    expect(splitLogAtLine(text, -1)).toBeNull();
+    expect(splitLogAtLine(text, 1.5)).toBeNull();
   });
 });

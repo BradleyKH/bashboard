@@ -136,6 +136,10 @@ pub fn runs_url(base: &str, branch: Option<&str>) -> String {
     url
 }
 
+pub fn run_url(base: &str, run_id: &str) -> String {
+    format!("{base}/pipelines/{}", percent_encode(run_id))
+}
+
 /// The detail fields `map_run` reads, kept small for the cache.
 pub fn trim_detail(detail: &Value) -> Value {
     json!({
@@ -516,6 +520,17 @@ impl ForgeProvider for GitLab {
             .collect())
     }
 
+    fn run(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Run, ForgeError> {
+        let base = project_base(repo)?;
+        // A single pipeline carries the list item's fields and the detail's, so it is both.
+        let v: Value = cx
+            .http
+            .get_json(&run_url(&base, run_id), Some(&auth(cx)), ACCEPT)?;
+        let title = str_at(&v, "/sha").and_then(|sha| Self::commit_title(cx, &base, sha));
+        map_run(&v, Some(&v), title.as_deref(), &repo.web_url)
+            .ok_or_else(|| ForgeError::other("GitLab answered without a pipeline id."))
+    }
+
     fn jobs(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Vec<Job>, ForgeError> {
         let url = format!(
             "{}/pipelines/{}/jobs?per_page=100",
@@ -547,12 +562,9 @@ impl ForgeProvider for GitLab {
             percent_encode(job_id)
         );
         match cx.http.get_text_tail(&url, Some(&auth(cx)), &[], LOG_MAX) {
-            Ok((text, truncated)) => Ok(JobLog { text, truncated }),
+            Ok((text, truncated)) => Ok(JobLog::new(text, truncated)),
             // A job that hasn't started has no trace yet.
-            Err(e) if e.kind == ForgeErrorKind::NotFound => Ok(JobLog {
-                text: String::new(),
-                truncated: false,
-            }),
+            Err(e) if e.kind == ForgeErrorKind::NotFound => Ok(JobLog::new(String::new(), false)),
             Err(e) => Err(e),
         }
     }
@@ -773,6 +785,27 @@ mod tests {
         assert_eq!(r.actor.as_deref(), Some("Example User"));
         assert_eq!(r.created_at, "2016-08-11T11:28:34.085Z");
         assert_eq!(r.started_at.as_deref(), Some("2016-08-11T11:28:40.000Z"));
+        assert_eq!(r.finished_at.as_deref(), Some("2016-08-11T11:32:35.145Z"));
+        assert_eq!(r.web_url, "https://example.com/foo/bar/pipelines/47");
+    }
+
+    #[test]
+    fn a_single_pipeline_is_its_own_detail() {
+        assert_eq!(run_url(BASE, "47"), format!("{BASE}/pipelines/47"));
+        assert_eq!(run_url(BASE, "4/7"), format!("{BASE}/pipelines/4%2F7"));
+        let d = pipeline_detail();
+        let r = map_run(&d, Some(&d), None, "https://w").unwrap();
+        assert_eq!((r.id.as_str(), r.number), ("47", Some(12)));
+        assert_eq!(r.name, "Build pipeline");
+        assert_eq!(r.branch.as_deref(), Some("new-pipeline"));
+        assert_eq!(
+            r.sha.as_deref(),
+            Some("a91957a858320c0e17f3a0eca7cfacbff50ea29a")
+        );
+        assert_eq!(
+            (r.status, r.actor.as_deref()),
+            (RunStatus::Success, Some("Example User"))
+        );
         assert_eq!(r.finished_at.as_deref(), Some("2016-08-11T11:32:35.145Z"));
         assert_eq!(r.web_url, "https://example.com/foo/bar/pipelines/47");
     }

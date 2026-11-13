@@ -208,6 +208,8 @@ pub struct Ship {
     pub overview_refresh_minutes: u32,
     /// Repos pinned to the Ship Overview, in file order.
     pub pinned_repos: Vec<PinnedRepo>,
+    /// Lets `bb ci rerun` and `bb ci cancel` act on pipelines; off because pipelines often deploy.
+    pub cli_writes: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -406,7 +408,12 @@ impl Default for Settings {
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5 },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
-            ship: Ship { hosts: HashMap::new(), overview_refresh_minutes: 5, pinned_repos: Vec::new() },
+            ship: Ship {
+                hosts: HashMap::new(),
+                overview_refresh_minutes: 5,
+                pinned_repos: Vec::new(),
+                cli_writes: false,
+            },
             local_browser: LocalBrowser {
                 bookmarks: Vec::new(),
                 home_url: String::new(),

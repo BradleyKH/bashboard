@@ -21,7 +21,8 @@ In order of harm:
 1. **The app.** A page that reached the Tauri IPC bridge could run any app command: spawn shells,
    write files, read Ship tokens.
 2. **The shells.** A page that reached the hook receiver's `/cli` path could open panes and type
-   into them.
+   into them, and one that reached `/ci` could re-run or cancel pipelines (which often deploy)
+   with the user's code host credentials.
 3. **Local files.** A page that could read the disk, and then send what it read off the machine.
 4. **Other local services.** Dev servers, the dashboard helper, and anything else on loopback.
 5. **The user's attention.** Popups, downloads, prompts, and navigation away from the pane.
@@ -67,11 +68,14 @@ which the page cannot forge.
 server's port on every loopback host and scheme, for typed addresses, in-frame navigations,
 redirects, and nested frames (4.21 Navigation policy).
 
-**Hook receiver.** `/hook` and `/cli` require the `X-Bashboard-Token` header holding a per-launch
+**Hook receiver.** `/hook`, `/cli`, and `/ci` require the `X-Bashboard-Token` header holding a per-launch
 random token. A custom header forces a CORS preflight from any other origin, which the receiver
 never answers, and the token exists only in pane environments and the core's memory, never in the
 page. The file server (3.21) is a separate listener, so a file page is not even same-origin with
-the receiver.
+the receiver. `/ci` reads freely (run status, failure reports, job logs) but its `rerun` and
+`cancel` ops are refused with a 403 unless the `ship.cliWrites` setting is on, which defaults to
+off: a pipeline can deploy, so a script or agent in a pane gets no write unless the user turned it
+on. The check runs before any code host call.
 
 **Navigation leaves the frame only by a click.** A document navigation to a non-loopback address is
 failed in the frame. From a dev server page an external `http(s)` address opens in the system

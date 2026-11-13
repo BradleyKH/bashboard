@@ -13,6 +13,7 @@ function c(over: Partial<Container> & { id: string }): Container {
     ports: [],
     project: null,
     service: null,
+    workingDir: null,
     ...over,
   };
 }

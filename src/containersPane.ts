@@ -21,6 +21,7 @@ import { containerUsage, renderContainerRow, updateContainerRow } from './contai
 import { containerKey, engineBusyKey, renderKey } from './containersRenderKey';
 import type { ContainersStore } from './containersStore';
 import { copyText } from './copyText';
+import { containerFixPrompt } from './fixWithAgentModel';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
@@ -43,6 +44,8 @@ export interface ContainersPaneOptions {
   store: ContainersStore;
   /** The Shell button: open a terminal in this container beside the pane. */
   onShell: (container: Container) => void;
+  /** Delivers a fix prompt for the repo at `root` to its agent terminal, opening one if needed. */
+  fixWithAgent: (root: string, prompt: string, fromPaneId: string) => Promise<void>;
   /** Asks before stopping an engine. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
 }
@@ -107,7 +110,13 @@ export class ContainersPane implements PaneView {
     this.body.tabIndex = -1;
     this.list = document.createElement('div');
     this.list.className = 'ctr-list';
-    this.logs = new ContainerLogs({ onClose: () => this.render() });
+    this.logs = new ContainerLogs({
+      onClose: () => this.render(),
+      onFixWithAgent: (c, text) => {
+        if (!c.workingDir) return;
+        opts.fixWithAgent(c.workingDir, containerFixPrompt(c, text), this.paneId).catch((e: unknown) => showToast(errorText(e)));
+      },
+    });
     this.body.append(this.list, this.logs.el);
     this.host.appendChild(this.body);
     this.applySettings(opts.settings);

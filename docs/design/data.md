@@ -321,7 +321,9 @@ the focused pane's folder.
   // background refreshes of the Overview, 0 to 1440; 0 leaves only Refresh and the 60 s polling of
   // a repo with a run in progress. It has a Settings tab field; pinnedRepos does not.
   // For example { "repo": "bitbucket.org/keysys/kweb", "root": "C:/src/kweb", "branches": ["uat"] }.
-  "ship": { "hosts": {}, "overviewRefreshMinutes": 5, "pinnedRepos": [] },
+  // cliWrites lets `bb ci rerun` and `bb ci cancel` act on pipelines; off because pipelines often
+  // deploy. It has a Settings tab field.
+  "ship": { "hosts": {}, "overviewRefreshMinutes": 5, "pinnedRepos": [], "cliWrites": false },
   // bookmarks are { "name", "url" } pages for the Local Browser pane, in order. An entry with an
   // empty or missing name or url, or a url that is not http or https on localhost or 127.0.0.1,
   // is dropped with a warning naming its position. homeUrl is the page a new pane opens

@@ -318,6 +318,74 @@ below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbuck
   past 2,000 entries starts over. A change
   made through an Accounts command drops that host's cached tokens and resolved repos at once.
 
+## 3.23 CI for agents (`src-tauri/src/ci.rs`, `src-tauri/src/forge/failure.rs`, `src-tauri/src/forge/diagnostic.rs`)
+
+What Ship knows about a repo's CI (3.20) is also served to `bb ci` (3.13) and, as a failure
+report, to the Fix with agent action (4.20). Everything that reads a failed run reads it through
+the same two pure pieces in `forge/`: the first-error finder and the failure report.
+
+- **Endpoint.** `POST /ci` on the hook receiver (3.3) takes the token and pane headers `/cli`
+  does. The receiver's loop also carries hook events, so each `/ci` request is handed to its own
+  thread after the token, pane, and size checks and answered from there; a forge call that takes
+  seconds does not hold up status events. The body is JSON, at most 64 KiB, and unknown fields
+  are rejected:
+  `{ "op", "cwd", "branch"?, "runId"?, "jobId"?, "failedOnly"? }`. `op` is `status`, `failed`,
+  `log`, `rerun`, or `cancel`. `log` needs both `runId` and `jobId`, and `failedOnly` applies
+  only to `rerun`. The core finds the repo from `cwd` (`files::find_repo`), takes the branch from
+  the request or else from Git's current branch, and uses `git rev-parse HEAD` as the commit to
+  watch only when the branch is the checked-out one.
+- **Answers.** Every answer is JSON, and every rejection is `{ "error" }`: 200 with the result;
+  400 for a bad body, a folder outside a git repo, a detached HEAD with no branch given, or a
+  write the host cannot do (a failed-only re-run on Bitbucket, a re-run on Azure DevOps);
+  403 for a bad token, or for a write refused by `ship.cliWrites` (section 8), whose message names
+  the setting; 404 for no live pane, "No failed run on <branch>.", or "No run on <branch>.";
+  413 for a body over 64 KiB; and 502 for a failure from the host, whose body adds the
+  `ForgeError`'s `kind`. A 403 is therefore not always the setting, so a client prints the
+  `error` text. `bb ci wait` treats an unreachable app, an unreadable reply, and a 5xx as failed
+  reads that it retries, and any other rejection as final.
+- **`status`.** Returns `{ repo: { provider, host, owner, name, webUrl }, branch, headSha, runs,
+  pull }`. `runs` is the newest run per workflow name whose `sha` is the head commit; when the
+  host gives no SHA on any run, or there is no head commit (another branch, or a detached HEAD),
+  it is the newest per name on the branch. It is empty when the host gives SHAs and none matches
+  the head commit, which is how a client sees that CI has not started yet. `pull` is the most
+  recently created pull request whose source is the branch, in any state, or null. The runs and
+  the pull requests are read together, and an error from either is a 502, so a client counts it as
+  a failed read rather than as "no pull request". Runs reported with a different branch than the
+  one asked for are dropped.
+- **`failed`.** Returns `{ runId, text }`: the failure report (below) for `runId`, or for the
+  newest failed run on the branch.
+- **`log`.** Returns the job's `JobLog` (`text`, `truncated`, and `firstError`).
+- **`rerun` and `cancel`.** Act on `runId`, or on the newest run on the branch, and reply
+  `{ runId }`. They are refused unless `ship.cliWrites` is true, since pipelines often deploy, and
+  the check comes before any repo or host work. A re-run needs the host's `rerun` capability,
+  a failed-only one `rerunFailed`, and a cancel `cancel` (3.20).
+- **First-error finder** (`diagnostic.rs`). `first_error_line(text)` returns the 0-based index of
+  the first line that reads as a diagnostic, or `None`. A line qualifies when, after leading
+  whitespace, it holds `##[error]`, starts with `::error`, `error:`, `error[` (cargo's
+  `error[E0425]:`), or `Error:`, holds a token such as `TypeError:` or
+  `java.lang.IllegalStateException:`, `panic:`, the word `FAILED` or `ENOENT`,
+  `Traceback (most recent call last)`, or `npm ERR!`, or is an `Error` status label
+  right-aligned to 12 columns, as cargo and the Tauri CLI print one (`       Error failed to
+  bundle project`). A line naming an exit code
+  ("Process completed with exit code 1", "exited with code 2") never qualifies, so the real error
+  above the host's closing summary wins. ANSI escapes, a byte order mark, carriage returns, and
+  each line's host timestamp are removed before matching, none of which changes the line count,
+  so an index into the raw text is also an index into the cleaned text the Ship pane shows.
+  `forge_log` and the `/ci` `log` op both fill `firstError` from it.
+- **Failure report** (`failure.rs`). `FailureReport` is built from a run, its jobs, and a log
+  fetcher, so it needs no host to test, and `render` turns it into the prompt text. The header
+  names the repo, branch, run name and link, and commit; the report holds up to 5 failed jobs
+  (a note says "Showing 5 of N failed jobs" when there are more), each with its name, its failed
+  steps, its link, and a log excerpt in a code fence long enough that a log holding backticks
+  cannot close it. An excerpt is at most 150 lines of the cleaned log, starting 5 lines above the
+  first diagnostic line, or the last 150 lines when there is none, and ending at the host's own
+  closing failure line (`##[error]Process completed with exit code 1.`, GitLab's
+  `ERROR: Job failed`) when the log has one, so post-job cleanup stays out. A job whose log cannot be
+  loaded keeps its place, reading "(log unavailable: <message>)", and a run the host lists no
+  failed jobs for says so. The report ends with one line asking the agent to find the cause and
+  fix it. `forge_fix_prompt(root, runId)` returns it for the Ship pane, and `failed` returns it
+  for `bb ci log`.
+
 ## 4.20 Ship pane
 
 A Ship pane has two views. The **Overview** is the default: one row per pinned repo, across GitHub,
@@ -477,9 +545,14 @@ jobs. The list is the latest 20 runs, and an empty list says so.
   Azure DevOps's are the build's timeline jobs, each named with its stage when it has one.
   **Show log** loads
   the job's log on demand: ANSI escapes, GitHub's per-line timestamps, a byte order mark, and
-  carriage returns are removed, a log cut to its last 1 MiB says so, and the view starts scrolled
-  to the end, where the failure is. An expanded run's jobs reload when a poll changes its status or
-  while it is still moving, and a job's open log is kept across reloads.
+  carriage returns are removed, and a log cut to its last 1 MiB says so. A log opens on its first
+  error when the core finds one (`firstError`, 3.23): that line is marked, the view is scrolled to
+  put it two lines below the top, and a **Jump to end** button in a bar above the log scrolls to
+  the last line. A log with no recognizable error opens scrolled to the end, where the failure
+  usually is, with no mark and no button. A log that loads while its job is collapsed settles
+  when the job is opened, since a hidden element cannot be scrolled. An expanded run's jobs reload
+  when a poll changes its status or while it is still moving, and a job's open log is kept across
+  reloads.
 - **Run buttons.** At each row's right edge: **Open** (in the browser), **Re-run**, **Re-run
   failed**, **Cancel**, and **Copy link**, enabled as the menu's entries of the same names are, with Cancel
   disabled rather than absent on a run that is not live. Every row carries the same buttons, and
@@ -490,11 +563,27 @@ jobs. The list is the latest 20 runs, and an empty list says so.
 - **Run menu.** Right-click a row: **Open in browser**; **Re-run** (greyed while the run is
   active); **Re-run failed jobs**, only on a host that has it (GitHub, GitLab, and Azure DevOps, where it
   re-runs the build's failed stages and is the only re-run offered), enabled for a failed run;
-  **Cancel**, only for a queued or running run on a host that can; and **Copy link**. Cancel opens
+  **Cancel**, only for a queued or running run on a host that can; **Fix with agent** (below), only
+  for a failed run on a host that serves job logs, in a pane that has a local folder; and
+  **Copy link**. Cancel opens
   a confirmation naming the run and its branch, whose button reads "Cancel <run noun>" ("Cancel
   workflow run", "Cancel pipeline", "Cancel build"); Re-run and Re-run failed jobs do not ask. A re-run or cancel
   polls again after 3 s, and a failure of either shows as a toast, since the list stays as it was.
   Entries a host cannot do are left out rather than greyed.
+- **Fix with agent.** A toast says the failed jobs' logs are being gathered, then
+  `forge_fix_prompt` (3.23) builds the run's failure report for the pane's folder, and
+  `fixWithAgent.ts` delivers it. The prompt is pasted without Enter, so the user reads it and
+  presses Enter. `pickAgentPane` in `fixWithAgentModel.ts` chooses the target: the most recently
+  focused terminal pane whose folder is the repo's root or inside it, that has a coding agent
+  session bound to it, and whose status is idle or done (a busy or waiting agent could take the
+  paste into a turn or a permission prompt). A pane never focused ranks last. When there is one,
+  its tab is shown and the prompt is pasted into it. When there is none, a terminal running
+  `claude` opens in the repo's root as a split of the Ship pane, and the prompt is pasted once
+  that pane's first hook event arrives (3.3) and 1 s more has passed for the agent's input box
+  to ask for bracketed paste, or after 20 s with no event (hooks not installed, or a slow start),
+  whichever comes first. The same delivery serves the Containers logs panel (4.16); the container
+  prompt is built in the front end by `containerFixPrompt`, from the last 150 lines of the
+  panel's cleaned text.
 
 **Pull requests.** The 50 most recently updated pull requests: open ones while **Open** is
 checked, else those in every state (open, merged, and closed, with Bitbucket's declined and

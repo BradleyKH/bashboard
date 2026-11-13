@@ -3,8 +3,9 @@
 //! `X-Bashboard-Agent` header, and the latest status per session is kept as an overlay on the
 //! roster. Each agent's events map to a status through its own table in `status_for`. The
 //! same receiver takes `POST /cli` from the `bb` pane CLI (design section 3.13) and emits the
-//! resolved command as `cli://command`. The overlay also keeps each session's `transcript_path`,
-//! which the transcript reader uses to find the session's JSONL file.
+//! resolved command as `cli://command`, and `POST /ci` for `bb ci` (docs/design/ship.md section
+//! 3.23), which it answers from a thread of its own. The overlay also keeps each session's
+//! `transcript_path`, which the transcript reader uses to find the session's JSONL file.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -20,10 +21,11 @@ use tauri::{AppHandle, Emitter, Manager};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::lock::LockExt;
-use crate::{agents::AgentId, cli, pty::Ptys, roster};
+use crate::{agents::AgentId, ci, cli, pty::Ptys, roster};
 
 const MAX_BODY: usize = 64 * 1024;
 const MAX_CLI_BODY: usize = 1024 * 1024;
+const MAX_CI_BODY: usize = 64 * 1024;
 /// Longest waiting reason kept, in characters.
 const MAX_WAITING_MESSAGE: usize = 200;
 
@@ -150,6 +152,13 @@ pub fn init(app: &AppHandle) {
             |cmd| {
                 let _ = app.emit("cli://command", cmd);
             },
+            |req, body| {
+                let app = app.clone();
+                thread::spawn(move || {
+                    let (code, json) = ci::handle(&app, &body);
+                    respond_json(req, code, &json);
+                });
+            },
         )
     });
 }
@@ -169,22 +178,32 @@ fn header<'a>(headers: &'a [Header], name: &'static str) -> Option<&'a str> {
 }
 
 /// Answers requests until the server shuts down, passing each accepted hook event to
-/// `on_event` and each accepted `/cli` command to `on_cli`. `pane_live` says whether a pty id
-/// belongs to a running pane. Nothing here waits on the front end.
+/// `on_event`, each accepted `/cli` command to `on_cli`, and each accepted `/ci` request,
+/// unanswered, to `on_ci`, which must answer it off this thread. `pane_live` says whether a
+/// pty id belongs to a running pane. Nothing here waits on the front end or a forge.
 fn serve(
     server: &Server,
     token: &str,
     mut on_event: impl FnMut(HookEvent),
     pane_live: impl Fn(u32) -> bool,
     mut on_cli: impl FnMut(cli::CliCommand),
+    mut on_ci: impl FnMut(Request, Vec<u8>),
 ) {
     for req in server.incoming_requests() {
         // A request whose handling panics is dropped unanswered instead of ending this loop,
         // which would silence every later hook event and `bb` command.
         let _ = panic::catch_unwind(AssertUnwindSafe(|| {
-            answer(req, token, &mut on_event, &pane_live, &mut on_cli)
+            answer(req, token, &mut on_event, &pane_live, &mut on_cli, &mut on_ci)
         }));
     }
+}
+
+fn respond_json(req: Request, code: u16, json: &serde_json::Value) {
+    let mut resp = Response::from_string(json.to_string()).with_status_code(StatusCode(code));
+    if let Ok(h) = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]) {
+        resp.add_header(h);
+    }
+    let _ = req.respond(resp);
 }
 
 fn answer(
@@ -193,15 +212,39 @@ fn answer(
     on_event: &mut impl FnMut(HookEvent),
     pane_live: &impl Fn(u32) -> bool,
     on_cli: &mut impl FnMut(cli::CliCommand),
+    on_ci: &mut impl FnMut(Request, Vec<u8>),
 ) {
-    let is_cli = req.url().split('?').next() == Some("/cli");
-    let cap = if is_cli { MAX_CLI_BODY } else { MAX_BODY };
+    let path = req.url().split('?').next().unwrap_or("").to_string();
+    let is_cli = path == "/cli";
+    let is_ci = path == "/ci";
+    let cap = if is_cli {
+        MAX_CLI_BODY
+    } else if is_ci {
+        MAX_CI_BODY
+    } else {
+        MAX_BODY
+    };
     let content_length = req.body_length();
     let mut body = Vec::new();
     // An oversized declared length is rejected without reading; otherwise read one byte
     // past the cap so an undeclared or understated length still trips the limit.
     if content_length.is_none_or(|n| n <= cap) {
         let _ = req.as_reader().take(cap as u64 + 1).read_to_end(&mut body);
+    }
+    if is_ci {
+        match check_ci(
+            token,
+            req.method(),
+            header(req.headers(), "X-Bashboard-Token"),
+            header(req.headers(), "X-Bashboard-Pane"),
+            &body,
+            content_length,
+            pane_live,
+        ) {
+            Ok(()) => on_ci(req, body),
+            Err((code, msg)) => respond_json(req, code, &serde_json::json!({ "error": msg })),
+        }
+        return;
     }
     if is_cli {
         let (code, error, cmd) = handle_cli(
@@ -345,6 +388,33 @@ fn handle_cli(
         Ok(cmd) => (204, None, Some(cmd)),
         Err(msg) => (400, Some(serde_json::json!({ "error": msg }).to_string()), None),
     }
+}
+
+/// Admits `POST /ci` on the same token and live-pane terms as `/cli`. Rejections carry a JSON
+/// error, unlike `/cli`'s, because `bb ci` reports every non-200 by its `error`, and a bad
+/// token must not read like the `ship.cliWrites` refusal, which is also a 403.
+fn check_ci(
+    token: &str,
+    method: &Method,
+    token_header: Option<&str>,
+    pane_header: Option<&str>,
+    body: &[u8],
+    content_length: Option<usize>,
+    pane_live: &impl Fn(u32) -> bool,
+) -> Result<(), (u16, &'static str)> {
+    if *method != Method::Post {
+        return Err((404, "not found"));
+    }
+    if !token_header.is_some_and(|t| token_matches(token, t)) {
+        return Err((403, "bad Bashboard token; is this shell inside a Bashboard pane?"));
+    }
+    if !pane_header.and_then(|p| p.trim().parse::<u32>().ok()).is_some_and(pane_live) {
+        return Err((404, "no live Bashboard pane for this shell"));
+    }
+    if content_length.is_some_and(|n| n > MAX_CI_BODY) || body.len() > MAX_CI_BODY {
+        return Err((413, "request body too large"));
+    }
+    Ok(())
 }
 
 /// Folds one event into the overlay (design section 7).
@@ -862,7 +932,7 @@ mod tests {
         let server = Server::http("127.0.0.1:0").unwrap();
         let addr = server.server_addr().to_ip().unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
-        thread::spawn(move || serve(&server, TOKEN, |ev| tx.send(ev).unwrap(), |_| false, |_| {}));
+        thread::spawn(move || serve(&server, TOKEN, |ev| tx.send(ev).unwrap(), |_| false, |_| {}, |_, _| {}));
 
         assert!(raw_post(addr, TOKEN).starts_with("HTTP/1.1 204"));
         assert_eq!(rx.recv().unwrap().hook_event_name, "Stop");
@@ -955,7 +1025,9 @@ mod tests {
         let server = Server::http("127.0.0.1:0").unwrap();
         let addr = server.server_addr().to_ip().unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
-        thread::spawn(move || serve(&server, TOKEN, |_| {}, |id| id == 5, |cmd| tx.send(cmd).unwrap()));
+        thread::spawn(move || {
+            serve(&server, TOKEN, |_| {}, |id| id == 5, |cmd| tx.send(cmd).unwrap(), |_, _| {})
+        });
         let dir = temp_repo("loopback");
         let send = |token: &str, pane: &str, body: &str| {
             let mut stream = TcpStream::connect(addr).unwrap();
@@ -983,5 +1055,79 @@ mod tests {
         assert!(bad.contains(r#"{"error":"#));
         assert!(rx.try_recv().is_err());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn ci_check(token: Option<&str>, pane: Option<&str>, body: &[u8], len: Option<usize>) -> Result<(), u16> {
+        check_ci(TOKEN, &Method::Post, token, pane, body, len, &|id| id == 5).map_err(|(c, _)| c)
+    }
+
+    #[test]
+    fn ci_admits_like_cli() {
+        assert_eq!(ci_check(Some(TOKEN), Some(" 5 "), b"{}", Some(2)), Ok(()));
+        assert_eq!(ci_check(None, Some("5"), b"{}", None), Err(403));
+        assert_eq!(ci_check(Some("nope"), Some("5"), b"{}", None), Err(403));
+        assert_eq!(ci_check(Some(TOKEN), None, b"{}", None), Err(404));
+        assert_eq!(ci_check(Some(TOKEN), Some("6"), b"{}", None), Err(404));
+        let get = check_ci(TOKEN, &Method::Get, Some(TOKEN), Some("5"), b"{}", None, &|_| true);
+        assert_eq!(get.map_err(|(c, _)| c), Err(404));
+        assert_eq!(ci_check(Some(TOKEN), Some("5"), b"{}", Some(MAX_CI_BODY + 1)), Err(413));
+        let big = vec![b' '; MAX_CI_BODY + 1];
+        assert_eq!(ci_check(Some(TOKEN), Some("5"), &big, None), Err(413));
+    }
+
+    fn ci_send(addr: std::net::SocketAddr, token: &str, pane: &str, body: &str) -> TcpStream {
+        let mut stream = TcpStream::connect(addr).unwrap();
+        // A broken handoff fails the test instead of hanging the whole run.
+        stream.set_read_timeout(Some(std::time::Duration::from_secs(10))).unwrap();
+        write!(
+            stream,
+            "POST /ci HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Bashboard-Token: {token}\r\n\
+             X-Bashboard-Pane: {pane}\r\nContent-Type: application/json\r\n\
+             Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+        stream
+    }
+
+    #[test]
+    fn ci_is_handed_off_not_answered_inline() {
+        let server = Server::http("127.0.0.1:0").unwrap();
+        let addr = server.server_addr().to_ip().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (ev_tx, ev_rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            serve(
+                &server,
+                TOKEN,
+                |ev| ev_tx.send(ev).unwrap(),
+                |id| id == 5,
+                |_| panic!("/ci must not reach the /cli path"),
+                |req, body| tx.send((req, body)).unwrap(),
+            )
+        });
+
+        let mut pending = ci_send(addr, TOKEN, "5", r#"{"op":"status"}"#);
+        let wait = std::time::Duration::from_secs(10);
+        let (req, body) = rx.recv_timeout(wait).expect("/ci was not handed off");
+        assert_eq!(body, br#"{"op":"status"}"#);
+        // The /ci request is still open, yet the loop goes on answering hooks.
+        assert!(raw_post(addr, TOKEN).starts_with("HTTP/1.1 204"));
+        assert_eq!(ev_rx.recv_timeout(wait).unwrap().hook_event_name, "Stop");
+        respond_json(req, 200, &serde_json::json!({ "ok": true }));
+        let mut response = String::new();
+        pending.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+        assert!(response.to_ascii_lowercase().contains("content-type: application/json"));
+        assert!(response.ends_with(r#"{"ok":true}"#), "{response}");
+
+        let mut refused = String::new();
+        ci_send(addr, "wrong!", "5", "{}").read_to_string(&mut refused).unwrap();
+        assert!(refused.starts_with("HTTP/1.1 403"), "{refused}");
+        assert!(refused.contains(r#"{"error":"#));
+        let mut no_pane = String::new();
+        ci_send(addr, TOKEN, "9", "{}").read_to_string(&mut no_pane).unwrap();
+        assert!(no_pane.starts_with("HTTP/1.1 404"), "{no_pane}");
+        assert!(rx.try_recv().is_err());
     }
 }

@@ -74,6 +74,8 @@ export interface Settings {
     hosts: Record<string, ForgeKind>;
     overviewRefreshMinutes: number;
     pinnedRepos: { repo: string; root?: string; branches?: string[] }[];
+    /** Lets `bb ci rerun` and `bb ci cancel` act on pipelines (docs/settings.md). */
+    cliWrites: boolean;
   };
   /**
    * Local Browser pane: `bookmarks` are http pages on localhost or 127.0.0.1, or file:/// URLs to
@@ -134,7 +136,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5 },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
-  ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [] },
+  ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [], cliWrites: false },
   localBrowser: {
     bookmarks: [],
     homeUrl: '',

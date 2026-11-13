@@ -23,19 +23,28 @@ export function isDevListener(l: Listener): boolean {
 }
 
 export interface DashboardPorts {
-  /** Pane-started first, then by port. */
+  /** Pane-started first, then by port, at most `DASHBOARD_PORT_ROWS`. */
   rows: Listener[];
+  /** Dev listeners past the cap, which the section counts in one row instead of listing. */
+  more: number;
   /** Other programs' listeners, which the section counts in one row instead of listing. */
   others: number;
 }
 
+/** Rows the dashboard lists before counting the rest; the Ports tab has them all. */
+export const DASHBOARD_PORT_ROWS = 10;
+
 /** The dashboard's ports: dev listeners listed, other apps counted; services and Bashboard itself left out. */
 export function dashboardListeners(list: readonly Listener[]): DashboardPorts {
   const user = list.filter((l) => !l.system && !l.own);
-  const rows = user
+  const dev = user
     .filter(isDevListener)
     .sort((a, b) => Number(b.ptyId !== null) - Number(a.ptyId !== null) || a.port - b.port || a.pid - b.pid);
-  return { rows, others: user.length - rows.length };
+  return {
+    rows: dev.slice(0, DASHBOARD_PORT_ROWS),
+    more: Math.max(0, dev.length - DASHBOARD_PORT_ROWS),
+    others: user.length - dev.length,
+  };
 }
 
 export interface PaneFilter {

@@ -23,15 +23,16 @@ Copilot CLI, and it works with any stack. It runs on Windows, with an early macO
   saves as you type.
 - **Pins:** keep the files, folders, and commands you use most one click away, per repo or
   everywhere.
-- **Ship:** CI runs, job logs, and pull requests from GitHub, GitLab, Bitbucket, and Azure
-  DevOps, ranked by what needs you.
+- **Ship:** CI runs, job logs that open at the first error, and pull requests from GitHub,
+  GitLab, Bitbucket, and Azure DevOps, ranked by what needs you, with a Fix with agent action
+  that hands a failed run to your coding agent.
 - **Ports and Local Browser:** see and stop dev servers, preview `localhost` beside the
   terminal, and open local HTML files (such as a generated report) in the same pane.
 - **Containers:** start, stop, tail, and shell into Docker or Podman containers.
 - **Tabs, layouts, and the command palette:** workspaces restore on relaunch, named layouts
   rebuild one in a click, and Ctrl+Shift+P reaches everything.
-- **The `bb` CLI and scratch pads:** open panes from any prompt, and draft longer prompts
-  before sending them.
+- **The `bb` CLI and scratch pads:** open panes from any prompt, wait for CI and read why it
+  failed (`bb ci`), and draft longer prompts before sending them.
 - **Backdrops and effects:** a live colony simulation, Galaxy, Matrix, a load-driven wave, or
   your own image, dimmed to taste, plus an optional glow on working agents and lights around
   pane borders.

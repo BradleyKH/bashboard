@@ -32,6 +32,8 @@ export interface Container {
   ports: ContainerPort[];
   project: string | null;
   service: string | null;
+  /** The compose project's folder on the host, when compose labeled it. */
+  workingDir: string | null;
 }
 
 export type EngineLifecycle = 'starting' | 'stopping';

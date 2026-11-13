@@ -36,6 +36,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.20 Ship (`src-tauri/src/forge/`) | [ship.md](ship.md) |
 | 3.21 Local file server (`src-tauri/src/browser_files/`) | [browser.md](browser.md) |
 | 3.22 Crash recovery and log (`src-tauri/src/crash_recovery.rs`, `src-tauri/src/app_log.rs`) | [app.md](app.md) |
+| 3.23 CI for agents (`src-tauri/src/ci.rs`, `src-tauri/src/forge/failure.rs`, `src-tauri/src/forge/diagnostic.rs`) | [ship.md](ship.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |
@@ -199,7 +200,8 @@ rename box out.
 
 - The hook endpoint listens on loopback only and requires the per-launch token; the token
   lives only in pane environments and in memory. Its `/cli` path (3.13) carries out only
-  actions the UI already offers, with the same path checks.
+  actions the UI already offers, with the same path checks. Its `/ci` path (3.23) reads what Ship
+  already shows and writes (re-run, cancel) only when `ship.cliWrites` is on.
 - Tauri capabilities stay minimal: the app's own commands plus `core:default` and
   `core:window:allow-destroy` (closing the window after the workspace is saved) and
   `core:window:allow-request-user-attention` (the taskbar flash). No shell, fs,

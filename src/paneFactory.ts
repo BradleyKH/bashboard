@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { shellCommand, type Container } from './containers';
 import { ContainersPane } from './containersPane';
+import { deliverFixPrompt, type FixAgentHost } from './fixWithAgent';
 import { ContainersStore } from './containersStore';
 import type { DragSource } from './docking';
 import { FilesPane } from './filesPane';
@@ -40,6 +41,8 @@ export interface PaneFactoryContext {
   readonly hosts: Map<string, HTMLElement>;
   /** Container shell pane ids to their container's name. */
   readonly containerShells: Map<string, string>;
+  /** Where Fix with agent delivers its prompt. */
+  readonly fixAgentHost: FixAgentHost;
   paneStatus(): PaneStatus;
   /** Keeps a host that is off screen alive. */
   keep(host: HTMLElement): void;
@@ -350,6 +353,7 @@ export class PaneFactory {
       onRunTerminal: (argv, cwd) => this.openShipCommand(id, argv, cwd),
       onOpenAccounts: (host, opts) => ctx.hooks.onOpenAccounts?.(host, opts),
       onOpenTerminal: (root) => ctx.openTerminal(root),
+      fixWithAgent: (root, prompt, fromPaneId) => deliverFixPrompt(ctx.fixAgentHost, root, prompt, fromPaneId),
       tab: spec.tab,
       thisBranch: spec.thisBranch,
       thisBranchPulls: spec.thisBranchPulls,
@@ -380,6 +384,7 @@ export class PaneFactory {
       // Without a store from the app (a browser-only run) the pane shows no engines.
       store: ctx.hooks.containers ?? (this.emptyContainers ??= new ContainersStore()),
       onShell: (c) => this.openContainerShell(id, c),
+      fixWithAgent: (root, prompt, fromPaneId) => deliverFixPrompt(ctx.fixAgentHost, root, prompt, fromPaneId),
       confirm: (o) => ctx.hooks.onConfirm?.(o) ?? Promise.resolve(false),
     });
   }

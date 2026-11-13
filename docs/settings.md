@@ -367,12 +367,17 @@ stay within 600 an hour between them: with more than three pinned, each is refre
 than every 18 seconds times the number pinned (every 3 minutes for ten), even when this interval
 is shorter. It applies on save and is also in the Ship section of the Settings tab.
 
+`ship.cliWrites` (default `false`) lets `bb ci rerun` and `bb ci cancel` act on pipelines; off by
+default because pipelines often deploy. It applies on save and is also in the Ship section of the
+Settings tab.
+
 ```jsonc
 "ship": {
   "overviewRefreshMinutes": 5,
   "pinnedRepos": [
     { "repo": "bitbucket.org/keysys/kweb", "root": "C:/Users/me/source/repos/kweb", "branches": ["uat"] }
-  ]
+  ],
+  "cliWrites": false
 }
 ```
 

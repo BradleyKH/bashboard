@@ -487,6 +487,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         inline: true,
       },
+      {
+        path: ['ship', 'cliWrites'],
+        label: 'CLI reruns and cancels',
+        kind: 'toggle',
+        hint: 'Lets bb ci rerun and bb ci cancel act on pipelines',
+        applies: 'live',
+      },
     ],
   },
   {

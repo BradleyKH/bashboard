@@ -8,6 +8,8 @@ export interface RunMenuHandlers {
   onRerunFailed: () => void;
   onCancel: () => void;
   onCopyLink: () => void;
+  /** Hands the failure report to an agent; absent where there is no local folder for it to work in. */
+  onFixWithAgent?: () => void;
 }
 
 export type RunActionKey = 'rerun' | 'rerunFailed' | 'cancel';
@@ -43,6 +45,10 @@ export function runMenuItems(run: Run, caps: Capabilities, handlers: RunMenuHand
   }
   if (states.cancel.offered && states.cancel.enabled) actions.push(item('Cancel', handlers.onCancel));
   if (actions.length > 0) entries.push(separator(), ...actions);
+  // The prompt is built from job logs, so a host without them has nothing to hand over.
+  if (handlers.onFixWithAgent && run.status === 'failure' && caps.jobLogs) {
+    entries.push(separator(), item('Fix with agent', handlers.onFixWithAgent));
+  }
   entries.push(separator(), item('Copy link', handlers.onCopyLink));
   return entries;
 }

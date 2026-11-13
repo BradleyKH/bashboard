@@ -15,6 +15,7 @@ function ctr(over: Partial<Container> = {}): Container {
     ports: [],
     project: null,
     service: null,
+    workingDir: null,
     ...over,
   };
 }

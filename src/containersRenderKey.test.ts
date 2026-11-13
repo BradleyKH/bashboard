@@ -14,6 +14,7 @@ function container(over: Partial<Container> = {}): Container {
     ports: [{ host: 8080, container: 80, protocol: 'tcp' }],
     project: null,
     service: null,
+    workingDir: null,
     ...over,
   };
 }

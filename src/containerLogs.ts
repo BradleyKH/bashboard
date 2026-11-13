@@ -22,6 +22,11 @@ function cleanLine(raw: string): string {
 export interface ContainerLogsOptions {
   /** The panel closed (Close button, or `close()`), so the pane can drop its highlight. */
   onClose: () => void;
+  /**
+   * Fix with agent: the container and the panel's cleaned text. Offered only for a container
+   * whose compose project names a folder, since the agent needs somewhere to work.
+   */
+  onFixWithAgent?: (container: Container, text: string) => void;
 }
 
 /** The logs panel beside the Containers list (docs/design/containers.md section 4.16). */
@@ -29,6 +34,7 @@ export class ContainerLogs {
   readonly el: HTMLElement;
   private readonly title: HTMLElement;
   private readonly endBtn: HTMLButtonElement;
+  private readonly fixBtn: HTMLButtonElement;
   private readonly body: HTMLElement;
   private readonly text: HTMLElement;
   private lines: string[] = [];
@@ -57,6 +63,12 @@ export class ContainerLogs {
     this.endBtn.title = 'Scroll to the end and follow new output';
     this.endBtn.hidden = true;
     this.endBtn.addEventListener('click', () => this.scrollToEnd());
+    this.fixBtn = document.createElement('button');
+    this.fixBtn.type = 'button';
+    this.fixBtn.className = 'ctr-btn';
+    this.fixBtn.textContent = 'Fix with agent';
+    this.fixBtn.hidden = true;
+    this.fixBtn.addEventListener('click', () => this.fixWithAgent());
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'ctr-btn';
@@ -81,7 +93,7 @@ export class ContainerLogs {
       },
       this.el,
     );
-    head.append(this.title, this.endBtn, zoom.el, close);
+    head.append(this.title, this.endBtn, this.fixBtn, zoom.el, close);
 
     this.el.append(head, this.body);
   }
@@ -101,6 +113,8 @@ export class ContainerLogs {
     this.following = true;
     this.title.textContent = `Logs: ${c.name}`;
     this.title.title = `${c.name} (${c.image})`;
+    this.fixBtn.hidden = !this.opts.onFixWithAgent || !c.workingDir;
+    this.fixBtn.title = c.workingDir ? `Hand these logs to an agent in ${c.workingDir}` : '';
     this.el.hidden = false;
     this.render();
 
@@ -181,6 +195,13 @@ export class ContainerLogs {
       this.following = atEnd;
       this.endBtn.hidden = atEnd;
     }
+  }
+
+  private fixWithAgent(): void {
+    const c = this.current;
+    if (!c || !this.opts.onFixWithAgent) return;
+    const tail = this.partial === '' ? [] : [cleanLine(this.partial)];
+    this.opts.onFixWithAgent(c, [...this.lines, ...tail].join('\n'));
   }
 
   private scrollToEnd(): void {

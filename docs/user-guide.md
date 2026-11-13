@@ -446,10 +446,14 @@ state, with merged and closed ones marked. The pane remembers these choices acro
   title, the workflow or pipeline name, number, branch, and who started it, then how long ago and
   how long it took, which redraw every second. Click a run to expand its jobs, each with its duration and, on GitHub and Azure DevOps, its steps
   with failed ones marked (an Azure DevOps job's steps are its tasks, and a job in a named stage
-  starts with the stage's name; a GitLab job has no step list). **Show log** loads a job's log (the last 1 MiB of it), scrolled to the
-  end, where a failure usually is. The buttons at the right of each run open it in the browser,
+  starts with the stage's name; a GitLab job has no step list). **Show log** loads a job's log (the last 1 MiB of it). When Bashboard can find the first
+  real error in it (a `##[error]` or `error:` line, a `TypeError:` or `panic:`, a failed test,
+  and the like, skipping the "exit code 1" summary at the end), the log opens with that line marked
+  and two lines of context above it, and **Jump to end** scrolls to the last line; otherwise it
+  opens at the end. The buttons at the right of each run open it in the browser,
   **Re-run** it, **Re-run failed** jobs (GitHub, GitLab, and Azure DevOps), **Cancel** it, or **Copy link**; one that
-  does not apply to the run right now is greyed. Right-click a run for the same actions.
+  does not apply to the run right now is greyed. Right-click a run for the same actions, and for
+  **Fix with agent** on a failed run (see below).
   In a narrow pane the buttons are hidden and the right-click menu has them all. Cancel asks first, with a
   button that reads "Cancel workflow run", "Cancel pipeline", or "Cancel build"; Re-run does not ask. A Bitbucket
   pipeline's jobs are its steps and have no per-command list. Re-run and Cancel on Bitbucket need
@@ -466,6 +470,17 @@ state, with merged and closed ones marked. The pane remembers these choices acro
   and a merge request's approvals and pipeline status appear one poll after the list does. On Azure
   DevOps, a reviewer's Approved or Approved with suggestions vote reads as approved, and Waiting for
   the author or Rejected as changes requested.
+
+**Fix with agent.** Right-click a failed run in a pane showing a repo on your machine and choose
+**Fix with agent** (on any host that serves job logs).
+Bashboard gathers up to five failed jobs, each with its failed steps, its link, and up to 150
+lines of its log starting just above the first error, and types that into a coding agent
+terminal in the repo's folder, without pressing Enter, so you can read it, edit it, and send
+it. It picks the terminal you used most recently in that folder whose agent is idle or done, never
+one in the middle of a turn. With none, it opens a `claude` terminal next to the pane, waits for
+the agent to report in (hooks need to be installed, see [Claude Code hooks](setup.md#claude-code-hooks);
+without them it waits 20 seconds), and then types the prompt. Containers' logs have the same
+button (see [Containers](#containers)).
 
 A finished run raises a toast, such as "Workflow run passed: CI on main", whose **Open** action
 opens the run. Several Ship panes on one repo share their requests and each finished run toasts
@@ -773,7 +788,10 @@ on a container or on a whole project; every row shows its buttons, greyed when t
 such as Start on a running container. Logs opens a panel beside the list that follows the output,
 starting with the last 500 lines and keeping the most recent 5000; scrolling up pauses following
 until you scroll back to the end. The − and + buttons in its header, or Ctrl+wheel over it, zoom
-the log text, and the next logs panel starts at the zoom you last chose. Shell opens a terminal split beside the pane, running `bash` in
+the log text, and the next logs panel starts at the zoom you last chose. A container started by
+Docker Compose from a folder on this machine also gets a **Fix with agent** button there, which types the last 150 lines of
+its log, with the container's name and image, into an agent terminal in the project's folder (the
+same hand-off as the Ship pane's, without Enter). Shell opens a terminal split beside the pane, running `bash` in
 the container when it has one and `sh` otherwise, titled with the container's name. It needs a
 running container.
 
@@ -1071,6 +1089,12 @@ not apply to them. `bb edit` opens no pane.
 | `bb browse [<url or file>]`   | Opens a Local Browser pane at a localhost address or an `.html` file, or on its start page |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` (the Accounts tab does the same) |
+| `bb ci [status] [--branch B] [--json]` | Prints the current branch's CI runs (status, name, duration, link) and its pull request |
+| `bb ci wait [--branch B] [--interval SECS] [--timeout DUR] [--json]` | Waits for CI on the branch's latest commit; exits 0 passed, 1 failed, 2 gave up |
+| `bb ci log [--run ID] [--job ID]` | Prints why the newest failed run (or `--run`) failed, or a whole job log with `--job` (which needs `--run`) |
+| `bb ci rerun [--failed] [--run ID]` | Re-runs a run, or only its failed jobs; needs `ship.cliWrites` |
+| `bb ci cancel [--run ID]`     | Cancels a run; needs `ship.cliWrites`                                         |
+| `bb skill install`            | Installs a Claude Code skill that teaches agents these commands               |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
 
 Add `--collapsed` anywhere in a command to open the pane collapsed, or `--tab` (`-t`) to open
@@ -1094,6 +1118,28 @@ it as one line followed by Enter, the way you would type them, so they follow th
 syntax and the shell stays open after the command ends. `bb term --tab -- pnpm dev` gives a dev
 server a tab of its own.
 
+`bb ci` reads the CI of the repo of the folder you are in, on any host the Ship pane supports,
+with the same sign-in the Ship pane uses. `--branch` and `--json` (machine-readable output) work
+on every `bb ci` command, and `--flag=value` works too. `bb ci wait` checks every 30 seconds
+(`--interval`; a value below 10 is raised to 10), prints a line each time something changes, and
+gives up after 30 minutes (`--timeout`: seconds, or amounts such as `90s`, `10m`, `1h`, or
+`1h30m`). It exits 0 when every run on the latest commit has finished without failing or the
+pull request merged, 1 when a run failed or was cancelled, and 2 when it could not tell: the
+timeout passed, no run appeared within 5 minutes of the latest commit, eight reads in a row
+failed, or the pull request was closed unmerged. It also exits 2 when the request itself is
+refused or invalid (bad arguments, a command run outside a pane, a rejected token), so that 1
+always means CI failed. A run waiting for someone to approve it is not finished, and exit 2 is
+not a failure. `bb ci log` prints the same failure report as Fix with agent, or with
+`--run` and `--job` the whole log of one job; with no failed run on the branch it says so and
+exits 1. `bb ci status` does not list run or job ids. `bb ci rerun` and `bb ci cancel` change a
+pipeline that may deploy, so they do nothing until you turn on `ship.cliWrites` in
+[Settings](settings.md#settings); the error says so. Azure DevOps can only re-run failed jobs, so
+use `--failed` there. A refused or failed command prints the error text and exits 1. `bb skill
+install` writes a skill to `~/.claude/skills/bashboard/SKILL.md` under your home folder that
+tells Claude Code to run `bb ci wait` after a push and `bb ci log` after a failure (see
+[Setup](setup.md#telling-an-agent-about-bb)). It works in any terminal, says so when the file is
+already up to date, and refuses, with exit 1, to replace a file it did not write.
+
 `bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
 input), save it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
 Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
@@ -1108,11 +1154,12 @@ bb term -- pnpm test --watch
 ```
 
 `bb` works in all four shells because Bashboard puts the folder holding `bb.exe` first on every
-pane's `PATH`. `bb help` and `bb auth` work anywhere; outside a Bashboard pane every other command prints
+pane's `PATH`. `bb help`, `bb auth`, and `bb skill install` work anywhere; outside a Bashboard pane every other command prints
 `bb: only works inside a Bashboard pane` and exits 1. Any failure, such as a missing path, an
 unknown option, or an app that cannot be reached, prints a `bb: ` message to standard error and
-exits 1. A successful command prints nothing, apart from `bb auth` saying what it stored or removed, and
-exits 0.
+exits 1. A successful command prints nothing, apart from `bb auth` saying what it stored or removed and
+`bb ci` and `bb skill install` reporting their results, and exits 0 (`bb ci wait` also exits 1 or 2, above, and
+exits 2 rather than 1 on any error).
 
 ## Keys on macOS
 

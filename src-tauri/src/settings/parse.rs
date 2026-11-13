@@ -676,6 +676,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             d.ship.overview_refresh_minutes,
         ),
         pinned_repos: parse_pinned_repos(&root, &mut w),
+        cli_writes: pick(&root, &["ship", "cliWrites"], &mut w, Value::as_bool, d.ship.cli_writes),
     };
     let local_browser = LocalBrowser {
         bookmarks: parse_bookmarks(&root, &mut w),
@@ -1432,6 +1433,17 @@ mod tests {
             assert_eq!(w.len(), 1, "{bad}: {w:?}");
             assert!(w[0].starts_with("ship.overviewRefreshMinutes"), "{bad}: {w:?}");
         }
+    }
+
+    #[test]
+    fn ship_cli_writes_defaults_off_and_wrong_type_falls_back_with_a_warning() {
+        let (s, w) = parse_settings("{}");
+        assert!(!s.ship.cli_writes && w.is_empty(), "{w:?}");
+        let (s, w) = parse_settings(r#"{ "ship": { "cliWrites": true } }"#);
+        assert!(s.ship.cli_writes && w.is_empty(), "{w:?}");
+        let (s, w) = parse_settings(r#"{ "ship": { "cliWrites": "yes" } }"#);
+        assert!(!s.ship.cli_writes);
+        assert!(w[0].starts_with("ship.cliWrites"), "{w:?}");
     }
 
     #[test]

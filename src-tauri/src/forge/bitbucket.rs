@@ -253,6 +253,10 @@ fn page_size(page: &Value) -> Option<u64> {
 /// The pull request list URL. The branch filter goes in a BBQL query, since the list has no
 /// plain source-branch parameter; a ref name may hold `"` but never `\`, so escaping the quote
 /// is enough.
+fn run_url(base: &str, run_id: &str) -> String {
+    format!("{base}/pipelines/{}", percent_encode(run_id))
+}
+
 fn pulls_url(base: &str, open_only: bool, branch: Option<&str>) -> String {
     let states = if open_only {
         "state=OPEN"
@@ -523,6 +527,21 @@ impl ForgeProvider for Bitbucket {
             .collect())
     }
 
+    fn run(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Run, ForgeError> {
+        let base = repo_base(repo)?;
+        let v: Value = cx
+            .http
+            .get_json(&run_url(&base, run_id), Some(&auth(cx)), ACCEPT)
+            .map_err(|e| reword(e, &cx.token.source))?;
+        let mut run = map_run(&v, &repo.web_url)
+            .ok_or_else(|| ForgeError::other("Bitbucket answered without a pipeline uuid."))?;
+        let titles = self.commit_titles(cx, &base, std::slice::from_ref(&v));
+        if let Some(title) = untitled_hash(&v).and_then(|h| titles.get(h)) {
+            run.title = title.clone();
+        }
+        Ok(run)
+    }
+
     fn jobs(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Vec<Job>, ForgeError> {
         let url = format!(
             "{}/pipelines/{}/steps/",
@@ -551,12 +570,9 @@ impl ForgeProvider for Bitbucket {
             percent_encode(job_id)
         );
         match cx.http.get_text_tail(&url, Some(&auth(cx)), &[], LOG_MAX) {
-            Ok((text, truncated)) => Ok(JobLog { text, truncated }),
+            Ok((text, truncated)) => Ok(JobLog::new(text, truncated)),
             // A step that hasn't started has no log yet.
-            Err(e) if e.kind == ForgeErrorKind::NotFound => Ok(JobLog {
-                text: String::new(),
-                truncated: false,
-            }),
+            Err(e) if e.kind == ForgeErrorKind::NotFound => Ok(JobLog::new(String::new(), false)),
             Err(e) => Err(reword(e, &cx.token.source)),
         }
     }
@@ -572,11 +588,7 @@ impl ForgeProvider for Bitbucket {
         let auth = auth(cx);
         let run: Value = cx
             .http
-            .get_json(
-                &format!("{base}/pipelines/{}", percent_encode(run_id)),
-                Some(&auth),
-                ACCEPT,
-            )
+            .get_json(&run_url(&base, run_id), Some(&auth), ACCEPT)
             .map_err(|e| reword(e, &cx.token.source))?;
         let body = rerun_body(&run)
             .ok_or_else(|| ForgeError::other("This pipeline has no target to run again."))?;
@@ -690,6 +702,14 @@ mod tests {
         let mine = pulls_url("https://x/r", false, Some("feat/a\"b"));
         assert!(mine.contains("state=DECLINED"));
         assert!(mine.ends_with("&q=source.branch.name%3D%22feat%2Fa%5C%22b%22"));
+    }
+
+    #[test]
+    fn a_pipeline_is_fetched_by_its_braced_uuid() {
+        assert_eq!(
+            run_url("https://x/r", "{11111111-2222}"),
+            "https://x/r/pipelines/%7B11111111-2222%7D"
+        );
     }
 
     const WEB: &str = "https://bitbucket.org/ws/slug";

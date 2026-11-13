@@ -132,6 +132,17 @@ tab, `bb edit <path>:<line>` opens a file in the editor, and `<command> | bb scr
 output in a scratch pad. `bb help` lists the rest.
 ```
 
+Claude Code can also learn `bb` from a skill, which loads when it is relevant instead of sitting
+in every conversation. Run `bb skill install` in any terminal to write it to
+`~/.claude/skills/bashboard/SKILL.md`. It covers the pane commands and `bb ci`: after a push,
+wait for CI with `bb ci wait`, and when it fails read `bb ci log` and fix the cause. Re-running
+or canceling a pipeline stays refused until you turn on `ship.cliWrites` in
+[Settings](settings.md#settings), and the skill tells the agent not to work around that. Running
+the command again updates the skill, or says it is already up to date; it replaces only a file
+that carries the marker `bashboard-skill: true`, and otherwise stops with an error, so a skill of
+your own with that name is safe. The file goes under `HOME`, or `USERPROFILE` when `HOME` is
+unset.
+
 ## Agent hooks
 
 Claude Code's hooks are described [above](#claude-code-hooks). Codex and Copilot use the same

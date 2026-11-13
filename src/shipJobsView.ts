@@ -1,5 +1,5 @@
 import { asForgeError, type Job, type JobLog, type Run, type Step } from './forgeApi';
-import { cleanLog, duration, statusInfo } from './shipModel';
+import { cleanLog, duration, splitLogAtLine, statusInfo } from './shipModel';
 
 export interface ShipJobsViewOptions {
   loadJobs: () => Promise<Job[]>;
@@ -14,7 +14,12 @@ interface JobState {
   logEl: HTMLElement;
   loaded: boolean;
   loading: boolean;
+  /** Scrolls the loaded log into place; held back when the log loaded while hidden. */
+  settle: (() => void) | null;
 }
+
+/** Lines of context kept above the first error when a log opens on it. */
+const CONTEXT_LINES = 2;
 
 /** A job timed like a run, since `duration` reads a run's start, finish, and status. */
 function runLike(job: Job): Run {
@@ -109,7 +114,7 @@ export class ShipJobsView {
     if (!state) {
       const logEl = document.createElement('div');
       logEl.className = 'ship-log-wrap';
-      state = { open: false, logEl, loaded: false, loading: false };
+      state = { open: false, logEl, loaded: false, loading: false, settle: null };
       this.states.set(jobId, state);
     }
     return state;
@@ -148,6 +153,11 @@ export class ShipJobsView {
         toggle.textContent = state.open ? 'Hide log' : 'Show log';
         state.logEl.hidden = !state.open;
         if (state.open && !state.loaded) void this.loadLog(job.id, state);
+        // A hidden element cannot be scrolled, so a log that loaded while hidden settles now.
+        if (state.open && state.settle) {
+          state.settle();
+          state.settle = null;
+        }
       });
       state.logEl.hidden = !state.open;
       el.append(toggle, state.logEl);
@@ -184,16 +194,53 @@ export class ShipJobsView {
     try {
       const log = await this.opts.loadLog(jobId);
       if (this.disposed) return;
+      const text = cleanLog(log.text);
+      const split = log.firstError === undefined ? null : splitLogAtLine(text, log.firstError);
       const pre = document.createElement('pre');
       pre.className = 'ship-log';
-      pre.textContent = cleanLog(log.text);
+      const mark = document.createElement('span');
+      if (split) {
+        mark.className = 'ship-log-error';
+        mark.textContent = split.line;
+        pre.append(split.before, mark, split.after);
+      } else {
+        pre.textContent = text;
+      }
+      const toEnd = () => {
+        pre.scrollTop = pre.scrollHeight;
+      };
       const parts: HTMLElement[] = [];
-      if (log.truncated) parts.push(this.note('Showing the last 1 MiB of the log.', 'ship-log-trunc'));
+      if (log.truncated || split) {
+        const bar = document.createElement('div');
+        bar.className = 'ship-log-bar';
+        if (log.truncated) bar.append(this.note('Showing the last 1 MiB of the log.', 'ship-log-trunc'));
+        if (split) {
+          const jump = document.createElement('button');
+          jump.type = 'button';
+          jump.className = 'ship-log-jump';
+          jump.textContent = 'Jump to end';
+          jump.addEventListener('click', toEnd);
+          bar.append(jump);
+        }
+        parts.push(bar);
+      }
       parts.push(pre);
       state.logEl.replaceChildren(...parts);
       state.loaded = true;
-      // The end of a log is where the failure is.
-      pre.scrollTop = pre.scrollHeight;
+      // A failure is where the log should open: on the first error when the core found one, else at the end.
+      // Measured from the marked line rather than its index, since the padding and any line a fallback
+      // font makes taller would otherwise shift it. `.ship-log` is positioned, so offsetTop is from its top.
+      const settle = () => {
+        if (split) {
+          const lineHeight = Number.parseFloat(getComputedStyle(pre).lineHeight) || 15;
+          const halfLeading = Math.max(0, (lineHeight - mark.offsetHeight) / 2);
+          pre.scrollTop = Math.max(0, Math.floor(mark.offsetTop - halfLeading - CONTEXT_LINES * lineHeight));
+        } else {
+          toEnd();
+        }
+      };
+      if (state.logEl.hidden) state.settle = settle;
+      else settle();
     } catch (e) {
       if (this.disposed) return;
       state.logEl.replaceChildren(this.note(asForgeError(e).message, 'ship-jobs-error'));

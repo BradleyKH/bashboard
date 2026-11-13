@@ -11,6 +11,8 @@ pub mod accounts;
 pub mod auth;
 pub mod azure_devops;
 pub mod bitbucket;
+pub mod diagnostic;
+pub mod failure;
 pub mod github;
 pub mod gitlab;
 pub mod http;
@@ -58,6 +60,8 @@ pub trait ForgeProvider: Send + Sync {
     fn kind(&self) -> ProviderKind;
     fn capabilities(&self) -> Capabilities;
     fn runs(&self, cx: &Cx, repo: &RepoRef, branch: Option<&str>) -> Result<Vec<Run>, ForgeError>;
+    /// One run by id, mapped as `runs` maps it, however old it is.
+    fn run(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Run, ForgeError>;
     fn jobs(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Vec<Job>, ForgeError>;
     fn log(
         &self,
@@ -624,7 +628,7 @@ fn retry_after_refresh(kind: ForgeErrorKind, failed: &Token, resolved: &Token) -
 /// Resolves the repo, provider, and token, then runs `call`. A cached token that comes back
 /// `signedOut` is dropped and resolved once more before the error stands; one that comes back
 /// `forbidden` is dropped too, but the call repeats only if the re-resolved token differs.
-fn with_provider<T>(
+pub(crate) fn with_provider<T>(
     app: &AppHandle,
     target: &str,
     call: impl Fn(&dyn ForgeProvider, &Cx, &RepoRef) -> Result<T, ForgeError>,
@@ -724,13 +728,14 @@ async fn blocking<T: Send + 'static>(
 /// `remote:<host>/<path>` for a repo with no clone.
 #[tauri::command]
 pub async fn forge_repo(app: AppHandle, root: String) -> Result<ForgeRepo, ForgeError> {
-    blocking(move || {
-        let (_, r) = app
-            .state::<ForgeState>()
-            .target(&app.state::<SettingsState>(), &root)?;
-        Ok(forge_repo_of(&r))
-    })
-    .await
+    blocking(move || repo_of(&app, &root)).await
+}
+
+pub(crate) fn repo_of(app: &AppHandle, target: &str) -> Result<ForgeRepo, ForgeError> {
+    let (_, r) = app
+        .state::<ForgeState>()
+        .target(&app.state::<SettingsState>(), target)?;
+    Ok(forge_repo_of(&r))
 }
 
 /// Runs, open pull requests, and the default branch at once. An error from runs or pull
@@ -805,8 +810,56 @@ pub async fn forge_log(
     run_id: String,
     job_id: String,
 ) -> Result<JobLog, ForgeError> {
-    blocking(move || with_provider(&app, &root, |p, cx, repo| p.log(cx, repo, &run_id, &job_id)))
-        .await
+    blocking(move || {
+        let mut log =
+            with_provider(&app, &root, |p, cx, repo| p.log(cx, repo, &run_id, &job_id))?;
+        log.first_error = diagnostic::first_error_line(&log.text)
+            .and_then(|i| u32::try_from(i).ok());
+        Ok(log)
+    })
+    .await
+}
+
+/// The failure report for one run as prompt text (docs/design/ship.md section 3.23). When the
+/// run itself can't be fetched, the report still goes out, with its id standing in for the
+/// name and the repo's link for the run's.
+pub(crate) fn failure_text(
+    app: &AppHandle,
+    root: &str,
+    run_id: &str,
+) -> Result<String, ForgeError> {
+    with_provider(app, root, |p, cx, repo| {
+        let jobs = p.jobs(cx, repo, run_id)?;
+        let run = p.run(cx, repo, run_id).unwrap_or_else(|_| Run {
+            id: run_id.to_string(),
+            number: None,
+            name: format!("run {run_id}"),
+            title: String::new(),
+            branch: None,
+            sha: None,
+            event: None,
+            status: types::RunStatus::Failure,
+            raw_status: String::new(),
+            actor: None,
+            created_at: String::new(),
+            started_at: None,
+            finished_at: None,
+            web_url: repo.web_url.clone(),
+        });
+        let report = failure::FailureReport::build(&repo.path.join("/"), &run, &jobs, |job_id| {
+            p.log(cx, repo, run_id, job_id)
+        });
+        Ok(failure::render(&report))
+    })
+}
+
+#[tauri::command]
+pub async fn forge_fix_prompt(
+    app: AppHandle,
+    root: String,
+    run_id: String,
+) -> Result<String, ForgeError> {
+    blocking(move || failure_text(&app, &root, &run_id)).await
 }
 
 #[tauri::command]

@@ -97,6 +97,8 @@ pub struct Container {
     pub ports: Vec<Port>,
     pub project: Option<String>,
     pub service: Option<String>,
+    /// The compose project's folder on the host, from compose's `working_dir` label.
+    pub working_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -172,13 +174,16 @@ fn non_empty(s: Option<String>) -> Option<String> {
     s.filter(|v| !v.is_empty())
 }
 
-/// Compose project and service from a label lookup, docker-compose labels first.
-fn compose(get: impl Fn(&str) -> Option<String>) -> (Option<String>, Option<String>) {
+/// Compose project, service, and working folder from a label lookup, docker-compose labels first.
+fn compose(
+    get: impl Fn(&str) -> Option<String>,
+) -> (Option<String>, Option<String>, Option<String>) {
     let project = non_empty(get("com.docker.compose.project"))
         .or_else(|| non_empty(get("io.podman.compose.project")));
     let service = non_empty(get("com.docker.compose.service"))
         .or_else(|| non_empty(get("io.podman.compose.service")));
-    (project, service)
+    let working_dir = non_empty(get("com.docker.compose.project.working_dir"));
+    (project, service, working_dir)
 }
 
 /// Docker's `Labels` is one string, `k=v,k=v`. A value can itself hold commas, so a segment
@@ -261,7 +266,7 @@ pub fn parse_docker_ps(text: &str) -> Vec<Container> {
     json_lines(text)
         .map(|v| {
             let labels = docker_labels(&self::text(&v, &["Labels"]));
-            let (project, service) = compose(|k| {
+            let (project, service, working_dir) = compose(|k| {
                 labels
                     .iter()
                     .find(|(lk, _)| lk == k)
@@ -281,6 +286,7 @@ pub fn parse_docker_ps(text: &str) -> Vec<Container> {
                 ports: docker_ports(&self::text(&v, &["Ports"])),
                 project,
                 service,
+                working_dir,
             }
         })
         .collect()
@@ -347,7 +353,7 @@ pub fn parse_podman_ps(text: &str) -> Vec<Container> {
                 _ => String::new(),
             };
             let labels = v.get("Labels").and_then(Value::as_object);
-            let (project, service) = compose(|k| {
+            let (project, service, working_dir) = compose(|k| {
                 labels
                     .and_then(|l| l.get(k))
                     .and_then(Value::as_str)
@@ -363,6 +369,7 @@ pub fn parse_podman_ps(text: &str) -> Vec<Container> {
                 ports: podman_ports(v.get("Ports")),
                 project,
                 service,
+                working_dir,
             }
         })
         .collect()
@@ -688,10 +695,18 @@ fn with_ids<'a>(args: &[&'a str], ids: &'a [String]) -> Vec<&'a str> {
 
 fn list_engine(engine: Engine, cli: &Path) -> Result<Vec<Container>, String> {
     let text = exec(cli, &["ps", "-a", "--format", "json"])?;
-    Ok(match engine {
+    let mut list = match engine {
         Engine::Docker => parse_docker_ps(&text),
         Engine::Podman => parse_podman_ps(&text),
-    })
+    };
+    // An engine in WSL or a Podman machine labels its own Linux path, which is no folder here;
+    // dropping it hides Fix with agent rather than opening an agent in a folder that fails.
+    for c in &mut list {
+        if c.working_dir.as_deref().is_some_and(|d| !Path::new(d).is_dir()) {
+            c.working_dir = None;
+        }
+    }
+    Ok(list)
 }
 
 fn stats_engine(engine: Engine, cli: &Path, ids: &[String]) -> Result<Vec<ContainerStats>, String> {
@@ -1428,6 +1443,21 @@ mod tests {
         assert!(parse_podman_ps("{}").is_empty());
         let nulls = parse_podman_ps(r#"[{"Id":"1","Names":null,"Ports":null,"Labels":null}]"#);
         assert!(nulls[0].name.is_empty());
+    }
+
+    #[test]
+    fn compose_working_dir_from_either_engine() {
+        let docker = parse_docker_ps(
+            r#"{"ID":"1","Names":"a","Labels":"com.docker.compose.project=p,com.docker.compose.project.working_dir=C:/src/app"}"#,
+        );
+        assert_eq!(docker[0].working_dir.as_deref(), Some("C:/src/app"));
+        let podman = parse_podman_ps(
+            r#"[{"Id":"1","Names":["a"],"Labels":{"com.docker.compose.project.working_dir":"/home/me/app"}}]"#,
+        );
+        assert_eq!(podman[0].working_dir.as_deref(), Some("/home/me/app"));
+        assert_eq!(parse_docker_ps(DOCKER_PS)[0].working_dir, None);
+        let blank = parse_docker_ps(r#"{"ID":"1","Labels":"com.docker.compose.project.working_dir="}"#);
+        assert_eq!(blank[0].working_dir, None);
     }
 
     #[test]

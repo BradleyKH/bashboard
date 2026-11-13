@@ -204,7 +204,9 @@ exact transitions as they happen.
 - The install is per agent: `hooks_install_preview(agent)` returns the file it will change, the
   JSON it will add, whether the hooks are already in, whether the agent is detected, and for
   Codex the trust state; `hooks_install(agent)` writes it. An absent agent means Claude Code.
-- The receiver accepts `POST /hook` and `POST /cli` (3.13). For `/hook` it answers with these
+- The receiver accepts `POST /hook`, `POST /cli` (3.13), and `POST /ci` (3.23). A `/ci` request,
+  which can wait seconds on a code host, is handed to its own thread and answered from there, so
+  the loop that carries hook events never waits on it. For `/hook` it answers with these
   codes, checked in this order:
   404 for any other path or method, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a
   body over 64 KiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on

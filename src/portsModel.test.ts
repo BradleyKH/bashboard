@@ -3,6 +3,7 @@ import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
 import {
   addressLabel,
+  DASHBOARD_PORT_ROWS,
   dashboardListeners,
   exposureLabel,
   formatUptime,
@@ -68,6 +69,16 @@ describe('dashboardListeners', () => {
     ]);
     expect(rows.map((r) => r.port)).toEqual([5, 3, 4]);
     expect(others).toBe(2);
+  });
+
+  it('lists at most ten and counts the rest, keeping pane-started ports', () => {
+    const many = Array.from({ length: 12 }, (_, i) => l({ port: 3000 + i, name: 'node.exe' }));
+    const { rows, more, others } = dashboardListeners([...many, l({ port: 9999, name: 'node.exe', ptyId: 2 })]);
+    expect(rows).toHaveLength(DASHBOARD_PORT_ROWS);
+    expect(rows[0].port).toBe(9999);
+    expect(more).toBe(3);
+    expect(others).toBe(0);
+    expect(dashboardListeners(many.slice(0, 10)).more).toBe(0);
   });
 });
 

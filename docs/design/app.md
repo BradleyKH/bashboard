@@ -26,6 +26,12 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb term [<folder>] [-- <command>]` | A terminal of the default profile in the working directory or `<folder>`, typing the command after `--` as one line once its shell is ready |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane (3.20), or removes it with `--clear` |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` |
+| `bb ci [status] [--branch B] [--json]` | The repo's CI as Ship sees it (3.23): repo, branch, short commit, one line per run on the head commit (status, name, duration, link), and the branch's pull request |
+| `bb ci wait [--branch B] [--interval SECS] [--timeout DUR] [--json]` | Polls `status` until CI settles, with the exit codes below |
+| `bb ci log [--run ID] [--job ID]` | The failure report (3.23) for `--run` or the newest failed run on the branch; with `--job` (which needs `--run`), the whole job log |
+| `bb ci rerun [--failed] [--run ID]` | Re-runs a run, or its failed jobs only with `--failed`; needs `ship.cliWrites` |
+| `bb ci cancel [--run ID]` | Cancels a run; needs `ship.cliWrites` |
+| `bb skill install` | Writes the Claude Code skill that teaches `bb` to `~/.claude/skills/bashboard/SKILL.md` |
 | `bb help` | Lists the commands |
 
 `src-tauri/cli-commands.json` holds each command's usage, summary, details, and examples. `bb help`
@@ -45,13 +51,55 @@ from the command; for the other commands the words after it are ordinary argumen
   `BASHBOARD_PANE_ID`, and posts `{ command, args, cwd, stdin? }` to `/cli` on the hook receiver
   (3.3) with the same token and pane headers. `cwd` is the process's working directory as a
   Windows path; relative paths in `args` are resolved against it in the core.
-- **Answers.** 204 on success, 403 for a bad token, 404 for an unknown pane, 413 for a body over
+- **Answers (`/cli`).** 204 on success, 403 for a bad token, 404 for an unknown pane, 413 for a body over
   1 MiB, and 400 with a JSON `{ error }` for an unknown command, bad arguments, or a path that
   does not exist. `bb` prints the error to stderr and exits 1; on success it prints nothing and
   exits 0. Success means the core accepted the command, not that the front end carried it out:
   a pane whose pty is alive but which is mid-close drops the command with a console warning.
 - **Outside the app** (no `BASHBOARD_HOOK_URL`), `bb` prints that it only works inside a
-  Bashboard pane and exits 1, except `bb auth`.
+  Bashboard pane and exits 1 (2 for `bb ci wait`), except `bb auth` and `bb skill install`.
+- **`bb ci`** posts to `/ci` (3.23) instead of `/cli`, with the same token and pane headers and
+  the working directory as `cwd`, and waits up to 60 s for each answer, since a code host can be
+  slow. It reads the answer by status: on 200 it prints the result (`--json` prints the body as
+  indented JSON), and on any other status it prints the body's `error` to stderr, or "Bashboard
+  answered <status>" for an empty body, and exits 1, whether that is a refused write (the message
+  names `ship.cliWrites`), a run that does not exist ("No failed run on <branch>." from `log`
+  with no failed run), or a failure from the host. Arguments are checked before any request:
+  `--branch` and `--json` go with every subcommand, `--flag=value` works, `--interval` and
+  `--timeout` belong to `wait`, `--run` to `log`, `rerun`, and `cancel`, `--job` to `log` (with
+  `--run`), and `--failed` to `rerun`; anything else is an error that exits 1. The branch is the
+  checked-out one unless `--branch` says otherwise. `rerun` and `cancel` are refused unless
+  `ship.cliWrites` is on, and print the run id they acted on. `status` prints the repo, branch,
+  and short head commit, one line per run, and the pull request line, and does not list run or
+  job ids (`--json` carries each run's `id`); `log` prints the failure report, or with `--job`
+  the job's full log, and notes on stderr when the host's log was cut to its last 1 MiB.
+- **`bb ci wait`** is a client loop over `status`, one request per `--interval` (default 30 s;
+  a value below 10 s is raised to 10 s, not rejected), and prints one line each time the head
+  commit, a run's status, or the pull request changes (with `--json`, the answer itself, and the
+  closing line goes to stderr). `--timeout` takes seconds, or `s`, `m`, and `h` amounts such as
+  `90s`, `30m`, `1h`, or `1h30m`, defaults to 30m, and must be more than zero. It stops when:
+  every run on the head commit is final and none failed or was cancelled, or the pull request
+  merged (exit 0); a final run failed or was cancelled (exit 1); or it gives up (exit 2): the
+  `--timeout` passed, no run appeared on the head commit within 5 minutes (the clock restarts
+  when the head commit changes, as after a push), 8 reads in a row failed, or the pull request
+  was closed without merging. A read fails, and counts toward the 8, only when Bashboard is
+  unreachable, sends an unreadable reply, or answers with a 5xx; a 400, 403, or 404 (not in a repo, a bad token, no live
+  pane) ends the wait at once with exit 2, as do bad arguments and running outside a pane,
+  because exit 1 is reserved for failed CI. Run statuses `queued`, `running`, and `waiting` are
+  not final, so a run that waits for a person (such as an approval) keeps `wait` waiting; every
+  other status is final, and only `failure` and `cancelled` count as failed (`other` does not).
+  A merged pull request ends the wait with exit 0 whatever its runs say. Exit 2 means "unknown",
+  not "failed". The decision is a pure function of the previous state, the new status or error,
+  and the elapsed time, so each rule is unit tested.
+- **`bb skill install`** writes the skill compiled into `bb` (`src-tauri/skills/bashboard/SKILL.md`)
+  to `~/.claude/skills/bashboard/SKILL.md` under the user's home folder (`HOME`, else
+  `USERPROFILE`), creating the folders. It overwrites only a file whose front matter carries
+  `bashboard-skill: true`, so a file the user wrote by that name is left alone and the command
+  refuses with exit 1; a file identical to the skill is left alone and reported as already up
+  to date. Like `bb auth`, it talks only to the file system. The skill tells an agent when to run
+  `bb ci wait` after a push, how to read its exit codes, to run `bb ci log` after a failure, that
+  re-run and cancel need the user's setting and are not to be worked around, and what the pane
+  commands do.
 - **`bb auth`** talks only to Windows Credential Manager, never to the app, so it works in
   any terminal. `bb auth bitbucket` stores a Bitbucket API token, and `bb auth azure-devops <org>`
   an Azure DevOps personal access token (PAT) for that one organization, so each organization

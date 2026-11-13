@@ -233,6 +233,13 @@ pub fn builds_url(org: &str, proj: &str, repo_id: &str, branch: Option<&str>) ->
     versioned(url, API_VERSION)
 }
 
+pub fn build_url(org: &str, proj: &str, id: u64) -> String {
+    versioned(
+        format!("{}/_apis/build/builds/{id}", project_base(org, proj)),
+        API_VERSION,
+    )
+}
+
 pub fn timeline_url(org: &str, proj: &str, id: u64) -> String {
     versioned(
         format!(
@@ -727,14 +734,8 @@ fn fetch_log(cx: &Cx, url: &str) -> Result<JobLog, ForgeError> {
         .http
         .get_text_tail(url, Some(&auth_header(cx.token)), LOG_HEADERS, LOG_MAX)
     {
-        Ok((text, truncated)) => Ok(JobLog {
-            text: log_text(text),
-            truncated,
-        }),
-        Err(e) if e.kind == ForgeErrorKind::NotFound => Ok(JobLog {
-            text: String::new(),
-            truncated: false,
-        }),
+        Ok((text, truncated)) => Ok(JobLog::new(log_text(text), truncated)),
+        Err(e) if e.kind == ForgeErrorKind::NotFound => Ok(JobLog::new(String::new(), false)),
         Err(e) => Err(e),
     }
 }
@@ -859,6 +860,22 @@ impl ForgeProvider for AzureDevOps {
         Ok(runs)
     }
 
+    fn run(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Run, ForgeError> {
+        let [org, proj, _] = segments(repo)?;
+        let id = build_id(run_id)?;
+        let v = get(cx, &build_url(&org, &proj, id))
+            .map_err(|e| self.build_error(cx, repo, SCOPE_BUILD_READ, e))?;
+        let mut run = map_run(&v, &project_base(&org, &proj))
+            .ok_or_else(|| ForgeError::other("Azure DevOps answered without a build id."))?;
+        // As in `runs`: only the timeline shows an approval hold.
+        if run.raw_status == "inProgress"
+            && get(cx, &timeline_url(&org, &proj, id)).is_ok_and(|t| awaiting_approval(&t))
+        {
+            run.status = RunStatus::Waiting;
+        }
+        Ok(run)
+    }
+
     fn jobs(&self, cx: &Cx, repo: &RepoRef, run_id: &str) -> Result<Vec<Job>, ForgeError> {
         let [org, proj, _] = segments(repo)?;
         let id = build_id(run_id)?;
@@ -884,10 +901,7 @@ impl ForgeProvider for AzureDevOps {
         match log_id_of(&timeline, job_id) {
             Some(log_id) => fetch_log(cx, &log_url(&org, &proj, id, log_id))
                 .map_err(|e| self.build_error(cx, repo, SCOPE_BUILD_READ, e)),
-            None => Ok(JobLog {
-                text: String::new(),
-                truncated: false,
-            }),
+            None => Ok(JobLog::new(String::new(), false)),
         }
     }
 
@@ -1112,6 +1126,10 @@ mod tests {
             "https://dev.azure.com/contoso/_apis/connectionData?api-version=7.1-preview"
         );
         assert!(segments(&repo_ref(&["contoso", "Proj"])).is_err());
+        assert_eq!(
+            build_url("contoso", "Proj", 42),
+            "https://dev.azure.com/contoso/Proj/_apis/build/builds/42?api-version=7.1"
+        );
         assert_eq!(
             timeline_url("contoso", "Proj", 42),
             "https://dev.azure.com/contoso/Proj/_apis/build/builds/42/timeline?api-version=7.1"

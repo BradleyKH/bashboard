@@ -6,7 +6,7 @@ import type { MenuEntry } from './contextMenuModel';
 import { copyText } from './copyText';
 import { samePath } from './favorites';
 import { ShipAccountChip } from './shipAccountChip';
-import { asForgeError, type ForgeError, type ProviderKind, type PullRequest, type Run } from './forgeApi';
+import { asForgeError, forgeFixPrompt, type ForgeError, type ProviderKind, type PullRequest, type Run } from './forgeApi';
 import { accountMenuItems, pullMenuItems, runMenuItems, type RunActionKey } from './shipMenus';
 import { finishToast, noticeFor, prNounOf, pullLimitNote, type ShipTab } from './shipModel';
 import { ShipNotice } from './shipNotice';
@@ -48,6 +48,8 @@ export interface ShipPaneOptions {
   onRunTerminal: (argv: string[], cwd: string) => void;
   /** Opens a terminal in a pinned repo's clone, from the Overview. */
   onOpenTerminal: (root: string) => void;
+  /** Delivers a fix prompt for the repo at `root` to its agent terminal, opening one if needed. */
+  fixWithAgent: (root: string, prompt: string, fromPaneId: string) => Promise<void>;
   /** Opens the Accounts tab on `host` (null leaves the choice to the tab), with the token form open when asked. */
   onOpenAccounts: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
   /** The tab the pane opens on; absent means Pipelines. */
@@ -677,13 +679,21 @@ export class ShipPane implements PaneView {
   private runMenu(run: Run): MenuEntry[] {
     const caps = this.store?.repo?.capabilities;
     if (!caps) return [];
+    const root = this.localRoot();
     return runMenuItems(run, caps, {
       onOpen: () => this.openUrl(run.webUrl),
       onRerun: () => this.runAction(run, 'rerun'),
       onRerunFailed: () => this.runAction(run, 'rerunFailed'),
       onCancel: () => this.runAction(run, 'cancel'),
       onCopyLink: () => void copyText(run.webUrl, 'link'),
+      ...(root !== null && { onFixWithAgent: () => void this.fixWithAgent(run, root) }),
     });
+  }
+
+  /** Builds the run's failure report and hands it to the repo's agent (design 4.20). */
+  private async fixWithAgent(run: Run, root: string): Promise<void> {
+    showToast("Gathering the failed jobs' logs", 3000);
+    await this.act(forgeFixPrompt(root, run.id).then((prompt) => this.opts.fixWithAgent(root, prompt, this.paneId)));
   }
 
   private pullMenu(pull: PullRequest): MenuEntry[] {

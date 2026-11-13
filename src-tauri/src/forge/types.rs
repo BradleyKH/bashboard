@@ -167,6 +167,20 @@ pub struct Job {
 pub struct JobLog {
     pub text: String,
     pub truncated: bool,
+    /// 0-based line in `text` of the first diagnostic (`diagnostic::first_error_line`); the
+    /// `forge_log` command fills it, so providers leave it `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_error: Option<u32>,
+}
+
+impl JobLog {
+    pub fn new(text: String, truncated: bool) -> Self {
+        Self {
+            text,
+            truncated,
+            first_error: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

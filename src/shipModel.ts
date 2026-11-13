@@ -183,6 +183,28 @@ export function cleanLog(text: string): string {
     .join('\n');
 }
 
+/** A cleaned log cut around one line, for marking it; the three parts joined give the text back. */
+export interface LogSplit {
+  before: string;
+  line: string;
+  after: string;
+}
+
+/**
+ * Cuts `text` around the 0-based `line` (counted as the core's `firstError` counts, splitting on
+ * `\n`), or returns null when the line is not in the text.
+ */
+export function splitLogAtLine(text: string, line: number): LogSplit | null {
+  if (!Number.isInteger(line) || line < 0) return null;
+  const lines = text.split('\n');
+  if (line >= lines.length) return null;
+  return {
+    before: line > 0 ? `${lines.slice(0, line).join('\n')}\n` : '',
+    line: lines[line],
+    after: line < lines.length - 1 ? `\n${lines.slice(line + 1).join('\n')}` : '',
+  };
+}
+
 // Notices.
 
 /** Scopes for a Bitbucket API token, with what each is for. Unconfirmed names are fixed here once checked. */

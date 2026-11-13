@@ -6,6 +6,7 @@ mod browser;
 mod browser_files;
 pub mod browser_policy;
 mod browser_tls;
+mod ci;
 mod cli;
 mod clipboard;
 mod config_dir;
@@ -332,6 +333,7 @@ pub fn run() {
             forge::forge_runs,
             forge::forge_jobs,
             forge::forge_log,
+            forge::forge_fix_prompt,
             forge::forge_rerun,
             forge::forge_cancel,
             forge::forge_pulls,
