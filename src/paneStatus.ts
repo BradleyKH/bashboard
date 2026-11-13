@@ -108,7 +108,7 @@ export class PaneStatus {
     });
     this.stripShown.set(id, `${status}|${reason}`);
     // Agent glow (design 4.23) is for an agent at work, not a busy shell command.
-    const agentBusy = this.ctx.sessions.bound(pane.ptyId)?.status === 'busy';
+    const agentBusy = this.ctx.sessions.agentWorking(pane);
     this.ctx.hosts.get(id)?.classList.toggle('agent-working', agentBusy);
     return this.ctx.observeAttention(id, status);
   }
@@ -132,6 +132,7 @@ export class PaneStatus {
         cwd: pane.cwd,
         profile: pane.profile ?? ctx.defaultProfile(),
         shell: ctx.sessions.shellOf(pane, this.openedAt(paneId)),
+        program: pane.programState(),
         attention: ctx.hasAttention(paneId),
         mark: this.mark(paneId),
         ...(ctx.containerShells.has(paneId) && { containerName: ctx.containerShells.get(paneId) }),

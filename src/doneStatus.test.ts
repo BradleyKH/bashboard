@@ -188,3 +188,41 @@ describe('DoneTracker command marks', () => {
     expect(d.has('a')).toBe(false);
   });
 });
+
+describe('DoneTracker program marks', () => {
+  it('marks a working-to-done report while unseen, showing done until new work', () => {
+    const d = new DoneTracker();
+    expect(d.markProgram('a', 'working', 'done', 1000, false)).toBe(true);
+    expect(d.resolve('a', null, idle)).toEqual({ status: 'done', changedAt: 1000 });
+    const later = { status: 'working' as const, changedAt: 2000 };
+    expect(d.resolve('a', null, later)).toEqual(later);
+    expect(d.has('a')).toBe(false);
+  });
+
+  it('marks blocked-to-idle, and error as failed', () => {
+    const d = new DoneTracker();
+    expect(d.markProgram('a', 'blocked', 'idle', 1000, false)).toBe(true);
+    expect(d.resolve('a', null, idle).status).toBe('done');
+    expect(d.markProgram('b', 'working', 'error', 1000, false)).toBe(true);
+    expect(d.resolve('b', null, { status: 'failed', changedAt: 1000 })).toEqual({ status: 'failed', changedAt: 1000 });
+  });
+
+  it('does not mark when seen, or when no work was under way', () => {
+    const d = new DoneTracker();
+    expect(d.markProgram('a', 'working', 'done', 1000, true)).toBe(false);
+    expect(d.markProgram('a', 'idle', 'done', 1000, false)).toBe(false);
+    expect(d.markProgram('a', null, 'done', 1000, false)).toBe(false);
+    expect(d.markProgram('a', 'working', 'blocked', 1000, false)).toBe(false);
+    expect(d.markProgram('a', 'working', null, 1000, false)).toBe(false);
+    expect(d.has('a')).toBe(false);
+  });
+
+  it('keeps the mark under stale work and clears when seen', () => {
+    const d = new DoneTracker();
+    d.markProgram('a', 'working', 'done', 2000, false);
+    const stale = { status: 'working' as const, changedAt: 1500 };
+    expect(d.resolve('a', null, stale)).toEqual(stale);
+    expect(d.has('a')).toBe(true);
+    expect(d.clear('a')).toBe(true);
+  });
+});

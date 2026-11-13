@@ -1,4 +1,5 @@
 import type { Session } from './sessions';
+import type { ProgramState } from './programStatus';
 import type { TerminalStatus } from './terminalStatus';
 
 interface SessionMark {
@@ -18,7 +19,14 @@ interface CommandMark {
   failed: boolean;
 }
 
-type DoneMark = SessionMark | CommandMark;
+interface ProgramMark {
+  kind: 'program';
+  /** Epoch ms of the OSC 7501 report that ended the work. */
+  at: number;
+  failed: boolean;
+}
+
+type DoneMark = SessionMark | CommandMark | ProgramMark;
 
 interface ResolvedStatus {
   status: TerminalStatus;
@@ -44,7 +52,9 @@ const INTERRUPTED = 130;
  * mark per pane, a newer mark of either kind replacing the old one. A `session` mark is a bound
  * session's Stop that arrived while the terminal was not being looked at; it shows `done`. A
  * `command` mark is a long shell command that finished unseen; it shows `done`, or `failed` when
- * the command exited nonzero, and clears on the next command's start. Pure display state layered
+ * the command exited nonzero, and clears on the next command's start. A `program` mark is an
+ * OSC 7501 report moving from working or blocked to done or idle (`done`) or to error (`failed`)
+ * while unseen, the hookless counterpart of a Stop. Pure display state layered
  * over the resolved status; it never reaches the roster or the backdrop.
  */
 export class DoneTracker {
@@ -66,6 +76,14 @@ export class DoneTracker {
     return true;
   }
 
+  /** Records a program's own report (OSC 7501) finishing its work while the pane was not seen. */
+  markProgram(paneId: string, prev: ProgramState | null, next: ProgramState | null, at: number, seen: boolean): boolean {
+    if (seen || (prev !== 'working' && prev !== 'blocked')) return false;
+    if (next !== 'done' && next !== 'idle' && next !== 'error') return false;
+    this.marks.set(paneId, { kind: 'program', at, failed: next === 'error' });
+    return true;
+  }
+
   /** Drops the pane's command mark when the next command starts (OSC 133 `C`). */
   commandStarted(paneId: string): boolean {
     if (this.marks.get(paneId)?.kind !== 'command') return false;
@@ -80,6 +98,14 @@ export class DoneTracker {
       // run, its `D` arrives before the roster drops the session, and it should still show once
       // the roster catches up.
       if (session) return base;
+      return { status: mark.failed ? 'failed' : 'done', changedAt: mark.at };
+    }
+    if (mark.kind === 'program') {
+      // Work that started after the mark replaces it; anything quieter keeps it showing.
+      if (base.status === 'working' || base.status === 'waiting') {
+        if (base.changedAt > mark.at) this.marks.delete(paneId);
+        return base;
+      }
       return { status: mark.failed ? 'failed' : 'done', changedAt: mark.at };
     }
     // A null session before the roster has shown the binding is a first-ever hook that was the

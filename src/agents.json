@@ -1,0 +1,38 @@
+[
+  {
+    "id": "claude",
+    "name": "Claude Code",
+    "preview": false,
+    "home": { "dir": ".claude", "env": null, "detectMarker": null },
+    "process": { "executables": ["claude"], "nodeMarker": null },
+    "statusApp": "claude-code",
+    "launch": "claude",
+    "localModels": true,
+    "resume": { "command": "claude --resume {id}", "modeArg": "--permission-mode {mode}", "modelArg": null },
+    "hookShell": { "windows": "cmd", "posix": "sh" }
+  },
+  {
+    "id": "codex",
+    "name": "Codex",
+    "preview": true,
+    "home": { "dir": ".codex", "env": "CODEX_HOME", "detectMarker": null },
+    "process": { "executables": ["codex"], "nodeMarker": null },
+    "statusApp": "codex",
+    "launch": "codex",
+    "localModels": true,
+    "resume": { "command": "codex resume {id}", "modeArg": null, "modelArg": null },
+    "hookShell": { "windows": "cmd", "posix": "sh" }
+  },
+  {
+    "id": "copilot",
+    "name": "Copilot",
+    "preview": true,
+    "home": { "dir": ".copilot", "env": "COPILOT_HOME", "detectMarker": "session-state" },
+    "process": { "executables": ["copilot"], "nodeMarker": "@github/copilot" },
+    "statusApp": null,
+    "launch": "copilot",
+    "localModels": true,
+    "resume": { "command": "copilot --resume {id}", "modeArg": null, "modelArg": "--model {model}" },
+    "hookShell": { "windows": "powershell", "posix": "sh" }
+  }
+]

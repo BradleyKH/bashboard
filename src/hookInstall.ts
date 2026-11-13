@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { AgentId } from './agentTable';
 
-export type HookAgentId = 'claude' | 'codex' | 'copilot';
+export type HookAgentId = AgentId;
 
 /** Whether Codex will run the installed hooks; `unknown` when its config could not be read. */
 export type CodexTrust = 'trusted' | 'untrusted' | 'unknown';

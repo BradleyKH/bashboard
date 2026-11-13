@@ -16,9 +16,10 @@ import { noteShellFallback } from './shellFallback';
 import type { CellSize } from './layout';
 import type { PaneView } from './paneView';
 import { platformOs } from './platform';
+import { parseProgramStatus, PROGRAM_STATUS_QUERY_REPLY, type ProgramStatusReport } from './programStatus';
 import type { PtyRef } from './savedWorkspace';
 import type { Settings } from './settings';
-import type { OscShellState } from './terminalStatus';
+import type { OscShellState, ProgramStatusState } from './terminalStatus';
 
 // FitAddon reserves this width for the scrollbar (ViewportConstants.DEFAULT_SCROLL_BAR_WIDTH).
 const FIT_SCROLLBAR_PX = 14;
@@ -68,8 +69,13 @@ export interface TerminalPaneOptions {
   onExit: (code: number) => void;
   /** Fires when OSC 9;9 or OSC 7 reports a directory different from the last one. */
   onCwdChange?: () => void;
-  /** Fires when OSC 133 reports a command starting or finishing (`oscState().running` flipped). */
+  /**
+   * Fires when the pane's status inputs change: OSC 133 reports a command starting or finishing
+   * (`oscState().running` flipped), or an OSC 7501 report or clear changes `programState()`.
+   */
   onShellChange?: () => void;
+  /** Fires on an OSC 7501 change outside a reattach replay, before `onShellChange`. */
+  onProgramChange?: (prev: ProgramStatusState | null, next: ProgramStatusState | null) => void;
   /** Fires on OSC 133 `C` and `D`, before `onShellChange`. A `D` with no preceding `C` fires nothing. */
   onCommand?: (ev: CommandEvent) => void;
   /** Fires once: on the first OSC 133 A or the first output chunk, whichever comes first. */
@@ -135,6 +141,9 @@ export class TerminalPane implements PaneView {
   private readonly onCwdChangeCb: (() => void) | undefined;
   private readonly onShellChangeCb: (() => void) | undefined;
   private readonly onCommandCb: ((ev: CommandEvent) => void) | undefined;
+  private readonly onProgramChangeCb: TerminalPaneOptions['onProgramChange'];
+  /** The root record of the program's OSC 7501 reports (docs/design/sessions.md section 4.24). */
+  private program: ProgramStatusState | null = null;
   private commandStartedAt: number | null = null;
   private onReadyCb: (() => void) | undefined;
   private osc: OscShellState = { seen: false, running: false, changedAt: Date.now() };
@@ -158,6 +167,7 @@ export class TerminalPane implements PaneView {
     this.onCwdChangeCb = opts.onCwdChange;
     this.onShellChangeCb = opts.onShellChange;
     this.onCommandCb = opts.onCommand;
+    this.onProgramChangeCb = opts.onProgramChange;
     this.onReadyCb = opts.onReady;
     this.replay = opts.replay;
     this.attachTo = opts.attach;
@@ -229,6 +239,18 @@ export class TerminalPane implements PaneView {
       return true;
     });
 
+    this.term.parser.registerOscHandler(7501, (data) => {
+      const msg = parseProgramStatus(data);
+      if (msg === null) return true;
+      if (msg.type === 'query') {
+        // A replayed probe answers no one; write() also drops it, this keeps the rule visible.
+        if (!this.muted) this.write(PROGRAM_STATUS_QUERY_REPLY);
+      } else {
+        this.setProgram(msg.type === 'clear' ? null : msg.report);
+      }
+      return true;
+    });
+
     this.term.open(this.body);
     this.term.textarea?.addEventListener('focus', () => opts.onFocus());
     if (this.expanded) this.loadRenderer();
@@ -264,6 +286,11 @@ export class TerminalPane implements PaneView {
   /** The requested profile id until the spawn resolves it; undefined means the default, not yet known. */
   get profile(): string | undefined {
     return this.resolvedProfile;
+  }
+
+  /** The program's last OSC 7501 report, or null when none or cleared. */
+  programState(): ProgramStatusState | null {
+    return this.program ? { ...this.program } : null;
   }
 
   /** OSC 133 state: `seen` once any marker arrived, `running` between C and D. */
@@ -559,7 +586,11 @@ export class TerminalPane implements PaneView {
       running,
       changedAt: running !== wasRunning ? Date.now() : this.osc.changedAt,
     };
-    if (kind === 'A') this.fireReady();
+    if (kind === 'A') {
+      this.fireReady();
+      // The prompt is back, so whatever program reported status has exited.
+      this.setProgram(null);
+    }
     if (kind === 'C') {
       this.commandStartedAt = Date.now();
       if (!this.muted) this.onCommandCb?.({ kind: 'start' });
@@ -569,6 +600,18 @@ export class TerminalPane implements PaneView {
       if (!this.muted) this.onCommandCb?.({ kind: 'end', durationMs, exitCode: marker.exitCode ?? null });
     }
     if (running !== wasRunning) this.onShellChangeCb?.();
+  }
+
+  private setProgram(report: ProgramStatusReport | null): void {
+    const prev = this.program;
+    if (report === null && prev === null) return;
+    const now = Date.now();
+    const sameState = prev !== null && report !== null && prev.report.state === report.state;
+    this.program = report === null ? null : { report, changedAt: sameState ? prev.changedAt : now, reportedAt: now };
+    // Replayed reports restore the state but must not leave done marks for old work.
+    if (!sameState && !this.muted) this.onProgramChangeCb?.(prev, this.program);
+    // Every report refreshes: a repeated one can still tip precedence over quiet hooks.
+    this.onShellChangeCb?.();
   }
 
   private fireReady(): void {

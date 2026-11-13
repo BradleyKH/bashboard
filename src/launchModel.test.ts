@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MenuItem } from './contextMenuModel';
+import { agentRow } from './agentTable';
 import { launchMenuItems, launchMenuOptions, launchOptions, ollamaLaunchCommand } from './launchModel';
 
 const GIT = { isGit: true, containers: true };
@@ -92,5 +93,18 @@ describe('launchMenuItems local models', () => {
     const first = codex.items[0];
     if (first.kind === 'item') first.run();
     expect(ran).toEqual(['ollama launch codex --model a:1']);
+  });
+
+  it('offers no submenu for an agent whose row has localModels false', () => {
+    // The table is a fixed import, so the test flips one row's flag and restores it.
+    const row = agentRow('codex');
+    row.localModels = false;
+    try {
+      const entries = launchMenuItems(NO_GIT, noop, noop, { agents: ['claude', 'codex'], models: ['a:1'], onRun: noop });
+      expect(labels(entries).slice(-1)).toEqual(['Claude Code on a local model']);
+      expect(labels(entries).some((l) => l.startsWith('Codex'))).toBe(false);
+    } finally {
+      row.localModels = true;
+    }
   });
 });

@@ -7,7 +7,7 @@ function session(over: Partial<Session> & { sessionId: string; paneId: number | 
 }
 
 function term(ptyId: number | null): SessionTerminal {
-  return { ptyId, oscState: () => ({ running: false }) as ReturnType<SessionTerminal['oscState']> };
+  return { ptyId, oscState: () => ({ running: false }) as ReturnType<SessionTerminal['oscState']>, programState: () => null };
 }
 
 function stop(over: Partial<HookEvent>): HookEvent {
@@ -91,5 +91,37 @@ describe('WorkspaceSessions.applyActivity', () => {
     expect(s.applyActivity([{ id: 1, busy: true }], 10)).toBe(true);
     expect(s.applyActivity([{ id: 1, busy: true }], 20)).toBe(false);
     expect(s.applyActivity([], 30)).toBe(true);
+  });
+});
+
+describe('WorkspaceSessions program status', () => {
+  function programTerm(state: 'working' | 'blocked' | 'done', app?: string): SessionTerminal {
+    const report = { state, ...(app && { app }), ...(state === 'blocked' && { kind: 'permission' as const }) };
+    return {
+      ptyId: 7,
+      oscState: () => ({ seen: true, running: true, changedAt: 1 }),
+      programState: () => ({ report, changedAt: 50, reportedAt: 50 }),
+    };
+  }
+
+  it('resolves and explains a hookless pane from its program report', () => {
+    const s = new WorkspaceSessions();
+    expect(s.resolve('p1', programTerm('blocked'), 0)).toEqual({ status: 'waiting', changedAt: 50 });
+    expect(s.waitingReason(programTerm('blocked'))).toBe('Needs permission');
+  });
+
+  it('marks a working-to-done change while unseen', () => {
+    const s = new WorkspaceSessions();
+    const working = programTerm('working').programState();
+    const done = programTerm('done').programState();
+    s.onProgram('p1', working, done, false);
+    expect(s.resolve('p1', programTerm('done'), 0).status).toBe('done');
+  });
+
+  it('glows for a known agent at work, not an unknown program', () => {
+    const s = new WorkspaceSessions();
+    expect(s.agentWorking(programTerm('working', 'claude-code'))).toBe(true);
+    expect(s.agentWorking(programTerm('working', 'some-tool'))).toBe(false);
+    expect(s.agentWorking(programTerm('working'))).toBe(false);
   });
 });

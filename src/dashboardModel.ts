@@ -1,6 +1,12 @@
 import type { PaneKind } from './paneKinds';
 import type { Session, SessionStatus } from './sessions';
-import { terminalStatus, waitingText, type ShellStatus, type TerminalStatus } from './terminalStatus';
+import {
+  terminalStatus,
+  terminalWaitingText,
+  type ProgramStatusState,
+  type ShellStatus,
+  type TerminalStatus,
+} from './terminalStatus';
 
 export type { TerminalStatus };
 
@@ -15,6 +21,8 @@ export interface TerminalCardInput {
   openedAt: number;
   collapsed: boolean;
   shell: ShellStatus;
+  /** The program's own OSC 7501 report (docs/design/sessions.md section 4.24); absent means none. */
+  program?: ProgramStatusState | null;
   attention: boolean;
   /** An unseen `Stop` or long command (docs/design/terminal.md section 4.8), already resolved over the status. */
   mark: { status: 'done' | 'failed'; at: number } | null;
@@ -117,7 +125,8 @@ export function isBusy(t: TerminalCardInput, sessions: Session[]): boolean {
 function terminalCard(t: TerminalCardInput, sessions: Session[]): TerminalCard {
   const session = boundSession(t.ptyId, sessions);
   const folder = t.cwd ? lastFolder(t.cwd) : '';
-  const base = terminalStatus(session, t.shell);
+  const program = t.program ?? null;
+  const base = terminalStatus(session, t.shell, program);
   const { status, changedAt } = t.mark ? { status: t.mark.status, changedAt: t.mark.at } : base;
   return {
     kind: 'terminal',
@@ -128,7 +137,7 @@ function terminalCard(t: TerminalCardInput, sessions: Session[]): TerminalCard {
     profile: t.profile,
     status,
     statusChangedAt: changedAt,
-    reason: status === 'waiting' ? waitingText(session?.waitingReason) : null,
+    reason: status === 'waiting' ? terminalWaitingText(session, program) : null,
     focused: t.focused,
     sessionId: session ? session.sessionId : null,
     busy: isBusy(t, sessions),

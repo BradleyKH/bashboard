@@ -176,6 +176,7 @@ export class Workspace {
       paneChanged: (id) => this.paneChanged(id),
       onCommand: (id, ev) =>
         this.sessions.onCommand(id, ev, this.isSeen(id), this.config.settings.terminal.doneAfterSeconds),
+      onProgram: (id, prev, next) => this.sessions.onProgram(id, prev, next, this.isSeen(id)),
       onBell: (id) => {
         if (this.attention.bell(id)) this.notify();
       },

@@ -1,3 +1,4 @@
+import { programStatusReason, type ProgramStatusReport } from './programStatus';
 import type { Session } from './sessions';
 
 /**
@@ -45,11 +46,52 @@ export function shellStatus(
   return { status: 'idle', changedAt: openedAt };
 }
 
-/** A bound session's status wins; `unknown` or no session falls through to the shell. */
+/**
+ * What a program last reported through OSC 7501 (docs/design/sessions.md section 4.24).
+ * `changedAt` moves when the state changes, `reportedAt` on every report.
+ */
+export interface ProgramStatusState {
+  report: ProgramStatusReport;
+  changedAt: number;
+  reportedAt: number;
+}
+
+/** How long a bound session may stay unchanged before a program's working or blocked report wins. */
+export const SESSION_QUIET_MS = 2 * 60 * 1000;
+
+/**
+ * Whether the program layer decides the status: no bound session or an `unknown` one, or one
+ * whose hooks went quiet more than SESSION_QUIET_MS before a `working` or `blocked` report.
+ */
+export function programWins(session: Session | null, program: ProgramStatusState | null): boolean {
+  if (!program) return false;
+  if (!session || session.status === 'unknown') return true;
+  const active = program.report.state === 'working' || program.report.state === 'blocked';
+  return active && program.reportedAt - session.statusChangedAt > SESSION_QUIET_MS;
+}
+
+/** The program layer on its own: `blocked` is waiting, `done` is idle, `error` is failed. */
+export function programStatus(program: ProgramStatusState): { status: TerminalStatus; changedAt: number } {
+  const { changedAt } = program;
+  switch (program.report.state) {
+    case 'working':
+      return { status: 'working', changedAt };
+    case 'blocked':
+      return { status: 'waiting', changedAt };
+    case 'error':
+      return { status: 'failed', changedAt };
+    default:
+      return { status: 'idle', changedAt };
+  }
+}
+
+/** A bound session's status wins, then the program's own report, then the shell. */
 export function terminalStatus(
   session: Session | null,
   shell: ShellStatus,
+  program: ProgramStatusState | null = null,
 ): { status: TerminalStatus; changedAt: number } {
+  if (programWins(session, program) && program) return programStatus(program);
   if (session) {
     switch (session.status) {
       case 'busy':
@@ -61,4 +103,10 @@ export function terminalStatus(
     }
   }
   return { status: shell.status, changedAt: shell.changedAt };
+}
+
+/** The waiting line from whichever layer decides the status, as `waitingText` shows it. */
+export function terminalWaitingText(session: Session | null, program: ProgramStatusState | null): string {
+  if (programWins(session, program) && program) return waitingText(programStatusReason(program.report));
+  return waitingText(session?.waitingReason);
 }

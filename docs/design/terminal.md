@@ -249,20 +249,29 @@ the target terminal's repo; Insert path uses the Files pane's root.
 Every terminal is `idle`, `working`, `waiting`, `done`, or `failed`, resolved in order:
 
 1. **Bound agent session.** Its session status (section 7): `busy` shows as `working`, `idle`
-   as `idle` (or `done`, below), `waiting` as `waiting`, and `unknown` falls through to the
-   shell.
-2. **Shell activity.** `working` while a foreground command runs, otherwise `idle`. OSC 133
+   as `idle` (or `done`, below), `waiting` as `waiting`, and `unknown` falls through. A session
+   whose status last changed more than 2 minutes before a newer `working` or `blocked` program
+   report also falls through.
+2. **Program status.** What the program running in the pane reported through OSC 7501: `working`,
+   `blocked` as `waiting` with the program's message as the reason, `idle` and `done` as `idle`,
+   `error` as `failed` (4.24). It is how an agent without hooks reports, and the pane forgets it
+   when the shell prompt returns.
+3. **Shell activity.** `working` while a foreground command runs, otherwise `idle`. OSC 133
    markers give exact transitions: `C` (command started) to `working`, `D` (command finished)
    to `idle`. A shell without the `~/.bashrc` lines (4.2) falls back to the core's activity
    sweep (3.1), which reports `working` while the shell has a running job (background jobs
    included), up to 2 seconds late.
 
-Plain shells have no `waiting` state; a program that needs the user rings the bell, which
-raises attention (4.7) without changing status.
+A plain shell has no `waiting` state; a program that needs the user either reports `blocked`
+through OSC 7501 (2 above) or rings the bell, which raises attention (4.7) without changing
+status.
 
 **Done.** When a bound session's `Stop` hook arrives (any agent's) while its terminal is not being looked
 at (4.7), the terminal shows `done` instead of `idle` until it is. Any later status (a new
 prompt, `waiting`, the session ending) replaces it. A roster change to `idle` does not set it.
+A program report (4.24) moving from `working` or `blocked` to `done`, `idle`, or `error` while the
+terminal is not being looked at leaves the same mark, `failed` for `error`; reports replayed on
+reattach leave none.
 
 **Long commands.** A shell command that runs at least `terminal.doneAfterSeconds` (section 8;
 default 30, 0 turns it off) and finishes while its terminal is not being looked at (4.7) marks

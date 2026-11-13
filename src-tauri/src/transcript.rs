@@ -23,7 +23,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::lock::LockExt;
-use crate::agents::{self, AgentId};
+use crate::agents::AgentId;
 use crate::hooks::HookOverlay;
 use crate::roster::Session;
 
@@ -208,13 +208,29 @@ fn read_session(agent: AgentId, path: &Path) -> io::Result<Option<AgentReading>>
             |lines| codex::newest_reading(lines.iter().copied()),
             |r| r.model.is_some() && r.context_tokens.is_some(),
         )?,
-        AgentId::Copilot => read_with(
-            path,
-            |lines| copilot::newest_reading(lines.iter().copied()),
-            |r| r.model.is_some(),
-        )?,
+        AgentId::Copilot => read_copilot(path)?,
     };
     Ok((reading != AgentReading::default()).then_some(reading))
+}
+
+/// The live `events.jsonl`'s model, or, when the live file names none, the newest rotated archive's
+/// that does.
+fn read_copilot(path: &Path) -> io::Result<AgentReading> {
+    let parse: Parse = |lines| copilot::newest_reading(lines.iter().copied());
+    let complete: fn(&AgentReading) -> bool = |r| r.model.is_some();
+    let live = read_with(path, parse, complete)?;
+    if live.model.is_some() {
+        return Ok(live);
+    }
+    for archive in copilot::archives_newest_first(path) {
+        // A missing or unreadable archive must not hide a model in an older one.
+        if let Ok(reading) = read_with(&archive, parse, complete) {
+            if reading.model.is_some() {
+                return Ok(reading);
+            }
+        }
+    }
+    Ok(live)
 }
 
 /// Whether a session id can be joined into a path or file name without escaping its folder.
@@ -246,9 +262,9 @@ struct Homes {
 impl Homes {
     fn detect() -> Self {
         Homes {
-            claude: agents::CLAUDE.home(),
-            codex: agents::CODEX.home(),
-            copilot: agents::COPILOT.home(),
+            claude: AgentId::Claude.agent().home(),
+            codex: AgentId::Codex.agent().home(),
+            copilot: AgentId::Copilot.agent().home(),
         }
     }
 }

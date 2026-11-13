@@ -960,7 +960,15 @@ whether or not you have looked at it.
 
 A waiting terminal shows why: the pane card, the status dot's tooltip on the title strip, the
 tab's tooltip, and an external session's row carry the message the agent sent with its hook (for
-example that it needs your permission to use a tool), or "Waiting for you" when there is none.
+example that it needs your permission to use a tool), or, for a terminal without hooks, the one in
+the program's own status report, or "Waiting for you" when there is none.
+
+Without hooks, Claude Code 2.1.295 or later and Codex still report working, waiting, and done
+through the terminal itself, once the terminal answers their probe, and the pane shows them the
+same way. That needs the terminal's reply to reach the program, which works on macOS and Linux; on
+Windows the reply does not reach the program, so status comes from hooks. The dashboard's session details
+(model, context, and resume) still need hooks. A bound session's hooks take precedence, unless
+they have been silent for over 2 minutes while the program reports it is working or waiting.
 
 Ctrl+Shift+N jumps to the next terminal that needs you, across all tabs: waiting ones first,
 oldest first, then done and failed ones. It switches to the pane's tab, expands a collapsed card,

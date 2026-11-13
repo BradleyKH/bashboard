@@ -5,18 +5,15 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 
 ## 3.2 SessionRoster (`src-tauri/src/roster.rs`)
 
-**Agents.** Each supported coding agent has a descriptor in `src-tauri/src/agents.rs`: an
-`AgentId` (`claude`, `codex`, or `copilot`, serialized in lowercase and parsed by
-`AgentId::parse`), a home folder
-(`~/.claude`; `~/.codex`, or `CODEX_HOME` when set; `~/.copilot`, or `COPILOT_HOME` when set; the
-user profile comes from `USERPROFILE`), the executable names that identify its process
-(`claude.exe`, `codex.exe`, `copilot.exe`; Copilot also runs as a `node.exe` whose command line
-holds `@github/copilot`), and `matches_process`. An agent counts as detected when its home folder
-exists (for Copilot, with a `session-state` folder inside, since VS Code's Copilot extension
-creates `~/.copilot` on its own), which is what `agents_detected()` reports; detection never consults `PATH`, since VS
-Code installs a `copilot-shim\copilot.exe` launcher there that is not the Copilot CLI. Every
-`Session` carries its `agent`. The display names ("Claude Code", "Codex", "Copilot") live in
-`src/agentNames.ts`.
+**Agents.** Each supported coding agent (`claude`, `codex`, `copilot`) is one row of the agent
+table, `src/agents.json` (3.24), which carries its display name, home folder, the executables
+that identify its process, and the rest of what the roster, hook installer, and front end share.
+`src-tauri/src/agents.rs` parses it into an `Agent` per `AgentId` (serialized in lowercase and
+parsed by `AgentId::parse`), and the user profile comes from `USERPROFILE`. An agent counts as
+detected when its home folder exists (for Copilot, with a `session-state` folder inside, since
+VS Code's Copilot extension creates `~/.copilot` on its own), which is what `agents_detected()`
+reports; detection never consults `PATH`, since VS Code installs a `copilot-shim\copilot.exe`
+launcher there that is not the Copilot CLI. Every `Session` carries its `agent`.
 
 Claude Code writes one JSON file per running session to `~/.claude/sessions/<pid>.json`:
 
@@ -215,7 +212,6 @@ exact transitions as they happen.
   optional `X-Bashboard-Event` header. The receiver
   keeps only `session_id`, `hook_event_name`, `cwd`, `message`, `transcript_path`,
   `permission_mode`, and for Codex's waiting reason the tool's name and description, and emits
-  `permission_mode`, and for Codex's waiting reason the tool's name and description, and emits
   `sessions://hook` with the first four plus the pane id from the header, the agent, and the
   receive time. Each event is mapped to a status by its agent's table above; an event that table
   does not list leaves the status unchanged. `transcript_path` is not forwarded; the
@@ -259,7 +255,14 @@ newest model, the context tokens, and the context window when the transcript rep
   as the window.
 - **Copilot** (`transcript/copilot.rs`). `session-state/<id>/events.jsonl` under the Copilot
   home. The model is the newest of `session.model_change`'s `newModel` and the `selectedModel` of
-  `session.start` or `session.resume`. Copilot never writes token counts to disk, so there is no context reading.
+  `session.start` or `session.resume`. With journal rotation on, Copilot archives the journal as
+  `events.N.jsonl` and replaces `events.jsonl` with a head that opens with `session.journal_link`
+  and replays the session state as ordinary events flagged `checkpoint`; those reuse the event
+  types above, so they are read like any other line. When the live file names no model, the
+  reader takes it from the newest archive that does, comparing N as a number (`events.10.jsonl`
+  is newer than `events.9.jsonl`); the live file's model always wins. The folder is always
+  `<copilot home>/session-state/<id>/`, since no hook payload field names another location.
+  Copilot never writes token counts to disk, so there is no context reading.
 
 The core reads only a Claude file's last 64 KiB, widening to the whole file, streamed line by
 line, when the tail holds no qualifying line; the other formats are read whole in batches. A
@@ -268,6 +271,44 @@ A changed reading emits `agent://context` (section 7), and `agent_context()` ret
 entry so a page reload shows them at once. Nothing is tracked until the dashboard first calls
 `agent_context()`, which it does while the Panes section is enabled, and `agent_context_stop()`
 when it is turned off; entries are pruned with the hook overlay.
+
+## 3.24 Agent table (`src/agents.json`)
+
+The facts about each supported coding agent that are data rather than behavior live in one JSON
+file, `src/agents.json`: an array with one row per agent, in the order Claude Code, Codex,
+Copilot. Rust reads it through `include_str!` into a `OnceLock` (`src-tauri/src/agents.rs`), and
+the front end imports it through `src/agentTable.ts`, the same way `src/defaultKeybindings.json`
+is shared. A command field is a string, or `{ "windows": "...", "posix": "..." }` when the
+platforms differ (no row needs that form). `{id}`, `{mode}`, and `{model}` are placeholders.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | `claude`, `codex`, or `copilot`; the `AgentId` enum in `agents.rs` and the union in `agentTable.ts` |
+| `name` | Display name ("Claude Code", "Codex", "Copilot"), shown by `agentName` |
+| `preview` | The agent is labeled a preview wherever `isPreviewAgent` is used; Codex and Copilot are |
+| `home` | `dir`, the folder under the user profile; `env`, a variable that relocates it (`CODEX_HOME`, `COPILOT_HOME`); `detectMarker`, an entry only the agent writes, required inside the folder for detection (Copilot's `session-state`) |
+| `process` | `executables`, lowercase names without `.exe`, one list for every OS; `nodeMarker`, text a `node` host's command line must contain to count (`@github/copilot`) |
+| `statusApp` | The `app` value the agent sends in OSC 7501 reports (4.24), or null when it sends none; `agentForStatusApp` maps it back to the agent |
+| `launch` | The command that starts the agent |
+| `localModels` | Offers the agent in the Launch menu's "<agent> on a local model" submenu (`ollama launch <id>`), the only part of the Launch menu the table drives |
+| `resume` | `command` with `{id}`; `modeArg` (`--permission-mode {mode}`), appended when the saved pane has a non-default permission mode; `modelArg` (`--model {model}`), appended when a model is saved. A null argument means the agent takes none |
+| `hookShell` | The shell that runs the hook command on each platform: `windows` is `cmd` (`%USERPROFILE%`, no call operator) or `powershell` (`$env:USERPROFILE` and the `& ` call operator), and `posix` is `sh` |
+
+`resumeCommandFor` in `agentTable.ts` builds the resume command and validates nothing; callers
+check the session id, mode, and model first (`resumeCommand` in `savedWorkspace.ts`). The newest
+model seen per session is kept for restore for every agent whose row has a `modelArg`.
+`agent_commands` in `hook_install.rs` reads `hookShell.windows` on every platform, because it
+builds both platforms' command strings wherever it runs; `Agent::hook_shell` is the
+current-platform value.
+
+What stays code, because it is behavior rather than data: each agent's hook event to status table
+(`hooks.rs`, 3.3), its installer and file format (`hook_install.rs`), and its transcript reader
+(`transcript/`, 3.4). Tests hold the enum, the TypeScript union, and the JSON to the same ids, so
+a row without its variant, or the reverse, fails the build.
+
+Adding an agent takes a row, the `AgentId` variant in `agents.rs` and the id in the
+`agentTable.ts` union, its status table in `hooks.rs`, its installer in `hook_install.rs`, and its
+transcript reader.
 
 ## 4.7 Attention
 
@@ -311,8 +352,9 @@ tail length, head size, intensity, breath cycle, and the rest are constants in `
 (`src/paneLightsModel.ts`), so they can be adjusted in one place. Under `prefers-reduced-motion` both stay off whatever the settings say.
 
 **Agent glow.** A terminal whose bound session (3.4) is `busy` gets the `agent-working` class,
-whichever agent it runs (Claude Code, Codex, or Copilot). A busy shell command without an agent
-does not count. While `agentGlow` is on, that pane shows a soft inner glow in the accent color
+whichever agent it runs (Claude Code, Codex, or Copilot). So does a terminal whose program layer
+(4.24) decides its status and reports `working` with an `app` that names a known agent. A busy
+shell command without an agent does not count. While `agentGlow` is on, that pane shows a soft inner glow in the accent color
 that breathes from dim to bright and back over 7 seconds. It is an inset shadow on a
 `::after` overlay, so it fits inside the 4px gutters, and only its opacity animates, so it
 composites without repainting the terminal under it.
@@ -335,3 +377,61 @@ backdrop and `#panes`. It sits outside the scrim's filter (4.1), so the scrim do
 and it uses no WebGL context, so it costs nothing from the terminal budget (4.4). It reads the
 pane rects each frame, so splits, drags, zoom, and the dashboard's width need no extra wiring. It
 draws at up to 30 fps and stops while the window is hidden or minimized.
+
+## 4.24 Program status (OSC 7501)
+
+A program can write its own status into the terminal stream through OSC 7501, the Program Status
+Protocol (https://www.superlogical.com/rex/docs/build/program-status). Claude Code (2.1.295 and
+later) and Codex do, once the terminal answers their probe. It gives a pane working, waiting, and
+done status for an agent that has no hooks installed. `src/programStatus.ts` parses it, a terminal
+pane (`pane.ts`) holds the state, and `src/terminalStatus.ts` layers it into the pane's status
+(4.8).
+
+**Grammar read.** The body after `ESC ] 7501 ;` is `?` (a probe) or `key=value` pairs separated by
+`:`, and the last value for a key wins. A body over 4087 bytes is ignored. A malformed pair is
+skipped and the rest applies.
+
+| Key | Use |
+| --- | --- |
+| `state` | Required: `idle`, `working`, `blocked`, `done`, or `error`. `clear` is an action, not a state. A report without a valid state is ignored |
+| `kind` | Read only with `blocked`: `permission`, `question`, or `auth`; any other value is dropped |
+| `msg` | Base64 UTF-8 text, the waiting reason. A report whose `msg` fails to decode or holds a control character is discarded whole |
+| `title` | Validated the same way and otherwise unused |
+| `app` | The reporting program; matched against each agent's `statusApp` (3.24) |
+| `id` | Names a child record. A report carrying one is ignored; only the root record counts |
+
+**Probe.** A program reports only after the terminal answers its probe, `ESC ] 7501 ; ? ST`. The
+pane writes `ESC ] 7501 ; ?:states=idle,working,done,blocked,error:kinds=permission,question,auth ESC \`
+to the pty as if typed. A pane that is `muted`, which it is while it replays saved scrollback on
+reattach (3.1), never answers: a replayed probe has no one to answer. Answering also makes
+Claude Code stop painting its spinner glyph in the window title, so the title is not watched.
+
+**State kept.** The pane keeps the last root report with two times: when the state last changed
+(a repeated report of the same state leaves it alone) and when the latest report arrived. It
+forgets the report when `state=clear` arrives or the shell prompt returns (OSC 133 `A`), so a
+later program in the same pane starts clean. Reports replayed on reattach restore the state but
+leave no done mark, since they describe old work.
+
+**Mapping.** `working` is `working`. `blocked` is `waiting`, with the decoded `msg`, trimmed and
+cut at 200 characters, as the reason, else "Needs permission", "Has a question", or "Needs
+sign-in" by `kind`, else the generic waiting text. `idle` and `done` are `idle`, and `error` is
+`failed`. A report moving from `working` or `blocked` to `done`, `idle`, or `error` while the pane
+is not being looked at (4.7) leaves a program mark, shown as `done` (`failed` for `error`) until
+the pane is looked at, the way a hook `Stop` does (4.8); work that begins after the mark replaces
+it. Dashboard cards resolve through the same layer and reason as the title strip (4.6).
+
+**Precedence.** A bound hook session (3.4) whose status is not `unknown` wins. The exception is a
+session whose status last changed more than 2 minutes before the latest report, when that report
+is `working` or `blocked`: the hooks went quiet while the program moved on, so the program's
+status wins. With no bound session, or an `unknown` one, the program status wins over the shell's
+(OSC 133 and the sweep). A report of `idle`, `done`, or `error` never overrides a quiet session.
+
+**Scope.** Program status carries status only. A dashboard card's model, context, and resume
+details still come from the hook session and its transcript (3.3, 3.4), so they need hooks.
+
+**Current limitation on Windows.** ConPTY as `portable-pty` creates it requests
+`PSEUDOCONSOLE_WIN32_INPUT_MODE`, which drops OSC sequences written to its input, so the probe
+reply never reaches the program and Claude Code does not start reporting in a pane. The pane side
+is complete and reacts to any report that arrives, as a manual report from the shell shows;
+hookless status works where the pty passes the reply through (macOS and Linux), and Windows
+status comes from hooks.

@@ -37,6 +37,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.21 Local file server (`src-tauri/src/browser_files/`) | [browser.md](browser.md) |
 | 3.22 Crash recovery and log (`src-tauri/src/crash_recovery.rs`, `src-tauri/src/app_log.rs`) | [app.md](app.md) |
 | 3.23 CI for agents (`src-tauri/src/ci.rs`, `src-tauri/src/forge/failure.rs`, `src-tauri/src/forge/diagnostic.rs`) | [ship.md](ship.md) |
+| 3.24 Agent table (`src/agents.json`) | [sessions.md](sessions.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |
@@ -60,6 +61,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.21 Local Browser (`src/localBrowserPane.ts`, `src-tauri/src/browser.rs`) | [browser.md](browser.md) |
 | 4.22 Code colors (`src/code/`) | [files.md](files.md) |
 | 4.23 Agent glow and border lights (`src/paneLights.ts`) | [sessions.md](sessions.md) |
+| 4.24 Program status (OSC 7501) (`src/programStatus.ts`) | [sessions.md](sessions.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |

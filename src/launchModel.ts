@@ -2,6 +2,7 @@
 // bar's + menu, and the openLaunch menu. Pure, no DOM.
 
 import { agentName } from './agentNames';
+import { agentRow } from './agentTable';
 import { item, submenu, type MenuEntry } from './contextMenuModel';
 import { paneKindInfo, type PaneKind } from './paneKinds';
 import { safeModel, type AgentId } from './savedWorkspace';
@@ -100,6 +101,7 @@ export function launchMenuItems(
   );
   if (!local || local.models.length === 0) return entries;
   for (const agent of local.agents) {
+    if (!agentRow(agent).localModels) continue;
     const leaves = local.models.flatMap((model) => {
       const command = ollamaLaunchCommand(agent, model);
       return command ? [item(model, () => local.onRun(command))] : [];

@@ -2,14 +2,17 @@ import { boundSession } from './dashboardModel';
 import { DoneTracker } from './doneStatus';
 import type { CommandEvent } from './pane';
 import type { PtyActivity } from './persistence';
+import { agentForStatusApp, agentRow } from './agentTable';
 import type { AgentId } from './savedWorkspace';
 import type { HookEvent, Session } from './sessions';
 import { applyActivity } from './sweepTracker';
 import {
+  programWins,
   shellStatus,
   terminalStatus,
-  waitingText,
+  terminalWaitingText,
   type OscShellState,
+  type ProgramStatusState,
   type ShellStatus,
   type SweepState,
   type TerminalStatus,
@@ -19,6 +22,7 @@ import {
 export interface SessionTerminal {
   readonly ptyId: number | null;
   oscState(): OscShellState;
+  programState(): ProgramStatusState | null;
 }
 
 /** A terminal's agent session as the saved workspace records it. */
@@ -40,7 +44,7 @@ export class WorkspaceSessions {
   private sweeps = new Map<number, SweepState>();
   /** Sessions from the restored workspace, kept until a session binds to the pane. */
   private readonly restored = new Map<string, SavedSession>();
-  /** Newest model per session id, fed from appEvents.ts; only Copilot's resume needs it. */
+  /** Newest model per session id, fed from appEvents.ts, for agents whose resume takes a model. */
   private readonly models = new Map<string, string>();
   private readonly done = new DoneTracker();
 
@@ -71,9 +75,9 @@ export class WorkspaceSessions {
     const s = bound ?? this.restored.get(paneId);
     if (!s) return { sessionId: null };
     const agent = s.agent ?? 'claude';
-    // Copilot drops the model on resume, so keep the newest one seen; a restored pane that has
-    // not heard a fresh model keeps the one it was saved with.
-    const model = agent === 'copilot' ? (this.models.get(s.sessionId) ?? ('resumeModel' in s ? s.resumeModel : undefined)) : undefined;
+    // An agent whose resume takes a model (Copilot) drops it otherwise, so keep the newest one
+    // seen; a restored pane that has not heard a fresh model keeps the one it was saved with.
+    const model = agentRow(agent).resume.modelArg !== null ? (this.models.get(s.sessionId) ?? ('resumeModel' in s ? s.resumeModel : undefined)) : undefined;
     return {
       sessionId: s.sessionId,
       ...(s.permissionMode !== undefined && { permissionMode: s.permissionMode }),
@@ -102,11 +106,22 @@ export class WorkspaceSessions {
   resolve(paneId: string, pane: SessionTerminal | undefined, openedAt: number): { status: TerminalStatus; changedAt: number } {
     if (!pane) return { status: 'idle', changedAt: 0 };
     const session = this.bound(pane.ptyId);
-    return this.done.resolve(paneId, session, terminalStatus(session, this.shellOf(pane, openedAt)));
+    return this.done.resolve(paneId, session, terminalStatus(session, this.shellOf(pane, openedAt), pane.programState()));
   }
 
   waitingReason(pane: SessionTerminal | undefined): string {
-    return waitingText(pane ? this.bound(pane.ptyId)?.waitingReason : null);
+    if (!pane) return terminalWaitingText(null, null);
+    return terminalWaitingText(this.bound(pane.ptyId), pane.programState());
+  }
+
+  /** Design 4.23: an agent at work, by its hooks or by its own OSC 7501 report. */
+  agentWorking(pane: SessionTerminal): boolean {
+    const session = this.bound(pane.ptyId);
+    const program = pane.programState();
+    if (program && programWins(session, program)) {
+      return program.report.state === 'working' && agentForStatusApp(program.report.app ?? '') !== null;
+    }
+    return session?.status === 'busy';
   }
 
   /** Design 4.8: a long command that ends unseen marks the terminal `done` or `failed`. */
@@ -122,6 +137,11 @@ export class WorkspaceSessions {
       seen,
       minSeconds,
     });
+  }
+
+  /** Design 4.24: a program's report finishing its work while unseen marks the terminal. */
+  onProgram(paneId: string, prev: ProgramStatusState | null, next: ProgramStatusState | null, seen: boolean): void {
+    this.done.markProgram(paneId, prev?.report.state ?? null, next?.report.state ?? null, Date.now(), seen);
   }
 
   /**

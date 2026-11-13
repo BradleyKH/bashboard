@@ -81,6 +81,12 @@ happen. They map to status like this:
 | `Stop` | `idle`, shown as `done` until you focus that pane |
 | `SessionEnd` | Unbinds the session |
 
+Without hooks, a terminal can still show working, waiting, and done when the program reports its
+own status: Claude Code 2.1.295 or later and Codex write it into the terminal once the terminal
+answers their probe. That needs the terminal's reply to reach the program, which works on macOS
+and Linux; on Windows the reply does not reach the program, so status comes from hooks. Either way, the
+dashboard's session details (model, context, and resume) still need hooks.
+
 Each pane's shell has `BASHBOARD_HOOK_URL`, `BASHBOARD_HOOK_TOKEN`, and `BASHBOARD_PANE_ID` set,
 and the hook program, `bb hook claude`, posts the event to the app with the pane id, which binds
 the session to its pane. It does nothing outside a Bashboard pane, so the same global hooks are

@@ -29,6 +29,7 @@ import { supports } from './platform';
 import { showToast } from './toast';
 import type { PaneStatus } from './paneStatus';
 import type { TabStore } from './tabStore';
+import type { ProgramStatusState } from './terminalStatus';
 import { TitleStrip } from './titleStrip';
 import type { OpenPaneOptions, OpenTerminalOptions, PaneSpec, WorkspaceHooks } from './workspaceTypes';
 
@@ -53,6 +54,7 @@ export interface PaneFactoryContext {
   setFocused(id: string): void;
   paneChanged(id: string): void;
   onCommand(id: string, ev: CommandEvent): void;
+  onProgram(id: string, prev: ProgramStatusState | null, next: ProgramStatusState | null): void;
   onBell(id: string): void;
   focusPane(id: string): void;
   collapsePane(id: string): void;
@@ -244,6 +246,7 @@ export class PaneFactory {
       onCwdChange: () => ctx.paneChanged(id),
       onShellChange: () => ctx.paneChanged(id),
       onCommand: (ev) => ctx.onCommand(id, ev),
+      onProgramChange: (prev, next) => ctx.onProgram(id, prev, next),
       onBell: () => ctx.onBell(id),
       onReady:
         onReady ??

@@ -135,3 +135,8 @@ still frame when `backdrop.animate` is false.
      `src/actionRegistry.test.ts`) and its key in `docs/user-guide.md`;
   6. only if `keys.ts` must handle it itself instead of dispatching: add it to `SpecialAction`
      and give it a case.
+- **A coding agent** needs a row in `src/agents.json` (names, launch and resume commands, hook
+  shell, and the rest; `docs/design/sessions.md` section 3.24), the `AgentId` variant in
+  `src-tauri/src/agents.rs` and the id in the `AgentId` union in `src/agentTable.ts` (tests fail
+  if the enum, the union, and the JSON disagree), its status table in `hooks.rs`, its installer
+  in `hook_install.rs`, and its transcript reader under `src-tauri/src/transcript/`.

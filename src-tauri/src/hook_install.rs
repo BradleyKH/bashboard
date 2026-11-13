@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 
-use crate::agents::{self, AgentId};
+use crate::agents::{AgentId, HookShell};
 use crate::atomic_file::write_atomic;
 use crate::hook_client::{self, HOOK_VERSION};
 
@@ -233,14 +233,15 @@ fn agent_commands(t: &Target) -> (String, String) {
     let exe = format!("{HOOK_STEM}.exe");
     // Codex wraps the whole line in quotes for `cmd /C`, so a leading quoted path survives;
     // PowerShell needs the call operator to run one.
-    let call = if t.agent == AgentId::Copilot {
+    let powershell = t.agent.agent().hook_shell_windows() == HookShell::Powershell;
+    let call = if powershell {
         "& "
     } else {
         ""
     };
     if t.default_home {
         let dir = file_label(&t.home);
-        let profile = if t.agent == AgentId::Copilot {
+        let profile = if powershell {
             "$env:USERPROFILE"
         } else {
             "%USERPROFILE%"
@@ -482,7 +483,7 @@ fn preview_in(claude_dir: &Path) -> Result<Preview, String> {
     )?;
     let script_state = hook_state(&hook_path);
     // Claude Code creates `~/.claude` on first run; without it there is nothing to hook.
-    let detected = agents::CLAUDE.detected_at(Some(claude_dir));
+    let detected = AgentId::Claude.agent().detected_at(Some(claude_dir));
     Ok(Preview {
         agent: AgentId::Claude,
         settings_path: settings_path.to_string_lossy().into_owned(),

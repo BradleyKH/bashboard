@@ -17,6 +17,10 @@ import { parseFilesSort, type FilesSort } from './filesModel';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
 import { type TextZoom, parseTextZoom } from './textZoomStore';
+import { type AgentId, isAgentId, resumeCommandFor } from './agentTable';
+import { platformOs } from './platform';
+
+export type { AgentId };
 
 /**
  * The core's pty behind a saved terminal, as `pty_spawn` reported it. Valid only while that core
@@ -34,13 +38,9 @@ function parsePtyRef(v: unknown): PtyRef | null {
   return Number.isSafeInteger(id) && Number.isSafeInteger(startedAt) ? { id: id as number, startedAt: startedAt as number } : null;
 }
 
-/** A coding agent Bashboard can resume; absent or unknown in a saved pane reads as Claude. */
-export type AgentId = 'claude' | 'codex' | 'copilot';
-
-const AGENT_IDS: readonly AgentId[] = ['claude', 'codex', 'copilot'];
-
+/** Absent or unknown in a saved pane reads as Claude. */
 function parseAgent(v: unknown): AgentId {
-  return AGENT_IDS.includes(v as AgentId) ? (v as AgentId) : 'claude';
+  return isAgentId(v) ? v : 'claude';
 }
 
 /** One pane (docs/design/workspace.md sections 4.11 and 7). Pane ids do not survive a restart, so entries use saved keys. */
@@ -182,7 +182,10 @@ export function safeModel(v: unknown): string | undefined {
 
 /**
  * The command restore types to resume a session. Claude resumes in its saved permission mode
- * unless that is the default; Copilot resumes in `model` when one was saved.
+ * unless that is the default; an agent whose row names a model argument (Copilot) resumes in
+ * `model` when one was saved. Copilot's `--resume` is space-separated because `--resume=<id>`
+ * exits at once on Windows (github/copilot-cli#3458), and it needs `--model` because a resumed
+ * session silently falls back to the default model (#4397).
  */
 export function resumeCommand(
   sessionId: string,
@@ -190,22 +193,13 @@ export function resumeCommand(
   agent: AgentId = 'claude',
   model?: string,
 ): string {
-  switch (agent) {
-    case 'codex':
-      return `codex resume ${sessionId}`;
-    case 'copilot': {
-      // Space-separated because `--resume=<id>` exits at once on Windows (github/copilot-cli#3458);
-      // `--model` because a resumed session silently falls back to the default model (#4397).
-      const m = safeModel(model);
-      return m ? `copilot --resume ${sessionId} --model ${m}` : `copilot --resume ${sessionId}`;
-    }
-    default: {
-      const mode = safeMode(permissionMode);
-      return mode && mode !== 'default'
-        ? `claude --resume ${sessionId} --permission-mode ${mode}`
-        : `claude --resume ${sessionId}`;
-    }
-  }
+  const mode = safeMode(permissionMode);
+  return resumeCommandFor(
+    agent,
+    sessionId,
+    { mode: mode && mode !== 'default' ? mode : undefined, model: safeModel(model) },
+    platformOs() === 'windows' ? 'windows' : 'posix',
+  );
 }
 
 type PaneBase = { key: string; collapsed: boolean };

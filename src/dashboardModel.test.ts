@@ -388,3 +388,22 @@ describe('groupCardsByTab', () => {
     expect(groups[1].cards).toEqual([]);
   });
 });
+
+describe('terminal cards with a program status', () => {
+  it('uses the program layer and its waiting reason when no session is bound', () => {
+    const report = { state: 'blocked' as const, kind: 'permission' as const, msg: 'Run npm test?' };
+    const [c] = tcards([term({ program: { report, changedAt: 900, reportedAt: 900 } })], []);
+    expect(c.status).toBe('waiting');
+    expect(c.statusChangedAt).toBe(900);
+    expect(c.reason).toBe('Run npm test?');
+  });
+
+  it('lets a bound session win over the program', () => {
+    const report = { state: 'working' as const };
+    const [c] = tcards(
+      [term({ program: { report, changedAt: 1100, reportedAt: 1100 } })],
+      [session({ paneId: 1, status: 'idle' })],
+    );
+    expect(c.status).toBe('idle');
+  });
+});
