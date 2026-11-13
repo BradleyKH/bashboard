@@ -663,6 +663,16 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             d.git.branch_size_threshold,
         ),
     };
+    let cloud = CloudSettings {
+        badge: pick(&root, &["cloud", "badge"], &mut w, |v| v.as_bool(), d.cloud.badge),
+        production_pattern: pick(
+            &root,
+            &["cloud", "productionPattern"],
+            &mut w,
+            string,
+            d.cloud.production_pattern.clone(),
+        ),
+    };
     let local_models = LocalModels {
         ollama_url: pick(&root, &["localModels", "ollamaUrl"], &mut w, string, d.local_models.ollama_url.clone()),
         lm_studio_url: pick(&root, &["localModels", "lmStudioUrl"], &mut w, string, d.local_models.lm_studio_url.clone()),
@@ -728,6 +738,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             restore,
             editor,
             git,
+            cloud,
             local_models,
             ship,
             local_browser,
@@ -1491,6 +1502,34 @@ mod tests {
             assert_eq!(w.len(), 1, "{bad}: {w:?}");
             assert!(w[0].starts_with("git.branchSizeThreshold"), "{bad}: {w:?}");
         }
+    }
+
+    #[test]
+    fn cloud_values_parse() {
+        let d = Settings::default();
+        assert!(d.cloud.badge);
+        assert_eq!(d.cloud.production_pattern, "prod|prd|live");
+        let (s, w) = parse_settings(r#"{ "cloud": { "badge": false, "productionPattern": "^p-" } }"#);
+        assert!(!s.cloud.badge);
+        assert_eq!(s.cloud.production_pattern, "^p-");
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn cloud_values_reject_invalid_types() {
+        let (s, w) = parse_settings(r#"{ "cloud": { "badge": "yes", "productionPattern": 3 } }"#);
+        assert!(s.cloud.badge);
+        assert_eq!(s.cloud.production_pattern, "prod|prd|live");
+        assert_eq!(w.len(), 2, "{w:?}");
+        assert!(w[0].starts_with("cloud.badge"), "{w:?}");
+        assert!(w[1].starts_with("cloud.productionPattern"), "{w:?}");
+    }
+
+    #[test]
+    fn cloud_settings_serialize_camel_case() {
+        let v = serde_json::to_value(Settings::default()).unwrap();
+        assert_eq!(v["cloud"]["badge"], true);
+        assert_eq!(v["cloud"]["productionPattern"], "prod|prd|live");
     }
 
     #[test]

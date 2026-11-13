@@ -24,6 +24,7 @@ import { onHookEvent, onSessionsChanged } from './sessions';
 import { onSettingsChanged, type Settings } from './settings';
 import { shipOverviewStore } from './shipOverviewStore';
 import { branchSizeStore } from './branchSizeStore';
+import { cloudContextStore } from './cloudContextStore';
 import type { Workspace } from './workspace';
 
 export interface AppEventsDeps {
@@ -39,6 +40,9 @@ export interface AppEventsDeps {
 // listen() rejects outside Tauri (plain `pnpm dev`); live updates are simply unavailable there.
 export function listenAppEvents(deps: AppEventsDeps): void {
   const { state, workspace, saver, refreshPanel, favorites, repo, appWindow } = deps;
+  cloudContextStore.applySettings(state.settings);
+  cloudContextStore.subscribe(() => workspace.refreshStatuses());
+  cloudContextStore.start();
   // Listen only: AgentContexts owns the core's tracking flag, so with the Panes section hidden no
   // model arrives and a Copilot pane saves without resumeModel.
   onAgentContext((ctx) => workspace.setSessionModel(ctx.sessionId, ctx.model)).catch((e) =>
@@ -144,6 +148,7 @@ export function listenSettingsChanges({
     workspace.applySettings(p);
     shipOverviewStore.applySettings(p.settings);
     branchSizeStore.applySettings(p.settings);
+    cloudContextStore.applySettings(p.settings);
     panel.applyDashboardSettings(p.settings.dashboard, p.settings.localModels.minContext);
     void refreshProfiles().then(() => dialogs.profilesRefreshed());
   }).catch((e) => console.warn('settings hot reload unavailable:', e));

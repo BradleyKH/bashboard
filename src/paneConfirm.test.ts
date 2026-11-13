@@ -18,6 +18,7 @@ const terminal: TerminalCard = {
   collapsed: false,
   attention: false,
   containerName: null,
+  cloud: [],
 };
 
 const pad: OtherCard = {

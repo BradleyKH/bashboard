@@ -9,7 +9,8 @@ import { Terminal, type ITheme } from '@xterm/xterm';
 import { terminalAccent } from './accent';
 import { contentTextColor, terminalWhites } from './contentText';
 import { openLink } from './links';
-import { type Osc133, parseOsc133, parseOsc7, parseOsc9 } from './osc';
+import type { AwsContext } from './cloudContextModel';
+import { type Osc133, parseOsc133, parseOsc7, parseOsc7502, parseOsc9 } from './osc';
 import { webglBudget } from './rendererBudget';
 import { replayText } from './scrollbackModel';
 import { noteShellFallback } from './shellFallback';
@@ -71,7 +72,8 @@ export interface TerminalPaneOptions {
   onCwdChange?: () => void;
   /**
    * Fires when the pane's status inputs change: OSC 133 reports a command starting or finishing
-   * (`oscState().running` flipped), or an OSC 7501 report or clear changes `programState()`.
+   * (`oscState().running` flipped), an OSC 7501 report or clear changes `programState()`, or an
+   * OSC 7502 report changes `cloudState()`.
    */
   onShellChange?: () => void;
   /** Fires on an OSC 7501 change outside a reattach replay, before `onShellChange`. */
@@ -144,6 +146,8 @@ export class TerminalPane implements PaneView {
   private readonly onProgramChangeCb: TerminalPaneOptions['onProgramChange'];
   /** The root record of the program's OSC 7501 reports (docs/design/sessions.md section 4.24). */
   private program: ProgramStatusState | null = null;
+  /** The shell's last OSC 7502 AWS report (docs/design/terminal.md section 4.25). */
+  private aws: AwsContext | null = null;
   private commandStartedAt: number | null = null;
   private onReadyCb: (() => void) | undefined;
   private osc: OscShellState = { seen: false, running: false, changedAt: Date.now() };
@@ -251,6 +255,13 @@ export class TerminalPane implements PaneView {
       return true;
     });
 
+    this.term.parser.registerOscHandler(7502, (data) => {
+      const ctx = parseOsc7502(data);
+      // Unknown providers are swallowed too, so they never print.
+      if (ctx !== null) this.setAws(ctx);
+      return true;
+    });
+
     this.term.open(this.body);
     this.term.textarea?.addEventListener('focus', () => opts.onFocus());
     if (this.expanded) this.loadRenderer();
@@ -291,6 +302,11 @@ export class TerminalPane implements PaneView {
   /** The program's last OSC 7501 report, or null when none or cleared. */
   programState(): ProgramStatusState | null {
     return this.program ? { ...this.program } : null;
+  }
+
+  /** The shell's AWS profile and region from OSC 7502, or null when unset. */
+  cloudState(): AwsContext | null {
+    return this.aws;
   }
 
   /** OSC 133 state: `seen` once any marker arrived, `running` between C and D. */
@@ -611,6 +627,14 @@ export class TerminalPane implements PaneView {
     // Replayed reports restore the state but must not leave done marks for old work.
     if (!sameState && !this.muted) this.onProgramChangeCb?.(prev, this.program);
     // Every report refreshes: a repeated one can still tip precedence over quiet hooks.
+    this.onShellChangeCb?.();
+  }
+
+  private setAws(ctx: AwsContext): void {
+    const next = ctx.profile === '' && ctx.region === '' ? null : ctx;
+    const prev = this.aws;
+    if (prev === next || (prev && next && prev.profile === next.profile && prev.region === next.region)) return;
+    this.aws = next;
     this.onShellChangeCb?.();
   }
 

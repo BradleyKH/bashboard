@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseOsc133, parseOsc7, parseOsc9 } from './osc';
+import { parseOsc133, parseOsc7, parseOsc7502, parseOsc9 } from './osc';
 
 describe('parseOsc9', () => {
   it('returns the path from a 9;9 working-directory report', () => {
@@ -121,5 +121,35 @@ describe('parseOsc133', () => {
     expect(parseOsc133('')).toBeNull();
     expect(parseOsc133('a')).toBeNull();
     expect(parseOsc133('garbage;1')).toBeNull();
+  });
+});
+
+describe('parseOsc7502', () => {
+  it('parses profile and region', () => {
+    expect(parseOsc7502('aws;prod;us-east-1')).toEqual({ profile: 'prod', region: 'us-east-1' });
+  });
+
+  it('allows an empty profile or region', () => {
+    expect(parseOsc7502('aws;;eu-west-1')).toEqual({ profile: '', region: 'eu-west-1' });
+    expect(parseOsc7502('aws;dev;')).toEqual({ profile: 'dev', region: '' });
+  });
+
+  it('reports both fields empty so the caller can clear the context', () => {
+    expect(parseOsc7502('aws;;')).toEqual({ profile: '', region: '' });
+  });
+
+  it('takes everything after the second semicolon as the region', () => {
+    expect(parseOsc7502('aws;dev;a;b')).toEqual({ profile: 'dev', region: 'a;b' });
+  });
+
+  it('tolerates a missing region field', () => {
+    expect(parseOsc7502('aws;dev')).toEqual({ profile: 'dev', region: '' });
+  });
+
+  it('ignores unknown providers and malformed payloads', () => {
+    expect(parseOsc7502('gcp;p;r')).toBeNull();
+    expect(parseOsc7502('aws')).toBeNull();
+    expect(parseOsc7502('')).toBeNull();
+    expect(parseOsc7502('awsx;p;r')).toBeNull();
   });
 });

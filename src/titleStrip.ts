@@ -1,3 +1,4 @@
+import type { CloudChip } from './cloudContextModel';
 import { attachContextMenu } from './contextMenu';
 import { item, separator, submenu, type MenuEntry, type MenuLeaf } from './contextMenuModel';
 import { setHintedTitle } from './keyHints';
@@ -26,6 +27,8 @@ export interface TitleStripState {
   status?: TerminalStatus;
   /** What a waiting session is waiting on; the dot's tooltip while the status is waiting. */
   reason?: string;
+  /** Cloud-context chips, terminals only (docs/design/terminal.md section 4.25). */
+  cloud?: CloudChip[];
 }
 
 export interface TitleStripZoomState {
@@ -66,6 +69,10 @@ export class TitleStrip {
   private readonly dot: HTMLElement;
   private readonly title: HTMLElement;
   private readonly actions: HTMLElement;
+  /** Inside `actions`, ahead of the pane's own buttons; `setActions` leaves it alone. */
+  private readonly cloud: HTMLElement;
+  private readonly actionSlot: HTMLElement;
+  private cloudKey = '';
   private readonly zoomButton: HTMLButtonElement;
   private kind: PaneKind;
   private zoom: TitleStripZoomState = { available: false, zoomed: false, attention: false };
@@ -96,6 +103,11 @@ export class TitleStrip {
     // Always present: it is the spacer that holds collapse, zoom, and close at the right edge.
     this.actions = document.createElement('div');
     this.actions.className = 'strip-actions';
+    this.cloud = document.createElement('div');
+    this.cloud.className = 'strip-clouds';
+    this.actionSlot = document.createElement('div');
+    this.actionSlot.className = 'strip-action-slot';
+    this.actions.append(this.cloud, this.actionSlot);
 
     this.zoomButton = document.createElement('button');
     this.zoomButton.type = 'button';
@@ -150,7 +162,7 @@ export class TitleStrip {
 
   /** Shows a pane kind's own buttons after the title; null clears them. */
   setActions(el: HTMLElement | null): void {
-    this.actions.replaceChildren(...(el ? [el] : []));
+    this.actionSlot.replaceChildren(...(el ? [el] : []));
   }
 
   setZoom(state: TitleStripZoomState): void {
@@ -170,6 +182,23 @@ export class TitleStrip {
     }
     this.title.textContent = state.title;
     this.title.title = state.path;
+    this.setCloud(this.kind === 'terminal' ? (state.cloud ?? []) : []);
+  }
+
+  private setCloud(chips: CloudChip[]): void {
+    // Strips refresh on every status tick, so the chips are rebuilt only when they change.
+    const key = chips.length === 0 ? '' : JSON.stringify(chips);
+    if (key === this.cloudKey) return;
+    this.cloudKey = key;
+    this.cloud.replaceChildren(
+      ...chips.map((c) => {
+        const el = document.createElement('span');
+        el.className = c.production ? 'strip-cloud production' : 'strip-cloud';
+        el.textContent = c.text;
+        el.title = c.title;
+        return el;
+      }),
+    );
   }
 
   private onPointerDown(down: PointerEvent): void {

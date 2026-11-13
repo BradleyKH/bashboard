@@ -140,6 +140,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       },
       { path: ['scrollback'], label: 'Scrollback', kind: 'number', min: 0, max: 1000000, step: 1000, unit: 'lines', integer: true, applies: 'live' },
       { path: ['terminal', 'doneAfterSeconds'], label: 'Mark long commands done after', kind: 'number', min: 0, max: 86400, step: 1, unit: 's', integer: true, hint: '0 turns it off; Git Bash with the ~/.bashrc lines only', applies: 'live' },
+      { path: ['cloud', 'badge'], label: 'Cloud context chips', kind: 'toggle', hint: 'Show the AWS profile and region (and a production Azure subscription) on terminals and their cards', applies: 'live' },
+      {
+        path: ['cloud', 'productionPattern'],
+        label: 'Production pattern',
+        kind: 'text',
+        allowEmpty: true,
+        hint: 'A regular expression, matched ignoring case against the AWS profile and Azure subscription name; matches turn the chip red and show Azure. Empty never matches',
+        applies: 'live',
+        shownWhen: { path: ['cloud', 'badge'], value: true },
+      },
     ],
   },
   {

@@ -200,6 +200,16 @@ pub struct GitSettings {
     pub branch_size_threshold: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudSettings {
+    /// Shows the cloud-context chip on each terminal pane.
+    pub badge: bool,
+    /// A JavaScript regex source the front end tests against a context name to mark it as
+    /// production; stored as typed.
+    pub production_pattern: String,
+}
+
 /// Forge kinds `ship.hosts` accepts.
 pub const FORGE_KINDS: [&str; 4] = ["github", "gitlab", "bitbucket", "azureDevOps"];
 
@@ -323,6 +333,7 @@ pub struct Settings {
     pub restore: Restore,
     pub editor: Editor,
     pub git: GitSettings,
+    pub cloud: CloudSettings,
     pub local_models: LocalModels,
     pub ship: Ship,
     pub local_browser: LocalBrowser,
@@ -412,6 +423,7 @@ impl Default for Settings {
             restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5, branch_size_threshold: 400 },
+            cloud: CloudSettings { badge: true, production_pattern: "prod|prd|live".into() },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
             ship: Ship {
                 hosts: HashMap::new(),

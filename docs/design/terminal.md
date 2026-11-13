@@ -126,6 +126,24 @@ its monospace entry. The collection is read on every call, with DirectWrite aske
 updates, so a font installed while the app runs shows up on the next call. If DirectWrite fails
 the list is empty. On other platforms the list is always empty.
 
+## 3.26 Azure context (`src-tauri/src/cloud_context.rs`)
+
+The machine-wide half of the cloud chip (4.25): the default Azure subscription, read from disk.
+The core never runs `az` and never polls.
+
+- **Source.** `azureProfile.json` in `AZURE_CONFIG_DIR` (when set and non-empty) or `~/.azure`.
+  The file is UTF-8 with a BOM, which is stripped before parsing. The context is the
+  subscription with `isDefault` true: its `name`, its `id`, and `user.name` when present. A file
+  that is missing, unparseable, or has no default subscription yields no context; a missing
+  login is not an error.
+- **Watching.** The directory is watched (not the file, since `az login` rewrites it in several
+  steps), and a burst of events is coalesced by a 250 ms debounce into one re-read. A change that
+  alters the context emits `cloud://azure` with `{ name, id, user }`, or null when it is gone.
+  If the directory does not exist at launch, nothing is watched, so a first `az login` after
+  that needs an app restart.
+- **Command.** `azure_context() -> { name, id, user } | null` returns the current context; the
+  front end calls it once at startup and then follows `cloud://azure`.
+
 ## 4.4 Terminal pane (`pane.ts`)
 
 One `TerminalPane` per terminal: an xterm `Terminal` with fit, WebGL, Unicode 11, and search
@@ -141,8 +159,8 @@ switching back attaches one again if the budget allows. If the browser drops a W
 
 **Title strip:** the kind menu (4.11), the status dot (4.8), the bound session's name or the
 shell's working directory, any buttons of the pane's own kind (`PaneView.stripActions`; the
-Files pane's, 4.12; a terminal's "+" that opens the new pin popup for a command pin in its
-working directory, 4.6), then a collapse button, a zoom button (with two or more expanded
+Files pane's, 4.12; a terminal's cloud chips, 4.25, then its pin button, a pin icon that opens
+the new pin popup for a command pin in its working directory, 4.6), then a collapse button, a zoom button (with two or more expanded
 panes in the tab, 4.2), and a close button that acts as Ctrl+W (`requestClosePane`); the rest of
 the strip is the drag handle for docking. The status dot's tooltip shows the waiting reason
 (3.3) while the terminal is `waiting`; the strip's text is unchanged. Every pane kind
@@ -289,3 +307,42 @@ still check mark.
 
 `done` and `failed` are display state only; the session stays `idle`. They are not saved, so
 restored terminals start without them.
+
+## 4.25 Cloud context chip (`src/cloudContextModel.ts`)
+
+A terminal's title strip shows which cloud identity its commands run as, in a chip immediately
+left of the pin button, and the pane's session card in the dashboard shows the same chips. The
+chip is for noticing that a shell holds production credentials before running something in it.
+
+**AWS, per pane.** The `~/.bashrc` lines (docs/setup.md) and the PowerShell prompt wrapper
+Bashboard injects report the shell's `AWS_PROFILE` and region (`AWS_REGION`, else
+`AWS_DEFAULT_REGION`) as `ESC ] 7502 ; aws ; <profile> ; <region> ST`. They use shell builtins
+only, because in Git Bash every subprocess costs a fork and a per-prompt process would slow every
+prompt, and they emit only when the pair differs from the last one sent, so the first prompt of
+each shell emits once. Command Prompt has no hook, so its panes get no AWS chip. The pane's OSC
+handler passes the body to `parseOsc7502` (`osc.ts`), which returns `{ profile, region }` (either
+may be empty) or null for another provider, so a later provider does not confuse an older build.
+The context is kept per pane and is not saved.
+
+**Azure, machine-wide.** The context from 3.26 applies to every pane alike, since an `az login`
+is per user, not per shell.
+
+**Chips.** `cloudChips(aws, azure, pattern, enabled)` returns the chips in order, AWS first.
+
+| Chip | Shown when | Text |
+| --- | --- | --- |
+| AWS | the profile or the region is set | `aws <profile>`, plus ` · <region>` when a region is set; `default` stands in for an empty profile |
+| Azure | the subscription name matches the production pattern | `az <subscription name>` |
+
+Azure is limited to production matches so that a developer who is logged in to Azure does not see
+a chip in every pane. A chip is gray, and red when it matches the production pattern: for AWS the
+profile (the region is not matched), for Azure the subscription name, so every Azure chip is red.
+Hovering a chip lists the provider, the profile or subscription name, the region or subscription
+id, and the user when known (Azure only). With `cloud.badge` false, or with nothing set, there
+are no chips.
+
+**Pattern.** `cloud.productionPattern` (section 8; default `prod|prd|live`) is a JavaScript
+regular expression, compiled case-insensitively and without the global flag, which would carry
+`lastIndex` from one test to the next. An empty pattern never matches, and an invalid one falls
+back to the default so a typo does not silently turn the warning off. Settings changes recompile
+it and redraw the chips.

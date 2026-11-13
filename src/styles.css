@@ -241,9 +241,49 @@ body.agent-glow .pane.agent-working::after {
   gap: 2px;
 }
 
-.strip-actions > * {
+.strip-actions > *,
+.strip-action-slot > * {
   display: flex;
   gap: 2px;
+}
+
+.strip-clouds:empty {
+  display: none;
+}
+
+/* Cloud-context chip (docs/design/terminal.md section 4.25). The cap keeps a long profile from
+   pushing the pane's buttons out of a narrow strip. */
+.strip-cloud,
+.card-cloud {
+  flex-shrink: 0;
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #9aa6ad;
+  font-size: 10px;
+  line-height: 14px;
+  cursor: default;
+}
+
+.strip-cloud.production,
+.card-cloud.production {
+  border-color: var(--system-error);
+  background: color-mix(in srgb, var(--system-error) 22%, transparent);
+  color: #fbe4df;
+}
+
+.strip-action svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  /* Matches the 16px line box of the text-glyph buttons. */
+  margin: 2px 0;
 }
 
 .strip-action {

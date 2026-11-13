@@ -1,3 +1,4 @@
+import type { CloudChip } from './cloudContextModel';
 import type { PaneKind } from './paneKinds';
 import type { Session, SessionStatus } from './sessions';
 import {
@@ -28,6 +29,8 @@ export interface TerminalCardInput {
   mark: { status: 'done' | 'failed'; at: number } | null;
   /** Set for a container shell, which the card titles by the container's name. */
   containerName?: string;
+  /** Cloud-context chips (docs/design/terminal.md section 4.25); absent means none. */
+  cloud?: CloudChip[];
 }
 
 /** A pane of any kind other than a terminal (docs/design/workspace.md section 4.11). */
@@ -67,6 +70,7 @@ export interface TerminalCard {
   collapsed: boolean;
   attention: boolean;
   containerName: string | null;
+  cloud: CloudChip[];
 }
 
 export interface OtherCard {
@@ -144,6 +148,7 @@ function terminalCard(t: TerminalCardInput, sessions: Session[]): TerminalCard {
     collapsed: t.collapsed,
     attention: t.attention,
     containerName: t.containerName ?? null,
+    cloud: t.cloud ?? [],
   };
 }
 

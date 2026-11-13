@@ -21,6 +21,22 @@ __bashboard_prompt() {
   local status=$?
   printf '\e]133;D;%s\e\\' "$status"
   printf '\e]9;9;%s\e\\' "$(cygpath -w "$PWD")"
+  local cloud="${AWS_PROFILE-};${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
+  if [[ $cloud != "${__bashboard_cloud-}" ]]; then
+    __bashboard_cloud=$cloud
+    printf '\e]7502;aws;%s\e\\' "$cloud"
+  fi
+  return "$status"
+}
+PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+"#;
+
+/// The snippet before it reported the AWS context, recognized when pasted by hand.
+const BASH_SNIPPET_BEFORE_CLOUD: &str = r#"PS0="${PS0-}"'\e]133;C\e\\'
+__bashboard_prompt() {
+  local status=$?
+  printf '\e]133;D;%s\e\\' "$status"
+  printf '\e]9;9;%s\e\\' "$(cygpath -w "$PWD")"
   return "$status"
 }
 PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
@@ -42,7 +58,7 @@ struct Flavor {
 
 const BASH: Flavor = Flavor {
     snippet: BASH_SNIPPET,
-    older: &[],
+    older: &[BASH_SNIPPET_BEFORE_CLOUD],
     is_custom_line: defines_bash_prompt_fn,
     file_label: "~/.bashrc",
 };
@@ -411,6 +427,27 @@ mod tests {
             apply(&BASH, Some(&format!("x=1\n{BASH_SNIPPET}y=2\n"))).unwrap(),
             expected
         );
+    }
+
+    #[test]
+    fn the_snippet_before_cloud_context_is_recognized_and_upgraded() {
+        let marked = format!("{BEGIN}\n{BASH_SNIPPET_BEFORE_CLOUD}{END}\n");
+        let expected = format!("x=1\n{}y=2\n", block(&BASH));
+        let text = format!("x=1\n{marked}y=2\n");
+        assert_eq!(status(&BASH, Some(&text)), Status::Outdated);
+        assert_eq!(apply(&BASH, Some(&text)).unwrap(), expected);
+        let text = format!("x=1\n{BASH_SNIPPET_BEFORE_CLOUD}y=2\n");
+        assert_eq!(status(&BASH, Some(&text)), Status::HandAdded);
+        assert_eq!(apply(&BASH, Some(&text)).unwrap(), expected);
+    }
+
+    #[test]
+    fn the_cloud_report_runs_no_command() {
+        // Each fork costs in Git Bash, so the AWS report stays on builtins; the one existing
+        // substitution is the cygpath line.
+        let cloud_part = BASH_SNIPPET.split("local cloud=").nth(1).unwrap();
+        assert!(!cloud_part.contains("$(") && !cloud_part.contains('`') && !cloud_part.contains('|'));
+        assert_eq!(BASH_SNIPPET.matches("$(").count(), 1);
     }
 
     #[test]

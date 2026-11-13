@@ -310,6 +310,21 @@ on that pane. On macOS, the first notification asks for permission.
 "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true }
 ```
 
+`cloud.badge` (default `true`) shows the cloud context chips on terminal title strips and session
+cards: the pane's AWS profile and region, and the Azure subscription when it looks like production.
+`false` hides every chip. The AWS chip needs the `~/.bashrc` lines from
+[New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash, and works in
+PowerShell panes without setup; Command Prompt panes never show one.
+`cloud.productionPattern` (default `prod|prd|live`) is a JavaScript regular expression, matched
+ignoring case against the AWS profile and the Azure subscription name. A match turns the chip red,
+and an Azure subscription shows only when it matches. An empty pattern never matches, and an invalid
+one falls back to the default. Both apply on save and are in the Terminal section of the Settings
+tab.
+
+```jsonc
+"cloud": { "badge": true, "productionPattern": "prod|prd|live" }
+```
+
 `scrollback` (default 10000) is how many lines each terminal keeps. `shell.startingDirectory`
 (default `%USERPROFILE%`, and it may hold other `%VARS%`) is where a terminal starts when it has
 no folder to inherit. All of these are in the Terminal section of the Settings tab.

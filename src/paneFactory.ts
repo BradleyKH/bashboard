@@ -505,13 +505,20 @@ export class PaneFactory {
   }
 }
 
+const PIN_ICON =
+  '<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">' +
+  '<path d="M10.2 1.3a.75.75 0 0 1 1.06 0l3.44 3.44a.75.75 0 0 1 0 1.06l-.7.7a1.5 1.5 0 0 1-1.42.4l-2.2 2.2' +
+  ' .33 2.3a.75.75 0 0 1-.21.64l-.72.72a.75.75 0 0 1-1.06 0L6.2 10.24 2.53 13.9a.5.5 0 0 1-.71-.7L5.5 9.53' +
+  ' 2.98 7.01a.75.75 0 0 1 0-1.06l.72-.72a.75.75 0 0 1 .64-.21l2.3.33 2.2-2.2a1.5 1.5 0 0 1 .4-1.42z"/></svg>';
+
 function newPinButton(onClick: () => void): HTMLElement {
   const el = document.createElement('div');
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'strip-action';
-  b.textContent = '+';
+  b.innerHTML = PIN_ICON;
   b.title = 'New pin: pin a command in this folder';
+  b.setAttribute('aria-label', 'New pin');
   b.addEventListener('click', (e) => {
     e.stopPropagation();
     onClick();

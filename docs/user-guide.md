@@ -19,6 +19,7 @@
 - [Codex, Copilot, and local AI models (preview)](#codex-copilot-and-local-ai-models-preview)
   - [Local AI models](#local-ai-models)
 - [Attention and status](#attention-and-status)
+- [Cloud context chip](#cloud-context-chip)
 - [Command palette](#command-palette)
 - [Find and links](#find-and-links)
 - [Text size](#text-size)
@@ -201,9 +202,10 @@ dimmed and does nothing.
 
 A **command pin** keeps a command you run often, such as
 `dotnet run --project src/Project.Name.Api`, with a name and the folder it runs in. Add one with
-the **+** at the right of the Pins heading, the **+** after a terminal's title, or New pin in the
-title strip's right-click menu; each opens a popup with Name and Command fields, in the focused
-pane's or that terminal's folder (the terminal's **+** fills Command with any selected text).
+the **+** at the right of the Pins heading, the pin button at the right of a terminal's title
+strip, or New pin in the title strip's right-click menu; each opens a popup with Name and Command
+fields, in the focused pane's or that terminal's folder (the strip's pin button fills Command with
+any selected text).
 Clicking the pin types the command into the focused terminal when it is idle and in that folder,
 or into a new terminal opened there, without pressing Enter, so you choose when to run it. A new
 terminal uses the focused terminal's shell, or your default shell when no terminal has focus. The
@@ -1012,6 +1014,32 @@ runs at least `terminal.doneAfterSeconds` and finishes while you are not looking
 marks it `done`, or `failed` (a still red cross) when it exited nonzero; Ctrl+C is not a failure.
 Only Git Bash with the `~/.bashrc` lines from [New panes in the current folder](setup.md#new-panes-in-the-current-folder)
 reports commands, and a bound agent session's own status takes precedence.
+
+## Cloud context chip
+
+A terminal's title strip shows a small chip, just left of its pin button, naming the AWS profile
+and region the shell is using, such as `aws prod-admin · us-east-1`. The terminal's card in the
+dashboard shows the same chip. The profile and region come from the shell's `AWS_PROFILE` and
+`AWS_REGION` (or `AWS_DEFAULT_REGION`), so each pane shows its own, and the chip follows the shell
+when you switch profiles. A region with no profile reads `aws default · us-east-1`. The chip is
+hidden while neither is set.
+
+The chip is gray, and red when the profile matches the production pattern (`prod|prd|live` by
+default, matched ignoring case). Hover it for the provider, profile, region, and, for Azure, the
+subscription id and user.
+
+Azure is not tied to a shell: it is the default subscription from `az login`, shared by every pane.
+To keep it from cluttering each strip, an Azure chip, such as `az Contoso Production`, shows only
+when the subscription name matches the production pattern, and then it is red. Bashboard reads the
+subscription from `azureProfile.json` in `AZURE_CONFIG_DIR` or `~/.azure`, watching that folder
+without running `az`. If that folder did not exist when Bashboard started, restart the app after
+the first `az login`.
+
+The AWS chip needs the `~/.bashrc` lines from
+[New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash; PowerShell
+panes report without setup, and Command Prompt panes show none. Turn the chips off with
+`cloud.badge`, or change what counts as production with `cloud.productionPattern` (see
+[Settings](settings.md#settings)).
 
 ## Command palette
 

@@ -64,6 +64,8 @@ export interface Settings {
   editor: { preferred: string; command: string };
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design/git.md section 3.9). */
   git: { autoFetchMinutes: number; branchSizeThreshold: number };
+  /** Cloud-context chips: `badge` shows or hides all of them; `productionPattern` is a case-insensitive regex (docs/design/terminal.md section 4.25). */
+  cloud: { badge: boolean; productionPattern: string };
   localModels: { ollamaUrl: string; lmStudioUrl: string; minContext: number };
   /**
    * `hosts` maps a lowercased host name to its forge kind, for self-hosted hosts. The Overview tab
@@ -135,6 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
   restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5, branchSizeThreshold: 400 },
+  cloud: { badge: true, productionPattern: 'prod|prd|live' },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
   ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [], cliWrites: false },
   localBrowser: {

@@ -9,6 +9,7 @@ mod browser_tls;
 mod ci;
 mod cli;
 mod clipboard;
+mod cloud_context;
 mod config_dir;
 mod containers;
 mod crash_recovery;
@@ -192,6 +193,7 @@ pub fn run() {
         .manage(forge::ForgeState::default())
         .manage(browser::BrowserState::default())
         .manage(browser_files::FileServerState::default())
+        .manage(cloud_context::CloudState::default())
         .manage(second_instance::StartupFolder::from_args())
         .setup(|app| {
             app_log::init(app.handle());
@@ -205,6 +207,7 @@ pub fn run() {
             workspace::init(app.handle());
             pty::init_activity(app.handle());
             containers::init(app.handle());
+            cloud_context::init(app.handle());
             #[cfg(target_os = "macos")]
             toast_mac::install(app.handle());
             setup_main_window(&window);
@@ -227,6 +230,7 @@ pub fn run() {
             browser_files::browser_unwatch_file,
             browser_tls::browser_probe_tls,
             browser_tls::browser_prefer_tls,
+            cloud_context::azure_context,
             clipboard::clipboard_read_text,
             clipboard::clipboard_write_files,
             clipboard::clipboard_read_files,

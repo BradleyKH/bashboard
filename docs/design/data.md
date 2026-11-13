@@ -356,6 +356,12 @@ the focused pane's folder.
   // generated files excluded) above which the branch row and session cards show a size warning;
   // 0 turns it off.
   "git": { "autoFetchMinutes": 5, "branchSizeThreshold": 400 },
+  // badge shows the cloud context chips on terminal title strips and session cards (4.25);
+  // false hides them all. productionPattern is a JavaScript regular expression matched ignoring
+  // case against the AWS profile and the Azure subscription name; a match turns the chip red and
+  // is the only way an Azure chip shows (3.26). Empty never matches; invalid falls back to the
+  // default.
+  "cloud": { "badge": true, "productionPattern": "prod|prd|live" },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
   // a field: switchToTab takes "index" from 1 to 8. The Shortcuts tab (4.18) edits this list,
   // rewriting it with one entry per line; comments inside the list are not kept, comments

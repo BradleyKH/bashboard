@@ -6,7 +6,8 @@
 /// `[char]27` rather than the `` `e `` escape, which Windows PowerShell 5.1 does not know. It runs
 /// after the profile, so it wraps whatever prompt the profile (or a framework like Starship) set.
 /// The guard keeps it from wrapping a profile that already carries this wrapper, which would
-/// recurse forever.
+/// recurse forever. The AWS context goes out at the first prompt and when it changes, matching the
+/// bash lines (docs/setup.md).
 const SNIPPET: &str = r#"if (-not (Test-Path variable:Global:__BashboardOriginalPrompt)) {
   $Global:__BashboardOriginalPrompt = $function:prompt
 }
@@ -14,6 +15,13 @@ function Global:prompt {
   $exit = $global:LASTEXITCODE
   $loc = $executionContext.SessionState.Path.CurrentLocation
   $out = "$([char]27)]9;9;`"$loc`"$([char]7)" + (& $Global:__BashboardOriginalPrompt)
+  $region = $env:AWS_REGION
+  if (-not $region) { $region = $env:AWS_DEFAULT_REGION }
+  $cloud = "$($env:AWS_PROFILE);$region"
+  if ($cloud -ne $Global:__BashboardCloud) {
+    $Global:__BashboardCloud = $cloud
+    $out = "$([char]27)]7502;aws;$cloud$([char]7)" + $out
+  }
   $global:LASTEXITCODE = $exit
   return $out
 }"#;
@@ -85,6 +93,30 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout);
         let root = std::env::var("SystemRoot").unwrap();
         assert_eq!(text.matches("\x1b]9;9;").count(), 1, "{text:?}");
-        assert!(text.starts_with(&format!("\x1b]9;9;\"{root}\"\x07")), "{text:?}");
+        assert!(text.contains(&format!("\x1b]9;9;\"{root}\"\x07")), "{text:?}");
+    }
+
+    /// The AWS context is reported at the first prompt and again only when it changes.
+    #[test]
+    fn the_wrapper_reports_the_aws_context_once_per_change() {
+        let exe = ["pwsh.exe", "powershell.exe"].into_iter().find(|exe| {
+            std::process::Command::new(exe).args(["-NoProfile", "-Command", "exit 0"]).output().is_ok()
+        });
+        let Some(exe) = exe else { return };
+        let script = format!(
+            "$env:AWS_PROFILE = 'prod-admin'; $env:AWS_REGION = 'us-east-1'; {SNIPPET}\n\
+             [Console]::Out.Write((prompt)); [Console]::Out.Write((prompt))\n\
+             $env:AWS_PROFILE = 'dev'; $env:AWS_REGION = ''; $env:AWS_DEFAULT_REGION = 'eu-west-1'\n\
+             [Console]::Out.Write((prompt)); [Console]::Out.Write((prompt))"
+        );
+        let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let out = std::process::Command::new(exe)
+            .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", &base64(&utf16)])
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert_eq!(text.matches("\x1b]7502;aws;").count(), 2, "{text:?}");
+        assert_eq!(text.matches("\x1b]7502;aws;prod-admin;us-east-1\x07").count(), 1, "{text:?}");
+        assert_eq!(text.matches("\x1b]7502;aws;dev;eu-west-1\x07").count(), 1, "{text:?}");
     }
 }

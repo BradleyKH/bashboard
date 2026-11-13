@@ -18,6 +18,11 @@ __bashboard_prompt() {
   local status=$?
   printf '\e]133;D;%s\e\\' "$status"
   printf '\e]9;9;%s\e\\' "$(cygpath -w "$PWD")"
+  local cloud="${AWS_PROFILE-};${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
+  if [[ $cloud != "${__bashboard_cloud-}" ]]; then
+    __bashboard_cloud=$cloud
+    printf '\e]7502;aws;%s\e\\' "$cloud"
+  fi
   return "$status"
 }
 PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
@@ -26,6 +31,9 @@ PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 They add to `PS0` and `PROMPT_COMMAND` instead of replacing them, and hand the last command's
 exit status on, so a prompt such as Starship keeps its own hooks and its error indicator.
 Without them, new panes start in the home directory. Any shell that emits OSC 7 works too.
+The lines also report the shell's `AWS_PROFILE` and region (`AWS_REGION`, else `AWS_DEFAULT_REGION`)
+for the cloud badge. They use shell builtins only, so no command runs per prompt, and they emit
+only when the values change.
 The OSC 133 markers (`PS0` and the first `printf`) tell the app exactly when a command starts
 and finishes, which drives each terminal's working or idle status. In a pane without them, status follows a
 check of the shell's processes every 2 seconds, so it can lag by up to that long.

@@ -297,7 +297,7 @@ and flags, and is required; Name is optional. Scope is a button pair, **This rep
 folder** outside a git repo) or **Everywhere**, defaulting to the first; with Everywhere the folder
 line reads "Runs in the focused pane's folder", and with no folder at all only Everywhere is
 enabled. Enter or the Pin button saves, and Escape cancels.
-The title strip's "+" (4.4) prefills Command with the terminal's selected text, if any. A command
+The title strip's pin button (4.4) prefills Command with the terminal's selected text, if any. A command
 pin's pencil button, F2, and its menu's Edit open the same popup with its values, and saving
 replaces them in place. Changing Scope there moves the pin: a repo pin made global leaves the
 repo's list, and a global pin made This repo joins the current repo's list in the focused pane's

@@ -1,6 +1,8 @@
 // Working-directory capture from OSC 9;9 (ConEmu/Windows Terminal style, emitted by the
 // bashrc PROMPT_COMMAND) and OSC 7 (file URLs). Both return Windows paths.
 
+import type { AwsContext } from './cloudContextModel';
+
 const FILE_PREFIX = 'file://';
 
 /**
@@ -60,6 +62,20 @@ export function parseOsc7(data: string): string | null {
   if (segments.some((s) => s.includes('\\') || s.includes(':'))) return null;
 
   return `${drive.toUpperCase()}:\\${segments.join('\\')}`;
+}
+
+/**
+ * Parses the private OSC 7502 cloud-context report. xterm.js hands the handler everything
+ * after `ESC ] 7502;`, so `aws;prod;us-east-1` arrives whole. Either field may be empty. The
+ * split stops after the second `;` so the region is taken verbatim; unknown providers return
+ * null so a later provider can be added without older builds misreading it.
+ */
+export function parseOsc7502(data: string): AwsContext | null {
+  const first = data.indexOf(';');
+  if (first < 0 || data.slice(0, first) !== 'aws') return null;
+  const second = data.indexOf(';', first + 1);
+  if (second < 0) return { profile: data.slice(first + 1), region: '' };
+  return { profile: data.slice(first + 1, second), region: data.slice(second + 1) };
 }
 
 export interface Osc133 {

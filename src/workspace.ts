@@ -819,6 +819,12 @@ export class Workspace {
     for (const pane of this.paneViews.values()) if (pane instanceof GitPane) pane.reloadWorktrees();
   }
 
+  /** Redraws every pane's strip and the dashboard, for an input shared by all panes. */
+  refreshStatuses(): void {
+    for (const id of this.paneViews.keys()) this.status.refresh(id);
+    this.notify();
+  }
+
   setActivity(list: PtyActivity[]): void {
     if (!this.sessions.applyActivity(list, Date.now())) return;
     for (const id of this.paneViews.keys()) this.status.refresh(id);

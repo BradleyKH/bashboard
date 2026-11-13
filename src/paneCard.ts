@@ -189,7 +189,8 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     el.append(path);
   }
   const sizeBadge = opts.sizeBadge ?? null;
-  if (opts.agentLine !== null || sizeBadge !== null) {
+  const cloud = card.kind === 'terminal' ? card.cloud : [];
+  if (opts.agentLine !== null || sizeBadge !== null || cloud.length > 0) {
     const line = document.createElement('div');
     line.className = 'card-agent';
     if (opts.agentLine !== null) {
@@ -204,6 +205,13 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
       chip.className = 'card-size-badge';
       chip.textContent = sizeBadge.text;
       chip.title = sizeBadge.title;
+      line.append(chip);
+    }
+    for (const c of cloud) {
+      const chip = document.createElement('span');
+      chip.className = c.production ? 'card-cloud production' : 'card-cloud';
+      chip.textContent = c.text;
+      chip.title = c.title;
       line.append(chip);
     }
     el.append(line);

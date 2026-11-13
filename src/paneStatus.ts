@@ -1,3 +1,4 @@
+import { cloudContextStore } from './cloudContextStore';
 import { isBusy, lastFolder, type PaneCardInput } from './dashboardModel';
 import { TerminalPane } from './pane';
 import { viewCardInput, viewTitle } from './paneInfo';
@@ -100,13 +101,15 @@ export class PaneStatus {
     }
     const status = this.status(id);
     const reason = status === 'waiting' ? this.waitingReason(id) : '';
+    const cloud = cloudContextStore.chipsFor(pane.cloudState());
     strip.update({
       title: this.title(id),
       path: this.ctx.containerShells.get(id) ?? pane.cwd ?? '',
       status,
       ...(status === 'waiting' && { reason }),
+      cloud,
     });
-    this.stripShown.set(id, `${status}|${reason}`);
+    this.stripShown.set(id, `${status}|${reason}|${cloud.map((c) => c.text).join('|')}`);
     // Agent glow (design 4.23) is for an agent at work, not a busy shell command.
     const agentBusy = this.ctx.sessions.agentWorking(pane);
     this.ctx.hosts.get(id)?.classList.toggle('agent-working', agentBusy);
@@ -133,6 +136,7 @@ export class PaneStatus {
         profile: pane.profile ?? ctx.defaultProfile(),
         shell: ctx.sessions.shellOf(pane, this.openedAt(paneId)),
         program: pane.programState(),
+        cloud: cloudContextStore.chipsFor(pane.cloudState()),
         attention: ctx.hasAttention(paneId),
         mark: this.mark(paneId),
         ...(ctx.containerShells.has(paneId) && { containerName: ctx.containerShells.get(paneId) }),
