@@ -63,13 +63,18 @@
   color: #9aa6ad;
 }
 
-/* A fixed width, since the Start, Stop, and details glyphs differ and the counts must line up. */
+/* A fixed width, since the Start and Stop glyphs differ and the counts must line up. */
 #dashboard .container-action {
   flex: 0 0 auto;
   width: 24px;
   padding: 0;
   text-align: center;
   opacity: 0;
+}
+
+#dashboard .container-action-spacer {
+  flex: 0 0 auto;
+  width: 24px;
 }
 
 #dashboard .container-action:focus-visible,

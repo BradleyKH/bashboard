@@ -873,9 +873,9 @@ missing is left out. One that is installed but not running shows as "Docker is n
 Bashboard checks it again every 10 seconds. The section appears while
 an engine is found and `dashboard.sections.containers` is on (see [Settings](settings.md#settings)).
 
-Each row shows the project's name, how many of its containers run ("1 of 2"), and one button on
-hover. A project with a single container gets Start or Stop; a project with more gets a details
-button (›) that opens it in the Containers tab, where each container can be started or stopped.
+Each row shows the project's name and how many of its containers run ("1 of 2"). A project with
+a single container shows a Start or Stop button on hover; for a project with more, click the row
+to open it in the Containers tab, where each container can be started or stopped.
 Right-click a row to start or stop a whole project. A project that exists on both engines is one row.
 Click a row to open the Containers tab with that project expanded. The Manage button (an arrow
 leaving a square) in the section's header switches to a Containers tab that is already open, or

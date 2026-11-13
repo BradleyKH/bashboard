@@ -136,7 +136,7 @@ export class Workspace {
       if (this.clearDoneIfSeen() || cleared) this.notify();
     });
     // Bubble phase, so inputs that stop propagation of their own keys (the favorites picker) win.
-    window.addEventListener('keydown', (e) => this.onEmptyLayoutKey(e));
+    window.addEventListener('keydown', (e) => this.onUnownedKey(e));
   }
 
   /** The one object the helper modules act through; each sees it only as its own narrow context. */
@@ -897,14 +897,41 @@ export class Workspace {
     );
   }
 
-  /** With no expanded pane nothing holds focus, so workspace keys arrive here instead. */
-  private onEmptyLayoutKey(e: KeyboardEvent): void {
-    if (this.store.tree || e.defaultPrevented || this.paneDrag.isActive()) return;
+  /**
+   * Workspace keys that no pane received. With no expanded pane nothing holds focus. Otherwise
+   * focus fell to the body: Chromium moves it there when the focused element is disabled,
+   * hidden, or removed, which non-terminal panes do routinely (a Push button disabling while it
+   * runs, a refresh rebuilding the row that was clicked). Those panes listen for keys on their
+   * own host only, so without this their workspace keys go dead until something refocuses them.
+   */
+  private onUnownedKey(e: KeyboardEvent): void {
+    if (e.defaultPrevented || this.paneDrag.isActive()) return;
+    if (this.store.tree) {
+      if (e.target === document.body && this.redeliverToPane(e)) return;
+      if (e.target !== document.body) return;
+    }
     const t = e.target as HTMLElement | null;
     if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (!this.runKey(e)) return;
     e.preventDefault();
     e.stopPropagation();
+  }
+
+  /**
+   * Refocuses the focused pane and hands it a copy of a key that landed on the body, so the
+   * key gets the pane's full handling (its own keys such as list arrows, Enter, and a preview's
+   * Ctrl+F, then the workspace keys) rather than only the workspace's. False when no pane
+   * took focus. A copy cannot type a character, so the one key that orphaned a text field is lost.
+   */
+  private redeliverToPane(e: KeyboardEvent): boolean {
+    this.paneViews.get(this.store.focusedId)?.focus();
+    const target = document.activeElement;
+    if (!(target instanceof HTMLElement) || target === document.body) return false;
+    // KeyboardEventInit takes every field chordFromEvent and the panes read.
+    const copy = new KeyboardEvent(e.type, e);
+    if (!target.dispatchEvent(copy)) e.preventDefault();
+    e.stopPropagation();
+    return true;
   }
 
   /** Runs the workspace action bound to a key pressed outside any pane; true when one ran. */
