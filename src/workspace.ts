@@ -21,6 +21,8 @@ import { LiveSettings } from './liveSettings';
 import { TerminalPane } from './pane';
 import { PaneAttention } from './paneAttention';
 import { PaneLights } from './paneLights';
+import type { PaneRun } from './paneRunModel';
+import type { RunTerminal } from './paneRunTracker';
 import { PaneDrag, type PaneDragContext } from './paneDrag';
 import { PaneFactory, type PaneFactoryContext } from './paneFactory';
 import { knownForgeSources as forgeSourcesOf } from './paneInfo';
@@ -96,6 +98,8 @@ export class Workspace {
   private readonly findBar = new FindBar();
   /** Pane ids, most recently focused first; Send targets the newest terminal in the pad's tab. */
   private focusOrder: string[] = [];
+  /** Design 4.26: the CI run each terminal shows on its card. */
+  private readonly paneRuns = new Map<string, PaneRun>();
 
   constructor(
     private readonly root: HTMLElement,
@@ -219,6 +223,7 @@ export class Workspace {
       keep: (host) => this.tabView.keep(host),
       hasAttention: (id) => this.attention.has(id),
       observeAttention: (id, status) => this.attention.observe(id, status),
+      paneRun: (id) => this.paneRuns.get(id) ?? null,
       syncFindBar: () => this.syncFindBar(),
     };
   }
@@ -726,6 +731,36 @@ export class Workspace {
     return out;
   }
 
+  /** Every terminal with its folder, most recently focused first, then in pane order; a new CI run binds to the first on its branch. */
+  runTerminals(): RunTerminal[] {
+    const ids = [...this.focusOrder, ...this.paneViews.keys()];
+    const out: RunTerminal[] = [];
+    const seen = new Set<string>();
+    for (const paneId of ids) {
+      const term = this.terminal(paneId);
+      if (!term || seen.has(paneId)) continue;
+      seen.add(paneId);
+      out.push({ paneId, cwd: term.cwd });
+    }
+    return out;
+  }
+
+  /** Design 4.26: shows `run` on the terminal's card, or none. */
+  setPaneRun(paneId: string, run: PaneRun | null): void {
+    if (!this.paneViews.has(paneId)) return;
+    if (run === null) this.paneRuns.delete(paneId);
+    else this.paneRuns.set(paneId, run);
+    this.notify();
+  }
+
+  /** Design 4.26: a bound run finished; marks the terminal like a long command unless it is seen. */
+  paneRunFinished(paneId: string, kind: 'done' | 'failed'): void {
+    if (!this.terminal(paneId)) return;
+    this.sessions.onRun(paneId, kind === 'failed', this.isSeen(paneId));
+    this.status.refresh(paneId);
+    this.notify();
+  }
+
   /** Design 4.9: layout leaves already hold pane ids, which double as saved keys. */
   snapshot(): SavedWorkspace {
     return persistence.snapshot(this.ctx);
@@ -1055,6 +1090,7 @@ export class Workspace {
     this.status.forget(id);
     this.attention.forget(id);
     this.sessions.forget(id);
+    this.paneRuns.delete(id);
     this.focusOrder = forget(this.focusOrder, id);
     this.paneViews.delete(id);
     // The save starts before dispose, so pending editor text still reaches the disk.

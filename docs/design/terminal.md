@@ -305,6 +305,11 @@ terminal becomes the pane being looked at, and a command mark also clears on the
 newer mark replaces the old. `failed` is a still cross in the error color, where `done` is a
 still check mark.
 
+**Runs.** A CI run bound to the pane (4.26) marks the terminal when it finishes: `done` for
+success, `failed` for failure, nothing for cancelled or skipped. It is the `run` kind in
+`DoneTracker`, set only while the terminal is not being looked at, and cleared and replaced the
+same way as a command mark.
+
 `done` and `failed` are display state only; the session stays `idle`. They are not saved, so
 restored terminals start without them.
 

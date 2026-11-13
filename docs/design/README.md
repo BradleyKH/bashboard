@@ -65,6 +65,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.23 Agent glow and border lights (`src/paneLights.ts`) | [sessions.md](sessions.md) |
 | 4.24 Program status (OSC 7501) (`src/programStatus.ts`) | [sessions.md](sessions.md) |
 | 4.25 Cloud context chip (OSC 7502) (`src/cloudContextModel.ts`) | [terminal.md](terminal.md) |
+| 4.26 Runs bound to panes (`src/paneRunModel.ts`, `src/paneRunTracker.ts`) | [ship.md](ship.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |

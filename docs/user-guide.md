@@ -513,6 +513,19 @@ that `gh` is not signed in to, add it to `ship.hosts` (see [Settings](settings.m
 A self-managed GitLab host is recognized when GitLab CLI's config lists it or `ship.hosts` names it.
 Azure DevOps Server is not served; only Azure DevOps Services (dev.azure.com) is.
 
+### Runs on a terminal's branch
+
+When a new CI run appears on the branch a terminal is on, usually right after a push from that
+terminal, the run attaches to the terminal. Its card in the dashboard shows a chip on the model
+line with the run's name, number, and status (`build #42 running`, `passed`, or `failed`), and
+hovering shows the name and link. If several terminals share the worktree and branch, the one you
+focused most recently gets it. The run stays on the card until a newer one starts or the terminal
+moves to another branch. When it finishes while you are not looking at the terminal, a pass marks
+it `done` and a failure marks it `failed`, which show on the title strip, card, and tab and join
+Ctrl+Shift+N, as in [Attention and status](#attention-and-status). Bashboard only watches: it never
+types into the terminal or re-runs anything, and it shows nothing when no code host account is
+signed in.
+
 ## Code search
 
 A Search pane searches the files of a repo for a text or regex query and lists the matching lines.
@@ -1014,6 +1027,11 @@ runs at least `terminal.doneAfterSeconds` and finishes while you are not looking
 marks it `done`, or `failed` (a still red cross) when it exited nonzero; Ctrl+C is not a failure.
 Only Git Bash with the `~/.bashrc` lines from [New panes in the current folder](setup.md#new-panes-in-the-current-folder)
 reports commands, and a bound agent session's own status takes precedence.
+
+A CI run that starts on a terminal's branch, typically after that terminal pushes, shows as a chip
+on the terminal's card (such as `build #42 running`), and marks the terminal `done` or `failed` when
+the run passes or fails while you are not looking at it. Cancelled and skipped runs mark nothing.
+See [Runs on a terminal's branch](#runs-on-a-terminals-branch).
 
 ## Cloud context chip
 

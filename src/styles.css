@@ -928,6 +928,39 @@ body.dashboard-resizing {
   white-space: nowrap;
 }
 
+/* The CI run bound to the pane (docs/design/ship.md section 4.26). Green and red match the status
+   dot's done and failed marks, which a finished run sets. */
+.card-run {
+  --card-run-color: var(--accent);
+  flex-shrink: 0;
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  border: 1px solid var(--card-run-color);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-run-color) 15%, transparent);
+  color: var(--card-run-color);
+  font-size: 10px;
+  line-height: 14px;
+  cursor: default;
+}
+
+.card-run--success {
+  --card-run-color: #6cc487;
+}
+
+.card-run--failure {
+  --card-run-color: var(--system-error);
+}
+
+.card-run--cancelled,
+.card-run--skipped,
+.card-run--other {
+  --card-run-color: #7f8c94;
+}
+
 .card-reason,
 .session-reason {
   overflow: hidden;

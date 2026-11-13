@@ -29,6 +29,7 @@ import { ConfirmDialog } from './confirmDialog';
 import { moveItem, parseFavorites } from './favorites';
 import { shipOverviewStore } from './shipOverviewStore';
 import { branchSizeStore } from './branchSizeStore';
+import { livePaneRunDeps, PaneRunTracker } from './paneRunTracker';
 import { parseLayouts } from './layouts';
 import { BackdropHost } from './backdrop/backdropHost';
 import { favoritesLoad, globalPinsLoad, layoutsLoad, reposLoad, workspaceLoad, workspaceSave } from './persistence';
@@ -470,7 +471,15 @@ const saver = new DebouncedSaver(
   1000,
 );
 const refreshPanel = (): void => panel.update(workspace.panes(), workspace.tabs(), state.sessions);
+// Design 4.26: CI runs bound to the terminal whose branch they run on. Lives for the whole session.
+const paneRuns = new PaneRunTracker(
+  livePaneRunDeps({
+    bind: (paneId, run) => workspace.setPaneRun(paneId, run),
+    finish: (paneId, kind) => workspace.paneRunFinished(paneId, kind),
+  }),
+);
 workspace.onChange(() => {
+  paneRuns.setPanes(workspace.runTerminals());
   refreshPanel();
   repo.track();
   syncGitFetchRoots(workspace.panes());

@@ -19,6 +19,7 @@ const terminal: TerminalCard = {
   attention: false,
   containerName: null,
   cloud: [],
+  run: null,
 };
 
 const pad: OtherCard = {

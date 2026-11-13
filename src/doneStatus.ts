@@ -26,7 +26,14 @@ interface ProgramMark {
   failed: boolean;
 }
 
-type DoneMark = SessionMark | CommandMark | ProgramMark;
+interface RunMark {
+  kind: 'run';
+  /** Epoch ms the bound CI run was seen finishing. */
+  at: number;
+  failed: boolean;
+}
+
+type DoneMark = SessionMark | CommandMark | ProgramMark | RunMark;
 
 interface ResolvedStatus {
   status: TerminalStatus;
@@ -54,7 +61,9 @@ const INTERRUPTED = 130;
  * `command` mark is a long shell command that finished unseen; it shows `done`, or `failed` when
  * the command exited nonzero, and clears on the next command's start. A `program` mark is an
  * OSC 7501 report moving from working or blocked to done or idle (`done`) or to error (`failed`)
- * while unseen, the hookless counterpart of a Stop. Pure display state layered
+ * while unseen, the hookless counterpart of a Stop. A `run` mark is a CI run bound to the pane
+ * (docs/design/ship.md section 4.26) finishing unseen; it shows `done` or `failed` and, like a
+ * program mark, yields to work that starts after it. Pure display state layered
  * over the resolved status; it never reaches the roster or the backdrop.
  */
 export class DoneTracker {
@@ -84,6 +93,13 @@ export class DoneTracker {
     return true;
   }
 
+  /** Records a bound CI run finishing while the pane was not seen. */
+  markRun(paneId: string, failed: boolean, at: number, seen: boolean): boolean {
+    if (seen) return false;
+    this.marks.set(paneId, { kind: 'run', at, failed });
+    return true;
+  }
+
   /** Drops the pane's command mark when the next command starts (OSC 133 `C`). */
   commandStarted(paneId: string): boolean {
     if (this.marks.get(paneId)?.kind !== 'command') return false;
@@ -100,7 +116,7 @@ export class DoneTracker {
       if (session) return base;
       return { status: mark.failed ? 'failed' : 'done', changedAt: mark.at };
     }
-    if (mark.kind === 'program') {
+    if (mark.kind === 'program' || mark.kind === 'run') {
       // Work that started after the mark replaces it; anything quieter keeps it showing.
       if (base.status === 'working' || base.status === 'waiting') {
         if (base.changedAt > mark.at) this.marks.delete(paneId);

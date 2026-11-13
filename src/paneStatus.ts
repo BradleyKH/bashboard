@@ -1,6 +1,7 @@
 import { cloudContextStore } from './cloudContextStore';
 import { isBusy, lastFolder, type PaneCardInput } from './dashboardModel';
 import { TerminalPane } from './pane';
+import type { PaneRun } from './paneRunModel';
 import { viewCardInput, viewTitle } from './paneInfo';
 import type { PaneView } from './paneView';
 import { combinedStatus, tabTitle, type TabState } from './tabs';
@@ -21,6 +22,8 @@ export interface PaneStatusContext {
   hasAttention(id: string): boolean;
   /** Feeds a terminal's status to attention; true when that raised it. */
   observeAttention(id: string, status: TerminalStatus): boolean;
+  /** The CI run bound to a terminal (docs/design/ship.md section 4.26). */
+  paneRun(id: string): PaneRun | null;
 }
 
 /**
@@ -139,6 +142,7 @@ export class PaneStatus {
         cloud: cloudContextStore.chipsFor(pane.cloudState()),
         attention: ctx.hasAttention(paneId),
         mark: this.mark(paneId),
+        run: ctx.paneRun(paneId),
         ...(ctx.containerShells.has(paneId) && { containerName: ctx.containerShells.get(paneId) }),
       };
     }

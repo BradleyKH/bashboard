@@ -189,6 +189,49 @@ describe('DoneTracker command marks', () => {
   });
 });
 
+describe('DoneTracker run marks', () => {
+  it('shows done or failed with the mark time until new work', () => {
+    const d = new DoneTracker();
+    expect(d.markRun('a', false, 1000, false)).toBe(true);
+    expect(d.resolve('a', null, idle)).toEqual({ status: 'done', changedAt: 1000 });
+    expect(d.markRun('b', true, 1000, false)).toBe(true);
+    expect(d.resolve('b', null, idle)).toEqual({ status: 'failed', changedAt: 1000 });
+    const later = { status: 'waiting' as const, changedAt: 2000 };
+    expect(d.resolve('a', null, later)).toEqual(later);
+    expect(d.has('a')).toBe(false);
+  });
+
+  it('does not mark while seen', () => {
+    const d = new DoneTracker();
+    expect(d.markRun('a', false, 1000, true)).toBe(false);
+    expect(d.has('a')).toBe(false);
+  });
+
+  it('keeps the mark under stale work and shows over a bound session', () => {
+    const d = new DoneTracker();
+    d.markRun('a', false, 2000, false);
+    const stale = { status: 'working' as const, changedAt: 1500 };
+    expect(d.resolve('a', null, stale)).toEqual(stale);
+    expect(d.has('a')).toBe(true);
+    expect(d.resolve('a', session(), idle)).toEqual({ status: 'done', changedAt: 2000 });
+  });
+
+  it('survives the next command start and clears on focus', () => {
+    const d = new DoneTracker();
+    d.markRun('a', true, 1000, false);
+    expect(d.commandStarted('a')).toBe(false);
+    expect(d.has('a')).toBe(true);
+    expect(d.clear('a')).toBe(true);
+  });
+
+  it('is replaced by a newer mark of another kind', () => {
+    const d = new DoneTracker();
+    d.markRun('a', true, 1000, false);
+    d.markCommand('a', { durationMs: 30_000, exitCode: 0, at: 5000, seen: false, minSeconds: 30 });
+    expect(d.resolve('a', null, idle)).toEqual({ status: 'done', changedAt: 5000 });
+  });
+});
+
 describe('DoneTracker program marks', () => {
   it('marks a working-to-done report while unseen, showing done until new work', () => {
     const d = new DoneTracker();

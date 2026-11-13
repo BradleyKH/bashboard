@@ -144,6 +144,11 @@ export class WorkspaceSessions {
     this.done.markProgram(paneId, prev?.report.state ?? null, next?.report.state ?? null, Date.now(), seen);
   }
 
+  /** Design 4.26: a CI run bound to the terminal finishing while unseen marks it. */
+  onRun(paneId: string, failed: boolean, seen: boolean): void {
+    this.done.markRun(paneId, failed, Date.now(), seen);
+  }
+
   /**
    * Design 4.8: an unseen `Stop` for a terminal's bound session shows `done` on it. `byPty` is the
    * pane running the event's pty, when it names one; else the terminal bound to its session gets

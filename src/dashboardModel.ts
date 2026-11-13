@@ -1,5 +1,6 @@
 import type { CloudChip } from './cloudContextModel';
 import type { PaneKind } from './paneKinds';
+import type { PaneRun } from './paneRunModel';
 import type { Session, SessionStatus } from './sessions';
 import {
   terminalStatus,
@@ -31,6 +32,8 @@ export interface TerminalCardInput {
   containerName?: string;
   /** Cloud-context chips (docs/design/terminal.md section 4.25); absent means none. */
   cloud?: CloudChip[];
+  /** The CI run bound to the pane (docs/design/ship.md section 4.26); absent means none. */
+  run?: PaneRun | null;
 }
 
 /** A pane of any kind other than a terminal (docs/design/workspace.md section 4.11). */
@@ -71,6 +74,7 @@ export interface TerminalCard {
   attention: boolean;
   containerName: string | null;
   cloud: CloudChip[];
+  run: PaneRun | null;
 }
 
 export interface OtherCard {
@@ -149,6 +153,7 @@ function terminalCard(t: TerminalCardInput, sessions: Session[]): TerminalCard {
     attention: t.attention,
     containerName: t.containerName ?? null,
     cloud: t.cloud ?? [],
+    run: t.run ?? null,
   };
 }
 

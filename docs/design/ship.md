@@ -746,3 +746,42 @@ status and never a token. The tab loads when it is shown, when the window regain
   button that names a host opens the tab, expands More hosts when the card is folded there, and
   scrolls that host's card into view; a host the core had not listed is asked for, so the request
   always lands on a card. The Overview's bar button leaves the choice to the tab.
+
+## 4.26 Runs bound to panes (`src/paneRunModel.ts`, `src/paneRunTracker.ts`)
+
+A CI run that starts on the branch a terminal is on, typically right after that pane pushed, binds
+to the pane: the pane's session card shows its status, and its finish marks the terminal like a
+long command does (4.8). The feature only displays; it types nothing into a terminal or an agent,
+and it re-runs and cancels nothing.
+
+**Trigger.** The repo's git metadata changing (the git watcher of 4.13; a push moves remote refs)
+makes `paneRunTracker.ts` read the runs for that worktree's branch through the Ship run list
+(3.20), at most once per 30 seconds per worktree and branch; a change inside that window is read when it
+ends rather than dropped. Hosts create a run a few seconds after the push, so a read that binds
+nothing is repeated once about 30 seconds later and then stops. Background fetches
+(`git.autoFetchMinutes`) change metadata too, so each costs one or two run reads per repo that
+has a terminal open. While a bound run is queued, running, or waiting, the tracker polls it every
+`FAST_POLL_MS` (60 s, section 4.20), and keeps polling through a host error so a transient failure
+recovers. Nothing is polled otherwise, and polling pauses while the window is hidden. An error on
+a read with nothing bound leaves the pane as it was and shows nothing.
+
+**New run.** `paneRunModel.ts` holds the rules as pure functions. A run is new when its id was not
+in the previous list read for that worktree and branch. The first read has no previous list, so
+it accepts only runs created no earlier than two minutes before the change that triggered it, and
+runs from before Bashboard was watching never bind. A previous list more than 5 minutes old counts
+as no list, so runs a teammate started since then do not bind to your pane.
+
+**Which pane.** A new run binds to one terminal: of the terminals in that worktree on that branch,
+the one focused most recently. A newer run replaces the older one on that pane, and when one read finds several new runs (a
+push that starts more than one workflow), only the newest binds. The run stays
+bound until a newer one binds or the pane leaves that branch or worktree.
+
+**Chip.** The session card shows a chip on its model line, the line that holds the agent's model:
+the run's name, number, and status, such as `build #42 running`, `build #42 passed`, or
+`build #42 failed`. Its color follows the status, and hovering shows the run's name and link.
+
+**Finish.** When a bound run reaches a final state, a `run` mark kind in `DoneTracker`
+(`src/doneStatus.ts`) marks the terminal: `done` for success, `failed` for failure, and nothing
+for cancelled or skipped. As with long commands, no mark is set while the pane is being looked at
+(4.7). The mark shows on the title strip, card, and tab, joins Ctrl+Shift+N's walk, is replaced by
+a new piece of work in the pane, and clears when the pane is focused.

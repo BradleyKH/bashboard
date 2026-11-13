@@ -7,6 +7,7 @@ import { openInMenuItems, openMenuButton, type OpenInHandler } from './openMenu'
 import { paneCardMenuItems } from './paneCardMenus';
 import { paneKindInfo } from './paneKinds';
 import { profileBadge } from './profiles';
+import { runChip } from './paneRunModel';
 
 export interface PaneCardOptions {
   now: number;
@@ -190,7 +191,8 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
   }
   const sizeBadge = opts.sizeBadge ?? null;
   const cloud = card.kind === 'terminal' ? card.cloud : [];
-  if (opts.agentLine !== null || sizeBadge !== null || cloud.length > 0) {
+  const run = card.kind === 'terminal' ? card.run : null;
+  if (opts.agentLine !== null || sizeBadge !== null || cloud.length > 0 || run !== null) {
     const line = document.createElement('div');
     line.className = 'card-agent';
     if (opts.agentLine !== null) {
@@ -212,6 +214,14 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
       chip.className = c.production ? 'card-cloud production' : 'card-cloud';
       chip.textContent = c.text;
       chip.title = c.title;
+      line.append(chip);
+    }
+    if (run !== null) {
+      const { text, title, modifier } = runChip(run);
+      const chip = document.createElement('span');
+      chip.className = `card-run card-run--${modifier}`;
+      chip.textContent = text;
+      chip.title = title;
       line.append(chip);
     }
     el.append(line);
