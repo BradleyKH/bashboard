@@ -16,7 +16,10 @@ standalone installer are both found. Vim and Neovim open in a new pane beside th
 which closes when you quit the editor; the Vim that comes with Git for Windows is found even
 though it is not on `PATH`. If the chosen editor is not installed or will not start, the file opens in the default
 app and a toast says so. Scripts, programs, and shortcuts (`.bat`, `.exe`, `.lnk`, `.ps1`, and
-the like) open in Notepad rather than their default app, which would run them.
+the like) open in Notepad rather than their default app, which would run them. On macOS,
+runnable files (apps, scripts, installers, `.command` and `.tool` files, AppleScript, any file
+marked executable, and the like) open as text in the default text editor, through `open -t` (TextEdit unless you change
+it), for the same reason.
 `editor.command` replaces the editor with your own command line, for example
 `code.cmd -g "{path}:{line}"`. Double quotes group an argument, and no shell runs it, so the
 program name must include its extension when it is a shim such as `code.cmd`. `{path}` and

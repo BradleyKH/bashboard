@@ -124,7 +124,11 @@ that call fails. The list is sorted with monospace families first, then by name 
 and a name repeated ignoring case is dropped, so a family read both as monospace and not keeps
 its monospace entry. The collection is read on every call, with DirectWrite asked to check for
 updates, so a font installed while the app runs shows up on the next call. If DirectWrite fails
-the list is empty. On other platforms the list is always empty.
+the list is empty. On macOS it reads Core Text's collection of available fonts instead: each
+matching font descriptor gives its family name attribute, and `monospace` is the monospace bit
+of the descriptor's symbolic traits, false when the traits cannot be read. Several faces of one
+family collapse in the sort, keeping the monospace entry. On other platforms the list is always
+empty.
 
 ## 3.26 Azure context (`src-tauri/src/cloud_context.rs`)
 

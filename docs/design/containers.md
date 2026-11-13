@@ -153,6 +153,16 @@ folder from `sysinfo`; command lines and folders are read once per process. A pr
 set when a live ancestor, the process included, is a shell (bash, sh, zsh, fish, cmd, pwsh,
 powershell, nu) or Claude Code, walked the same way as the owning pane below.
 
+**macOS.** The listener table comes from `/usr/sbin/lsof -nP -iTCP -sTCP:LISTEN -F ptn`, run by
+full path because an app launched from the Dock has a minimal `PATH`; `parse_lsof` folds its
+output into the same per-address rows, a `*` becoming `0.0.0.0` or `::` by the row's family and
+IPv6 brackets dropped. Without root, lsof lists only the user's own processes, which is what the
+pane wants, so no row is marked `system` and the Windows services checkbox is hidden. Shell names
+match with any `.exe` dropped, so `zsh` and the rest count. Stop has no `taskkill`: it gathers the
+process's descendants from the process list (stopping at a child older than its recorded parent,
+a reused pid), sends SIGTERM to them and then the process, waits up to 2 s, and sends SIGKILL to
+whatever is left, so the end state matches the forceful Windows stop.
+
 **Owning pane.** A row's `ptyId` is the pane terminal (3.1) it came from. The core walks the
 process's parent chain up to a pane's shell, stopping at a parent that started after its child,
 which is a reused pid rather than the real parent. MSYS exec can leave a process parented to a
@@ -175,7 +185,7 @@ stop.
 
 **Stop.** A row's context menu offers Stop, and so does the Ports pane's Stop button; the
 dashboard section has no button for it. It asks first, naming the program,
-pid, port, command line, and where it came from, then runs `taskkill /PID <pid> /T /F`, ending the
+pid, port, command line, and where it came from, then runs `taskkill /PID <pid> /T /F` on Windows, ending the
 process and everything it started. `ports_stop(pid, startedAt)` refuses when the pid now belongs
 to a process with another start time, refuses pid 4 and below and Bashboard itself, and a toast
 reports the result.

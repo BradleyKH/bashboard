@@ -669,8 +669,8 @@ fn stored_target(
     }
 }
 
-/// Stores a token in Windows Credential Manager: Bitbucket's, or one Azure DevOps
-/// organization's. The token never appears in an error, and every copy here is overwritten
+/// Stores a token in the OS credential store (Windows Credential Manager or the macOS Keychain):
+/// Bitbucket's, or one Azure DevOps organization's. The token never appears in an error, and every copy here is overwritten
 /// before it is freed.
 #[tauri::command]
 pub async fn forge_set_token(

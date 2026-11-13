@@ -75,14 +75,14 @@
       "name": "auth",
       "usage": "bb auth bitbucket [--clear]",
       "summary": "Store a Bitbucket API token for the Ship pane",
-      "details": "Prompts for the token with echo off, or reads it from standard input, and saves it in Windows Credential Manager. --clear removes it. Works outside Bashboard too.",
+      "details": "Prompts for the token with echo off, or reads it from standard input, and saves it in Windows Credential Manager or the macOS Keychain. --clear removes it. Works outside Bashboard too.",
       "examples": ["bb auth bitbucket", "bb auth bitbucket --clear"]
     },
     {
       "name": "auth",
       "usage": "bb auth azure-devops <org> [--clear]",
       "summary": "Store an Azure DevOps PAT for one organization",
-      "details": "Prompts for the PAT with echo off, or reads it from standard input, and saves it in Windows Credential Manager under that organization, so each organization needs its own. --clear removes it. Works outside Bashboard too.",
+      "details": "Prompts for the PAT with echo off, or reads it from standard input, and saves it in Windows Credential Manager or the macOS Keychain under that organization, so each organization needs its own. --clear removes it. Works outside Bashboard too.",
       "examples": ["bb auth azure-devops contoso", "bb auth azure-devops contoso --clear"]
     },
     {

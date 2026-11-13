@@ -1,6 +1,17 @@
-//! Generic credentials in Windows Credential Manager, shared by the app and `bb.exe` (which
-//! includes this file by path), so both read and write the Bitbucket token the same way. It
-//! depends on nothing in the crate for that reason.
+//! Forge tokens in the OS credential store (generic credentials in Windows Credential Manager,
+//! generic passwords in the macOS Keychain), shared by the app and `bb` (which includes this
+//! file by path), so both read and write tokens the same way. It depends on nothing in the crate
+//! for that reason.
+
+/// The store's name, for messages. Only `bb` names it, so the app sees it as unused.
+#[allow(dead_code)]
+pub const STORE_NAME: &str = if cfg!(windows) {
+    "Windows Credential Manager"
+} else if cfg!(target_os = "macos") {
+    "the macOS Keychain"
+} else {
+    "the system credential store"
+};
 
 /// The target the app's Bitbucket token lookup reads.
 pub const BITBUCKET_TARGET: &str = "bashboard:bitbucket.org";
@@ -11,7 +22,8 @@ pub const BITBUCKET_USER: &str = "x-bitbucket-api-token-auth";
 pub const AZURE_DEVOPS_PREFIX: &str = "bashboard:dev.azure.com/";
 /// The user name is informational; the reader ignores it.
 pub const AZURE_DEVOPS_USER: &str = "x-azure-devops-pat";
-/// Credential Manager rejects a blob over `CRED_MAX_CREDENTIAL_BLOB_SIZE`.
+/// Credential Manager rejects a blob over `CRED_MAX_CREDENTIAL_BLOB_SIZE`. The Keychain has no
+/// such limit, but `clean_token` applies it everywhere so the platforms accept the same tokens.
 pub const MAX_TOKEN_BYTES: usize = 2560;
 
 /// The first line of the input, trimmed; rejects an empty or oversized token.
@@ -199,9 +211,87 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 mod imp {
-    const UNSUPPORTED: &str = "storing a token needs Windows Credential Manager";
+    use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
+    use security_framework::passwords::{
+        delete_generic_password, get_generic_password, set_generic_password,
+    };
+
+    /// Every item shares this service; the target is the account.
+    const KEYCHAIN_SERVICE: &str = "bashboard";
+    /// `errSecItemNotFound`.
+    const ITEM_NOT_FOUND: i32 = -25300;
+
+    /// The stored password's text, or `None` when nothing is stored or it is empty.
+    pub fn read(target: &str) -> Option<String> {
+        let mut bytes = get_generic_password(KEYCHAIN_SERVICE, target).ok()?;
+        let text = std::str::from_utf8(&bytes)
+            .ok()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty());
+        bytes.fill(0);
+        text
+    }
+
+    /// The accounts of the items under the service, attributes only: loading data could
+    /// raise an access prompt.
+    fn accounts(account: Option<&str>, limit: Limit) -> Vec<String> {
+        let mut search = ItemSearchOptions::new();
+        search
+            .class(ItemClass::generic_password())
+            .service(KEYCHAIN_SERVICE)
+            .load_attributes(true)
+            .limit(limit);
+        if let Some(account) = account {
+            search.account(account);
+        }
+        // No match is an errSecItemNotFound error, as is any other failure: none listed.
+        let Ok(results) = search.search() else {
+            return Vec::new();
+        };
+        results
+            .iter()
+            .filter_map(|r| r.simplify_dict()?.remove("acct"))
+            .collect()
+    }
+
+    /// Whether an item is stored under the target, without reading its password.
+    pub fn exists(target: &str) -> bool {
+        !accounts(Some(target), Limit::Max(1)).is_empty()
+    }
+
+    /// The targets whose name starts with `prefix`, matched as `name_from_target` does.
+    pub fn list_targets(prefix: &str) -> Vec<String> {
+        accounts(None, Limit::All)
+            .into_iter()
+            .filter(|a| {
+                a.get(..prefix.len())
+                    .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+            })
+            .collect()
+    }
+
+    /// `user` is not stored: a label or comment would join the match query that
+    /// `set_generic_password` reuses to update an existing item, so a changed one would fail.
+    pub fn write(target: &str, _user: &str, blob: &[u8]) -> Result<(), String> {
+        set_generic_password(KEYCHAIN_SERVICE, target, blob)
+            .map_err(|e| format!("could not store the credential: {e}"))
+    }
+
+    /// Returns false when no item was stored under the target.
+    pub fn delete(target: &str) -> Result<bool, String> {
+        match delete_generic_password(KEYCHAIN_SERVICE, target) {
+            Ok(()) => Ok(true),
+            Err(e) if e.code() == ITEM_NOT_FOUND => Ok(false),
+            Err(e) => Err(format!("could not remove the credential: {e}")),
+        }
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+mod imp {
+    const UNSUPPORTED: &str = "storing a token is not supported on this platform";
 
     pub fn read(_target: &str) -> Option<String> {
         None

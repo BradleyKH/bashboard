@@ -5,11 +5,11 @@
 //! pane's pty id, so a server launched in the background still says where it came from.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, Signal, System, UpdateKind};
 use tauri::State;
 
 use crate::hooks::Hooks;
@@ -64,11 +64,16 @@ struct Proc {
     start: u64,
 }
 
-/// Programs whose descendants count as started from a terminal: shells and Claude Code.
-const SHELLS: &[&str] = &["bash.exe", "sh.exe", "zsh.exe", "fish.exe", "cmd.exe", "pwsh.exe", "powershell.exe", "nu.exe", "claude.exe", "codex.exe", "copilot.exe"];
+/// Programs whose descendants count as started from a terminal: shells and Claude Code, by base
+/// name (Windows adds `.exe`, which `is_shell` drops).
+const SHELLS: &[&str] = &["bash", "sh", "zsh", "fish", "cmd", "pwsh", "powershell", "nu", "claude", "codex", "copilot"];
 
 fn is_shell(name: &str) -> bool {
-    SHELLS.iter().any(|s| name.eq_ignore_ascii_case(s))
+    let base = match name.len().checked_sub(4).and_then(|i| name.get(i..)) {
+        Some(ext) if ext.eq_ignore_ascii_case(".exe") => &name[..name.len() - 4],
+        _ => name,
+    };
+    SHELLS.iter().any(|s| base.eq_ignore_ascii_case(s))
 }
 
 /// The first process on `pid`'s parent chain, `pid` included, that `hit` accepts. A parent that
@@ -90,6 +95,32 @@ fn ancestor(pid: u32, procs: &HashMap<u32, Proc>, hit: impl Fn(u32) -> bool) -> 
     }
 }
 
+/// Every live descendant of `root`, breadth first, `root` excluded. A child that started before
+/// its recorded parent is attached to a reused pid, so it is not followed (as in `ancestor`).
+#[cfg_attr(windows, allow(dead_code))]
+fn descendants(root: u32, procs: &HashMap<u32, Proc>) -> Vec<u32> {
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for (&pid, p) in procs {
+        if let Some(parent) = p.parent {
+            if procs.get(&parent).is_some_and(|up| up.start <= p.start) {
+                children.entry(parent).or_default().push(pid);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    let mut seen = HashSet::from([root]);
+    let mut queue = std::collections::VecDeque::from([root]);
+    while let Some(next) = queue.pop_front() {
+        for &child in children.get(&next).into_iter().flatten() {
+            if seen.insert(child) {
+                out.push(child);
+                queue.push_back(child);
+            }
+        }
+    }
+    out
+}
+
 /// Follows `pid`'s parent chain to a pane shell, giving that pane's pty id.
 fn traced_owner(pid: u32, procs: &HashMap<u32, Proc>, shells: &HashMap<u32, u32>) -> Option<u32> {
     ancestor(pid, procs, |p| shells.contains_key(&p)).map(|p| shells[&p])
@@ -109,6 +140,13 @@ pub fn merge(raw: Vec<RawListener>) -> Vec<(u16, u32, Vec<String>)> {
             addrs.sort_by_key(|a| (a.contains(':'), a.clone()));
             (port, pid, addrs)
         })
+        .collect()
+}
+
+fn proc_map(sys: &System) -> HashMap<u32, Proc> {
+    sys.processes()
+        .iter()
+        .map(|(pid, p)| (pid.as_u32(), Proc { parent: p.parent().map(|pp| pp.as_u32()), start: p.start_time() }))
         .collect()
 }
 
@@ -160,12 +198,7 @@ impl PortsProbe {
                 .with_cwd(UpdateKind::OnlyIfNotSet)
                 .with_environ(UpdateKind::OnlyIfNotSet),
         );
-        let procs: HashMap<u32, Proc> = self
-            .sys
-            .processes()
-            .iter()
-            .map(|(pid, p)| (pid.as_u32(), Proc { parent: p.parent().map(|pp| pp.as_u32()), start: p.start_time() }))
-            .collect();
+        let procs = proc_map(&self.sys);
         let shells: HashMap<u32, u32> = ptys.iter().map(|p| (p.pid, p.id)).collect();
         let terminals: HashSet<u32> = self
             .sys
@@ -272,8 +305,7 @@ pub async fn ports_list(
     .map_err(|e| e.to_string())?
 }
 
-/// Ends the listening process and everything it started (taskkill /T), so a dev server's
-/// workers go with it.
+/// Ends the listening process and everything it started, so a dev server's workers go with it.
 #[tauri::command]
 pub async fn ports_stop(state: State<'_, PortsState>, pid: u32, started_at: u64) -> Result<(), String> {
     if pid <= 4 || pid == std::process::id() {
@@ -284,22 +316,99 @@ pub async fn ports_stop(state: State<'_, PortsState>, pid: u32, started_at: u64)
         if !probe.lock().map_err(|e| e.to_string())?.same_process(pid, started_at) {
             return Err("the process has already exited".to_string());
         }
-        let mut cmd = Command::new("taskkill");
-        cmd.args(["/PID", &pid.to_string(), "/T", "/F"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        crate::editors::hide_console(&mut cmd);
-        let out = cmd.output().map_err(|e| e.to_string())?;
-        if out.status.success() {
-            Ok(())
-        } else {
-            let msg = String::from_utf8_lossy(&out.stderr).trim().to_string();
-            Err(if msg.is_empty() { format!("taskkill exited with {}", out.status) } else { msg })
-        }
+        kill_tree(pid, started_at)
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// `taskkill /T /F`: the whole tree, forcefully.
+#[cfg(windows)]
+fn kill_tree(pid: u32, _started_at: u64) -> Result<(), String> {
+    use std::process::{Command, Stdio};
+
+    let mut cmd = Command::new("taskkill");
+    cmd.args(["/PID", &pid.to_string(), "/T", "/F"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    crate::editors::hide_console(&mut cmd);
+    let out = cmd.output().map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        let msg = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        Err(if msg.is_empty() { format!("taskkill exited with {}", out.status) } else { msg })
+    }
+}
+
+#[cfg(not(windows))]
+fn kill_tree(pid: u32, started_at: u64) -> Result<(), String> {
+    end_tree(pid, started_at)
+}
+
+/// How long a SIGTERMed tree gets to exit before SIGKILL.
+const TERM_GRACE: Duration = Duration::from_secs(2);
+
+/// The (pid, start) targets still running; a zombie has exited and only awaits its parent's wait.
+#[cfg_attr(windows, allow(dead_code))]
+fn survivors(targets: &[(u32, u64)]) -> Vec<(u32, u64)> {
+    // A fresh System each poll: on macOS sysinfo reads a process's status only when it first
+    // sees the pid, so a reused System would never report the zombie a stopped listener becomes.
+    let mut sys = System::new();
+    let pids: Vec<Pid> = targets.iter().map(|t| Pid::from_u32(t.0)).collect();
+    sys.refresh_processes_specifics(ProcessesToUpdate::Some(&pids), true, ProcessRefreshKind::nothing());
+    targets
+        .iter()
+        .copied()
+        .filter(|&(pid, start)| {
+            sys.process(Pid::from_u32(pid)).is_some_and(|p| p.start_time() == start && p.status() != ProcessStatus::Zombie)
+        })
+        .collect()
+}
+
+/// SIGTERM to the descendants and then `pid`, SIGKILL for whatever outlasts the grace period, so
+/// the end state matches `taskkill /F`. Each signal is re-checked against the start time, so a
+/// pid reused mid-stop is left alone.
+#[cfg_attr(windows, allow(dead_code))]
+fn end_tree(pid: u32, started_at: u64) -> Result<(), String> {
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+    let procs = proc_map(&sys);
+    if procs.get(&pid).map(|p| p.start) != Some(started_at) {
+        return Err("the process has already exited".into());
+    }
+    let mut targets: Vec<(u32, u64)> = descendants(pid, &procs).into_iter().map(|p| (p, procs[&p].start)).collect();
+    targets.push((pid, started_at));
+
+    let send = |sys: &System, live: &[(u32, u64)], signal: Signal| {
+        for &(p, start) in live {
+            if let Some(proc) = sys.process(Pid::from_u32(p)).filter(|x| x.start_time() == start) {
+                proc.kill_with(signal);
+            }
+        }
+    };
+    let wait = |mut live: Vec<(u32, u64)>, limit: Duration| {
+        let deadline = Instant::now() + limit;
+        loop {
+            live = survivors(&live);
+            if live.is_empty() || Instant::now() >= deadline {
+                return live;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+
+    send(&sys, &targets, Signal::Term);
+    let left = wait(targets, TERM_GRACE);
+    if left.is_empty() {
+        return Ok(());
+    }
+    send(&sys, &left, Signal::Kill);
+    if wait(left, Duration::from_secs(1)).iter().any(|t| t.0 == pid) {
+        return Err("the process did not exit".into());
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -401,7 +510,68 @@ mod os {
     }
 }
 
-#[cfg(not(windows))]
+/// Parses `lsof -F ptn` output: `p<pid>` opens a process, `f<fd>` a file within it, then `t`
+/// (`IPv4` or `IPv6`) and `n<addr>:<port>`. A wildcard becomes the unspecified address of the
+/// file's family and IPv6 brackets are dropped, so rows sort and display like the Windows ones.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn parse_lsof(text: &str) -> Vec<RawListener> {
+    let mut out = Vec::new();
+    let mut pid: Option<u32> = None;
+    let mut v6 = false;
+    for line in text.lines() {
+        let Some(tag) = line.chars().next() else { continue };
+        let rest = &line[tag.len_utf8()..];
+        match tag {
+            'p' => {
+                pid = rest.parse().ok();
+                v6 = false;
+            }
+            'f' => v6 = false,
+            't' => v6 = rest == "IPv6",
+            'n' => {
+                let Some(pid) = pid else { continue };
+                let Some((host, port)) = rest.rsplit_once(':') else { continue };
+                let Ok(port) = port.parse::<u16>() else { continue };
+                let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
+                let address = match host {
+                    "*" if v6 => "::".to_string(),
+                    "*" => "0.0.0.0".to_string(),
+                    "" => continue,
+                    h => h.to_string(),
+                };
+                out.push(RawListener { port, address, pid });
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+#[cfg(target_os = "macos")]
+mod os {
+    use super::{parse_lsof, RawListener};
+    use std::process::{Command, Stdio};
+
+    /// lsof by full path, since an app launched from the Dock has a minimal PATH. Without root it
+    /// sees only the user's own processes, which is what the pane wants. It exits nonzero when it
+    /// finds nothing or skips an unreadable process, so only its output counts.
+    pub fn listeners() -> Vec<RawListener> {
+        Command::new("/usr/sbin/lsof")
+            .args(["-nP", "-iTCP", "-sTCP:LISTEN", "-F", "ptn"])
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .map(|o| parse_lsof(&String::from_utf8_lossy(&o.stdout)))
+            .unwrap_or_default()
+    }
+
+    // No session-0 equivalent to key on, so nothing is hidden as a system port.
+    pub fn is_system(_pid: u32) -> bool {
+        false
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod os {
     use super::RawListener;
 
@@ -409,7 +579,6 @@ mod os {
         Vec::new()
     }
 
-    // No session-0 equivalent to key on, so nothing is hidden as a system port.
     pub fn is_system(_pid: u32) -> bool {
         false
     }
@@ -468,6 +637,71 @@ mod tests {
         assert!(is_shell("bash.exe") && is_shell("PowerShell.exe") && is_shell("claude.exe"));
         assert!(is_shell("codex.exe") && is_shell("Copilot.exe"));
         assert!(!is_shell("node.exe") && !is_shell("explorer.exe"));
+    }
+
+    #[test]
+    fn recognizes_shells_without_an_extension() {
+        assert!(is_shell("zsh") && is_shell("bash") && is_shell("fish") && is_shell("nu") && is_shell("claude"));
+        assert!(is_shell("codex") && is_shell("Copilot"));
+        assert!(!is_shell("node") && !is_shell("exe") && !is_shell("") && !is_shell("bash.exe.bak") && !is_shell("\u{e9}.exe"));
+    }
+
+    #[test]
+    fn parses_lsof_ipv4_and_ipv6_listeners() {
+        let text = "p100\nf5\ntIPv4\nn*:3000\nf6\ntIPv6\nn*:3000\nf7\ntIPv6\nn[::1]:5173\nf8\ntIPv4\nn127.0.0.1:5173\n\
+                    p200\nf3\ntIPv6\nn[fe80::1]:8080\n";
+        assert_eq!(
+            parse_lsof(text),
+            vec![
+                raw(3000, "0.0.0.0", 100),
+                raw(3000, "::", 100),
+                raw(5173, "::1", 100),
+                raw(5173, "127.0.0.1", 100),
+                raw(8080, "fe80::1", 200),
+            ]
+        );
+    }
+
+    #[test]
+    fn lsof_wildcard_follows_its_own_files_family() {
+        // The family resets per file, so an `n` with no `t` before it reads as IPv4.
+        assert_eq!(parse_lsof("p1\nf1\ntIPv6\nn*:1\nf2\nn*:2\n"), vec![raw(1, "::", 1), raw(2, "0.0.0.0", 1)]);
+    }
+
+    #[test]
+    fn lsof_skips_lines_it_cannot_parse() {
+        let text = "garbage\n\np10\nf1\ntIPv4\nnno-port-here\nn*:notaport\nn:99\nn127.0.0.1:70000\nn127.0.0.1:80\nx\n";
+        assert_eq!(parse_lsof(text), vec![raw(80, "127.0.0.1", 10)]);
+        // An address with no owning process line is dropped.
+        assert_eq!(parse_lsof("n*:80\n"), Vec::new());
+        assert_eq!(parse_lsof("pjunk\nn*:80\n"), Vec::new());
+    }
+
+    #[test]
+    fn descendants_walks_the_tree() {
+        let p = procs(&[(1, None, 1), (2, Some(1), 2), (3, Some(2), 3), (4, Some(1), 4), (5, Some(9), 5), (6, None, 6)]);
+        let mut d = descendants(1, &p);
+        d.sort();
+        assert_eq!(d, vec![2, 3, 4]);
+        assert_eq!(descendants(3, &p), Vec::<u32>::new());
+        assert_eq!(descendants(77, &p), Vec::<u32>::new());
+    }
+
+    #[test]
+    fn descendants_skip_a_reused_parent_pid() {
+        // 3 started before the process now holding pid 2, so 2 is not its real parent.
+        let p = procs(&[(1, None, 1), (2, Some(1), 5), (3, Some(2), 3), (4, Some(2), 6)]);
+        let mut d = descendants(1, &p);
+        d.sort();
+        assert_eq!(d, vec![2, 4]);
+    }
+
+    #[test]
+    fn descendants_end_on_a_parent_cycle() {
+        let p = procs(&[(1, Some(2), 1), (2, Some(1), 1), (3, Some(2), 2)]);
+        let mut d = descendants(1, &p);
+        d.sort();
+        assert_eq!(d, vec![2, 3]);
     }
 
     #[test]

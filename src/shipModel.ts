@@ -407,7 +407,7 @@ function signedOutNotice(err: ForgeError, repo: ForgeRepo | null | undefined): N
       'Bitbucket needs an API token.',
       [
         'Bitbucket has no official command line tool, and Git Credential Manager\'s sign-in cannot read pipelines or pull requests, so Bashboard uses an API token.',
-        'Bashboard sends the token to the Bitbucket REST API as a Bearer token and keeps it in Windows Credential Manager.',
+        'Bashboard sends the token to the Bitbucket REST API as a Bearer token and keeps it in the system credential store.',
       ],
       bitbucketActions('Add token'),
       { steps: BITBUCKET_STEPS, scopes: bitbucketScopes() },
@@ -428,7 +428,7 @@ function signedOutNotice(err: ForgeError, repo: ForgeRepo | null | undefined): N
       'Azure DevOps needs a personal access token.',
       [
         err.message,
-        'Bashboard sends the token to the Azure DevOps REST API and keeps it in Windows Credential Manager.' +
+        'Bashboard sends the token to the Azure DevOps REST API and keeps it in the system credential store.' +
           (err.azCli === true ? ' Signing in with the Azure CLI also works.' : ''),
       ],
       azureDevOpsActions('Add token', org, err.azCli === true),

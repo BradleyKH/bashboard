@@ -7,6 +7,12 @@
 //! `PATH`, through a Toolbox App script on `PATH`, or in install folders by `product-info.json`
 //! version (`find_jetbrains`). Vim and Neovim run inside a terminal, so `open_in_editor` returns
 //! their argument list for the front end to run in a pane rather than starting them itself.
+//!
+//! Off Windows, `detect_posix` replaces all of that: each editor's own CLI inside its macOS app
+//! bundle (`bundle_executable`), else a bare CLI name on `PATH` and in the Homebrew folders, else a
+//! JetBrains Toolbox script. The tables are plain functions over `SearchEnv`, so they are tested
+//! on every platform. Files whose default app would run them open as text through
+//! `/usr/bin/open -t` instead of Notepad.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -64,6 +70,13 @@ const NAMES: [(&str, &str); 20] = [
 #[derive(Debug, Default)]
 struct SearchEnv {
     path: Vec<PathBuf>,
+    /// Folders holding `.app` bundles (macOS only).
+    applications: Vec<PathBuf>,
+    /// Folders searched after `PATH` off Windows: a macOS app started from the Dock gets a minimal
+    /// `PATH`, so Homebrew's folders are checked by hand.
+    bin_dirs: Vec<PathBuf>,
+    /// Where the JetBrains Toolbox App writes its launcher scripts (macOS only).
+    toolbox_scripts: Option<PathBuf>,
     local_app_data: Option<PathBuf>,
     program_files: Option<PathBuf>,
     program_files_x86: Option<PathBuf>,
@@ -76,15 +89,140 @@ impl SearchEnv {
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from)
         };
+        let mac_home = var("HOME").filter(|_| cfg!(target_os = "macos"));
         Self {
             path: std::env::var_os("PATH")
                 .map(|p| std::env::split_paths(&p).collect())
                 .unwrap_or_default(),
+            applications: if cfg!(target_os = "macos") {
+                application_dirs(mac_home.as_deref())
+            } else {
+                vec![]
+            },
+            bin_dirs: if cfg!(windows) { vec![] } else { posix_bin_dirs() },
+            toolbox_scripts: mac_home.as_deref().map(toolbox_scripts_dir),
             local_app_data: var("LOCALAPPDATA"),
             program_files: var("ProgramFiles"),
             program_files_x86: var("ProgramFiles(x86)"),
         }
     }
+}
+
+/// Where macOS apps install: system-wide, and per user (the JetBrains Toolbox App installs there).
+fn application_dirs(home: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs = vec![PathBuf::from("/Applications")];
+    dirs.extend(home.map(|h| h.join("Applications")));
+    dirs
+}
+
+fn toolbox_scripts_dir(home: &Path) -> PathBuf {
+    home.join("Library/Application Support/JetBrains/Toolbox/scripts")
+}
+
+fn posix_bin_dirs() -> Vec<PathBuf> {
+    ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect()
+}
+
+/// CLI names looked for on `PATH` off Windows. A JetBrains name is also its launcher's name in
+/// the bundle and its Toolbox script's name.
+fn posix_path_names(id: &str) -> &'static [&'static str] {
+    match id {
+        "zed" => &["zed"],
+        "vscode" => &["code"],
+        "cursor" => &["cursor"],
+        "sublime" => &["subl"],
+        "windsurf" => &["windsurf"],
+        "vscodeInsiders" => &["code-insiders"],
+        "vscodium" => &["codium"],
+        "rider" => &["rider"],
+        "intellij" => &["idea"],
+        "webstorm" => &["webstorm"],
+        "pycharm" => &["pycharm"],
+        "rustrover" => &["rustrover"],
+        "goland" => &["goland"],
+        "clion" => &["clion"],
+        "phpstorm" => &["phpstorm"],
+        _ => &[],
+    }
+}
+
+/// An editor's CLI inside its macOS app bundle, relative to an Applications folder, in the order
+/// tried. These are the editors' own launchers, which take the arguments `table_args` builds and
+/// hand the file to a running instance. Visual Studio and Notepad++ have no macOS build. The
+/// free and paid editions of IntelliJ IDEA and PyCharm ship different bundle names but the same
+/// launcher name, so either counts.
+fn bundle_candidates(id: &str) -> &'static [&'static str] {
+    match id {
+        "zed" => &["Zed.app/Contents/MacOS/cli"],
+        "vscode" => &["Visual Studio Code.app/Contents/Resources/app/bin/code"],
+        "vscodeInsiders" => &[
+            "Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders",
+            "Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code",
+        ],
+        "cursor" => &[
+            "Cursor.app/Contents/Resources/app/bin/cursor",
+            "Cursor.app/Contents/Resources/app/bin/code",
+        ],
+        "windsurf" => &["Windsurf.app/Contents/Resources/app/bin/windsurf"],
+        "vscodium" => &["VSCodium.app/Contents/Resources/app/bin/codium"],
+        "sublime" => &["Sublime Text.app/Contents/SharedSupport/bin/subl"],
+        "intellij" => &[
+            "IntelliJ IDEA.app/Contents/MacOS/idea",
+            "IntelliJ IDEA CE.app/Contents/MacOS/idea",
+        ],
+        "pycharm" => &[
+            "PyCharm.app/Contents/MacOS/pycharm",
+            "PyCharm CE.app/Contents/MacOS/pycharm",
+            "PyCharm Professional Edition.app/Contents/MacOS/pycharm",
+        ],
+        "rider" => &["Rider.app/Contents/MacOS/rider"],
+        "webstorm" => &["WebStorm.app/Contents/MacOS/webstorm"],
+        "rustrover" => &["RustRover.app/Contents/MacOS/rustrover"],
+        "goland" => &["GoLand.app/Contents/MacOS/goland"],
+        "clion" => &["CLion.app/Contents/MacOS/clion"],
+        "phpstorm" => &["PhpStorm.app/Contents/MacOS/phpstorm"],
+        _ => &[],
+    }
+}
+
+/// The first existing CLI from `bundle_candidates`, trying each Applications folder in order.
+fn bundle_executable(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    env.applications
+        .iter()
+        .flat_map(|apps| bundle_candidates(id).iter().map(move |rel| apps.join(rel)))
+        .find(|p| p.is_file())
+}
+
+fn find_on_path_posix(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    let names = posix_path_names(id);
+    env.path
+        .iter()
+        .chain(&env.bin_dirs)
+        .flat_map(|dir| names.iter().map(move |n| dir.join(n)))
+        .find(|p| p.is_file())
+}
+
+/// The Toolbox App's launcher script for a JetBrains IDE. It is a shell script, so unlike the
+/// Windows one it is run directly rather than read.
+fn toolbox_script(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    jetbrains(id)?;
+    let name = posix_path_names(id).first()?;
+    let script = env.toolbox_scripts.as_ref()?.join(name);
+    script.is_file().then_some(script)
+}
+
+/// `detect` off Windows. A bundle comes first because a `PATH` entry for the same CLI is usually
+/// a symlink into it, and the bundle works when the Dock-launched app has no such `PATH`.
+fn detect_posix(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    if is_terminal_editor(id) {
+        return find_terminal_editor(id, env);
+    }
+    bundle_executable(id, env)
+        .or_else(|| find_on_path_posix(id, env))
+        .or_else(|| toolbox_script(id, env))
 }
 
 /// Executable names looked for on `PATH`, and `(shim, exe)` pairs where a `.cmd` shim on `PATH`
@@ -333,9 +471,7 @@ fn find_terminal_editor(id: &str, env: &SearchEnv) -> Option<PathBuf> {
             );
         }
     } else {
-        for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
-            candidates.push(Path::new(dir).join(&exe));
-        }
+        candidates.extend(env.bin_dirs.iter().map(|dir| dir.join(&exe)));
     }
     candidates.into_iter().find(|p| p.is_file())
 }
@@ -357,6 +493,9 @@ fn terminal_cwd(path: &Path) -> String {
 
 /// The editor's executable, or None when it is not installed. `default` has none.
 fn detect(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    if !cfg!(windows) {
+        return detect_posix(id, env);
+    }
     if id == "visualStudio" {
         return find_devenv(env);
     }
@@ -469,9 +608,15 @@ fn launch(program: &Path, args: &[String]) -> Result<(), String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     hide_console(&mut cmd);
-    cmd.spawn()
-        .map(|_| ())
-        .map_err(|e| format!("could not start {}: {e}", program.display()))
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("could not start {}: {e}", program.display()))?;
+    // Unix keeps an exited child as a zombie until it is waited on, and an editor's CLI exits at
+    // once after handing off to the running instance.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 fn normalize_existing(path: &str) -> Result<PathBuf, String> {
@@ -527,9 +672,17 @@ pub fn open_in_editor(
         }
     }
     // The default app for a script, shortcut, or program is to run it, so those open as text.
-    let pathext = std::env::var("PATHEXT").unwrap_or_default();
-    if path.is_file() && runs_when_opened(&path, &pathext) {
-        launch(&notepad(), &[path.display().to_string()])?;
+    let viewer = if path.is_file() && runs_on_open(&path) {
+        text_viewer(&path)
+    } else {
+        None
+    };
+    // A bundle is a folder, so it never reaches the viewer and `open` would launch it.
+    if cfg!(target_os = "macos") && path.is_dir() && runs_when_opened_mac(&path) {
+        return Err(format!("{} would run as a program, so it was not opened", path.display()));
+    }
+    if let Some((program, args)) = viewer {
+        launch(&program, &args)?;
     } else {
         app.opener()
             .open_path(path.display().to_string(), None::<&str>)
@@ -562,7 +715,7 @@ pub fn open_with_default_app(app: tauri::AppHandle, path: String) -> Result<(), 
 }
 
 fn opens_safely(path: &Path) -> bool {
-    path.is_file() && !runs_when_opened(path, &std::env::var("PATHEXT").unwrap_or_default())
+    path.is_file() && !runs_on_open(path)
 }
 
 /// Extensions Windows executes, or hands to an installer or script host, on a plain open.
@@ -584,6 +737,84 @@ fn runs_when_opened(path: &Path, pathext: &str) -> bool {
         || pathext
             .split(';')
             .any(|p| p.trim().trim_start_matches('.').eq_ignore_ascii_case(&ext))
+}
+
+/// Extensions macOS launches, installs, or runs in Terminal on a plain open. A bundle (`app`,
+/// `workflow`, `action`) is a folder, so these also name directories.
+const RUNNABLE_MAC: &[&str] = &[
+    "app", "command", "tool", "pkg", "mpkg", "terminal", "workflow", "action", "scpt",
+    "applescript",
+];
+
+fn runs_when_opened_mac(path: &Path) -> bool {
+    path.extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .is_some_and(|ext| RUNNABLE_MAC.contains(&ext.as_str()))
+}
+
+/// Volume types that report every file as executable, so the bit says nothing there.
+const EXEC_BIT_MEANINGLESS: &[&str] = &["msdos", "exfat", "ntfs"];
+
+/// macOS `open` runs any executable file in Terminal whatever its name, so an execute bit counts
+/// as runnable, except on a volume that marks every file executable.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn exec_bit_runs(mode: u32, fs_type: &str) -> bool {
+    mode & 0o111 != 0 && !EXEC_BIT_MEANINGLESS.contains(&fs_type)
+}
+
+#[cfg(target_os = "macos")]
+fn has_exec_bit(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    exec_bit_runs(meta.permissions().mode(), &fs_type(path).unwrap_or_default())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn has_exec_bit(_path: &Path) -> bool {
+    false
+}
+
+/// The volume's file system name (`apfs`, `msdos`, ...) from `statfs`.
+#[cfg(target_os = "macos")]
+fn fs_type(path: &Path) -> Option<String> {
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    // SAFETY: statfs is plain data; zeroed is a valid value for it.
+    let mut st: libc::statfs = unsafe { std::mem::zeroed() };
+    // SAFETY: c_path is NUL-terminated and st is a writable statfs.
+    if unsafe { libc::statfs(c_path.as_ptr(), &mut st) } != 0 {
+        return None;
+    }
+    // SAFETY: the kernel fills f_fstypename with a NUL-terminated name.
+    let name = unsafe { std::ffi::CStr::from_ptr(st.f_fstypename.as_ptr()) };
+    Some(name.to_string_lossy().into_owned())
+}
+
+/// Whether the platform's default app would run `path` rather than show it. Other Unix targets
+/// have no list yet.
+fn runs_on_open(path: &Path) -> bool {
+    if cfg!(windows) {
+        runs_when_opened(path, &std::env::var("PATHEXT").unwrap_or_default())
+    } else if cfg!(target_os = "macos") {
+        runs_when_opened_mac(path) || has_exec_bit(path)
+    } else {
+        false
+    }
+}
+
+/// The program and arguments that show a file as text; None where none is known. `open -t` goes
+/// by full path so a lookalike on `PATH` is not run.
+fn text_viewer(path: &Path) -> Option<(PathBuf, Vec<String>)> {
+    let p = path.display().to_string();
+    if cfg!(windows) {
+        Some((notepad(), vec![p]))
+    } else if cfg!(target_os = "macos") {
+        Some((PathBuf::from("/usr/bin/open"), vec!["-t".into(), p]))
+    } else {
+        None
+    }
 }
 
 /// Notepad by full path, so a `notepad.exe` in the working folder or early on `PATH` is not run.
@@ -630,8 +861,10 @@ mod tests {
             touch(&root.join(name));
         }
         assert!(opens_safely(&root.join("report.pdf")));
-        assert!(!opens_safely(&root.join("setup.exe")));
-        assert!(!opens_safely(&root.join("go.lnk")));
+        if cfg!(windows) {
+            assert!(!opens_safely(&root.join("setup.exe")));
+            assert!(!opens_safely(&root.join("go.lnk")));
+        }
         assert!(!opens_safely(&root));
         std::fs::remove_dir_all(&root).unwrap();
     }
@@ -733,7 +966,7 @@ mod tests {
             path: vec![root.join("vsc").join("bin"), root.join("npp")],
             local_app_data: Some(root.join("local")),
             program_files: Some(root.join("pf")),
-            program_files_x86: None,
+            ..SearchEnv::default()
         };
         for (id, _) in NAMES {
             assert_eq!(detect(id, &env), None, "{id}");
@@ -764,15 +997,17 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    #[cfg(windows)]
     fn env_at(root: &Path, path: Vec<PathBuf>) -> SearchEnv {
         SearchEnv {
             path,
             local_app_data: Some(root.join("local")),
             program_files: Some(root.join("pf")),
-            program_files_x86: None,
+            ..SearchEnv::default()
         }
     }
 
+    #[cfg(windows)]
     #[test]
     fn vscode_family_shims_trade_for_the_exe_one_folder_up() {
         let root = temp_dir("vscfamily");
@@ -1020,6 +1255,165 @@ mod tests {
         assert_eq!(terminal_cwd(&file), root.display().to_string());
         assert_eq!(terminal_cwd(&root), root.display().to_string());
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    fn mac_env(root: &Path) -> SearchEnv {
+        SearchEnv {
+            applications: vec![user_apps(root)],
+            bin_dirs: vec![root.join("brew")],
+            path: vec![root.join("onpath")],
+            toolbox_scripts: Some(toolbox_scripts_dir(&root.join("home"))),
+            ..SearchEnv::default()
+        }
+    }
+
+    // Only the per-user folder is searched, so a real /Applications on the test machine cannot
+    // leak in.
+    fn user_apps(root: &Path) -> PathBuf {
+        root.join("home").join("Applications")
+    }
+
+    #[test]
+    fn bundles_are_found_in_the_per_user_applications_folder() {
+        let root = temp_dir("bundles");
+        let env = mac_env(&root);
+        let apps = user_apps(&root);
+        for id in ["zed", "vscode", "sublime", "intellij", "rider"] {
+            assert_eq!(bundle_executable(id, &env), None, "{id}");
+        }
+        for rel in [
+            "Zed.app/Contents/MacOS/cli",
+            "Visual Studio Code.app/Contents/Resources/app/bin/code",
+            "Sublime Text.app/Contents/SharedSupport/bin/subl",
+            "IntelliJ IDEA CE.app/Contents/MacOS/idea",
+        ] {
+            touch(&apps.join(rel));
+        }
+        assert_eq!(detect_posix("zed", &env), Some(apps.join("Zed.app/Contents/MacOS/cli")));
+        assert_eq!(
+            detect_posix("vscode", &env),
+            Some(apps.join("Visual Studio Code.app/Contents/Resources/app/bin/code"))
+        );
+        assert_eq!(
+            detect_posix("sublime", &env),
+            Some(apps.join("Sublime Text.app/Contents/SharedSupport/bin/subl"))
+        );
+        assert_eq!(
+            detect_posix("intellij", &env),
+            Some(apps.join("IntelliJ IDEA CE.app/Contents/MacOS/idea"))
+        );
+        assert_eq!(detect_posix("rider", &env), None);
+        assert_eq!(detect_posix("visualStudio", &env), None);
+        assert_eq!(detect_posix("notepadpp", &env), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn vscode_family_bundles_use_each_forks_cli_name() {
+        let root = temp_dir("bundlefork");
+        let env = mac_env(&root);
+        let apps = user_apps(&root);
+        for (id, rel) in [
+            ("cursor", "Cursor.app/Contents/Resources/app/bin/code"),
+            ("windsurf", "Windsurf.app/Contents/Resources/app/bin/windsurf"),
+            ("vscodium", "VSCodium.app/Contents/Resources/app/bin/codium"),
+            (
+                "vscodeInsiders",
+                "Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders",
+            ),
+        ] {
+            assert_eq!(detect_posix(id, &env), None, "{id}");
+            touch(&apps.join(rel));
+            assert_eq!(detect_posix(id, &env), Some(apps.join(rel)), "{id}");
+        }
+        // The preferred name wins over the fallback inside the same bundle.
+        touch(&apps.join("Cursor.app/Contents/Resources/app/bin/cursor"));
+        assert_eq!(
+            detect_posix("cursor", &env),
+            Some(apps.join("Cursor.app/Contents/Resources/app/bin/cursor"))
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn jetbrains_toolbox_script_is_found_off_path_on_macos() {
+        let root = temp_dir("jbmac");
+        let env = mac_env(&root);
+        assert_eq!(detect_posix("rider", &env), None);
+        let script = toolbox_scripts_dir(&root.join("home")).join("rider");
+        touch(&script);
+        assert_eq!(detect_posix("rider", &env), Some(script.clone()));
+        assert_eq!(detect_posix("webstorm", &env), None);
+        // A bundle outranks the script.
+        let bundle = user_apps(&root).join("Rider.app/Contents/MacOS/rider");
+        touch(&bundle);
+        assert_eq!(detect_posix("rider", &env), Some(bundle));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn bare_cli_names_are_found_on_path_and_in_the_homebrew_folders() {
+        let root = temp_dir("posixpath");
+        let env = mac_env(&root);
+        touch(&root.join("onpath/subl"));
+        touch(&root.join("brew/code-insiders"));
+        touch(&root.join("brew/idea"));
+        assert_eq!(detect_posix("sublime", &env), Some(root.join("onpath/subl")));
+        assert_eq!(detect_posix("vscodeInsiders", &env), Some(root.join("brew/code-insiders")));
+        assert_eq!(detect_posix("intellij", &env), Some(root.join("brew/idea")));
+        assert_eq!(detect_posix("vscode", &env), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn only_the_graphical_editors_with_a_macos_build_have_bundles() {
+        for (id, _) in NAMES {
+            let windows_only = matches!(id, "visualStudio" | "notepadpp" | "vim" | "nvim" | "default");
+            assert_eq!(bundle_candidates(id).is_empty(), windows_only, "{id}");
+            assert_eq!(posix_path_names(id).is_empty(), windows_only, "{id}");
+        }
+    }
+
+    #[test]
+    fn application_folders_are_system_then_per_user() {
+        assert_eq!(
+            application_dirs(Some(Path::new("/Users/me"))),
+            [PathBuf::from("/Applications"), PathBuf::from("/Users/me/Applications")]
+        );
+        assert_eq!(application_dirs(None), [PathBuf::from("/Applications")]);
+    }
+
+    #[test]
+    fn execute_bit_runs_except_where_every_file_has_it() {
+        assert!(exec_bit_runs(0o755, "apfs"));
+        assert!(exec_bit_runs(0o744, "apfs"));
+        assert!(exec_bit_runs(0o100, ""));
+        assert!(!exec_bit_runs(0o644, "apfs"));
+        assert!(!exec_bit_runs(0o777, "msdos"));
+        assert!(!exec_bit_runs(0o777, "exfat"));
+    }
+
+    #[test]
+    fn macos_runnable_files_open_as_text() {
+        for name in [
+            "Tool.app", "a.command", "b.tool", "c.pkg", "d.mpkg", "e.terminal", "f.workflow",
+            "g.action", "h.scpt", "i.applescript", "J.APP",
+        ] {
+            assert!(runs_when_opened_mac(Path::new(name)), "{name}");
+        }
+        for name in ["README.md", "main.rs", "photo.png", "notes", "run.sh", "setup.exe"] {
+            assert!(!runs_when_opened_mac(Path::new(name)), "{name}");
+        }
+        let (program, args) = if cfg!(windows) {
+            (notepad(), vec!["/x/a.command".to_string()])
+        } else {
+            (PathBuf::from("/usr/bin/open"), vec!["-t".to_string(), "/x/a.command".to_string()])
+        };
+        if cfg!(windows) || cfg!(target_os = "macos") {
+            assert_eq!(text_viewer(Path::new("/x/a.command")), Some((program, args)));
+        } else {
+            assert_eq!(text_viewer(Path::new("/x/a.command")), None);
+        }
     }
 
     #[test]

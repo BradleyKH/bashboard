@@ -17,7 +17,9 @@ mod credential_store;
 #[path = "../hook_client.rs"]
 mod hook_client;
 
-use credential_store::{AZURE_DEVOPS_USER, BITBUCKET_TARGET, BITBUCKET_USER, clean_token};
+use credential_store::{
+    AZURE_DEVOPS_USER, BITBUCKET_TARGET, BITBUCKET_USER, STORE_NAME, clean_token,
+};
 
 /// The command reference, shared with the app dialog's CLI tab.
 const REFERENCE: &str = include_str!("../../cli-commands.json");
@@ -76,7 +78,7 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
         print!("{}", help_text());
         return Ok(ExitCode::SUCCESS);
     }
-    // Talks only to Credential Manager, so it works outside a pane too.
+    // Talks only to the OS credential store, so it works outside a pane too.
     if command == "auth" {
         return auth(rest).map(|()| ExitCode::SUCCESS);
     }
@@ -1059,11 +1061,9 @@ fn auth(rest: &[String]) -> Result<(), String> {
 
 fn stored_message(provider: &AuthProvider) -> String {
     match provider {
-        AuthProvider::Bitbucket => {
-            "Stored the Bitbucket token in Windows Credential Manager.".into()
-        }
+        AuthProvider::Bitbucket => format!("Stored the Bitbucket token in {STORE_NAME}."),
         AuthProvider::AzureDevOps(org) => {
-            format!("Stored the Azure DevOps token for {org} in Windows Credential Manager.")
+            format!("Stored the Azure DevOps token for {org} in {STORE_NAME}.")
         }
     }
 }

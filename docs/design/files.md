@@ -96,6 +96,28 @@ through `cmd.exe` (section 9); then `*\bin\<exe>` under `%LOCALAPPDATA%\Programs
 are matched by exe name, never by folder name, and the free and paid editions of IntelliJ IDEA
 and PyCharm share exe names, so either counts.
 
+On macOS the editors are found by their own CLIs, which take the same arguments as the table:
+each is looked for inside its app bundle, in `/Applications` and then `~/Applications` (where the
+JetBrains Toolbox App installs), first match winning, then by a bare name on `PATH` and in
+`/opt/homebrew/bin`, `/usr/local/bin`, and `/usr/bin` (a Dock-launched app gets a minimal
+`PATH`), then, for JetBrains, as a Toolbox App script in `~/Library/Application
+Support/JetBrains/Toolbox/scripts`, which is a shell script run directly. A bundle outranks
+`PATH` because a `PATH` entry is usually a symlink into it. Visual Studio and Notepad++ are never
+listed.
+
+| Id | Bundle CLI | Bare name |
+| --- | --- | --- |
+| `zed` | `Zed.app/Contents/MacOS/cli` | `zed` |
+| `vscode` | `Visual Studio Code.app/Contents/Resources/app/bin/code` | `code` |
+| `vscodeInsiders` | `Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders`, else `.../bin/code` | `code-insiders` |
+| `cursor` | `Cursor.app/Contents/Resources/app/bin/cursor`, else `.../bin/code` | `cursor` |
+| `windsurf` | `Windsurf.app/Contents/Resources/app/bin/windsurf` | `windsurf` |
+| `vscodium` | `VSCodium.app/Contents/Resources/app/bin/codium` | `codium` |
+| `sublime` | `Sublime Text.app/Contents/SharedSupport/bin/subl` | `subl` |
+| `intellij` | `IntelliJ IDEA.app` or `IntelliJ IDEA CE.app`, `Contents/MacOS/idea` | `idea` |
+| `pycharm` | `PyCharm.app`, `PyCharm CE.app`, or `PyCharm Professional Edition.app`, `Contents/MacOS/pycharm` | `pycharm` |
+| `rider`, `webstorm`, `rustrover`, `goland`, `clion`, `phpstorm` | `Rider.app`, `WebStorm.app`, `RustRover.app`, `GoLand.app`, `CLion.app`, `PhpStorm.app`, `Contents/MacOS/<lowercase product name>` | the same lowercase name |
+
 Vim and Neovim run inside a terminal, so `open_in_editor` starts nothing for them: it returns
 `{ fallback: false, terminal: { argv, cwd } }`, and the front end runs `argv` in place of a
 shell in a new terminal pane (4.11) split off the focused one, in the file's folder (or the
@@ -115,7 +137,12 @@ opens in its default app and a toast says so.
 The default app is never used for a file whose default action runs it: an extension in `PATHEXT`
 or one Windows hands to a script host, installer, or shortcut (`.lnk`, `.url`, `.hta`, `.ps1`,
 `.msi`, `.reg`, and the like; `RUNNABLE` in `editors.rs`). Those open in Notepad instead, so
-double-clicking a file from a cloned repo never executes it.
+double-clicking a file from a cloned repo never executes it. On macOS the list is `RUNNABLE_MAC`
+(`.app`, `.command`, `.tool`, `.pkg`, `.mpkg`, `.terminal`, `.workflow`, `.action`, `.scpt`,
+`.applescript`), plus any file with an execute bit, since `open` runs an executable in Terminal
+whatever its name; the bit is ignored on `msdos`, `exfat`, and `ntfs` volumes, which mark every
+file executable. Such a file opens as text through `/usr/bin/open -t`. An application bundle
+is a folder, so `open_in_editor` refuses one with an error rather than launching it.
 
 `open_with_default_app(path)` opens a file in its default app directly, for the binary notice
 (4.12), and refuses the same runnable files with an error; `can_open_with_default_app(path)`

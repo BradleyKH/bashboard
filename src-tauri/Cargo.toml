@@ -75,3 +75,7 @@ block2 = "0.6.2"
 objc2 = "0.6.5"
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSBundle", "NSDictionary", "NSError", "NSObject", "NSString", "NSUUID"] }
 objc2-user-notifications = { version = "0.3.2", default-features = false, features = ["std", "bitflags", "block2", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationTrigger", "UNUserNotificationCenter"] }
+security-framework = "3"
+libc = "0.2"
+objc2-core-text = { version = "0.3.2", default-features = false, features = ["std", "CTFontCollection", "CTFontDescriptor", "CTFontTraits"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFArray", "CFString", "CFDictionary", "CFNumber"] }

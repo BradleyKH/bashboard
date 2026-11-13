@@ -1202,7 +1202,7 @@ those keys themselves.
   **Sign in** runs `glab auth login` in a new terminal pane the same way, **Install GitLab CLI**
   runs `winget`, and **Sign out** asks first and then signs out of the GitLab CLI for every app that
   uses it. The Bitbucket card says whether an API token is stored; **Add token** (or **Replace
-  token**) opens a password field, **Save** stores the token in Windows Credential Manager, and
+  token**) opens a password field, **Save** stores the token in Windows Credential Manager or the macOS Keychain, and
   **Remove token** asks first and deletes it. It also lists the scopes the token needs, with
   **Open the API token page** and **Copy scopes**. The Azure DevOps card has one row for each
   organization with a stored personal access token, each with **Replace**, **Remove** (which asks
@@ -1320,7 +1320,7 @@ the setup script and its variables, and the approval are described in
 [New worktree](#new-worktree).
 
 `bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
-input), save it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
+input), save it in Windows Credential Manager or the macOS Keychain (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
 Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
 
 ```sh

@@ -11,8 +11,9 @@ knows a host only through a few capability flags. The module is split by concern
 commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shapes), `remote.rs`
 (remote URLs), `auth.rs` (token sources and accounts), `accounts.rs` (the Accounts tab's commands,
 below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbucket.rs`,
-`gitlab.rs`, and `azure_devops.rs`. The Windows Credential Manager access sits in
-`src-tauri/src/credential_store.rs`, outside the module, because `bb.exe` compiles it too.
+`gitlab.rs`, and `azure_devops.rs`. The credential store access (Windows Credential Manager, or
+the macOS Keychain) sits in `src-tauri/src/credential_store.rs`, outside the module, because `bb`
+compiles it too.
 
 - **Provider trait.** `ForgeProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
   `jobs`, `log`, `rerun`, `cancel`, `pulls`, `pull_checks`, and `default_branch`, each taking a
@@ -68,8 +69,8 @@ below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbuck
   GitHub Enterprise Server hosts the CLI is not signed in to, and for self-managed GitLab hosts
   that GitLab CLI's config does not list.
 - **Tokens.** Bashboard never runs an OAuth flow, and the secrets it writes are a Bitbucket API
-  token and Azure DevOps personal access tokens (PATs), one per organization, into Windows
-  Credential Manager (below). Each provider
+  token and Azure DevOps personal access tokens (PATs), one per organization, into the OS
+  credential store, Windows Credential Manager or the macOS Keychain (below). Each provider
   lists sources in order, and the first that yields a token wins. GitHub: `gh auth token
   --hostname <host>` (with `--user <account>` when an account is chosen), found on `PATH` or in
   GitHub CLI's install folders, since a `gh` installed while Bashboard runs is not on the `PATH` it
@@ -152,11 +153,13 @@ below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbuck
   organization, which `org` names; with no `org` it answers `ok: false`, asking for an Azure DevOps repo
   to be opened first, and a reply that names nobody fails the test. It returns an `AuthCheck` (`ok`, `login`, `scopes`, `message`), and an error comes
   back as `ok: false` with its message, so a Bitbucket 403 names the missing scope.
-  `forge_set_token(provider, org, token)` stores a token in Windows Credential Manager and
+  `forge_set_token(provider, org, token)` stores a token in the OS credential store and
   `forge_clear_token(provider, org)` deletes it (false when none was stored). Bitbucket's is the
-  credential `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, and ignores
+  target `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, and ignores
   `org`; an Azure DevOps organization's is `bashboard:dev.azure.com/<org>` with the user name
-  `x-azure-devops-pat`, and `org` is required: it is trimmed and lowercased, and an empty name, or
+  `x-azure-devops-pat`, and `org` is required. On Windows the target is a generic credential's
+  name; on macOS it is the account of a generic password in the login Keychain under the service
+  `bashboard`, which stores no user name. The organization is trimmed and lowercased, and an empty name, or
   one holding a slash, whitespace, or a control character, is refused. Any other provider is
   refused. `forge_gh_switch(host, user)` and
   `forge_gh_logout(host, user)` run `gh auth switch` and `gh auth logout` with `--hostname` and
@@ -173,7 +176,7 @@ below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbuck
 - **Token handling.** A Bitbucket token or an Azure DevOps PAT enters the core only from the
   Accounts tab's password field, as an argument of `forge_set_token`, or from `bb auth` in a
   separate process. It is never sent from the core to the page, never logged, never put in an
-  error message, and never written anywhere but Windows Credential Manager. The core overwrites
+  error message, and never written anywhere but the OS credential store. The core overwrites
   its copies after the write; that is best effort, since the buffers the IPC layer fills while
   deserializing the argument are outside the app's control, so the app does not claim the token is
   wiped from memory.

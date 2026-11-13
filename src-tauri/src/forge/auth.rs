@@ -1,11 +1,11 @@
 //! Finding a token for a code host (docs/design/ship.md section 3.20). Bashboard never runs an
 //! OAuth flow: it asks GitHub CLI, GitLab CLI, Azure CLI, an environment variable, Git
-//! Credential Manager, or the Bitbucket credential in
-//! Windows Credential Manager that `bb auth bitbucket` or the Accounts tab stores
-//! (`crate::credential_store`). Tokens stay in this process's memory, are never serialized or
-//! logged, and never reach the page. The one inbound path is the Accounts tab's Bitbucket token
-//! field: that token arrives as one command argument, goes only to Credential Manager, and the
-//! core's copy is overwritten after the write (best effort).
+//! Credential Manager, or a token in the OS credential store (Windows Credential Manager or the
+//! macOS Keychain) that `bb auth` or the Accounts tab stores (`crate::credential_store`). Tokens
+//! stay in this process's memory, are never serialized or logged, and never reach the page. The
+//! one inbound path is the Accounts tab's token field: that token arrives as one command
+//! argument, goes only to the OS credential store, and the core's copy is overwritten after the
+//! write (best effort).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -30,7 +30,7 @@ pub enum TokenSource {
         username: Option<String>,
         path: Option<String>,
     },
-    /// A generic credential in Windows Credential Manager.
+    /// A token in the OS credential store (Windows Credential Manager or the macOS Keychain).
     CredentialManager { target: String },
     /// An environment variable's trimmed value, such as `AZURE_DEVOPS_EXT_PAT`.
     Env { var: String },

@@ -110,9 +110,11 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 
 ### Non-goals
 
-- Cross-platform support. Windows 11 with WebView2 is the only target.
+- Platforms other than Windows 11 and macOS. Windows with WebView2 is the primary target; macOS
+  ships as ad-hoc signed preview builds (`docs/macos-testing.md`).
 - Replacing Claude Code's interface. Claude runs unmodified inside a pane.
-- Shells other than Git Bash, PowerShell 7, Windows PowerShell, and Command Prompt.
+- Shells other than Git Bash, PowerShell 7, Windows PowerShell, and Command Prompt on Windows,
+  and zsh and bash on macOS.
 - Remote or SSH sessions.
 - Being a code editor. The file preview edits text and colors code by language (4.22), but
   completion, diagnostics, and refactoring stay in the preferred editor (3.12).
@@ -162,7 +164,7 @@ mapping. They talk through Tauri commands (request/response) and Tauri channels 
 | Git, containers | The `git`, `docker`, and `podman` command-line tools, run as child processes |
 | Pane CLI | `bb.exe`, a second binary in the Tauri crate, installed beside the app (3.13) |
 | Updates | `tauri-plugin-updater` against GitHub releases (3.16) |
-| Font list | DirectWrite through the `windows` crate (3.17) |
+| Font list | DirectWrite through the `windows` crate on Windows, Core Text through `objc2-core-text` on macOS (3.17) |
 
 The chrome is a pane tree, the dashboard panel, and a few overlays, so plain TypeScript with
 one class per file is enough to start. If the dashboard panel grows into real UI (richer drag
@@ -243,7 +245,7 @@ rename box out.
   reach the page, a log, or an error message, and `Token`'s `Debug` output hides the value. The one
   way a secret enters the core is the Accounts tab's password field, which sends a Bitbucket token
   or an Azure DevOps personal access token to `forge_set_token` as a single argument; the core writes it to Windows Credential
-  Manager and nowhere else, and overwrites its copies afterward on a best effort basis, since the
+  Manager, or on macOS to the Keychain as a generic password under the service `bashboard`, and nowhere else, and overwrites its copies afterward on a best effort basis, since the
   IPC layer's own buffers are outside the app's control. The field is emptied on save, cancel, and
   when the dialog closes. A redirect to another
   host drops the `Authorization` header, the Bitbucket provider refuses any host but

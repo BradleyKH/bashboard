@@ -81,7 +81,62 @@ fn read_families() -> windows::core::Result<Vec<(String, bool)>> {
     }
 }
 
-#[cfg(not(windows))]
+/// Core Text's `kCTFontTraitMonoSpace` bit in a font's symbolic traits.
+const MONOSPACE_TRAIT: u32 = 1 << 10;
+
+/// Whether Core Text symbolic traits mark a face monospace. Plain so it is tested off macOS.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn has_monospace_trait(symbolic_traits: u32) -> bool {
+    symbolic_traits & MONOSPACE_TRAIT != 0
+}
+
+#[cfg(target_os = "macos")]
+fn read_families() -> Result<Vec<(String, bool)>, String> {
+    use objc2_core_foundation::{CFArray, CFDictionary, CFNumber, CFString, CFType};
+    use objc2_core_text::{
+        CTFontCollection, CTFontDescriptor, CTFontSymbolicTraits, kCTFontFamilyNameAttribute,
+        kCTFontSymbolicTrait, kCTFontTraitsAttribute,
+    };
+
+    const _: () = assert!(MONOSPACE_TRAIT == CTFontSymbolicTraits::TraitMonoSpace.0);
+
+    fn symbolic_traits(descriptor: &CTFontDescriptor) -> Option<u32> {
+        // SAFETY: reading an immutable Core Text constant; the attribute key is valid.
+        let traits = unsafe { descriptor.attribute(kCTFontTraitsAttribute) }?;
+        let traits = traits.downcast::<CFDictionary>().ok()?;
+        // SAFETY: only the key type is relied on (CFString); values are checked by downcast.
+        let traits: &CFDictionary<CFString, CFType> = unsafe { traits.cast_unchecked() };
+        // SAFETY: reading an immutable Core Text constant.
+        let number = traits.get(unsafe { kCTFontSymbolicTrait })?;
+        let number = number.downcast_ref::<CFNumber>()?;
+        // The class bits sit in the top four, so the value can exceed i32; read wide and truncate.
+        number.as_i64().map(|bits| bits as u32)
+    }
+
+    // SAFETY: no options dictionary, so there are no generics to get wrong.
+    let collection = unsafe { CTFontCollection::from_available_fonts(None) };
+    // SAFETY: the collection is a valid, retained Core Text object.
+    let Some(descriptors) = (unsafe { collection.matching_font_descriptors() }) else {
+        return Ok(Vec::new());
+    };
+    // SAFETY: Core Text documents this array as holding CTFontDescriptors.
+    let descriptors: &CFArray<CTFontDescriptor> = unsafe { descriptors.cast_unchecked() };
+    let mut found = Vec::new();
+    for descriptor in descriptors.iter() {
+        // SAFETY: reading an immutable Core Text constant; the attribute key is valid.
+        let Some(name) = (unsafe { descriptor.attribute(kCTFontFamilyNameAttribute) }) else {
+            continue;
+        };
+        let Ok(name) = name.downcast::<CFString>() else {
+            continue;
+        };
+        let monospace = symbolic_traits(&descriptor).is_some_and(has_monospace_trait);
+        found.push((name.to_string(), monospace));
+    }
+    Ok(found)
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn read_families() -> Result<Vec<(String, bool)>, String> {
     Ok(Vec::new())
 }
@@ -144,6 +199,15 @@ mod tests {
             sort_families(found),
             vec![fam("Consolas", true), fam("Arial", false)]
         );
+    }
+
+    #[test]
+    fn monospace_trait_reads_only_its_bit() {
+        assert!(has_monospace_trait(1 << 10));
+        // Bold plus a top-four class value, as a real monospace face carries.
+        assert!(has_monospace_trait((1 << 10) | (1 << 1) | (2 << 28)));
+        assert!(!has_monospace_trait((1 << 1) | (1 << 11) | (12 << 28)));
+        assert!(!has_monospace_trait(0));
     }
 
     #[cfg(windows)]

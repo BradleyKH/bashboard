@@ -113,20 +113,22 @@ from the command; for the other commands the words after it are ordinary argumen
   re-run and cancel need the user's setting and are not to be worked around, to run `bb pr size`
   before committing and, on exit 1, to tell the user the count and propose how to split the work
   before going on, and what the pane commands do.
-- **`bb auth`** talks only to Windows Credential Manager, never to the app, so it works in
+- **`bb auth`** talks only to the OS credential store, never to the app, so it works in
   any terminal. `bb auth bitbucket` stores a Bitbucket API token, and `bb auth azure-devops <org>`
   an Azure DevOps personal access token (PAT) for that one organization, so each organization
   needs its own (a PAT made for all accessible organizations stops working on January 27, 2027).
   Each reads the token from a hidden prompt (console echo off), or from standard input when that
-  is not a terminal (up to 1 MiB, first line used), and stores it as a generic credential
-  persisted for the local machine: `bashboard:bitbucket.org` with the user name
-  `x-bitbucket-api-token-auth`, or `bashboard:dev.azure.com/<org>`, the organization lowercased,
-  with the user name `x-azure-devops-pat`. A token that is empty or over 2,560 bytes (the
-  Credential Manager blob limit) is refused, as is an organization that is empty, holds a slash,
+  is not a terminal (up to 1 MiB, first line used), and stores it under a target: `bashboard:bitbucket.org`, or
+  `bashboard:dev.azure.com/<org>` with the organization lowercased. On Windows the target names a
+  Windows Credential Manager generic credential persisted for the local machine, with the user
+  name `x-bitbucket-api-token-auth` or `x-azure-devops-pat`. On macOS it is the account of a
+  generic password in the login Keychain under the service `bashboard`; the user name is not
+  stored there. A token that is empty or over 2,560 bytes (the Credential Manager blob limit,
+  applied on every platform so both accept the same tokens) is refused, as is an organization that is empty, holds a slash,
   whitespace, or a control character, or is written as a flag. `--clear` follows the provider
   (and the organization) and deletes the credential, saying when none was stored. The Ship pane's
   token sources (3.20) read these credentials. The command and the app dialog's Accounts tab
-  (4.20) share one store, `credential_store.rs`, which both `bb.exe` and the app compile, so they
+  (4.20) share one store, `credential_store.rs`, which both `bb` and the app compile, so they
   agree on the targets, the user names, the size limit, and how a token is cleaned; nothing else
   writes them.
 - The core emits `cli://command` with the pane id and the resolved request; the front end's

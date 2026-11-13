@@ -255,7 +255,7 @@ The Ship pane shows a repo's pipeline runs, job logs, and open pull requests. It
 the code host's API with a sign-in you already have, so each host needs a one-time setup. Bashboard
 never runs a sign-in flow of its own and keeps tokens in memory only; the only things it stores are
 a Bitbucket API token and a personal access token for each Azure DevOps organization, in Windows
-Credential Manager. Open the pane from any pane's kind menu (see
+Credential Manager or the macOS Keychain. Open the pane from any pane's kind menu (see
 the [user guide](user-guide.md#ship-pane)); when something is missing, the pane shows the same
 steps with buttons that do them.
 
@@ -351,9 +351,12 @@ the `<scope>` scope." Scopes cannot be added to an existing token, so make a new
 list and store it with **Replace token** on the Bitbucket card (or `bb auth bitbucket`). A running
 Bashboard picks the replacement up at once; no restart is needed.
 
-**Where it goes.** The Accounts tab and `bb auth bitbucket` save the token in Windows Credential
-Manager as the generic credential `bashboard:bitbucket.org`, for this machine only. Check it with
-`cmdkey /list:bashboard:bitbucket.org`, and remove it with **Remove token** (after a confirmation)
+**Where it goes.** The Accounts tab and `bb auth bitbucket` save the token for this machine only.
+On Windows it is the Windows Credential Manager generic credential `bashboard:bitbucket.org`; check
+it with `cmdkey /list:bashboard:bitbucket.org`. On macOS it is a generic password in the login
+Keychain with the service `bashboard` and the account `bashboard:bitbucket.org`; check it with
+`security find-generic-password -s bashboard -a bashboard:bitbucket.org`, which prints the item
+without its password. Remove it with **Remove token** (after a confirmation)
 or `bb auth bitbucket --clear`. The command works in any terminal, not only a Bashboard pane.
 Bashboard reads the token from there and sends it to Bitbucket only. The Accounts tab never shows
 the token again after you save it, and Bashboard writes it nowhere else; the field in the tab is
@@ -441,12 +444,20 @@ Build (Read & execute) when it has less. Scopes cannot be added to an existing t
 one with the full list and store it with **Replace** on the organization's row (or `bb auth
 azure-devops <org>` again). A running Bashboard picks the replacement up at once.
 
-**Where it goes.** The token is saved in Windows Credential Manager as the generic credential
-`bashboard:dev.azure.com/<org>` (the organization lowercased, with the user name
-`x-azure-devops-pat`), for this machine only. Check it with `cmdkey
-/list:bashboard:dev.azure.com/*`, and remove it with **Remove** on the organization's row (after a
-confirmation) or `bb auth azure-devops <org> --clear`. Bashboard sends it to dev.azure.com only,
-and the Accounts tab never shows it again after you save it.
+**Where it goes.** The token is saved for this machine only, under the name
+`bashboard:dev.azure.com/<org>` with the organization lowercased. On Windows it is a Windows
+Credential Manager generic credential with the user name `x-azure-devops-pat`; check it with
+`cmdkey /list:bashboard:dev.azure.com/*`. On macOS it is a generic password in the login Keychain
+with the service `bashboard` and that name as the account; check it with `security
+find-generic-password -s bashboard -a bashboard:dev.azure.com/<org>`, which prints the item without
+its password. Remove it with **Remove** on the organization's row (after a confirmation) or `bb
+auth azure-devops <org> --clear`. Bashboard sends it to dev.azure.com only, and the Accounts tab
+never shows it again after you save it.
+
+**Keychain access on macOS.** `bb` is a separate program from the app, so macOS may ask you to
+allow Keychain access the first time `bb auth` changes a token the app stored, or the app reads one
+`bb` stored, and again after an update, since preview builds are ad-hoc signed. Choose **Always
+Allow**.
 
 **Environment variable.** To use `AZURE_DEVOPS_EXT_PAT`, set it as a user environment variable
 (System Properties, Environment Variables, or `setx AZURE_DEVOPS_EXT_PAT <token>`) and restart

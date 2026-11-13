@@ -306,7 +306,7 @@ impl ForgeError {
 pub enum TokenSourceKind {
     GhCli,
     GitCredentialManager,
-    /// A token Bashboard stored in Windows Credential Manager (Bitbucket's, or an Azure DevOps
+    /// A token Bashboard stored in the OS credential store (Bitbucket's, or an Azure DevOps
     /// organization's).
     BashboardCredential,
     GlabCli,

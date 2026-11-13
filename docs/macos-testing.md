@@ -20,8 +20,6 @@ testing only. This page lists what to check and what to send back.
 ## Not expected to work yet
 
 - The Local Browser pane and the Git install step are hidden.
-- Saved Forge sign-ins (Keychain), Listening ports, font lists, and editor detection are not
-  implemented yet.
 
 ## Checks
 
@@ -70,6 +68,28 @@ For each check, report pass or fail, plus what you saw if it failed.
 18. Start `claude` in a pane, give it a prompt that needs a permission, and switch to another
     app before it asks. A notification appears with the pane's title; macOS asks for permission
     the first time. Clicking it brings Bashboard forward with that pane focused.
+
+**Accounts**
+
+19. In Settings, Accounts, add a Bitbucket or Azure DevOps token. Quit and start Bashboard
+    again; the card still shows that a token is stored.
+20. In a pane, run `bb auth bitbucket` and enter a token. macOS may ask whether to allow
+    Bashboard to use the Keychain. Then `bb auth bitbucket --clear` removes the token.
+
+**Ports**
+
+21. Run `python3 -m http.server 8765` in a pane. The Ports pane and the dashboard show port
+    8765 tied to that pane, and Stop ends the server.
+
+**Fonts**
+
+22. The Font family field in Settings, Appearance suggests installed fonts, with monospace
+    fonts such as Menlo and SF Mono listed first.
+
+**Editors**
+
+23. With VS Code or a JetBrains IDE installed in Applications, the editor setting lists it.
+    Opening a search result opens the file at its line in that editor.
 
 ## Measurements
 
