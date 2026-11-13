@@ -154,6 +154,29 @@
   background: var(--git-hover);
 }
 
+/*
+ * A wrapping row places items by their full width, so a long name would fill its line and push the
+ * chip below it. With the chip shown, the name claims at most 8em when lines are filled, and less
+ * in a row too narrow for that and the chip, so the chip stays beside it and the remote group wraps
+ * first; the name then grows up to its own text, truncating past that.
+ */
+.git-branch-name:has(+ .git-branch-size:not([hidden])) {
+  flex: 1 1 max(0px, min(8em, 100% - 90px));
+  max-width: max-content;
+}
+
+/* A small warning chip, shown only while the branch is over the size threshold. */
+.git-branch-size {
+  flex: none;
+  white-space: nowrap;
+  padding: 0 5px;
+  border: 1px solid var(--branch-size-warn, #e0b050);
+  border-radius: 8px;
+  color: var(--branch-size-warn, #e0b050);
+  font-size: 10px;
+  line-height: 14px;
+}
+
 /* The label and buttons wrap below a long branch name as one group, the label giving way first. */
 .git-remote {
   flex: 0 1 auto;

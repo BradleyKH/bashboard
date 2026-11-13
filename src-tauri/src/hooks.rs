@@ -3,8 +3,9 @@
 //! `X-Bashboard-Agent` header, and the latest status per session is kept as an overlay on the
 //! roster. Each agent's events map to a status through its own table in `status_for`. The
 //! same receiver takes `POST /cli` from the `bb` pane CLI (design section 3.13) and emits the
-//! resolved command as `cli://command`, and `POST /ci` for `bb ci` (docs/design/ship.md section
-//! 3.23), which it answers from a thread of its own. The overlay also keeps each session's
+//! resolved command as `cli://command`, `POST /ci` for `bb ci` (docs/design/ship.md section
+//! 3.23), and `POST /size` for `bb pr size` (docs/design/git.md section 3.25), each of which it
+//! answers from a thread of its own. The overlay also keeps each session's
 //! `transcript_path`, which the transcript reader uses to find the session's JSONL file.
 
 use std::{
@@ -21,7 +22,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::lock::LockExt;
-use crate::{agents::AgentId, ci, cli, pty::Ptys, roster};
+use crate::{agents::AgentId, ci, cli, pty::Ptys, roster, size_route};
 
 const MAX_BODY: usize = 64 * 1024;
 const MAX_CLI_BODY: usize = 1024 * 1024;
@@ -155,7 +156,11 @@ pub fn init(app: &AppHandle) {
             |req, body| {
                 let app = app.clone();
                 thread::spawn(move || {
-                    let (code, json) = ci::handle(&app, &body);
+                    let (code, json) = if route(&req) == "/size" {
+                        size_route::handle(&app, &body)
+                    } else {
+                        ci::handle(&app, &body)
+                    };
                     respond_json(req, code, &json);
                 });
             },
@@ -178,8 +183,8 @@ fn header<'a>(headers: &'a [Header], name: &'static str) -> Option<&'a str> {
 }
 
 /// Answers requests until the server shuts down, passing each accepted hook event to
-/// `on_event`, each accepted `/cli` command to `on_cli`, and each accepted `/ci` request,
-/// unanswered, to `on_ci`, which must answer it off this thread. `pane_live` says whether a
+/// `on_event`, each accepted `/cli` command to `on_cli`, and each accepted `/ci` or `/size`
+/// request, unanswered, to `on_ci`, which must answer it off this thread. `pane_live` says whether a
 /// pty id belongs to a running pane. Nothing here waits on the front end or a forge.
 fn serve(
     server: &Server,
@@ -198,6 +203,10 @@ fn serve(
     }
 }
 
+fn route(req: &Request) -> &str {
+    req.url().split('?').next().unwrap_or("")
+}
+
 fn respond_json(req: Request, code: u16, json: &serde_json::Value) {
     let mut resp = Response::from_string(json.to_string()).with_status_code(StatusCode(code));
     if let Ok(h) = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]) {
@@ -214,9 +223,10 @@ fn answer(
     on_cli: &mut impl FnMut(cli::CliCommand),
     on_ci: &mut impl FnMut(Request, Vec<u8>),
 ) {
-    let path = req.url().split('?').next().unwrap_or("").to_string();
+    let path = route(&req).to_string();
     let is_cli = path == "/cli";
-    let is_ci = path == "/ci";
+    // `/size` shares `/ci`'s admission and handoff; the handler in `init` tells them apart.
+    let is_ci = path == "/ci" || path == "/size";
     let cap = if is_cli {
         MAX_CLI_BODY
     } else if is_ci {
@@ -1076,12 +1086,22 @@ mod tests {
     }
 
     fn ci_send(addr: std::net::SocketAddr, token: &str, pane: &str, body: &str) -> TcpStream {
+        route_send(addr, "/ci", token, pane, body)
+    }
+
+    fn route_send(
+        addr: std::net::SocketAddr,
+        path: &str,
+        token: &str,
+        pane: &str,
+        body: &str,
+    ) -> TcpStream {
         let mut stream = TcpStream::connect(addr).unwrap();
         // A broken handoff fails the test instead of hanging the whole run.
         stream.set_read_timeout(Some(std::time::Duration::from_secs(10))).unwrap();
         write!(
             stream,
-            "POST /ci HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Bashboard-Token: {token}\r\n\
+            "POST {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Bashboard-Token: {token}\r\n\
              X-Bashboard-Pane: {pane}\r\nContent-Type: application/json\r\n\
              Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
             body.len()
@@ -1127,6 +1147,41 @@ mod tests {
         assert!(refused.contains(r#"{"error":"#));
         let mut no_pane = String::new();
         ci_send(addr, TOKEN, "9", "{}").read_to_string(&mut no_pane).unwrap();
+        assert!(no_pane.starts_with("HTTP/1.1 404"), "{no_pane}");
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn size_is_admitted_and_handed_off_like_ci() {
+        let server = Server::http("127.0.0.1:0").unwrap();
+        let addr = server.server_addr().to_ip().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            serve(
+                &server,
+                TOKEN,
+                |_| {},
+                |id| id == 5,
+                |_| panic!("/size must not reach the /cli path"),
+                |req, body| tx.send((req, body)).unwrap(),
+            )
+        });
+        let wait = std::time::Duration::from_secs(10);
+        let mut pending = route_send(addr, "/size", TOKEN, "5", r#"{"cwd":"C:/r"}"#);
+        let (req, body) = rx.recv_timeout(wait).expect("/size was not handed off");
+        assert_eq!(route(&req), "/size");
+        assert_eq!(body, br#"{"cwd":"C:/r"}"#);
+        respond_json(req, 200, &serde_json::json!({ "threshold": 400 }));
+        let mut response = String::new();
+        pending.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+
+        let mut refused = String::new();
+        route_send(addr, "/size", "wrong!", "5", "{}").read_to_string(&mut refused).unwrap();
+        assert!(refused.starts_with("HTTP/1.1 403"), "{refused}");
+        assert!(refused.contains(r#"{"error":"#));
+        let mut no_pane = String::new();
+        route_send(addr, "/size", TOKEN, "9", "{}").read_to_string(&mut no_pane).unwrap();
         assert!(no_pane.starts_with("HTTP/1.1 404"), "{no_pane}");
         assert!(rx.try_recv().is_err());
     }

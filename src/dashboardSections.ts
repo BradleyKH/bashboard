@@ -14,6 +14,7 @@ export const DEFAULT_ELEMENT_ORDER = [
   'containers',
   'ports',
   'ship',
+  'branch',
   'localModels',
   'external',
   'system',
@@ -44,6 +45,7 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
   containers: true,
   ports: true,
   ship: true,
+  branch: false,
   localModels: true,
   external: true,
   system: false,
@@ -60,6 +62,7 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
   containers: 'Containers',
   ports: 'Ports',
   ship: 'Ship',
+  branch: 'Branch',
   localModels: 'Local AI models',
   external: 'External sessions',
   system: 'System',
@@ -72,6 +75,7 @@ export const ELEMENT_HINTS: Partial<Record<DashboardElement, string>> = {
   wave: 'A Lissajous figure that follows CPU and network load',
   containers: 'Podman and Docker',
   ship: 'Manage pipelines and PRs for selected repos',
+  branch: "Git and CI summary for the focused pane's branch",
 };
 
 function isSection(v: unknown): v is DashboardSection {

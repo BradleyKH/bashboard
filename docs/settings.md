@@ -261,14 +261,14 @@ the scrollback already saved, at the next close:
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `launch`, `panes`, `containers`, `ports`, `forge`, `localModels`, and `external` default to
-`true`, and `favorites`, `layouts`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
+each dashboard element: `launch`, `panes`, `containers`, `ports`, `ship`, `localModels`, and `external` default to
+`true`, and `favorites`, `layouts`, `branch`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
 the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
 drops the Launch menu. A settings file that still has `sections.folder` and no `sections.launch`
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Ship section lists what needs you across the repos pinned to the Ship Overview (a red health branch, your own pull request with changes requested or failing checks, or up to 5 pull requests awaiting your review), then the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Ship section lists what needs you across the repos pinned to the Ship Overview (a red health branch, your own pull request with changes requested or failing checks, or up to 5 pull requests awaiting your review), then the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -287,6 +287,7 @@ dashboard", shown while the clock is on; right-clicking the clock sets it too.
     "containers": true,
     "ports": true,
     "ship": true,
+    "branch": false,
     "localModels": true,
     "external": true,
     "system": false,
@@ -316,8 +317,14 @@ no folder to inherit. All of these are in the Terminal section of the Settings t
 of repos with an open Git pane; 0 turns them off. It applies on save and is also in the Git
 section of the Settings tab.
 
+`git.branchSizeThreshold` (default 400) is the number of lines changed against the comparison ref in a
+worktree, with tests, lockfiles, and generated files excluded, above which the branch row of the Git pane and the
+dashboard session cards show a size warning. 0 turns the warning off; the dashboard's Branch section
+still shows the meter, uncolored, at 0. It applies on save and is in the Git section of the Settings
+tab.
+
 ```jsonc
-"git": { "autoFetchMinutes": 5 }
+"git": { "autoFetchMinutes": 5, "branchSizeThreshold": 400 }
 ```
 
 `localModels.ollamaUrl` and `localModels.lmStudioUrl` (both default empty) set the address Bashboard

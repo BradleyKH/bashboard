@@ -63,7 +63,7 @@ export interface Settings {
   restore: { enabled: boolean; resumeSessions: boolean; scrollback: boolean };
   editor: { preferred: string; command: string };
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design/git.md section 3.9). */
-  git: { autoFetchMinutes: number };
+  git: { autoFetchMinutes: number; branchSizeThreshold: number };
   localModels: { ollamaUrl: string; lmStudioUrl: string; minContext: number };
   /**
    * `hosts` maps a lowercased host name to its forge kind, for self-hosted hosts. The Overview tab
@@ -134,7 +134,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both' },
   restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
-  git: { autoFetchMinutes: 5 },
+  git: { autoFetchMinutes: 5, branchSizeThreshold: 400 },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
   ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [], cliWrites: false },
   localBrowser: {

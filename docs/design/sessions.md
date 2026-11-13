@@ -201,9 +201,10 @@ exact transitions as they happen.
 - The install is per agent: `hooks_install_preview(agent)` returns the file it will change, the
   JSON it will add, whether the hooks are already in, whether the agent is detected, and for
   Codex the trust state; `hooks_install(agent)` writes it. An absent agent means Claude Code.
-- The receiver accepts `POST /hook`, `POST /cli` (3.13), and `POST /ci` (3.23). A `/ci` request,
-  which can wait seconds on a code host, is handed to its own thread and answered from there, so
-  the loop that carries hook events never waits on it. For `/hook` it answers with these
+- The receiver accepts `POST /hook`, `POST /cli` (3.13), `POST /ci` (3.23), and `POST /size`
+  (3.25). A `/ci` or `/size` request, which can wait seconds on a code host or a large diff, is
+  handed to its own thread and answered from there, so the loop that carries hook events never
+  waits on it. For `/hook` it answers with these
   codes, checked in this order:
   404 for any other path or method, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a
   body over 64 KiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on
@@ -241,6 +242,18 @@ roster without a pane link.
 `transcript.rs` reads from the session's transcript. The formats are internal to each tool and
 undocumented, so every field is optional and an unreadable line is skipped. A reading is the
 newest model, the context tokens, and the context window when the transcript reports one.
+
+**Branch size badge.** A terminal card (4.6) whose folder is in a git repo shows a warning chip
+at the end of its agent line, reading the line count ("512 lines"), while the worktree's changes
+against its comparison ref exceed `git.branchSizeThreshold` (3.25; 0 turns it off). The tooltip
+spells out the added and removed lines, the file count, the comparison ref, and what the test,
+lockfile, and generated file exclusions left out. A card with the chip always has the agent line, even when the
+session has no model or tokens to show, and a card with no agent session shows the chip alone;
+the chip is absent at or under the threshold, with no comparison ref, and for a repo rooted at the
+home folder. Sizes come from the store the Git pane's branch row (4.13) and the dashboard's Branch
+section (4.6) share: one entry per worktree, refetched on `git://changed` for it and when a
+session running in that folder reports `Stop`, so the count catches up as a turn ends, never on a
+timer, and paused while the window is hidden.
 
 - **Claude Code.** The JSONL file Claude Code appends to under `~/.claude/projects/`: the hook
   overlay's `transcript_path` when there is one; for a session bound by ancestry, which sends no

@@ -86,6 +86,9 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
     if command == "ci" {
         return Ok(ci(rest));
     }
+    if command == "pr" {
+        return Ok(pr(rest));
+    }
     let pane = Pane::from_env()?;
     let stdin = if wants_stdin(command, rest) && !io::stdin().is_terminal() {
         Some(read_stdin()?)
@@ -388,6 +391,87 @@ fn write_message(args: &CiArgs, run_id: &str) -> String {
         CiOp::Rerun if args.failed => format!("Re-running the failed jobs of run {run_id}."),
         CiOp::Rerun => format!("Re-running run {run_id}."),
         _ => format!("Canceled run {run_id}."),
+    }
+}
+
+/// A large diff can take a moment, but nothing behind `/size` leaves the machine.
+const SIZE_TIMEOUT: Duration = Duration::from_secs(30);
+const PR_USAGE: &str = "usage: bb pr size [--json] (see bb help)";
+/// `bb pr size` keeps exit 1 for "over the threshold", so every error takes this code.
+const PR_ERROR: u8 = 2;
+
+/// Whether `--json` was given.
+fn parse_pr(rest: &[String]) -> Result<bool, String> {
+    match rest.split_first() {
+        Some((sub, flags)) if sub == "size" => match flags {
+            [] => Ok(false),
+            [flag] if flag == "--json" => Ok(true),
+            _ => Err(format!("unknown option \"{}\" ({PR_USAGE})", flags.join(" "))),
+        },
+        Some((sub, _)) if !is_help(sub) => Err(format!("unknown pr command \"{sub}\" ({PR_USAGE})")),
+        _ => Err(PR_USAGE.into()),
+    }
+}
+
+fn pr(rest: &[String]) -> ExitCode {
+    match pr_size(rest) {
+        Ok(code) => code,
+        Err(msg) => {
+            eprintln!("bb: {msg}");
+            ExitCode::from(PR_ERROR)
+        }
+    }
+}
+
+fn pr_size(rest: &[String]) -> Result<ExitCode, String> {
+    let json = parse_pr(rest)?;
+    let pane = Pane::from_env()?;
+    let body = serde_json::to_vec(&serde_json::json!({ "cwd": pane.cwd }))
+        .expect("a JSON value serializes");
+    let raw = pane
+        .post("/size", &body, SIZE_TIMEOUT)
+        .map_err(|e| format!("could not reach Bashboard: {e}"))?;
+    let value = ci_answer(&raw).map_err(|e| e.message)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&value).unwrap_or_default());
+    } else {
+        println!("{}", size_line(&value));
+    }
+    Ok(ExitCode::from(if over_threshold(&value) { 1 } else { 0 }))
+}
+
+/// Strictly over a nonzero threshold, and only when there is something to compare against.
+fn over_threshold(value: &serde_json::Value) -> bool {
+    let size = &value["size"];
+    let threshold = value["threshold"].as_u64().unwrap_or(0);
+    !size["comparison"].is_null()
+        && threshold > 0
+        && size["lines"].as_u64().unwrap_or(0) > threshold
+}
+
+fn plural(n: u64, one: &str) -> String {
+    if n == 1 { format!("{n} {one}") } else { format!("{n} {one}s") }
+}
+
+fn size_line(value: &serde_json::Value) -> String {
+    let size = &value["size"];
+    let n = |k: &str| size[k].as_u64().unwrap_or(0);
+    let threshold = match value["threshold"].as_u64().unwrap_or(0) {
+        0 => "threshold off".to_string(),
+        t => format!("threshold {t}"),
+    };
+    let excluded = format!(
+        "tests, lockfiles, and generated files excluded: {} in {}",
+        plural(n("excludedLines"), "line"),
+        plural(n("excludedFiles"), "file"),
+    );
+    match size["comparison"].as_str() {
+        Some(against) => format!(
+            "{} in {} against {against} ({threshold}; {excluded})",
+            plural(n("lines"), "line"),
+            plural(n("files"), "file"),
+        ),
+        None => format!("No comparison ref, so the branch size is not measured ({threshold})."),
     }
 }
 
@@ -1089,6 +1173,7 @@ mod tests {
             "ci log",
             "ci rerun",
             "ci cancel",
+            "pr size",
             "skill install",
             "help",
             "--collapsed",
@@ -1324,6 +1409,62 @@ mod tests {
             serde_json::json!({ "op": "rerun", "cwd": "/r", "failedOnly": true })
         );
         assert_eq!(body(&["cancel"]), serde_json::json!({ "op": "cancel", "cwd": "/r" }));
+    }
+
+    #[test]
+    fn pr_arguments() {
+        assert_eq!(parse_pr(&strings(&["size"])), Ok(false));
+        assert_eq!(parse_pr(&strings(&["size", "--json"])), Ok(true));
+        assert!(parse_pr(&strings(&["size", "--branch"])).unwrap_err().contains("unknown option"));
+        assert!(parse_pr(&strings(&["size", "--json", "--json"])).is_err());
+        assert!(parse_pr(&strings(&["merge"])).unwrap_err().starts_with("unknown pr command"));
+        assert_eq!(parse_pr(&[]), Err(PR_USAGE.to_string()));
+        assert_eq!(parse_pr(&strings(&["--help"])), Err(PR_USAGE.to_string()));
+    }
+
+    fn size(lines: u64, comparison: Option<&str>, threshold: u64) -> serde_json::Value {
+        serde_json::json!({
+            "size": {
+                "worktree": "/r",
+                "branch": "feature",
+                "comparison": comparison,
+                "lines": lines,
+                "added": lines,
+                "removed": 0,
+                "files": 14,
+                "excludedLines": 210,
+                "excludedFiles": 6,
+            },
+            "threshold": threshold,
+        })
+    }
+
+    #[test]
+    fn size_lines() {
+        assert_eq!(
+            size_line(&size(512, Some("origin/main"), 400)),
+            "512 lines in 14 files against origin/main (threshold 400; tests, lockfiles, and generated files excluded: 210 lines in 6 files)"
+        );
+        let mut one = size(1, Some("main"), 0);
+        one["size"]["files"] = 1.into();
+        one["size"]["excludedLines"] = 0.into();
+        one["size"]["excludedFiles"] = 0.into();
+        assert_eq!(
+            size_line(&one),
+            "1 line in 1 file against main (threshold off; tests, lockfiles, and generated files excluded: 0 lines in 0 files)"
+        );
+        assert_eq!(
+            size_line(&size(0, None, 400)),
+            "No comparison ref, so the branch size is not measured (threshold 400)."
+        );
+    }
+
+    #[test]
+    fn size_threshold_is_strictly_over() {
+        assert!(over_threshold(&size(401, Some("origin/main"), 400)));
+        assert!(!over_threshold(&size(400, Some("origin/main"), 400)));
+        assert!(!over_threshold(&size(9000, Some("origin/main"), 0)));
+        assert!(!over_threshold(&size(9000, None, 400)));
     }
 
     #[test]

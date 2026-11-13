@@ -1,4 +1,5 @@
 import './gitPane.css';
+import { branchSizeStore } from './branchSizeStore';
 import { startSplitDrag } from './splitDrag';
 import type { ConfirmOptions } from './confirmDialog';
 import type { MenuEntry } from './contextMenuModel';
@@ -182,6 +183,7 @@ export class GitPane implements PaneView {
   private remoteError = false;
   private labelTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
+  private unsubscribeSize: (() => void) | null = null;
   private readonly listeners: Array<() => void> = [];
 
   constructor(opts: GitPaneOptions) {
@@ -346,6 +348,7 @@ export class GitPane implements PaneView {
       () => {},
     );
     this.labelTimer = setInterval(() => this.renderLastFetch(), 30_000);
+    this.unsubscribeSize = branchSizeStore.subscribe(() => this.renderSize());
 
     void this.init();
   }
@@ -478,12 +481,14 @@ export class GitPane implements PaneView {
   setExpanded(expanded: boolean): void {
     const shown = expanded && !this.expanded;
     this.expanded = expanded;
+    this.syncSizeWanted();
     if (shown) this.refresh();
   }
 
   applySettings(settings: Settings): void {
     this.settings = settings;
     this.diffView.setCodeColors(codeColorsMode(settings.codeColors.scheme));
+    this.renderSize();
   }
 
   cellSize(): CellSize {
@@ -517,6 +522,9 @@ export class GitPane implements PaneView {
     this.unlistenChanged = null;
     this.unlistenFetched?.();
     this.unlistenFetched = null;
+    this.unsubscribeSize?.();
+    this.unsubscribeSize = null;
+    branchSizeStore.setWanted(this.sizeKey(), []);
     if (this.labelTimer !== null) clearInterval(this.labelTimer);
     this.labelTimer = null;
     for (const off of this.listeners) off();
@@ -551,6 +559,7 @@ export class GitPane implements PaneView {
       this.opts.onChange();
     }
     this.ready = true;
+    this.syncSizeWanted();
     this.startWatch(this.rootPath);
     this.refresh();
   }
@@ -613,6 +622,24 @@ export class GitPane implements PaneView {
     }
     this.updateCommitEnabled();
     this.restoreSelection(staged, changes);
+  }
+
+  private sizeKey(): string {
+    return `git:${this.paneId}`;
+  }
+
+  /** The store watches the repo only while this pane is on screen in a repo; a hidden pane drops its want. */
+  private syncSizeWanted(): void {
+    if (this.disposed) return;
+    const wanted = this.ready && this.expanded;
+    branchSizeStore.setWanted(this.sizeKey(), wanted ? [this.rootPath] : []);
+    this.renderSize();
+  }
+
+  private renderSize(): void {
+    const wanted = this.ready && this.expanded && !this.disposed;
+    const size = wanted ? branchSizeStore.sizeFor(this.rootPath) : null;
+    this.branch.setSize(size, this.settings.git.branchSizeThreshold);
   }
 
   private renderLastFetch(): void {

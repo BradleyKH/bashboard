@@ -1,6 +1,6 @@
 ---
 name: bashboard
-description: Use the bb CLI when running inside a Bashboard terminal pane. Covers checking CI status, waiting for CI after a push, reading why a pipeline or workflow failed, rerunning or canceling CI runs, and opening Bashboard panes (files, git, search, scratch, terminal, ship, ports, containers, local browser). Trigger on questions about CI or build status, failing pipelines or checks, "wait for CI", or showing something in a pane.
+description: Use the bb CLI when running inside a Bashboard terminal pane. Covers checking CI status, waiting for CI after a push, reading why a pipeline or workflow failed, rerunning or canceling CI runs, and measuring how big the current branch is against its size threshold before committing, and opening Bashboard panes (files, git, search, scratch, terminal, ship, ports, containers, local browser). Trigger on questions about CI or build status, failing pipelines or checks, "wait for CI", committing, branch or PR size, whether to split a branch, or showing something in a pane.
 bashboard-skill: true
 ---
 
@@ -68,6 +68,20 @@ user's `ship.cliWrites` setting is on, and the error names that setting. Run the
 user asks. If one is refused, tell the user about `ship.cliWrites` and stop; do not try to work
 around it, and do not edit the user's settings yourself. Do not rerun a failure to see whether it
 goes away without the user's say-so; read the log first.
+
+## Branch size
+
+`bb pr size [--json]` counts the lines and files the current branch changes against its
+comparison ref (usually `origin/main`), including uncommitted and untracked work, leaving out
+tests, lockfiles, and generated files. It prints one line with the count, the comparison ref, and the user's
+`git.branchSizeThreshold`. Exit 0: at or under the threshold, the threshold is off (0), or there
+is no comparison ref. Exit 1: over the threshold. Exit 2: the request failed (not in a pane, not
+in a git repo); the message on stderr says why.
+
+Run `bb pr size` before committing. On exit 1, tell the user the branch is over the threshold,
+give the count, and propose how to split the work into smaller branches or PRs before you
+continue; go on only once the user agrees to keep it whole or picks a split. Exit 2 is "unknown",
+not "too big".
 
 ## Pane commands
 

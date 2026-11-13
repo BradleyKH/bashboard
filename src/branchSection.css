@@ -1,0 +1,112 @@
+/* The dashboard's Branch section. The CI and pull request rows reuse the favorite row styles and the Ship pane's status icons and badges. */
+.branch-section {
+  --ship-ok: #6fcf7f;
+  --ship-bad: #e8716f;
+  --ship-warn: #e6c15a;
+  --ship-idle: #7d8a91;
+  --ship-border: rgba(255, 255, 255, 0.1);
+  --ship-muted: var(--content-faint);
+}
+
+.branch-section[hidden] {
+  display: none;
+}
+
+/* The head spreads its children apart; the branch link takes the rest of the line. */
+.branch-section-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.branch-section-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+}
+
+.branch-section-link:hover .branch-section-name {
+  text-decoration: underline;
+}
+
+.branch-section-folder {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #6c777e;
+}
+
+.branch-row {
+  padding: 2px 2px;
+  min-width: 0;
+  color: var(--content-fg);
+}
+
+.branch-row.muted {
+  color: #6c777e;
+}
+
+.branch-row.warn {
+  color: var(--ship-warn);
+}
+
+.branch-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.branch-meter-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.branch-meter-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #9aa6ad;
+}
+
+/* Only a branch past its threshold is colored; under it the bar stays neutral. */
+.branch-meter.over .branch-meter-fill {
+  background: var(--branch-size-warn, #e0b050);
+}
+
+.favorite-row.branch-ci-row {
+  padding-left: 8px;
+}
+
+.branch-ci-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa6ad;
+}
+
+/* A merged or closed pull request reads as history. */
+.branch-pull-row.done .branch-ci-text {
+  color: #6c777e;
+}
+
+.branch-pull-row .ship-review {
+  flex: none;
+  font-size: 11px;
+}

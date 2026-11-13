@@ -31,6 +31,9 @@ Copilot CLI, and it works with any stack. It runs on Windows, with an early macO
 - **Containers:** start, stop, tail, and shell into Docker or Podman containers.
 - **Tabs, layouts, and the command palette:** workspaces restore on relaunch, named layouts
   rebuild one in a click, and Ctrl+Shift+P reaches everything.
+- **Branch size meter:** a badge on the Git pane and session cards warns when an agent's branch
+  sprawls past a line limit, an optional dashboard section tracks it, and `bb pr size` lets the
+  agent check before it commits.
 - **The `bb` CLI and scratch pads:** open panes from any prompt, wait for CI and read why it
   failed (`bb ci`), and draft longer prompts before sending them.
 - **Backdrops and effects:** a live colony simulation, Galaxy, Matrix, a load-driven wave, or

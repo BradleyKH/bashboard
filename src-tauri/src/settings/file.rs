@@ -64,6 +64,9 @@ pub(super) fn default_file_text() -> String {
     .replace(
         "  \"git\": {",
         "  // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
+  // branchSizeThreshold is the lines changed against the comparison ref (tests, lockfiles, and
+  // generated files excluded) above which the branch row and session cards show a size warning;
+  // 0 turns it off.
   \"git\": {",
     )
     .replace(
@@ -185,9 +188,10 @@ mod tests {
     }
 
     #[test]
-    fn git_auto_fetch_minutes_defaults_to_5_and_is_in_default_file() {
-        assert_eq!(Settings::default().git, GitSettings { auto_fetch_minutes: 5 });
-        assert!(default_file_text().contains("\"git\""));
+    fn git_settings_default_and_are_in_default_file() {
+        assert_eq!(Settings::default().git, GitSettings { auto_fetch_minutes: 5, branch_size_threshold: 400 });
+        let text = default_file_text();
+        assert!(text.contains("\"git\"") && text.contains("\"branchSizeThreshold\": 400"));
     }
 
     #[test]

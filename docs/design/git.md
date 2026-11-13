@@ -122,13 +122,64 @@ at most 3 seconds after the first change while changes keep arriving. The payloa
 flag is true when refs, `HEAD`, the index, or a worktree record changed (or the watcher reported
 an error), and false when only worktree files changed.
 
+## 3.25 Branch size (`src-tauri/src/git_branch_size.rs`, `src-tauri/src/size_route.rs`)
+
+The branch size meter catches a sprawling agent branch mid-session instead of at review.
+`git_branch_size(path)` counts the lines and files a worktree changes against its comparison ref
+(3.9) and returns `BranchSize`: `worktree`, `branch` (null when detached), `comparison` (null when
+there is none), `lines` (`added` plus `removed`), `added`, `removed`, `files`, and `excludedLines`
+and `excludedFiles` for what the exclusions below left out. It runs from the worktree's toplevel,
+so untracked files outside the folder it was given still count, and it resolves the comparison ref
+as `git_worktrees` does, honoring the repo's `primaryBranch`. With no comparison ref, or no merge
+base (unrelated histories, an unborn HEAD), every count is zero.
+
+The base is `git merge-base HEAD <comparison ref>`, so commits the branch has not merged in from
+its comparison ref stay out of the count, and the count covers committed, staged, unstaged, and
+untracked work together:
+
+- Tracked changes come from `git diff --numstat -z -M --no-ext-diff <merge-base>`. A rename counts
+  once, under its new path. A binary file counts as a file with no lines.
+- Untracked files come from `git ls-files --others --exclude-standard -z`, so ignored files stay
+  out, and each counts all its lines as added. One over 1 MiB, or with a NUL byte in its first 8
+  KiB (the test git applies to call a file binary), counts as a file with no lines.
+- Tests, lockfiles, and generated files are left out of `lines`, `added`, `removed`, and `files`
+  and tallied in `excludedLines` and `excludedFiles` instead. A path is excluded, ignoring case,
+  when any folder in it is named `test`, `tests`, `__tests__`, `spec`, `testdata`, or `fixtures`;
+  when its name has a `.test.` or `.spec.` or `_test.` marker with text on both sides, or is
+  `test_*.py`; when it is a lockfile: `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`,
+  `bun.lock`, `bun.lockb`, `Cargo.lock`, `poetry.lock`, `uv.lock`, `Pipfile.lock`,
+  `Gemfile.lock`, `go.sum`, `composer.lock`, `packages.lock.json` (NuGet), `Package.resolved`
+  (SwiftPM), `pubspec.lock`, `mix.lock`, or `flake.lock`; or when its name ends in
+  `ModelSnapshot.cs` or `.Designer.cs` with text before the suffix. The last two catch EF Core's
+  model snapshot and each migration's designer file, plus WinForms and resx designer files; a
+  migration's own `<timestamp>_<Name>.cs` still counts, since it is often edited by hand and is
+  what a reviewer reads.
+
+Reads set `GIT_OPTIONAL_LOCKS=0`. The numstat parser, the exclusion test, and the tally are pure
+functions with unit tests.
+
+`POST /size` on the hook receiver (3.3) serves `bb pr size` (3.13). It is admitted like `/ci`
+(3.23): the per-launch token and a live pane, and each request runs on its own thread, since a
+diff can take a moment on a large repo. The body is `{ cwd }`; the answer is `{ size, threshold }`,
+with `size` as above and `threshold` the `git.branchSizeThreshold` setting (section 8). A folder
+that is not a git repo answers 400 with `{ error: "not a git repository" }`, as does a body that
+is not valid or a folder that does not exist, and a failure from git answers 500. The route only
+reads.
+
 ## 4.13 Git pane
 
 For one git repo. A head row spans the pane: the **branch line** and the **Changes** and
 **Branches** tabs. The tab shows in workspace.json as the pane's `tab`, absent for Changes.
 
 The **branch line** shows the branch with its upstream and the ahead and behind counts, the last
-fetch label, and the Fetch, Pull, and Push buttons. Clicking the branch name opens the
+fetch label, and the Fetch, Pull, and Push buttons. While the worktree's changes against its
+comparison ref exceed `git.branchSizeThreshold` (3.25; 0 turns the badge off), a warning chip
+after the branch name reads the line count ("512 lines"); its tooltip gives the added and
+removed lines, the file count, the comparison ref, and what the exclusions left out. The chip is
+absent at or under the threshold and when there is no comparison ref. The size comes from a store
+shared with the session cards and the dashboard's Branch section (4.6), which refetches on the
+git watcher's `git://changed` (3.9) and when an agent working in that folder stops, never on a
+timer, and pauses while the window is hidden. It reads only while the pane is expanded. Clicking the branch name opens the
 **branch switcher**: a filter field over the local branches, then the remote ones, ending in a
 "Create branch <name>" row when the text is a valid name no local branch has. Up and Down move,
 Enter picks, Escape closes. It opens on the first branch that is not current. Picking a local

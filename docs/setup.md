@@ -140,8 +140,9 @@ output in a scratch pad. `bb help` lists the rest.
 
 Claude Code can also learn `bb` from a skill, which loads when it is relevant instead of sitting
 in every conversation. Run `bb skill install` in any terminal to write it to
-`~/.claude/skills/bashboard/SKILL.md`. It covers the pane commands and `bb ci`: after a push,
-wait for CI with `bb ci wait`, and when it fails read `bb ci log` and fix the cause. Re-running
+`~/.claude/skills/bashboard/SKILL.md`. It covers the pane commands, `bb pr size`, and `bb ci`: before
+committing, check the branch with `bb pr size` and propose a split when it is over the threshold;
+after a push, wait for CI with `bb ci wait`, and when it fails read `bb ci log` and fix the cause. Re-running
 or canceling a pipeline stays refused until you turn on `ship.cliWrites` in
 [Settings](settings.md#settings), and the skill tells the agent not to work around that. Running
 the command again updates the skill, or says it is already up to date; it replaces only a file

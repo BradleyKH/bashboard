@@ -469,6 +469,18 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         inline: true,
       },
+      {
+        path: ['git', 'branchSizeThreshold'],
+        label: 'Branch size meter',
+        kind: 'number',
+        min: 0,
+        step: 50,
+        unit: 'lines',
+        integer: true,
+        hint: 'The branch row and session cards warn once a branch changes more lines than this against its comparison ref (tests, lockfiles, and generated files excluded). 0 turns the warning off',
+        applies: 'live',
+        inline: true,
+      },
     ],
   },
   {

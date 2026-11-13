@@ -12,6 +12,8 @@ export interface PaneCardOptions {
   now: number;
   /** The bound Claude session's model and context size, shown under the path; null for none. */
   agentLine: string | null;
+  /** Branch size chip on the agent line; null or omitted for none. A card with a chip always gets the agent line, even with no agent text. */
+  sizeBadge?: { text: string; title: string } | null;
   /** Shows the folder path under the title; hidden, the path moves into the title's tooltip. */
   showPath: boolean;
   /** `shell.defaultProfile`; a terminal running it shows no profile badge. */
@@ -186,14 +188,24 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     setPathText(path, card.path);
     el.append(path);
   }
-  if (opts.agentLine !== null) {
+  const sizeBadge = opts.sizeBadge ?? null;
+  if (opts.agentLine !== null || sizeBadge !== null) {
     const line = document.createElement('div');
     line.className = 'card-agent';
-    const text = document.createElement('span');
-    text.className = 'card-agent-text';
-    text.textContent = opts.agentLine;
-    text.title = opts.agentLine;
-    line.append(text);
+    if (opts.agentLine !== null) {
+      const text = document.createElement('span');
+      text.className = 'card-agent-text';
+      text.textContent = opts.agentLine;
+      text.title = opts.agentLine;
+      line.append(text);
+    }
+    if (sizeBadge !== null) {
+      const chip = document.createElement('span');
+      chip.className = 'card-size-badge';
+      chip.textContent = sizeBadge.text;
+      chip.title = sizeBadge.title;
+      line.append(chip);
+    }
     el.append(line);
   }
   return el;

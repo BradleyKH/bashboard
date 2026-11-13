@@ -1,4 +1,8 @@
 import { agentName, isPreviewAgent } from './agentNames';
+import { BranchSection } from './branchSection';
+import { BranchSectionController } from './branchSectionController';
+import { badgeText, badgeTitle, isOverThreshold } from './branchSizeModel';
+import { branchSizeStore } from './branchSizeStore';
 import type { AgentId } from './savedWorkspace';
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
 import { agentLine } from './agentModel';
@@ -76,6 +80,8 @@ export interface DashboardCallbacks
   ports?: PortsSectionCallbacks;
   /** The Ship section opens the Overview, drilled into `target` on `tab` when given. */
   onOpenShip?: (target: string | null, tab?: ShipTab) => void;
+  /** The Branch section's header opens the Git tab for its worktree. */
+  onOpenGit?: (root: string) => void;
   /** The Ship section's sign-in row opens the Accounts tab on `host`. */
   onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
   /** A Panes card's menu collapses or expands its pane. */
@@ -211,6 +217,12 @@ export class DashboardPanel {
   private unsubscribeContainers: (() => void) | null = null;
   private readonly portsSection: PortsSection;
   private readonly shipSection: ShipSection;
+  private readonly branchSection: BranchSection;
+  private readonly branchController: BranchSectionController;
+  /** The terminal folders last handed to the branch size store, so an unchanged list is not resent. */
+  private cardFoldersKey = '';
+  /** The card badges last rendered, so a store emit that changes none of them skips the re-render. */
+  private cardBadgesKey = '';
   private portsStore: PortsStore | null = null;
   private unsubscribePorts: (() => void) | null = null;
   private readonly localModelsSection = new LocalModelsSection();
@@ -372,6 +384,12 @@ export class DashboardPanel {
       onOpenAccounts: (host, opts) => this.callbacks.onOpenAccounts?.(host, opts),
     });
     this.addSection('ship', this.shipSection.el, this.shipSection.head);
+    this.branchSection = new BranchSection({
+      onOpenGit: (worktree) => this.callbacks.onOpenGit?.(worktree),
+      onOpenShip: (worktree, tab) => this.callbacks.onOpenShip?.(worktree, tab),
+    });
+    this.branchController = new BranchSectionController(this.branchSection);
+    this.addSection('branch', this.branchSection.el, this.branchSection.head);
     this.addSection('localModels', this.localModelsSection.el, this.localModelsSection.head);
     this.sessionList = this.section('external', 'External sessions');
     this.addSection('system', this.system.el, this.system.head);
@@ -390,6 +408,9 @@ export class DashboardPanel {
     });
     this.layoutElements();
     shipOverviewStore.subscribe(() => this.renderShip());
+    branchSizeStore.subscribe(() => {
+      if ((this.open || this.peeking) && this.cardBadgesKey !== this.badgesKey()) this.render();
+    });
     root.addEventListener('focusout', () => {
       if (!this.held) return;
       // A rebuild that replaced the focused row has already refocused its successor by the time
@@ -568,6 +589,10 @@ export class DashboardPanel {
       'dashboard',
       this.shown.localModels && !this.collapsed.includes('localModels') && onScreen && this.windowShown,
     );
+    this.branchController.setWanted(
+      this.shown.branch && !this.collapsed.includes('branch') && onScreen && this.windowShown,
+    );
+    this.syncCardFolders();
     this.system.setGate({
       enabled: this.shown.system,
       expanded: !this.collapsed.includes('system'),
@@ -719,6 +744,7 @@ export class DashboardPanel {
     this.panes = panes;
     this.tabs = tabs;
     this.sessions = sessions;
+    this.syncCardFolders();
     if (this.open || this.peeking) this.render();
   }
 
@@ -729,6 +755,7 @@ export class DashboardPanel {
 
   setRepo(state: RepoState): void {
     this.repo = state;
+    this.branchController.setRepo(state.repo);
     if (this.open || this.peeking) this.render();
   }
 
@@ -894,6 +921,33 @@ export class DashboardPanel {
     this.columns.add(id, el, handle);
   }
 
+  /** The terminal cards' folders, wanted by the branch size store only while their cards can show. */
+  private syncCardFolders(): void {
+    const on = this.shown.panes && this.isShown() && this.windowShown;
+    const folders = on ? this.cardFolders() : [];
+    const key = JSON.stringify(folders);
+    if (key === this.cardFoldersKey) return;
+    this.cardFoldersKey = key;
+    branchSizeStore.setWanted('cards', folders);
+  }
+
+  private cardFolders(): string[] {
+    const out = new Set<string>();
+    for (const p of this.panes) if (p.kind === 'terminal' && p.cwd && !p.containerName) out.add(p.cwd);
+    return [...out];
+  }
+
+  private sizeBadge(folder: string): { text: string; title: string } | null {
+    const size = branchSizeStore.sizeFor(folder);
+    return size !== null && isOverThreshold(size, branchSizeStore.threshold())
+      ? { text: badgeText(size), title: badgeTitle(size) }
+      : null;
+  }
+
+  private badgesKey(): string {
+    return JSON.stringify(this.cardFolders().map((f) => this.sizeBadge(f)));
+  }
+
   private render(): void {
     const focus = this.nav.capture();
     this.renderSections();
@@ -935,6 +989,7 @@ export class DashboardPanel {
       this.layoutsSection.update(this.layouts);
     }
 
+    this.cardBadgesKey = this.badgesKey();
     // Group headers appear only with two or more tabs (docs/design/dashboard.md section 4.6).
     const cardOptions = (card: (typeof cards)[number]) => ({
       now,
@@ -946,6 +1001,7 @@ export class DashboardPanel {
               this.loadedWindow(card.sessionId),
             )
           : null,
+      sizeBadge: card.kind === 'terminal' && card.path !== '' ? this.sizeBadge(card.path) : null,
       showPath: this.showPanePaths,
       defaultProfile: this.defaultProfile(),
       confirming: this.confirming.has(card.paneId),

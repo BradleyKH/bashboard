@@ -292,6 +292,7 @@ the focused pane's folder.
       "containers": true,
       "ports": true,
       "ship": true,
+      "branch": false,
       "localModels": true,
       "external": true,
       "system": false,
@@ -351,7 +352,10 @@ the focused pane's folder.
   // (3.12).
   "editor": { "preferred": "default", "command": "" },
   // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
-  "git": { "autoFetchMinutes": 5 },
+  // branchSizeThreshold is the lines changed against the comparison ref (tests, lockfiles, and
+  // generated files excluded) above which the branch row and session cards show a size warning;
+  // 0 turns it off.
+  "git": { "autoFetchMinutes": 5, "branchSizeThreshold": 400 },
   // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
   // a field: switchToTab takes "index" from 1 to 8. The Shortcuts tab (4.18) edits this list,
   // rewriting it with one entry per line; comments inside the list are not kept, comments

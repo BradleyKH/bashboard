@@ -28,6 +28,7 @@ import { DebouncedSaver } from './debouncedSaver';
 import { ConfirmDialog } from './confirmDialog';
 import { moveItem, parseFavorites } from './favorites';
 import { shipOverviewStore } from './shipOverviewStore';
+import { branchSizeStore } from './branchSizeStore';
 import { parseLayouts } from './layouts';
 import { BackdropHost } from './backdrop/backdropHost';
 import { favoritesLoad, globalPinsLoad, layoutsLoad, reposLoad, workspaceLoad, workspaceSave } from './persistence';
@@ -293,6 +294,7 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onOpenShip: (target, tab) => workspace.openShip(target, tab),
+  onOpenGit: (root) => workspace.showGit(root),
   onOpenAccounts: (host, opts) => dialogs.openAccounts(host, opts),
   ports: {
     onOpenPorts: (key, showAll): void => workspace.openPorts(key, showAll),
@@ -380,6 +382,7 @@ panel.setLocalModelsStore(localModels);
 void containers.start();
 panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.localModels.minContext);
 shipOverviewStore.applySettings(payload.settings);
+branchSizeStore.applySettings(payload.settings);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
 panel.setOpen(payload.settings.dashboard.visibleOnStart);

@@ -23,6 +23,7 @@ import { onSecondLaunch } from './secondLaunch';
 import { onHookEvent, onSessionsChanged } from './sessions';
 import { onSettingsChanged, type Settings } from './settings';
 import { shipOverviewStore } from './shipOverviewStore';
+import { branchSizeStore } from './branchSizeStore';
 import type { Workspace } from './workspace';
 
 export interface AppEventsDeps {
@@ -49,7 +50,19 @@ export function listenAppEvents(deps: AppEventsDeps): void {
     refreshPanel();
     saver.schedule();
   }).catch((e) => console.warn('session updates unavailable:', e));
-  onHookEvent((ev) => workspace.onHook(ev)).catch((e) => console.warn('hook events unavailable:', e));
+  onHookEvent((ev) => {
+    workspace.onHook(ev);
+    // A finished turn is when an agent's edits settle, so the size is recounted then even if the
+    // watcher's debounce is still holding the change.
+    if (ev.hookEventName === 'Stop' || ev.hookEventName === 'Interrupt') {
+      // The store matches folders as its consumers spelled them, and the hook's cwd may be spelled
+      // differently from the pane's, so both are tried; the store's debounce folds the pair.
+      const paneId = ev.paneId === null ? null : workspace.terminalForPty(ev.paneId);
+      const paneFolder = workspace.agentTerminals().find((t) => t.paneId === paneId)?.folder ?? null;
+      if (ev.cwd !== null) branchSizeStore.refresh(ev.cwd);
+      if (paneFolder !== null) branchSizeStore.refresh(paneFolder);
+    }
+  }).catch((e) => console.warn('hook events unavailable:', e));
   const cliTarget: CliTarget = {
     terminalForPty: (ptyId) => workspace.terminalForPty(ptyId),
     anchorOn: (paneId) => workspace.anchorOn(paneId),
@@ -130,6 +143,7 @@ export function listenSettingsChanges({
     applyBackdropSettings(p.settings);
     workspace.applySettings(p);
     shipOverviewStore.applySettings(p.settings);
+    branchSizeStore.applySettings(p.settings);
     panel.applyDashboardSettings(p.settings.dashboard, p.settings.localModels.minContext);
     void refreshProfiles().then(() => dialogs.profilesRefreshed());
   }).catch((e) => console.warn('settings hot reload unavailable:', e));

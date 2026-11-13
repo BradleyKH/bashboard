@@ -19,6 +19,7 @@ mod files;
 mod fonts;
 mod forge;
 mod git;
+mod git_branch_size;
 mod git_branches;
 mod git_fetch;
 mod git_install;
@@ -50,6 +51,7 @@ mod settings;
 mod settings_edit;
 mod setup;
 mod shell_integration;
+mod size_route;
 mod system;
 mod toast;
 mod transcript;
@@ -311,6 +313,7 @@ pub fn run() {
             git_worktrees::git_worktree_detail,
             git_worktrees::git_primary_branch,
             git_worktrees::git_worktree_remove,
+            git_branch_size::git_branch_size,
             containers::containers_list,
             containers::containers_action,
             containers::containers_engine_start,

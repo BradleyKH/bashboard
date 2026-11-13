@@ -386,6 +386,15 @@ pub(crate) fn primary_branch(g: &Git, configured: Option<&str>) -> Result<Primar
     Ok(primary(g, configured)?.info)
 }
 
+/// The comparison ref's short name (`origin/main`) and full ref (`refs/remotes/origin/main`).
+pub(crate) fn comparison_for(
+    g: &Git,
+    configured: Option<&str>,
+) -> Result<(Option<String>, Option<String>), String> {
+    let p = primary(g, configured)?;
+    Ok((p.info.comparison, p.compare_ref))
+}
+
 pub(crate) fn main_worktree_path(g: &Git) -> Result<String, String> {
     Ok(main_path(g, &list_raw(g)?))
 }
@@ -535,7 +544,7 @@ pub(crate) fn worktree_remove(
     Ok(RemoveResult { branch_error })
 }
 
-fn configured_for(app: &AppHandle, g: &Git) -> Result<Option<String>, String> {
+pub(crate) fn configured_for(app: &AppHandle, g: &Git) -> Result<Option<String>, String> {
     let main = main_worktree_path(g)?;
     Ok(configured_primary_branch(app, Path::new(&main)))
 }

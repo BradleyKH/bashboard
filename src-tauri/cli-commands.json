@@ -121,6 +121,13 @@
       "examples": ["bb ci cancel", "bb ci cancel --run 1234"]
     },
     {
+      "name": "pr size",
+      "usage": "bb pr size [--json]",
+      "summary": "Measure this branch against the git.branchSizeThreshold setting",
+      "details": "Counts the lines and files this worktree changes against the merge base with its comparison ref, including uncommitted and untracked work, and leaves out tests, lockfiles, and generated files, the same count as the branch size badge. Prints one line with the count, the comparison ref, the threshold, and what was excluded; --json prints the raw answer. Exits 0 at or under the threshold (or when the threshold is 0, which turns it off, or there is no comparison ref), 1 over it, and 2 on any error, including running outside a pane or a git repo.",
+      "examples": ["bb pr size", "bb pr size --json"]
+    },
+    {
       "name": "skill install",
       "usage": "bb skill install",
       "summary": "Teach Claude Code the bb commands",

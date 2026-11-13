@@ -63,9 +63,9 @@ tooltip ends with its action's current keys in parentheses, read on hover so a r
 shows, and leaves them out when the action is unbound.
 
 **Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports, Ship,
-Local AI models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
+Branch, Local AI models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
-Favorites, Layouts, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
+Favorites, Layouts, Branch, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
 panel no row's menu claims and lists every element with a check on the shown ones; choosing one
 flips its toggle. A disabled element is gone from the panel, not collapsed, and its
@@ -441,6 +441,48 @@ opens the Overview. The section is never empty: before any pinned repo has loade
 sign-in row or else a dash, and with no repo pinned it shows a "Pin repos" row
 that opens the Overview, since the section is a new user's way into Ship. It reads the Overview's shared store (4.20), which polls only while this
 section is shown by `dashboard.sections.ship`, expanded, and on screen with the window shown.
+
+**Branch.** Shown while `dashboard.sections.branch` is on, which it is not by default, and the
+folder it follows is in a git repo; otherwise it is hidden. It follows the folder of the focused
+pane, or of the last focused pane that had one (a scratch pad keeps the last one shown, as Launch
+does), and shows that folder's worktree. The header, "Branch", carries the branch name (or
+"detached HEAD") and the worktree folder's name, with the full path in its tooltip; clicking it
+opens the Git pane (4.13) on that worktree rather than collapsing the section. Rows beneath:
+
+- **Size meter.** A bar filled to the share of `git.branchSizeThreshold` the worktree's changes
+  use (3.25), turning to the warning color once they pass it, over the summary line, "512 lines
+  changed (+430 -82) in 14 files against origin/main", with the added and removed lines, the file
+  count, the comparison ref, and what the test, lockfile, and generated file exclusions left out in its
+  tooltip.
+  With the threshold at 0 the bar is omitted and the line stands alone.
+- **Ahead and behind** against the comparison ref, as "ahead 3, behind 12 against origin/main",
+  from `git_worktree_detail` (3.9).
+- **Upstream.** Whether the branch's commits are on its remote, from the same detail: "origin/feat:
+  2 to push, 1 to pull", leaving out a zero count, or muted "origin/feat: up to date". A branch with
+  no upstream reads muted "no upstream: not pushed", and one whose upstream was deleted on the remote
+  reads "origin/feat: deleted on the remote" in the warning color, usually the sign of a merged pull
+  request. Omitted on a detached HEAD and when the upstream is the comparison ref, whose counts the
+  ahead and behind row already shows.
+- **Working tree.** "2 staged, 3 changed, 1 untracked", omitted when all three are 0.
+- **CI.** The branch's latest run on the code host, with the status icon and the run's name; a
+  click opens the Ship pane (4.20) on the repo. It is omitted when the repo has no forge or the
+  host cannot be read. The section reads the branch's runs itself, once when the branch changes
+  and again when git metadata changes (a push moves the remote ref; at most every 30 s for the
+  same branch), and polls at the fast interval (60 s) only while that run is queued or running.
+- **Pull request.** The branch's pull request, as "#95 Fix the parser", from `forge_pulls` filtered
+  to the branch as source: the newest open one, else the newest merged or closed one, so a merged
+  branch says so. A badge after it reads draft, merged, or closed (styled as the Ship list's
+  badges), or else the review decision ("approved", "changes requested", "review pending"), colored
+  as in the Ship list. Its tooltip holds the title, source and target branches, who approved, and
+  the URL; a click opens the Ship pane (4.20) on its Pull requests tab. It is read alongside the
+  CI row, on a branch change and a throttled metadata change, but not by the poll of an active
+  run, and it is omitted when the branch has none, the repo has no forge, or the host cannot be read.
+
+With no comparison ref, one muted "no comparison ref" line replaces the meter and the ahead and
+behind row, and the other rows stay. The section refreshes on `git://changed` for its worktree
+(3.9) and when an agent working in that folder stops (3.3), never on a timer apart from the CI
+poll, and reads and polls only while it is enabled, expanded, and on screen with the window shown.
+Like the other elements it drags by its header (Order, above) and collapses by it.
 
 **Local AI models.** Shown while `dashboard.sections.localModels` is on and at least one model
 server answers (3.19), and a preview. One header row per answering server (Ollama first, then LM

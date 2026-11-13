@@ -1,3 +1,5 @@
+import type { BranchSize } from './branchSizeApi';
+import { badgeText, badgeTitle, isOverThreshold } from './branchSizeModel';
 import type { RemoteButton, RemoteButtons } from './gitModel';
 
 export interface GitBranchRowOptions {
@@ -17,6 +19,7 @@ function isRunning(label: string): boolean {
 export class GitBranchRow {
   readonly el: HTMLElement;
   private readonly branch: HTMLElement;
+  private readonly size: HTMLElement;
   private readonly fetched: HTMLElement;
   private readonly fetchBtn: HTMLButtonElement;
   private readonly pullBtn: HTMLButtonElement;
@@ -30,6 +33,9 @@ export class GitBranchRow {
     branch.className = 'git-branch-name';
     branch.addEventListener('click', () => opts.onBranchClick(branch));
     this.branch = branch;
+    this.size = document.createElement('span');
+    this.size.className = 'git-branch-size';
+    this.size.hidden = true;
     this.fetched = document.createElement('span');
     this.fetched.className = 'git-fetched';
     this.fetched.hidden = true;
@@ -39,12 +45,22 @@ export class GitBranchRow {
     const remote = document.createElement('span');
     remote.className = 'git-remote';
     remote.append(this.fetched, this.fetchBtn, this.pullBtn, this.pushBtn);
-    this.el.append(this.branch, remote);
+    this.el.append(this.branch, this.size, remote);
   }
 
   setBranch(text: string): void {
     this.branch.textContent = text;
     this.branch.title = `${text}\nClick to switch or create a branch`;
+  }
+
+  /** Shows the size chip only over the threshold; the store emits on loading flips too, so the DOM is touched only on a real change. */
+  setSize(size: BranchSize | null, threshold: number): void {
+    const over = size !== null && isOverThreshold(size, threshold);
+    const text = over ? badgeText(size) : '';
+    const title = over ? badgeTitle(size) : '';
+    if (this.size.textContent !== text) this.size.textContent = text;
+    if (this.size.title !== title) this.size.title = title;
+    if (this.size.hidden === over) this.size.hidden = !over;
   }
 
   setButtons(buttons: RemoteButtons): void {

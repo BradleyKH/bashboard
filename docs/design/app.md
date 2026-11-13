@@ -31,6 +31,7 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb ci log [--run ID] [--job ID]` | The failure report (3.23) for `--run` or the newest failed run on the branch; with `--job` (which needs `--run`), the whole job log |
 | `bb ci rerun [--failed] [--run ID]` | Re-runs a run, or its failed jobs only with `--failed`; needs `ship.cliWrites` |
 | `bb ci cancel [--run ID]` | Cancels a run; needs `ship.cliWrites` |
+| `bb pr size [--json]` | The branch size meter (3.25): one line with the lines and files this worktree changes against its comparison ref, the `git.branchSizeThreshold` setting, and what the test, lockfile, and generated file exclusions left out; exits 0 at or under the threshold, 1 over it, 2 on any error |
 | `bb skill install` | Writes the Claude Code skill that teaches `bb` to `~/.claude/skills/bashboard/SKILL.md` |
 | `bb help` | Lists the commands |
 
@@ -57,7 +58,7 @@ from the command; for the other commands the words after it are ordinary argumen
   exits 0. Success means the core accepted the command, not that the front end carried it out:
   a pane whose pty is alive but which is mid-close drops the command with a console warning.
 - **Outside the app** (no `BASHBOARD_HOOK_URL`), `bb` prints that it only works inside a
-  Bashboard pane and exits 1 (2 for `bb ci wait`), except `bb auth` and `bb skill install`.
+  Bashboard pane and exits 1 (2 for `bb ci wait` and `bb pr size`), except `bb auth` and `bb skill install`.
 - **`bb ci`** posts to `/ci` (3.23) instead of `/cli`, with the same token and pane headers and
   the working directory as `cwd`, and waits up to 60 s for each answer, since a code host can be
   slow. It reads the answer by status: on 200 it prints the result (`--json` prints the body as
@@ -73,6 +74,17 @@ from the command; for the other commands the words after it are ordinary argumen
   and short head commit, one line per run, and the pull request line, and does not list run or
   job ids (`--json` carries each run's `id`); `log` prints the failure report, or with `--job`
   the job's full log, and notes on stderr when the host's log was cut to its last 1 MiB.
+- **`bb pr size`** posts `{ cwd }` to `/size` (3.25), with the same token and pane headers, and
+  waits up to 30 s for the answer, since a diff can take a moment on a large repo. It prints one
+  line, "512 lines in 14 files against origin/main (threshold 400; tests, lockfiles, and
+  generated files excluded: 210 lines in 6 files)", with "threshold off" when `git.branchSizeThreshold` is 0, or, with no
+  comparison ref, "No comparison ref, so the branch size is not measured (threshold 400)."
+  `--json` prints the whole answer, `{ size, threshold }`, as indented JSON; it is the only
+  option, and anything else is an error. Exit 0 means the count is at or under the threshold, the
+  threshold is 0, or there is no comparison ref; exit 1 means strictly over it. Every error exits
+  2, not 1: bad arguments, running outside a pane, a folder outside a git repo, Bashboard
+  unreachable, or a bad token, because 1 is reserved for "over", and 2 means "unknown", not "too
+  big".
 - **`bb ci wait`** is a client loop over `status`, one request per `--interval` (default 30 s;
   a value below 10 s is raised to 10 s, not rejected), and prints one line each time the head
   commit, a run's status, or the pull request changes (with `--json`, the answer itself, and the
@@ -98,8 +110,9 @@ from the command; for the other commands the words after it are ordinary argumen
   refuses with exit 1; a file identical to the skill is left alone and reported as already up
   to date. Like `bb auth`, it talks only to the file system. The skill tells an agent when to run
   `bb ci wait` after a push, how to read its exit codes, to run `bb ci log` after a failure, that
-  re-run and cancel need the user's setting and are not to be worked around, and what the pane
-  commands do.
+  re-run and cancel need the user's setting and are not to be worked around, to run `bb pr size`
+  before committing and, on exit 1, to tell the user the count and propose how to split the work
+  before going on, and what the pane commands do.
 - **`bb auth`** talks only to Windows Credential Manager, never to the app, so it works in
   any terminal. `bb auth bitbucket` stores a Bitbucket API token, and `bb auth azure-devops <org>`
   an Azure DevOps personal access token (PAT) for that one organization, so each organization

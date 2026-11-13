@@ -448,6 +448,7 @@ body.dashboard-left.dashboard-open #panes {
   --system-accent: var(--accent);
   --system-warn: #e0b050;
   --system-error: #e58a7a;
+  --branch-size-warn: var(--system-warn);
 }
 
 .system-bar-fill[data-band='warn'] {
@@ -871,6 +872,19 @@ body.dashboard-resizing {
 .card-agent-text {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The chip keeps its width so a long model line truncates before the size warning does. */
+.card-size-badge {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border: 1px solid var(--branch-size-warn);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--branch-size-warn) 15%, transparent);
+  color: var(--branch-size-warn);
+  font-size: 10px;
+  line-height: 14px;
   white-space: nowrap;
 }
 
@@ -1928,7 +1942,8 @@ body.dashboard-resizing {
 
 .settings-tab-row-half,
 .settings-tab-row-inline {
-  grid-template-columns: auto minmax(0, 1fr);
+  /* Capped, or a long hint grows the label column until the control has no room and overflows. */
+  grid-template-columns: fit-content(60%) minmax(0, 1fr);
   column-gap: 8px;
 }
 

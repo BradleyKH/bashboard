@@ -612,6 +612,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             containers: section(&mut w, "containers", containers_default),
             ports: section(&mut w, "ports", d.dashboard.sections.ports),
             ship: section(&mut w, "ship", d.dashboard.sections.ship),
+            branch: section(&mut w, "branch", d.dashboard.sections.branch),
             local_models: section(&mut w, "localModels", d.dashboard.sections.local_models),
             external: section(&mut w, "external", d.dashboard.sections.external),
             system: section(&mut w, "system", d.dashboard.sections.system),
@@ -653,6 +654,13 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             &mut w,
             |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n <= 1440),
             d.git.auto_fetch_minutes,
+        ),
+        branch_size_threshold: pick(
+            &root,
+            &["git", "branchSizeThreshold"],
+            &mut w,
+            |v| v.as_u64().and_then(|n| u32::try_from(n).ok()),
+            d.git.branch_size_threshold,
         ),
     };
     let local_models = LocalModels {
@@ -1095,6 +1103,7 @@ mod tests {
                 containers: true,
                 ports: true,
                 ship: true,
+                branch: false,
                 local_models: true,
                 external: true,
                 system: false,
@@ -1462,6 +1471,25 @@ mod tests {
             assert_eq!(s.git.auto_fetch_minutes, 5, "{bad}");
             assert_eq!(w.len(), 1, "{bad}: {w:?}");
             assert!(w[0].starts_with("git.autoFetchMinutes"), "{bad}: {w:?}");
+        }
+    }
+
+    #[test]
+    fn git_branch_size_threshold_parses_bounds() {
+        for n in [0u32, 400, 5000] {
+            let (s, w) = parse_settings(&format!(r#"{{ "git": {{ "branchSizeThreshold": {n} }} }}"#));
+            assert_eq!(s.git.branch_size_threshold, n);
+            assert!(w.is_empty(), "{w:?}");
+        }
+    }
+
+    #[test]
+    fn git_branch_size_threshold_rejects_invalid_values() {
+        for bad in ["-1", "1.5", "\"400\"", "99999999999"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "git": {{ "branchSizeThreshold": {bad} }} }}"#));
+            assert_eq!(s.git.branch_size_threshold, 400, "{bad}");
+            assert_eq!(w.len(), 1, "{bad}: {w:?}");
+            assert!(w[0].starts_with("git.branchSizeThreshold"), "{bad}: {w:?}");
         }
     }
 

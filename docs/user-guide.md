@@ -252,6 +252,14 @@ or commit sits on the right:
   to move, Enter to switch. Remote branches are listed after local ones, and picking one checks it
   out. When what you typed is a new valid name, the last row creates that branch from HEAD and
   switches to it.
+- **Size badge.** When the branch has grown past `git.branchSizeThreshold` (400 lines by default;
+  see [Settings](settings.md#settings)), an amber chip after the branch name shows the line count,
+  such as "512 lines". It counts the lines changed since the branch left its comparison ref
+  (the Branches tab's "Compare with" choice), committed or not and untracked files included, and
+  leaves out tests, lockfiles, and generated files such as EF Core's model snapshot; hover it for the added and removed lines, the file count, and
+  what was left out. It disappears when the branch is back under the limit, and a threshold of 0
+  turns it off. Session cards in the dashboard show the same chip on a terminal in an oversized
+  branch.
 - **Commit box** takes a multi-line message. Commit is enabled when something is staged and the
   message is not blank. Ctrl+Enter in the box also commits. Commit runs the repo's hooks as usual,
   so a failing `pre-commit` hook stops the commit: its output shows under the box and your message
@@ -576,7 +584,8 @@ pane count, and status; click a header to switch to that tab, or right-click it 
 folder, and time since its status last changed, plus, while a coding agent session runs in it, the model
 and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k tokens" for Claude Code, and
 "Codex · gpt-5.5 · 112k / 272k tokens" for the others, which lead with the agent's name); a card for any other kind of pane shows the
-kind's icon and the pane's title. Folder paths under the card titles are hidden by default; the
+kind's icon and the pane's title. A terminal in a branch over the size limit also gets an amber chip
+with its line count on that line (see the [size badge](#git-pane)). Folder paths under the card titles are hidden by default; the
 **↳** button on the Panes header shows them, and the choice is saved with the workspace. While
 they're hidden, hover a card's title to see its full path. The sparkle button beside it shows only the
 terminals running a coding agent (Claude Code, Codex, or Copilot), and that choice is saved too.
@@ -642,6 +651,22 @@ as memory fills, while it slowly tumbles end over end. Hover it
 for the readings. Like the clock it has no header; drag it anywhere on the panel to move it. It
 keeps moving when the background animation is paused (Ctrl+Shift+A), and holds still only when
 Windows asks apps to reduce motion.
+
+The **Branch** section is off by default; right-click the panel and choose Branch, or turn it on
+under "Show on the dashboard" in Settings. It follows the folder of the focused pane (or the last
+one that had a folder) and appears only while that folder is in a git repo. Its header shows the
+branch, or "detached HEAD", and the worktree's folder name; click it to open the Git pane. Below
+sit a meter of how much of the size limit the branch uses (full and amber once past it) with the
+line count, file count, and comparison ref; how far the branch is ahead of and behind that ref;
+how many commits are waiting to be pushed to or pulled from the branch's upstream, or that it has
+no upstream yet or its upstream was deleted on the remote (left out when the upstream is the
+comparison ref itself); the staged, changed, and untracked file counts (left out when there are none); the branch's
+latest CI run, which opens the Ship pane when clicked; and the branch's pull request, with its
+number and title and a Draft, Merged, or Closed badge or its review state ("approved", "changes
+requested"), which opens the Ship pane's pull requests when clicked. With no comparison ref to measure against,
+a muted "no comparison ref" line replaces the meter and the ahead and behind counts. It updates
+when the repo changes and when an agent working in the folder stops, and checks CI again only
+while a run is in progress.
 
 **Favorites** are folders you open terminals in often. By default they live behind the
 heart button in the panel's top bar, which drops a list that filters as you type;
@@ -1102,6 +1127,7 @@ not apply to them. `bb edit` opens no pane.
 | `bb ci log [--run ID] [--job ID]` | Prints why the newest failed run (or `--run`) failed, or a whole job log with `--job` (which needs `--run`) |
 | `bb ci rerun [--failed] [--run ID]` | Re-runs a run, or only its failed jobs; needs `ship.cliWrites` |
 | `bb ci cancel [--run ID]`     | Cancels a run; needs `ship.cliWrites`                                         |
+| `bb pr size [--json]`         | Prints how many lines and files the branch changes, against the size limit; exits 0 at or under it, 1 over it |
 | `bb skill install`            | Installs a Claude Code skill that teaches agents these commands               |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
 
@@ -1148,6 +1174,17 @@ tells Claude Code to run `bb ci wait` after a push and `bb ci log` after a failu
 [Setup](setup.md#telling-an-agent-about-bb)). It works in any terminal, says so when the file is
 already up to date, and refuses, with exit 1, to replace a file it did not write.
 
+`bb pr size` counts the lines and files the current worktree changes against the merge base with
+its comparison ref, the same count as the size badge: committed, staged, unstaged, and untracked
+work, without tests, lockfiles, and generated files. It prints one line, such as "512 lines in 14
+files against origin/main (threshold 400; tests, lockfiles, and generated files excluded: 210 lines
+in 6 files)", or the whole
+answer with `--json`. It exits 0 when the count is at or under `git.branchSizeThreshold`, when
+that setting is 0, or when there is no comparison ref, and 1 when the count is over it. Any error,
+including running outside a pane or outside a git repo, exits 2, so that 1 always means too big.
+The skill from `bb skill install` tells Claude Code to run it before committing and, when it is
+over, to propose splitting the work.
+
 `bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
 input), save it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
 Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
@@ -1166,8 +1203,8 @@ pane's `PATH`. `bb help`, `bb auth`, and `bb skill install` work anywhere; outsi
 `bb: only works inside a Bashboard pane` and exits 1. Any failure, such as a missing path, an
 unknown option, or an app that cannot be reached, prints a `bb: ` message to standard error and
 exits 1. A successful command prints nothing, apart from `bb auth` saying what it stored or removed and
-`bb ci` and `bb skill install` reporting their results, and exits 0 (`bb ci wait` also exits 1 or 2, above, and
-exits 2 rather than 1 on any error).
+`bb ci`, `bb pr size`, and `bb skill install` reporting their results, and exits 0 (`bb ci wait` also exits 1 or 2, above, and
+exits 2 rather than 1 on any error; so does `bb pr size`).
 
 ## Keys on macOS
 

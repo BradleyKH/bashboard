@@ -163,6 +163,7 @@ pub struct DashboardSections {
     pub containers: bool,
     pub ports: bool,
     pub ship: bool,
+    pub branch: bool,
     pub local_models: bool,
     pub external: bool,
     pub system: bool,
@@ -194,6 +195,9 @@ pub struct LocalModels {
 pub struct GitSettings {
     /// Minutes between background fetches of repos with an open Git pane; 0 turns it off.
     pub auto_fetch_minutes: u32,
+    /// Lines changed against the comparison ref (tests, lockfiles, and generated files excluded)
+    /// above which the branch row and session cards show a size warning; 0 turns it off.
+    pub branch_size_threshold: u32,
 }
 
 /// Forge kinds `ship.hosts` accepts.
@@ -396,6 +400,7 @@ impl Default for Settings {
                     containers: true,
                     ports: true,
                     ship: true,
+                    branch: false,
                     local_models: true,
                     external: true,
                     system: false,
@@ -406,7 +411,7 @@ impl Default for Settings {
             },
             restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
-            git: GitSettings { auto_fetch_minutes: 5 },
+            git: GitSettings { auto_fetch_minutes: 5, branch_size_threshold: 400 },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
             ship: Ship {
                 hosts: HashMap::new(),
