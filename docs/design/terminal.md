@@ -323,8 +323,10 @@ chip is for noticing that a shell holds production credentials before running so
 Bashboard injects report the shell's `AWS_PROFILE` and region (`AWS_REGION`, else
 `AWS_DEFAULT_REGION`) as `ESC ] 7502 ; aws ; <profile> ; <region> ST`. They use shell builtins
 only, because in Git Bash every subprocess costs a fork and a per-prompt process would slow every
-prompt, and they emit only when the pair differs from the last one sent, so the first prompt of
-each shell emits once. Command Prompt has no hook, so its panes get no AWS chip. The pane's OSC
+prompt. They emit at every prompt, not only when the pair changes: the cost is a few bytes, and a
+nested shell that exits leaves the outer shell's next prompt to put the chip right again. The pane
+notifies only when the value differs from its last one, so an unchanged report redraws nothing.
+Command Prompt has no hook, so its panes get no AWS chip. The pane's OSC
 handler passes the body to `parseOsc7502` (`osc.ts`), which returns `{ profile, region }` (either
 may be empty) or null for another provider, so a later provider does not confuse an older build.
 The context is kept per pane and is not saved.

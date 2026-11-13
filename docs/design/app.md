@@ -135,8 +135,10 @@ from the command; for the other commands the words after it are ordinary argumen
 
 ## 3.14 Shell integration install (`src-tauri/src/shell_integration.rs`)
 
-Working-directory reporting (OSC 9;9) and the command-start and command-end markers (OSC 133)
-come from a few lines in Git Bash's `~/.bashrc`. The setup wizard (4.17) installs them with
+Working-directory reporting and the command-start and command-end markers (OSC 133) come from a
+few lines in Git Bash's `~/.bashrc`. A folder on a drive (`/c/...`) goes out as OSC 7, built from
+`$PWD` with no subprocess; only Git Bash's own folders such as `/tmp` run `cygpath -w` and go out as
+OSC 9;9, since starting a process in Git Bash costs a noticeable fraction of a second per prompt. The setup wizard (4.17) installs them with
 `shell_integration_preview(shell)` and `shell_integration_install(shell)`, where `shell` is the
 profile id `gitBash`; cmd and PowerShell need no lines, since the core starts them with a prompt
 that reports the folder (3.1). The lines are the snippet in setup.md's "New panes in the current

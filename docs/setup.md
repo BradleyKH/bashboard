@@ -17,12 +17,11 @@ PS0="${PS0-}"'\e]133;C\e\\'
 __bashboard_prompt() {
   local status=$?
   printf '\e]133;D;%s\e\\' "$status"
-  printf '\e]9;9;%s\e\\' "$(cygpath -w "$PWD")"
-  local cloud="${AWS_PROFILE-};${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
-  if [[ $cloud != "${__bashboard_cloud-}" ]]; then
-    __bashboard_cloud=$cloud
-    printf '\e]7502;aws;%s\e\\' "$cloud"
-  fi
+  case $PWD in
+    /[a-zA-Z] | /[a-zA-Z]/*) printf '\e]7;file://%s\e\\' "${PWD//%/%25}" ;;
+    *) printf '\e]9;9;%s\e\\' "$(cygpath -w "$PWD")" ;;
+  esac
+  printf '\e]7502;aws;%s;%s\e\\' "${AWS_PROFILE-}" "${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
   return "$status"
 }
 PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
@@ -31,9 +30,12 @@ PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 They add to `PS0` and `PROMPT_COMMAND` instead of replacing them, and hand the last command's
 exit status on, so a prompt such as Starship keeps its own hooks and its error indicator.
 Without them, new panes start in the home directory. Any shell that emits OSC 7 works too.
-The lines also report the shell's `AWS_PROFILE` and region (`AWS_REGION`, else `AWS_DEFAULT_REGION`)
-for the cloud badge. They use shell builtins only, so no command runs per prompt, and they emit
-only when the values change.
+The lines report the working directory as OSC 7, which needs no command, for any folder on a
+drive (`/c/...`); only Git Bash's own folders such as `/tmp` or `/usr` go through `cygpath`,
+whose process start costs a noticeable fraction of a second in Git Bash. They also report the
+shell's `AWS_PROFILE` and region (`AWS_REGION`, else `AWS_DEFAULT_REGION`) for the cloud badge on
+every prompt, with shell builtins only, so the badge is right again as soon as a nested shell
+exits.
 The OSC 133 markers (`PS0` and the first `printf`) tell the app exactly when a command starts
 and finishes, which drives each terminal's working or idle status. In a pane without them, status follows a
 check of the shell's processes every 2 seconds, so it can lag by up to that long.

@@ -6,8 +6,8 @@
 /// `[char]27` rather than the `` `e `` escape, which Windows PowerShell 5.1 does not know. It runs
 /// after the profile, so it wraps whatever prompt the profile (or a framework like Starship) set.
 /// The guard keeps it from wrapping a profile that already carries this wrapper, which would
-/// recurse forever. The AWS context goes out at the first prompt and when it changes, matching the
-/// bash lines (docs/setup.md).
+/// recurse forever. The AWS context goes out at every prompt, matching the bash lines
+/// (docs/setup.md), so the badge recovers when a nested shell exits.
 const SNIPPET: &str = r#"if (-not (Test-Path variable:Global:__BashboardOriginalPrompt)) {
   $Global:__BashboardOriginalPrompt = $function:prompt
 }
@@ -17,11 +17,7 @@ function Global:prompt {
   $out = "$([char]27)]9;9;`"$loc`"$([char]7)" + (& $Global:__BashboardOriginalPrompt)
   $region = $env:AWS_REGION
   if (-not $region) { $region = $env:AWS_DEFAULT_REGION }
-  $cloud = "$($env:AWS_PROFILE);$region"
-  if ($cloud -ne $Global:__BashboardCloud) {
-    $Global:__BashboardCloud = $cloud
-    $out = "$([char]27)]7502;aws;$cloud$([char]7)" + $out
-  }
+  $out = "$([char]27)]7502;aws;$($env:AWS_PROFILE);$region$([char]7)" + $out
   $global:LASTEXITCODE = $exit
   return $out
 }"#;
@@ -96,9 +92,9 @@ mod tests {
         assert!(text.contains(&format!("\x1b]9;9;\"{root}\"\x07")), "{text:?}");
     }
 
-    /// The AWS context is reported at the first prompt and again only when it changes.
+    /// The AWS context is reported at every prompt.
     #[test]
-    fn the_wrapper_reports_the_aws_context_once_per_change() {
+    fn the_wrapper_reports_the_aws_context_at_every_prompt() {
         let exe = ["pwsh.exe", "powershell.exe"].into_iter().find(|exe| {
             std::process::Command::new(exe).args(["-NoProfile", "-Command", "exit 0"]).output().is_ok()
         });
@@ -115,8 +111,8 @@ mod tests {
             .output()
             .unwrap();
         let text = String::from_utf8_lossy(&out.stdout);
-        assert_eq!(text.matches("\x1b]7502;aws;").count(), 2, "{text:?}");
-        assert_eq!(text.matches("\x1b]7502;aws;prod-admin;us-east-1\x07").count(), 1, "{text:?}");
-        assert_eq!(text.matches("\x1b]7502;aws;dev;eu-west-1\x07").count(), 1, "{text:?}");
+        assert_eq!(text.matches("\x1b]7502;aws;").count(), 4, "{text:?}");
+        assert_eq!(text.matches("\x1b]7502;aws;prod-admin;us-east-1\x07").count(), 2, "{text:?}");
+        assert_eq!(text.matches("\x1b]7502;aws;dev;eu-west-1\x07").count(), 2, "{text:?}");
     }
 }
