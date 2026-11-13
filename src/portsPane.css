@@ -51,6 +51,10 @@
   white-space: nowrap;
 }
 
+.ports-check[hidden] {
+  display: none;
+}
+
 .ports-check input {
   margin: 0;
 }

@@ -933,8 +933,8 @@ beside the Ports pane, and a right-click gives a menu like the dashboard's, with
 
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
 clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
-started; untick it to see everything else, and tick **Windows services** to include the system's
-own ports, dimmed. Opening the pane from the dashboard on a port no pane started unticks it for
+started; untick it to see everything else, and on Windows tick **Windows services** to include the
+system's own ports, dimmed. Opening the pane from the dashboard on a port no pane started unticks it for
 you. Any pane can also become a Ports pane from its kind menu.
 
 ## Local Browser

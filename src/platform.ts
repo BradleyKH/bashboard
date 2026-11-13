@@ -8,12 +8,13 @@ export type Os = string;
  * OS, so a tester sees a smaller app rather than controls that fail.
  * - localBrowser: drives its frames through the WebView2 DevTools Protocol.
  * - gitInstall: Git for Windows through winget, and the Git Bash setup row.
+ * - systemPorts: the Ports pane's "Windows services" filter, which keys on Windows session 0.
  */
-export type Feature = 'localBrowser' | 'gitInstall';
+export type Feature = 'localBrowser' | 'gitInstall' | 'systemPorts';
 
 const UNSUPPORTED: Readonly<Record<Os, readonly Feature[]>> = {
-  macos: ['localBrowser', 'gitInstall'],
-  linux: ['localBrowser', 'gitInstall'],
+  macos: ['localBrowser', 'gitInstall', 'systemPorts'],
+  linux: ['localBrowser', 'gitInstall', 'systemPorts'],
 };
 
 // Browser-only runs have no core to ask; they keep the Windows feature set.

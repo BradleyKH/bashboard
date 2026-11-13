@@ -131,6 +131,9 @@ Hooks install per agent: each detected coding agent gets its own button in the d
 list. [Codex](#codex-hooks-preview) and [Copilot](#copilot-hooks-preview) are a preview; the rest
 of this section describes Claude Code.
 
+The install adds Bashboard's own hook entries beside whatever hooks you already have; it never
+removes, reorders, or changes hooks it did not write.
+
 Without hooks, Bashboard learns a Claude session's state from its session file. Hooks add what
 the file cannot: a `waiting` status when Claude needs you, and exact transitions as they
 happen. They map to status like this:

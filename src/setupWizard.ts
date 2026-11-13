@@ -696,7 +696,7 @@ export class SetupWizard {
         "Each agent's hooks tell this app when a session is working, waiting for you, or done, so the dashboard and the pane borders can show it.",
       ),
       this.note(
-        "The install adds a hook program and entries in the agent's hook config, and shows them for confirmation first. Sessions outside this app's panes are not affected.",
+        "The install adds a hook program and entries in the agent's hook config, and shows them for confirmation first. Your other hooks are left as they are, and sessions outside this app's panes are not affected.",
       ),
     );
     for (const { agent, installed, update, trust } of this.base.agents) {

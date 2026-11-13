@@ -193,8 +193,7 @@ impl PortsProbe {
                 cwd: process.and_then(|p| p.cwd()).map(|c| c.to_string_lossy().into_owned()).filter(|c| !c.is_empty()),
                 from_shell: pty_id.is_some() || ancestor(pid, &procs, |p| terminals.contains(&p)).is_some(),
                 pty_id,
-                // A process whose session Windows will not report is a protected service.
-                system: pid <= 4 || os::session_of(pid).is_none_or(|s| s == 0),
+                system: os::is_system(pid),
                 own: pid == std::process::id(),
             });
         }
@@ -394,9 +393,11 @@ mod os {
         out
     }
 
-    pub fn session_of(pid: u32) -> Option<u32> {
+    /// The kernel or a service in session 0; a process whose session Windows will not report is
+    /// a protected service.
+    pub fn is_system(pid: u32) -> bool {
         let mut session = 0u32;
-        (unsafe { ProcessIdToSessionId(pid, &mut session) } != 0).then_some(session)
+        pid <= 4 || unsafe { ProcessIdToSessionId(pid, &mut session) } == 0 || session == 0
     }
 }
 
@@ -408,8 +409,9 @@ mod os {
         Vec::new()
     }
 
-    pub fn session_of(_pid: u32) -> Option<u32> {
-        None
+    // No session-0 equivalent to key on, so nothing is hidden as a system port.
+    pub fn is_system(_pid: u32) -> bool {
+        false
     }
 }
 

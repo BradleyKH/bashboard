@@ -95,6 +95,7 @@ export class HookInstallDialog {
 
     box.append(title);
     box.append(...details);
+    box.append(this.note("Only Bashboard's own hooks are added or changed; any other hooks you have are left as they are."));
     if (isPreviewAgent(this.agent)) {
       box.append(this.note(`${name} support is a preview.`));
     }
