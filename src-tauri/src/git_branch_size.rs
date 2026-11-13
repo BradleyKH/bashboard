@@ -2,7 +2,7 @@
 //! against the merge base with its comparison ref, counting uncommitted and untracked work and
 //! leaving out tests, lockfiles, and generated files.
 
-use std::{fs, io::Read, path::Path};
+use std::{collections::HashSet, fs, io::Read, path::Path};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -39,9 +39,35 @@ const LOCKFILES: [&str; 17] = [
     "mix.lock",
     "flake.lock",
 ];
-/// Name suffixes of tool-generated sources: EF Core's model snapshot, and the `.Designer.cs`
-/// files EF migrations, WinForms, and resx emit beside their hand-written halves.
-const GENERATED_SUFFIXES: [&str; 2] = ["modelsnapshot.cs", ".designer.cs"];
+/// Folders whose contents a tool writes: Prisma's `prisma-client` output, Relay and Apollo
+/// artifacts, and Jest snapshots.
+const GENERATED_SEGMENTS: [&str; 3] = ["generated", "__generated__", "__snapshots__"];
+/// Name suffixes of tool-generated files: EF Core's model snapshot and the `.Designer.cs` files
+/// EF migrations, WinForms, and resx emit beside their hand-written halves; C# source generator
+/// and WPF output; Dart build_runner and freezed; protobuf; minified bundles and source maps;
+/// Jest snapshots.
+const GENERATED_SUFFIXES: [&str; 14] = [
+    "modelsnapshot.cs",
+    ".designer.cs",
+    ".g.cs",
+    ".g.i.cs",
+    ".g.dart",
+    ".freezed.dart",
+    ".pb.go",
+    "_pb2.py",
+    "_pb2.pyi",
+    "_pb2_grpc.py",
+    ".min.js",
+    ".min.css",
+    ".map",
+    ".snap",
+];
+/// Whole names of generated files: the type stub Next.js rewrites on every `next dev`.
+const GENERATED_NAMES: [&str; 1] = ["next-env.d.ts"];
+/// The `.gitattributes` attributes `check-attr` reports on. `linguist-generated` and
+/// `linguist-vendored` are what GitHub collapses in a diff; `-diff` (also set by the `binary`
+/// macro) says the file has no meaningful diff.
+const ATTRS: [&str; 3] = ["linguist-generated", "linguist-vendored", "diff"];
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,12 +143,25 @@ pub(crate) fn is_excluded(path: &str) -> bool {
     let Some(name) = segments.last() else {
         return false;
     };
-    if segments.iter().any(|s| TEST_SEGMENTS.contains(s)) || LOCKFILES.contains(name) {
+    let folders = &segments[..segments.len() - 1];
+    if segments.iter().any(|s| TEST_SEGMENTS.contains(s))
+        || folders.iter().any(|s| GENERATED_SEGMENTS.contains(s))
+        || LOCKFILES.contains(name)
+        || GENERATED_NAMES.contains(name)
+    {
         return true;
     }
     if GENERATED_SUFFIXES
         .iter()
         .any(|suffix| name.len() > suffix.len() && name.ends_with(suffix))
+    {
+        return true;
+    }
+    // drizzle-kit writes a whole-schema snapshot per migration into `meta/` under its output
+    // folder, whose name is configurable, so only the `meta` parent is matched.
+    if folders.last() == Some(&"meta")
+        && (*name == "_journal.json"
+            || (name.len() > "_snapshot.json".len() && name.ends_with("_snapshot.json")))
     {
         return true;
     }
@@ -134,10 +173,54 @@ pub(crate) fn is_excluded(path: &str) -> bool {
     marked(".test.")
         || marked(".spec.")
         || marked("_test.")
+        || marked(".generated.")
+        || marked(".gen.")
         || (name.starts_with("test_") && name.ends_with(".py"))
 }
 
-pub(crate) fn tally(entries: &[NumstatEntry], untracked: &[Untracked]) -> Counts {
+/// Parses `check-attr -z` output, `path\0attr\0info\0` triples, into the paths `.gitattributes`
+/// marks generated, vendored, or undiffable. `linguist-generated=false` and the like keep a file.
+pub(crate) fn parse_check_attr(bytes: &[u8]) -> HashSet<String> {
+    let text = String::from_utf8_lossy(bytes);
+    let fields: Vec<&str> = text.split('\0').collect();
+    fields
+        .chunks_exact(3)
+        .filter(|t| match t[1] {
+            "diff" => t[2] == "unset",
+            _ => t[2] == "set" || t[2] == "true",
+        })
+        .map(|t| t[0].to_string())
+        .collect()
+}
+
+/// The paths `.gitattributes` excludes. `g` runs at the toplevel, which the paths are relative to.
+fn attr_excluded<'a>(
+    g: &Git,
+    paths: impl Iterator<Item = &'a str>,
+) -> Result<HashSet<String>, String> {
+    let mut input = Vec::new();
+    for p in paths {
+        input.extend_from_slice(p.as_bytes());
+        input.push(0);
+    }
+    if input.is_empty() {
+        return Ok(HashSet::new());
+    }
+    let mut args = vec!["check-attr", "-z", "--stdin"];
+    args.extend(ATTRS);
+    let out = g.read_stdin(args, &input)?;
+    if !out.ok {
+        return Err(out.message());
+    }
+    Ok(parse_check_attr(&out.stdout))
+}
+
+/// `attr_excluded` holds the paths `.gitattributes` excludes on top of `is_excluded`.
+pub(crate) fn tally(
+    entries: &[NumstatEntry],
+    untracked: &[Untracked],
+    attr_excluded: &HashSet<String>,
+) -> Counts {
     let mut c = Counts::default();
     let changes = entries
         .iter()
@@ -154,7 +237,7 @@ pub(crate) fn tally(entries: &[NumstatEntry], untracked: &[Untracked]) -> Counts
                 .map(|u| (u.path.as_str(), u.lines.unwrap_or(0), 0)),
         );
     for (path, added, removed) in changes {
-        if is_excluded(path) {
+        if is_excluded(path) || attr_excluded.contains(path) {
             c.excluded_files += 1;
             c.excluded_lines += added + removed;
         } else {
@@ -249,7 +332,14 @@ pub(crate) fn branch_size(g: &Git, configured: Option<&str>) -> Result<BranchSiz
     if !diff.ok {
         return Err(diff.message());
     }
-    let c = tally(&parse_numstat(&diff.stdout), &untracked(&g)?);
+    let entries = parse_numstat(&diff.stdout);
+    let untracked = untracked(&g)?;
+    let paths = entries
+        .iter()
+        .map(|e| e.path.as_str())
+        .chain(untracked.iter().map(|u| u.path.as_str()));
+    let attrs = attr_excluded(&g, paths)?;
+    let c = tally(&entries, &untracked, &attrs);
     size.added = c.added;
     size.removed = c.removed;
     size.lines = c.added + c.removed;
@@ -340,6 +430,28 @@ mod tests {
             "src/Forms/MainForm.Designer.cs",
             "Properties/Resources.Designer.cs",
             "Tests/Upper.cs",
+            "src/generated/prisma/index.d.ts",
+            "app/Generated/Prisma/client.js",
+            "src/__generated__/Query.graphql.ts",
+            "src/__snapshots__/a.test.ts.snap",
+            "components/Button.snap",
+            "drizzle/meta/0003_snapshot.json",
+            "db/migrations/meta/0052_snapshot.json",
+            "db/migrations/meta/_journal.json",
+            "src/api.generated.ts",
+            "src/routeTree.gen.ts",
+            "next-env.d.ts",
+            "obj/Debug/Foo.g.cs",
+            "Views/MainWindow.g.i.cs",
+            "lib/user.g.dart",
+            "lib/user.freezed.dart",
+            "api/v1/user.pb.go",
+            "proto/user_pb2.py",
+            "proto/user_pb2.pyi",
+            "proto/user_pb2_grpc.py",
+            "public/vendor.min.js",
+            "public/site.min.css",
+            "dist/app.js.map",
         ] {
             assert!(is_excluded(path), "{path}");
         }
@@ -358,6 +470,19 @@ mod tests {
             "src/Data/Migrations/ModelSnapshot.cs",
             "src/Designer.cs",
             "package.json",
+            "src/generated.ts",
+            "src/codegen/generator.ts",
+            "prisma/schema.prisma",
+            "prisma/migrations/20261112_init/migration.sql",
+            "drizzle/0003_add_orders.sql",
+            "src/meta/_snapshot.json",
+            "drizzle/meta.json",
+            "src/meta/config.json",
+            "src/generate.gen",
+            "src/sitemap.ts",
+            "lib/user.dart",
+            "src/minify.js",
+            ".map",
         ] {
             assert!(!is_excluded(path), "{path}");
         }
@@ -386,7 +511,7 @@ mod tests {
             },
         ];
         assert_eq!(
-            tally(&entries, &untracked),
+            tally(&entries, &untracked, &HashSet::new()),
             Counts {
                 added: 17,
                 removed: 2,
@@ -394,6 +519,40 @@ mod tests {
                 excluded_lines: 163,
                 excluded_files: 3,
             }
+        );
+    }
+
+    #[test]
+    fn git_branch_size_parse_check_attr() {
+        let raw = concat!(
+            "gen/a.ts\0linguist-generated\0set\0",
+            "gen/a.ts\0linguist-vendored\0unspecified\0",
+            "gen/a.ts\0diff\0unspecified\0",
+            "b.ts\0linguist-generated\0false\0",
+            "c.ts\0linguist-vendored\0true\0",
+            "d.bin\0diff\0unset\0",
+            "e.ts\0diff\0set\0",
+            "f.ts\0linguist-generated\0unset\0",
+        );
+        let want: HashSet<String> = ["gen/a.ts", "c.ts", "d.bin"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        assert_eq!(parse_check_attr(raw.as_bytes()), want);
+        assert!(parse_check_attr(b"").is_empty());
+    }
+
+    #[test]
+    fn git_branch_size_tally_applies_attr_exclusions() {
+        let entries = [
+            ns("src/a.rs", Some(10), Some(2)),
+            ns("src/b.rs", Some(4), Some(0)),
+        ];
+        let attrs: HashSet<String> = ["src/b.rs".to_string()].into();
+        let c = tally(&entries, &[], &attrs);
+        assert_eq!(
+            (c.added, c.files, c.excluded_lines, c.excluded_files),
+            (10, 1, 4, 1)
         );
     }
 
@@ -490,6 +649,26 @@ mod tests {
         sh(g.root(), &["mv", "tests/moved.txt", "renamed.txt"]);
         let s = branch_size(&g, None).unwrap();
         assert_eq!((s.files, s.lines, s.excluded_files), (1, 0, 0));
+    }
+
+    #[test]
+    fn git_branch_size_honors_gitattributes() {
+        let g = feature_repo("bs-attrs");
+        commit_file(
+            &g,
+            ".gitattributes",
+            "src/api/** linguist-generated\nkeep.ts linguist-generated=false\n*.dat -diff\n",
+            "attrs",
+        );
+        fs::create_dir_all(g.root().join("src/api")).unwrap();
+        commit_file(&g, "src/api/client.ts", "a\nb\n", "client");
+        write(&g, "src/api/new.ts", b"n\n");
+        write(&g, "keep.ts", b"k\n");
+        write(&g, "table.dat", b"1\n2\n3\n");
+        let s = branch_size(&g, None).unwrap();
+        // .gitattributes +3 and keep.ts +1 count; client.ts, new.ts, and table.dat do not.
+        assert_eq!((s.lines, s.files), (4, 2));
+        assert_eq!((s.excluded_lines, s.excluded_files), (6, 3));
     }
 
     #[test]

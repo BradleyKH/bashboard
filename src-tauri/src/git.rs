@@ -436,6 +436,15 @@ impl Git {
         self.exec(self.command(true, args), None, None)
     }
 
+    /// A read that feeds `stdin` to git, for `--stdin` commands such as `check-attr`.
+    pub(crate) fn read_stdin<I, S>(&self, args: I, stdin: &[u8]) -> Result<Output, String>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.exec(self.command(true, args), Some(stdin), None)
+    }
+
     pub(crate) fn write<I, S>(&self, args: I) -> Result<Output, String>
     where
         I: IntoIterator<Item = S>,

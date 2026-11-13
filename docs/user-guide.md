@@ -259,7 +259,9 @@ or commit sits on the right:
   see [Settings](settings.md#settings)), an amber chip after the branch name shows the line count,
   such as "512 lines". It counts the lines changed since the branch left its comparison ref
   (the Branches tab's "Compare with" choice), committed or not and untracked files included, and
-  leaves out tests, lockfiles, and generated files such as EF Core's model snapshot; hover it for the added and removed lines, the file count, and
+  leaves out tests, lockfiles, and generated files such as EF Core's model snapshot, a Prisma
+  `generated/` folder, drizzle-kit's `meta/*_snapshot.json`, and anything `.gitattributes` marks
+  `linguist-generated`, `linguist-vendored`, or `-diff`; hover it for the added and removed lines, the file count, and
   what was left out. It disappears when the branch is back under the limit, and a threshold of 0
   turns it off. Session cards in the dashboard show the same chip on a terminal in an oversized
   branch.

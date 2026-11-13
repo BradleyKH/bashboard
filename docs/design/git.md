@@ -149,11 +149,25 @@ untracked work together:
   `test_*.py`; when it is a lockfile: `pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`,
   `bun.lock`, `bun.lockb`, `Cargo.lock`, `poetry.lock`, `uv.lock`, `Pipfile.lock`,
   `Gemfile.lock`, `go.sum`, `composer.lock`, `packages.lock.json` (NuGet), `Package.resolved`
-  (SwiftPM), `pubspec.lock`, `mix.lock`, or `flake.lock`; or when its name ends in
-  `ModelSnapshot.cs` or `.Designer.cs` with text before the suffix. The last two catch EF Core's
-  model snapshot and each migration's designer file, plus WinForms and resx designer files; a
-  migration's own `<timestamp>_<Name>.cs` still counts, since it is often edited by hand and is
-  what a reviewer reads.
+  (SwiftPM), `pubspec.lock`, `mix.lock`, or `flake.lock`; or when it is generated:
+  - a folder above it is named `generated` (Prisma's `prisma-client` output), `__generated__`
+    (Relay, Apollo), or `__snapshots__` (Jest);
+  - its name ends, with text before the suffix, in `ModelSnapshot.cs` or `.Designer.cs` (EF
+    Core's model snapshot and each migration's designer file, plus WinForms and resx designer
+    files), `.g.cs` or `.g.i.cs` (C# source generators, WPF), `.g.dart` or `.freezed.dart`,
+    `.pb.go`, `_pb2.py`, `_pb2.pyi`, or `_pb2_grpc.py` (protobuf), `.min.js`, `.min.css`, or
+    `.map`, or `.snap`;
+  - its name has a `.generated.` or `.gen.` marker with text on both sides (TanStack Router's
+    `routeTree.gen.ts`), or is `next-env.d.ts`;
+  - it sits directly in a `meta` folder and is `_journal.json` or ends in `_snapshot.json`
+    (drizzle-kit's per-migration schema snapshots, under whatever its output folder is named);
+  - `.gitattributes` gives it `linguist-generated` or `linguist-vendored` (set or `true`), or
+    unsets `diff` (`-diff`, or the `binary` macro), read with one `git check-attr -z --stdin`
+    over every counted path. A repo can mark its own generated code this way.
+
+  Hand-written migrations still count: an EF migration's own `<timestamp>_<Name>.cs`, a Prisma
+  `migration.sql`, and a drizzle-kit `.sql` file are often edited by hand and are what a
+  reviewer reads.
 
 Reads set `GIT_OPTIONAL_LOCKS=0`. The numstat parser, the exclusion test, and the tally are pure
 functions with unit tests.
