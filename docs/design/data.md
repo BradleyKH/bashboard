@@ -347,9 +347,9 @@ the focused pane's folder.
     "reloadOnChange": true
   },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
-  // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, or default
-  // (the file's default app). A non-empty command replaces it, with {path} and {line} filled in
-  // (3.12).
+  // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, vim, nvim,
+  // or default (the file's default app). vim and nvim open in a pane. A non-empty command
+  // replaces it, with {path} and {line} filled in (3.12).
   "editor": { "preferred": "default", "command": "" },
   // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
   // branchSizeThreshold is the lines changed against the comparison ref (tests, lockfiles, and

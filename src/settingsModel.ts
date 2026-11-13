@@ -448,6 +448,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'windsurf', label: 'Windsurf' },
           { value: 'vscodeInsiders', label: 'VS Code Insiders' },
           { value: 'vscodium', label: 'VSCodium' },
+          { value: 'vim', label: 'Vim' },
+          { value: 'nvim', label: 'Neovim' },
           { value: 'default', label: "The file's default app" },
         ],
         installedFrom: 'editors',

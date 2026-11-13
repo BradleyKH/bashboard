@@ -1220,7 +1220,7 @@ pane that ran it, in that pane's tab, and focus moves to the new pane. `bb open`
 first look for a Files or Git pane for the same repo in that tab and, when there is one, show the
 folder in it or focus it instead. `bb ship`, `bb ports`, and `bb containers` work as their keys
 do: they show the existing pane wherever it is, or open a tab of their own, so `--collapsed` does
-not apply to them. `bb edit` opens no pane.
+not apply to them. `bb edit` opens a pane only when your editor is Vim or Neovim.
 
 | Command                       | What it does                                                                  |
 | ----------------------------- | ----------------------------------------------------------------------------- |

@@ -5,7 +5,8 @@
 //! VS Code, Cursor, Windsurf, VS Code Insiders, and VSCodium put only `.cmd` shims on `PATH`, so a
 //! shim found there is traded for the exe one folder up. JetBrains IDEs are found by exe name on
 //! `PATH`, through a Toolbox App script on `PATH`, or in install folders by `product-info.json`
-//! version (`find_jetbrains`).
+//! version (`find_jetbrains`). Vim and Neovim run inside a terminal, so `open_in_editor` returns
+//! their argument list for the front end to run in a pane rather than starting them itself.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -25,9 +26,18 @@ pub struct Editor {
 #[derive(Debug, Serialize)]
 pub struct Opened {
     fallback: bool,
+    /// For a terminal editor, what the front end runs in a new pane; nothing has been started.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    terminal: Option<TerminalLaunch>,
 }
 
-const NAMES: [(&str, &str); 18] = [
+#[derive(Debug, PartialEq, Serialize)]
+pub struct TerminalLaunch {
+    argv: Vec<String>,
+    cwd: String,
+}
+
+const NAMES: [(&str, &str); 20] = [
     ("zed", "Zed"),
     ("vscode", "VS Code"),
     ("cursor", "Cursor"),
@@ -45,6 +55,8 @@ const NAMES: [(&str, &str); 18] = [
     ("windsurf", "Windsurf"),
     ("vscodeInsiders", "VS Code Insiders"),
     ("vscodium", "VSCodium"),
+    ("vim", "Vim"),
+    ("nvim", "Neovim"),
     ("default", "The file's default app"),
 ];
 
@@ -283,6 +295,66 @@ fn find_jetbrains(exe: &str, script: &str, env: &SearchEnv) -> Option<PathBuf> {
     pick_install(found)
 }
 
+fn is_terminal_editor(id: &str) -> bool {
+    matches!(id, "vim" | "nvim")
+}
+
+/// A terminal editor on `PATH`, else in its usual install folders. Git for Windows ships
+/// `vim.exe` in `<root>\usr\bin`, which is not on `PATH`, so that is found from the usual install
+/// roots and from a `git.exe` on `PATH` in `<root>\cmd` or `<root>\bin`. A macOS app started from
+/// the Dock gets a minimal `PATH`, so the Homebrew folders are checked by hand.
+fn find_terminal_editor(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    let exe = if cfg!(windows) { format!("{id}.exe") } else { id.to_string() };
+    let mut candidates: Vec<PathBuf> = env.path.iter().map(|dir| dir.join(&exe)).collect();
+    if cfg!(windows) {
+        if id == "vim" {
+            let git_on_path = env
+                .path
+                .iter()
+                .filter(|dir| dir.join("git.exe").is_file())
+                .filter(|dir| {
+                    dir.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
+                        n.eq_ignore_ascii_case("cmd") || n.eq_ignore_ascii_case("bin")
+                    })
+                })
+                .filter_map(|dir| dir.parent().map(Path::to_path_buf));
+            let roots = env
+                .local_app_data
+                .iter()
+                .map(|d| d.join("Programs").join("Git"))
+                .chain(env.program_files.iter().map(|d| d.join("Git")))
+                .chain(git_on_path);
+            candidates.extend(roots.map(|root| root.join("usr").join("bin").join("vim.exe")));
+        } else {
+            candidates.extend(
+                env.program_files
+                    .iter()
+                    .map(|d| d.join("Neovim").join("bin").join("nvim.exe")),
+            );
+        }
+    } else {
+        for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
+            candidates.push(Path::new(dir).join(&exe));
+        }
+    }
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+/// A terminal editor's argv after the program: `+<line>` jumps to the line in Vim and Neovim.
+fn terminal_args(path: &Path, line: Option<u32>) -> Vec<String> {
+    let p = path.display().to_string();
+    match line {
+        Some(l) => vec![format!("+{l}"), p],
+        None => vec![p],
+    }
+}
+
+/// The folder a terminal editor's pane starts in: the folder itself, or a file's parent.
+fn terminal_cwd(path: &Path) -> String {
+    let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
+    dir.display().to_string()
+}
+
 /// The editor's executable, or None when it is not installed. `default` has none.
 fn detect(id: &str, env: &SearchEnv) -> Option<PathBuf> {
     if id == "visualStudio" {
@@ -290,6 +362,9 @@ fn detect(id: &str, env: &SearchEnv) -> Option<PathBuf> {
     }
     if let Some((exe, script)) = jetbrains(id) {
         return find_jetbrains(exe, script, env);
+    }
+    if is_terminal_editor(id) {
+        return find_terminal_editor(id, env);
     }
     find_on_path(id, env).or_else(|| {
         install_candidates(id, env)
@@ -435,13 +510,19 @@ pub fn open_in_editor(
     let editor = settings.current().editor;
     if let Some(argv) = custom_argv(&editor.command, &path, line) {
         launch(Path::new(&argv[0]), &argv[1..])?;
-        return Ok(Opened { fallback: false });
+        return Ok(Opened { fallback: false, terminal: None });
     }
     let line = line.filter(|_| path.is_file());
     if editor.preferred != "default" {
         if let Some(exe) = detect(&editor.preferred, &SearchEnv::from_process()) {
+            if is_terminal_editor(&editor.preferred) {
+                let mut argv = vec![exe.display().to_string()];
+                argv.extend(terminal_args(&path, line));
+                let terminal = Some(TerminalLaunch { argv, cwd: terminal_cwd(&path) });
+                return Ok(Opened { fallback: false, terminal });
+            }
             if launch(&exe, &table_args(&editor.preferred, &path, line)).is_ok() {
-                return Ok(Opened { fallback: false });
+                return Ok(Opened { fallback: false, terminal: None });
             }
         }
     }
@@ -456,6 +537,7 @@ pub fn open_in_editor(
     }
     Ok(Opened {
         fallback: editor.preferred != "default",
+        terminal: None,
     })
 }
 
@@ -887,6 +969,56 @@ mod tests {
         let dotted = root.join("sub").join("..").join("a.txt");
         assert_eq!(normalize_existing(&dotted.to_string_lossy()).unwrap(), root.join("a.txt"));
         assert!(normalize_existing(&root.join("missing.txt").to_string_lossy()).is_err());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn vim_comes_from_git_for_windows_and_nvim_from_its_install() {
+        let root = temp_dir("termeditors");
+        let env = env_at(&root, vec![root.join(r"Git\cmd")]);
+        assert_eq!(detect("vim", &env), None);
+        assert_eq!(detect("nvim", &env), None);
+
+        // git.exe on PATH in <root>\cmd leads to <root>\usr\bin\vim.exe.
+        touch(&root.join(r"Git\cmd\git.exe"));
+        touch(&root.join(r"Git\usr\bin\vim.exe"));
+        assert_eq!(detect("vim", &env), Some(root.join(r"Git\usr\bin\vim.exe")));
+
+        // A vim.exe on PATH wins over Git's.
+        touch(&root.join(r"Git\cmd\vim.exe"));
+        assert_eq!(detect("vim", &env), Some(root.join(r"Git\cmd\vim.exe")));
+
+        touch(&root.join(r"pf\Neovim\bin\nvim.exe"));
+        assert_eq!(detect("nvim", &env), Some(root.join(r"pf\Neovim\bin\nvim.exe")));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn vim_in_the_per_user_and_program_files_git_installs() {
+        let root = temp_dir("termeditorsgit");
+        let env = env_at(&root, vec![]);
+        touch(&root.join(r"pf\Git\usr\bin\vim.exe"));
+        assert_eq!(detect("vim", &env), Some(root.join(r"pf\Git\usr\bin\vim.exe")));
+        touch(&root.join(r"local\Programs\Git\usr\bin\vim.exe"));
+        assert_eq!(
+            detect("vim", &env),
+            Some(root.join(r"local\Programs\Git\usr\bin\vim.exe"))
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn terminal_editors_jump_with_plus_line_and_start_beside_the_file() {
+        let root = temp_dir("termargs");
+        let file = root.join("a.rs");
+        touch(&file);
+        let f = file.display().to_string();
+        assert_eq!(terminal_args(&file, Some(12)), vec!["+12".to_string(), f.clone()]);
+        assert_eq!(terminal_args(&file, None), vec![f]);
+        assert_eq!(terminal_cwd(&file), root.display().to_string());
+        assert_eq!(terminal_cwd(&root), root.display().to_string());
         std::fs::remove_dir_all(&root).unwrap();
     }
 

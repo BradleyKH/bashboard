@@ -287,10 +287,10 @@ pub struct Editor {
 }
 
 /// Ids `editor.preferred` accepts (docs/design/files.md section 3.12).
-pub const EDITOR_IDS: [&str; 18] = [
+pub const EDITOR_IDS: [&str; 20] = [
     "zed", "vscode", "cursor", "visualStudio", "notepadpp", "sublime", "rider", "intellij",
     "webstorm", "pycharm", "rustrover", "goland", "clion", "phpstorm", "windsurf",
-    "vscodeInsiders", "vscodium", "default",
+    "vscodeInsiders", "vscodium", "vim", "nvim", "default",
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

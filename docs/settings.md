@@ -10,9 +10,11 @@ launch, and `shell.*` applies to panes opened after the change.
 
 `editor.preferred` picks the editor that Open in editor uses: `zed`, `vscode`, `cursor`,
 `visualStudio`, `notepadpp`, `sublime`, `rider`, `intellij`, `webstorm`, `pycharm`, `rustrover`,
-`goland`, `clion`, `phpstorm`, `windsurf`, `vscodeInsiders`, `vscodium`, or `default` (the file's
-default app). JetBrains IDEs installed through the Toolbox App or the standalone installer are both
-found. If the chosen editor is not installed or will not start, the file opens in the default
+`goland`, `clion`, `phpstorm`, `windsurf`, `vscodeInsiders`, `vscodium`, `vim`, `nvim`, or
+`default` (the file's default app). JetBrains IDEs installed through the Toolbox App or the
+standalone installer are both found. Vim and Neovim open in a new pane beside the focused one,
+which closes when you quit the editor; the Vim that comes with Git for Windows is found even
+though it is not on `PATH`. If the chosen editor is not installed or will not start, the file opens in the default
 app and a toast says so. Scripts, programs, and shortcuts (`.bat`, `.exe`, `.lnk`, `.ps1`, and
 the like) open in Notepad rather than their default app, which would run them.
 `editor.command` replaces the editor with your own command line, for example

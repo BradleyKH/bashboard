@@ -74,6 +74,8 @@ pane cancels the previous one.
 | `windsurf` | Windsurf | `windsurf -g <path>:<line>` |
 | `vscodeInsiders` | VS Code Insiders | `code-insiders -g <path>:<line>` |
 | `vscodium` | VSCodium | `codium -g <path>:<line>` |
+| `vim` | Vim | `vim +<line> <path>`, in a pane |
+| `nvim` | Neovim | `nvim +<line> <path>`, in a pane |
 | `default` | The file's default app | Opened through the shell (no line) |
 
 With no line, each editor above except Visual Studio and the default app takes the path alone.
@@ -94,8 +96,17 @@ through `cmd.exe` (section 9); then `*\bin\<exe>` under `%LOCALAPPDATA%\Programs
 are matched by exe name, never by folder name, and the free and paid editions of IntelliJ IDEA
 and PyCharm share exe names, so either counts.
 
-Terminal editors are not in the table. Emacs is reachable through `editor.command`
-(`emacsclientw -n +{line} {path}`).
+Vim and Neovim run inside a terminal, so `open_in_editor` starts nothing for them: it returns
+`{ fallback: false, terminal: { argv, cwd } }`, and the front end runs `argv` in place of a
+shell in a new terminal pane (4.11) split off the focused one, in the file's folder (or the
+folder itself). Quitting the editor exits cleanly and closes the pane; a pane still open at quit
+is restored as a plain shell. Each is found as `vim.exe` or `nvim.exe` (`vim` or `nvim` on
+macOS) on `PATH`, then in its usual folders: for Vim, the copy Git for Windows ships in
+`<root>\usr\bin`, with `<root>` being `%LOCALAPPDATA%\Programs\Git`, `%ProgramFiles%\Git`, or
+the parent of a `cmd` or `bin` folder on `PATH` holding `git.exe`; for Neovim,
+`%ProgramFiles%\Neovim\bin`. On macOS, where an app started from the Dock gets a minimal `PATH`,
+`/opt/homebrew/bin`, `/usr/local/bin`, and `/usr/bin` are checked. Emacs is reachable through
+`editor.command` (`emacsclientw -n +{line} {path}`).
 
 A non-empty `editor.command` replaces the table: it is split into arguments, with `{path}` and
 `{line}` filled in (an absent line fills `1`). When the preferred editor is not found, the file

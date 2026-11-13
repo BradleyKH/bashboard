@@ -42,6 +42,7 @@ import { parseSavedWorkspace, type PtyRef } from './savedWorkspace';
 import { loadSessions } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
 import { showToast } from './toast';
+import { setTerminalEditorHost } from './editors';
 import { TabStrip } from './tabStrip';
 import { closePadConfirm, closeTabConfirm, replaceConfirm } from './paneConfirm';
 import type { PaneKind } from './paneKinds';
@@ -438,6 +439,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   // The core reads primaryBranch from repos.json, so the Git panes reload once it is written.
   onSetPrimaryBranch: (root, branch) => void repo.setPrimaryBranch(root, branch).then(() => workspace.reloadWorktrees()),
 });
+setTerminalEditorHost((argv, cwd) => void workspace.openPane({ kind: 'terminal', cwd, command: argv }));
 const tabStrip: TabStrip | undefined = new TabStrip(
   document.getElementById('tab-strip') as HTMLElement,
   workspace,

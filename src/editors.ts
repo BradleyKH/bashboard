@@ -11,10 +11,35 @@ export function listEditors(): Promise<Editor[]> {
   return invoke<Editor[]>('editors');
 }
 
-/** Opens a file or folder in the preferred editor, toasting when it falls back or fails. */
+/** What the core returns for a terminal editor (Vim, Neovim): a program to run in a new pane. */
+interface TerminalLaunch {
+  argv: string[];
+  cwd: string;
+}
+
+type TerminalEditorHost = (argv: string[], cwd: string) => void;
+
+let terminalEditorHost: TerminalEditorHost | null = null;
+
+/**
+ * Sets what opens a terminal editor's pane. The callers of `openInEditor` are spread across the
+ * panes and have no workspace of their own, so `main.ts` registers it once.
+ */
+export function setTerminalEditorHost(host: TerminalEditorHost): void {
+  terminalEditorHost = host;
+}
+
+/**
+ * Opens a file or folder in the preferred editor, toasting when it falls back or fails. A terminal
+ * editor opens in a new pane beside the focused one.
+ */
 export async function openInEditor(path: string, line?: number): Promise<void> {
   try {
-    const r = await invoke<{ fallback: boolean }>('open_in_editor', { path, line: line ?? null });
+    const r = await invoke<{ fallback: boolean; terminal?: TerminalLaunch }>('open_in_editor', {
+      path,
+      line: line ?? null,
+    });
+    if (r.terminal) terminalEditorHost?.(r.terminal.argv, r.terminal.cwd);
     if (r.fallback) showToast('The preferred editor was not found; opened in the default app.');
   } catch (err) {
     showToast(err instanceof Error ? err.message : String(err));

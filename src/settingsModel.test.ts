@@ -423,8 +423,8 @@ describe('installedChoices for editors', () => {
     expect(r.note).toBe('Zed was not found; files open in the default app');
   });
 
-  it('offers the 18 editor ids in the documented order', () => {
-    expect(field.options!.map((o) => o.value)).toEqual(['zed', 'vscode', 'cursor', 'visualStudio', 'notepadpp', 'sublime', 'rider', 'intellij', 'webstorm', 'pycharm', 'rustrover', 'goland', 'clion', 'phpstorm', 'windsurf', 'vscodeInsiders', 'vscodium', 'default']);
+  it('offers the 20 editor ids in the documented order', () => {
+    expect(field.options!.map((o) => o.value)).toEqual(['zed', 'vscode', 'cursor', 'visualStudio', 'notepadpp', 'sublime', 'rider', 'intellij', 'webstorm', 'pycharm', 'rustrover', 'goland', 'clion', 'phpstorm', 'windsurf', 'vscodeInsiders', 'vscodium', 'vim', 'nvim', 'default']);
   });
 
   it('offers a detected JetBrains IDE and marks an undetected saved VSCodium as not found', () => {
