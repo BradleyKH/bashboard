@@ -54,6 +54,8 @@ mod shell_integration;
 mod size_route;
 mod system;
 mod toast;
+#[cfg(target_os = "macos")]
+mod toast_mac;
 mod transcript;
 mod workspace;
 
@@ -203,6 +205,8 @@ pub fn run() {
             workspace::init(app.handle());
             pty::init_activity(app.handle());
             containers::init(app.handle());
+            #[cfg(target_os = "macos")]
+            toast_mac::install(app.handle());
             setup_main_window(&window);
             Ok(())
         })

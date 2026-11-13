@@ -976,9 +976,10 @@ models; picking one opens a new terminal and types
 When a terminal starts waiting or rings the bell, its pane border (or its card, if collapsed)
 pulses until you look at it, and the taskbar button flashes if the window is unfocused. A
 terminal you are already looking at (the focused pane in a focused window) is not marked.
-While Bashboard is in the background, a terminal that starts waiting also shows a Windows
+While Bashboard is in the background, a terminal that starts waiting also shows a system
 notification; click it to jump to that pane. Turn **Notify when a terminal needs you** off in
-Settings (`terminal.notifyWhenWaiting`) to stop them.
+Settings (`terminal.notifyWhenWaiting`) to stop them. On macOS, the first notification asks for
+permission; if you deny it, change that in System Settings, Notifications, Bashboard.
 
 A waiting terminal's dashboard card glows faintly in the accent color for as long as it waits,
 whether or not you have looked at it.

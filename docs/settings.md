@@ -302,8 +302,9 @@ dashboard", shown while the clock is on; right-clicking the clock sets it too.
 `done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
 the `~/.bashrc` lines only.
 
-`terminal.notifyWhenWaiting` (default `true`) shows a Windows notification when a terminal starts
-waiting while Bashboard is in the background; clicking it brings the window forward on that pane.
+`terminal.notifyWhenWaiting` (default `true`) shows a system notification (Windows or macOS) when a
+terminal starts waiting while Bashboard is in the background; clicking it brings the window forward
+on that pane. On macOS, the first notification asks for permission.
 
 ```jsonc
 "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true }

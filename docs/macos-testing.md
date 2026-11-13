@@ -20,8 +20,8 @@ testing only. This page lists what to check and what to send back.
 ## Not expected to work yet
 
 - The Local Browser pane and the Git install step are hidden.
-- Notifications, saved Forge sign-ins (Keychain), Listening ports, font lists, and editor
-  detection are not implemented yet.
+- Saved Forge sign-ins (Keychain), Listening ports, font lists, and editor detection are not
+  implemented yet.
 
 ## Checks
 
@@ -64,6 +64,12 @@ For each check, report pass or fail, plus what you saw if it failed.
     "Open in File Explorer" (still the Windows label) opens the folder in Finder.
 17. Make a layout with two tabs and a split, quit, and start the app again. The layout comes
     back.
+
+**Notifications**
+
+18. Start `claude` in a pane, give it a prompt that needs a permission, and switch to another
+    app before it asks. A notification appears with the pane's title; macOS asks for permission
+    the first time. Clicking it brings Bashboard forward with that pane focused.
 
 ## Measurements
 

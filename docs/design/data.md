@@ -273,7 +273,7 @@ the focused pane's folder.
   },
   "scrollback": 10000,
   // A shell command that runs this many seconds and finishes unseen marks its terminal done or
-  // failed; 0 turns it off (4.8). notifyWhenWaiting raises a Windows notification when a terminal
+  // failed; 0 turns it off (4.8). notifyWhenWaiting raises a system notification when a terminal
   // starts waiting while the window is unfocused (4.7).
   "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true },
   // side is right or left; an unknown value falls back to right. sections shows or hides each
