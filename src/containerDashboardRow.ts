@@ -55,7 +55,7 @@ export function renderContainerDashboardRow(
     }),
     target: el,
   }));
-  el.append(actionButton(row, callbacks));
+  el.append(actionSlot(row, callbacks));
   return el;
 }
 
@@ -66,17 +66,17 @@ function unavailableText(row: DashboardUnavailableRow): string {
 }
 
 /**
- * Exactly one button per row so the counts line up. A multi-container group can be partly
- * running, where a single Start or Stop would hide which containers it acts on, so it gets a
- * details button into the Containers tab instead; its context menu still offers Start and Stop.
+ * One slot per row so the counts line up. A multi-container group can be partly running, where a
+ * single Start or Stop would hide which containers it acts on, so its slot stays empty: clicking
+ * the row opens it in the Containers tab, and its context menu still offers Start and Stop.
  */
-function actionButton(row: DashboardGroupRow, callbacks: ContainersSectionCallbacks): HTMLButtonElement {
+function actionSlot(row: DashboardGroupRow, callbacks: ContainersSectionCallbacks): HTMLElement {
   if (row.total > 1) {
-    return iconButton('\u203A', 'container-action', 'Show containers', () =>
-      callbacks.onOpenContainers(row.groupKeys),
-    );
+    const spacer = document.createElement('span');
+    spacer.className = 'container-action-spacer';
+    return spacer;
   }
   return row.anyRunning
-    ? iconButton('\u25A0', 'container-action', 'Stop', () => callbacks.onStop(row))
-    : iconButton('\u25B6', 'container-action', 'Start', () => callbacks.onStart(row));
+    ? iconButton('■', 'container-action', 'Stop', () => callbacks.onStop(row))
+    : iconButton('▶', 'container-action', 'Start', () => callbacks.onStart(row));
 }

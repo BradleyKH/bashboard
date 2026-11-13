@@ -89,11 +89,10 @@ containers run, partial when some do, and stopped when none do, and its state do
 
 **Dashboard section** (4.6). One row per group, with no mention of the engine: groups with the
 same name on both engines share a row. Each row shows the dot, the name, and a running count
-such as "1 of 2", then one hover button. A single-container group's button is Start when it is
-stopped and Stop when it runs; a group of two or more has a details button (›) that opens the
-Containers tab with that group expanded, so a partly running group is never started or stopped
-without seeing which containers it holds. Clicking a row also opens the Containers tab with that
-group expanded. An engine that
+such as "1 of 2". A single-container group adds a hover button, Start when it is stopped and
+Stop when it runs; a group of two or more has no button, so a partly running group is never
+started or stopped without seeing which containers it holds, and its slot stays blank so the
+counts line up. Clicking a row opens the Containers tab with that group expanded. An engine that
 is not running adds a single row saying so, such as "Podman is not running", with a Start button
 at its right, always shown, when the app can start that engine (3.10). While it starts the row
 reads "Podman is starting…" and has no button. The dashboard never stops an engine.

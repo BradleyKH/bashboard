@@ -136,7 +136,7 @@ export class Workspace {
       if (this.clearDoneIfSeen() || cleared) this.notify();
     });
     // Bubble phase, so inputs that stop propagation of their own keys (the favorites picker) win.
-    window.addEventListener('keydown', (e) => this.onEmptyLayoutKey(e));
+    window.addEventListener('keydown', (e) => this.onUnownedKey(e));
   }
 
   /** The one object the helper modules act through; each sees it only as its own narrow context. */
@@ -897,14 +897,26 @@ export class Workspace {
     );
   }
 
-  /** With no expanded pane nothing holds focus, so workspace keys arrive here instead. */
-  private onEmptyLayoutKey(e: KeyboardEvent): void {
-    if (this.store.tree || e.defaultPrevented || this.paneDrag.isActive()) return;
+  /**
+   * Workspace keys that no pane received. With no expanded pane nothing holds focus. Otherwise
+   * focus fell to the body: Chromium moves it there when the focused element is disabled,
+   * hidden, or removed, which non-terminal panes do routinely (a Push button disabling while it
+   * runs, a refresh rebuilding the row that was clicked). Those panes listen for keys on their
+   * own host only, so without this their workspace keys go dead until something refocuses them.
+   */
+  private onUnownedKey(e: KeyboardEvent): void {
+    if (e.defaultPrevented || this.paneDrag.isActive()) return;
+    const orphaned = e.target === document.body;
+    if (this.store.tree && !orphaned) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-    if (!this.runKey(e)) return;
-    e.preventDefault();
-    e.stopPropagation();
+    const handled = this.runKey(e);
+    if (handled) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    // Hand focus back so the pane's own keys (list arrows, Enter) work from the next press.
+    if (orphaned && document.activeElement === document.body) this.paneViews.get(this.store.focusedId)?.focus();
   }
 
   /** Runs the workspace action bound to a key pressed outside any pane; true when one ran. */
