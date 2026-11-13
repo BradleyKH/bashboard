@@ -54,12 +54,13 @@ describe('buildPaletteItems', () => {
     expect(actionOrder()).not.toContain('checkForUpdates');
   });
 
-  it('lists the Containers, Ports, and Ship tabs as commands', () => {
+  it('lists the Containers, Ports, and Ship tabs and New worktree as commands', () => {
     const items = buildPaletteItems(input());
     for (const [label, command] of [
       ['Open the Containers tab', 'openContainers'],
       ['Open the Ports tab', 'openPorts'],
       ['Open the Ship tab', 'openShip'],
+      ['New worktree...', 'newWorktree'],
     ]) {
       expect(byLabel(items, label)).toMatchObject({ category: 'Action', choice: { kind: 'command', command } });
     }

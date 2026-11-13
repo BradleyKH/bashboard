@@ -26,6 +26,8 @@ import { shipOverviewStore } from './shipOverviewStore';
 import { branchSizeStore } from './branchSizeStore';
 import { cloudContextStore } from './cloudContextStore';
 import type { Workspace } from './workspace';
+import { onWorktreeCreated } from './worktreeApi';
+import { onWorktreeCreatedEvent } from './worktreeNewFlow';
 
 export interface AppEventsDeps {
   state: AppState;
@@ -83,6 +85,9 @@ export function listenAppEvents(deps: AppEventsDeps): void {
     openLocalBrowser: (url, paneId, opts) => workspace.openLocalBrowser(url, { ...opts, fromPaneId: paneId }),
   };
   onCliCommand((cmd) => runCliCommand(cmd, cliTarget)).catch((e) => console.warn('pane CLI unavailable:', e));
+  onWorktreeCreated((ev) => onWorktreeCreatedEvent(workspace, ev)).catch((e) =>
+    console.warn('bb worktree new panes unavailable:', e),
+  );
   onBrowserChord((action) => workspace.runAction(action)).catch((e) =>
     console.warn('app keys in Local Browser pages unavailable:', e),
   );

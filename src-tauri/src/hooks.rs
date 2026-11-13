@@ -4,8 +4,9 @@
 //! roster. Each agent's events map to a status through its own table in `status_for`. The
 //! same receiver takes `POST /cli` from the `bb` pane CLI (design section 3.13) and emits the
 //! resolved command as `cli://command`, `POST /ci` for `bb ci` (docs/design/ship.md section
-//! 3.23), and `POST /size` for `bb pr size` (docs/design/git.md section 3.25), each of which it
-//! answers from a thread of its own. The overlay also keeps each session's
+//! 3.23), `POST /size` for `bb pr size` (docs/design/git.md section 3.25), and `POST /worktree`
+//! for `bb worktree new` (docs/design/git.md section 3.27), each of which it answers from a
+//! thread of its own. The overlay also keeps each session's
 //! `transcript_path`, which the transcript reader uses to find the session's JSONL file.
 
 use std::{
@@ -22,7 +23,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::lock::LockExt;
-use crate::{agents::AgentId, ci, cli, pty::Ptys, roster, size_route};
+use crate::{agents::AgentId, ci, cli, pty::Ptys, roster, size_route, worktree_route};
 
 const MAX_BODY: usize = 64 * 1024;
 const MAX_CLI_BODY: usize = 1024 * 1024;
@@ -155,11 +156,12 @@ pub fn init(app: &AppHandle) {
             },
             |req, body| {
                 let app = app.clone();
+                let pty_id = pane_of(&req);
                 thread::spawn(move || {
-                    let (code, json) = if route(&req) == "/size" {
-                        size_route::handle(&app, &body)
-                    } else {
-                        ci::handle(&app, &body)
+                    let (code, json) = match route(&req) {
+                        "/size" => size_route::handle(&app, &body),
+                        "/worktree" => worktree_route::handle(&app, pty_id, &body),
+                        _ => ci::handle(&app, &body),
                     };
                     respond_json(req, code, &json);
                 });
@@ -183,8 +185,8 @@ fn header<'a>(headers: &'a [Header], name: &'static str) -> Option<&'a str> {
 }
 
 /// Answers requests until the server shuts down, passing each accepted hook event to
-/// `on_event`, each accepted `/cli` command to `on_cli`, and each accepted `/ci` or `/size`
-/// request, unanswered, to `on_ci`, which must answer it off this thread. `pane_live` says whether a
+/// `on_event`, each accepted `/cli` command to `on_cli`, and each accepted `/ci`, `/size`, or
+/// `/worktree` request, unanswered, to `on_ci`, which must answer it off this thread. `pane_live` says whether a
 /// pty id belongs to a running pane. Nothing here waits on the front end or a forge.
 fn serve(
     server: &Server,
@@ -207,6 +209,14 @@ fn route(req: &Request) -> &str {
     req.url().split('?').next().unwrap_or("")
 }
 
+/// The calling pane of an admitted `/ci`-style request, whose admission checked the header
+/// names a live pane.
+fn pane_of(req: &Request) -> u32 {
+    header(req.headers(), "X-Bashboard-Pane")
+        .and_then(|p| p.trim().parse::<u32>().ok())
+        .unwrap_or_default()
+}
+
 fn respond_json(req: Request, code: u16, json: &serde_json::Value) {
     let mut resp = Response::from_string(json.to_string()).with_status_code(StatusCode(code));
     if let Ok(h) = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]) {
@@ -225,8 +235,9 @@ fn answer(
 ) {
     let path = route(&req).to_string();
     let is_cli = path == "/cli";
-    // `/size` shares `/ci`'s admission and handoff; the handler in `init` tells them apart.
-    let is_ci = path == "/ci" || path == "/size";
+    // `/size` and `/worktree` share `/ci`'s admission and handoff; the handler in `init` tells
+    // them apart.
+    let is_ci = path == "/ci" || path == "/size" || path == "/worktree";
     let cap = if is_cli {
         MAX_CLI_BODY
     } else if is_ci {
@@ -1182,6 +1193,42 @@ mod tests {
         assert!(refused.contains(r#"{"error":"#));
         let mut no_pane = String::new();
         route_send(addr, "/size", TOKEN, "9", "{}").read_to_string(&mut no_pane).unwrap();
+        assert!(no_pane.starts_with("HTTP/1.1 404"), "{no_pane}");
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn worktree_is_admitted_and_handed_off_like_ci() {
+        let server = Server::http("127.0.0.1:0").unwrap();
+        let addr = server.server_addr().to_ip().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            serve(
+                &server,
+                TOKEN,
+                |_| {},
+                |id| id == 5,
+                |_| panic!("/worktree must not reach the /cli path"),
+                |req, body| tx.send((req, body)).unwrap(),
+            )
+        });
+        let wait = std::time::Duration::from_secs(10);
+        let sent = r#"{"cwd":"C:/r","branch":"b","dryRun":true}"#;
+        let mut pending = route_send(addr, "/worktree", TOKEN, " 5 ", sent);
+        let (req, body) = rx.recv_timeout(wait).expect("/worktree was not handed off");
+        assert_eq!(route(&req), "/worktree");
+        assert_eq!(pane_of(&req), 5);
+        assert_eq!(body, sent.as_bytes());
+        respond_json(req, 200, &serde_json::json!({ "plan": {} }));
+        let mut response = String::new();
+        pending.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+
+        let mut refused = String::new();
+        route_send(addr, "/worktree", "wrong!", "5", "{}").read_to_string(&mut refused).unwrap();
+        assert!(refused.starts_with("HTTP/1.1 403"), "{refused}");
+        let mut no_pane = String::new();
+        route_send(addr, "/worktree", TOKEN, "9", "{}").read_to_string(&mut no_pane).unwrap();
         assert!(no_pane.starts_with("HTTP/1.1 404"), "{no_pane}");
         assert!(rx.try_recv().is_err());
     }

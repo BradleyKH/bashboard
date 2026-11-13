@@ -40,6 +40,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.24 Agent table (`src/agents.json`) | [sessions.md](sessions.md) |
 | 3.25 Branch size (`src-tauri/src/git_branch_size.rs`, `src-tauri/src/size_route.rs`) | [git.md](git.md) |
 | 3.26 Azure context (`src-tauri/src/cloud_context.rs`) | [terminal.md](terminal.md) |
+| 3.27 New worktree (`src-tauri/src/worktree_new.rs`, `src-tauri/src/worktree_trust.rs`, `src-tauri/src/worktree_route.rs`) | [git.md](git.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |
@@ -66,6 +67,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.24 Program status (OSC 7501) (`src/programStatus.ts`) | [sessions.md](sessions.md) |
 | 4.25 Cloud context chip (OSC 7502) (`src/cloudContextModel.ts`) | [terminal.md](terminal.md) |
 | 4.26 Runs bound to panes (`src/paneRunModel.ts`, `src/paneRunTracker.ts`) | [ship.md](ship.md) |
+| 4.27 New worktree flow (`src/worktreeNewModel.ts`, `src/worktreeNewFlow.ts`) | [git.md](git.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |

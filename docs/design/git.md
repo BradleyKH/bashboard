@@ -166,6 +166,87 @@ that is not a git repo answers 400 with `{ error: "not a git repository" }`, as 
 is not valid or a folder that does not exist, and a failure from git answers 500. The route only
 reads.
 
+## 3.27 New worktree (`src-tauri/src/worktree_new.rs`, `src-tauri/src/worktree_trust.rs`, `src-tauri/src/worktree_route.rs`)
+
+A worktree for a task is one command: it branches off fresh remote state, copies the local files a
+checkout lacks, and numbers the worktree so its setup can avoid colliding with the others.
+`plan(cwd, branch, from)` and `create(cwd, branch, from)` do the work, behind the `worktree_plan`
+and `worktree_create` commands and `POST /worktree` (below).
+
+**Plan.** `plan` only reads and returns `WorktreePlan` (camelCase): `mainRoot`, `branch`,
+`baseRef`, `baseSha`, `shortSha`, `path`, `name`, and `hint`. It fails before anything changes
+when the branch is not a valid name (`git check-ref-format --branch`), a local branch of that name
+exists (the error suggests another), or the folder exists.
+
+- **Base.** The repo's comparison ref, the one the Git pane's Compare with uses (3.9), or
+  `--from <ref>`; `--from HEAD` is the calling folder's current commit. `hint` is true when no
+  `from` was given. The plan line the callers print is `Branching <branch> from <ref>
+  (<short sha>)`, plus `; pass --from HEAD to branch from your current commit` when `hint` is true.
+- **Location.** A sibling of the main worktree, `<parent of the main worktree>/<repo folder
+  name>-<branch>`, where the branch has `/`, `\`, and characters Windows rejects in file names
+  (`< > : " | ? *`, control characters) replaced with `-`, and leading and trailing dots and spaces
+  trimmed. `name` is that folder's name.
+
+**Create.** `create` runs the plan checks again, then:
+
+1. Fetches. The remote is the comparison ref's, else the current branch's upstream's, else
+   `origin`, with a 60 second timeout. Any failure (offline, no remote, a timeout) becomes a
+   warning and creation continues from local refs.
+2. Resolves the base again, since the fetch may have moved it.
+3. Runs `git worktree add -b <branch> <path> <base commit>`. The branch starts at the resolved
+   commit, so it has no upstream and the Git pane's Push reads Publish.
+4. Copies `.worktreeinclude`, then assigns the index.
+
+It returns `WorktreeCreated`: `plan`, `index`, `copied` (the paths copied), `warnings`, and
+`setup`, which is `none` (no `.bashboard/setup.sh` in the new worktree), `trusted`, or
+`needsApproval`.
+
+**`.worktreeinclude`.** An optional file at the main worktree root that names gitignored files
+(`.env`, a `node_modules` folder, a local database) to copy, not link, into the same relative
+path in the new worktree. One literal relative path per line; blank lines and `#` comments are
+allowed. A line is skipped with a warning when it contains a glob character (`*`, `?`, `[`),
+starts with `!`, is absolute, or contains `..`, and so is a path that is missing, tracked by git,
+or not ignored (`git check-ignore -q`). A file or a folder is copied; a symlink inside a copied
+folder is skipped with a warning.
+
+**Index.** `BB_WORKTREE_INDEX` is a small positive integer, stable per worktree, for offsetting
+ports and database names. It is recorded in a file named `bashboard-index` in the worktree's git
+admin dir (`.git/worktrees/<name>/`) and read back from there. The main worktree has no number,
+so the first worktree gets 1; a new one takes the smallest integer the repo's other worktrees do
+not hold, so a deleted worktree's number is reused.
+
+**Setup script.** `.bashboard/setup.sh` is read from the new worktree, so it is the version
+committed at the base. The front end runs it in the new pane (4.27) with these variables set:
+
+| Variable | Value |
+| --- | --- |
+| `BB_ROOT_PATH` | The main worktree's folder |
+| `BB_WORKTREE_PATH` | The new worktree's folder |
+| `BB_WORKTREE_NAME` | The new folder's name |
+| `BB_WORKTREE_INDEX` | The index above |
+
+`worktree_setup_script(path)` returns the script text of the worktree at `path`, or null, for the
+approval dialog's Show script button. There is no per-user override script.
+
+**Trust.** A script from the repo runs only after the user approves it. `worktree-trust.json`, in
+Bashboard's config folder beside `settings.json` and written atomically, holds one approved script
+text per main worktree root. The store keeps the exact text, not a hash, so a script that differs
+by a character asks again and a crafted collision cannot pass. `worktree_trust_setup(mainRoot,
+path)` reads the script at `path` in the core and stores that, so the approved text is the text
+that runs; a script that is not UTF-8 cannot be approved. `create` reports `trusted` when the
+stored text equals the script, and `needsApproval` otherwise.
+
+**Route.** `POST /worktree` on the hook receiver (3.3) serves `bb worktree new` (3.13). It is
+admitted like `/size` (3.25): the per-launch token and a live pane, and each request runs on its
+own thread, since it fetches and copies. The body is `{ cwd, branch, from?, agent?, prompt?,
+dryRun }`. With `dryRun` it answers 200 `{ plan }` and changes nothing, which is how `bb` prints the
+plan line before acting. Otherwise it creates and answers 200 `{ created }`, then emits
+`worktree://created` with `{ ptyId, created, agent, prompt }`, where `ptyId` is the calling pane's
+(`BASHBOARD_PANE_ID`, as `/cli` passes it), so the front end opens the new pane beside it. A bad
+body or a failed plan check answers 400 and a git failure while creating answers 500, each with
+`{ error }`. `agent` is `claude`, `codex`, or `copilot`, and any other value answers 400; `bb`
+refuses `--prompt` without `--agent`, since the prompt is typed after the agent's launch command.
+
 ## 4.13 Git pane
 
 For one git repo. A head row spans the pane: the **branch line** and the **Changes** and
@@ -319,3 +400,34 @@ the repo's worktree roots, and after a fetch of any of them.
 The pane refreshes on `git://changed`, when it comes on screen, and when the window regains
 focus; each refresh rereads the branches too. A folder that is not a git repo shows a notice
 instead.
+
+## 4.27 New worktree flow (`src/worktreeNewModel.ts`, `src/worktreeNewFlow.ts`, `src/worktreeTrustDialog.ts`, `src/worktreeNewDialog.ts`)
+
+Two entry points reach one flow: `worktree://created` from `bb worktree new` (3.27), and the command
+palette's **New worktree...**, which opens a dialog. The dialog has a branch field, a line under it
+showing the plan (`worktree_plan`, so a bad or taken name shows before Create), and an optional agent
+and prompt; Create calls `worktree_create`. The prompt is available only with an agent.
+
+With the created worktree, the flow:
+
+1. When `setup` is `needsApproval`, asks first in a dialog that offers **Show script** (the text from
+   `worktree_setup_script`), **Run setup**, and **Don't run**, with focus on **Don't run** so a
+   stray Enter never approves. Escape and a click outside also decline. **Run setup** calls
+   `worktree_trust_setup`, which stores the script for the repo (3.27); the approval holds until the
+   script's text changes. Declining skips setup, and the agent with it, since setup did not
+   succeed, and a toast says so. A second worktree's question waits for the first dialog.
+2. Opens a terminal pane in the new folder as a split beside the calling pane (the focused pane, for
+   the dialog). Whenever it types a command on Windows (setup, or an agent with its prompt), the pane
+   uses the Git Bash profile whatever the default profile is, because the command is bash syntax and
+   bash quoting; with nothing to type, it uses the default profile.
+3. Types one line into the pane, built by `setupCommand` in `worktreeNewModel.ts`. With setup:
+   `BB_ROOT_PATH='...' BB_WORKTREE_PATH='...' BB_WORKTREE_NAME='...' BB_WORKTREE_INDEX=3 bash -e
+   .bashboard/setup.sh`, followed, when an agent was chosen, by ` && ` and the agent's launch
+   command from the agent table (3.24) with the prompt as one single-quoted argument. `-e` stops the
+   script at its first failing command, so a failure midway fails the whole line, and the agent
+   starts only if setup exits 0. Without setup, the line is the agent command alone, or nothing.
+   Paths are written with forward slashes, which Git Bash accepts, and single-quoted with an
+   embedded quote closed, escaped, and reopened.
+
+`worktreeNewModel.ts` is pure and unit-tested: the quoting, the command line, and the plan line,
+which matches the one `bb` prints.

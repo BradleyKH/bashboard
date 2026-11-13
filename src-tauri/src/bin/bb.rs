@@ -89,6 +89,9 @@ fn run(args: &[String]) -> Result<ExitCode, String> {
     if command == "pr" {
         return Ok(pr(rest));
     }
+    if command == "worktree" {
+        return worktree(rest).map(|()| ExitCode::SUCCESS);
+    }
     let pane = Pane::from_env()?;
     let stdin = if wants_stdin(command, rest) && !io::stdin().is_terminal() {
         Some(read_stdin()?)
@@ -473,6 +476,147 @@ fn size_line(value: &serde_json::Value) -> String {
         ),
         None => format!("No comparison ref, so the branch size is not measured ({threshold})."),
     }
+}
+
+const WORKTREE_USAGE: &str =
+    "usage: bb worktree new <branch> [--from <ref>] [--agent <id>] [--prompt <text>] (see bb help)";
+/// The plan only reads git state, so it answers quickly.
+const WORKTREE_PLAN_TIMEOUT: Duration = Duration::from_secs(30);
+/// Creating fetches from the remote and copies the `.worktreeinclude` files, which can be slow.
+const WORKTREE_CREATE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+
+#[derive(Debug, PartialEq)]
+struct WorktreeArgs {
+    branch: String,
+    from: Option<String>,
+    agent: Option<String>,
+    prompt: Option<String>,
+}
+
+/// The value after an option that takes one; the next word is always the value, even when it
+/// starts with `-`, because a prompt may.
+fn option_value(
+    flag: &str,
+    it: &mut std::slice::Iter<'_, String>,
+    slot: &mut Option<String>,
+) -> Result<(), String> {
+    if slot.is_some() {
+        return Err(format!("{flag} given twice ({WORKTREE_USAGE})"));
+    }
+    match it.next() {
+        Some(v) if !v.is_empty() => {
+            *slot = Some(v.clone());
+            Ok(())
+        }
+        _ => Err(format!("{flag} needs a value ({WORKTREE_USAGE})")),
+    }
+}
+
+fn parse_worktree(rest: &[String]) -> Result<WorktreeArgs, String> {
+    let flags = match rest.split_first() {
+        Some((sub, flags)) if sub == "new" => flags,
+        Some((sub, _)) if !is_help(sub) => {
+            return Err(format!("unknown worktree command \"{sub}\" ({WORKTREE_USAGE})"));
+        }
+        _ => return Err(WORKTREE_USAGE.into()),
+    };
+    let (mut branch, mut from, mut agent, mut prompt) = (None, None, None, None);
+    let mut it = flags.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--from" => option_value("--from", &mut it, &mut from)?,
+            "--agent" => option_value("--agent", &mut it, &mut agent)?,
+            "--prompt" => option_value("--prompt", &mut it, &mut prompt)?,
+            other if other.starts_with('-') => {
+                return Err(format!("unknown option \"{other}\" ({WORKTREE_USAGE})"));
+            }
+            name if branch.is_none() => branch = Some(name.to_string()),
+            extra => return Err(format!("unexpected argument \"{extra}\" ({WORKTREE_USAGE})")),
+        }
+    }
+    let branch = branch.ok_or_else(|| format!("a branch name is required ({WORKTREE_USAGE})"))?;
+    // The prompt is typed after the agent's launch command, so alone it would go nowhere.
+    if prompt.is_some() && agent.is_none() {
+        return Err(format!("--prompt needs --agent ({WORKTREE_USAGE})"));
+    }
+    Ok(WorktreeArgs { branch, from, agent, prompt })
+}
+
+fn worktree_body(args: &WorktreeArgs, cwd: &str, dry_run: bool) -> Vec<u8> {
+    serde_json::to_vec(&serde_json::json!({
+        "cwd": cwd,
+        "branch": args.branch,
+        "from": args.from,
+        "agent": args.agent,
+        "prompt": args.prompt,
+        "dryRun": dry_run,
+    }))
+    .expect("a JSON value serializes")
+}
+
+/// What is about to happen, shown before anything changes. The hint about `--from HEAD` comes
+/// from the core, which leaves it out when `--from` was given.
+fn plan_line(plan: &serde_json::Value) -> String {
+    let text = |k: &str| plan[k].as_str().unwrap_or("");
+    let mut line = format!(
+        "Branching {} from {} ({})",
+        text("branch"),
+        text("baseRef"),
+        text("shortSha"),
+    );
+    if plan["hint"].as_bool().unwrap_or(false) {
+        line.push_str("; pass --from HEAD to branch from your current commit");
+    }
+    line
+}
+
+/// `planned_sha` is the base from the dry run, read before the fetch; when the fetch moved the
+/// base, the commit actually branched from is named so the printed plan line is not left wrong.
+fn created_text(created: &serde_json::Value, planned_sha: &str) -> String {
+    let strings = |k: &str| -> Vec<&str> {
+        created[k]
+            .as_array()
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
+            .unwrap_or_default()
+    };
+    let plan = &created["plan"];
+    let mut text = format!("Created worktree {}", plan["path"].as_str().unwrap_or(""));
+    let short = plan["shortSha"].as_str().unwrap_or("");
+    if !short.is_empty() && !planned_sha.is_empty() && short != planned_sha {
+        let base = plan["baseRef"].as_str().unwrap_or("");
+        text.push_str(&format!("\nThe fetch moved {base}; branched from {short}"));
+    }
+    for path in strings("copied") {
+        text.push_str(&format!("\nCopied {path}"));
+    }
+    for warning in strings("warnings") {
+        text.push_str(&format!("\nwarning: {warning}"));
+    }
+    match created["setup"].as_str() {
+        Some("trusted") => text.push_str("\nSetup will run in the new pane."),
+        Some("needsApproval") => {
+            text.push_str("\nApprove the setup script in Bashboard to run it.")
+        }
+        _ => {}
+    }
+    text
+}
+
+fn worktree(rest: &[String]) -> Result<(), String> {
+    let args = parse_worktree(rest)?;
+    let pane = Pane::from_env()?;
+    let ask = |dry_run: bool, timeout: Duration| -> Result<serde_json::Value, String> {
+        let raw = pane
+            .post("/worktree", &worktree_body(&args, &pane.cwd, dry_run), timeout)
+            .map_err(|e| format!("could not reach Bashboard: {e}"))?;
+        ci_answer(&raw).map_err(|e| e.message)
+    };
+    let planned = ask(true, WORKTREE_PLAN_TIMEOUT)?;
+    println!("{}", plan_line(&planned["plan"]));
+    let done = ask(false, WORKTREE_CREATE_TIMEOUT)?;
+    let planned_sha = planned["plan"]["shortSha"].as_str().unwrap_or("");
+    println!("{}", created_text(&done["created"], planned_sha));
+    Ok(())
 }
 
 /// Polls `status` until a stop rule fires; see `decide`.
@@ -1174,6 +1318,7 @@ mod tests {
             "ci rerun",
             "ci cancel",
             "pr size",
+            "worktree new",
             "skill install",
             "help",
             "--collapsed",
@@ -1186,7 +1331,7 @@ mod tests {
             text.lines().find_map(|l| l.find(summary)).unwrap()
         };
         assert_eq!(column("Open the file in"), column("Store an Azure DevOps PAT"));
-        assert!(text.contains("<org> [--clear]  Store"));
+        assert!(text.contains("<org> [--clear] "));
     }
 
     #[test]
@@ -1437,6 +1582,90 @@ mod tests {
             },
             "threshold": threshold,
         })
+    }
+
+    #[test]
+    fn worktree_arguments() {
+        let ok = |a: &[&str]| parse_worktree(&strings(a));
+        assert_eq!(
+            ok(&["new", "feat/x"]),
+            Ok(WorktreeArgs { branch: "feat/x".into(), from: None, agent: None, prompt: None })
+        );
+        assert_eq!(
+            ok(&["new", "--agent", "claude", "feat", "--from", "HEAD", "--prompt", "-fix it"]),
+            Ok(WorktreeArgs {
+                branch: "feat".into(),
+                from: Some("HEAD".into()),
+                agent: Some("claude".into()),
+                prompt: Some("-fix it".into()),
+            })
+        );
+        assert!(ok(&[]).unwrap_err().starts_with("usage:"));
+        assert!(ok(&["help"]).unwrap_err().starts_with("usage:"));
+        assert!(ok(&["old", "x"]).unwrap_err().contains("unknown worktree command"));
+        assert!(ok(&["new"]).unwrap_err().contains("branch name is required"));
+        assert!(ok(&["new", "a", "b"]).unwrap_err().contains("unexpected argument \"b\""));
+        assert!(ok(&["new", "a", "--bogus"]).unwrap_err().contains("unknown option"));
+        assert!(ok(&["new", "a", "--from"]).unwrap_err().contains("--from needs a value"));
+        assert!(ok(&["new", "a", "--from", "x", "--from", "y"]).unwrap_err().contains("twice"));
+        assert!(ok(&["new", "a", "--prompt", "hi"]).unwrap_err().contains("--prompt needs --agent"));
+    }
+
+    #[test]
+    fn worktree_body_shape() {
+        let args = WorktreeArgs {
+            branch: "b".into(),
+            from: None,
+            agent: Some("claude".into()),
+            prompt: None,
+        };
+        let v: serde_json::Value = serde_json::from_slice(&worktree_body(&args, "/r", true)).unwrap();
+        assert_eq!(v["cwd"], "/r");
+        assert_eq!(v["branch"], "b");
+        assert!(v["from"].is_null());
+        assert_eq!(v["agent"], "claude");
+        assert_eq!(v["dryRun"], true);
+        let v: serde_json::Value = serde_json::from_slice(&worktree_body(&args, "/r", false)).unwrap();
+        assert_eq!(v["dryRun"], false);
+    }
+
+    #[test]
+    fn worktree_plan_lines() {
+        let mut plan = serde_json::json!({
+            "branch": "feat", "baseRef": "origin/main", "shortSha": "abc1234", "hint": true,
+        });
+        assert_eq!(
+            plan_line(&plan),
+            "Branching feat from origin/main (abc1234); pass --from HEAD to branch from your current commit"
+        );
+        plan["hint"] = false.into();
+        assert_eq!(plan_line(&plan), "Branching feat from origin/main (abc1234)");
+    }
+
+    #[test]
+    fn worktree_created_text() {
+        let mut created = serde_json::json!({
+            "plan": { "path": "C:/r/app-feat", "baseRef": "origin/main", "shortSha": "abc1234" },
+            "index": 2,
+            "copied": [".env", "node_modules"],
+            "warnings": ["skipped *.log"],
+            "setup": "trusted",
+        });
+        assert_eq!(
+            created_text(&created, "abc1234"),
+            "Created worktree C:/r/app-feat\nCopied .env\nCopied node_modules\n\
+             warning: skipped *.log\nSetup will run in the new pane."
+        );
+        created["setup"] = "needsApproval".into();
+        assert!(created_text(&created, "abc1234").ends_with("Approve the setup script in Bashboard to run it."));
+        created["setup"] = "none".into();
+        created["copied"] = serde_json::json!([]);
+        created["warnings"] = serde_json::json!([]);
+        assert_eq!(created_text(&created, "abc1234"), "Created worktree C:/r/app-feat");
+        assert_eq!(
+            created_text(&created, "0000000"),
+            "Created worktree C:/r/app-feat\nThe fetch moved origin/main; branched from abc1234"
+        );
     }
 
     #[test]

@@ -59,6 +59,9 @@ mod toast;
 mod toast_mac;
 mod transcript;
 mod workspace;
+mod worktree_new;
+mod worktree_route;
+mod worktree_trust;
 
 /// WebView2 claims browser shortcuts (Ctrl+F find, Ctrl+R reload, Ctrl+P print, zoom, ...)
 /// before the page sees them; a terminal needs those keys delivered to the shell instead.
@@ -322,6 +325,10 @@ pub fn run() {
             git_worktrees::git_primary_branch,
             git_worktrees::git_worktree_remove,
             git_branch_size::git_branch_size,
+            worktree_new::worktree_plan,
+            worktree_new::worktree_create,
+            worktree_new::worktree_setup_script,
+            worktree_trust::worktree_trust_setup,
             containers::containers_list,
             containers::containers_action,
             containers::containers_engine_start,

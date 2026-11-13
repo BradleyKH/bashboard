@@ -7,6 +7,7 @@
   - [Pins](#pins)
 - [Git pane](#git-pane)
   - [Branches tab](#branches-tab)
+  - [New worktree](#new-worktree)
 - [Ship pane](#ship-pane)
   - [Overview](#overview)
   - [A repo's view](#a-repos-view)
@@ -320,7 +321,8 @@ Delete key) removes it after a confirm, offering to delete a merged branch too. 
 while any pane or Claude session is working in the folder, and never deletes a worktree with
 uncommitted changes. The **Compare with** button in the group's header picks the primary branch;
 Automatic uses the remote's default branch, or else the first of `dev`, `develop`, `main`, and
-`master` that exists. The choice is saved in `repos.json`.
+`master` that exists. The choice is saved in `repos.json`. To create a worktree, see
+[New worktree](#new-worktree).
 
 - **Filter or create.** Typing in the field at the top filters both lists (and opens Remote).
   Press Enter, or New branch, to create a branch with that name and switch to it. It starts with
@@ -353,6 +355,69 @@ Without either, the pane shows git's "not found" error in its body.
 Opening a Git pane runs `git status` and `git diff` in the repo, and a repo's own git config can
 make those run programs (`core.fsmonitor`, diff and textconv drivers), as it can for `git` in a
 terminal. Only open Git panes on repos you trust.
+
+### New worktree
+
+`bb worktree new <branch>` (see [Pane CLI](#pane-cli)) and the command palette's **New
+worktree...** create a worktree for a task and open a terminal in it. The palette entry asks for
+the branch, shows what it will branch from before you confirm, and has optional Agent and Prompt
+fields.
+
+- **Fetch first.** Bashboard fetches the remote before branching, so the branch starts from current
+  remote state. The remote is the one your comparison ref uses, else your branch's upstream, else
+  `origin`. If the fetch fails (offline, no remote), a warning shows and the worktree is created
+  from your local refs.
+- **Base.** The new branch starts at the repo's comparison ref, the same one **Compare with**
+  picks in the Worktrees group, and the plan line names it with its short commit, such as
+  "Branching feat/login from origin/main (a1b2c3d)". `bb worktree new <branch> --from <ref>`
+  starts from another ref, and `--from HEAD` starts from the commit the folder you ran it in is
+  on. The branch has no upstream, so Push reads Publish.
+- **Location.** The worktree is a sibling of the main worktree's folder, named `<repo>-<branch>`
+  with `/` and other characters Windows rejects in a file name replaced by `-`. The command fails
+  if the branch or the folder already exists.
+- **Copying local files.** A `.worktreeinclude` file at the main worktree's root lists gitignored
+  files to copy into each new worktree, such as `.env` or a `node_modules` folder, one path per
+  line, relative to the root:
+
+  ```
+  # copied into every new worktree
+  .env
+  node_modules
+  ```
+
+  Only literal paths work. A glob, a line starting with `!`, an absolute path, or a path with `..`
+  is skipped with a warning, as is a path that does not exist, is tracked by git, or is not
+  gitignored. Files and folders are copied, not linked; a symlink inside a copied folder is
+  skipped.
+- **Setup script.** If the repo has a `.bashboard/setup.sh` (commit it so everyone gets it), it
+  runs in the new terminal, visible, under bash. On Windows the pane opens with the Git Bash
+  profile for this, whatever your default profile is. The script runs from the new worktree's
+  folder, with these environment variables:
+
+  | Variable | Value |
+  | --- | --- |
+  | `BB_ROOT_PATH` | The main worktree's folder |
+  | `BB_WORKTREE_PATH` | The new worktree's folder |
+  | `BB_WORKTREE_NAME` | The new folder's name |
+  | `BB_WORKTREE_INDEX` | A small number, 1 for the first worktree, unique among the repo's worktrees; a deleted worktree's number is reused |
+
+  `BB_WORKTREE_INDEX` lets each worktree take its own ports, so several can run side by side. This
+  setup script gives each worktree its own Postgres port:
+
+  ```sh
+  #!/usr/bin/env bash
+  cp "$BB_ROOT_PATH/.env.example" .env
+  echo "POSTGRES_PORT=$((5432 + BB_WORKTREE_INDEX))" >> .env
+  pnpm install
+  ```
+- **Approval.** The first time a repo's setup script would run, Bashboard asks, with a **Show
+  script** button to read it first. Approving remembers that exact script for the repo in
+  Bashboard's own settings folder (`worktree-trust.json`), not in the repo. If the script changes,
+  even by a character, Bashboard asks again. Declining opens the terminal without running setup,
+  and without starting the agent. A script that is not UTF-8 text cannot be approved.
+- **Agent.** With an agent (Claude Code, Codex, or Copilot) and a prompt, the agent starts in the
+  pane after setup finishes, with the prompt as its first message. If setup fails, the agent does
+  not start.
 
 ## Ship pane
 
@@ -1064,7 +1129,7 @@ panes report without setup, and Command Prompt panes show none. Turn the chips o
 Ctrl+Shift+P opens one list over your panes, tabs, favorites, layouts, the focused repo's pins and
 worktrees, and the actions, each with its keys. The actions include Open the Containers tab, Open
 the Ports tab, and Open the Ship tab (the Ship [Overview](#overview)), which switch to that pane or
-add a tab holding one. Typing filters the list fuzzily, and a leading `>`
+add a tab holding one. **New worktree...** creates a [worktree](#new-worktree) for the focused repo. Typing filters the list fuzzily, and a leading `>`
 shows only actions. Enter focuses a pane, switches to a tab, opens a favorite, layout, pin, or
 worktree, or runs an action; a favorite or worktree opens as a split, or collapsed with Ctrl+Enter.
 With an empty box, your recent picks come first.
@@ -1174,6 +1239,7 @@ not apply to them. `bb edit` opens no pane.
 | `bb ci log [--run ID] [--job ID]` | Prints why the newest failed run (or `--run`) failed, or a whole job log with `--job` (which needs `--run`) |
 | `bb ci rerun [--failed] [--run ID]` | Re-runs a run, or only its failed jobs; needs `ship.cliWrites` |
 | `bb ci cancel [--run ID]`     | Cancels a run; needs `ship.cliWrites`                                         |
+| `bb worktree new <branch> [--from <ref>] [--agent <id>] [--prompt <text>]` | Creates a worktree on a new branch, copies `.worktreeinclude` files, and opens a terminal in it, running `.bashboard/setup.sh` after you approve it |
 | `bb pr size [--json]`         | Prints how many lines and files the branch changes, against the size limit; exits 0 at or under it, 1 over it |
 | `bb skill install`            | Installs a Claude Code skill that teaches agents these commands               |
 | `bb help`                     | Lists the commands (`bb`, `bb -h`, and `bb --help` do the same)               |
@@ -1232,6 +1298,18 @@ including running outside a pane or outside a git repo, exits 2, so that 1 alway
 The skill from `bb skill install` tells Claude Code to run it before committing and, when it is
 over, to propose splitting the work.
 
+`bb worktree new <branch>` creates a worktree on a new branch and opens a terminal in it, split
+beside the pane that ran it. It fetches the remote and branches from the repo's comparison ref;
+`--from <ref>` picks another base and `--from HEAD` the commit you are on. Before it changes
+anything it prints the plan, such as "Branching feat/login from origin/main (a1b2c3d); pass --from
+HEAD to branch from your current commit" (the hint is left out when you gave `--from`). It then
+prints the created path, each path copied from `.worktreeinclude`, any warnings, and what happens
+next in the new pane: setup runs, or the script waits for your approval in Bashboard. `--agent`
+(`claude`, `codex`, or `copilot`) starts that agent in the new pane once setup has succeeded, and
+`--prompt` gives it a first message; `--prompt` needs `--agent`. The worktree, `.worktreeinclude`,
+the setup script and its variables, and the approval are described in
+[New worktree](#new-worktree).
+
 `bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
 input), save it in Windows Credential Manager (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
 Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
@@ -1243,6 +1321,9 @@ git diff | bb scratch
 bb search TODO
 bb git --collapsed
 bb term -- pnpm test --watch
+bb worktree new feat/login
+bb worktree new fix-typo --from HEAD
+bb worktree new spike --agent claude --prompt "try the new parser"
 ```
 
 `bb` works in all four shells because Bashboard puts the folder holding `bb.exe` first on every

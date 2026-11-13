@@ -83,6 +83,28 @@ give the count, and propose how to split the work into smaller branches or PRs b
 continue; go on only once the user agrees to keep it whole or picks a split. Exit 2 is "unknown",
 not "too big".
 
+## New worktree
+
+`bb worktree new <branch> [--from <ref>] [--agent <id>] [--prompt <text>]` creates a git worktree
+on a new branch and opens a terminal in it next to your pane. Run it only when the user asks for
+a separate worktree or branch.
+
+- It fetches first, then branches from the repo's comparison ref (usually `origin/main`), not
+  from your current commit. Before changing anything it prints
+  `Branching <branch> from <ref> (<sha>); pass --from HEAD to branch from your current commit`.
+  When the work must build on commits you have not pushed, pass `--from HEAD`; the hint is left
+  out when `--from` is given.
+- The folder is a sibling of the main worktree, named `<repo>-<branch>`. The command fails if the
+  branch or the folder already exists, and the message says so; pick another name.
+- Files listed in `.worktreeinclude` (such as `.env`) are copied in; it prints each one, plus any
+  warning.
+- If the repo has `.bashboard/setup.sh`, it runs visibly in the new pane, not in your shell, and
+  `bb worktree new` returns before it finishes. The user approves a script the first time and
+  whenever it changes; until then it prints `Approve the setup script in Bashboard to run it.`
+  Do not wait for setup or try to run the script yourself.
+- `--agent <id>` starts that agent in the new pane after setup succeeds, and `--prompt` is its
+  first message (it needs `--agent`). Skip both unless the user asked for them.
+
 ## Pane commands
 
 These open or show a pane next to the one you are running in. Each prints little; the effect is

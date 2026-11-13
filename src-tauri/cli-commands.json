@@ -128,6 +128,13 @@
       "examples": ["bb pr size", "bb pr size --json"]
     },
     {
+      "name": "worktree new",
+      "usage": "bb worktree new <branch> [options]",
+      "summary": "Create a git worktree on a new branch and open a pane in it",
+      "details": "Fetches the remote, then adds a sibling folder of the main worktree named <repo>-<branch> on a new branch cut from the repo's comparison ref (the one the Git pane compares with), or from --from <ref>; --from HEAD branches from this folder's current commit. It prints the base and its short sha before changing anything, copies the files listed in .worktreeinclude from the main worktree, and opens a terminal in the new folder. If .bashboard/setup.sh exists there it runs visibly in that pane once you approve it in Bashboard (the approval is remembered until the script changes), and --agent <id> then starts that agent, with --prompt as its first message, only if setup succeeded. It fails if the branch or the folder already exists.",
+      "examples": ["bb worktree new feat/login", "bb worktree new fix-typo --from HEAD", "bb worktree new spike --agent claude --prompt \"try the new parser\""]
+    },
+    {
       "name": "skill install",
       "usage": "bb skill install",
       "summary": "Teach Claude Code the bb commands",

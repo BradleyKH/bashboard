@@ -42,12 +42,13 @@ export interface PaletteInput {
 }
 
 /** Palette entries with no keybinding action, so they stay out of the F1 guide and its editor. */
-export type PaletteCommand = 'checkForUpdates' | 'openContainers' | 'openPorts' | 'openShip';
+export type PaletteCommand = 'checkForUpdates' | 'newWorktree' | 'openContainers' | 'openPorts' | 'openShip';
 
 export const PALETTE_COMMANDS: readonly { command: PaletteCommand; label: string }[] = [
   { command: 'openContainers', label: 'Open the Containers tab' },
   { command: 'openPorts', label: 'Open the Ports tab' },
   { command: 'openShip', label: 'Open the Ship tab' },
+  { command: 'newWorktree', label: 'New worktree...' },
   { command: 'checkForUpdates', label: 'Check for updates' },
 ];
 

@@ -5,7 +5,10 @@ import { CommandPalette } from './commandPalette';
 import { lastFolder, paneCards } from './dashboardModel';
 import type { FavoritesLayouts } from './favoritesLayouts';
 import type { RepoTracker } from './repoTracker';
+import { showToast } from './toast';
 import { gitWorktrees, type Worktree } from './worktreeApi';
+import { WorktreeNewDialog } from './worktreeNewDialog';
+import { openNewWorktree } from './worktreeNewFlow';
 import type { Workspace } from './workspace';
 
 export interface PaletteControllerDeps {
@@ -22,6 +25,7 @@ export class PaletteController {
   private readonly palette: CommandPalette;
   /** The focused repo's worktrees, loaded when the palette opens; null until then. */
   private worktreeList: Worktree[] | null = null;
+  private readonly newWorktreeDialog = new WorktreeNewDialog();
 
   constructor(private readonly deps: PaletteControllerDeps) {
     const { state, workspace, repo, favorites, focusTerminal } = deps;
@@ -53,8 +57,26 @@ export class PaletteController {
         else if (command === 'openContainers') workspace().openContainers();
         else if (command === 'openPorts') workspace().openPorts();
         else if (command === 'openShip') workspace().openShip(null);
+        else if (command === 'newWorktree') void this.newWorktree();
       },
     });
+  }
+
+  /**
+   * New worktree... (docs/design/git.md section 4.27): branches from the focused pane's folder and
+   * opens the new pane beside that pane.
+   */
+  private async newWorktree(): Promise<void> {
+    const { workspace, repo } = this.deps;
+    const anchorPaneId = workspace().panes().find((p) => p.focused)?.paneId ?? null;
+    const folder = repo.focusedFolder();
+    const isGit = folder === null ? false : await repo.cachedRepoRoot(folder).then((r) => r.isGit, () => false);
+    const result = await this.newWorktreeDialog.open({ folder, isGit });
+    if (!result) return;
+    // `bb` prints these in its pane; from the palette a toast is the only place they can show.
+    const notes = result.created.warnings;
+    if (notes.length > 0) showToast(notes.join('; '), 10000);
+    await openNewWorktree(workspace(), { ...result, anchorPaneId });
   }
 
   /** The focused repo's worktrees for the palette; it lists none for fewer than two. */
