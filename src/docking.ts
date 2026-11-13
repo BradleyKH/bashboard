@@ -27,10 +27,11 @@ export type DockResult =
 export type WindowEdge = Exclude<DockZone, 'center'>;
 export type DockTarget = { paneId: string; zone: DockZone } | { windowEdge: WindowEdge };
 /**
- * A dock target, or a dashboard group whose tab a pane moves into (docs/design/dashboard.md
- * section 4.6).
+ * A dock target, a dashboard group whose tab a pane moves into (docs/design/dashboard.md
+ * section 4.6), or the tab strip past its last tab, which moves the pane into a new tab
+ * (docs/design/workspace.md section 4.10).
  */
-export type DropTarget = DockTarget | { tabId: string };
+export type DropTarget = DockTarget | { tabId: string } | { newTab: true };
 
 /**
  * Width of the drop band along each edge of the pane area (docs/design/workspace.md section 4.2).

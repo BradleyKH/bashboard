@@ -36,6 +36,19 @@ describe('titleStripMenuItems', () => {
     expect(onNewPin).toHaveBeenCalledOnce();
   });
 
+  it('offers Move to new tab only with its hook and while the tab has another pane', () => {
+    const onMoveToNewTab = vi.fn();
+    const h = { ...hooks(), onMoveToNewTab };
+    expect(labels(titleStripMenuItems({ kindItems: [], zoom: zoom(false) }, h))).not.toContain('Move to new tab');
+    expect(labels(titleStripMenuItems({ kindItems: [], zoom: zoom(false), canMoveToNewTab: true }, hooks()))).not.toContain(
+      'Move to new tab',
+    );
+    const entries = titleStripMenuItems({ kindItems: [], zoom: zoom(true), canMoveToNewTab: true }, h);
+    expect(labels(entries)).toEqual(['Change kind', 'Collapse', 'Zoom', 'Move to new tab', 'Close pane']);
+    (find(entries, 'Move to new tab') as { run(): void }).run();
+    expect(onMoveToNewTab).toHaveBeenCalledOnce();
+  });
+
   it('calls each hook', () => {
     const h = hooks();
     const entries = titleStripMenuItems({ kindItems: [], zoom: zoom(true) }, h);

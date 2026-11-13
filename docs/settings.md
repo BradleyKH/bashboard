@@ -278,6 +278,11 @@ the time, `"time"` for the time only, or `"binary"` for the dots only. An unknow
 to `both` with a notice. It applies on save and is the Clock style select under "Show on the
 dashboard", shown while the clock is on; right-clicking the clock sets it too.
 
+`dashboard.portRows` (default 10, 1 to 50) is how many ports the Ports section lists; the rest are
+counted in one "+ N more" row that opens the Ports tab. A value out of range falls back to 10 with
+a notice. It applies on save and is the Ports listed field under "Show on the dashboard", shown
+while the Ports section is on.
+
 ```jsonc
 "dashboard": {
   "side": "right",
@@ -296,7 +301,8 @@ dashboard", shown while the clock is on; right-clicking the clock sets it too.
     "wave": false,
     "clock": false
   },
-  "clockStyle": "both"
+  "clockStyle": "both",
+  "portRows": 10
 }
 ```
 

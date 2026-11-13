@@ -3,7 +3,6 @@ import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
 import {
   addressLabel,
-  DASHBOARD_PORT_ROWS,
   dashboardListeners,
   exposureLabel,
   formatUptime,
@@ -37,13 +36,13 @@ function l(over: Partial<Listener> = {}): Listener {
 
 describe('dashboardListeners', () => {
   it('drops services and Bashboard itself', () => {
-    const { rows, others } = dashboardListeners([l({ port: 1 }), l({ port: 135, system: true }), l({ port: 2, own: true })]);
+    const { rows, others } = dashboardListeners([l({ port: 1 }), l({ port: 135, system: true }), l({ port: 2, own: true })], 10);
     expect(rows.map((r) => r.port)).toEqual([1]);
     expect(others).toBe(0);
   });
 
   it('puts pane-started ports first, then sorts by port', () => {
-    const { rows } = dashboardListeners([l({ port: 9000 }), l({ port: 3000 }), l({ port: 8080, ptyId: 4 })]);
+    const { rows } = dashboardListeners([l({ port: 9000 }), l({ port: 3000 }), l({ port: 8080, ptyId: 4 })], 10);
     expect(rows.map((r) => r.port)).toEqual([8080, 3000, 9000]);
   });
 
@@ -54,7 +53,7 @@ describe('dashboardListeners', () => {
       l({ port: 1234, name: 'LM Studio.exe' }),
       l({ port: 1235, name: 'lms.exe' }),
       l({ port: 8080, name: 'llama-server.exe' }),
-    ]);
+    ], 10);
     expect(rows.map((r) => r.port)).toEqual([1234, 1235, 8080, 11434, 11435]);
     expect(others).toBe(0);
   });
@@ -66,19 +65,21 @@ describe('dashboardListeners', () => {
       l({ port: 3, name: 'myserver.exe', fromShell: true }),
       l({ port: 4, name: 'python.exe' }),
       l({ port: 5, name: 'weird.exe', ptyId: 1 }),
-    ]);
+    ], 10);
     expect(rows.map((r) => r.port)).toEqual([5, 3, 4]);
     expect(others).toBe(2);
   });
 
-  it('lists at most ten and counts the rest, keeping pane-started ports', () => {
+  it('lists at most maxRows and counts the rest, keeping pane-started ports', () => {
     const many = Array.from({ length: 12 }, (_, i) => l({ port: 3000 + i, name: 'node.exe' }));
-    const { rows, more, others } = dashboardListeners([...many, l({ port: 9999, name: 'node.exe', ptyId: 2 })]);
-    expect(rows).toHaveLength(DASHBOARD_PORT_ROWS);
+    const { rows, more, others } = dashboardListeners([...many, l({ port: 9999, name: 'node.exe', ptyId: 2 })], 10);
+    expect(rows).toHaveLength(10);
     expect(rows[0].port).toBe(9999);
     expect(more).toBe(3);
     expect(others).toBe(0);
-    expect(dashboardListeners(many.slice(0, 10)).more).toBe(0);
+    expect(dashboardListeners(many.slice(0, 10), 10).more).toBe(0);
+    expect(dashboardListeners(many, 3)).toMatchObject({ more: 9 });
+    expect(dashboardListeners(many, 3).rows.map((r) => r.port)).toEqual([3000, 3001, 3002]);
   });
 });
 

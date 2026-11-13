@@ -42,6 +42,12 @@ double-click to rename it (an empty name follows the focused terminal's title), 
 reorder. The "+" button adds a tab. Hold a dragged pane over a tab for half a second to switch
 to it, so the pane can dock there.
 
+To move a pane into a tab of its own, right-click its title strip and choose Move to new tab, or
+drag its title strip (or its dashboard card) onto the tab strip past the last tab and drop it
+there. Either way the new tab opens with just that pane. The drop target needs the tab strip, so
+with a single tab use the menu item. Neither is offered for a pane that is already alone in its
+tab. A favorite or recent folder dropped in the same spot opens a new tab with a terminal there.
+
 Ctrl+Shift+T opens a new tab and Ctrl+Shift+W closes the current one (it asks first when a
 terminal there is busy or a scratch pad there has text). Ctrl+Tab and Ctrl+Shift+Tab move to the next and previous tab,
 Ctrl+Alt+1 through Ctrl+Alt+8 switch to that tab, and Ctrl+Alt+9 switches to the last one.
@@ -920,7 +926,8 @@ process id, or **Stop** it. Stop asks first, then ends the program and everythin
 The section lists dev servers: anything started from a terminal or by a program like node,
 python, or dotnet. Other apps that listen, such as a music player or a sync client, are counted
 in a "+ N other programs" row that opens the Ports tab, and Windows services and Bashboard itself
-are left out. The Manage button (an arrow
+are left out. The section lists up to 10 ports and counts the rest in a "+ N more" row; set how
+many under **Ports listed** in the Dashboard section of Settings. The Manage button (an arrow
 leaving a square) in the header opens the Ports tab.
 
 The **Ports pane** lists every listening port in columns (port, program, the pane that started

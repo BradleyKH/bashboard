@@ -3,7 +3,7 @@ import { applyDock, dropZones, expandInto, type DockTarget, type DragSource, typ
 import { DockOverlay } from './dockOverlay';
 import { findPath, type CellSize, type Layout, type Rect } from './layout';
 import type { PaneView } from './paneView';
-import { switchTab as switchTabState, type TabState } from './tabs';
+import { addTab, switchTab as switchTabState, type TabState } from './tabs';
 import type { TabStore } from './tabStore';
 import { showToast } from './toast';
 import type { OpenTerminalOptions, WorkspaceHooks } from './workspaceTypes';
@@ -26,6 +26,7 @@ export interface PaneDragContext {
   /** Drops a tab's zoom, for a tab a move emptied. */
   forgetZoom(tabId: string): void;
   openTerminal(cwd?: string, opts?: OpenTerminalOptions): void;
+  newTab(cwd?: string): void;
 }
 
 /**
@@ -48,6 +49,11 @@ export class PaneDrag {
         if (this.drag?.kind !== 'pane') return null;
         const hit = ctx.hooks.tabDropAt?.(x, y) ?? null;
         return hit && hit.tabId !== ctx.store.tabOf(this.drag.paneId)?.id ? hit : null;
+      },
+      newTabAt: (x, y) => {
+        const drag = this.drag;
+        if (!drag || (drag.kind === 'pane' && !this.canMoveToNewTab(drag.paneId))) return null;
+        return ctx.hooks.newTabDropAt?.(x, y) ?? null;
       },
       onCancel: () => {
         this.drag = null;
@@ -156,11 +162,43 @@ export class PaneDrag {
     ctx.notify();
   }
 
+  /** A pane alone in its tab has nothing to leave behind, so a new tab would only replace its own. */
+  canMoveToNewTab(paneId: string): boolean {
+    return (this.ctx.store.tabOf(paneId)?.panes.length ?? 0) > 1;
+  }
+
+  /**
+   * Design 4.10: moves the pane into a new tab of its own, expanded and focused, and switches to
+   * that tab.
+   */
+  moveToNewTab(paneId: string): void {
+    const { ctx } = this;
+    const { store } = ctx;
+    const pane = ctx.paneViews.get(paneId);
+    if (!pane || !this.canMoveToNewTab(paneId)) {
+      ctx.paneViews.get(store.focusedId)?.focus();
+      return;
+    }
+    const prevId = store.activeId;
+    const tab = store.emptyTab();
+    store.state = addTab(store.state, tab);
+    store.moveTo(paneId, tab.id, false);
+    store.update(tab.id, { tree: { kind: 'pane', paneId }, focusedId: paneId });
+    // Read after the move, so the pane leaving that tab is not released only to be taken again.
+    const prev = store.find(prevId);
+    if (prev) ctx.hideTab(prev);
+    ctx.showActive();
+    ctx.notify();
+  }
+
   private onDrop(target: DropTarget | null): void {
     const source = this.drag;
     this.drag = null;
     if (!source) return;
-    if (target && 'tabId' in target) {
+    if (target && 'newTab' in target) {
+      if (source.kind === 'pane') this.moveToNewTab(source.paneId);
+      else this.ctx.newTab(source.path);
+    } else if (target && 'tabId' in target) {
       if (source.kind === 'pane') this.moveToTab(source.paneId, target.tabId);
     } else if (source.kind === 'pane') {
       this.dock(source.paneId, target);

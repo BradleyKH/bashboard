@@ -279,7 +279,8 @@ the focused pane's folder.
   // side is right or left; an unknown value falls back to right. sections shows or hides each
   // dashboard element (4.6). An older file's containers.enabled is still read when
   // sections.containers is absent. clockStyle is both, time, or binary; an unknown value falls
-  // back to both.
+  // back to both. portRows (1 to 50) is how many ports the Ports section lists before counting
+  // the rest; anything else falls back to 10.
   "dashboard": {
     "visibleOnStart": true,
     "peekOnWaiting": true,
@@ -299,7 +300,8 @@ the focused pane's folder.
       "wave": false,
       "clock": false
     },
-    "clockStyle": "both"
+    "clockStyle": "both",
+    "portRows": 10
   },
   // resumeSessions types each agent's resume command into restored terminals (4.9). An older
   // file's resumeClaude is still read when resumeSessions is absent.

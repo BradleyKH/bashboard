@@ -43,13 +43,21 @@ describe('Dashboard section', () => {
     expect(parseInput(side, 'top').ok).toBe(false);
   });
 
-  it('has one grouped toggle per element, in element order, then the clock style', () => {
+  it('has one grouped toggle per element, in element order, then the clock style and port rows', () => {
     const grouped = fields.filter((f) => f.group === 'Show on the dashboard');
     expect(grouped.map((f) => f.path.join('.'))).toEqual([
       ...DEFAULT_ELEMENT_ORDER.map((id) => `dashboard.sections.${id}`),
       'dashboard.clockStyle',
+      'dashboard.portRows',
     ]);
-    for (const f of grouped.slice(0, -1)) expect(f.kind).toBe('toggle');
+    for (const f of grouped.slice(0, -2)) expect(f.kind).toBe('toggle');
+  });
+
+  it('accepts 1 to 50 ports listed, whole numbers only', () => {
+    const rows = byPath('dashboard.portRows');
+    expect(readField(DEFAULT_SETTINGS, rows.path)).toBe(10);
+    expect(parseInput(rows, '25')).toEqual({ ok: true, value: 25 });
+    for (const bad of ['0', '51', '2.5', 'x']) expect(parseInput(rows, bad).ok).toBe(false);
   });
 
   it('accepts the three clock styles and rejects anything else', () => {

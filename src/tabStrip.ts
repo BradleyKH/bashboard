@@ -85,6 +85,21 @@ export class TabStrip {
     }, HOVER_SWITCH_MS);
   }
 
+  /**
+   * The strip from the right edge of its last tab to its own right edge, when the point is in it
+   * (docs/design/workspace.md section 4.10); the "+" sits inside it.
+   */
+  newTabDropAt(x: number, y: number): DOMRect | null {
+    if (this.el.hidden) return null;
+    const strip = this.el.getBoundingClientRect();
+    // The DOM holds strip order; the items map keeps creation order, which reordering leaves behind.
+    const tabs = this.el.querySelectorAll('.tab-item');
+    const last = tabs[tabs.length - 1]?.getBoundingClientRect();
+    const left = last ? last.right : strip.left;
+    if (x < left || x > strip.right || y < strip.top || y > strip.bottom) return null;
+    return new DOMRect(left, strip.top, strip.right - left, strip.height);
+  }
+
   private tabAt(x: number, y: number): string | null {
     if (this.el.hidden) return null;
     for (const [id, item] of this.items) {

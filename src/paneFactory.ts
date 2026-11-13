@@ -63,6 +63,9 @@ export interface PaneFactoryContext {
   toggleZoom(): void;
   replaceKind(id: string, kind: PaneKind): Promise<void>;
   startDrag(source: DragSource, e: PointerEvent): void;
+  moveToNewTab(id: string): void;
+  /** False for a pane alone in its tab. */
+  canMoveToNewTab(id: string): boolean;
   startPathDrag(paths: string[], e: PointerEvent, move?: PathDrag['move']): void;
   insertPathIntoTab(id: string, paths: string[], baseRoot: string): void;
   insertTextIntoTab(id: string, text: string): void;
@@ -175,6 +178,8 @@ export class PaneFactory {
         onChooseKind: (kind) => void ctx.replaceKind(id, kind),
         onDragStart: (e) => ctx.startDrag({ kind: 'pane', paneId: id }, e),
         onNewPin: this.newPinHandler(id, spec),
+        onMoveToNewTab: () => ctx.moveToNewTab(id),
+        canMoveToNewTab: () => ctx.canMoveToNewTab(id),
       },
       spec.kind,
     );

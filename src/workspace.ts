@@ -194,6 +194,8 @@ export class Workspace {
       toggleZoom: () => this.toggleZoom(),
       replaceKind: (id, kind) => this.replaceKind(id, kind),
       startDrag: (source, e) => this.startDrag(source, e),
+      moveToNewTab: (id) => this.moveToNewTab(id),
+      canMoveToNewTab: (id) => this.paneDrag.canMoveToNewTab(id),
       startPathDrag: (paths, e, move) => this.startPathDrag(paths, e, move),
       insertPathIntoTab: (id, paths, baseRoot) => this.pathDrop.insertPathIntoTab(id, paths, baseRoot),
       insertTextIntoTab: (id, text) => this.pathDrop.insertTextIntoTab(id, text),
@@ -202,7 +204,7 @@ export class Workspace {
       split: (side) => this.split(side),
       moveFocus: (direction) => this.moveFocus(direction),
       resizePane: (direction) => this.resizePane(direction),
-      newTab: () => this.newTab(),
+      newTab: (cwd?: string) => this.newTab(cwd),
       switchTab: (id) => this.switchTab(id),
       nextAttention: () => this.nextAttention(),
       openPane: (spec, opts) => this.openPane(spec, opts),
@@ -574,6 +576,11 @@ export class Workspace {
   /** Design 4.6: moves the pane into another tab without switching to it. */
   moveToTab(paneId: string, tabId: string): void {
     this.paneDrag.moveToTab(paneId, tabId);
+  }
+
+  /** Design 4.10: moves the pane into a new tab and switches to it. */
+  moveToNewTab(paneId: string): void {
+    this.paneDrag.moveToNewTab(paneId);
   }
 
   /** Starts a pointer drag that docks a pane or opens a folder where it drops. */

@@ -59,6 +59,8 @@ export interface Settings {
     side: DashboardSide;
     sections: Record<DashboardElement, boolean>;
     clockStyle: ClockStyle;
+    /** Ports the Ports section lists before counting the rest, 1 to 50. */
+    portRows: number;
   };
   restore: { enabled: boolean; resumeSessions: boolean; scrollback: boolean };
   editor: { preferred: string; command: string };
@@ -133,7 +135,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30, notifyWhenWaiting: true },
-  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both' },
+  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both', portRows: 10 },
   restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5, branchSizeThreshold: 400 },

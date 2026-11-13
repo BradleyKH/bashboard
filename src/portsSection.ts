@@ -25,6 +25,8 @@ export class PortsSection {
   private readonly list: HTMLElement;
   /** Keys in the last render, so a port that appears after it can flash once. */
   private seen: Set<string> | null = null;
+  /** `dashboard.portRows`; the rest are counted in one row. */
+  private maxRows = 10;
 
   constructor(private readonly callbacks: PortsSectionCallbacks) {
     this.el = document.createElement('section');
@@ -42,9 +44,14 @@ export class PortsSection {
     this.update([], false);
   }
 
+  /** Takes effect on the next `update`. */
+  setMaxRows(n: number): void {
+    this.maxRows = n;
+  }
+
   /** `ready` is false until the first poll answers, which shows a placeholder rather than "none". */
   update(all: readonly Listener[], ready: boolean): void {
-    const { rows, more: hidden, others } = dashboardListeners(all);
+    const { rows, more: hidden, others } = dashboardListeners(all, this.maxRows);
     const fresh = ready ? newKeys(this.seen, rows) : new Set<string>();
     if (ready) this.seen = new Set(rows.map(listenerKey));
     const cb = this.callbacks;

@@ -626,6 +626,13 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             |v| v.as_str().filter(|s| CLOCK_STYLES.contains(s)).map(String::from),
             d.dashboard.clock_style,
         ),
+        port_rows: pick(
+            &root,
+            &["dashboard", "portRows"],
+            &mut w,
+            |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| PORT_ROWS_RANGE.contains(n)),
+            d.dashboard.port_rows,
+        ),
     };
     let restore = Restore {
         enabled: pick(&root, &["restore", "enabled"], &mut w, boolean, d.restore.enabled),
@@ -1097,6 +1104,20 @@ mod tests {
             let (s, w) = parse_settings(&format!(r#"{{ "dashboard": {{ "side": {bad} }} }}"#));
             assert_eq!(s.dashboard.side, "right");
             assert!(w.iter().any(|m| m.starts_with("dashboard.side")), "missing warning: {w:?}");
+        }
+    }
+
+    #[test]
+    fn dashboard_port_rows_parses_bounds_and_rejects_invalid_values() {
+        for n in [1u32, 25, 50] {
+            let (s, w) = parse_settings(&format!(r#"{{ "dashboard": {{ "portRows": {n} }} }}"#));
+            assert_eq!(s.dashboard.port_rows, n);
+            assert!(w.is_empty(), "{w:?}");
+        }
+        for bad in ["0", "51", "-1", "2.5", "\"5\""] {
+            let (s, w) = parse_settings(&format!(r#"{{ "dashboard": {{ "portRows": {bad} }} }}"#));
+            assert_eq!(s.dashboard.port_rows, 10, "{bad}");
+            assert!(w.iter().any(|m| m.starts_with("dashboard.portRows")), "{bad}: {w:?}");
         }
     }
 

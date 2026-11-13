@@ -171,8 +171,9 @@ before the pane's own buttons give up any room.
 
 **Title strip menu.** A right-click on a title strip of any pane kind opens Change kind (a
 submenu of the kind menu's entries, 4.11), Collapse, Zoom or Restore (only while the zoom button
-shows, 4.2), on a terminal New pin, and, after a separator, Close pane. Each item does what its
-button does.
+shows, 4.2), Move to new tab (only while the pane shares its tab with another pane, 4.10), on a
+terminal New pin, and, after a separator, Close pane. Each item does what its button or gesture
+does.
 
 **Right-click.** A right-click in a terminal does whatever xterm.js and the running program do
 with it, in every profile, and no menu opens. `main.ts` registers one `contextmenu` listener on

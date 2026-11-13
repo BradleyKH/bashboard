@@ -166,6 +166,13 @@ close button on hover. The tab's tooltip lists each waiting terminal's title and
 - Holding a dragged pane, card, or path (4.4) over a tab for half a second switches to that tab,
   so the drag can continue into a dock target there (4.2) and move the terminal across tabs, or
   into a terminal there to drop the path.
+- Dropping a pane's title strip or card on the strip past its last tab (the "+" and the empty
+  space after it, highlighted while the pane is over it) moves the pane into a new tab, as the
+  title strip menu's Move to new tab does: the new tab is appended and made active, and holds
+  only that pane, expanded and focused. A pane alone in its tab is not offered this target, since
+  the move would only trade its tab for a new one. With one tab the strip is hidden, so the menu
+  item is the only way. A favorite or recent folder (4.6) dropped there opens a new tab with a
+  terminal in that folder, as New tab does.
 - The strip is chrome on z2 and draws over the backdrop with the same scrim as the title strips.
 - **Menus.** A right-click on a tab offers Rename, New tab, and Close tab, each as the tab's own
   gesture does; a tab being renamed offers its input's text field menu instead. A right-click on

@@ -82,6 +82,11 @@ export interface WorkspaceHooks {
    * section 4.6).
    */
   tabDropAt?: (x: number, y: number) => { tabId: string; rect: DOMRect } | null;
+  /**
+   * The tab strip's area past its last tab when the point is in it, where a dropped pane moves
+   * into a new tab (docs/design/workspace.md section 4.10); null while the strip is hidden.
+   */
+  newTabDropAt?: (x: number, y: number) => DOMRect | null;
   /** Asks before closing a tab whose `busy` panes would lose work; true closes it. */
   onConfirmCloseTab?: (tabId: string, busy: PaneCardInput[]) => Promise<boolean>;
   /** Asks before Ctrl+W closes a scratch pad that has text; true closes it. */

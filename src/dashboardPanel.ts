@@ -511,7 +511,7 @@ export class DashboardPanel {
   }
 
   /**
-   * Applies `dashboard.side`, `dashboard.sections`, and `dashboard.clockStyle`
+   * Applies `dashboard.side`, `dashboard.sections`, `dashboard.clockStyle`, and `dashboard.portRows`
    * (docs/design/dashboard.md section 4.6).
    */
   applyDashboardSettings(d: Settings['dashboard'], minContext: number): void {
@@ -520,6 +520,8 @@ export class DashboardPanel {
     this.localModelsSection.update(this.localModelsStore?.current() ?? null, minContext);
     this.clockStyle = d.clockStyle;
     this.clock.setStyle(d.clockStyle);
+    this.portsSection.setMaxRows(d.portRows);
+    this.renderPorts();
     this.setSide(d.side);
     this.layoutElements();
     this.syncTimers();

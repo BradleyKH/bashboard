@@ -115,6 +115,8 @@ pub struct Dashboard {
     pub sections: DashboardSections,
     /// One of `CLOCK_STYLES`.
     pub clock_style: String,
+    /// Ports the dashboard lists before counting the rest; `PORT_ROWS_RANGE`.
+    pub port_rows: u32,
 }
 
 pub const DEFAULT_ACCENT: &str = "#4fb3c8";
@@ -151,6 +153,9 @@ pub const DASHBOARD_SIDES: [&str; 2] = ["left", "right"];
 
 /// Ids `dashboard.clockStyle` accepts (docs/design/dashboard.md section 4.6).
 pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
+
+/// Bounds of `dashboard.portRows` (docs/design/dashboard.md section 4.6).
+pub const PORT_ROWS_RANGE: std::ops::RangeInclusive<u32> = 1..=50;
 
 /// Which dashboard elements show; fields follow the panel's default element order.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -419,6 +424,7 @@ impl Default for Settings {
                     clock: false,
                 },
                 clock_style: "both".into(),
+                port_rows: 10,
             },
             restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },

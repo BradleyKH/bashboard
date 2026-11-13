@@ -16,6 +16,9 @@ export interface TitleStripHooks {
   onChooseKind?(kind: PaneKind): void;
   /** A terminal's New pin; the menu leaves the item out without it. */
   onNewPin?(): void;
+  onMoveToNewTab?(): void;
+  /** Read when the menu opens; Move to new tab is left out while it is false. */
+  canMoveToNewTab?(): boolean;
   /** Fired once the pointer has moved past the drag threshold; `e` is the move event that crossed it. */
   onDragStart(e: PointerEvent): void;
 }
@@ -45,14 +48,16 @@ const DRAG_THRESHOLD_PX = 4;
 
 /** The title strip's right-click menu (docs/design/terminal.md section 4.4). */
 export function titleStripMenuItems(
-  state: { kindItems: MenuLeaf[]; zoom: TitleStripZoomState },
-  hooks: Pick<TitleStripHooks, 'onCollapse' | 'onClose' | 'onZoom' | 'onNewPin'>,
+  state: { kindItems: MenuLeaf[]; zoom: TitleStripZoomState; canMoveToNewTab?: boolean },
+  hooks: Pick<TitleStripHooks, 'onCollapse' | 'onClose' | 'onZoom' | 'onNewPin' | 'onMoveToNewTab'>,
 ): MenuEntry[] {
   const entries: MenuEntry[] = [
     submenu('Change kind', state.kindItems),
     item('Collapse', () => hooks.onCollapse()),
   ];
   if (state.zoom.available) entries.push(item(state.zoom.zoomed ? 'Restore' : 'Zoom', () => hooks.onZoom?.()));
+  const { onMoveToNewTab } = hooks;
+  if (onMoveToNewTab && state.canMoveToNewTab) entries.push(item('Move to new tab', () => onMoveToNewTab()));
   const { onNewPin } = hooks;
   if (onNewPin) entries.push(item('New pin', () => onNewPin()));
   entries.push(separator(), item('Close pane', () => hooks.onClose()));
@@ -146,7 +151,11 @@ export class TitleStrip {
     this.el.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     attachContextMenu(this.el, () => ({
       entries: titleStripMenuItems(
-        { kindItems: kindMenuItems(this.kind, (k) => this.hooks.onChooseKind?.(k)), zoom: this.zoom },
+        {
+          kindItems: kindMenuItems(this.kind, (k) => this.hooks.onChooseKind?.(k)),
+          zoom: this.zoom,
+          canMoveToNewTab: this.hooks.canMoveToNewTab?.() ?? false,
+        },
         this.hooks,
       ),
       target: this.el,
