@@ -1,6 +1,6 @@
-//! Installs the shell integration lines into Git Bash's `~/.bashrc` (docs/design/app.md section
-//! 3.14): the OSC 133 markers and the OSC 9;9 working directory, in a marked block. PowerShell
-//! needs no install; its panes start with a prompt wrapper (`powershell_prompt`). The file work
+//! Installs the shell integration lines into bash's `~/.bashrc` or zsh's `~/.zshrc`
+//! (docs/design/app.md section 3.14): the OSC 133 markers and the working directory, in a marked
+//! block. PowerShell needs no install; its panes start with a prompt wrapper (`powershell_prompt`). The file work
 //! runs over injectable paths so tests never touch the real ones; the Tauri commands resolve them
 //! and delegate.
 
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use crate::atomic_file::write_atomic;
-use crate::profiles::GIT_BASH;
+use crate::profiles::{self, GIT_BASH};
 
 const BEGIN: &str = "# >>> bashboard shell integration >>>";
 const END: &str = "# <<< bashboard shell integration <<<";
@@ -41,6 +41,40 @@ __bashboard_prompt() {
 PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 "#;
 
+/// Bash off Windows: no `cygpath`, every folder goes out as OSC 7. Must stay byte-identical to
+/// docs/setup.md's bash block for macOS and Linux; a test enforces it. The OSC 133 markers need
+/// `PS0` (bash 4.4): macOS's own bash 3.2 would send the end marker without the start one, and a
+/// pane that has seen markers trusts them over its process check, so 3.2 sends neither.
+const BASH_UNIX_SNIPPET: &str = r#"if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
+  PS0="${PS0-}"'\e]133;C\e\\'
+  __bashboard_marks=1
+fi
+__bashboard_prompt() {
+  local status=$?
+  [[ -n ${__bashboard_marks-} ]] && printf '\e]133;D;%s\e\\' "$status"
+  printf '\e]7;file://%s\e\\' "${PWD//%/%25}"
+  printf '\e]7502;aws;%s;%s\e\\' "${AWS_PROFILE-}" "${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
+  return "$status"
+}
+PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+"#;
+
+/// Must stay byte-identical to docs/setup.md's zsh block; a test enforces it. `status` is
+/// read-only in zsh, hence `code`. The precmd hook goes first in `precmd_functions` so `$?` is
+/// still the command's own when it runs, whatever a prompt framework registered before it.
+const ZSH_SNIPPET: &str = r#"__bashboard_preexec() { printf '\e]133;C\e\\'; }
+__bashboard_precmd() {
+  local code=$?
+  printf '\e]133;D;%s\e\\' "$code"
+  printf '\e]7;file://%s\e\\' "${PWD//\%/%25}"
+  printf '\e]7502;aws;%s;%s\e\\' "${AWS_PROFILE-}" "${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
+  return $code
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec __bashboard_preexec
+precmd_functions=(__bashboard_precmd ${precmd_functions:#__bashboard_precmd})
+"#;
+
 const BASH_PROFILE: &str = "test -f ~/.profile && . ~/.profile\ntest -f ~/.bashrc && . ~/.bashrc\n";
 const BACKUP_SUFFIX: &str = ".bashboard-backup";
 
@@ -62,6 +96,20 @@ const BASH: Flavor = Flavor {
     file_label: "~/.bashrc",
 };
 
+const BASH_UNIX: Flavor = Flavor {
+    snippet: BASH_UNIX_SNIPPET,
+    older: &[],
+    is_custom_line: defines_bash_prompt_fn,
+    file_label: "~/.bashrc",
+};
+
+const ZSH: Flavor = Flavor {
+    snippet: ZSH_SNIPPET,
+    older: &[],
+    is_custom_line: defines_zsh_precmd_fn,
+    file_label: "~/.zshrc",
+};
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Status {
@@ -75,7 +123,7 @@ pub enum Status {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
-    /// The profile id the lines are for; only gitBash takes any.
+    /// The profile id the lines are for: gitBash, or a profile that runs zsh.
     pub shell: String,
     /// The file the install writes.
     pub path: String,
@@ -132,12 +180,20 @@ fn verbatim_range(f: &Flavor, lines: &[&str]) -> Option<(usize, usize)> {
 }
 
 fn defines_bash_prompt_fn(line: &str) -> bool {
+    defines_fn(line, "__bashboard_prompt")
+}
+
+fn defines_zsh_precmd_fn(line: &str) -> bool {
+    defines_fn(line, "__bashboard_precmd")
+}
+
+fn defines_fn(line: &str, name: &str) -> bool {
     let line = line.trim_start();
     let line = line
         .strip_prefix("function ")
         .map(str::trim_start)
         .unwrap_or(line);
-    line.strip_prefix("__bashboard_prompt").is_some_and(|rest| {
+    line.strip_prefix(name).is_some_and(|rest| {
         rest.trim_start().starts_with('(') || rest.trim_start().starts_with('{') || rest.is_empty()
     })
 }
@@ -275,26 +331,26 @@ fn bash_profile_state(home: &Path) -> Result<(bool, Option<String>), String> {
     })
 }
 
-fn bash_preview_in(home: &Path) -> Result<Preview, String> {
+fn bash_preview_in(home: &Path, f: &Flavor, shell: &str) -> Result<Preview, String> {
     let bashrc = home.join(".bashrc");
     let text = read_bashrc(&bashrc)?;
     let (creates_bash_profile, warning) = bash_profile_state(home)?;
     Ok(Preview {
-        shell: GIT_BASH.into(),
+        shell: shell.into(),
         path: bashrc.to_string_lossy().into_owned(),
-        status: status(&BASH, text.as_deref()),
-        block: block(&BASH),
+        status: status(f, text.as_deref()),
+        block: block(f),
         creates_file: text.is_none(),
         creates_bash_profile,
         warning,
     })
 }
 
-fn bash_install_in(home: &Path) -> Result<(), String> {
+fn bash_install_in(home: &Path, f: &Flavor) -> Result<(), String> {
     let bashrc = home.join(".bashrc");
     let text = read_bashrc(&bashrc)?;
     // Computed before any write so a customized file leaves the disk untouched.
-    let next = apply(&BASH, text.as_deref())?;
+    let next = apply(f, text.as_deref())?;
     let (creates_bash_profile, _) = bash_profile_state(home)?;
     if creates_bash_profile {
         write_atomic(&home.join(".bash_profile"), BASH_PROFILE)?;
@@ -309,21 +365,83 @@ fn bash_install_in(home: &Path) -> Result<(), String> {
     write_atomic(&bashrc, &next)
 }
 
+/// zsh reads `.zshrc` from `ZDOTDIR` when it is set, else from the home folder.
+fn zsh_dir() -> Result<PathBuf, String> {
+    match std::env::var_os("ZDOTDIR").filter(|d| !d.is_empty()) {
+        Some(dir) => Ok(PathBuf::from(dir)),
+        None => home_dir(),
+    }
+}
+
+fn zsh_preview_in(dir: &Path, shell: &str) -> Result<Preview, String> {
+    let zshrc = dir.join(".zshrc");
+    let text = read_bashrc(&zshrc)?;
+    Ok(Preview {
+        shell: shell.into(),
+        path: zshrc.to_string_lossy().into_owned(),
+        status: status(&ZSH, text.as_deref()),
+        block: block(&ZSH),
+        creates_file: text.is_none(),
+        creates_bash_profile: false,
+        warning: None,
+    })
+}
+
+fn zsh_install_in(dir: &Path) -> Result<(), String> {
+    let zshrc = dir.join(".zshrc");
+    let text = read_bashrc(&zshrc)?;
+    let next = apply(&ZSH, text.as_deref())?;
+    if text.as_deref() == Some(next.as_str()) {
+        return Ok(());
+    }
+    if text.is_some() {
+        std::fs::copy(&zshrc, backup_path(&zshrc))
+            .map_err(|e| format!("could not back up {}: {e}", zshrc.display()))?;
+    }
+    write_atomic(&zshrc, &next)
+}
+
+enum UnixShell {
+    Zsh,
+    Bash,
+}
+
+/// What a profile other than Git Bash runs, checked against the core's own profile list rather
+/// than taken from the front end.
+fn unix_shell(shell: &str) -> Option<UnixShell> {
+    if cfg!(windows) {
+        return None;
+    }
+    let path = profiles::unix_profile(shell)?.path;
+    if profiles::is_zsh(&path) {
+        Some(UnixShell::Zsh)
+    } else if profiles::is_bash(&path) {
+        Some(UnixShell::Bash)
+    } else {
+        None
+    }
+}
+
 fn preview_for(shell: &str) -> Result<Preview, String> {
-    match shell {
-        GIT_BASH => bash_preview_in(&home_dir()?),
+    match (shell, unix_shell(shell)) {
+        (GIT_BASH, _) => bash_preview_in(&home_dir()?, &BASH, GIT_BASH),
+        (_, Some(UnixShell::Zsh)) => zsh_preview_in(&zsh_dir()?, shell),
+        (_, Some(UnixShell::Bash)) => bash_preview_in(&home_dir()?, &BASH_UNIX, shell),
         _ => Err(format!("{shell} has no shell integration to install")),
     }
 }
 
 fn install_for(shell: &str) -> Result<(), String> {
-    match shell {
-        GIT_BASH => bash_install_in(&home_dir()?),
+    match (shell, unix_shell(shell)) {
+        (GIT_BASH, _) => bash_install_in(&home_dir()?, &BASH),
+        (_, Some(UnixShell::Zsh)) => zsh_install_in(&zsh_dir()?),
+        (_, Some(UnixShell::Bash)) => bash_install_in(&home_dir()?, &BASH_UNIX),
         _ => Err(format!("{shell} has no shell integration to install")),
     }
 }
 
-/// `shell` is a profile id and defaults to Git Bash, the only one with lines to install.
+/// `shell` is a profile id and defaults to Git Bash; it and, on Unix, any profile running zsh or
+/// bash take lines.
 #[tauri::command]
 pub async fn shell_integration_preview(shell: Option<String>) -> Result<Preview, String> {
     let shell = shell.unwrap_or_else(|| GIT_BASH.into());
@@ -367,6 +485,53 @@ mod tests {
         let doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/setup.md"))
             .replace("\r\n", "\n");
         assert!(doc.contains(&format!("```sh\n{BASH_SNIPPET}```\n")));
+        assert!(doc.contains(&format!("```sh\n{ZSH_SNIPPET}```\n")));
+        assert!(doc.contains(&format!("```sh\n{BASH_UNIX_SNIPPET}```\n")));
+    }
+
+    #[test]
+    fn zsh_install_appends_backs_up_and_is_idempotent() {
+        let dir = temp_dir("zsh");
+        let starship = "eval \"$(starship init zsh)\"\n";
+        std::fs::write(dir.join(".zshrc"), starship).unwrap();
+
+        let preview = zsh_preview_in(&dir, "loginShell").unwrap();
+        assert_eq!(preview.status, Status::Missing);
+        assert_eq!(preview.shell, "loginShell");
+        assert!(!preview.creates_file && !preview.creates_bash_profile);
+
+        zsh_install_in(&dir).unwrap();
+        let text = read(&dir, ".zshrc");
+        assert_eq!(text, format!("{starship}\n{}", block(&ZSH)));
+        assert_eq!(read(&dir, ".zshrc.bashboard-backup"), starship);
+        assert_eq!(zsh_preview_in(&dir, "zsh").unwrap().status, Status::Installed);
+
+        zsh_install_in(&dir).unwrap();
+        assert_eq!(read(&dir, ".zshrc"), text);
+        assert!(!dir.join(".bash_profile").exists());
+    }
+
+    #[test]
+    fn unix_bash_installs_its_own_lines_with_the_same_bash_profile() {
+        let dir = temp_dir("bash-unix");
+        let p = bash_preview_in(&dir, &BASH_UNIX, "loginShell").unwrap();
+        assert_eq!(p.shell, "loginShell");
+        assert!(p.creates_bash_profile);
+        assert!(!p.block.contains("cygpath"));
+
+        bash_install_in(&dir, &BASH_UNIX).unwrap();
+        assert_eq!(read(&dir, ".bashrc"), block(&BASH_UNIX));
+        assert_eq!(read(&dir, ".bash_profile"), BASH_PROFILE);
+        assert_eq!(bash_preview_in(&dir, &BASH_UNIX, "bash").unwrap().status, Status::Installed);
+        // The Git Bash lines in the file read as an older version to replace, not as custom.
+        assert_eq!(status(&BASH_UNIX, Some(&block(&BASH))), Status::Outdated);
+    }
+
+    #[test]
+    fn a_hand_written_zsh_precmd_is_custom() {
+        let text = "__bashboard_precmd() { print -n; }\n";
+        assert_eq!(status(&ZSH, Some(text)), Status::Custom);
+        assert!(apply(&ZSH, Some(text)).is_err());
     }
 
     #[test]
@@ -484,30 +649,30 @@ mod tests {
     #[test]
     fn install_into_empty_home_creates_bashrc_and_bash_profile() {
         let dir = temp_dir("fresh");
-        let p = bash_preview_in(&dir).unwrap();
+        let p = bash_preview_in(&dir, &BASH, GIT_BASH).unwrap();
         assert_eq!(p.status, Status::Missing);
         assert!(p.creates_file && p.creates_bash_profile);
         assert_eq!(p.warning, None);
-        bash_install_in(&dir).unwrap();
+        bash_install_in(&dir, &BASH).unwrap();
         assert_eq!(read(&dir, ".bashrc"), block(&BASH));
         assert_eq!(read(&dir, ".bash_profile"), BASH_PROFILE);
         assert!(!dir.join(BACKUP_NAME).exists());
-        assert_eq!(bash_preview_in(&dir).unwrap().status, Status::Installed);
+        assert_eq!(bash_preview_in(&dir, &BASH, GIT_BASH).unwrap().status, Status::Installed);
     }
 
     #[test]
     fn bash_profile_without_bashrc_warns_and_is_left_alone() {
         let dir = temp_dir("profile");
         std::fs::write(dir.join(".bash_profile"), "export X=1\n").unwrap();
-        let p = bash_preview_in(&dir).unwrap();
+        let p = bash_preview_in(&dir, &BASH, GIT_BASH).unwrap();
         assert!(!p.creates_bash_profile);
         assert!(p.warning.unwrap().contains(".bashrc"));
-        bash_install_in(&dir).unwrap();
+        bash_install_in(&dir, &BASH).unwrap();
         assert_eq!(read(&dir, ".bash_profile"), "export X=1\n");
 
         let dir = temp_dir("profile-ok");
         std::fs::write(dir.join(".bash_profile"), BASH_PROFILE).unwrap();
-        assert_eq!(bash_preview_in(&dir).unwrap().warning, None);
+        assert_eq!(bash_preview_in(&dir, &BASH, GIT_BASH).unwrap().warning, None);
     }
 
     #[test]
@@ -515,7 +680,7 @@ mod tests {
         let dir = temp_dir("backup");
         std::fs::write(dir.join(BACKUP_NAME), "older").unwrap();
         std::fs::write(dir.join(".bashrc"), "x=1\n").unwrap();
-        bash_install_in(&dir).unwrap();
+        bash_install_in(&dir, &BASH).unwrap();
         assert_eq!(read(&dir, BACKUP_NAME), "x=1\n");
         assert_eq!(read(&dir, ".bashrc"), format!("x=1\n\n{}", block(&BASH)));
     }
@@ -525,21 +690,21 @@ mod tests {
         let dir = temp_dir("custom");
         let custom = BASH_SNIPPET.replace("cygpath -w", "cygpath -m");
         std::fs::write(dir.join(".bashrc"), &custom).unwrap();
-        assert!(bash_install_in(&dir).is_err());
+        assert!(bash_install_in(&dir, &BASH).is_err());
         assert_eq!(read(&dir, ".bashrc"), custom);
         assert!(!dir.join(BACKUP_NAME).exists());
         assert!(!dir.join(".bash_profile").exists());
 
         let dir = temp_dir("utf8");
         std::fs::write(dir.join(".bashrc"), b"x=\xff\n").unwrap();
-        assert!(bash_preview_in(&dir).unwrap_err().contains("UTF-8"));
-        assert!(bash_install_in(&dir).is_err());
+        assert!(bash_preview_in(&dir, &BASH, GIT_BASH).unwrap_err().contains("UTF-8"));
+        assert!(bash_install_in(&dir, &BASH).is_err());
     }
 
     #[test]
     fn preview_serializes_camel_case() {
         let dir = temp_dir("wire");
-        let v = serde_json::to_value(bash_preview_in(&dir).unwrap()).unwrap();
+        let v = serde_json::to_value(bash_preview_in(&dir, &BASH, GIT_BASH).unwrap()).unwrap();
         assert_eq!(v["shell"], "gitBash");
         assert!(v["path"].is_string());
         assert_eq!(v["status"], "missing");

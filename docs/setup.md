@@ -40,6 +40,58 @@ The OSC 133 markers (`PS0` and the first `printf`) tell the app exactly when a c
 and finishes, which drives each terminal's working or idle status. In a pane without them, status follows a
 check of the shell's processes every 2 seconds, so it can lag by up to that long.
 
+### zsh on macOS and Linux
+
+zsh, the macOS default, takes the same reports through its own hooks. When the shell new panes
+open with runs zsh, the setup wizard offers to add these lines to `~/.zshrc` (or
+`$ZDOTDIR/.zshrc`), in the same marked block, backing the file up to `~/.zshrc.bashboard-backup`
+first; the Setup list in the Help tab offers it too. To add them yourself, put them at the end of
+`~/.zshrc`, below a prompt framework's init line:
+
+```sh
+__bashboard_preexec() { printf '\e]133;C\e\\'; }
+__bashboard_precmd() {
+  local code=$?
+  printf '\e]133;D;%s\e\\' "$code"
+  printf '\e]7;file://%s\e\\' "${PWD//\%/%25}"
+  printf '\e]7502;aws;%s;%s\e\\' "${AWS_PROFILE-}" "${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
+  return $code
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec __bashboard_preexec
+precmd_functions=(__bashboard_precmd ${precmd_functions:#__bashboard_precmd})
+```
+
+The precmd hook is put first among the precmd functions so it reads the command's exit status
+before a prompt framework's hooks run. Without the lines, a pane knows only the folder it started
+in, so new panes and the Launch options open there rather than where you have since moved.
+
+### bash on macOS and Linux
+
+Off Windows, bash takes its own version of the lines, with no `cygpath`, in `~/.bashrc`. Panes
+start bash as a login shell, which reads `~/.bash_profile`, so the install creates one that reads
+`~/.profile` and `~/.bashrc` when it is missing, as it does for Git Bash. To add them yourself, put
+them at the end of `~/.bashrc` and make sure `~/.bash_profile` sources it:
+
+```sh
+if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
+  PS0="${PS0-}"'\e]133;C\e\\'
+  __bashboard_marks=1
+fi
+__bashboard_prompt() {
+  local status=$?
+  [[ -n ${__bashboard_marks-} ]] && printf '\e]133;D;%s\e\\' "$status"
+  printf '\e]7;file://%s\e\\' "${PWD//%/%25}"
+  printf '\e]7502;aws;%s;%s\e\\' "${AWS_PROFILE-}" "${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
+  return "$status"
+}
+PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+```
+
+The OSC 133 markers need `PS0`, which arrived in bash 4.4. The bash that ships with macOS is 3.2,
+so there the lines report the folder and the AWS context only, and a pane's working or idle status
+comes from the check of its processes every 2 seconds. A newer bash from Homebrew sends both.
+
 ## PowerShell, Windows PowerShell, and Command Prompt
 
 Besides Git Bash, a pane can run PowerShell 7, Windows PowerShell, and Command Prompt. Each

@@ -213,7 +213,7 @@ export class SetupWizard {
     void this.listRepos(undefined, backdrop);
     // Read up front, so switching shells in the Shell step adds or drops the step at once.
     for (const p of this.callbacks.getProfiles()) {
-      if (isIntegrationShell(p.id)) void this.loadPreview(p.id, backdrop);
+      if (p.integration) void this.loadPreview(p.id, backdrop);
     }
   }
 
@@ -240,7 +240,7 @@ export class SetupWizard {
   private stepOptions(): SetupStepOptions {
     const shell = this.defaultShell();
     let status: SetupStepOptions['shellIntegrationStatus'] = null;
-    if (shell !== null && isIntegrationShell(shell)) {
+    if (shell !== null && isIntegrationShell(shell, this.callbacks.getProfiles())) {
       const preview = this.previews.get(shell);
       status = preview === undefined ? 'loading' : (preview?.status ?? null);
     }
@@ -395,7 +395,7 @@ export class SetupWizard {
 
   private renderShellIntegration(): void {
     const shell = this.defaultShell();
-    if (shell === null || !isIntegrationShell(shell)) return;
+    if (shell === null || !isIntegrationShell(shell, this.callbacks.getProfiles())) return;
     const preview = this.previews.get(shell);
     // Null hides the step; this render only happens in the moment before the list catches up.
     if (preview === null) return;

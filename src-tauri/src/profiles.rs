@@ -38,15 +38,38 @@ pub struct ShellProfile {
     pub name: String,
     pub path: String,
     pub args: Vec<String>,
+    /// Takes the shell integration lines (`shell_integration`): Git Bash, and on Unix zsh or
+    /// bash, whichever profile runs it (on macOS usually the login shell).
+    pub integration: bool,
 }
 
 fn profile(id: &str, name: &str, path: String, args: Vec<String>) -> ShellProfile {
+    let integration = id == GIT_BASH || is_zsh(&path) || is_bash(&path);
     ShellProfile {
         id: id.into(),
         name: name.into(),
         path,
         args,
+        integration,
     }
+}
+
+/// Whether `path` runs zsh, judged by its file name.
+pub fn is_zsh(path: &str) -> bool {
+    Path::new(path).file_name() == Some(OsStr::new("zsh"))
+}
+
+/// Whether `path` runs bash, judged by its file name; Git Bash's `bash.exe` is not this.
+pub fn is_bash(path: &str) -> bool {
+    Path::new(path).file_name() == Some(OsStr::new("bash"))
+}
+
+/// The Unix profile with this id, if listed. Unix profiles do not depend on settings.
+pub fn unix_profile(id: &str) -> Option<ShellProfile> {
+    let login_shell = std::env::var("SHELL").ok();
+    unix_profiles(login_shell.as_deref(), Path::is_file)
+        .into_iter()
+        .find(|p| p.id == id)
 }
 
 fn path_string(p: &Path) -> String {
@@ -553,7 +576,7 @@ mod tests {
                 .unwrap();
         assert_eq!(
             json,
-            serde_json::json!({ "id": "cmd", "name": "Command Prompt", "path": "cmd.exe", "args": [] })
+            serde_json::json!({ "id": "cmd", "name": "Command Prompt", "path": "cmd.exe", "args": [], "integration": false })
         );
     }
 
@@ -563,6 +586,8 @@ mod tests {
         let list = unix_profiles(Some("/bin/zsh"), all);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH]);
         assert_eq!(list[0].name, "Login shell (zsh)");
+        assert!(list[0].integration, "a zsh login shell takes the zsh lines");
+        assert!(list[1].integration, "bash on Unix takes the Unix bash lines");
         assert_eq!(list[0].args, vec!["-l".to_string()]);
         assert_eq!(list[1].path, "/opt/homebrew/bin/bash");
 

@@ -1,15 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { ShellProfile } from './profiles';
 
 /**
- * The profiles that take shell integration lines. cmd and PowerShell report their folder without
- * any, from the prompt Bashboard starts them with.
+ * The id of a profile that takes shell integration lines: Git Bash, or on Unix one running zsh
+ * or bash (on macOS usually `loginShell`). cmd and PowerShell report their folder without any, from the prompt
+ * Bashboard starts them with.
  */
-export type IntegrationShell = 'gitBash';
+export type IntegrationShell = string;
 
-export const INTEGRATION_SHELLS: readonly IntegrationShell[] = ['gitBash'];
-
-export function isIntegrationShell(id: string): id is IntegrationShell {
-  return (INTEGRATION_SHELLS as readonly string[]).includes(id);
+export function isIntegrationShell(id: string, profiles: readonly ShellProfile[]): boolean {
+  return profiles.some((p) => p.id === id && p.integration);
 }
 
 /** How the shell's startup file relates to the shell-integration block (docs/design/app.md section 3.14). */
@@ -17,7 +17,7 @@ export type ShellIntegrationStatus = 'missing' | 'installed' | 'outdated' | 'han
 
 export interface ShellIntegrationPreview {
   shell: IntegrationShell;
-  /** `~/.bashrc`. */
+  /** `~/.bashrc` or `~/.zshrc`. */
   path: string;
   status: ShellIntegrationStatus;
   /** The marked block the install writes, LF line endings. */

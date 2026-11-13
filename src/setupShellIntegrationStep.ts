@@ -14,8 +14,8 @@ const PURPOSE =
   'These lines let new panes open in the current folder, and let the app tell exactly when a shell is working or idle.';
 
 /**
- * The setup wizard's shell-integration step: the `.bashrc` lines, shown when Git Bash is the
- * shell new panes open with (docs/design/app.md section 4.17).
+ * The setup wizard's shell-integration step: the `.bashrc` or `.zshrc` lines, shown when the
+ * shell new panes open with takes them (docs/design/app.md section 4.17).
  */
 export function renderShellIntegrationStep(
   content: HTMLElement,
@@ -27,7 +27,7 @@ export function renderShellIntegrationStep(
   content.append(ui.note(`For ${name}, the shell new panes open with. ${PURPOSE}`));
   const { preview } = state;
   if (!preview) {
-    content.append(ui.note('Reading ~/.bashrc...'));
+    content.append(ui.note('Reading the startup file...'));
     return;
   }
 
@@ -62,14 +62,27 @@ export function renderShellIntegrationStep(
     const done = document.createElement('span');
     done.className = 'setup-wizard-done';
     const cmd = document.createElement('code');
-    cmd.textContent = 'source ~/.bashrc';
+    cmd.textContent = `source ${homeRelative(preview.path)}`;
     done.append('Added. Panes opened from now on use it; run ', cmd, ' in panes already open.');
     actions.append(done);
   } else {
-    const add = ui.button('Add to .bashrc', install);
+    const add = ui.button(`Add to ${fileName(preview.path)}`, install);
     add.classList.add('setup-wizard-primary');
     add.disabled = state.installing;
     actions.append(add);
   }
   content.append(actions);
+}
+
+function fileName(path: string): string {
+  return path.split(/[\/]/).pop() ?? path;
+}
+
+/**
+ * What to type to `source` the file. Git Bash's path is a Windows one, which bash cannot take,
+ * so it gets `~/.bashrc`; zsh's is already a POSIX path, quoted when it has a space.
+ */
+function homeRelative(path: string): string {
+  if (fileName(path) === '.bashrc') return '~/.bashrc';
+  return /\s/.test(path) ? `'${path}'` : path;
 }

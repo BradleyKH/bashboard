@@ -9,7 +9,7 @@ import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
 import { SCRIM_PRESETS } from './scrim';
 import type { BackdropStyle } from './settings';
-import { isIntegrationShell, type ShellIntegrationStatus } from './shellIntegration';
+import type { ShellIntegrationStatus } from './shellIntegration';
 
 export type SetupStep = 'git' | 'shell' | 'shellIntegration' | 'editor' | 'favorites' | 'agents' | 'look';
 
@@ -23,8 +23,8 @@ export interface SetupStepOptions {
   /** The profile new panes open with (`effectiveProfile`); null when no shells were listed. */
   defaultShell: string | null;
   /**
-   * That shell's integration state, 'loading' while it is read. Null when it could not be read,
-   * which hides the step.
+   * That shell's integration state, 'loading' while it is read. Null when the shell takes no
+   * lines or they could not be read, which hides the step.
    */
   shellIntegrationStatus: ShellIntegrationStatus | 'loading' | null;
 }
@@ -64,7 +64,7 @@ const DEFAULT_EDITOR: Choice = { value: 'default', label: "The file's default ap
 
 /**
  * The steps to show, in order: Git only when Git Bash was missing, shell integration only when
- * the default shell takes the lines (Git Bash) and they are not current, the agents step only when
+ * the default shell takes the lines (Git Bash, zsh, or Unix bash) and they are not current, the agents step only when
  * a detected agent lacks the hooks.
  */
 export function setupSteps(opts: SetupStepOptions): SetupStep[] {
@@ -75,7 +75,6 @@ export function setupSteps(opts: SetupStepOptions): SetupStep[] {
   const hasBash = opts.gitBashFound || opts.gitInstalled === true;
   if (
     shell !== null &&
-    isIntegrationShell(shell) &&
     (shell !== 'gitBash' || hasBash) &&
     opts.shellIntegrationStatus !== null &&
     opts.shellIntegrationStatus !== 'installed'

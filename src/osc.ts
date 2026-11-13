@@ -1,7 +1,8 @@
 // Working-directory capture from OSC 9;9 (ConEmu/Windows Terminal style, emitted by the
-// bashrc PROMPT_COMMAND) and OSC 7 (file URLs). Both return Windows paths.
+// bashrc PROMPT_COMMAND) and OSC 7 (file URLs). Paths come back in the running OS's form.
 
 import type { AwsContext } from './cloudContextModel';
+import type { Os } from './platform';
 
 const FILE_PREFIX = 'file://';
 
@@ -26,10 +27,11 @@ export function parseOsc9(data: string): string | null {
 const DRIVE_PATH = /^[A-Za-z]:[\\/]/;
 
 /**
- * Parses a `file://host/path` URL into a Windows path. The host is ignored. Only
- * drive-letter paths map to Windows; anything else (`/home/...`, `/tmp`) returns null.
+ * Parses a `file://host/path` URL into a path for `os`; the host is ignored. On Windows only
+ * drive-letter paths map, and anything else (`/home/...`, `/tmp`) returns null. Elsewhere the
+ * path is taken as it is, with doubled and trailing slashes dropped.
  */
-export function parseOsc7(data: string): string | null {
+export function parseOsc7(data: string, os: Os = 'windows'): string | null {
   if (!data.startsWith(FILE_PREFIX)) return null;
 
   const rest = data.slice(FILE_PREFIX.length);
@@ -41,6 +43,11 @@ export function parseOsc7(data: string): string | null {
     decoded = decodeURIComponent(rest.slice(slash));
   } catch {
     return null;
+  }
+
+  if (os !== 'windows') {
+    if (!decoded.startsWith('/') || decoded.includes('\0')) return null;
+    return `/${decoded.split('/').filter((s) => s !== '').join('/')}`;
   }
 
   // Git Bash reports `/c/...`; some emitters report `/C:/...`. Both name a drive.

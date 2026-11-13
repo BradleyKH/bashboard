@@ -6,6 +6,8 @@ export interface ShellProfile {
   name: string;
   path: string;
   args: string[];
+  /** Takes the shell integration lines: Git Bash, and on Unix any profile that runs zsh or bash. */
+  integration: boolean;
 }
 
 /** Browser-only runs have no core to ask, so Git Bash stands in. */
@@ -14,6 +16,7 @@ export const GIT_BASH_PROFILE: ShellProfile = {
   name: 'Git Bash',
   path: 'C:\\Program Files\\Git\\bin\\bash.exe',
   args: ['--login', '-i'],
+  integration: true,
 };
 
 export function loadProfiles(): Promise<ShellProfile[]> {

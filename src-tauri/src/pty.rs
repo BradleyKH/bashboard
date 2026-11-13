@@ -175,7 +175,7 @@ fn build_command(spec: &SpawnSpec, id: u32) -> CommandBuilder {
     match spec.cwd.as_ref().filter(|p| p.is_dir()) {
         Some(dir) => cmd.cwd(dir),
         None => {
-            if let Some(home) = std::env::var_os("USERPROFILE") {
+            if let Some(home) = crate::platform::user_home() {
                 cmd.cwd(home);
             }
         }
@@ -497,7 +497,7 @@ fn resolve_cwd(requested: Option<String>, starting_directory: &str) -> Option<Pa
     let candidates = [
         requested.map(PathBuf::from),
         Some(starting_directory).filter(|s| !s.is_empty()).map(|s| PathBuf::from(settings::expand_env(s))),
-        std::env::var_os("USERPROFILE").map(PathBuf::from),
+        crate::platform::user_home(),
     ];
     candidates.into_iter().flatten().find(|p| p.is_dir())
 }
@@ -519,6 +519,9 @@ pub struct Spawned {
     pub profile: String,
     /// The profile that was asked for, when it is not installed and `profile` replaced it.
     pub fallback_from: Option<String>,
+    /// The folder the shell started in. A shell without the OSC 7 lines (zsh, by default) never
+    /// reports one, and the pane would otherwise have no folder to open Files or Git at.
+    pub cwd: Option<String>,
 }
 
 /// A non-empty `command` runs in place of the resolved profile's program and arguments; an empty
@@ -572,6 +575,7 @@ pub fn pty_spawn(
     let mut env = hook_env(hooks.url(), hooks.token());
     env.extend(path_env());
     let spec = spawn_spec(command, &resolved, env, resolve_cwd(cwd, &shell.starting_directory))?;
+    let cwd = spec.cwd.as_ref().map(|p| p.to_string_lossy().into_owned());
     let (id, started_at) = state.spawn(
         spec,
         cols,
@@ -581,7 +585,7 @@ pub fn pty_spawn(
             let _ = on_exit.send(code);
         },
     )?;
-    Ok(Spawned { id, started_at, profile: resolved.id, fallback_from })
+    Ok(Spawned { id, started_at, profile: resolved.id, fallback_from, cwd })
 }
 
 #[tauri::command]
@@ -953,7 +957,7 @@ mod tests {
     }
 
     fn profile_for_test(id: &str) -> profiles::ShellProfile {
-        profiles::ShellProfile { id: id.into(), path: "shell.exe".into(), args: vec!["-l".into()], name: id.into() }
+        profiles::ShellProfile { id: id.into(), path: "shell.exe".into(), args: vec!["-l".into()], name: id.into(), integration: false }
     }
 
     #[test]

@@ -20,14 +20,30 @@ fn is_repo_root(dir: &Path) -> bool {
     std::fs::symlink_metadata(dir.join(".git")).is_ok()
 }
 
+/// Home subfolders macOS guards with a privacy prompt. Looking for `.git` inside each one asks
+/// the user for access to it, and a denial sticks to every shell in the app's panes, so a scan
+/// of the home folder passes over them. None is a repo root itself, and the scan is one level
+/// deep, so a repo kept under Documents is found by scanning its parent folder instead.
+const MAC_PROTECTED: &[&str] = &["Desktop", "Documents", "Downloads", "Library", "Movies", "Music", "Pictures"];
+
+/// The subfolder names `list_repos` must not look inside.
+fn skipped_names(dir: &Path, home: Option<&Path>, macos: bool) -> &'static [&'static str] {
+    if macos && home == Some(dir) {
+        MAC_PROTECTED
+    } else {
+        &[]
+    }
+}
+
 /// The direct subfolders of `dir` that are repo roots, sorted by name without regard to case.
-/// Unreadable entries are skipped.
-fn list_repos(dir: &Path) -> Vec<Repo> {
+/// Unreadable entries and those named in `skip` are skipped.
+fn list_repos(dir: &Path, skip: &[&str]) -> Vec<Repo> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
     let mut repos: Vec<Repo> = entries
         .filter_map(|e| e.ok())
+        .filter(|e| !skip.iter().any(|s| e.file_name() == *s))
         .map(|e| e.path())
         .filter(|p| p.is_dir() && is_repo_root(p))
         .filter_map(|p| {
@@ -66,8 +82,9 @@ fn candidates(dir: Option<String>) -> Result<RepoCandidates, String> {
             expanded
         }
     };
+    let skip = skipped_names(&dir, crate::platform::user_home().as_deref(), cfg!(target_os = "macos"));
     Ok(RepoCandidates {
-        repos: list_repos(&dir),
+        repos: list_repos(&dir, skip),
         dir: Some(dir.to_string_lossy().into_owned()),
     })
 }
@@ -109,6 +126,22 @@ mod tests {
         assert_eq!(names, ["Alpha", "worktree", "zeta"]);
         assert_eq!(result.dir.as_deref(), Some(dir.to_string_lossy().as_ref()));
         assert!(result.repos[0].path.ends_with("Alpha"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_mac_home_scan_skips_the_protected_folders() {
+        let dir = temp_dir("home");
+        std::fs::create_dir_all(dir.join("Music").join(".git")).unwrap();
+        std::fs::create_dir_all(dir.join("code").join(".git")).unwrap();
+
+        let skip = skipped_names(&dir, Some(&dir), true);
+        let names: Vec<String> = list_repos(&dir, skip).into_iter().map(|r| r.name).collect();
+        assert_eq!(names, ["code"]);
+        // Only the home folder itself, and only on macOS.
+        assert!(skipped_names(&dir.join("code"), Some(&dir), true).is_empty());
+        assert!(skipped_names(&dir, Some(&dir), false).is_empty());
 
         let _ = std::fs::remove_dir_all(&dir);
     }

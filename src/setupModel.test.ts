@@ -62,12 +62,15 @@ describe('setupSteps', () => {
     ]);
   });
 
-  it('follows the default shell: only Git Bash takes the step', () => {
+  it('follows the default shell: a shell that takes no lines has no status and no step', () => {
     for (const shell of ['pwsh', 'powershell', 'cmd']) {
-      expect(setupSteps({ ...bash, defaultShell: shell, shellIntegrationStatus: 'missing' })).not.toContain(
+      expect(setupSteps({ ...bash, defaultShell: shell, shellIntegrationStatus: null })).not.toContain(
         'shellIntegration',
       );
     }
+    expect(setupSteps({ ...bash, defaultShell: 'loginShell', shellIntegrationStatus: 'missing' })).toContain(
+      'shellIntegration',
+    );
     expect(setupSteps({ ...bash, defaultShell: null, shellIntegrationStatus: 'missing' })).not.toContain(
       'shellIntegration',
     );

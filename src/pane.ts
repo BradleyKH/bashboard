@@ -231,7 +231,7 @@ export class TerminalPane implements PaneView {
       return true;
     });
     this.term.parser.registerOscHandler(7, (data) => {
-      const path = parseOsc7(data);
+      const path = parseOsc7(data, platformOs());
       if (path !== null) this.setCwd(path);
       return true;
     });
@@ -335,11 +335,12 @@ export class TerminalPane implements PaneView {
 
     const cols = this.term.cols;
     const rows = this.term.rows;
-    const { id, startedAt, profile, fallbackFrom } = await invoke<{
+    const { id, startedAt, profile, fallbackFrom, cwd } = await invoke<{
       id: number;
       startedAt: number;
       profile: string;
       fallbackFrom: string | null;
+      cwd: string | null;
     }>('pty_spawn', {
       cols,
       rows,
@@ -357,6 +358,8 @@ export class TerminalPane implements PaneView {
     this.startedAt = startedAt;
     this.resolvedProfile = profile;
     if (fallbackFrom) noteShellFallback(fallbackFrom, profile);
+    // A folder the shell already reported wins over the one it started in.
+    if (cwd && this.currentCwd === null) this.setCwd(cwd);
     this.spawned = true;
     // ConPTY's ESC[6n reply can arrive before pty_spawn resolves; it must still reach the pty.
     for (const data of this.pending) this.write(data);

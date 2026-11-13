@@ -140,9 +140,23 @@ few lines in Git Bash's `~/.bashrc`. A folder on a drive (`/c/...`) goes out as 
 `$PWD` with no subprocess; only Git Bash's own folders such as `/tmp` run `cygpath -w` and go out as
 OSC 9;9, since starting a process in Git Bash costs a noticeable fraction of a second per prompt. The setup wizard (4.17) installs them with
 `shell_integration_preview(shell)` and `shell_integration_install(shell)`, where `shell` is the
-profile id `gitBash`; cmd and PowerShell need no lines, since the core starts them with a prompt
-that reports the folder (3.1). The lines are the snippet in setup.md's "New panes in the current
-folder"; a test requires it to match byte for byte, ignoring line endings.
+profile id `gitBash` or the id of a profile that runs zsh or, off Windows, bash; cmd and PowerShell need no lines, since
+the core starts them with a prompt that reports the folder (3.1). The lines are the snippets in
+setup.md's "New panes in the current folder" and its zsh and macOS/Linux bash sections; a test
+requires each to match byte for byte, ignoring line endings.
+
+zsh, the macOS default, takes the same reports from a `preexec` hook (OSC 133 C) and a `precmd`
+hook placed first in `precmd_functions` (OSC 133 D, the folder as OSC 7, the AWS context). A
+profile takes lines when it is Git Bash or its executable is named `zsh` or `bash`, which the
+core marks with `integration` on each profile (3.1), so on macOS it is usually `loginShell`. The
+core checks a non-Git Bash id against its own Unix profile list before writing anything. Bash
+off Windows gets its own lines in `~/.bashrc`, with the same `.bash_profile` handling: every
+folder goes out as OSC 7 with no `cygpath`, and the OSC 133 markers are sent only from bash 4.4,
+which added `PS0`. macOS's bash 3.2 would send the end marker without the start one, and a pane
+that has seen a marker trusts markers over its process check, so it would read as idle mid-command. zsh's file is
+`.zshrc` in `ZDOTDIR` when set, else in `HOME`, backed up the same way; it has no
+`.bash_profile` counterpart. Off Windows, the front end takes an OSC 7 path as the POSIX path
+it names (`src/osc.ts`).
 
 The install writes the snippet between two marker lines at the end of the file:
 `# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<`. The file is
@@ -330,8 +344,8 @@ has Back, Next, and Skip setup.
 2. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
 3. **Shell integration.** For the shell new panes open with: the chosen default when it is
    installed, else the first installed profile, as the core resolves it (3.1). Shown when that
-   shell is Git Bash and `~/.bashrc` does not already hold the current block (3.14); hidden for
-   the other shells, which need no lines, and when the file's state could not be read. The
+   shell takes lines (Git Bash, zsh, or bash off Windows) and its startup file does not already hold the current block (3.14);
+   hidden for the other shells, which need no lines, and when the file's state could not be read. The
    file's state is read in the background when the wizard opens, so changing the Shell step's
    choice adds or drops this step at once, updating the step count without re-rendering the
    Shell step. It lists the lines and the file they go in, notes the backup, any `.bash_profile`
@@ -342,7 +356,9 @@ has Back, Next, and Skip setup.
 5. **Favorites.** A folder field, starting at `%USERPROFILE%\source\repos` when it exists,
    listing its subfolders that are git repos with checkboxes. The subfolders come from
    `setup_repo_candidates(dir?)` (`src-tauri/src/setup.rs`), which lists the direct subfolders
-   holding `.git`, as a folder or as a worktree's file. Add appends the checked ones to
+   holding `.git`, as a folder or as a worktree's file. On macOS a scan of the home folder
+   passes over Desktop, Documents, Downloads, Library, Movies, Music, and Pictures, since
+   looking inside each raises a privacy prompt and a denial holds for every pane's shell. Add appends the checked ones to
    favorites, skipping any already there. When some listed repo's remote is on a code host Ship
    reads (`forge_repo`, 3.20), an unchecked-by-default box under the list, "Also pin them to the
    Ship Overview, for pull request and pipeline alerts", makes Add (reading **Add and pin**) also

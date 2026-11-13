@@ -43,6 +43,14 @@ describe('parseOsc9', () => {
 });
 
 describe('parseOsc7', () => {
+  it('takes a POSIX path as it is off Windows', () => {
+    expect(parseOsc7('file:///Users/me/Documents/a%25b c', 'macos')).toBe('/Users/me/Documents/a%b c');
+    expect(parseOsc7('file://mac.local/Users/me//code/', 'macos')).toBe('/Users/me/code');
+    expect(parseOsc7('file:///', 'linux')).toBe('/');
+    expect(parseOsc7('file://host', 'macos')).toBeNull();
+    expect(parseOsc7('file:///Users/me', 'windows')).toBeNull();
+  });
+
   it('maps a Git Bash /c/ path to a Windows path', () => {
     expect(parseOsc7('file://host/c/Users/x')).toBe('C:\\Users\\x');
   });

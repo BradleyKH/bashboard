@@ -3,7 +3,7 @@ import { gitInstallStatus, type GitInstallStatus } from './gitInstall';
 import { hookInstallPreview, type HookInstallPreview } from './hookInstall';
 import type { AgentId } from './savedWorkspace';
 import { profileName, type ShellProfile } from './profiles';
-import { isIntegrationShell, shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
+import { shellIntegrationInstall, shellIntegrationPreview } from './shellIntegration';
 import { gitRow, hooksRow, shellRow, type StatusFix, type StatusRow } from './setupStatusModel';
 import { supports } from './platform';
 
@@ -57,7 +57,7 @@ export class SetupStatus {
     const profiles = this.callbacks.getProfiles();
     const preferred = this.callbacks.getDefaultProfile();
     const shells = profiles
-      .flatMap((p) => (isIntegrationShell(p.id) ? [p.id] : []))
+      .flatMap((p) => (p.integration ? [p.id] : []))
       .sort((a, b) => Number(b === preferred) - Number(a === preferred));
     const [git, hooks, shellPreviews] = await Promise.all([
       gitInstallStatus().catch((): GitInstallStatus | null => null),
