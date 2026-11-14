@@ -185,8 +185,8 @@ and at every scrim opacity. The canvas is oversized by twice the blur on each si
 at the canvas edges as wide as itself, and the oversize pushes that band off screen. Blur over a
 constantly redrawing canvas is the most expensive effect here, hence the default of 0.
 
-`uiScale` (default 1, up to 2; the Settings tab calls it Interface size) sizes the chrome for people
-who want larger targets and text. It sets `--ui-scale` on `:root` (`src/uiScale.ts`), and one rule
+`uiScale` (default 1.25, from 1 to 2; the Settings tab calls it Interface size) sizes the chrome
+for people who want larger or smaller targets and text. It sets `--ui-scale` on `:root` (`src/uiScale.ts`), and one rule
 in `styles.css` gives every button, single-line text box, and dropdown `zoom` by it, so a control's
 glyph, padding, and border grow together, a toolbar row keeps one height, and every pane kind's
 toolbar follows without its own rule. Bars with a fixed px height (the pane title strip, the tab

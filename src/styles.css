@@ -6,7 +6,7 @@
   --content-muted: color-mix(in srgb, var(--content-fg) 80%, black);
   --content-faint: color-mix(in srgb, var(--content-fg) 58%, black);
   /* uiScale (src/uiScale.ts, docs/design/README.md section 5). */
-  --ui-scale: 1;
+  --ui-scale: 1.25;
   color-scheme: dark;
 }
 

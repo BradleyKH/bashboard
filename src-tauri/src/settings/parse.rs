@@ -819,12 +819,12 @@ mod tests {
 
     #[test]
     fn ui_scale_stays_in_range() {
-        let (s, w) = parse_settings(r#"{ "uiScale": 1.25 }"#);
-        assert_eq!(s.ui_scale, 1.25);
+        let (s, w) = parse_settings(r#"{ "uiScale": 1.5 }"#);
+        assert_eq!(s.ui_scale, 1.5);
         assert!(w.is_empty());
         for bad in ["0.9", "2.1", r#""big""#] {
             let (s, w) = parse_settings(&format!(r#"{{ "uiScale": {bad} }}"#));
-            assert_eq!(s.ui_scale, UI_SCALE_MIN, "{bad}");
+            assert_eq!(s.ui_scale, Settings::default().ui_scale, "{bad}");
             assert_eq!(w, vec!["uiScale: invalid value, using default"], "{bad}");
         }
     }

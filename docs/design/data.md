@@ -232,8 +232,8 @@ the focused pane's folder.
   // (files.md section 4.22). Any other value falls back to matchAccent with a notice.
   "codeColors": { "scheme": "matchAccent" },
   // 1 to 2, the Settings tab's Interface size: zoom on controls, the bars that hold them, chrome
-  // titles, and the app dialog's tabs (section 5). Out of range falls back to 1.
-  "uiScale": 1,
+  // titles, and the app dialog's tabs (section 5). Out of range falls back to 1.25.
+  "uiScale": 1.25,
   // Ambient pane effects (section 4.23), both off by default: agentGlow breathes a glow inside
   // panes where an AI agent is working; borderLights runs a light around each pane's border.
   // borderLightsSpeed is 10 to 300 px per second; borderLightsDensity is 0.25 to 4 lights per

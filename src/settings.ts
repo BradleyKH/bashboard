@@ -118,7 +118,7 @@ export const DEFAULT_SETTINGS: Settings = {
   accentColor: DEFAULT_ACCENT,
   contentTextColor: DEFAULT_CONTENT_TEXT_MODE,
   codeColors: { scheme: DEFAULT_CODE_SCHEME },
-  uiScale: 1,
+  uiScale: 1.25,
   agentGlow: false,
   borderLights: false,
   borderLightsSpeed: 60,

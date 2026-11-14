@@ -141,8 +141,8 @@ pub struct CodeColors {
     pub scheme: String,
 }
 
-/// `uiScale` bounds: 1 is the compact default, and at 1.5 the dashboard's buttons match
-/// the Launch section's (docs/design/README.md section 5).
+/// `uiScale` bounds: 1 is the most compact (the default is 1.25), and at 1.5 the dashboard's
+/// buttons match the Launch section's (docs/design/README.md section 5).
 pub const UI_SCALE_MIN: f64 = 1.0;
 pub const BORDER_LIGHTS_SPEED_RANGE: std::ops::RangeInclusive<f64> = 10.0..=300.0;
 pub const BORDER_LIGHTS_DENSITY_RANGE: std::ops::RangeInclusive<f64> = 0.25..=4.0;
@@ -392,7 +392,7 @@ impl Default for Settings {
             accent_color: DEFAULT_ACCENT.into(),
             content_text_color: DEFAULT_CONTENT_TEXT_MODE.into(),
             code_colors: CodeColors { scheme: DEFAULT_CODE_SCHEME.into() },
-            ui_scale: 1.0,
+            ui_scale: 1.25,
             agent_glow: false,
             border_lights: false,
             border_lights_speed: 60.0,

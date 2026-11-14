@@ -81,8 +81,8 @@ Under Match accent, each accent preset has a scheme:
 A custom `accentColor` takes the scheme of the preset nearest in hue, and one that is nearly gray
 (HSV saturation under 0.2) takes Nord, as Silver does.
 
-`uiScale` sets the size of the app's chrome, from `1` (the default, compact) to `2`; at `1.5` the
-dashboard's buttons match its Launch buttons. It covers buttons, text boxes, and dropdowns in the
+`uiScale` sets the size of the app's chrome, from `1` (compact) to `2`, with `1.25` the default; at
+`1.5` the dashboard's buttons match its Launch buttons. It covers buttons, text boxes, and dropdowns in the
 pane title bars, the tab strip, the dashboard, pane toolbars, the find bar, and menus, and
 everything in the Help, Settings, Accounts, Shortcuts, CLI, and About dialog. The bars that hold
 them grow to fit, and pane titles, tab titles, and the dashboard's section titles grow with them;
