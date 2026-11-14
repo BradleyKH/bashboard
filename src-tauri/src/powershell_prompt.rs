@@ -89,7 +89,10 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout);
         let root = std::env::var("SystemRoot").unwrap();
         assert_eq!(text.matches("\x1b]9;9;").count(), 1, "{text:?}");
-        assert!(text.contains(&format!("\x1b]9;9;\"{root}\"\x07")), "{text:?}");
+        // SystemRoot's casing can differ from the folder's on-disk casing (C:\WINDOWS vs
+        // C:\Windows), and Set-Location reports the latter.
+        let expected = format!("\x1b]9;9;\"{root}\"\x07").to_lowercase();
+        assert!(text.to_lowercase().contains(&expected), "{text:?}");
     }
 
     /// The AWS context is reported at every prompt.
