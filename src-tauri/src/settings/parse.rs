@@ -606,6 +606,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
         ),
         sections: DashboardSections {
             launch: section(&mut w, "launch", launch_default),
+            needs: section(&mut w, "needs", d.dashboard.sections.needs),
             favorites: section(&mut w, "favorites", d.dashboard.sections.favorites),
             layouts: section(&mut w, "layouts", d.dashboard.sections.layouts),
             panes: section(&mut w, "panes", d.dashboard.sections.panes),
@@ -632,6 +633,16 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             &mut w,
             |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| PORT_ROWS_RANGE.contains(n)),
             d.dashboard.port_rows,
+        ),
+    };
+    let needs_you = NeedsYou {
+        walk_all: pick(&root, &["needsYou", "walkAll"], &mut w, boolean, d.needs_you.walk_all),
+        usage_percent: pick(
+            &root,
+            &["needsYou", "usagePercent"],
+            &mut w,
+            |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| NEEDS_YOU_USAGE_PERCENT_RANGE.contains(n)),
+            d.needs_you.usage_percent,
         ),
     };
     let restore = Restore {
@@ -742,6 +753,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             scrollback,
             terminal,
             dashboard,
+            needs_you,
             restore,
             editor,
             git,
@@ -1129,6 +1141,7 @@ mod tests {
             d.sections,
             DashboardSections {
                 launch: true,
+                needs: true,
                 favorites: false,
                 layouts: false,
                 panes: true,
@@ -1155,6 +1168,26 @@ mod tests {
         assert!(!s.dashboard.sections.launch);
         let (s, _) = parse_settings(r#"{ "dashboard": { "sections": { "folder": false, "launch": true } } }"#);
         assert!(s.dashboard.sections.launch);
+    }
+
+    #[test]
+    fn needs_you_defaults_and_parse() {
+        let n = Settings::default().needs_you;
+        assert!(n.walk_all && n.usage_percent == 80);
+        let (s, w) = parse_settings(r#"{ "needsYou": { "walkAll": false, "usagePercent": 100 } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!s.needs_you.walk_all && s.needs_you.usage_percent == 100);
+        for bad in ["0", "101", "-1", "80.5", "\"80\""] {
+            let (s, w) = parse_settings(&format!(r#"{{ "needsYou": {{ "usagePercent": {bad} }} }}"#));
+            assert_eq!(s.needs_you.usage_percent, 80, "{bad}");
+            assert!(w.iter().any(|m| m.starts_with("needsYou.usagePercent")), "{bad}: {w:?}");
+        }
+        let (s, w) = parse_settings(r#"{ "needsYou": { "walkAll": "no" } }"#);
+        assert!(s.needs_you.walk_all);
+        assert!(w.iter().any(|m| m.starts_with("needsYou.walkAll")), "{w:?}");
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "needs": false } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!s.dashboard.sections.needs && s.dashboard.sections.launch);
     }
 
     #[test]

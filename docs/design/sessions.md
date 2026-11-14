@@ -92,7 +92,32 @@ exact transitions as they happen.
      is ignored, and the exit code is always 0, because a failing hook would surface as an
      error in the agent, and Bashboard being away is not one.
 
-  `bb hook --version` prints the embedded marker `bashboard-hook-version:3;`.
+  `bb hook --version` prints the embedded marker `bashboard-hook-version:4;`.
+
+  `bb statusline <agent> [<command>]` (`src-tauri/src/statusline_client.rs`, included by `bb`
+  beside `hook_client.rs`, whose bounded reader and limits it shares) is the program behind a
+  wrapped Claude Code status line (3.28). Like `bb hook` it is installer-internal: it has no
+  entry in the CLI reference or the user-facing help, and it works outside a pane, since a
+  status line runs wherever Claude Code does. `<command>` is one argument, so the user's
+  original command string reaches the shell exactly. Each run:
+
+  1. With no `<command>` and outside a Bashboard pane, exits 0 without reading standard input.
+  2. Otherwise reads standard input with `bb hook`'s bounds (64 KiB, a 2 second deadline, an
+     early stop at one complete JSON value).
+  3. Inside a pane, and when the body is not empty, posts it to `$BASHBOARD_HOOK_URL/usage` with
+     `X-Bashboard-Token`, `X-Bashboard-Pane`, and `X-Bashboard-Agent`, under the same timeouts as
+     `bb hook`. Every error is ignored, so Bashboard being away never delays or blanks the
+     status line by more than those bounds.
+  4. With a `<command>`, runs it through `sh -c` (`bash` is the fallback off Windows; Claude
+     Code runs status lines through bash on Windows, so `sh` is on `PATH`), writes the captured
+     input to its standard input, copies its standard output to this program's, and exits with
+     its exit code. The command text travels in the `BASHBOARD_STATUSLINE_COMMAND` environment
+     variable, which the shell evaluates, because an argument passed to an MSYS `sh` loses
+     doubled backslashes to its command line parsing and the environment arrives verbatim.
+     Without a `<command>` it prints nothing and exits 0.
+
+  A wrong argument count is a usage error (exit 2) that posts nothing, and a shell that cannot
+  be started exits 1 after the post.
 
   The install copies the `bb` that sits beside the running app into each agent's `hooks/` folder
   as `bashboard-hook.exe` (`bashboard-hook` on macOS and Linux): `~/.claude/hooks/`,
@@ -201,8 +226,8 @@ exact transitions as they happen.
 - The install is per agent: `hooks_install_preview(agent)` returns the file it will change, the
   JSON it will add, whether the hooks are already in, whether the agent is detected, and for
   Codex the trust state; `hooks_install(agent)` writes it. An absent agent means Claude Code.
-- The receiver accepts `POST /hook`, `POST /cli` (3.13), `POST /ci` (3.23), and `POST /size`
-  (3.25). A `/ci` or `/size` request, which can wait seconds on a code host or a large diff, is
+- The receiver accepts `POST /hook`, `POST /cli` (3.13), `POST /ci` (3.23), `POST /size`
+  (3.25), and `POST /usage` (3.28). A `/ci` or `/size` request, which can wait seconds on a code host or a large diff, is
   handed to its own thread and answered from there, so the loop that carries hook events never
   waits on it. For `/hook` it answers with these
   codes, checked in this order:
@@ -282,8 +307,9 @@ line, when the tail holds no qualifying line; the other formats are read whole i
 `notify` change marks the session dirty, and a dirty session is re-read at most once per second.
 A changed reading emits `agent://context` (section 7), and `agent_context()` returns every known
 entry so a page reload shows them at once. Nothing is tracked until the dashboard first calls
-`agent_context()`, which it does while the Panes section is enabled, and `agent_context_stop()`
-when it is turned off; entries are pruned with the hook overlay.
+`agent_context()`, which it does while the Panes section or the Needs you list is enabled, and
+`agent_context_stop()` when both are off; entries are pruned with the hook overlay. A tracked
+Codex session's rollout also yields the account's usage limits (3.28).
 
 ## 3.24 Agent table (`src/agents.json`)
 
@@ -306,6 +332,7 @@ platforms differ (no row needs that form). `{id}`, `{mode}`, and `{model}` are p
 | `localModels` | Offers the agent in the Launch menu's "<agent> on a local model" submenu (`ollama launch <id>`), the only part of the Launch menu the table drives |
 | `resume` | `command` with `{id}`; `modeArg` (`--permission-mode {mode}`), appended when the saved pane has a non-default permission mode; `modelArg` (`--model {model}`), appended when a model is saved. A null argument means the agent takes none |
 | `hookShell` | The shell that runs the hook command on each platform: `windows` is `cmd` (`%USERPROFILE%`, no call operator) or `powershell` (`$env:USERPROFILE` and the `& ` call operator), and `posix` is `sh` |
+| `usage` | Where the agent's usage limits come from: `statusLine` (Claude Code's status line input), `rollout` (Codex's session file), or `none` (Copilot); 3.28. Front end only like `launch` and `resume`, which `agents.rs` skips; a test holds each value to this set, and the sources themselves are code |
 
 `resumeCommandFor` in `agentTable.ts` builds the resume command and validates nothing; callers
 check the session id, mode, and model first (`resumeCommand` in `savedWorkspace.ts`). The newest
@@ -322,6 +349,82 @@ a row without its variant, or the reverse, fails the build.
 Adding an agent takes a row, the `AgentId` variant in `agents.rs` and the id in the
 `agentTable.ts` union, its status table in `hooks.rs`, its installer in `hook_install.rs`, and its
 transcript reader.
+
+## 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`, `src/usageModel.ts`)
+
+A subscription limits an agent's use to windows (a 5-hour window, a weekly one). Bashboard learns
+how much of each window is spent from the agent itself and feeds the Needs you list's usage rows
+(4.28). Cost per session is not collected.
+
+**Window.** `UsageWindow` is `agent`, `label`, `usedPercent`, and `resetsAt`, serialized
+camelCase. `usedPercent` is a number, not necessarily whole; `resetsAt` is seconds since the
+epoch, or null when the source gives none. Claude Code's labels are "5-hour" and "weekly". Codex's
+come from the window's length in minutes: 10080 is "weekly", a whole number of days is
+"<n>-day", a whole number of hours is "<n>-hour" (300 is "5-hour"), and anything else is
+"<n>-minute"; a window that names no length is labeled "primary" or "secondary".
+
+**Sources.** Each agent's `usage` field (3.24) names its source: `statusLine` for Claude Code,
+`rollout` for Codex, `none` for Copilot, which reports no limits.
+
+**Claude Code: the status line.** Claude Code runs the configured `statusLine` command on every
+update and feeds it a JSON document on standard input; `rate_limits.five_hour` and
+`rate_limits.seven_day` each hold `used_percentage` and `resets_at`. They are absent until a
+response carried rate-limit headers, which only subscription logins get, and an absent window
+yields nothing. Claude Code accepts one status line command and shows its output, so Bashboard
+cannot read the input beside the user's command. The install therefore wraps the command rather
+than taking its place. With an existing `{ "type": "command", "command": X }` it writes
+
+```json
+{ "type": "command", "command": "~/.claude/hooks/bashboard-hook.exe statusline claude 'X'" }
+```
+
+where `X` is the original command quoted as one POSIX argument: wrapped in single quotes, each
+`'` inside it written `'\''`. The command has no `.exe` on macOS and Linux, and `~` expands
+because Claude Code runs status lines through bash. `bb statusline` (3.3) posts the input to
+`/usage`, then runs `X` with the same input and passes its output and exit code through, so the
+user's status line looks the same. With no status line configured the install writes the bare
+`... statusline claude`, which prints nothing, so the status line stays empty. The wrapper
+keeps `X` recoverable exactly: an existing wrapper is rewritten with the current program path and
+the same `X`, so installing again changes nothing when the path is current; any other `statusLine`
+field (`padding`, for one) is untouched; a `statusLine` whose type is not `command` is left alone;
+and a command that names the hook program but does not parse as a wrapper is left alone rather
+than wrapped a second time. The preview lists the status line among the additions on a first
+install and among the updates otherwise, so it never turns an update into an install. There is no
+uninstall; `docs/setup.md` says how to restore `X` by hand.
+
+`POST /usage` takes the body on `/hook`'s terms: the token alone, with no pane check, because
+Claude Code may run outside a Bashboard pane. The receiver answers 404 for a method other than
+POST, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a body over 64 KiB, 400 for an
+unknown `X-Bashboard-Agent` (absent means Claude Code) or a body that is not JSON, and 204
+otherwise, including for an input with no rate limits. It reads the body as a Claude Code status
+line input, the only wrapper there is. It answers on the loop that carries hook events.
+
+**Codex: the rollout.** Codex writes a `token_count` event to its rollout (3.4) after each turn,
+and its `payload.rate_limits` is a snapshot with `primary` and `secondary` windows, each
+`used_percent`, `window_minutes`, and `resets_at`. Most events carry null. The transcript worker
+reads the newest non-null snapshot from the tail of each tracked Codex session's rollout, so
+Codex limits arrive only while the worker runs, which is while the Panes section or the Needs you
+list is shown (3.4). An API-key login reports null in every event and so yields nothing.
+`rate_limit_reached_type`, when set, does not name the exhausted window, so the fullest window is
+reported at 100. The worker reports a session's windows when they differ from the last it
+reported for that session.
+
+**Store.** The core keeps one window per agent and label, ordered by agent (the table's order)
+and then label. A report replaces the entry with the same agent and label, and the newest report
+wins, because neither input names an account: two Claude Code logins, or two Codex ones, show
+whichever reported last. A window a report leaves out is kept, since both inputs omit a window
+until they have a number for it. The store is not saved, so it is empty after a restart until the
+next report. `usage_snapshot()` returns every window, and `usage://changed` carries the whole
+snapshot whenever a report changed anything.
+
+**Freshness and expiry.** The front end (`listenUsage` in `appEvents.ts`) loads the snapshot at
+startup and takes each event as the whole snapshot, so an event that lands before the startup
+snapshot resolves supersedes it. `toUsageWindows` turns `resetsAt` into epoch milliseconds and the
+agent id into its display name (3.24), and `needsYouStore.setUsage` receives the result. The core
+never drops a window; the Needs you list ignores one whose reset time has passed, rechecked once
+a minute, so a window disappears at its reset without a new report. A window with no reset time
+stays until a report replaces it. Which windows become rows is the `needsYou.usagePercent`
+threshold (4.28, section 8).
 
 ## 4.7 Attention
 
@@ -346,18 +449,26 @@ existing `printf '\a'` hook):
 tab, and group header, and nothing else. They raise no attention, so no pulse, taskbar flash, or
 panel peek.
 
-**Next terminal that needs you.** `nextAttention` (Ctrl+Shift+N) focuses the next such
-terminal across all tabs. The order is every `waiting` terminal, oldest `statusChangedAt` first,
-then every `done` or `failed` terminal, oldest mark first. Terminals that rang the bell without a
-status are not included; their pulse stays the cue. When the focused pane is in the list, the
-jump goes to the entry after it, wrapping; otherwise to the first entry. `waiting` does not clear
-on focus, so repeated presses walk the whole list; `done` and `failed` clear on focus, so they
-drop out as they are visited. The jump switches to the pane's tab if needed and focuses it; a
-collapsed terminal expands as clicking its card does (4.3), and a zoomed pane (4.2) in the
-target tab unzooms first. When the list is empty, the chord cycles the terminals with a bound
-agent session (3.4) instead, in reading order within each tab (collapsed cards last) and tab
-order across tabs, with the same after-the-focused-one rule. With no agent terminals either, it
-shows a toast, "Nothing needs you, and no agent sessions are open".
+**Next thing that needs you.** `nextAttention` (Ctrl+Shift+N) walks the Needs you list (4.28) in
+its order: every `waiting` terminal, oldest `statusChangedAt` first, then the Broken rows (a
+`failed` terminal, a failed branch, a pull request failing or with changes requested), then the Ready
+rows (a `done` terminal, an approved pull request, a review request, the sign-in row), oldest first
+within each group. Terminals that rang the bell without a status are not included; their pulse stays
+the cue. With `needsYou.walkAll` (section 8, default on) the walk visits every row; off, it visits only
+the terminals. Rows the user has hidden (4.28) are skipped. The jump goes to the row after the current
+position, wrapping, or to the first row when there is none. The position is the focused terminal's row,
+or, after a walk landed on a Ship or sign-in row, that row for as long as focus has not moved by other
+means, since opening a Ship pane would otherwise lose the place. `waiting` does not clear on focus, so
+repeated presses walk the whole list; `done` and `failed` clear on focus, so they drop out as they are
+visited, and a walk whose row left the list resumes at the row now in its place.
+
+A terminal row switches to the pane's tab if needed and focuses it; a collapsed terminal expands as
+clicking its card does (4.3), and a zoomed pane (4.2) in the target tab unzooms first. A Ship row
+opens the repo in a Ship pane and the sign-in row opens the Accounts tab, as clicking them does
+(4.28). When the walk is empty, the chord cycles the terminals with a bound agent session (3.4)
+instead, in reading order within each tab (collapsed cards last) and tab order across tabs, with the
+same after-the-focused-one rule. With no agent terminals either, it shows a toast, "Nothing needs
+you, and no agent sessions are open".
 
 ## 4.23 Agent glow and border lights (`src/paneLights.ts`)
 

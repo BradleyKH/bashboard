@@ -15,9 +15,17 @@ export interface OverviewRow {
   health: HealthBranch[];
 }
 
+/** `since` is epoch ms: when a red branch's run failed, or when a pull request last changed. */
 export type DashboardItem =
-  | { kind: 'branch'; target: string; repo: string; tab: ShipTab; branch: string; run: Run }
-  | { kind: 'review' | 'mine' | 'approved'; target: string; repo: string; tab: ShipTab; pull: PullRequest };
+  | { kind: 'branch'; target: string; repo: string; tab: ShipTab; branch: string; run: Run; since: number }
+  | {
+      kind: 'review' | 'mine' | 'approved';
+      target: string;
+      repo: string;
+      tab: ShipTab;
+      pull: PullRequest;
+      since: number;
+    };
 
 export const FAST_POLL_MS = 60_000;
 
@@ -88,6 +96,17 @@ export function attentionRank(o: OverviewRepo, health: readonly HealthBranch[]):
   return 5;
 }
 
+/** Epoch ms of a forge timestamp; 0 when it is missing or unparseable, so the item sorts as oldest. */
+function timeMs(t: string | null | undefined): number {
+  const ms = t ? Date.parse(t) : NaN;
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/** When a red run went red: its finish, else its start, else its creation. */
+function runSince(run: Run): number {
+  return timeMs(run.finishedAt ?? run.startedAt ?? run.createdAt);
+}
+
 function activityMs(o: OverviewRepo): number {
   const times = [...o.runs.map((r) => r.createdAt), ...o.pulls.items.map((p) => p.updatedAt)]
     .map((t) => Date.parse(t))
@@ -118,13 +137,16 @@ export function dashboardItems(rows: readonly OverviewRow[]): DashboardItem[] {
     const target = targetKey(pin);
     const repo = pin.repo;
     for (const h of health) {
-      if (isRedBranch(h)) items.push({ kind: 'branch', target, repo, tab: 'pipelines', branch: h.branch, run: h.run });
+      if (isRedBranch(h)) {
+        items.push({ kind: 'branch', target, repo, tab: 'pipelines', branch: h.branch, run: h.run, since: runSince(h.run) });
+      }
     }
     for (const pull of openPulls(overview)) {
+      const since = timeMs(pull.updatedAt);
       // A request for the viewer's review wins over ownership, as in the Pull requests tab's groups.
-      if (needsReview(pull)) items.push({ kind: 'review', target, repo, tab: 'pulls', pull });
-      else if (mineNeedsWork(pull)) items.push({ kind: 'mine', target, repo, tab: 'pulls', pull });
-      else if (isReadyToMerge(pull)) items.push({ kind: 'approved', target, repo, tab: 'pulls', pull });
+      if (needsReview(pull)) items.push({ kind: 'review', target, repo, tab: 'pulls', pull, since });
+      else if (mineNeedsWork(pull)) items.push({ kind: 'mine', target, repo, tab: 'pulls', pull, since });
+      else if (isReadyToMerge(pull)) items.push({ kind: 'approved', target, repo, tab: 'pulls', pull, since });
     }
   }
   return items;

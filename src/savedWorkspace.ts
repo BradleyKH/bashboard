@@ -144,6 +144,8 @@ export interface SavedWorkspace {
   agentPanesOnly?: boolean;
   /** Whether the dashboard's Containers section hides fully stopped groups; absent means shown. */
   hideStoppedContainers?: boolean;
+  /** Needs you rows the user hid until their state changes (hide keys); absent means none. */
+  needsYouHides?: string[];
   /** Whether the dashboard's Pins section leaves out global pins, which the top bar's pin menu then lists; absent means shown. */
   hideGlobalPins?: boolean;
   /** Whether hiding the dashboard with × has shown its notice; absent means not yet. */
@@ -417,6 +419,10 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (raw.agentPanesOnly === true) saved.agentPanesOnly = true;
   if (raw.hideStoppedContainers === true) saved.hideStoppedContainers = true;
   if (raw.hideGlobalPins === true) saved.hideGlobalPins = true;
+  if (Array.isArray(raw.needsYouHides)) {
+    const hides = raw.needsYouHides.filter((k): k is string => typeof k === 'string');
+    if (hides.length > 0) saved.needsYouHides = hides;
+  }
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;

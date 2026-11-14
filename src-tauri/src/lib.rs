@@ -58,6 +58,7 @@ mod toast;
 #[cfg(target_os = "macos")]
 mod toast_mac;
 mod transcript;
+mod usage;
 mod workspace;
 mod worktree_new;
 mod worktree_route;
@@ -193,6 +194,7 @@ pub fn run() {
         .manage(system::SystemState::default())
         .manage(ports::PortsState::default())
         .manage(transcript::Transcripts::default())
+        .manage(usage::Usage::default())
         .manage(forge::ForgeState::default())
         .manage(browser::BrowserState::default())
         .manage(browser_files::FileServerState::default())
@@ -347,6 +349,7 @@ pub fn run() {
             ports::ports_stop,
             transcript::agent_context,
             transcript::agent_context_stop,
+            usage::usage_snapshot,
             forge::forge_repo,
             forge::forge_runs,
             forge::forge_jobs,

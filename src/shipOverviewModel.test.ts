@@ -231,10 +231,11 @@ describe('dashboardItems', () => {
       buildRow(pin('bitbucket.org/ws/app'), overview()),
     ];
     const base = { target: 'C:/src/api', repo: 'github.com/acme/api' };
+    const T = Date.parse('2026-11-01T00:00:00Z');
     expect(dashboardItems(rows)).toEqual([
-      { kind: 'branch', ...base, tab: 'pipelines', branch: 'uat', run: redRun },
-      { kind: 'review', ...base, tab: 'pulls', pull: review },
-      { kind: 'mine', ...base, tab: 'pulls', pull: mine },
+      { kind: 'branch', ...base, tab: 'pipelines', branch: 'uat', run: redRun, since: T },
+      { kind: 'review', ...base, tab: 'pulls', pull: review, since: T },
+      { kind: 'mine', ...base, tab: 'pulls', pull: mine, since: T },
     ]);
   });
 
@@ -247,6 +248,30 @@ describe('dashboardItems', () => {
       ['approved', approved],
       ['mine', failing],
     ]);
+  });
+
+  it('stamps a red branch with its run finish, else its start, else its creation', () => {
+    const finished = run('main', 'failure');
+    finished.createdAt = '2026-11-01T00:00:00Z';
+    finished.startedAt = '2026-11-01T00:10:00Z';
+    finished.finishedAt = '2026-11-01T00:20:00Z';
+    const started = { ...finished, finishedAt: null };
+    const created = { ...finished, startedAt: null, finishedAt: null };
+    const rows = [buildRow(pin('github.com/acme/api'), overview({ runs: [finished, started, created] }))];
+    expect(dashboardItems(rows).map((i) => i.since)).toEqual([
+      Date.parse('2026-11-01T00:20:00Z'),
+    ]);
+    const onlyStarted = [buildRow(pin('x'), overview({ runs: [started] }))];
+    expect(dashboardItems(onlyStarted)[0].since).toBe(Date.parse('2026-11-01T00:10:00Z'));
+    const onlyCreated = [buildRow(pin('x'), overview({ runs: [created] }))];
+    expect(dashboardItems(onlyCreated)[0].since).toBe(Date.parse('2026-11-01T00:00:00Z'));
+  });
+
+  it("stamps a pull request item with its updatedAt, and 0 for an unparseable one", () => {
+    const updated = pull({ reviewRequested: true, updatedAt: '2026-11-04T09:30:00Z' });
+    const garbled = pull({ isMine: true, reviewDecision: 'changesRequested', updatedAt: 'not a date' });
+    const rows = [buildRow(pin('github.com/acme/api'), overview({ pulls: [updated, garbled] }))];
+    expect(dashboardItems(rows).map((i) => i.since)).toEqual([Date.parse('2026-11-04T09:30:00Z'), 0]);
   });
 
   it('uses the remote key for a pin without a clone and omits healthy or merely running repos', () => {

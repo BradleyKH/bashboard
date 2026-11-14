@@ -32,14 +32,14 @@ const TOUR: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Dashboard',
     paragraphs: [
-      '{toggleDashboard} shows or hides the dashboard. It lists every pane with its status, plus your favorite folders, layouts, the focused repo\'s pins, containers, and listening ports. Right-click an empty spot or a section header to choose which sections it shows. {focusDashboard} moves focus into it, where the arrow keys move between rows.',
+      '{toggleDashboard} shows or hides the dashboard. It lists every pane with its status, plus what needs you (waiting and failed terminals, pull requests to review or fix, failed builds), your favorite folders, layouts, the focused repo\'s pins, containers, listening ports, and Ship. Right-click an empty spot or a section header to choose which sections it shows. {focusDashboard} moves focus into it, where the arrow keys move between rows.',
       'Favorites ({openFavorite}) open a folder as a split; layouts ({openLayout}) restore a saved arrangement of panes.',
     ],
   },
   {
     title: 'Attention',
     paragraphs: [
-      'A terminal that is waiting for you, or whose agent session finished, pulses or shows a green check mark on its pane, card, and tab. {nextAttention} jumps to the next one that needs you, across all tabs.',
+      'A terminal that is waiting for you, or whose agent session finished, pulses or shows a green check mark on its pane, card, and tab. {nextAttention} jumps to the next thing that needs you, across all tabs.',
     ],
   },
   {

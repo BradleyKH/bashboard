@@ -666,6 +666,16 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace(v3([]))?.hideStoppedContainers).toBeUndefined();
   });
 
+  it('round-trips the Needs you hides and drops non-strings', () => {
+    const keys = ['pull|a/b#1|review|2026-01-01', 'usage|claude|5-hour|1999'];
+    const saved = parseSavedWorkspace(JSON.parse(JSON.stringify({ ...v3([]), needsYouHides: keys })));
+    expect(saved?.needsYouHides).toEqual(keys);
+    expect(parseSavedWorkspace({ ...v3([]), needsYouHides: ['a', 7, null] })?.needsYouHides).toEqual(['a']);
+    expect(parseSavedWorkspace({ ...v3([]), needsYouHides: [] })?.needsYouHides).toBeUndefined();
+    expect(parseSavedWorkspace({ ...v3([]), needsYouHides: 'a' })?.needsYouHides).toBeUndefined();
+    expect(parseSavedWorkspace(v3([]))?.needsYouHides).toBeUndefined();
+  });
+
   it('keeps only a true hideGlobalPins flag', () => {
     expect(parseSavedWorkspace({ ...v3([]), hideGlobalPins: true })?.hideGlobalPins).toBe(true);
     expect(parseSavedWorkspace({ ...v3([]), hideGlobalPins: false })?.hideGlobalPins).toBeUndefined();
@@ -685,7 +695,7 @@ describe('parseSavedWorkspace', () => {
   });
 
   it('keeps a saved element order and cleans it', () => {
-    const order = ['clock', 'launch', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'ship', 'branch', 'localModels'];
+    const order = ['clock', 'launch', 'needs', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'ship', 'branch', 'localModels'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);
     const messy = ['panes', 'bogus', 'panes', 7, 'favorites', 'layouts', 'containers', 'external', 'clock', 'folder', 'launch'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: messy })?.dashboardSectionOrder).toEqual([
@@ -702,6 +712,7 @@ describe('parseSavedWorkspace', () => {
       'wave',
       'clock',
       'launch',
+      'needs',
     ]);
   });
 
@@ -710,6 +721,7 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace(raw)?.dashboardSectionOrder).toEqual([
       'clock',
       'launch',
+      'needs',
       'favorites',
       'layouts',
       'panes',
@@ -729,6 +741,7 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: 'panes' })?.dashboardSectionOrder).toEqual([
       'clock',
       'launch',
+      'needs',
       'favorites',
       'layouts',
       'panes',
@@ -771,7 +784,7 @@ describe('parseSavedWorkspace', () => {
       dashboardTopElements: ['favorites', 'clock'],
     });
     expect(custom?.dashboardTopElements).toEqual(['favorites', 'clock', 'launch']);
-    expect(custom?.dashboardSectionOrder?.slice(0, 4)).toEqual(['favorites', 'clock', 'launch', 'panes']);
+    expect(custom?.dashboardSectionOrder?.slice(0, 4)).toEqual(['favorites', 'clock', 'launch', 'needs']);
     // Once Launch is placed anywhere, the file's placement stands.
     const moved = saved({
       dashboardSectionOrder: ['clock', 'panes', 'launch', 'favorites', 'layouts', 'containers', 'external', 'system'],

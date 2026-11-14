@@ -1,50 +1,30 @@
-import type { TerminalStatus } from './terminalStatus';
+// Ctrl+Shift+N's walk order over the Needs you list (docs/design/dashboard.md section 4.28). Pure.
 
-export interface AttentionEntry {
-  paneId: string;
-  tabId: string;
-  status: TerminalStatus;
-  /** `statusChangedAt` for `waiting`; the mark time for `done` and `failed`. */
-  changedAt: number;
-  /** True when an agent session (Claude Code, Codex, Copilot) is bound to the pane. */
-  agent: boolean;
+/** Where the walk stands: the stable key it is on, and that key's index when it was walked to. */
+export interface WalkPosition {
+  key: string;
+  index: number;
 }
 
 /**
- * Pane ids that need the user: every `waiting` entry, then every `done` or `failed` entry, each
- * group oldest first. Ties fall to the tab's position in `tabOrder`, then to input order.
+ * The index of the next row after `at` in `keys` (stable keys in walk order), wrapping; the first
+ * row when there is no position. A walked-to row often leaves the list on arrival (a done terminal
+ * clears once seen), so a position whose key is gone resumes at its old index, which now holds the
+ * row that followed it. Null when the list is empty.
  */
-export function attentionQueue(entries: AttentionEntry[], tabOrder: string[]): string[] {
-  const tabIndex = (tabId: string): number => {
-    const i = tabOrder.indexOf(tabId);
-    return i < 0 ? tabOrder.length : i;
-  };
-  const ranked = entries
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => entry.status === 'waiting' || entry.status === 'done' || entry.status === 'failed')
-    .map((item) => ({ ...item, group: item.entry.status === 'waiting' ? 0 : 1 }));
-  ranked.sort(
-    (a, b) =>
-      a.group - b.group ||
-      a.entry.changedAt - b.entry.changedAt ||
-      tabIndex(a.entry.tabId) - tabIndex(b.entry.tabId) ||
-      a.index - b.index,
-  );
-  return ranked.map(({ entry }) => entry.paneId);
+export function nextInWalk(keys: readonly string[], at: WalkPosition | null): number | null {
+  if (keys.length === 0) return null;
+  if (at === null) return 0;
+  const i = keys.indexOf(at.key);
+  if (i >= 0) return (i + 1) % keys.length;
+  return at.index >= 0 && at.index < keys.length ? at.index : 0;
 }
 
 /**
- * The pane after `focusedId` in the queue (wrapping), or the first when it is not queued. With
- * nothing queued it cycles the agent terminals instead, in input order, so the chord still walks
- * the AI sessions; null when there are none.
+ * The fallback with nothing in the walk: the agent terminal after `focusedId` in `ring` (reading
+ * order), wrapping, or the first when the focused pane is not one; null when there are none.
  */
-export function nextAttention(
-  entries: AttentionEntry[],
-  tabOrder: string[],
-  focusedId: string,
-): string | null {
-  const queue = attentionQueue(entries, tabOrder);
-  const ring = queue.length > 0 ? queue : entries.filter((entry) => entry.agent).map((entry) => entry.paneId);
+export function nextAgent(ring: readonly string[], focusedId: string): string | null {
   if (ring.length === 0) return null;
   const at = ring.indexOf(focusedId);
   return at < 0 ? ring[0] : ring[(at + 1) % ring.length];

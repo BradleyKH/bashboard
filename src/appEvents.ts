@@ -23,11 +23,22 @@ import { onSecondLaunch } from './secondLaunch';
 import { onHookEvent, onSessionsChanged } from './sessions';
 import { onSettingsChanged, type Settings } from './settings';
 import { shipOverviewStore } from './shipOverviewStore';
+import { needsYouStore } from './needsYouStore';
+import { hideIdentity, hideKey } from './needsYouModel';
 import { branchSizeStore } from './branchSizeStore';
+import { onUsageChanged, usageSnapshot } from './usageApi';
+import { toUsageWindows } from './usageModel';
 import { cloudContextStore } from './cloudContextStore';
 import type { Workspace } from './workspace';
 import { onWorktreeCreated } from './worktreeApi';
 import { onWorktreeCreatedEvent } from './worktreeNewFlow';
+
+/** Notification ids for Needs you rows; every other id is a pane id. */
+const NEEDS_PREFIX = 'needs:';
+/** How often a usage window past its reset time is dropped without a new report. */
+const USAGE_EXPIRY_MS = 60_000;
+/** Separates the group from the hide key in a Needs you stable key (see stableKey). */
+const FIELD_SEP = '\u001f';
 
 export interface AppEventsDeps {
   state: AppState;
@@ -45,11 +56,12 @@ export function listenAppEvents(deps: AppEventsDeps): void {
   cloudContextStore.applySettings(state.settings);
   cloudContextStore.subscribe(() => workspace.refreshStatuses());
   cloudContextStore.start();
-  // Listen only: AgentContexts owns the core's tracking flag, so with the Panes section hidden no
-  // model arrives and a Copilot pane saves without resumeModel.
+  // Listen only: AgentContexts owns the core's tracking flag, so with the Panes and Needs you
+  // sections both hidden no model arrives and a Copilot pane saves without resumeModel.
   onAgentContext((ctx) => workspace.setSessionModel(ctx.sessionId, ctx.model)).catch((e) =>
     console.warn('agent context updates unavailable:', e),
   );
+  listenUsage();
   onSessionsChanged((next) => {
     state.sessions = next;
     workspace.setSessions(next);
@@ -94,7 +106,21 @@ export function listenAppEvents(deps: AppEventsDeps): void {
   onSecondLaunch((folder) => {
     if (folder) workspace.newTab(folder);
   }).catch((e) => console.warn('second-launch handoff unavailable:', e));
-  onNotificationActivated((paneId) => workspace.revealPane(paneId)).catch((e) =>
+  onNotificationActivated((id) => {
+    if (id.startsWith(NEEDS_PREFIX)) {
+      // Match on identity, not the full stable key: by the time the notification is clicked the
+      // row may have moved group or gained a new state version, and it should still open.
+      const key = id.slice(NEEDS_PREFIX.length);
+      const wanted = hideIdentity(key.slice(key.indexOf(FIELD_SEP) + 1));
+      const item = needsYouStore.items().find((i) => {
+        const hk = hideKey(i);
+        return hk !== null && hideIdentity(hk) === wanted;
+      });
+      if (item) needsYouStore.activate(item);
+      return;
+    }
+    workspace.revealPane(id);
+  }).catch((e) =>
     console.warn('notification clicks unavailable:', e),
   );
   onPtyActivity((list) => workspace.setActivity(list)).catch((e) => console.warn('activity sweep unavailable:', e));
@@ -126,6 +152,24 @@ export function listenAppEvents(deps: AppEventsDeps): void {
     .catch((e) => console.warn('close handling unavailable:', e));
 }
 
+/**
+ * Usage windows feed the Needs you list (docs/design/sessions.md section 3.28). A report carries
+ * the whole snapshot, so one that lands before the startup snapshot resolves supersedes it.
+ */
+function listenUsage(): void {
+  let live = false;
+  onUsageChanged((windows) => {
+    live = true;
+    needsYouStore.setUsage(toUsageWindows(windows));
+  }).catch((e) => console.warn('usage updates unavailable:', e));
+  usageSnapshot()
+    .then((windows) => {
+      if (!live) needsYouStore.setUsage(toUsageWindows(windows));
+    })
+    .catch((e) => console.warn('usage snapshot unavailable:', e));
+  setInterval(() => needsYouStore.refresh(), USAGE_EXPIRY_MS);
+}
+
 export interface SettingsReloadDeps {
   state: AppState;
   workspace: Workspace;
@@ -152,6 +196,7 @@ export function listenSettingsChanges({
     applyBackdropSettings(p.settings);
     workspace.applySettings(p);
     shipOverviewStore.applySettings(p.settings);
+    needsYouStore.setUsagePercent(p.settings.needsYou.usagePercent);
     branchSizeStore.applySettings(p.settings);
     cloudContextStore.applySettings(p.settings);
     panel.applyDashboardSettings(p.settings.dashboard, p.settings.localModels.minContext);

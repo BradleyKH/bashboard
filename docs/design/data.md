@@ -160,6 +160,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   `true` reads as absent.
 - `hideStoppedContainers` (the Containers section's eye toggle, 4.6): false, so stopped groups
   show; anything but `true` reads as absent.
+- `needsYouHides` (hide keys of the Needs you rows the user hid until their state changes, 4.28): none.
+  Reading keeps the strings and drops anything else; an empty list reads as absent.
 - `hideGlobalPins` (the Pins heading's globe toggle, 4.6): false, so global pins list in the
   section; anything but `true` reads as absent.
 - `dashboardHideNoticeShown` (whether hiding the dashboard with × has shown its toast, 4.6):
@@ -274,7 +276,7 @@ the focused pane's folder.
   "scrollback": 10000,
   // A shell command that runs this many seconds and finishes unseen marks its terminal done or
   // failed; 0 turns it off (4.8). notifyWhenWaiting raises a system notification when a terminal
-  // starts waiting while the window is unfocused (4.7).
+  // starts waiting (4.7), or a Needs you row newly breaks (4.28), while the window is unfocused.
   "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true },
   // side is right or left; an unknown value falls back to right. sections shows or hides each
   // dashboard element (4.6). An older file's containers.enabled is still read when
@@ -287,6 +289,7 @@ the focused pane's folder.
     "side": "right",
     "sections": {
       "launch": true,
+      "needs": true,
       "favorites": false,
       "layouts": false,
       "panes": true,
@@ -303,6 +306,10 @@ the focused pane's folder.
     "clockStyle": "both",
     "portRows": 10
   },
+  // walkAll makes the next-attention walk visit Ship and usage rows of the Needs you list as well
+  // as terminals (4.28). usagePercent (1 to 100) is the percent of an agent's usage window at
+  // which it becomes a row; anything else falls back to 80.
+  "needsYou": { "walkAll": true, "usagePercent": 80 },
   // resumeSessions types each agent's resume command into restored terminals (4.9). An older
   // file's resumeClaude is still read when resumeSessions is absent.
   "restore": { "enabled": true, "resumeSessions": true, "scrollback": true },

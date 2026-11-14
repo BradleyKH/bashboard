@@ -57,6 +57,7 @@ describe('DEFAULT_ELEMENT_ORDER', () => {
     expect([...DEFAULT_ELEMENT_ORDER]).toEqual([
       'clock',
       'launch',
+      'needs',
       'favorites',
       'layouts',
       'panes',
@@ -93,6 +94,7 @@ describe('parseSectionOrder', () => {
       'wave',
       'clock',
       'launch',
+      'needs',
       'favorites',
       'layouts',
       'panes',
@@ -106,14 +108,15 @@ describe('parseSectionOrder', () => {
 
   it('reads Launch saved under its earlier names, folder and repo', () => {
     const saved = ['panes', 'folder', 'clock', 'favorites', 'layouts', 'containers', 'external', 'system'];
-    expect(parseSectionOrder(saved).slice(0, 3)).toEqual(['panes', 'launch', 'clock']);
-    expect(parseSectionOrder(['repo', 'folder', 'panes']).slice(0, 3)).toEqual(['clock', 'launch', 'favorites']);
+    expect(parseSectionOrder(saved).slice(0, 3)).toEqual(['panes', 'launch', 'needs']);
+    expect(parseSectionOrder(['repo', 'folder', 'panes']).slice(0, 3)).toEqual(['clock', 'launch', 'needs']);
   });
 
   it('keeps a saved custom order', () => {
     const custom: DashboardElement[] = [
       'clock',
       'launch',
+      'needs',
       'wave',
       'system',
       'external',
@@ -141,6 +144,7 @@ describe('parseSectionOrder', () => {
     expect(parseSectionOrder(['launch', 'layouts', 'favorites', ...rest])).toEqual([
       'clock',
       'launch',
+      'needs',
       'layouts',
       'favorites',
       ...rest,
@@ -151,6 +155,7 @@ describe('parseSectionOrder', () => {
     expect(parseSectionOrder(['external', 'layouts'])).toEqual([
       'clock',
       'launch',
+      'needs',
       'favorites',
       'external',
       'system',
@@ -182,7 +187,14 @@ describe('parseSectionOrder', () => {
       'wave',
       'clock',
       'launch',
+      'needs',
     ]);
+  });
+
+  it('places Needs you directly after Launch in an order saved before it existed', () => {
+    const old = def.filter((e) => e !== 'needs');
+    expect(parseSectionOrder(old)).toEqual(def);
+    expect(parseSectionOrder(['panes', 'launch', 'clock']).slice(0, 4)).toEqual(['panes', 'containers', 'ports', 'ship']);
   });
 
   it('puts Launch after the clock in an order saved before it existed', () => {

@@ -9,7 +9,8 @@
     "launch": "claude",
     "localModels": true,
     "resume": { "command": "claude --resume {id}", "modeArg": "--permission-mode {mode}", "modelArg": null },
-    "hookShell": { "windows": "cmd", "posix": "sh" }
+    "hookShell": { "windows": "cmd", "posix": "sh" },
+    "usage": "statusLine"
   },
   {
     "id": "codex",
@@ -21,7 +22,8 @@
     "launch": "codex",
     "localModels": true,
     "resume": { "command": "codex resume {id}", "modeArg": null, "modelArg": null },
-    "hookShell": { "windows": "cmd", "posix": "sh" }
+    "hookShell": { "windows": "cmd", "posix": "sh" },
+    "usage": "rollout"
   },
   {
     "id": "copilot",
@@ -33,6 +35,7 @@
     "launch": "copilot",
     "localModels": true,
     "resume": { "command": "copilot --resume {id}", "modeArg": null, "modelArg": "--model {model}" },
-    "hookShell": { "windows": "powershell", "posix": "sh" }
+    "hookShell": { "windows": "powershell", "posix": "sh" },
+    "usage": "none"
   }
 ]

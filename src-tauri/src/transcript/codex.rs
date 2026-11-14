@@ -42,6 +42,25 @@ pub fn newest_reading<'a>(lines: impl IntoIterator<Item = &'a str>) -> AgentRead
     out
 }
 
+/// The newest non-null `rate_limits` (a `RateLimitSnapshot`) across `token_count` lines. Most
+/// carry null, and an API-key login only ever does. Kept out of `AgentReading`, which is `Eq`.
+pub fn newest_rate_limits<'a>(lines: impl IntoIterator<Item = &'a str>) -> Option<Value> {
+    let mut out = None;
+    for line in lines {
+        let Ok(mut v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if v["type"].as_str() != Some("event_msg") || v["payload"]["type"].as_str() != Some("token_count") {
+            continue;
+        }
+        let limits = v["payload"]["rate_limits"].take();
+        if limits.is_object() {
+            out = Some(limits);
+        }
+    }
+    out
+}
+
 /// The newest `sessions/YYYY/MM/DD/rollout-*-<id>.jsonl`. Day folders are searched newest first;
 /// compressed `.jsonl.zst` rollouts are never a live session's file and are skipped.
 pub fn find_rollout(sessions_dir: &Path, id: &str) -> Option<PathBuf> {
@@ -130,6 +149,24 @@ mod tests {
         let r = newest_reading([l]);
         assert_eq!(r.context_tokens, Some(5));
         assert_eq!(r.context_window, None);
+    }
+
+    #[test]
+    fn newest_non_null_rate_limits_win() {
+        let limits = |used: f64| {
+            format!(
+                r#"{{"type":"event_msg","payload":{{"type":"token_count","info":null,"rate_limits":{{"primary":{{"used_percent":{used},"window_minutes":300,"resets_at":9}},"secondary":null}}}}}}"#
+            )
+        };
+        let (a, b) = (limits(10.0), limits(20.0));
+        let r = newest_rate_limits([a.as_str(), b.as_str(), COUNT, TURN, "not json"]).unwrap();
+        assert_eq!(r["primary"]["used_percent"], 20.0);
+        assert_eq!(newest_rate_limits([COUNT, TURN]), None);
+        let no_field = r#"{"type":"event_msg","payload":{"type":"token_count"}}"#;
+        assert_eq!(newest_rate_limits([no_field]), None);
+        // Another event's rate_limits is not a token_count's.
+        let other = a.replace("token_count", "agent_message");
+        assert_eq!(newest_rate_limits([other.as_str()]), None);
     }
 
     #[test]

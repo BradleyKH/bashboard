@@ -482,8 +482,8 @@ The Overview shows when it was last updated and has an **Add** button (see Pinni
 Accounts tab, and a **Refresh** button. It refreshes by
 itself every 5 minutes (`ship.overviewRefreshMinutes`; 0 turns this off),
 every minute while a health branch is running, and when you focus the pane after more than 30
-seconds away. It polls only while the Overview or the dashboard's Ship section is on screen and
-the window is visible. Bitbucket allows 1,000 requests an hour per user and a refresh costs about
+seconds away. It polls only while the Overview or the dashboard's Ship section is on screen, or
+the Needs you list is turned on, and the window is visible. Bitbucket allows 1,000 requests an hour per user and a refresh costs about
 3 per repo, so with more than three Bitbucket repos pinned they refresh less often (every 3 minutes
 for ten, even while running), and the bar shows the pace, such as "Bitbucket every 3 min".
 
@@ -499,18 +499,17 @@ pane supports are offered as one-click pins, and pinning one records the folder 
 clone. Pins are saved as `ship.pinnedRepos` in `settings.json`, where you can also list extra
 `branches` for the health row (see [Settings](settings.md#settings)).
 
-**Dashboard.** The dashboard's Ship section, after Ports, first lists what needs you across the
-pinned repos: a health branch that failed, your own pull request with changes requested or
-failing checks, your own pull request that is approved and ready to merge ("#12 approved by Andrew
-Cartwright"), and up to 5 pull requests awaiting your review. Below them, one line shows the
-pipelines running (the run itself when there is just one, else a count), and another counts the
-open pull requests that aren't drafts, adding how many await your review when that passes 5. With
-no repo pinned yet, it shows a Pin repos row that opens the Overview, and when a pinned repo needs
-a sign-in, a row leading the section opens the Accounts tab for it. The setup wizard's Favorites
+**Dashboard.** The dashboard's Ship section, after Ports, has one line for the pipelines running (the
+run itself when there is just one, else a count) and another counting the open pull requests that
+aren't drafts. What the pinned repos need from you (a health branch that failed, your own pull
+request with changes requested or failing checks, your own pull request that is approved and ready
+to merge, pull requests awaiting your review, and a pinned repo that needs a sign-in) is in the
+[Needs you](#dashboard) list instead. With no repo pinned yet, the Ship section shows a Pin repos
+row that opens the Overview. The setup wizard's Favorites
 step can pin repos too: tick "Also pin them to the Ship Overview" before adding, an option shown
-when some listed repo is on a host the Ship pane supports. Click a row to open that
-repo's Pipelines (for a branch or a run) or Pull requests (for a pull request), or the Overview
-for a count across repos; the button in the section's header opens the Overview. Turn the
+when some listed repo is on a host the Ship pane supports. Click a line to open that
+repo's Pipelines (when the line is about one repo) or the Overview (for a count across repos); the
+button in the section's header opens the Overview. Turn the
 section off with `dashboard.sections.ship`.
 
 ### A repo's view
@@ -714,6 +713,34 @@ Containers, **r** Ports, **b** Local Browser, **p** Scratch), or use the arrows 
 move. Containers appears once Docker or Podman is installed. While Launch is turned
 off, a **+** button at the far left of the top bar drops this menu. Ctrl+Shift+X (the `openEditor`
 action) opens the focused pane's repo in your editor directly, or its folder outside a repo.
+
+**Needs you** sits just under Launch and holds everything you should act on, so you don't scan the
+other sections for it. It has no headings, but it keeps three groups in order, oldest first within
+each. First come terminals waiting for you. Then what is broken: a terminal whose session failed, a
+health branch that failed, and your own pull request with changes requested or failing checks.
+Last come what is ready for you: a terminal that finished, your own pull request that is approved
+and ready to merge, pull requests awaiting your review, and a row asking you to sign in when a
+pinned repo's host needs an account. The branch, pull request, and sign-in rows come from the repos
+pinned to the Ship Overview (see [Ship pane](#ship-pane)). Usage limits join the list too: once an
+agent's 5-hour or weekly limit passes 80% (change it with `needsYou.usagePercent`), a row such as
+"Claude Code, 5-hour limit 84%" appears with a ring meter, under ready, and moves under broken as
+"5-hour limit reached" at 100%; it leaves when the limit resets. Claude Code's numbers need the
+status line wrapper its hook install adds, and Codex's come from its session file while the Panes
+section or this list is shown (see [Setup](setup.md#usage-limits-and-your-status-line)); Copilot
+reports none. A row shows a status icon, the pane's title or the repo's `owner/name`, a short
+phrase ("needs permission", "main failed", "#12 needs your review"), and how long ago it started,
+with more detail in its tooltip. Click a row to go to the thing: its terminal, the repo's Pipelines
+or Pull requests in a Ship pane, or the Accounts tab (a usage row has nowhere to go). The list shows 6 rows and then "+ N more", which expands it ("Show fewer" collapses it), and
+reads "Nothing needs you" when there is nothing to act on.
+
+Right-click a Ship, usage, or sign-in row and choose **Hide until it changes** to put it away until
+something about it changes, such as a new failed run, a push to the pull request, or a limit
+resetting; hidden rows stay hidden after a restart. A terminal's row clears by itself when its
+agent moves on. When a branch or pull request newly fails or gets changes requested, or a limit
+reaches 100%, a toast appears while Bashboard has focus, and a system notification while it doesn't (the same **Notify when something needs you**
+setting as for waiting terminals); rows already there at startup never toast. Ctrl+Shift+N walks
+this same order (see [Attention and status](#attention-and-status)). Turn the list off with
+`dashboard.sections.needs`.
 
 **Pins**, the repo's pinned files and folders (see [Pins](#pins)), stay put just below the top
 slot so the sections don't jump as pins come and go. The heading names the folder too, if it
@@ -1066,8 +1093,9 @@ When a terminal starts waiting or rings the bell, its pane border (or its card, 
 pulses until you look at it, and the taskbar button flashes if the window is unfocused. A
 terminal you are already looking at (the focused pane in a focused window) is not marked.
 While Bashboard is in the background, a terminal that starts waiting also shows a system
-notification; click it to jump to that pane. Turn **Notify when a terminal needs you** off in
-Settings (`terminal.notifyWhenWaiting`) to stop them. On macOS, the first notification asks for
+notification; click it to jump to that pane. The same setting covers the notification for a
+branch or pull request that newly needs you (see [Dashboard](#dashboard)). Turn **Notify when
+something needs you** off in Settings (`terminal.notifyWhenWaiting`) to stop them. On macOS, the first notification asks for
 permission; if you deny it, change that in System Settings, Notifications, Bashboard.
 
 A waiting terminal's dashboard card glows faintly in the accent color for as long as it waits,
@@ -1085,10 +1113,14 @@ Windows the reply does not reach the program, so status comes from hooks. The da
 (model, context, and resume) still need hooks. A bound session's hooks take precedence, unless
 they have been silent for over 2 minutes while the program reports it is working or waiting.
 
-Ctrl+Shift+N jumps to the next terminal that needs you, across all tabs: waiting ones first,
-oldest first, then done and failed ones. It switches to the pane's tab, expands a collapsed card,
-and ends a zoom in the way. Repeated presses walk the list. When nothing needs you, it cycles
-through the terminals running an agent session (Claude Code, Codex, or Copilot) instead.
+Ctrl+Shift+N jumps to the next thing that needs you, across all tabs, in the order of the
+dashboard's Needs you list: waiting terminals first, oldest first, then failed terminals and
+broken branches and pull requests, then finished terminals, approved pull requests, review
+requests, and a sign-in. It switches to a terminal's tab, expands a collapsed card, and ends a zoom
+in the way; for a branch or pull request it opens the repo in a Ship pane, and for a sign-in the
+Accounts tab. Rows you hid are skipped. Repeated presses walk the list. Set `needsYou.walkAll` to
+`false` to visit only terminals. When nothing needs you, it cycles through the terminals running an
+agent session (Claude Code, Codex, or Copilot) instead.
 
 When an agent session's turn ends, its `Stop` hook marks the terminal `done` unless you are
 looking at it. The status dot becomes a still green check mark on the terminal's title strip,
@@ -1372,5 +1404,5 @@ The splits and pane keys follow iTerm2.
 | Open a link, toggle a Files row | Ctrl+click | Cmd+click |
 
 Every other Ctrl+Shift key in this guide is Cmd+Shift on macOS: Cmd+Shift+P for the palette,
-Cmd+Shift+N for the next terminal that needs you, Cmd+Shift+E, G, H, and X for Files, Git,
+Cmd+Shift+N for the next thing that needs you, Cmd+Shift+E, G, H, and X for Files, Git,
 Search, and the editor, and so on. Cmd+Q quits, saving the workspace first.

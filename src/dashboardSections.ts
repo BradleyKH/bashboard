@@ -8,6 +8,7 @@
 export const DEFAULT_ELEMENT_ORDER = [
   'clock',
   'launch',
+  'needs',
   'favorites',
   'layouts',
   'panes',
@@ -39,6 +40,7 @@ const SECTIONS: readonly DashboardSection[] = [
 /** Whether each element is shown when the user has not said otherwise. */
 export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
   launch: true,
+  needs: true,
   favorites: false,
   layouts: false,
   panes: true,
@@ -56,6 +58,7 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
 /** Display names, shared by the settings dialog's checkboxes. */
 export const ELEMENT_LABELS: Record<DashboardElement, string> = {
   launch: 'Launch',
+  needs: 'Needs you',
   favorites: 'Favorites',
   layouts: 'Layouts',
   panes: 'Panes',

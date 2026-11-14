@@ -9,6 +9,14 @@ export type AgentId = 'claude' | 'codex' | 'copilot';
 
 export type Platform = 'windows' | 'posix';
 
+/**
+ * Where the agent's usage numbers come from: the statusLine the agent prints, the rollout
+ * file it writes, or nothing. Front-end only; the Rust core does not read it.
+ */
+export type AgentUsage = 'statusLine' | 'rollout' | 'none';
+
+export const AGENT_USAGE_SOURCES: readonly AgentUsage[] = ['statusLine', 'rollout', 'none'];
+
 /** One string for every platform, or a per-platform pair. */
 export type PlatformCommand = string | { windows: string; posix: string };
 
@@ -32,6 +40,7 @@ export interface AgentRow {
     modelArg: string | null;
   };
   hookShell: { windows: 'cmd' | 'powershell'; posix: string };
+  usage: AgentUsage;
 }
 
 const ROWS = table as AgentRow[];

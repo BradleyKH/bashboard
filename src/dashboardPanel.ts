@@ -40,6 +40,8 @@ import { PortsSection, type PortsSectionCallbacks } from './portsSection';
 import type { PortsStore } from './portsStore';
 import { ShipSection } from './shipSection';
 import { shipOverviewStore } from './shipOverviewStore';
+import { NeedsYouSection } from './needsYouSection';
+import { needsYouStore } from './needsYouStore';
 import type { ShipTab } from './shipModel';
 import { LocalModelsSection } from './localModelsSection';
 import { findLoadedOllama } from './localModelsModel';
@@ -82,8 +84,6 @@ export interface DashboardCallbacks
   onOpenShip?: (target: string | null, tab?: ShipTab) => void;
   /** The Branch section's header opens the Git tab for its worktree. */
   onOpenGit?: (root: string) => void;
-  /** The Ship section's sign-in row opens the Accounts tab on `host`. */
-  onOpenAccounts?: (host: string | null, opts?: { openTokenForm?: boolean; org?: string }) => void;
   /** A Panes card's menu collapses or expands its pane. */
   onToggleCollapse?: (paneId: string) => void;
   onCardDragStart?: (paneId: string, e: PointerEvent) => void;
@@ -137,6 +137,8 @@ export interface DashboardCallbacks
 }
 
 const AGE_REFRESH_MS = 15_000;
+/** Needs you ages read in minutes, so its rows are rebuilt on the age timer no more often than this. */
+const NEEDS_AGE_MS = 60_000;
 
 /** `getKeys` is read on hover, so the tooltip shows a rebinding without a reload. */
 function topButton(
@@ -217,6 +219,8 @@ export class DashboardPanel {
   private unsubscribeContainers: (() => void) | null = null;
   private readonly portsSection: PortsSection;
   private readonly shipSection: ShipSection;
+  private readonly needsSection: NeedsYouSection;
+  private needsRenderedAt = 0;
   private readonly branchSection: BranchSection;
   private readonly branchController: BranchSectionController;
   /** The terminal folders last handed to the branch size store, so an unchanged list is not resent. */
@@ -354,6 +358,11 @@ export class DashboardPanel {
     });
     root.append(resizeHandle, top, this.columns.el);
     this.addElement('launch', this.launchSection.el, this.launchSection.head);
+    this.needsSection = new NeedsYouSection({
+      onActivate: (item) => needsYouStore.activate(item),
+      onHide: (item) => needsYouStore.hide(item),
+    });
+    this.addSection('needs', this.needsSection.el, this.needsSection.head);
     this.register('pins', this.pinsSection.el, this.pinsSection.head);
     this.addSection('favorites', this.favoritesSection.el, this.favoritesSection.head);
     this.addSection('layouts', this.layoutsSection.el, this.layoutsSection.head);
@@ -381,7 +390,6 @@ export class DashboardPanel {
     this.addSection('ports', this.portsSection.el, this.portsSection.head);
     this.shipSection = new ShipSection({
       onOpenShip: (target, tab) => this.callbacks.onOpenShip?.(target, tab),
-      onOpenAccounts: (host, opts) => this.callbacks.onOpenAccounts?.(host, opts),
     });
     this.addSection('ship', this.shipSection.el, this.shipSection.head);
     this.branchSection = new BranchSection({
@@ -407,7 +415,9 @@ export class DashboardPanel {
       onKey: (e) => this.callbacks.onKey?.(e) ?? false,
     });
     this.layoutElements();
+    this.renderNeeds();
     shipOverviewStore.subscribe(() => this.renderShip());
+    needsYouStore.subscribe(() => this.renderNeeds());
     branchSizeStore.subscribe(() => {
       if ((this.open || this.peeking) && this.cardBadgesKey !== this.badgesKey()) this.render();
     });
@@ -492,6 +502,13 @@ export class DashboardPanel {
     if (!store) return;
     const focus = this.nav.capture();
     this.portsSection.update(store.current(), store.ready);
+    this.nav.restore(focus);
+  }
+
+  private renderNeeds(): void {
+    const focus = this.nav.capture();
+    this.needsRenderedAt = Date.now();
+    this.needsSection.update(needsYouStore.items(), this.needsRenderedAt);
     this.nav.restore(focus);
   }
 
@@ -583,6 +600,9 @@ export class DashboardPanel {
       'dashboard',
       this.shown.ports && !this.collapsed.includes('ports') && onScreen && this.windowShown,
     );
+    // Needs you feeds the walk and the toasts too, so Ship polls for it with the dashboard closed or
+    // Ship hidden.
+    shipOverviewStore.setWanted('needs', this.shown.needs && this.windowShown);
     shipOverviewStore.setWanted(
       'dashboard',
       this.shown.ship && !this.collapsed.includes('ship') && onScreen && this.windowShown,
@@ -601,7 +621,8 @@ export class DashboardPanel {
       onScreen,
       windowShown: this.windowShown,
     });
-    this.agentContexts.setEnabled(this.shown.panes);
+    // Codex limits ride the transcript worker, so the Needs you list keeps it running too.
+    this.agentContexts.setEnabled(this.shown.panes || this.shown.needs);
   }
 
   private layoutElements(): void {
@@ -954,6 +975,8 @@ export class DashboardPanel {
     const focus = this.nav.capture();
     this.renderSections();
     this.nav.restore(focus);
+    // The store pushes every change; this only keeps ages current on the open panel's timer.
+    if (Date.now() - this.needsRenderedAt >= NEEDS_AGE_MS) this.renderNeeds();
   }
 
   private renderSections(): void {

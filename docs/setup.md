@@ -188,6 +188,40 @@ To add them by hand, copy `bb.exe` from the install folder to
 { "hooks": [ { "type": "command", "command": "~/.claude/hooks/bashboard-hook.exe hook claude", "timeout": 5 } ] }
 ```
 
+### Usage limits and your status line
+
+The Claude Code install also changes the `statusLine` setting in `~/.claude/settings.json`, so
+Bashboard can show your subscription's 5-hour and weekly limits in the dashboard's Needs you list
+(see the [user guide](user-guide.md#dashboard)). Claude Code hands its status line command a JSON
+document on every update, and the usage numbers are in it. Claude Code runs only one status line
+command, so the install wraps yours instead of adding a second. If you have a status line command,
+say `bash ~/.claude/statusline.sh`, it becomes
+
+```json
+"statusLine": { "type": "command", "command": "~/.claude/hooks/bashboard-hook.exe statusline claude 'bash ~/.claude/statusline.sh'" }
+```
+
+Your command still runs with the same input, and its output and exit code pass through, so your
+status line looks the same. The hook program reads the numbers on the way past and sends them to
+Bashboard only when it runs inside a Bashboard pane; elsewhere it just runs your command. If you
+have no status line, the install adds the wrapper alone, which prints nothing, so your status
+line stays empty. The preview lists the change under `statusLine`. Other fields in the setting,
+such as `padding`, are left as they are; a status line of a type other than `command` is not
+touched, and neither is a `statusLine` command that mentions `bashboard-hook` in a form the
+install does not recognize. Installing again rewrites the program's path if it has moved and
+keeps your command. Claude Code includes limits in its input only for a subscription login, and
+only once a response has carried them, so an API key shows no usage.
+
+Bashboard has no uninstall, so to put your status line back, edit `~/.claude/settings.json` by
+hand. Take the text inside the single quotes after `statusline claude`, turn each `'\''` in it
+back into `'`, and make that the `command`. For the example above, the original is
+`bash ~/.claude/statusline.sh`. When the wrapper has no quoted command, delete the `statusLine`
+setting.
+
+Codex needs no change: Bashboard reads its limits from the session file Codex writes, while the
+Panes section or the Needs you list is shown. Codex reports limits only for a subscription login;
+an API key reports none. Copilot reports no usage limits.
+
 ## Telling an agent about `bb`
 
 An agent running in a pane can use the [pane CLI](user-guide.md#pane-cli) as any shell can, but

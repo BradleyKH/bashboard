@@ -1,77 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import { attentionQueue, nextAttention, type AttentionEntry } from './attentionQueue';
+import { nextAgent, nextInWalk } from './attentionQueue';
 
-const e = (
-  paneId: string,
-  status: AttentionEntry['status'],
-  changedAt: number,
-  tabId = 't1',
-  agent = false,
-): AttentionEntry => ({ paneId, tabId, status, changedAt, agent });
+describe('nextInWalk', () => {
+  const keys = ['a', 'b', 'c'];
 
-describe('attentionQueue', () => {
-  it('puts waiting first, oldest first, then done and failed interleaved by time', () => {
-    const entries = [
-      e('d1', 'done', 5),
-      e('w2', 'waiting', 20),
-      e('f1', 'failed', 3),
-      e('i', 'idle', 1),
-      e('w1', 'waiting', 10),
-      e('k', 'working', 2),
-      e('d2', 'done', 4),
-    ];
-    expect(attentionQueue(entries, ['t1'])).toEqual(['w1', 'w2', 'f1', 'd2', 'd1']);
+  it('starts at the first row with no position', () => {
+    expect(nextInWalk(keys, null)).toBe(0);
   });
 
-  it('breaks ties by tab order, then input order', () => {
-    const entries = [
-      e('b', 'waiting', 1, 't2'),
-      e('a', 'waiting', 1, 't1'),
-      e('c', 'waiting', 1, 't1'),
-    ];
-    expect(attentionQueue(entries, ['t1', 't2'])).toEqual(['a', 'c', 'b']);
-    expect(attentionQueue(entries, ['t2', 't1'])).toEqual(['b', 'a', 'c']);
+  it('moves past the current row and wraps at the end', () => {
+    expect(nextInWalk(keys, { key: 'a', index: 0 })).toBe(1);
+    expect(nextInWalk(keys, { key: 'b', index: 1 })).toBe(2);
+    expect(nextInWalk(keys, { key: 'c', index: 2 })).toBe(0);
   });
 
-  it('is empty when nothing needs attention', () => {
-    expect(attentionQueue([e('a', 'idle', 1), e('b', 'working', 2)], ['t1'])).toEqual([]);
+  it('follows the key when the list reorders around it', () => {
+    expect(nextInWalk(['c', 'a', 'b'], { key: 'a', index: 0 })).toBe(2);
+  });
+
+  it('resumes at the old index when the walked row left the list', () => {
+    // 'b' was at 1 and cleared on arrival; 'c' slid into its place and is next.
+    expect(nextInWalk(['a', 'c'], { key: 'b', index: 1 })).toBe(1);
+  });
+
+  it('wraps to the first row when the vanished row was last', () => {
+    expect(nextInWalk(['a', 'b'], { key: 'c', index: 2 })).toBe(0);
+  });
+
+  it('starts at the first row for a focused pane not in the list', () => {
+    expect(nextInWalk(keys, { key: 'zzz', index: 0 })).toBe(0);
+  });
+
+  it('returns the only row for a list of one', () => {
+    expect(nextInWalk(['a'], { key: 'a', index: 0 })).toBe(0);
+  });
+
+  it('returns null for an empty list', () => {
+    expect(nextInWalk([], null)).toBeNull();
+    expect(nextInWalk([], { key: 'a', index: 0 })).toBeNull();
   });
 });
 
-describe('nextAttention', () => {
-  const entries = [e('a', 'waiting', 1), e('b', 'waiting', 2), e('c', 'done', 3)];
-
-  it('moves past the focused pane and wraps at the end', () => {
-    expect(nextAttention(entries, ['t1'], 'a')).toBe('b');
-    expect(nextAttention(entries, ['t1'], 'b')).toBe('c');
-    expect(nextAttention(entries, ['t1'], 'c')).toBe('a');
+describe('nextAgent', () => {
+  it('cycles the agent terminals in order and wraps', () => {
+    expect(nextAgent(['x', 'y'], 'x')).toBe('y');
+    expect(nextAgent(['x', 'y'], 'y')).toBe('x');
   });
 
-  it('returns the only entry for a queue of one', () => {
-    expect(nextAttention([e('a', 'waiting', 1)], ['t1'], 'a')).toBe('a');
+  it('starts at the first agent when the focused pane is not one', () => {
+    expect(nextAgent(['x', 'y'], 's')).toBe('x');
   });
 
-  it('returns the first entry when the focused pane is not queued', () => {
-    expect(nextAttention(entries, ['t1'], 'zzz')).toBe('a');
-  });
-
-  it('returns null for an empty queue', () => {
-    expect(nextAttention([], ['t1'], 'a')).toBeNull();
-  });
-
-  it('cycles the agent terminals in input order when nothing needs attention', () => {
-    const quiet = [e('x', 'idle', 1, 't1', true), e('s', 'idle', 2), e('y', 'working', 3, 't2', true)];
-    expect(nextAttention(quiet, ['t1', 't2'], 's')).toBe('x');
-    expect(nextAttention(quiet, ['t1', 't2'], 'x')).toBe('y');
-    expect(nextAttention(quiet, ['t1', 't2'], 'y')).toBe('x');
-  });
-
-  it('prefers the attention queue over agent cycling', () => {
-    const mixed = [e('x', 'idle', 1, 't1', true), e('w', 'waiting', 2)];
-    expect(nextAttention(mixed, ['t1'], 'x')).toBe('w');
-  });
-
-  it('returns null with nothing queued and no agent terminals', () => {
-    expect(nextAttention([e('s', 'idle', 1)], ['t1'], 's')).toBeNull();
+  it('returns null with no agent terminals', () => {
+    expect(nextAgent([], 's')).toBeNull();
   });
 });

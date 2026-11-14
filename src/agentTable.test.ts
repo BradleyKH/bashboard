@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import table from './agents.json';
 import {
   AGENT_IDS,
+  AGENT_USAGE_SOURCES,
   agentForStatusApp,
   agentName,
   isAgentId,
@@ -23,6 +24,13 @@ describe('agent table', () => {
       expect(row.launch).not.toBe('');
       expect(row.resume.command).not.toBe('');
     }
+  });
+
+  it('gives every row a known usage source', () => {
+    for (const row of table) {
+      expect(AGENT_USAGE_SOURCES).toContain(row.usage);
+    }
+    expect(table.map((r) => r.usage)).toEqual(['statusLine', 'rollout', 'none']);
   });
 
   it('names agents and flags previews', () => {

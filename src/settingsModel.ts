@@ -111,7 +111,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Terminal',
     fields: [
-      { path: ['terminal', 'notifyWhenWaiting'], label: 'Notify when a terminal needs you', kind: 'toggle', hint: 'Only while Bashboard is in the background', applies: 'live' },
+      { path: ['terminal', 'notifyWhenWaiting'], label: 'Notify when something needs you', kind: 'toggle', hint: 'Only while Bashboard is in the background', applies: 'live' },
       {
         path: ['shell', 'defaultProfile'],
         label: 'Default shell',
@@ -200,6 +200,20 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         group: 'Show on the dashboard',
         inline: true,
         shownWhen: { path: ['dashboard', 'sections', 'ports'], value: true },
+      },
+      { path: ['needsYou', 'walkAll'], label: 'Ctrl+Shift+N walks Ship and usage rows too', kind: 'toggle', applies: 'live' },
+      {
+        path: ['needsYou', 'usagePercent'],
+        label: 'Show a usage limit once it passes',
+        kind: 'number',
+        min: 1,
+        max: 100,
+        step: 1,
+        unit: '%',
+        integer: true,
+        applies: 'live',
+        inline: true,
+        shownWhen: { path: ['dashboard', 'sections', 'needs'], value: true },
       },
     ],
   },

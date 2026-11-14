@@ -266,14 +266,14 @@ the scrollback already saved, at the next close:
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `launch`, `panes`, `containers`, `ports`, `ship`, `localModels`, and `external` default to
+each dashboard element: `launch`, `needs`, `panes`, `containers`, `ports`, `ship`, `localModels`, and `external` default to
 `true`, and `favorites`, `layouts`, `branch`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
 the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
 drops the Launch menu. A settings file that still has `sections.folder` and no `sections.launch`
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Ship section lists what needs you across the repos pinned to the Ship Overview (a red health branch, your own pull request with changes requested or failing checks, or up to 5 pull requests awaiting your review), then the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Needs you section lists what you should act on: waiting, failed, and finished terminals, and across the repos pinned to the Ship Overview a red health branch, your own pull request with changes requested, failing checks, or approval, pull requests awaiting your review, and a sign-in when a pinned repo needs one. The Ship section shows the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -291,6 +291,7 @@ while the Ports section is on.
   "side": "right",
   "sections": {
     "launch": true,
+    "needs": true,
     "favorites": false,
     "layouts": false,
     "panes": true,
@@ -309,13 +310,27 @@ while the Ports section is on.
 }
 ```
 
+`needsYou.walkAll` (default `true`) makes the next-attention walk (Ctrl+Shift+N) visit the Needs you
+list's Ship and usage rows as well as terminals; `false` limits it to terminals. It applies on save
+and is the "Ctrl+Shift+N walks Ship and usage rows too" toggle in the Dashboard section of the
+Settings tab. `needsYou.usagePercent` (default 80, 1 to 100) is the percent of an agent's usage
+window at which it becomes a row in the list; a value out of range falls back to 80 with a notice. It
+applies on save and is the "Show a usage limit once it passes" field there.
+
+```jsonc
+"needsYou": { "walkAll": true, "usagePercent": 80 }
+```
+
 `terminal.doneAfterSeconds` (default 30) is the shortest shell command that marks its terminal
 `done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
 the `~/.bashrc` lines only.
 
 `terminal.notifyWhenWaiting` (default `true`) shows a system notification (Windows or macOS) when a
 terminal starts waiting while Bashboard is in the background; clicking it brings the window forward
-on that pane. On macOS, the first notification asks for permission.
+on that pane. It also sends one when a branch or pull request in the dashboard's Needs you list newly
+fails or gets changes requested while the window is in the background; clicking that opens its row.
+On macOS, the first notification asks for permission. It is the "Notify when something needs you"
+toggle in the Terminal section of the Settings tab.
 
 ```jsonc
 "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true }

@@ -6,7 +6,8 @@
 //! resolved command as `cli://command`, `POST /ci` for `bb ci` (docs/design/ship.md section
 //! 3.23), `POST /size` for `bb pr size` (docs/design/git.md section 3.25), and `POST /worktree`
 //! for `bb worktree new` (docs/design/git.md section 3.27), each of which it answers from a
-//! thread of its own. The overlay also keeps each session's
+//! thread of its own, and `POST /usage` for `bb statusline` (docs/design/sessions.md section
+//! 3.28). The overlay also keeps each session's
 //! `transcript_path`, which the transcript reader uses to find the session's JSONL file.
 
 use std::{
@@ -23,6 +24,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::lock::LockExt;
+use crate::usage::{self, UsageWindow};
 use crate::{agents::AgentId, ci, cli, pty::Ptys, roster, size_route, worktree_route};
 
 const MAX_BODY: usize = 64 * 1024;
@@ -166,6 +168,7 @@ pub fn init(app: &AppHandle) {
                     respond_json(req, code, &json);
                 });
             },
+            |windows| usage::report(&app, windows),
         )
     });
 }
@@ -186,8 +189,9 @@ fn header<'a>(headers: &'a [Header], name: &'static str) -> Option<&'a str> {
 
 /// Answers requests until the server shuts down, passing each accepted hook event to
 /// `on_event`, each accepted `/cli` command to `on_cli`, and each accepted `/ci`, `/size`, or
-/// `/worktree` request, unanswered, to `on_ci`, which must answer it off this thread. `pane_live` says whether a
-/// pty id belongs to a running pane. Nothing here waits on the front end or a forge.
+/// `/worktree` request, unanswered, to `on_ci`, which must answer it off this thread, and each
+/// accepted `/usage` report's windows to `on_usage`. `pane_live` says whether a pty id belongs to
+/// a running pane. Nothing here waits on the front end or a forge.
 fn serve(
     server: &Server,
     token: &str,
@@ -195,12 +199,13 @@ fn serve(
     pane_live: impl Fn(u32) -> bool,
     mut on_cli: impl FnMut(cli::CliCommand),
     mut on_ci: impl FnMut(Request, Vec<u8>),
+    mut on_usage: impl FnMut(Vec<UsageWindow>),
 ) {
     for req in server.incoming_requests() {
         // A request whose handling panics is dropped unanswered instead of ending this loop,
         // which would silence every later hook event and `bb` command.
         let _ = panic::catch_unwind(AssertUnwindSafe(|| {
-            answer(req, token, &mut on_event, &pane_live, &mut on_cli, &mut on_ci)
+            answer(req, token, &mut on_event, &pane_live, &mut on_cli, &mut on_ci, &mut on_usage)
         }));
     }
 }
@@ -232,6 +237,7 @@ fn answer(
     pane_live: &impl Fn(u32) -> bool,
     on_cli: &mut impl FnMut(cli::CliCommand),
     on_ci: &mut impl FnMut(Request, Vec<u8>),
+    on_usage: &mut impl FnMut(Vec<UsageWindow>),
 ) {
     let path = route(&req).to_string();
     let is_cli = path == "/cli";
@@ -265,6 +271,21 @@ fn answer(
             Ok(()) => on_ci(req, body),
             Err((code, msg)) => respond_json(req, code, &serde_json::json!({ "error": msg })),
         }
+        return;
+    }
+    if path == "/usage" {
+        let (code, windows) = handle_usage(
+            token,
+            req.method(),
+            header(req.headers(), "X-Bashboard-Token"),
+            header(req.headers(), "X-Bashboard-Agent"),
+            &body,
+            content_length,
+        );
+        if let Some(windows) = windows {
+            on_usage(windows);
+        }
+        let _ = req.respond(Response::empty(StatusCode(code)));
         return;
     }
     if is_cli {
@@ -379,6 +400,39 @@ fn handle(
             .map(str::to_owned),
     };
     (204, Some(ev))
+}
+
+/// Answers `POST /usage`, a Claude Code status line input from `bb statusline`, on `/hook`'s
+/// terms: token only, no pane check, since Claude Code may run outside a Bashboard pane. An
+/// input with no rate limits is still a 204, with no windows.
+fn handle_usage(
+    token: &str,
+    method: &Method,
+    token_header: Option<&str>,
+    agent_header: Option<&str>,
+    body: &[u8],
+    content_length: Option<usize>,
+) -> (u16, Option<Vec<UsageWindow>>) {
+    if *method != Method::Post {
+        return (404, None);
+    }
+    if !token_header.is_some_and(|t| token_matches(token, t)) {
+        return (403, None);
+    }
+    if content_length.is_some_and(|n| n > MAX_BODY) || body.len() > MAX_BODY {
+        return (413, None);
+    }
+    let agent = match agent_header {
+        None => AgentId::Claude,
+        Some(a) => match AgentId::parse(a.trim()) {
+            Some(a) => a,
+            None => return (400, None),
+        },
+    };
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return (400, None);
+    };
+    (204, Some(usage::from_claude_status_line(agent, &json)))
 }
 
 /// Answers `POST /cli`: status, a JSON body for a 400, and the resolved command on success.
@@ -953,11 +1007,79 @@ mod tests {
         let server = Server::http("127.0.0.1:0").unwrap();
         let addr = server.server_addr().to_ip().unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
-        thread::spawn(move || serve(&server, TOKEN, |ev| tx.send(ev).unwrap(), |_| false, |_| {}, |_, _| {}));
+        thread::spawn(move || serve(&server, TOKEN, |ev| tx.send(ev).unwrap(), |_| false, |_| {}, |_, _| {}, |_| {}));
 
         assert!(raw_post(addr, TOKEN).starts_with("HTTP/1.1 204"));
         assert_eq!(rx.recv().unwrap().hook_event_name, "Stop");
         assert!(raw_post(addr, "wrong!").starts_with("HTTP/1.1 403"));
+        assert!(rx.try_recv().is_err());
+    }
+
+    fn usage_post(token: Option<&str>, agent: Option<&str>, body: &[u8], len: Option<usize>) -> (u16, Option<Vec<UsageWindow>>) {
+        handle_usage(TOKEN, &Method::Post, token, agent, body, len)
+    }
+
+    const STATUS_LINE: &str =
+        r#"{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":84,"resets_at":1999999999}}}"#;
+
+    #[test]
+    fn usage_admits_on_hook_terms() {
+        let body = STATUS_LINE.as_bytes();
+        let (code, windows) = usage_post(Some(TOKEN), Some("claude"), body, Some(body.len()));
+        assert_eq!(code, 204);
+        let windows = windows.unwrap();
+        assert_eq!((windows.len(), windows[0].agent, windows[0].label.as_str()), (1, AgentId::Claude, "5-hour"));
+        assert_eq!((windows[0].used_percent, windows[0].resets_at), (84.0, Some(1999999999)));
+        // No pane header is needed, and an absent agent header is Claude.
+        assert_eq!(usage_post(Some(TOKEN), None, body, None).1.unwrap()[0].agent, AgentId::Claude);
+        assert_eq!(usage_post(None, Some("claude"), body, None), (403, None));
+        assert_eq!(usage_post(Some("wrong!"), Some("claude"), body, None), (403, None));
+        assert_eq!(usage_post(Some(TOKEN), Some("gemini"), body, None), (400, None));
+        assert_eq!(usage_post(Some(TOKEN), Some("claude"), b"not json", None), (400, None));
+        assert_eq!(usage_post(Some(TOKEN), Some("claude"), body, Some(MAX_BODY + 1)), (413, None));
+        let big = vec![b' '; MAX_BODY + 1];
+        assert_eq!(usage_post(Some(TOKEN), Some("claude"), &big, None), (413, None));
+        let get = handle_usage(TOKEN, &Method::Get, Some(TOKEN), Some("claude"), body, None);
+        assert_eq!(get, (404, None));
+        // A status line without rate limits (an API-key login) is accepted with no windows.
+        assert_eq!(usage_post(Some(TOKEN), Some("claude"), br#"{"model":{}}"#, None), (204, Some(Vec::new())));
+    }
+
+    #[test]
+    fn serves_usage_over_loopback() {
+        let server = Server::http("127.0.0.1:0").unwrap();
+        let addr = server.server_addr().to_ip().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            serve(
+                &server,
+                TOKEN,
+                |_| panic!("/usage must not reach the /hook path"),
+                |_| false,
+                |_| panic!("/usage must not reach the /cli path"),
+                |_, _| panic!("/usage must not be handed off"),
+                |w| tx.send(w).unwrap(),
+            )
+        });
+        let send = |token: &str| {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            stream.set_read_timeout(Some(std::time::Duration::from_secs(10))).unwrap();
+            write!(
+                stream,
+                "POST /usage HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Bashboard-Token: {token}\r\n\
+                 X-Bashboard-Agent: claude\r\nContent-Type: application/json\r\n\
+                 Content-Length: {}\r\nConnection: close\r\n\r\n{STATUS_LINE}",
+                STATUS_LINE.len()
+            )
+            .unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).unwrap();
+            response
+        };
+        let ok = send(TOKEN);
+        assert!(ok.starts_with("HTTP/1.1 204"), "{ok}");
+        assert_eq!(rx.recv().unwrap()[0].used_percent, 84.0);
+        assert!(send("wrong!").starts_with("HTTP/1.1 403"));
         assert!(rx.try_recv().is_err());
     }
 
@@ -1047,7 +1169,7 @@ mod tests {
         let addr = server.server_addr().to_ip().unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
         thread::spawn(move || {
-            serve(&server, TOKEN, |_| {}, |id| id == 5, |cmd| tx.send(cmd).unwrap(), |_, _| {})
+            serve(&server, TOKEN, |_| {}, |id| id == 5, |cmd| tx.send(cmd).unwrap(), |_, _| {}, |_| {})
         });
         let dir = temp_repo("loopback");
         let send = |token: &str, pane: &str, body: &str| {
@@ -1135,6 +1257,7 @@ mod tests {
                 |id| id == 5,
                 |_| panic!("/ci must not reach the /cli path"),
                 |req, body| tx.send((req, body)).unwrap(),
+                |_| {},
             )
         });
 
@@ -1175,6 +1298,7 @@ mod tests {
                 |id| id == 5,
                 |_| panic!("/size must not reach the /cli path"),
                 |req, body| tx.send((req, body)).unwrap(),
+                |_| {},
             )
         });
         let wait = std::time::Duration::from_secs(10);
@@ -1210,6 +1334,7 @@ mod tests {
                 |id| id == 5,
                 |_| panic!("/worktree must not reach the /cli path"),
                 |req, body| tx.send((req, body)).unwrap(),
+                |_| {},
             )
         });
         let wait = std::time::Duration::from_secs(10);

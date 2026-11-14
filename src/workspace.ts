@@ -3,7 +3,7 @@ import { applyAccent } from './accent';
 import { applyTextScale, applyUiScale } from './uiScale';
 import { applyScheme, resolveScheme } from './code/schemes';
 import { applyContentText, contentTextColor } from './contentText';
-import { nextAttention as nextAttentionId, type AttentionEntry } from './attentionQueue';
+import { nextAgent, nextInWalk, type WalkPosition } from './attentionQueue';
 import type { PaneCardInput } from './dashboardModel';
 import { FilesPane } from './filesPane';
 import { pinTarget, type FilesRequest } from './filesRouting';
@@ -15,6 +15,8 @@ import type { ProviderKind } from './forgeApi';
 import { GitPane } from './gitPane';
 import { forget, recentTerminal, touch } from './focusHistory';
 import { lookup, type Action } from './keymap';
+import { stableKey, type TerminalItem } from './needsYouModel';
+import { needsYouStore } from './needsYouStore';
 import { autoDir, close, computeRects, findPath, insertAtEdge, leaves, neighbor, resizePane } from './layout';
 import type { CellSize, Direction, Layout, Rect } from './layout';
 import { LiveSettings } from './liveSettings';
@@ -100,6 +102,12 @@ export class Workspace {
   private focusOrder: string[] = [];
   /** Design 4.26: the CI run each terminal shows on its card. */
   private readonly paneRuns = new Map<string, PaneRun>();
+  /** The last terminal rows sent to Needs you, serialized, so an unchanged feed sends nothing. */
+  private needsFeed: string | null = null;
+  /** Where Ctrl+Shift+N last landed, kept while focus stays where that walk left it. */
+  private walkAt: WalkPosition | null = null;
+  private walkFocus = '';
+  private walking = false;
 
   constructor(
     private readonly root: HTMLElement,
@@ -393,27 +401,47 @@ export class Workspace {
   }
 
   /**
-   * Goes to the next terminal that needs the user, in any tab. A hidden pane of a zoomed tab
-   * needs no explicit unzoom: focusing it changes the tab's focused pane, which drops the zoom.
+   * Design 4.28: goes to the next Needs you row after the current one, in any tab: the row the
+   * last walk landed on while focus has not moved since, else the focused terminal. With nothing
+   * to walk it cycles the agent terminals. A hidden pane of a zoomed tab needs no explicit unzoom:
+   * focusing it changes the tab's focused pane, which drops the zoom.
    */
   nextAttention(): void {
-    const entries: AttentionEntry[] = [];
+    this.feedNeedsYou();
+    const items = needsYouStore.walkItems(this.config.settings.needsYou.walkAll);
+    const keys = items.map(stableKey);
+    const focused = this.store.focusedId;
+    const here = items.findIndex((i) => i.kind === 'terminal' && i.paneId === focused);
+    const at = this.walkAt ?? (here >= 0 ? { key: keys[here], index: here } : null);
+    const index = nextInWalk(keys, at);
+    if (index !== null) {
+      const item = items[index];
+      this.walking = true;
+      try {
+        // A terminal is ours to reveal, so the walk works before main.ts sets the store's opener.
+        if (item.kind === 'terminal') this.revealPane(item.paneId);
+        else needsYouStore.activate(item);
+      } finally {
+        this.walking = false;
+      }
+      this.walkAt = { key: keys[index], index };
+      this.walkFocus = this.store.focusedId;
+      return;
+    }
+    const agents: string[] = [];
     for (const tab of this.store.state.tabs) {
-      // Reading order, then collapsed cards, so the agent-cycling fallback walks the screen.
-      const order = [...(tab.tree ? leaves(tab.tree) : []), ...tab.collapsed];
-      for (const paneId of order) {
+      // Reading order, then collapsed cards, so the cycle walks the screen.
+      for (const paneId of [...(tab.tree ? leaves(tab.tree) : []), ...tab.collapsed]) {
         const term = this.terminal(paneId);
-        if (!term) continue;
-        const agent = this.sessions.bound(term.ptyId) !== null;
-        entries.push({ paneId, tabId: tab.id, agent, ...this.status.resolved(paneId) });
+        if (term && this.sessions.bound(term.ptyId) !== null) agents.push(paneId);
       }
     }
-    const tabOrder = this.store.state.tabs.map((t) => t.id);
-    const target = nextAttentionId(entries, tabOrder, this.store.focusedId);
+    const target = nextAgent(agents, focused);
     if (target === null) {
       showToast('Nothing needs you, and no agent sessions are open');
       return;
     }
+    this.walkAt = null;
     this.revealPane(target);
   }
 
@@ -1072,12 +1100,35 @@ export class Workspace {
     this.clearDoneIfSeen();
     this.tabView.syncZoomButtons();
     if (this.store.focusedId) this.focusOrder = touch(this.focusOrder, this.store.focusedId);
+    if (!this.walking && this.walkAt !== null && this.store.focusedId !== this.walkFocus) this.walkAt = null;
+    this.feedNeedsYou();
     for (const [id, pane] of this.paneViews) {
       if (!(pane instanceof ScratchPane)) continue;
       const tab = this.store.tabOf(id);
       pane.setCanSend(tab !== null && tab.panes.some((p) => this.terminal(p) !== undefined));
     }
     for (const cb of [...this.listeners]) cb();
+  }
+
+  /**
+   * Design 4.28: sends every tab's waiting, done, and failed terminals to Needs you, in tab order
+   * and then reading order, so rows of the same age keep the order of the screen.
+   */
+  private feedNeedsYou(): void {
+    const items: TerminalItem[] = [];
+    for (const tab of this.store.state.tabs) {
+      for (const paneId of [...(tab.tree ? leaves(tab.tree) : []), ...tab.collapsed]) {
+        if (!this.terminal(paneId)) continue;
+        const { status, changedAt } = this.status.resolved(paneId);
+        if (status !== 'waiting' && status !== 'done' && status !== 'failed') continue;
+        const reason = status === 'waiting' ? this.status.waitingReason(paneId) : '';
+        items.push({ kind: 'terminal', paneId, tabId: tab.id, title: this.status.title(paneId), status, reason, since: changedAt });
+      }
+    }
+    const feed = JSON.stringify(items);
+    if (feed === this.needsFeed) return;
+    this.needsFeed = feed;
+    needsYouStore.setTerminals(items);
   }
 
   /** The pane being looked at (design 4.7): focused, expanded, in the active tab, in a focused window. */

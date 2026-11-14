@@ -55,7 +55,7 @@ Cmd+Shift+Z, Cmd+X, Cmd+A, Cmd+Q, Cmd+H, Cmd+M), which is why zoom is Cmd+Shift+
 | F6 | F6 | Move focus into the dashboard panel, or back to the focused pane (4.6) | `focusDashboard` |
 | Ctrl+Shift+B | Cmd+Shift+B | Cycle backdrop scrim strength (saved to `scrim.opacity`) | `cycleScrim` |
 | Ctrl+Shift+A | Cmd+Shift+A | Pause or resume the background animation of the active style (saved to `backdrop.animate`); does nothing under None | `toggleBackdrop` |
-| Ctrl+Shift+N | Cmd+Shift+N | Focus the next terminal that needs you, across all tabs, else cycle the agent terminals (4.7) | `nextAttention` |
+| Ctrl+Shift+N | Cmd+Shift+N | Jump to the next thing that needs you (a terminal, or with `needsYou.walkAll` a Ship or sign-in row), across all tabs, else cycle the agent terminals (4.7, 4.28) | `nextAttention` |
 | Ctrl+= or Ctrl+Numpad+ | Cmd+= or Cmd+Numpad+ | Increase the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `increaseFontSize` |
 | Ctrl+- | Cmd+- | Decrease the text size by 1 px (saved to `font.size`; applies to terminals and pane text; 6 to 48 px) | `decreaseFontSize` |
 | Ctrl+0 | Cmd+0 | Reset the text size to the default, 14 px (saved to `font.size`; applies to terminals and pane text) | `resetFontSize` |

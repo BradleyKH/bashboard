@@ -408,8 +408,8 @@ on the Overview.
 (4.5), the dashboard Ship section's header button (4.6), and a Ship pane chosen from the kind
 menu (4.11) for a pane with no folder. When a Ship pane already exists, these back it out of any
 repo it was drilled into. An open for a repo drills in: Launch's Ship button and menu entry (4.6),
-a kind-menu choice that keeps the pane's folder, and a row of the Overview or the dashboard's
-Ship section. A row shows the first Ship pane already drilled into that repo, else the first
+a kind-menu choice that keeps the pane's folder, and a row of the Overview, of the dashboard's Needs
+you list (4.28), or of its Ship section. A row shows the first Ship pane already drilled into that repo, else the first
 Ship pane in tab order, drilled into it, else a new Ship tab. A saved pane reopens where it was
 left.
 
@@ -434,7 +434,7 @@ there. Each row holds:
   request summary: "3 PRs open, 1 draft, 1 needs you, 1 approved", "1 PR open", or "No open pull
   requests" (with the host's noun, as initials when counted; the draft, needs-you, and approved
   parts appear only when nonzero, and approved counts only the viewer's own pull requests that wait
-  only on a merge, as the dashboard's approved rows do, 4.6), highlighted in the warning color
+  only on a merge, as the dashboard's approved rows do, 4.28), highlighted in the warning color
   while a review is awaited, else in the success color while one of the viewer's is approved,
   with each approved one and its approvers in its tooltip ("#12 approved by Andrew Cartwright"). Under the summary,
   "2 pipelines running" counts the queued or running runs among the latest 20 on any branch, and
@@ -485,9 +485,10 @@ one per repo and not already pinned, filtered by the typed text; clicking one pi
 that folder as its `root`.
 
 **Overview polling.** One shared store (`ShipOverviewStore`, `src/shipOverviewStore.ts`) holds
-every pin's data for the Overview and for the dashboard's Ship section (4.6). It polls only
-while some consumer wants it, which is an Overview on screen or the dashboard's Ship section
-shown and expanded, and while the window is visible. Each pin polls `forge_overview_repo` (3.20)
+every pin's data for the Overview, for the dashboard's Ship section (4.6), and for its Needs you list
+(4.28). It polls only while some consumer wants it, which is an Overview on screen, the dashboard's
+Ship section shown and expanded, or the Needs you element shown (the panel need not be open), and
+while the window is visible. Each pin polls `forge_overview_repo` (3.20)
 on its own clock: every `ship.overviewRefreshMinutes` (the heartbeat), or every 60 s while any
 of its latest 20 runs is queued or running, so the running count clears promptly. A pin's first poll waits a stagger of up to 500 ms
 per pin, within 3 s, so a round of pins does not hit a host at once. When the window or a consumer

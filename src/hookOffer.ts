@@ -26,7 +26,9 @@ export class HookOffer {
         showToast(
           agent === 'codex'
             ? 'Codex hooks installed. Codex will ask you to trust them on its next start.'
-            : `${name} hooks installed. ${name} sessions started from now on report waiting.`,
+            : agent === 'claude'
+              ? `${name} hooks installed. ${name} sessions started from now on report waiting, and its status line reports usage limits.`
+              : `${name} hooks installed. ${name} sessions started from now on report waiting.`,
         );
       },
       onClose: deps.focusTerminal,

@@ -62,6 +62,8 @@ export interface Settings {
     /** Ports the Ports section lists before counting the rest, 1 to 50. */
     portRows: number;
   };
+  /** `walkAll`: Ctrl+Shift+N also visits non-terminal rows; `usagePercent`: 1 to 100, where a usage window becomes a row (docs/design/dashboard.md section 4.28). */
+  needsYou: { walkAll: boolean; usagePercent: number };
   restore: { enabled: boolean; resumeSessions: boolean; scrollback: boolean };
   editor: { preferred: string; command: string };
   /** Minutes between background fetches of repos with an open Git pane; 0 turns it off (docs/design/git.md section 3.9). */
@@ -136,6 +138,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30, notifyWhenWaiting: true },
   dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both', portRows: 10 },
+  needsYou: { walkAll: true, usagePercent: 80 },
   restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5, branchSizeThreshold: 400 },

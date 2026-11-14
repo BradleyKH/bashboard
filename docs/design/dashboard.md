@@ -62,7 +62,7 @@ for Settings (⚙, also bound to Ctrl+,) and Help (?, also bound to F1), which o
 tooltip ends with its action's current keys in parentheses, read on hover so a rebinding
 shows, and leaves them out when the action is unbound.
 
-**Elements.** The elements are Clock, Launch, Favorites, Layouts, Panes, Containers, Ports, Ship,
+**Elements.** The elements are Clock, Launch, Needs you, Favorites, Layouts, Panes, Containers, Ports, Ship,
 Branch, Local AI models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
 Favorites, Layouts, Branch, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
@@ -409,38 +409,21 @@ Manage button (the same arrow leaving a square as Containers) opens the Ports ta
 polls only while enabled, expanded, and on screen with the window shown, and reads "Nothing
 listening" when the list is empty.
 
-**Ship.** What needs the viewer across the repos pinned to the Ship Overview (4.20), then
-what is moving there. The item rows come first: a health branch whose newest run failed ("main failed"), a pull request awaiting the
-viewer's review ("#12 needs your review"), and the viewer's own pull request with changes
-requested or failing checks ("#12 changes requested", "#12 checks failing"), and the viewer's own
-open, non-draft pull request that is approved and has no failing checks, so it waits only on a
-merge ("#12 approved by Andrew Cartwright", naming up to two approvers, "and 2 others" past that).
-Each row shows a status icon (a failure icon, the success icon for an approval, or the neutral icon
-for a review request), the repo's `owner/name`, and that text, with the run's or pull request's
-title in its tooltip. Every failure row comes first, in the Overview's attention order, then every
-approved row, then at most 5 review request rows. Clicking a branch
-row opens that repo's Pipelines in a Ship pane, and a pull request row its Pull requests (4.20
-says which pane).
-
-Two summary lines follow. The running line is always shown: with one run queued or running, it
+**Ship.** What is moving across the repos pinned to the Ship Overview (4.20), in two summary
+lines. What the viewer should act on in those repos (a failed branch, pull requests to review, fix,
+or merge, a sign-in) is in the Needs you list (4.28). The running line is always shown: with one run queued or running, it
 shows that run's repo, branch, pipeline name, and start ("main · Build · 3m ago") and opens the
 repo's Pipelines; otherwise it counts them ("0 pipelines running", "3 pipelines running in 2
 repos"), naming and opening the repo when they share one, else opening the Overview. The pull
 request line counts the open pull requests across the pinned repos, drafts left out ("12 open
-PRs"), and adds the review request count when it passes the row cap ("12 open PRs, 7 need your
-review"). It is shown when some open pull request has neither a review request row nor an
-approved row, or when review requests pass the cap, and opens the Overview. Both count from what each poll already
+PRs"), and opens the Overview. It is shown once some pinned repo has loaded. Both count from what each poll already
 fetches, a repo's newest 20 runs and 50 open pull requests.
 
-When a pin's last poll failed for want of an account (signed out, or a code host's CLI missing), a
-sign-in row leads the section, "Sign in to bitbucket.org for keysys/kweb" or "Sign in for 3
-pinned repos", naming the host when every such pin shares one. It opens the Accounts tab (4.20)
-on that host, straight to the token form for Bitbucket and Azure DevOps (with the organization
-filled in when every such pin shares one). The header's button, the Overview icon,
-opens the Overview. The section is never empty: before any pinned repo has loaded it shows the
-sign-in row or else a dash, and with no repo pinned it shows a "Pin repos" row
-that opens the Overview, since the section is a new user's way into Ship. It reads the Overview's shared store (4.20), which polls only while this
-section is shown by `dashboard.sections.ship`, expanded, and on screen with the window shown.
+The header's button, the Overview icon, opens the Overview. The section is never empty: before any pinned
+repo has loaded it shows a dash, and with no repo pinned it shows a "Pin repos" row
+that opens the Overview, since the section is a new user's way into Ship. It reads the Overview's shared store (4.20), which polls while this
+section is shown by `dashboard.sections.ship`, expanded, and on screen with the window shown, and also while the
+Needs you element is shown (4.28) and the window is shown, whether or not the panel is open or this section is on.
 
 **Branch.** Shown while `dashboard.sections.branch` is on, which it is not by default, and the
 folder it follows is in a git repo; otherwise it is hidden. It follows the folder of the focused
@@ -543,3 +526,94 @@ A peek overlays the panes from the panel's side without narrowing them. It ends 
 while the pointer is over the panel and ends when the pointer leaves; opening the panel ends
 it too.
 
+
+## 4.28 Needs you (`src/needsYouModel.ts`, `src/needsYouStore.ts`, `src/needsYouSection.ts`)
+
+One list of what the user should act on, across terminals, Ship, and agent usage limits. Its rule is that Needs you
+holds things to act on and the other elements hold things to look at, so the Panes section lists a
+waiting terminal too, and the Ship section keeps its running and open pull request lines. It is the
+`needs` element, shown by default (`dashboard.sections.needs`, section 8), and sits first in the
+lower list, directly under Launch. Its header, "Needs you", collapses it like any other element's.
+
+**Sources.** Terminals that are `waiting`, `done`, or `failed` (4.8), in every tab, collapsed cards
+included. Ship's items from the repos pinned to the Overview (4.20): a health branch whose newest
+run failed; the viewer's own pull request with changes requested or failing checks; the viewer's own
+open, non-draft pull request that is approved and has no failing checks, so it waits only on a merge;
+and every pull request awaiting the viewer's review, a request for the viewer's review winning over
+ownership as it does in the Pull requests tab's groups. A sign-in row, when a pin's last poll
+failed for want of an account (signed out, or the host's CLI missing). And usage rows, one for each
+agent usage window (3.28) at or past `needsYou.usagePercent` (section 8, default 80) of its limit,
+until its reset time passes. Exited containers and the
+branch size meter are not sources, and a run bound to a terminal (4.26) has no row of its own.
+
+**Groups and order.** Three groups, with no headings or spacing between them on screen. Blocked is
+a `waiting` terminal. Broken is a failed health branch, the viewer's pull request with changes
+requested or failing checks, a `failed` terminal, and a usage window at 100%. Ready is a `done` terminal, an approved pull
+request, a review request, a usage window under 100%, and the sign-in row. Blocked comes first, then
+Broken, then Ready; within a group the oldest row comes first, then usage rows by soonest reset (a
+window with no reset time last), and the sign-in row is last in Ready. A row's age is the
+terminal's status change time, the failing run's finish (else start, else creation) time, or the
+pull request's last update; the sign-in and usage rows age from when the list first saw them. Rows
+of equal age keep the order they were fed in.
+
+**Row.** A row has a status icon, a subject, a muted phrase, and the age at the right ("now", "4m",
+"3h", "2d"; empty when the time is unknown). The icon is the waiting, failure, or success icon for a
+terminal; for a Ship row it is a failure icon, the success icon for an approval, or the neutral icon
+for a review request; a usage row draws a small ring meter filled to its percent, in the warning
+color under 100% and the error color at 100%. The subject is the pane's title for a terminal, `owner/name` for a Ship row,
+the agent's display name ("Claude Code", "Codex") for a usage row, and the host for the sign-in
+row ("Ship" when it has none). The phrase for a terminal is "needs
+permission" when its waiting reason mentions permission, else "asked a question", then "finished"
+or "session failed". For Ship it is "main failed", "#12 needs your review", "#12 changes
+requested", "#12 checks failing", or "#12 approved by Andrew Cartwright" (naming up to two
+approvers, "and 2 others" past that); for a usage row, "5-hour limit 84%" (the percent rounded down,
+so a window under its limit never reads 100%) or "5-hour limit reached" at 100%; for the sign-in row, "sign in for keysys/kweb" or "sign in
+for 3 pinned repos", with the host left to the subject. The tooltip holds the detail: a terminal's
+waiting reason, a run's or pull request's title, "Open the Accounts tab", or for a usage row its
+percent and, when known, its reset time ("Resets Fri 3:00 PM"). Ages refresh once a
+minute.
+
+Clicking a row goes to the thing. A terminal's row focuses its pane the way the next-attention chord
+does (4.7): it switches to the pane's tab, expands a collapsed card (4.3), and unzooms a zoomed tab
+(4.2). A branch's row opens that repo's Pipelines in a Ship pane, and a pull request's its Pull
+requests (4.20 says which pane). The sign-in row opens the Accounts tab (4.18) on the host, straight
+to the token form for Bitbucket and Azure DevOps (with the organization filled in when every such
+pin shares one). A usage row has nowhere to go, so clicking it does nothing.
+
+**Cap and empty state.** The list shows 6 rows and then a muted "+ N more" row, which expands the
+list in place; "Show fewer" collapses it again. The choice is not saved. With nothing to act on, one
+muted row with a check icon reads "Nothing needs you", so the element is never blank while enabled.
+
+**Walk.** Ctrl+Shift+N (4.7) walks the same order. With `needsYou.walkAll` (section 8, default on)
+it visits the Ship, usage, and sign-in rows as well as terminals; off, it visits only terminals. Hidden
+rows are skipped.
+
+**Hide.** Right-clicking a row that is not a terminal offers "Hide until it changes", which removes
+it from the list, the walk, and the toasts until its state changes. A hide is keyed to the row's
+identity plus a version of its state: a branch's repo, branch, and failing run id; a pull request's
+repo, number, kind, and `updatedAt`; a usage window's agent, label, and reset time; the sign-in
+row's host and text. A new failed run, a push, or
+any other update to the pull request therefore brings the row back, and a hidden usage window
+returns once it resets. A terminal's row offers no hide,
+only a disabled "Clears when the agent moves on": `done` and `failed` clear on focus (4.8), and
+`waiting` ends when the agent resumes. Hides are saved with the workspace as `needsYouHides`
+(section 7). A hide is dropped once nothing in the list has its identity, so the set cannot grow
+forever, but only after its source has loaded: before Ship's first load, while the repo's pin
+has not polled cleanly (offline, signed out), or before the first usage report, its hides are kept.
+
+**Toasts.** A row that is not a terminal and newly becomes Blocked or Broken (a branch's run
+fails, a pull request starts failing or gets changes requested, a usage window reaches 100%) shows an in-app toast while the
+window has focus, with the row's subject and phrase ("keysys/kweb: main failed") and a Go action
+that does what a click on the row does. While the window is unfocused it sends a system
+notification instead, when `terminal.notifyWhenWaiting` is on (labeled "Notify when something
+needs you" in the Settings tab), and clicking it opens the row. Ready rows never toast, and a
+terminal row keeps its own path (4.7). Nothing toasts for what the first load shows: the list stays
+quiet until Ship has loaded once (every pinned repo has polled, whether or not it succeeded, or
+none is pinned) and the terminals have been read.
+
+**Feeding the list.** The workspace pushes its terminals to the store on every status or focus
+change, and Ship's rows come from the Overview's shared store (4.20), which polls while this
+element is shown and the window is visible. Usage rows come from the usage feed (3.28), which the
+list keeps alive by keeping the agent transcript reader running while it is shown. `needsYouModel.ts` is the pure part (grouping, order,
+row text, hide keys), `needsYouStore.ts` composes the sources and holds the hides, and
+`needsYouSection.ts` renders what the store hands it.

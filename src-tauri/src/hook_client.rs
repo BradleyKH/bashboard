@@ -2,7 +2,8 @@
 //! section 3.3). Agents run it on every hook event: it forwards the event's JSON from standard
 //! input to `POST /hook` and prints the agent's expected reply. Shared by the app (which reads
 //! the version marker of an installed copy) and `bb` (which includes this file by path), so it
-//! depends on nothing in the crate.
+//! depends on nothing in the crate. The version stamps the whole `bb` binary, so a change to
+//! `bb statusline` (statusline_client.rs) bumps it too.
 
 use std::io::{self, Read, Write};
 use std::sync::mpsc;
@@ -10,18 +11,18 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Bump on every change to the hook's behavior: the app only replaces an installed copy whose
 /// version is lower than its own.
-pub const HOOK_VERSION: u32 = 3;
+pub const HOOK_VERSION: u32 = 4;
 pub const VERSION_PREFIX: &str = "bashboard-hook-version:";
 
 /// The installer finds the version by scanning an installed binary's bytes for this marker, so
 /// it must survive linking; `#[used]` and `--version` reading it both keep it.
 #[used]
-static VERSION_MARKER: [u8; 25] = *b"bashboard-hook-version:3;";
+static VERSION_MARKER: [u8; 25] = *b"bashboard-hook-version:4;";
 
 /// Matches `MAX_BODY` in hooks.rs; the receiver rejects anything larger.
-const MAX_BODY: usize = 64 * 1024;
+pub const MAX_BODY: usize = 64 * 1024;
 /// An agent waits on every hook call, so a stalled stdin must not hold it for long.
-const READ_DEADLINE: Duration = Duration::from_secs(2);
+pub const READ_DEADLINE: Duration = Duration::from_secs(2);
 const USAGE: &str = "usage: bb hook <claude|codex|copilot> [event] | bb hook --version";
 
 /// The posting half, supplied by `bb`: the hook URL, extra headers, and the body. It ignores
@@ -111,7 +112,7 @@ fn reply(agent: &str, _event: Option<&str>) -> Option<&'static str> {
 /// complete JSON object or array. The last is what returns promptly when an agent writes its
 /// payload but leaves stdin open. The reader thread is never joined: it may stay blocked on a
 /// read until the process exits.
-fn read_bounded<R: Read + Send + 'static>(mut reader: R, deadline: Duration, max: usize) -> Vec<u8> {
+pub fn read_bounded<R: Read + Send + 'static>(mut reader: R, deadline: Duration, max: usize) -> Vec<u8> {
     let (tx, rx) = mpsc::channel::<Vec<u8>>();
     std::thread::spawn(move || {
         let mut chunk = [0u8; 8192];

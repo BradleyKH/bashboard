@@ -99,6 +99,9 @@ export class HookInstallDialog {
     if (isPreviewAgent(this.agent)) {
       box.append(this.note(`${name} support is a preview.`));
     }
+    if (this.agent === 'claude') {
+      box.append(this.note('Your status line command keeps working; Bashboard runs it and reads usage limits from its input.'));
+    }
     if (this.agent === 'codex') {
       box.append(this.note('Codex will ask you to trust the hook the next time it starts.'));
     }

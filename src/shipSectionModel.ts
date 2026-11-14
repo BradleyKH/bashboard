@@ -1,12 +1,10 @@
-// What the dashboard's Ship section shows (docs/design/dashboard.md section 4.6). Pure, no DOM.
+// What the dashboard's Ship section shows (docs/design/dashboard.md section 4.6), and the row text and
+// sign-in line that Needs you takes for Ship's items (section 4.28). Pure, no DOM.
 import type { Run, RunStatus } from './forgeApi';
-import { approvedByText, isReadyToMerge, relativeTime, statusInfo, type ShipTab } from './shipModel';
+import { approvedByText, relativeTime, statusInfo, type ShipTab } from './shipModel';
 import { isBitbucketPin, targetKey, type DashboardItem, type OverviewRow } from './shipOverviewModel';
 import { providerBadge } from './shipOverviewText';
 import type { OverviewEntry } from './shipOverviewStore';
-
-/** Review requests past this many are counted on the pull request line instead of getting rows. */
-export const REVIEW_ROW_CAP = 5;
 
 /** A row that is not one item: the running pipelines line and the open pull requests line. */
 export interface SummaryLine {
@@ -51,20 +49,6 @@ export function itemTitle(item: DashboardItem): string {
   return item.kind === 'branch' ? item.run.title : item.pull.title;
 }
 
-/**
- * The item rows: every failure first, in the order given, then the viewer's approved pull requests,
- * then the first `REVIEW_ROW_CAP` review requests. `reviewCount` counts all of them, for the pull
- * request line.
- */
-export function sectionItems(items: readonly DashboardItem[]): { shown: DashboardItem[]; reviewCount: number } {
-  const of = (kind: 'review' | 'approved') => items.filter((i) => i.kind === kind);
-  const reviews = of('review');
-  return {
-    shown: [...items.filter((i) => i.kind !== 'review' && i.kind !== 'approved'), ...of('approved'), ...reviews.slice(0, REVIEW_ROW_CAP)],
-    reviewCount: reviews.length,
-  };
-}
-
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /**
@@ -105,20 +89,14 @@ export function runningLine(rows: readonly OverviewRow[], now: number): SummaryL
   };
 }
 
-/**
- * Open non-draft pull requests across the rows, with the review request count when some lack a
- * row. Null when every one of them already has a review or approved row. Counts only each repo's
- * newest 50.
- */
-export function pullsLine(rows: readonly OverviewRow[], reviewCount: number): SummaryLine | null {
+/** The open non-draft pull requests across the rows. Null with no rows. Counts only each repo's newest 50. */
+export function pullsLine(rows: readonly OverviewRow[]): SummaryLine | null {
+  if (rows.length === 0) return null;
   const open = rows.flatMap((r) => r.overview.pulls.items).filter((p) => p.state === 'open' && !p.draft);
-  const untagged = open.filter((p) => !p.reviewRequested && !isReadyToMerge(p)).length;
-  if (untagged === 0 && reviewCount <= REVIEW_ROW_CAP) return null;
-  const overflow = reviewCount > REVIEW_ROW_CAP ? `, ${reviewCount} need your review` : '';
   return {
     status: 'other',
     repo: null,
-    text: `${plural(open.length, 'open PR')}${overflow}`,
+    text: plural(open.length, 'open PR'),
     title: 'Open pull requests across the pinned repos, drafts left out',
     target: null,
   };

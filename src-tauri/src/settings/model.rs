@@ -162,6 +162,7 @@ pub const PORT_ROWS_RANGE: std::ops::RangeInclusive<u32> = 1..=50;
 #[serde(rename_all = "camelCase")]
 pub struct DashboardSections {
     pub launch: bool,
+    pub needs: bool,
     pub favorites: bool,
     pub layouts: bool,
     pub panes: bool,
@@ -174,6 +175,19 @@ pub struct DashboardSections {
     pub system: bool,
     pub wave: bool,
     pub clock: bool,
+}
+
+/// Bounds of `needsYou.usagePercent` (docs/design/dashboard.md section 4.28).
+pub const NEEDS_YOU_USAGE_PERCENT_RANGE: std::ops::RangeInclusive<u32> = 1..=100;
+
+/// The Needs you list's options (docs/design/dashboard.md section 4.28).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NeedsYou {
+    /// Whether the next-attention walk visits non-terminal rows too.
+    pub walk_all: bool,
+    /// Percent of an agent usage window at which it becomes a row; `NEEDS_YOU_USAGE_PERCENT_RANGE`.
+    pub usage_percent: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -335,6 +349,7 @@ pub struct Settings {
     pub scrollback: u32,
     pub terminal: Terminal,
     pub dashboard: Dashboard,
+    pub needs_you: NeedsYou,
     pub restore: Restore,
     pub editor: Editor,
     pub git: GitSettings,
@@ -410,6 +425,7 @@ impl Default for Settings {
                 side: "right".into(),
                 sections: DashboardSections {
                     launch: true,
+                    needs: true,
                     favorites: false,
                     layouts: false,
                     panes: true,
@@ -426,6 +442,7 @@ impl Default for Settings {
                 clock_style: "both".into(),
                 port_rows: 10,
             },
+            needs_you: NeedsYou { walk_all: true, usage_percent: 80 },
             restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5, branch_size_threshold: 400 },

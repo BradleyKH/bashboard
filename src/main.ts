@@ -28,6 +28,8 @@ import { DebouncedSaver } from './debouncedSaver';
 import { ConfirmDialog } from './confirmDialog';
 import { moveItem, parseFavorites } from './favorites';
 import { shipOverviewStore } from './shipOverviewStore';
+import { needsYouStore } from './needsYouStore';
+import { phrase, stableKey, subject } from './needsYouModel';
 import { branchSizeStore } from './branchSizeStore';
 import { livePaneRunDeps, PaneRunTracker } from './paneRunTracker';
 import { parseLayouts } from './layouts';
@@ -297,7 +299,6 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onOpenShip: (target, tab) => workspace.openShip(target, tab),
   onOpenGit: (root) => workspace.showGit(root),
-  onOpenAccounts: (host, opts) => dialogs.openAccounts(host, opts),
   ports: {
     onOpenPorts: (key, showAll): void => workspace.openPorts(key, showAll),
     ownerTitle: (ptyId): string | null => workspace.titleForPty(ptyId),
@@ -384,6 +385,7 @@ panel.setLocalModelsStore(localModels);
 void containers.start();
 panel.applyDashboardSettings(payload.settings.dashboard, payload.settings.localModels.minContext);
 shipOverviewStore.applySettings(payload.settings);
+needsYouStore.setUsagePercent(payload.settings.needsYou.usagePercent);
 branchSizeStore.applySettings(payload.settings);
 panel.setWindowShown(windowShown);
 windowShownSink = (shown) => panel.setWindowShown(shown);
@@ -440,6 +442,11 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   // The core reads primaryBranch from repos.json, so the Git panes reload once it is written.
   onSetPrimaryBranch: (root, branch) => void repo.setPrimaryBranch(root, branch).then(() => workspace.reloadWorktrees()),
 });
+needsYouStore.setOpener({
+  revealPane: (paneId) => workspace.revealPane(paneId),
+  openShip: (target, tab) => workspace.openShip(target, tab),
+  openAccounts: (host, opts) => dialogs.openAccounts(host, opts),
+});
 setTerminalEditorHost((argv, cwd) => void workspace.openPane({ kind: 'terminal', cwd, command: argv }));
 const tabStrip: TabStrip | undefined = new TabStrip(
   document.getElementById('tab-strip') as HTMLElement,
@@ -469,10 +476,24 @@ const saver = new DebouncedSaver(
     hideGlobalPins: !panel.globalPinsShown() || undefined,
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
     textZoom: textZoomSnapshot(),
+    needsYouHides: needsYouStore.hides(),
   }),
   workspaceSave,
   1000,
 );
+needsYouStore.subscribeHides(() => saver.schedule());
+// Terminal rows never arrive here; they keep the waiting notification in `onAttention`.
+needsYouStore.onEnteredUrgent((items) => {
+  for (const item of items) {
+    if (document.hasFocus()) {
+      showToast(`${subject(item)}: ${phrase(item)}`, 8000, { label: 'Go', run: () => needsYouStore.activate(item) });
+    } else if (state.settings.terminal.notifyWhenWaiting) {
+      showNotification(subject(item), phrase(item), `needs:${stableKey(item)}`).catch((e) =>
+        console.warn('notification failed:', e),
+      );
+    }
+  }
+});
 const refreshPanel = (): void => panel.update(workspace.panes(), workspace.tabs(), state.sessions);
 // Design 4.26: CI runs bound to the terminal whose branch they run on. Lives for the whole session.
 const paneRuns = new PaneRunTracker(
@@ -522,6 +543,7 @@ try {
   if (saved?.agentPanesOnly) panel.setAgentPanesOnly(true);
   if (saved?.hideStoppedContainers) panel.setShowStoppedContainers(false);
   if (saved?.hideGlobalPins) panel.setShowGlobalPins(false);
+  if (saved?.needsYouHides) needsYouStore.hydrateHides(saved.needsYouHides);
   if (saved?.dashboardHideNoticeShown) state.hideNoticeShown = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {

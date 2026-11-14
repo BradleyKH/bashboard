@@ -2,8 +2,10 @@
 //! The hook is a copy of the `bb` program beside the app, written into the agent's `hooks`
 //! folder as `bashboard-hook` and run as `bashboard-hook hook <agent>`, so no hook depends on a
 //! shell. It is merged into Claude Code's `settings.json` and Codex's `hooks.json`, and written
-//! whole as Copilot's `hooks/bashboard.json`. Everything works over a base directory so tests
-//! never touch the real home; the Tauri commands resolve the agent's home and delegate.
+//! whole as Copilot's `hooks/bashboard.json`. Claude Code's `statusLine` is wrapped in
+//! `bashboard-hook statusline claude` so its usage limits reach Bashboard (section 3.28).
+//! Everything works over a base directory so tests never touch the real home; the Tauri commands
+//! resolve the agent's home and delegate.
 
 use std::path::{Path, PathBuf};
 
@@ -86,7 +88,8 @@ pub struct Preview {
     pub settings_path: String,
     /// The installed hook binary.
     pub script_path: String,
-    /// Events install would append a group to, each with the group it would register.
+    /// Events install would append a group to, each with the group it would register. For
+    /// Claude, also `statusLine` when install writes it (see `claude_merged`).
     pub additions: Map<String, Value>,
     /// Events whose existing Bashboard handlers install would rewrite, in the same shape.
     pub updates: Map<String, Value>,
@@ -223,6 +226,108 @@ fn claude_command() -> String {
 
 fn group() -> Value {
     json!({ "hooks": [{ "type": "command", "command": claude_command(), "timeout": 5 }] })
+}
+
+const STATUS_LINE: &str = "statusLine";
+const STATUSLINE_ARGS: &str = " statusline claude";
+
+/// POSIX single quoting: the whole string in `'...'`, each `'` closed, escaped, and reopened.
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', r"'\''"))
+}
+
+/// Inverts `shell_quote`: only `'...'` runs and `\'` are accepted, so anything else is refused
+/// rather than guessed at.
+fn shell_unquote(s: &str) -> Option<String> {
+    if s.is_empty() {
+        return None;
+    }
+    let mut out = String::new();
+    let mut rest = s;
+    while !rest.is_empty() {
+        if let Some(r) = rest.strip_prefix(r"\'") {
+            out.push('\'');
+            rest = r;
+            continue;
+        }
+        let r = rest.strip_prefix('\'')?;
+        let end = r.find('\'')?;
+        out.push_str(&r[..end]);
+        rest = &r[end + 1..];
+    }
+    Some(out)
+}
+
+/// The status line command that reports usage to Bashboard and then runs `wrapped`, if any.
+/// Claude Code runs status line commands through bash on Windows too, so `~` expands and the
+/// quoting is POSIX.
+fn status_line_command(wrapped: Option<&str>) -> String {
+    let hook = format!(
+        "~/.claude/hooks/{}{STATUSLINE_ARGS}",
+        hook_client::binary_name()
+    );
+    match wrapped {
+        Some(x) => format!("{hook} {}", shell_quote(x)),
+        None => hook,
+    }
+}
+
+/// The user's command inside a status line command `status_line_command` wrote: `Some(None)` for
+/// a wrapper around nothing, `None` when `command` is not one of ours.
+fn unwrap(command: &str) -> Option<Option<String>> {
+    let end = command.find(char::is_whitespace).unwrap_or(command.len());
+    let (program, rest) = command.split_at(end);
+    if !is_bashboard_command(program) {
+        return None;
+    }
+    let rest = rest.strip_prefix(STATUSLINE_ARGS)?;
+    if rest.is_empty() {
+        return Some(None);
+    }
+    shell_unquote(rest.strip_prefix(' ')?).map(Some)
+}
+
+/// The `statusLine` install would write, or None when it is already right or is left alone: a
+/// type other than `command`, or a command naming our hook that `unwrap` cannot read, which is
+/// kept rather than wrapped a second time. Only `command` changes; other fields stay.
+fn wrapped_status_line(settings: &Value) -> Option<Value> {
+    let Some(current) = settings.get(STATUS_LINE) else {
+        return Some(json!({ "type": "command", "command": status_line_command(None) }));
+    };
+    let obj = current.as_object()?;
+    if obj.get("type").and_then(Value::as_str) != Some("command") {
+        return None;
+    }
+    let command = obj.get("command").and_then(Value::as_str)?;
+    let want = match unwrap(command) {
+        Some(inner) => status_line_command(inner.as_deref()),
+        None if is_bashboard_command(command) => return None,
+        None => status_line_command(Some(command)),
+    };
+    if want == command {
+        return None;
+    }
+    let mut next = obj.clone();
+    next.insert("command".into(), Value::String(want));
+    Some(Value::Object(next))
+}
+
+/// Claude's merge: the hook entries plus the wrapped status line. The status line is listed with
+/// the additions only on a first install, so it never turns an update into an install.
+fn claude_merged(settings: &Value) -> Result<Merged, String> {
+    let mut m = merged(settings, &EVENTS, &group(), "settings.json")?;
+    if let Some(line) = wrapped_status_line(settings) {
+        if let Some(root) = m.file.as_object_mut() {
+            root.insert(STATUS_LINE.into(), line.clone());
+        }
+        let list = if m.additions.is_empty() {
+            &mut m.updates
+        } else {
+            &mut m.additions
+        };
+        list.insert(STATUS_LINE.into(), line);
+    }
+    Ok(m)
 }
 
 /// The POSIX and Windows commands that run the installed hook for `t.agent`. Codex runs the
@@ -475,12 +580,7 @@ fn remove_legacy_script(home: &Path) {
 fn preview_in(claude_dir: &Path) -> Result<Preview, String> {
     let settings_path = settings_path(claude_dir);
     let hook_path = hook_path(claude_dir);
-    let m = merged(
-        &read_settings(&settings_path)?,
-        &EVENTS,
-        &group(),
-        "settings.json",
-    )?;
+    let m = claude_merged(&read_settings(&settings_path)?)?;
     let script_state = hook_state(&hook_path);
     // Claude Code creates `~/.claude` on first run; without it there is nothing to hook.
     let detected = AgentId::Claude.agent().detected_at(Some(claude_dir));
@@ -501,12 +601,7 @@ fn preview_in(claude_dir: &Path) -> Result<Preview, String> {
 fn install_in(claude_dir: &Path, source: &Path) -> Result<(), String> {
     let settings_path = settings_path(claude_dir);
     // Validate before writing anything so a bad settings.json leaves the disk untouched.
-    let m = merged(
-        &read_settings(&settings_path)?,
-        &EVENTS,
-        &group(),
-        "settings.json",
-    )?;
+    let m = claude_merged(&read_settings(&settings_path)?)?;
 
     write_hook(&hook_path(claude_dir), source)?;
 
@@ -845,7 +940,8 @@ mod tests {
     fn missing_settings_creates_all_five_events_and_the_hook() {
         let dir = temp_dir("missing");
         let p = preview_in(&dir).unwrap();
-        assert_eq!(p.additions.len(), 5);
+        assert_eq!(p.additions.len(), EVENTS.len() + 1);
+        assert!(p.additions.contains_key(STATUS_LINE));
         assert!(p.updates.is_empty());
         assert!(!p.already_installed);
         assert_eq!(p.script_state, ScriptState::Missing);
@@ -890,7 +986,7 @@ mod tests {
         install_in(&dir, src()).unwrap();
         let settings = read_json(&dir);
         let keys: Vec<&String> = settings.as_object().unwrap().keys().collect();
-        assert_eq!(keys, ["env", "permissions", "hooks", "model"]);
+        assert_eq!(keys, ["env", "permissions", "hooks", "model", STATUS_LINE]);
         assert_eq!(settings["env"]["DUMMY"], "x");
         assert_eq!(settings["permissions"]["allow"][0], "Bash(ls)");
         let notif = settings["hooks"]["Notification"].as_array().unwrap();
@@ -1086,14 +1182,16 @@ mod tests {
 
         let p = preview_in(&dir).unwrap();
         assert!(p.additions.is_empty());
-        assert_eq!(p.updates.len(), EVENTS.len());
+        // The status line is new, but with every event present it is listed as an update.
+        assert_eq!(p.updates.len(), EVENTS.len() + 1);
+        assert!(p.updates.contains_key(STATUS_LINE));
         assert_eq!(p.updates["Stop"], json!([group()]));
         assert!(!p.already_installed);
         install_in(&dir, src()).unwrap();
 
         let after = read_json(&dir);
         let keys: Vec<&String> = after.as_object().unwrap().keys().collect();
-        assert_eq!(keys, ["env", "permissions", "hooks", "model"]);
+        assert_eq!(keys, ["env", "permissions", "hooks", "model", STATUS_LINE]);
         let hook_keys: Vec<&String> = after["hooks"].as_object().unwrap().keys().collect();
         let before_keys: Vec<&String> = settings["hooks"].as_object().unwrap().keys().collect();
         assert_eq!(hook_keys, before_keys);
@@ -1130,7 +1228,7 @@ mod tests {
         updated.sort();
         assert_eq!(updated, ["Notification", "Stop"]);
         let added: Vec<&String> = p.additions.keys().collect();
-        assert_eq!(added.len(), EVENTS.len() - 3);
+        assert_eq!(added.len(), EVENTS.len() - 3 + 1);
         for event in ["Stop", "Notification", "SessionStart"] {
             assert!(!p.additions.contains_key(event), "{event}");
         }
@@ -1541,5 +1639,174 @@ mod tests {
         assert_eq!(read_file(&copilot_file_path(&home)), copilot_file(&t));
         assert!(!legacy_script_path(&home).exists());
         assert!(preview_for(&t).unwrap().already_installed);
+    }
+
+    fn hook_prefix() -> String {
+        format!(
+            "~/.claude/hooks/{} statusline claude",
+            hook_client::binary_name()
+        )
+    }
+
+    const AWKWARD: [&str; 9] = [
+        "",
+        "bash ~/.claude/statusline.sh",
+        r#"echo "it's $HOME" | sed 's/a/b/'"#,
+        r"C:\Users\me\My Scripts\line.cmd --flag",
+        r#"node "C:\Program Files\x\y.js" '$PATH' \\ \' ''"#,
+        "printf '%s\\n' \"$(jq -r .model.display_name)\"",
+        "'''",
+        "a\nb\ttab",
+        "~/.claude/hooks/bashboard-hook statusline claude 'nested'",
+    ];
+
+    #[test]
+    fn wrap_unwrap_round_trips() {
+        for x in AWKWARD {
+            let wrapped = status_line_command(Some(x));
+            assert!(
+                wrapped.starts_with(&format!("{} '", hook_prefix())),
+                "{wrapped}"
+            );
+            assert_eq!(unwrap(&wrapped), Some(Some(x.to_string())), "{x}");
+        }
+        assert_eq!(status_line_command(None), hook_prefix());
+        assert_eq!(unwrap(&hook_prefix()), Some(None));
+        assert_eq!(
+            status_line_command(Some("echo 'hi there'")),
+            format!(r"{} 'echo '\''hi there'\'''", hook_prefix())
+        );
+    }
+
+    /// The quoting is checked against a real POSIX shell where one is on PATH. The script goes
+    /// through the environment because an MSYS `sh` mangles backslashes in its arguments.
+    #[test]
+    fn quoted_command_survives_a_real_shell() {
+        for x in AWKWARD {
+            let script = format!("printf %s {}", shell_quote(x));
+            let Ok(out) = std::process::Command::new("sh")
+                .args(["-c", "eval \"$SCRIPT\""])
+                .env("SCRIPT", &script)
+                .output()
+            else {
+                return;
+            };
+            assert_eq!(String::from_utf8_lossy(&out.stdout), x, "{x}");
+        }
+    }
+
+    #[test]
+    fn unwrap_refuses_what_it_did_not_write() {
+        let p = hook_prefix();
+        for theirs in [
+            "bash ~/.claude/statusline.sh".to_string(),
+            "~/.claude/hooks/bashboard-hook.exe hook claude".to_string(),
+            "~/x/bashboard-hooks statusline claude 'a'".to_string(),
+            format!("{p} unquoted"),
+            format!("{p} 'open"),
+            format!("{p} 'a' extra"),
+            format!("{p}x 'a'"),
+            format!("{p}  'a'"),
+            format!("{p} "),
+        ] {
+            assert_eq!(unwrap(&theirs), None, "{theirs}");
+        }
+    }
+
+    fn status_line_after(settings: Value) -> Option<Value> {
+        claude_merged(&settings)
+            .unwrap()
+            .file
+            .get(STATUS_LINE)
+            .cloned()
+    }
+
+    #[test]
+    fn status_line_cases() {
+        // None: a wrapper around nothing, so the status line stays empty.
+        assert_eq!(
+            status_line_after(json!({})),
+            Some(json!({ "type": "command", "command": hook_prefix() }))
+        );
+        // A user command is wrapped and its other fields kept.
+        let x = r#"bash "C:\my scripts\line.sh" 'arg'"#;
+        let line = status_line_after(json!({ "statusLine": {
+            "type": "command", "command": x, "padding": 2
+        } }))
+        .unwrap();
+        assert_eq!(line["padding"], 2);
+        assert_eq!(line["type"], "command");
+        assert_eq!(
+            unwrap(line["command"].as_str().unwrap()),
+            Some(Some(x.into()))
+        );
+        // Other types and shapes are left alone.
+        for other in [
+            json!({ "type": "static", "text": "hi" }),
+            json!("bash x.sh"),
+            json!({ "type": "command" }),
+            json!({ "type": "command", "command": "~/.claude/hooks/bashboard-hook statusline claude 'broken" }),
+        ] {
+            let settings = json!({ "statusLine": other.clone() });
+            let m = claude_merged(&settings).unwrap();
+            assert_eq!(m.file[STATUS_LINE], other);
+            assert!(!m.additions.contains_key(STATUS_LINE) && !m.updates.contains_key(STATUS_LINE));
+        }
+    }
+
+    #[test]
+    fn stale_wrapper_is_rewritten_keeping_the_wrapped_command() {
+        let x = "echo \"it's\" $HOME";
+        let old = format!(
+            "~/old/place/bashboard-hook statusline claude {}",
+            shell_quote(x)
+        );
+        let settings = json!({ "statusLine": { "type": "command", "command": old, "padding": 0 } });
+        let line = status_line_after(settings).unwrap();
+        assert_eq!(line["command"], status_line_command(Some(x)));
+        assert_eq!(line["padding"], 0);
+        let bare = json!({ "statusLine": { "type": "command", "command": "/x/bashboard-hook statusline claude" } });
+        assert_eq!(status_line_after(bare).unwrap()["command"], hook_prefix());
+    }
+
+    #[test]
+    fn install_wraps_the_status_line_once() {
+        let dir = temp_dir("statusline");
+        let x = r#"bash -c 'cat | jq -r ".model"' "$HOME""#;
+        let mut settings: Value = serde_json::from_str(USER_SETTINGS).unwrap();
+        settings[STATUS_LINE] = json!({ "type": "command", "command": x, "padding": 1 });
+        std::fs::write(dir.join("settings.json"), pretty(&settings).unwrap()).unwrap();
+        let p = preview_in(&dir).unwrap();
+        assert!(p.additions.contains_key(STATUS_LINE));
+        install_in(&dir, src()).unwrap();
+        let after = read_json(&dir);
+        let command = after[STATUS_LINE]["command"].as_str().unwrap();
+        assert_eq!(command, status_line_command(Some(x)));
+        assert_eq!(unwrap(command), Some(Some(x.into())));
+        assert_eq!(after[STATUS_LINE]["padding"], 1);
+        let keys: Vec<&String> = after.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["env", "permissions", "hooks", "model", STATUS_LINE]);
+
+        let first = std::fs::read(dir.join("settings.json")).unwrap();
+        let p = preview_in(&dir).unwrap();
+        assert!(p.additions.is_empty() && p.updates.is_empty() && p.already_installed);
+        install_in(&dir, src()).unwrap();
+        assert_eq!(std::fs::read(dir.join("settings.json")).unwrap(), first);
+    }
+
+    #[test]
+    fn existing_install_without_the_wrapper_is_an_update() {
+        let dir = temp_dir("statusline-update");
+        install_in(&dir, src()).unwrap();
+        let mut settings = read_json(&dir);
+        settings[STATUS_LINE] = json!({ "type": "command", "command": "my-line" });
+        std::fs::write(dir.join("settings.json"), pretty(&settings).unwrap()).unwrap();
+        let p = preview_in(&dir).unwrap();
+        assert!(p.additions.is_empty() && !p.already_installed);
+        assert_eq!(p.updates.keys().collect::<Vec<_>>(), [STATUS_LINE]);
+        assert_eq!(
+            p.updates[STATUS_LINE]["command"],
+            status_line_command(Some("my-line"))
+        );
     }
 }

@@ -1,0 +1,85 @@
+/* The dashboard's Needs you section. Rows reuse the favorite row styles and the Ship status icons. */
+
+/* The status icons read these from the Ship pane's body, which the dashboard is not inside. */
+.needs-you-section {
+  --ship-ok: #6fcf7f;
+  --ship-bad: #e8716f;
+  --ship-warn: #e6c15a;
+  --ship-idle: #7d8a91;
+}
+
+.favorite-row.needs-row {
+  padding-left: 8px;
+  gap: 7px;
+}
+
+.needs-subject {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--content-fg);
+}
+
+.needs-phrase {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9aa6ad;
+}
+
+.needs-age {
+  flex: 0 0 auto;
+  color: #7f8c94;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lines up under the subject, past the icon. */
+.favorite-row.needs-more {
+  padding-left: 29px;
+  color: #9aa6ad;
+}
+
+.needs-empty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  color: #7f8c94;
+}
+
+.needs-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.needs-empty .needs-icon path {
+  fill: none;
+  stroke: #7f8c94;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.needs-meter-track,
+.needs-meter-fill {
+  fill: none;
+  stroke-width: 2.4;
+}
+
+.needs-meter-track {
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+.needs-meter-fill {
+  stroke: var(--ship-warn);
+}
+
+.needs-meter--full .needs-meter-fill {
+  stroke: var(--ship-bad);
+}

@@ -17,6 +17,10 @@ mod credential_store;
 #[path = "../hook_client.rs"]
 mod hook_client;
 
+// Installer-internal like `hook`: the wrapper Claude Code's status line setting runs.
+#[path = "../statusline_client.rs"]
+mod statusline_client;
+
 use credential_store::{
     AZURE_DEVOPS_USER, BITBUCKET_TARGET, BITBUCKET_USER, STORE_NAME, clean_token,
 };
@@ -59,6 +63,10 @@ fn main() -> ExitCode {
     // Ahead of `run`: outside a pane the hook must exit 0 quietly, not fail like other commands.
     if let Some(("hook", rest)) = args.split_first().map(|(c, r)| (c.as_str(), r)) {
         return ExitCode::from(hook_client::run(rest, &post_hook));
+    }
+    // Same reason as `hook`: a status line wrapper must never fail outside a pane.
+    if let Some(("statusline", rest)) = args.split_first().map(|(c, r)| (c.as_str(), r)) {
+        return ExitCode::from(statusline_client::run(rest, &post_usage));
     }
     match run(&args) {
         Ok(code) => code,
@@ -1186,8 +1194,17 @@ fn parse_url(url: &str) -> Result<String, String> {
 
 /// Forwards an agent hook event to `POST /hook`, ignoring every failure.
 fn post_hook(url: &str, headers: &[(&str, &str)], body: &[u8]) {
+    post_quietly("/hook", url, headers, body);
+}
+
+/// Forwards an agent's status line input to `POST /usage`, ignoring every failure.
+fn post_usage(url: &str, headers: &[(&str, &str)], body: &[u8]) {
+    post_quietly("/usage", url, headers, body);
+}
+
+fn post_quietly(path: &str, url: &str, headers: &[(&str, &str)], body: &[u8]) {
     let Ok(addr) = parse_url(url) else { return };
-    let request = build_request("/hook", &addr, headers, body);
+    let request = build_request(path, &addr, headers, body);
     let _ = send(&addr, &request, HOOK_TIMEOUT);
 }
 

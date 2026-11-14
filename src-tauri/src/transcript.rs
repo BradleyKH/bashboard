@@ -1,6 +1,7 @@
 //! Session transcripts (design sections 3.3 and 3.4): finds each pane-bound agent session's
 //! transcript (Claude Code's JSONL, a Codex rollout, or Copilot's `events.jsonl`), tails it for the
-//! newest model and context size, and emits `agent://context` when any of them changes. Every
+//! newest model and context size, and emits `agent://context` when any of them changes. A Codex
+//! rollout's rate limits go to the usage store (docs/design/sessions.md section 3.28). Every
 //! format is internal to its tool and undocumented, so every field is optional and an unreadable
 //! line is skipped.
 
@@ -26,6 +27,7 @@ use crate::lock::LockExt;
 use crate::agents::AgentId;
 use crate::hooks::HookOverlay;
 use crate::roster::Session;
+use crate::usage::{self, UsageWindow};
 
 mod codex;
 mod copilot;
@@ -213,6 +215,14 @@ fn read_session(agent: AgentId, path: &Path) -> io::Result<Option<AgentReading>>
     Ok((reading != AgentReading::default()).then_some(reading))
 }
 
+/// The windows of the newest non-null `rate_limits` in a Codex rollout's tail, or `None` when the
+/// tail has none. The tail is enough: a session reporting limits writes them on every turn, and
+/// one that never does (an API-key login) would otherwise cost a whole-file read each time.
+fn read_codex_limits(path: &Path) -> io::Result<Option<Vec<UsageWindow>>> {
+    let (text, _) = read_tail(&mut File::open(path)?)?;
+    Ok(codex::newest_rate_limits(text.lines()).map(|v| usage::from_codex_rate_limits(&v)))
+}
+
 /// The live `events.jsonl`'s model, or, when the live file names none, the newest rotated archive's
 /// that does.
 fn read_copilot(path: &Path) -> io::Result<AgentReading> {
@@ -307,6 +317,8 @@ struct Tracked {
     last_read: Option<Instant>,
     dirty: bool,
     last_search: Option<Instant>,
+    /// The rate-limit windows last reported to the usage store.
+    limits: Vec<UsageWindow>,
 }
 
 #[derive(Default)]
@@ -531,12 +543,34 @@ impl Worker {
 
         self.update_watches(wanted);
 
-        let readings: Vec<(String, AgentReading)> = to_read
-            .into_iter()
-            .filter_map(|(id, agent, path)| {
-                read_session(agent, &path).ok().flatten().map(|r| (id, r))
-            })
-            .collect();
+        let mut readings: Vec<(String, AgentReading)> = Vec::new();
+        let mut limits: Vec<(String, Vec<UsageWindow>)> = Vec::new();
+        for (id, agent, path) in to_read {
+            if agent == AgentId::Codex {
+                if let Some(w) = read_codex_limits(&path).ok().flatten().filter(|w| !w.is_empty()) {
+                    limits.push((id.clone(), w));
+                }
+            }
+            if let Some(r) = read_session(agent, &path).ok().flatten() {
+                readings.push((id, r));
+            }
+        }
+        // Checked on their own, before the context check below returns on unchanged readings.
+        let new_limits: Vec<UsageWindow> = {
+            let mut inner = state.inner.lock_or_recover();
+            limits
+                .into_iter()
+                .filter_map(|(id, w)| {
+                    let t = inner.tracked.get_mut(&id).filter(|t| t.limits != w)?;
+                    t.limits = w.clone();
+                    Some(w)
+                })
+                .flatten()
+                .collect()
+        };
+        if !new_limits.is_empty() {
+            usage::report(&app, new_limits);
+        }
         if readings.is_empty() {
             return;
         }

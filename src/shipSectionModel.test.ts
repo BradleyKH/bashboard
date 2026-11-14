@@ -3,12 +3,12 @@ import type { OverviewRepo, PullRequest, Run } from './forgeApi';
 import type { DashboardItem, OverviewRow } from './shipOverviewModel';
 import type { ForgeError } from './forgeApi';
 import type { OverviewEntry } from './shipOverviewStore';
-import { itemStatus, itemText, pullsLine, repoLabel, runningLine, sectionItems, signInLine } from './shipSectionModel';
+import { itemStatus, itemText, pullsLine, repoLabel, runningLine, signInLine } from './shipSectionModel';
 
 const pull = (over: Partial<PullRequest> = {}): PullRequest =>
   ({ number: 7, title: 'Fix it', reviewDecision: null, checks: null, ...over }) as PullRequest;
 const run = { title: 'Merge branch', status: 'failure' } as Run;
-const base = { target: 'remote:x', repo: 'bitbucket.org/keysys/kweb' };
+const base = { target: 'remote:x', repo: 'bitbucket.org/keysys/kweb', since: 0 };
 
 const branch: DashboardItem = { ...base, kind: 'branch', tab: 'pipelines', branch: 'uat', run };
 const review = (p = pull()): DashboardItem => ({ ...base, kind: 'review', tab: 'pulls', pull: p });
@@ -64,25 +64,6 @@ describe('itemStatus', () => {
   });
 });
 
-describe('sectionItems', () => {
-  it('puts failures first and caps review rows at 5', () => {
-    const reviews = Array.from({ length: 7 }, (_, n) => review(pull({ number: n })));
-    const mineItem = mine(pull({ checks: 'failure' }));
-    const { shown, reviewCount } = sectionItems([reviews[0], branch, ...reviews.slice(1), mineItem]);
-    expect(reviewCount).toBe(7);
-    expect(shown).toHaveLength(7);
-    expect(shown.slice(0, 2)).toEqual([branch, mineItem]);
-    expect(shown.slice(2).every((i) => i.kind === 'review')).toBe(true);
-  });
-
-  it('puts approved pull requests between the failures and the review requests, uncapped', () => {
-    const ok = approved('Ann');
-    const { shown, reviewCount } = sectionItems([review(), ok, branch]);
-    expect(shown).toEqual([branch, ok, review()]);
-    expect(reviewCount).toBe(1);
-  });
-});
-
 describe('runningLine', () => {
   it('says 0 pipelines running and opens the Overview', () => {
     const line = runningLine([row('github.com/a/b', [{ ...active(), status: 'success' }])], NOW);
@@ -106,31 +87,26 @@ describe('runningLine', () => {
 });
 
 describe('pullsLine', () => {
-  it('is absent with no open pull requests', () => {
-    expect(pullsLine([row('github.com/a/b')], 0)).toBeNull();
+  it('is absent until some pinned repo has loaded', () => {
+    expect(pullsLine([])).toBeNull();
   });
 
-  it('is absent when every open pull request already has a review row', () => {
-    expect(pullsLine([row('github.com/a/b', [], [open({ reviewRequested: true })])], 1)).toBeNull();
+  it('counts none as 0 open PRs and opens the Overview', () => {
+    expect(pullsLine([row('github.com/a/b')])).toMatchObject({ text: '0 open PRs', repo: null, target: null, status: 'other' });
   });
 
-  it('is absent when the only open pull request has an approved row', () => {
-    expect(pullsLine([row('github.com/a/b', [], [open({ isMine: true, reviewDecision: 'approved', checks: 'success' })])], 0)).toBeNull();
-  });
-
-  it('counts open pull requests across repos, leaving drafts out', () => {
+  it('counts open pull requests across repos, leaving drafts and closed ones out', () => {
     const rows = [
       row('github.com/a/b', [], [open(), open({ draft: true }), open({ state: 'merged' })]),
       row('github.com/c/d', [], [open({ reviewRequested: true })]),
     ];
-    expect(pullsLine(rows, 1)?.text).toBe('2 open PRs');
-    expect(pullsLine([row('github.com/a/b', [], [open()])], 0)?.text).toBe('1 open PR');
+    expect(pullsLine(rows)?.text).toBe('2 open PRs');
+    expect(pullsLine([row('github.com/a/b', [], [open()])])?.text).toBe('1 open PR');
   });
 
-  it('adds the review count past the row cap, even with nothing else open', () => {
-    const tagged = Array.from({ length: 7 }, () => open({ reviewRequested: true }));
-    expect(pullsLine([row('github.com/a/b', [], tagged)], 7)?.text).toBe('7 open PRs, 7 need your review');
-    expect(pullsLine([row('github.com/a/b', [], [...tagged.slice(0, 5), open()])], 5)?.text).toBe('6 open PRs');
+  it('counts every kind of open pull request, tagged or not', () => {
+    const tagged = [open({ reviewRequested: true }), open({ isMine: true, reviewDecision: 'approved', checks: 'success' })];
+    expect(pullsLine([row('github.com/a/b', [], tagged)])?.text).toBe('2 open PRs');
   });
 });
 
