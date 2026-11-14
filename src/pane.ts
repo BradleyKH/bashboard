@@ -12,7 +12,7 @@ import { openLink } from './links';
 import type { AwsContext } from './cloudContextModel';
 import { type Osc133, parseOsc133, parseOsc7, parseOsc7502, parseOsc9 } from './osc';
 import { webglBudget } from './rendererBudget';
-import { drawTerminal } from './terminalSnapshot';
+import { drawTerminal, drawTerminalInto } from './terminalSnapshot';
 import { replayText } from './scrollbackModel';
 import { noteShellFallback } from './shellFallback';
 import type { CellSize } from './layout';
@@ -125,6 +125,8 @@ export class TerminalPane implements PaneView {
   private muted = false;
   /** Set by every write xterm.js parses, so the periodic scrollback save skips idle terminals. */
   private outputUnsaved = false;
+  /** Counts parsed writes, so a background tab cluster redraws its terminal only after new output (4.30). */
+  private outputCount = 0;
   private readonly host: HTMLElement;
   /** xterm's container; the workspace may put a title strip in the host ahead of it. */
   private readonly body: HTMLElement;
@@ -217,6 +219,7 @@ export class TerminalPane implements PaneView {
     this.term.onData((data) => this.write(data));
     this.term.onWriteParsed(() => {
       this.outputUnsaved = true;
+      this.outputCount++;
     });
     this.term.onBell(() => {
       if (!this.muted) opts.onBell?.();
@@ -507,6 +510,15 @@ export class TerminalPane implements PaneView {
     if (this.disposed || this.webgl === null) return null;
     const { width, height } = this.cellSize();
     return drawTerminal(this.term, { width, height });
+  }
+
+  get outputSeq(): number {
+    return this.outputCount;
+  }
+
+  /** A background tab cluster's snapshot (4.30): the visible rows fitted to the canvas's box. */
+  drawInto(canvas: HTMLCanvasElement, cssW: number, cssH: number): void {
+    if (!this.disposed) drawTerminalInto(canvas, this.term, cssW, cssH);
   }
 
   /** Types text into the pty as if from the keyboard. */

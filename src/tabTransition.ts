@@ -2,17 +2,20 @@
 // leave the DOM the moment the switch renders, so they recede as ghosts: deep clones with their
 // canvases copied, or a WebGL terminal's rows redrawn, in the #drift layer under #panes. The incoming hosts animate in place with
 // transforms only, which never change their layout size, so no terminal refits mid-animation.
-import { transitionMs, transitionPlan } from './tabTransitionModel';
+import { transitionMs, transitionPlan, type TransitionLeg } from './tabTransitionModel';
 
-/** A clone of an outgoing host, with the scroll offsets it must take once attached. */
-/** An outgoing host, its window rect, and a WebGL terminal's rows drawn into a 2D canvas. */
+/** An outgoing pane's host, its window rect, and a WebGL terminal's rows drawn into a 2D canvas. */
 export interface GhostSource {
+  id: string;
   host: HTMLElement;
   rect: DOMRect;
   snapshot: HTMLCanvasElement | null;
 }
 
+/** A clone of an outgoing host, with the scroll offsets it must take once attached. */
 export interface Ghost {
+  id: string;
+  rect: DOMRect;
   el: HTMLElement;
   scrolls: Array<[index: number, top: number, left: number]>;
 }
@@ -25,6 +28,10 @@ export class TabTransition {
   private settle: (() => void) | null = null;
 
   constructor(private readonly layer: HTMLElement) {}
+
+  get reduced(): boolean {
+    return this.reducedMotion.matches;
+  }
 
   /**
    * Clones the outgoing hosts at their window rects; call before the switch renders. Ends any
@@ -42,19 +49,31 @@ export class TabTransition {
 
   /**
    * Plays the captured ghosts out and the incoming hosts in; `onSettled` runs once every pane is
-   * at rest, or right away when the next transition cuts this one short.
+   * at rest, or right away when the next transition cuts this one short. `legs` replaces the
+   * standard motion for some panes (the background tab clusters); under reduced motion it is ignored.
    */
-  play(ghosts: Ghost[], incoming: HTMLElement[], onSettled: () => void): void {
+  play(
+    ghosts: Ghost[],
+    incoming: Array<{ id: string; host: HTMLElement }>,
+    onSettled: () => void,
+    legs: { outgoing?(id: string): TransitionLeg | null; incoming?(id: string): TransitionLeg | null } = {},
+  ): void {
     const plan = transitionPlan(this.reducedMotion.matches);
+    const custom = !this.reducedMotion.matches;
+    let ms = transitionMs(plan);
+    const run = (el: HTMLElement, leg: TransitionLeg): void => {
+      this.animations.push(el.animate(leg.keyframes, leg.options));
+      ms = Math.max(ms, Number(leg.options.delay ?? 0) + Number(leg.options.duration ?? 0));
+    };
     for (const ghost of ghosts) {
       this.layer.append(ghost.el);
       applyScrolls(ghost);
       this.ghosts.push(ghost.el);
-      this.animations.push(ghost.el.animate(plan.outgoing.keyframes, plan.outgoing.options));
+      run(ghost.el, (custom && legs.outgoing?.(ghost.id)) || plan.outgoing);
     }
-    for (const host of incoming) this.animations.push(host.animate(plan.incoming.keyframes, plan.incoming.options));
+    for (const { id, host } of incoming) run(host, (custom && legs.incoming?.(id)) || plan.incoming);
     this.settle = onSettled;
-    this.settleTimer = window.setTimeout(() => this.finish(), transitionMs(plan));
+    this.settleTimer = window.setTimeout(() => this.finish(), ms);
   }
 
   /** Drops the ghosts and puts every incoming host at rest. */
@@ -71,7 +90,7 @@ export class TabTransition {
   }
 }
 
-function ghostOf({ host, rect, snapshot }: GhostSource): Ghost {
+function ghostOf({ id, host, rect, snapshot }: GhostSource): Ghost {
   const el = host.cloneNode(true) as HTMLElement;
   el.inert = true;
   el.setAttribute('aria-hidden', 'true');
@@ -91,7 +110,7 @@ function ghostOf({ host, rect, snapshot }: GhostSource): Ghost {
   for (const frame of el.querySelectorAll('iframe')) frame.replaceWith(document.createElement('div'));
   copyCanvases(host, el);
   if (snapshot) placeSnapshot(el, snapshot);
-  return { el, scrolls: readScrolls(host) };
+  return { id, rect, el, scrolls: readScrolls(host) };
 }
 
 /** A cloned canvas comes out blank, so each is redrawn from its source. */

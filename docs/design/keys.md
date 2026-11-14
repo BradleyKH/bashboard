@@ -63,8 +63,9 @@ Cmd+Shift+Z, Cmd+X, Cmd+A, Cmd+Q, Cmd+H, Cmd+M), which is why zoom is Cmd+Shift+
 | Ctrl+, | Cmd+, | Open the app dialog on its Settings tab | `openSettings` |
 | F11 | Cmd+Ctrl+F | Toggle full screen | `toggleFullscreen` |
 
-Four more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
-open the app dialog on its Accounts, Shortcuts, CLI, and About tabs.
+Five more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
+open the app dialog on its Accounts, Shortcuts, CLI, and About tabs, and `toggleBackgroundTabs`
+shows or hides the other tabs in the background (4.30, saved to `showBackgroundTabs`).
 
 These are built-in defaults. Entries in the settings file (section 8) layer on top, as in
 Windows Terminal: an entry for a chord that has a default replaces it, a new chord adds a

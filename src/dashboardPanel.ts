@@ -30,7 +30,7 @@ import { withKeys } from './dashboardRevealModel';
 import { DashboardSystem } from './dashboardSystem';
 import { DashboardWave } from './dashboardWave';
 import { ELEMENT_SHOWN_BY_DEFAULT, toggleSection } from './dashboardSections';
-import type { DashboardElement, DashboardSection } from './dashboardSections';
+import type { DashboardElement, DashboardSection, ShowableSection } from './dashboardSections';
 import { recentFolders, samePath } from './favorites';
 import type { Favorite } from './favorites';
 import { ContainersSection } from './containersSection';
@@ -103,7 +103,7 @@ export interface DashboardCallbacks
   /** An element or Pins moved, by a drag or the first split into two columns; save the placement. */
   onOrderChange?: () => void;
   /** The panel's own menu asked to show or hide an element; the setting's reload applies it. */
-  onSetElementShown?: (element: DashboardElement, shown: boolean) => void;
+  onSetElementShown?: (element: ShowableSection, shown: boolean) => void;
   /** The clock's menu picked a style; the setting's reload applies it. */
   onSetClockStyle?: (style: ClockStyle) => void;
   /** Open menu on a folder row. */
@@ -117,8 +117,10 @@ export interface DashboardCallbacks
   /** The top bar's Favorites and Layouts buttons, shown while their section is hidden; the menu drops from `anchor`. */
   onOpenFavoritesMenu?: (anchor: HTMLElement) => void;
   onOpenLayoutsMenu?: (anchor: HTMLElement) => void;
-  /** The top bar's pin button, shown while the Pins section leaves out global pins; the menu drops from `anchor`. */
+  /** The top bar's pin button while the Pins section shows but leaves out global pins; the menu drops from `anchor`. */
   onOpenGlobalPinsMenu?: (anchor: HTMLElement) => void;
+  /** The top bar's pin button while the Pins section is hidden: the repo's pins and the global ones. */
+  onOpenPinPicker?: (anchor: HTMLElement) => void;
   /** The panel came on screen (open or peeking) or left it. */
   onShownChange?: (shown: boolean) => void;
   onInstallHooks: (agent: AgentId) => void;
@@ -168,7 +170,7 @@ function topButton(
  */
 export class DashboardPanel {
   private open = false;
-  private shown: Record<DashboardElement, boolean> = { ...ELEMENT_SHOWN_BY_DEFAULT };
+  private shown: Record<ShowableSection, boolean> = { ...ELEMENT_SHOWN_BY_DEFAULT };
   private side: DashboardSide = 'right';
   private windowShown = true;
   private readonly columns: DashboardColumnsView;
@@ -290,8 +292,8 @@ export class DashboardPanel {
       this.callbacks.onOpenLayoutsMenu?.(b),
     );
     this.layoutsMenuButton.append(gridIcon());
-    this.globalPinsMenuButton = topButton('dashboard-top-icon dashboard-svg-icon', '', 'Global pins', () => undefined, (b) =>
-      this.callbacks.onOpenGlobalPinsMenu?.(b),
+    this.globalPinsMenuButton = topButton('dashboard-top-icon dashboard-svg-icon', '', 'Pins', () => undefined, (b) =>
+      this.shown.pins ? this.callbacks.onOpenGlobalPinsMenu?.(b) : this.callbacks.onOpenPinPicker?.(b),
     );
     this.globalPinsMenuButton.append(pinIcon());
     const spacer = document.createElement('span');
@@ -631,6 +633,7 @@ export class DashboardPanel {
     this.favoritesMenuButton.hidden = this.shown.favorites;
     this.layoutsMenuButton.hidden = this.shown.layouts;
     this.launchMenuButton.hidden = this.shown.launch;
+    this.pinsSection.setEnabled(this.shown.pins);
     this.syncGlobalPinsMenuButton();
     this.columns.layout();
   }
@@ -917,9 +920,12 @@ export class DashboardPanel {
     this.syncGlobalPinsMenuButton();
   }
 
-  /** The pin button stands in for the global pins the Pins section leaves out (docs/design/dashboard.md section 4.6). */
+  /**
+   * The pin button stands in for the global pins the Pins section leaves out, or for the whole
+   * section while it is hidden (docs/design/dashboard.md section 4.6).
+   */
   private syncGlobalPinsMenuButton(): void {
-    this.globalPinsMenuButton.hidden = this.pinsSection.globalShown();
+    this.globalPinsMenuButton.hidden = this.shown.pins && this.pinsSection.globalShown();
   }
 
   globalPinsShown(): boolean {

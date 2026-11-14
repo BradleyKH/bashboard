@@ -38,6 +38,7 @@ import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import { paneKindInfo } from './paneKinds';
+import { pinStripButton } from './pinIcon';
 import type { PaneView } from './paneView';
 import { fsList, fsMove, fsPaste, fsRename, fsTrash, fsUnwatch, fsWatch, repoRoot } from './repoFiles';
 import type { Settings } from './settings';
@@ -80,6 +81,8 @@ export interface FilesPaneOptions {
   onUnpin?: (absolute: string) => void;
   /** Absolute paths of the repo's pinned folders that exist. */
   getPinnedFolders: () => string[];
+  /** The strip's pin button: the repo's file and folder pins, dropped from `anchor`, for the pane showing `folder`. */
+  onOpenPinPicker?: (anchor: HTMLElement, folder: string) => void;
   onOpenInEditor?: (path: string) => void;
   /** The preview's editor closed with edits it could not save; the workspace keeps them. */
   onUnsavedEdits?: (path: string, text: string) => void;
@@ -336,6 +339,10 @@ export class FilesPane implements PaneView {
       });
       return b;
     };
+    if (this.opts.onOpenPinPicker) {
+      const open = this.opts.onOpenPinPicker;
+      el.append(pinStripButton('Pins: open a pinned file or folder, or pin this folder', (b) => open(b, this.currentPath)));
+    }
     el.append(
       button(FOLDER_ICON, 'Open in File Explorer', () => openFolder(this.currentPath), true),
       // The Search pane's own icon, so the button reads as opening one.

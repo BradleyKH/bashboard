@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { dashboardMenuItems } from './dashboardMenu';
-import { DEFAULT_ELEMENT_ORDER, ELEMENT_LABELS, ELEMENT_SHOWN_BY_DEFAULT } from './dashboardSections';
+import { SHOWABLE_ORDER, ELEMENT_LABELS, ELEMENT_SHOWN_BY_DEFAULT } from './dashboardSections';
 
 describe('dashboardMenuItems', () => {
-  it('lists every element in settings order, checked when shown', () => {
+  it('lists every element and Pins in settings order, checked when shown', () => {
     const entries = dashboardMenuItems(ELEMENT_SHOWN_BY_DEFAULT, () => {});
     expect(entries.map((e) => (e.kind === 'item' ? [e.label, e.checked] : null))).toEqual(
-      DEFAULT_ELEMENT_ORDER.map((el) => [ELEMENT_LABELS[el], ELEMENT_SHOWN_BY_DEFAULT[el]]),
+      SHOWABLE_ORDER.map((el) => [ELEMENT_LABELS[el], ELEMENT_SHOWN_BY_DEFAULT[el]]),
     );
   });
 

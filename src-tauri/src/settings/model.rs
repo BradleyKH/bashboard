@@ -157,11 +157,12 @@ pub const CLOCK_STYLES: [&str; 3] = ["both", "time", "binary"];
 /// Bounds of `dashboard.portRows` (docs/design/dashboard.md section 4.6).
 pub const PORT_ROWS_RANGE: std::ops::RangeInclusive<u32> = 1..=50;
 
-/// Which dashboard elements show; fields follow the panel's default element order.
+/// Which dashboard elements show, and Pins; fields follow the settings dialog's order.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DashboardSections {
     pub launch: bool,
+    pub pins: bool,
     pub needs: bool,
     pub favorites: bool,
     pub layouts: bool,
@@ -346,6 +347,8 @@ pub struct Settings {
     pub border_lights_density: f64,
     /// The tab switch transition (docs/design/workspace.md section 4.30); on by default.
     pub tab_transition: bool,
+    /// Other tabs drift behind the active one (docs/design/workspace.md section 4.30).
+    pub show_background_tabs: bool,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
@@ -400,6 +403,7 @@ impl Default for Settings {
             border_lights_speed: 120.0,
             border_lights_density: 1.0,
             tab_transition: true,
+            show_background_tabs: false,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {
                 style: "lights".into(),
@@ -428,6 +432,7 @@ impl Default for Settings {
                 side: "right".into(),
                 sections: DashboardSections {
                     launch: true,
+                    pins: true,
                     needs: true,
                     favorites: false,
                     layouts: false,

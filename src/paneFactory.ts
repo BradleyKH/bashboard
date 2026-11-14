@@ -15,6 +15,7 @@ import type { PaneKind } from './paneKinds';
 import type { PaneView } from './paneView';
 import type { PathDrag } from './pathDragLayer';
 import { scratchSave, scratchSaveAs } from './persistence';
+import { pinStripButton } from './pinIcon';
 import { PortsPane } from './portsPane';
 import { PortsStore } from './portsStore';
 import { repoRoot } from './repoFiles';
@@ -102,8 +103,8 @@ export class PaneFactory {
   buildPane(id: string, host: HTMLElement, spec: PaneSpec, expanded: boolean, onReady?: () => void): PaneView {
     const { pane, strip } = this.build(id, host, spec, expanded, onReady);
     this.ctx.paneViews.set(id, pane);
-    const newPin = this.newPinHandler(id, spec);
-    strip.setActions(pane.stripActions ?? (newPin ? newPinButton(newPin) : null));
+    const pinPicker = this.pinPickerHandler(id, spec);
+    strip.setActions(pane.stripActions ?? (pinPicker ? pinActions(pinPicker) : null));
     this.ctx.paneStatus().register(id, strip);
     this.ctx.paneStatus().refresh(id);
     return pane;
@@ -155,6 +156,22 @@ export class PaneFactory {
     return () => {
       const term = ctx.terminal(id);
       hook(term?.cwd ?? null, term?.selection() ?? '');
+    };
+  }
+
+  /**
+   * A terminal's pin button (docs/design/terminal.md section 4.4): the pins to run in its working
+   * directory, and "+ Add". The pane takes focus first, since a pin runs in the focused terminal
+   * when it is idle in the pin's folder.
+   */
+  private pinPickerHandler(id: string, spec: PaneSpec): ((anchor: HTMLElement) => void) | undefined {
+    const { ctx } = this;
+    const hook = ctx.hooks.onOpenPinPicker;
+    if (spec.kind !== 'terminal' || spec.container || !hook) return undefined;
+    return (anchor) => {
+      ctx.focusPane(id);
+      const term = ctx.terminal(id);
+      hook(anchor, term?.cwd ?? null, term?.selection() ?? '');
     };
   }
 
@@ -475,6 +492,12 @@ export class PaneFactory {
       onPin: (absolute, isDir) => ctx.hooks.onPin?.(root(), absolute, isDir),
       onUnpin: (absolute) => ctx.hooks.onUnpin?.(root(), absolute),
       getPinnedFolders: () => ctx.hooks.getPinnedFolders?.(root()) ?? [],
+      onOpenPinPicker: ctx.hooks.onOpenFilesPinPicker
+        ? (anchor, folder) => {
+            ctx.focusPane(id);
+            ctx.hooks.onOpenFilesPinPicker?.(anchor, root(), folder, (target, select) => void pane?.showFolder(target, select));
+          }
+        : undefined,
       onUnsavedEdits: (path, text) => this.keepUnsaved(path, text),
     });
     return pane;
@@ -510,24 +533,8 @@ export class PaneFactory {
   }
 }
 
-const PIN_ICON =
-  '<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">' +
-  '<path d="M10.2 1.3a.75.75 0 0 1 1.06 0l3.44 3.44a.75.75 0 0 1 0 1.06l-.7.7a1.5 1.5 0 0 1-1.42.4l-2.2 2.2' +
-  ' .33 2.3a.75.75 0 0 1-.21.64l-.72.72a.75.75 0 0 1-1.06 0L6.2 10.24 2.53 13.9a.5.5 0 0 1-.71-.7L5.5 9.53' +
-  ' 2.98 7.01a.75.75 0 0 1 0-1.06l.72-.72a.75.75 0 0 1 .64-.21l2.3.33 2.2-2.2a1.5 1.5 0 0 1 .4-1.42z"/></svg>';
-
-function newPinButton(onClick: () => void): HTMLElement {
+function pinActions(onClick: (anchor: HTMLElement) => void): HTMLElement {
   const el = document.createElement('div');
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'strip-action';
-  b.innerHTML = PIN_ICON;
-  b.title = 'New pin: pin a command in this folder';
-  b.setAttribute('aria-label', 'New pin');
-  b.addEventListener('click', (e) => {
-    e.stopPropagation();
-    onClick();
-  });
-  el.append(b);
+  el.append(pinStripButton('Pins: run a pin in this folder, or add one', onClick));
   return el;
 }

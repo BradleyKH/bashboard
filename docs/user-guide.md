@@ -54,6 +54,13 @@ Ctrl+Alt+1 through Ctrl+Alt+8 switch to that tab, and Ctrl+Alt+9 switches to the
 Switching tabs is animated: the tab you leave recedes as the next one rises into place. Turn
 off Tab transition in the Appearance section of Settings to switch instantly.
 
+Your other tabs can stay in view: each floats behind the active tab as a small, dimmed
+cluster of its panes, drifting slowly around the window, with live pictures of its terminals.
+A tab that needs you drifts forward and brightens, and an idle one sinks back. Switching tabs
+pulls the new tab forward out of its cluster and sends the one you left back into its own. Turn
+on Show other tabs in background in the Appearance section of Settings, or bind the
+`toggleBackgroundTabs` action to a key in the Shortcuts tab.
+
 Bashboard runs as one window. Launching it again while it is running brings that window to the
 front instead of starting a second copy; launched from a shell or a folder (for example
 `start bashboard` in Git Bash, or the exe run from Explorer's address bar), it also opens a new
@@ -97,14 +104,17 @@ title strip lists Files too, and so does the Open menu on dashboard rows (see
 [Dashboard](#dashboard)). A Files pane comes back on relaunch in the same folder with the same
 file selected, and layouts keep it.
 
-The title strip, after the folder's name, has Open in File Explorer, Search in this folder (⌕,
-which opens a Search pane limited to the folder), and Open terminal here, all for the current
-folder.
+The title strip, after the folder's name, has a pin button, Open in File Explorer, Search in this
+folder (⌕, which opens a Search pane limited to the folder), and Open terminal here, all for the
+current folder. These buttons, like a terminal's pin button, show only while the pane is focused
+or under the pointer. The pin button lists the repo's pinned files and folders, opening the one you
+pick in this pane, and its **+ Add** pins the current folder.
 
 The left side is a breadcrumb over the list of the current folder, with folders first and then
 files, newest first. The breadcrumb has back and forward buttons (the mouse back and forward
 buttons work over the pane too), the path from the repo root (click a segment to go there), a
-sort button, zoom buttons for the list, and a pin button for the folder. The sort button sorts
+sort button, zoom buttons for the list, and a pin button that pins or unpins the folder (lit
+while it is pinned). The sort button sorts
 files by **Name**, **Type** (extension), or **Modified**; pick the current one again to reverse
 it. Folders always stay on top, A to Z (Z to A when you sort by name in reverse). Each Files pane
 keeps its own sort. Click a row to select and preview it, and press
@@ -203,18 +213,21 @@ quoted for the shell. Holding a drag over a tab for half a second switches to it
 ### Pins
 
 Pins are the files, folders, and commands you keep close in a repo, or in any folder outside one.
-Pin the current folder from the breadcrumb, or any row from its menu; they appear in the
-dashboard's **Pins** section (the heading collapses them), where a click
+Pin the current folder from the breadcrumb or the **+ Add** of the Files pane's title strip pin
+button, or any row from its menu; they appear in the dashboard's **Pins** section (the heading
+collapses them, and the dashboard's right-click menu or the Pins toggle in Settings hides it), where a click
 opens one (a folder in a Files pane, a file in its folder with the file selected), its rename
 button renames it, a handle drags it to reorder, and its remove button removes it. A pin whose file or folder is gone is
 dimmed and does nothing.
 
 A **command pin** keeps a command you run often, such as
 `dotnet run --project src/Project.Name.Api`, with a name and the folder it runs in. Add one with
-the **+** at the right of the Pins heading, the pin button at the right of a terminal's title
-strip, or New pin in the title strip's right-click menu; each opens a popup with Name and Command
-fields, in the focused pane's or that terminal's folder (the strip's pin button fills Command with
-any selected text).
+the **+** at the right of the Pins heading, **+ Add** in the menu of the pin button at the right
+of a terminal's title strip, or New pin in the title strip's right-click menu; each opens a popup
+with Name and Command fields, in the focused pane's or that terminal's folder (the title strip's
+ways fill Command with any selected text). The pin button's menu also lists the repo's command
+pins, then the global ones, so you can run one in that terminal's folder without opening the
+dashboard.
 Clicking the pin types the command into the focused terminal when it is idle and in that folder,
 or into a new terminal opened there, without pressing Enter, so you choose when to run it. A new
 terminal uses the focused terminal's shell, or your default shell when no terminal has focus. The
@@ -227,7 +240,9 @@ the repo's own pins with a globe icon, and runs in the focused pane's folder, so
 like `git fetch --prune` or `pnpm install`. Changing Scope when you edit a pin moves it between the
 two lists. The globe at the right of the Pins heading hides global pins from the section, which
 keeps a long list out of the way; while they are hidden, a pin button in the dashboard's top bar
-drops a menu of them, sorted by name. The command palette lists them too.
+drops a menu of them, sorted by name. While the whole Pins section is hidden, that button lists
+the focused repo's pins first, then the global ones, with **+ Add** for a new command pin. The
+command palette lists them too.
 
 Pins are kept in `repos.json` next to `settings.json`, as a list of entries, each with a repo
 `root` and its `pins`. A pin's

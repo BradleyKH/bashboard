@@ -25,6 +25,7 @@ export interface DispatchContext {
   fontSize(): number;
   setFontSize(size: number): void;
   cycleScrim(): void;
+  toggleBackgroundTabs(): void;
   split(side: Edge | 'auto'): void;
   requestClosePane(id: string): Promise<void>;
   collapsePane(id: string): void;
@@ -87,6 +88,9 @@ export function dispatchAction(ctx: DispatchContext, action: Action): boolean {
       return true;
     case 'cycleScrim':
       ctx.cycleScrim();
+      return true;
+    case 'toggleBackgroundTabs':
+      ctx.toggleBackgroundTabs();
       return true;
     case 'increaseFontSize':
       ctx.setFontSize(stepFontSize(ctx.fontSize(), 1));

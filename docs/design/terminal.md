@@ -145,10 +145,14 @@ switching back attaches one again if the budget allows. If the browser drops a W
 
 **Title strip:** the kind menu (4.11), the status dot (4.8), the bound session's name or the
 shell's working directory, any buttons of the pane's own kind (`PaneView.stripActions`; the
-Files pane's, 4.12; a terminal's cloud chips, 4.25, then its pin button, a pin icon that opens
-the new pin popup for a command pin in its working directory, 4.6), then a collapse button, a zoom button (with two or more expanded
+Files pane's, 4.12; a terminal's cloud chips, 4.25, then its pin button, a pin icon that drops
+a picker like the top bar's favorites and layouts menus: the command pins of the repo of its
+working directory, then the global pins, each run in that directory as a Pins row runs it, and a
+"+ Add" button that opens the new pin popup for a command pin there, 4.6), then a collapse button, a zoom button (with two or more expanded
 panes in the tab, 4.2), and a close button that acts as Ctrl+W (`requestClosePane`); the rest of
-the strip is the drag handle for docking. The status dot's tooltip shows the waiting reason
+the strip is the drag handle for docking. The pane's own buttons (not the cloud chips) are hidden
+unless the pane is focused or under the pointer; their space stays reserved, so the title keeps
+its width. The status dot's tooltip shows the waiting reason
 (3.3) while the terminal is `waiting`; the strip's text is unchanged. Every pane kind
 has the same strip, with its own title and no status dot. The strip always sits in the layout
 above the pane's body, for every pane kind and even when the pane is alone in its tab; it is

@@ -23,6 +23,7 @@ export type Action =
   | { type: 'toggleDashboard' }
   | { type: 'focusDashboard' }
   | { type: 'cycleScrim' }
+  | { type: 'toggleBackgroundTabs' }
   | { type: 'toggleBackdrop' }
   | { type: 'collapsePane' }
   | { type: 'togglePaneZoom' }

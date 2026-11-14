@@ -24,6 +24,19 @@ export const DEFAULT_ELEMENT_ORDER = [
 
 export type DashboardElement = (typeof DEFAULT_ELEMENT_ORDER)[number];
 
+/**
+ * What `dashboard.sections` shows or hides: every element, and Pins, which keeps its fixed place
+ * between the top slot and the list.
+ */
+export type ShowableSection = DashboardElement | 'pins';
+
+/** The settings dialog's and the dashboard menu's order: Pins where it sits under the default top slot. */
+export const SHOWABLE_ORDER: readonly ShowableSection[] = [
+  ...DEFAULT_ELEMENT_ORDER.slice(0, 2),
+  'pins',
+  ...DEFAULT_ELEMENT_ORDER.slice(2),
+];
+
 /** Elements with no header to collapse them by. */
 type Uncollapsible = 'clock' | 'launch' | 'wave';
 
@@ -38,8 +51,9 @@ const SECTIONS: readonly DashboardSection[] = [
 ];
 
 /** Whether each element is shown when the user has not said otherwise. */
-export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
+export const ELEMENT_SHOWN_BY_DEFAULT: Record<ShowableSection, boolean> = {
   launch: true,
+  pins: true,
   needs: true,
   favorites: false,
   layouts: false,
@@ -56,8 +70,9 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<DashboardElement, boolean> = {
 };
 
 /** Display names, shared by the settings dialog's checkboxes. */
-export const ELEMENT_LABELS: Record<DashboardElement, string> = {
+export const ELEMENT_LABELS: Record<ShowableSection, string> = {
   launch: 'Launch',
+  pins: 'Pins',
   needs: 'Needs you',
   favorites: 'Favorites',
   layouts: 'Layouts',
@@ -74,11 +89,12 @@ export const ELEMENT_LABELS: Record<DashboardElement, string> = {
 };
 
 /** Muted notes under the settings dialog's checkboxes, for elements whose name says little. */
-export const ELEMENT_HINTS: Partial<Record<DashboardElement, string>> = {
+export const ELEMENT_HINTS: Partial<Record<ShowableSection, string>> = {
   wave: 'A Lissajous figure that follows CPU and network load',
   containers: 'Podman and Docker',
   ship: 'Manage pipelines and PRs for selected repos',
   branch: "Git and CI summary for the focused pane's branch",
+  pins: 'Saved files, folders, and terminal commands',
 };
 
 function isSection(v: unknown): v is DashboardSection {

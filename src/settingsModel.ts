@@ -6,7 +6,7 @@ import { UI_SCALE_MAX, UI_SCALE_MIN } from './uiScale';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { resolveScheme, SCHEMES } from './code/schemes';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
-import { DEFAULT_ELEMENT_ORDER, ELEMENT_HINTS, ELEMENT_LABELS } from './dashboardSections';
+import { ELEMENT_HINTS, ELEMENT_LABELS, SHOWABLE_ORDER } from './dashboardSections';
 import type { Settings } from './settings';
 
 export type FieldKind = 'toggle' | 'number' | 'slider' | 'text' | 'list' | 'select';
@@ -168,7 +168,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         inline: true,
       },
-      ...DEFAULT_ELEMENT_ORDER.map((id): SettingsField => ({
+      ...SHOWABLE_ORDER.map((id): SettingsField => ({
         path: ['dashboard', 'sections', id],
         label: ELEMENT_LABELS[id],
         hint: ELEMENT_HINTS[id],
@@ -285,6 +285,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         shownWhen: BORDER_LIGHTS_ON,
       },
       { path: ['tabTransition'], label: 'Tab transition', kind: 'toggle', hint: 'Panes recede and rise when you switch tabs', applies: 'live' },
+      {
+        path: ['showBackgroundTabs'],
+        label: 'Show other tabs in background',
+        kind: 'toggle',
+        hint: 'Your other tabs drift behind the active one',
+        applies: 'live',
+      },
     ],
   },
   {

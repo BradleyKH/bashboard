@@ -95,11 +95,23 @@ export interface WorkspaceHooks {
   onConfirmReplace?: (paneId: string, kind: PaneKind) => Promise<boolean>;
   /** Shows a confirm dialog for a pane's own question (a Git pane's Undo last commit); true goes ahead. */
   onConfirm?: (options: ConfirmOptions) => Promise<boolean>;
+  /** A terminal's title strip New pin: a command pin in `folder`, prefilled with the selection. */
+  onNewCommandPin?: (folder: string | null, selection: string) => void;
+  /** A terminal's pin button: the pins to run in `folder`, dropped from `anchor`, and "+ Add". */
+  onOpenPinPicker?: (anchor: HTMLElement, folder: string | null, selection: string) => void;
+  /**
+   * A Files pane's pin button: the file and folder pins of the repo at `root`, dropped from
+   * `anchor`; choosing one calls `show` with the folder to show and the entry to select.
+   */
+  onOpenFilesPinPicker?: (
+    anchor: HTMLElement,
+    root: string,
+    folder: string,
+    show: (folder: string, select?: string) => void,
+  ) => void;
   /**
    * A Files pane pinned a file or folder of the repo at `root` (docs/design/files.md section 4.12).
    */
-  /** A terminal's title strip "+" or New pin: a command pin in `folder`, prefilled with the selection. */
-  onNewCommandPin?: (folder: string | null, selection: string) => void;
   onPin?: (root: string, absolute: string, isDir: boolean) => void;
   onUnpin?: (root: string, absolute: string) => void;
   /** Absolute paths of the existing pinned folders of the repo at `root`. */

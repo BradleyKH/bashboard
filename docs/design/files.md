@@ -163,9 +163,12 @@ dotfile such as `.gitignore` has none). Ties go by name, A to Z. Folders stay ab
 sort by name, A to Z, under every key except Name descending, which reverses them too. A new pane
 starts at Modified, newest first; each pane saves its own sort (4.11).
 
-**Title strip buttons.** After the folder's name, the title strip (4.4) carries Open in File
-Explorer, Search in this folder (described below), and Open terminal here, all for the current
-folder.
+**Title strip buttons.** After the folder's name, the title strip (4.4) carries a pin button,
+Open in File Explorer, Search in this folder (described below), and Open terminal here, all for
+the current folder. The pin button drops a picker like the dashboard's favorites one (4.6) with
+the repo's file and folder pins in their order, each marked File or Folder; choosing one shows it
+in this pane (a file in its folder, selected). Its "+ Add" pins the current folder, disabled while
+that folder is pinned, and the rows rename and remove as the favorites picker's do.
 
 The preview depends on the file:
 
@@ -361,7 +364,8 @@ History is not saved.
 
 **Pins** are files and folders kept per repo in `repos.json` (section 7). A pin inside the repo
 is stored relative to its root; one outside it, such as a meeting notes folder, is stored as an
-absolute path. The breadcrumb's pin button pins the current folder. In the Pins section
+absolute path. The breadcrumb's pin button (a pushpin, lit while the folder is pinned) pins the
+current folder or unpins it. In the Pins section
 (4.6), clicking a pinned folder shows it in the active tab's Files pane for that repo, or opens
 one; clicking a pinned file does the same with its folder and selects it. A pin whose path no
 longer exists is shown dimmed and opens nothing. A pin can also hold a shell command, its path

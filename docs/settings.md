@@ -104,6 +104,15 @@ leave recede and fade while the incoming tab's panes rise into place, in about a
 second. Windows' reduce animations setting turns it into a short crossfade. It is the Tab
 transition toggle in the Appearance section and applies live.
 
+`showBackgroundTabs` (default `false`) keeps your other tabs in view: they float behind the
+active one as small, dimmed clusters of their panes, drifting slowly around the
+window. A cluster with a terminal that needs you comes forward and brightens, and an idle one
+sinks back. Switching tabs brings the new tab forward out of its cluster and sends the old one
+back into its own. The clusters are pictures: they take no clicks, and their terminals redraw a
+few times a second while they have new output. It is the Show other tabs in background
+toggle in the Appearance section, applies live, and the `toggleBackgroundTabs` action (no default key) switches it from the keyboard or
+the command palette.
+
 The Shortcuts tab of the app dialog (open it with F1 or the dashboard's **?** button, then click
 Shortcuts) lists every key in effect, including your own bindings. It is also where keys are changed: click a key to
 replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all
@@ -271,10 +280,11 @@ the scrollback already saved, at the next close:
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `launch`, `needs`, `panes`, `containers`, `ports`, `ship`, `localModels`, and `external` default to
+each dashboard element: `launch`, `pins`, `needs`, `panes`, `containers`, `ports`, `ship`, `localModels`, and `external` default to
 `true`, and `favorites`, `layouts`, `branch`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
 the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
-drops the Launch menu. A settings file that still has `sections.folder` and no `sections.launch`
+drops the Launch menu. While `pins` is off, the top bar's pin button lists the focused repo's
+pins, then the global ones. A settings file that still has `sections.folder` and no `sections.launch`
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
@@ -296,6 +306,7 @@ while the Ports section is on.
   "side": "right",
   "sections": {
     "launch": true,
+    "pins": true,
     "needs": true,
     "favorites": false,
     "layouts": false,

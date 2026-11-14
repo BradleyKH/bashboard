@@ -103,8 +103,9 @@ describe('editSections', () => {
 describe('filterSections', () => {
   it('matches labels ignoring case and drops empty sections', () => {
     const found = filterSections(editSections(DEFAULTS), 'TAB');
-    expect(found.map((s) => s.title)).toEqual(['Tabs']);
+    expect(found.map((s) => s.title)).toEqual(['Tabs', 'Workspace']);
     expect(found[0].rows.length).toBe(13);
+    expect(found[1].rows.map((r) => r.action)).toEqual(['toggleBackgroundTabs']);
     expect(filterSections(editSections(DEFAULTS), 'zzz')).toEqual([]);
     expect(filterSections(editSections(DEFAULTS), '  ')).toHaveLength(editSections(DEFAULTS).length);
   });

@@ -22,7 +22,8 @@ import {
 import { globalPinsSave, reposSave } from './persistence';
 import type { FolderlessLaunchKind, LaunchKind } from './launchModel';
 import { setOpenMenuGitProbe } from './openMenu';
-import type { GlobalPinState, RepoPinState } from './pinsSection';
+import { Picker, type PickerItem } from './picker';
+import { folderName, type GlobalPinState, type RepoPinState } from './pinsSection';
 import { fsList, repoRoot, type RepoInfo } from './repoFiles';
 import {
   addPin,
@@ -83,9 +84,66 @@ export class RepoTracker {
   /** The terminal each command pin last typed into, keyed by `commandKey`, for its running mark. */
   private readonly commandPanes = new Map<string, string>();
   private readonly pinDialog = new CommandPinDialog();
+  private readonly pinPicker: Picker;
+  /** The terminal folder the pin picker is open for, and the repo it resolved to. */
+  private pickerTarget: { folder: string; root: string | null } | null = null;
+  /** The terminal's selection when the pin picker opened, to prefill "+ Add". */
+  private pickerSelection = '';
+  private readonly filesPinPicker: Picker;
+  /** The Files pane the files pin picker is open for: its repo root, folder, and how to show a pin in it. */
+  private filesPickerTarget: { root: string; folder: string; show: (folder: string, select?: string) => void } | null =
+    null;
 
   constructor(private readonly deps: RepoTrackerDeps) {
     setOpenMenuGitProbe((path) => this.cachedRepoRoot(path).then((r) => r.isGit, () => false));
+    this.pinPicker = new Picker(
+      { onOpen: (value) => this.runPickedPin(value), onClose: deps.focusTerminal },
+      {
+        action: {
+          kind: 'run',
+          label: '+ Add',
+          title: 'Pin a command in this folder',
+          enabled: () => true,
+          run: () => {
+            const folder = this.pickerTarget?.folder ?? null;
+            this.pinPicker.close();
+            this.newCommandPin(folder, this.pickerSelection);
+          },
+        },
+      },
+    );
+    this.filesPinPicker = new Picker(
+      { onOpen: (value) => this.openPickedPath(value), onClose: deps.focusTerminal },
+      {
+        action: {
+          kind: 'run',
+          label: '+ Add',
+          title: 'Pin the folder this pane shows',
+          enabled: () => {
+            const t = this.filesPickerTarget;
+            return t !== null && !this.isPathPinned(t.root, t.folder);
+          },
+          run: () => {
+            const t = this.filesPickerTarget;
+            if (t) this.pinPath(t.root, t.folder, true);
+            this.refreshFilesPinPicker();
+          },
+        },
+        manage: {
+          noun: 'pin',
+          rename: (value, name) => {
+            const t = this.filesPickerTarget;
+            if (t) void this.updateRepos(renamePin(this.deps.state.repos, t.root, Number(value), name));
+            this.refreshFilesPinPicker();
+          },
+          remove: (value) => {
+            const t = this.filesPickerTarget;
+            if (t) void this.updateRepos(removePin(this.deps.state.repos, t.root, Number(value)));
+            this.refreshFilesPinPicker();
+          },
+        },
+      },
+    );
   }
 
   get currentRepo(): RepoInfo | null {
@@ -326,6 +384,144 @@ export class RepoTracker {
       (err: unknown) => showToast(`Could not pin a command in ${target}: ${String(err)}`),
     );
   };
+
+  /**
+   * A terminal's pin button (docs/design/terminal.md section 4.4): its repo's command pins, then
+   * the global ones, to run in that terminal's folder; "+ Add" opens the new pin popup.
+   */
+  readonly openPinPicker = (anchor: HTMLElement, folder: string | null, selection: string): void => {
+    this.openRunPicker(anchor, folder, selection, false);
+  };
+
+  /**
+   * The dashboard top bar's pin button while the Pins section is hidden (docs/design/dashboard.md
+   * section 4.6): every pin of the focused pane's repo, files and folders too, then the global ones.
+   */
+  readonly openDashboardPinPicker = (anchor: HTMLElement): void => {
+    this.openRunPicker(anchor, this.currentFolder(), '', true);
+  };
+
+  private openRunPicker(anchor: HTMLElement, folder: string | null, selection: string, withPaths: boolean): void {
+    this.pickerSelection = selection;
+    const show = (root: string | null): void => {
+      this.pickerTarget = folder ? { folder, root } : null;
+      this.pinPicker.open(this.pinPickerItems(root, withPaths), withPaths ? 'Open a pin' : 'Run a pin', anchor);
+    };
+    if (!folder) {
+      show(null);
+      return;
+    }
+    this.cachedRepoRoot(folder).then(
+      async ({ root }) => {
+        if (withPaths && !this.pinRootsChecked.has(pathKey(root))) await this.checkPins(root);
+        show(root);
+      },
+      () => show(null),
+    );
+  }
+
+  /** The repo's pins in their order, then the global ones alphabetized, keyed `repo:<index>` and `global:<index>`. */
+  private pinPickerItems(root: string | null, withPaths: boolean): PickerItem[] {
+    const repoItems: PickerItem[] = root
+      ? pinsFor(this.deps.state.repos, root).flatMap((pin, index): PickerItem[] => {
+          if (isCommandPin(pin)) {
+            return [{ label: pin.label ?? pin.command, detail: pin.command, value: `repo:${index}`, category: 'Repo' }];
+          }
+          return withPaths ? this.pathPinItem(root, pin, `repo:${index}`) : [];
+        })
+      : [];
+    const globalItems = alphabetizedGlobalPins(this.deps.state.globalPins).map(({ pin, index }) => ({
+      label: globalPinName(pin),
+      detail: pin.command,
+      value: `global:${index}`,
+      category: 'Global',
+    }));
+    return [...repoItems, ...globalItems];
+  }
+
+  /** A file or folder pin's picker row, or none while its path is missing or not yet looked up. */
+  private pathPinItem(root: string, pin: Pin, value: string): PickerItem[] {
+    const absolute = resolvePin(root, pin);
+    const kind = this.pinKinds.get(pathKey(absolute));
+    if (kind === null || kind === undefined) return [];
+    const name = pin.path === '.' ? folderName(absolute) : pin.path;
+    return [{ label: pin.label ?? name, detail: pin.path, value, category: kind ? 'Folder' : 'File' }];
+  }
+
+  /**
+   * A Files pane's pin button (docs/design/files.md section 4.12): the file and folder pins of the
+   * repo at `root`, shown in that pane when chosen; "+ Add" pins the folder it shows.
+   */
+  readonly openFilesPinPicker = (
+    anchor: HTMLElement,
+    root: string,
+    folder: string,
+    show: (folder: string, select?: string) => void,
+  ): void => {
+    this.filesPickerTarget = { root, folder, show };
+    const open = (): void => this.filesPinPicker.open(this.pathPinItems(root), 'Open a pin', anchor);
+    if (this.pinRootsChecked.has(pathKey(root))) open();
+    else void this.checkPins(root).then(open);
+  };
+
+  private refreshFilesPinPicker(): void {
+    const t = this.filesPickerTarget;
+    if (t) this.filesPinPicker.setItems(this.pathPinItems(t.root));
+  }
+
+  private isPathPinned(root: string, absolute: string): boolean {
+    return pinsFor(this.deps.state.repos, root).some(
+      (pin) => !isCommandPin(pin) && pathKey(resolvePin(root, pin)) === pathKey(absolute),
+    );
+  }
+
+  /** The root's file and folder pins that exist, keyed by their index in its list. */
+  private pathPinItems(root: string): PickerItem[] {
+    return pinsFor(this.deps.state.repos, root).flatMap((pin, index) =>
+      isCommandPin(pin) ? [] : this.pathPinItem(root, pin, String(index)),
+    );
+  }
+
+  private openPickedPath(value: string): void {
+    const t = this.filesPickerTarget;
+    if (!t) return;
+    const pin = pinsFor(this.deps.state.repos, t.root)[Number(value)];
+    if (!pin || isCommandPin(pin)) return;
+    const absolute = resolvePin(t.root, pin);
+    const target = pinTarget(t.root, absolute, this.pinKinds.get(pathKey(absolute)) === true);
+    t.show(target.folder, target.select);
+  }
+
+  /**
+   * Runs a pin chosen in the pin picker in the folder it opened for; a file or folder pin opens in
+   * a Files pane.
+   */
+  private runPickedPin(value: string): void {
+    const target = this.pickerTarget;
+    const [scope, at] = value.split(':');
+    const index = Number(at);
+    if (scope === 'global') {
+      const pin = this.deps.state.globalPins[index];
+      if (!pin) return;
+      if (!target) {
+        showToast('Open a terminal in a folder to run a global pin there');
+        return;
+      }
+      this.typeCommand(globalKey(target.root ?? target.folder, pin), target.folder, pin.command);
+      return;
+    }
+    if (!target?.root) return;
+    const { root } = target;
+    const pin = pinsFor(this.deps.state.repos, root)[index];
+    if (!pin) return;
+    const absolute = resolvePin(root, pin);
+    if (isCommandPin(pin)) {
+      this.runCommandPin(root, absolute, pin);
+      return;
+    }
+    const t = pinTarget(root, absolute, this.pinKinds.get(pathKey(absolute)) === true);
+    this.deps.workspace().showFiles({ root, folder: t.folder, select: t.select });
+  }
 
   /** Where a new pin and a global pin's run go: the focused pane's folder, else the last one with a folder. */
   private currentFolder(): string | null {

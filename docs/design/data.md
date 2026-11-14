@@ -247,6 +247,9 @@ the focused pane's folder.
   // The tab switch transition (section 4.30): the outgoing tab's panes recede as the incoming
   // ones rise. On by default.
   "tabTransition": true,
+  // Background tabs (section 4.30): every other tab drifts behind the active one as a cluster
+  // of its panes. Off by default.
+  "showBackgroundTabs": false,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
   // slideshow; a missing or invalid value falls back to lights. animate false freezes lights,
@@ -284,7 +287,7 @@ the focused pane's folder.
   // starts waiting (4.7), or a Needs you row newly breaks (4.28), while the window is unfocused.
   "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true },
   // side is right or left; an unknown value falls back to right. sections shows or hides each
-  // dashboard element (4.6). An older file's containers.enabled is still read when
+  // dashboard element, and Pins (4.6). An older file's containers.enabled is still read when
   // sections.containers is absent. clockStyle is both, time, or binary; an unknown value falls
   // back to both. portRows (1 to 50) is how many ports the Ports section lists before counting
   // the rest; anything else falls back to 10.
@@ -294,6 +297,7 @@ the focused pane's folder.
     "side": "right",
     "sections": {
       "launch": true,
+      "pins": true,
       "needs": true,
       "favorites": false,
       "layouts": false,

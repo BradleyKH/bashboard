@@ -32,7 +32,9 @@ import * as routing from './paneRouting';
 import { specForKind } from './paneSpecModel';
 import { PathDrop, type PathDropContext } from './pathDrop';
 import type { PathDrag } from './pathDragLayer';
-import type { PaneKind } from './paneKinds';
+import { paneKindInfo, type PaneKind } from './paneKinds';
+import { BackgroundTabsLayer } from './backgroundTabsLayer';
+import { clusterDepth, recedeLeg, riseLeg } from './backgroundTabsModel';
 import type { PaneView } from './paneView';
 import { scratchDelete, type PtyActivity } from './persistence';
 import type { PtyRef, SavedTab, SavedWorkspace } from './savedWorkspace';
@@ -90,6 +92,8 @@ export class Workspace {
   private readonly tabView: TabView;
   /** Made on the first animated switch, since the #drift layer and matchMedia need a document. */
   private transition: TabTransition | null = null;
+  /** Design 4.30 background tab clusters; null when there is no #drift layer. */
+  private readonly backgroundTabs: BackgroundTabsLayer | null;
   private readonly status: PaneStatus;
   private scrim: ScrimState;
   /** Tracked locally so quick repeats don't act on a size the file watcher hasn't reported back yet. */
@@ -143,6 +147,8 @@ export class Workspace {
       attention: new Set([...this.hosts.keys()].filter((id) => this.attention.has(id))),
     }));
     this.lights.apply(payload.settings);
+    this.backgroundTabs = this.createBackgroundTabs();
+    this.backgroundTabs?.setEnabled(payload.settings.showBackgroundTabs);
     window.addEventListener('focus', () => {
       const cleared = this.attention.clearIfSeen(this.store.focusedId);
       if (this.clearDoneIfSeen() || cleared) this.notify();
@@ -175,6 +181,7 @@ export class Workspace {
       fontSize: () => this.fontSize,
       setFontSize: (size) => this.setFontSize(size),
       cycleScrim: () => this.cycleScrim(),
+      toggleBackgroundTabs: () => this.toggleBackgroundTabs(),
       layoutCell: () => this.layoutCell(),
       paneRects: () => this.tabView.paneRects(),
       containerRect: () => this.containerRect(),
@@ -315,6 +322,7 @@ export class Workspace {
     applyTextScale(document.documentElement, this.fontSize);
     for (const pane of this.paneViews.values()) pane.applySettings(this.config.settings);
     this.lights.apply(this.config.settings);
+    this.backgroundTabs?.setEnabled(this.config.settings.showBackgroundTabs);
   }
 
   private setFontSize(size: number): void {
@@ -999,23 +1007,81 @@ export class Workspace {
     return this.dispatch(action);
   }
 
-  /** Attaches and sizes the host via render before the pane builds in it, since start() fits to it. */
   /**
    * Design 4.30: runs a change of the active tab, with the outgoing panes receding and the
-   * incoming ones rising around it when `tabTransition` is on.
+   * incoming ones rising around it when `tabTransition` is on. With background tabs shown, the incoming panes
+   * come forward from their cluster and the outgoing ones shrink into theirs.
    */
   private withTransition(change: () => void): void {
     const transition = this.tabTransition();
+    const clusters = this.backgroundTabs?.isEnabled ? this.backgroundTabs : null;
     if (!transition) {
       change();
+      clusters?.sync();
       return;
     }
+    const outgoingTab = this.store.activeId;
     const ghosts = transition.capture(
-      this.onScreenHosts().map(([id, host, rect]) => ({ host, rect, snapshot: this.terminal(id)?.snapshot() ?? null })),
+      this.onScreenHosts().map(([id, host, rect]) => ({ id, host, rect, snapshot: this.terminal(id)?.snapshot() ?? null })),
     );
+    const from = clusters?.paneRects() ?? new Map<string, DOMRect>();
     change();
-    // The drag overlay read the panes' rects mid-rise, scaled; it reads them again at rest.
-    transition.play(ghosts, this.onScreenHosts().map(([, host]) => host), () => this.paneDrag.refresh());
+    clusters?.sync();
+    const into = clusters?.arrive(outgoingTab) ?? new Map<string, DOMRect>();
+    const incoming = this.onScreenHosts();
+    const restOf = new Map(incoming.map(([id, , rect]) => [id, rect]));
+    const ghostRect = new Map(ghosts.map((g) => [g.id, g.rect]));
+    transition.play(
+      ghosts,
+      incoming.map(([id, host]) => ({ id, host })),
+      () => {
+        clusters?.settle();
+        // The drag overlay read the panes' rects mid-rise, scaled; it reads them again at rest.
+        this.paneDrag.refresh();
+      },
+      {
+        outgoing: (id) => {
+          const target = into.get(id);
+          const rest = ghostRect.get(id);
+          return target && rest ? recedeLeg(rest, target) : null;
+        },
+        incoming: (id) => {
+          const start = from.get(id);
+          const rest = restOf.get(id);
+          return start && rest ? riseLeg(start, rest) : null;
+        },
+      },
+    );
+  }
+
+  /** Design 4.30 background tabs: the clusters read the tabs, their statuses, and the pane area. */
+  private createBackgroundTabs(): BackgroundTabsLayer | null {
+    const layer = document.getElementById('drift');
+    if (!layer) return null;
+    return new BackgroundTabsLayer(layer, this.root, {
+      tabs: () =>
+        this.store.state.tabs.map((tab) => {
+          const info = this.status.tabInfo(tab);
+          return { id: tab.id, tree: tab.tree, panes: tab.panes, depth: clusterDepth(info.attention, info.status) };
+        }),
+      activeId: () => this.store.activeId,
+      area: () => {
+        const r = this.root.getBoundingClientRect();
+        return { x: r.left, y: r.top, width: r.width, height: r.height };
+      },
+      card: (id) => {
+        const kind = this.paneViews.get(id)?.kind ?? 'terminal';
+        return { icon: paneKindInfo(kind).icon, title: this.status.title(id) };
+      },
+      terminal: (id) => this.terminal(id) ?? null,
+    });
+  }
+
+  /** Shows or hides the other tabs in the background, saved to `showBackgroundTabs`. */
+  private toggleBackgroundTabs(): void {
+    const next = !this.config.settings.showBackgroundTabs;
+    this.backgroundTabs?.setEnabled(next);
+    saveSetting(['showBackgroundTabs'], next).catch((err: unknown) => showToast(`Could not save the setting: ${String(err)}`));
   }
 
   private tabTransition(): TabTransition | null {
@@ -1035,6 +1101,7 @@ export class Workspace {
     return out;
   }
 
+  /** Attaches and sizes the host via render before the pane builds in it, since start() fits to it. */
   private mount(id: string, tree: Layout, spec: PaneSpec): void {
     const host = this.factory.createHost(id);
     this.store.addToActive(id, false);
@@ -1156,6 +1223,7 @@ export class Workspace {
       const tab = this.store.tabOf(id);
       pane.setCanSend(tab !== null && tab.panes.some((p) => this.terminal(p) !== undefined));
     }
+    this.backgroundTabs?.sync();
     for (const cb of [...this.listeners]) cb();
   }
 

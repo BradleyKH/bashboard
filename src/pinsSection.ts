@@ -53,6 +53,7 @@ export class PinsSection {
   private readonly list: HTMLElement;
   private readonly globalButton: HTMLButtonElement;
   private showGlobal = true;
+  private enabled = true;
   private state: RepoState = { repo: null, pins: [], globalPins: [] };
 
   constructor(private readonly callbacks: PinsSectionCallbacks) {
@@ -101,6 +102,13 @@ export class PinsSection {
     return this.showGlobal;
   }
 
+  /** `dashboard.sections.pins`: hidden, the section stays empty and the top bar's pin button lists its pins. */
+  setEnabled(enabled: boolean): void {
+    if (enabled === this.enabled) return;
+    this.enabled = enabled;
+    this.update(this.state);
+  }
+
   private syncGlobalButton(): void {
     this.globalButton.setAttribute('aria-pressed', String(this.showGlobal));
     this.globalButton.title = this.showGlobal
@@ -112,8 +120,8 @@ export class PinsSection {
     this.state = state;
     const { repo } = state;
     // Shown with no pins too, since its "+" is a way to add the first one.
-    this.el.hidden = repo === null;
-    if (!repo) {
+    this.el.hidden = repo === null || !this.enabled;
+    if (!repo || !this.enabled) {
       this.list.replaceChildren();
       return;
     }

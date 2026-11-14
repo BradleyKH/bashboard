@@ -56,7 +56,11 @@ section. Reordering stays with the Favorites section. Next,
 a pin button shows while the
 Pins heading's globe leaves global pins out of the section: it drops a menu of the global pins
 sorted by name without regard to case, and choosing one types its command as clicking its row does
-("No global pins" stands alone, disabled, when there are none). After them come icon buttons
+("No global pins" stands alone, disabled, when there are none). While the Pins section is
+hidden, the same button drops a picker like the favorites one instead: the focused repo's pins
+in their order (commands, files, and folders), then the global pins by name, each marked Repo,
+File, Folder, or Global, with "+ Add" opening the new pin popup. Choosing one acts as clicking its
+row would. After them come icon buttons
 for Settings (⚙, also bound to Ctrl+,) and Help (?, also bound to F1), which open the app dialog
 (4.18) on those tabs. The × that hides the panel sits alone at the right end. Each button's
 tooltip ends with its action's current keys in parentheses, read on hover so a rebinding
@@ -67,7 +71,9 @@ Branch, Local AI models, External sessions, System, and Wave, in that default or
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
 Favorites, Layouts, Branch, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
-panel no row's menu claims and lists every element with a check on the shown ones; choosing one
+panel no row's menu claims and lists every element with a check on the shown ones;
+Pins, fixed between the slots rather than an element, has a toggle the same way, listed after
+Launch and on by default; choosing one
 flips its toggle. A disabled element is gone from the panel, not collapsed, and its
 rows leave the keyboard rows below. Toggles and `dashboard.side` apply live, and switching
 sides while a peek is showing ends the peek.
@@ -297,7 +303,7 @@ and flags, and is required; Name is optional. Scope is a button pair, **This rep
 folder** outside a git repo) or **Everywhere**, defaulting to the first; with Everywhere the folder
 line reads "Runs in the focused pane's folder", and with no folder at all only Everywhere is
 enabled. Enter or the Pin button saves, and Escape cancels.
-The title strip's pin button (4.4) prefills Command with the terminal's selected text, if any. A command
+The "+ Add" of a terminal's pin button picker (4.4) and the title strip menu's New pin prefill Command with the terminal's selected text, if any. A command
 pin's pencil button, F2, and its menu's Edit open the same popup with its values, and saving
 replaces them in place. Changing Scope there moves the pin: a repo pin made global leaves the
 repo's list, and a global pin made This repo joins the current repo's list in the focused pane's

@@ -12,6 +12,7 @@ import {
   type FilesSortKey,
   type History,
 } from './filesModel';
+import { filledPinIcon } from './pinIcon';
 import { ZoomButtons } from './zoomButtons';
 
 export interface FilesBreadcrumbOptions {
@@ -60,7 +61,9 @@ export class FilesBreadcrumb {
     this.sortBtn = this.button('', 'Sort', () => this.toggleSortMenu());
     this.sortBtn.classList.add('files-crumb-sort');
     const zoom = new ZoomButtons('files-crumb-btn', 'filesList', opts.zoom, opts.onZoom, opts.zoomWheelTarget);
-    this.pinBtn = this.button('☆', 'Pin this folder', opts.onTogglePin);
+    this.pinBtn = this.button('', 'Pin this folder', opts.onTogglePin);
+    this.pinBtn.classList.add('files-crumb-pin');
+    this.pinBtn.append(filledPinIcon());
     this.el.append(this.backBtn, this.forwardBtn, this.trail, this.sortBtn, zoom.el, this.pinBtn);
     attachContextMenu(this.el, () => ({ entries: opts.folderMenu() }));
   }
@@ -68,7 +71,6 @@ export class FilesBreadcrumb {
   update(state: FilesBreadcrumbState): void {
     this.backBtn.disabled = !canBack(state.history);
     this.forwardBtn.disabled = !canForward(state.history);
-    this.pinBtn.textContent = state.pinned ? '★' : '☆';
     this.pinBtn.title = state.pinned ? 'Unpin this folder' : 'Pin this folder';
     this.pinBtn.classList.toggle('on', state.pinned);
     this.sort = state.sort;

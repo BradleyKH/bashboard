@@ -381,6 +381,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
     let agent_glow = pick(&root, &["agentGlow"], &mut w, boolean, d.agent_glow);
     let border_lights = pick(&root, &["borderLights"], &mut w, boolean, d.border_lights);
     let tab_transition = pick(&root, &["tabTransition"], &mut w, boolean, d.tab_transition);
+    let show_background_tabs = pick(&root, &["showBackgroundTabs"], &mut w, boolean, d.show_background_tabs);
     let border_lights_speed = pick(
         &root,
         &["borderLightsSpeed"],
@@ -607,6 +608,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
         ),
         sections: DashboardSections {
             launch: section(&mut w, "launch", launch_default),
+            pins: section(&mut w, "pins", d.dashboard.sections.pins),
             needs: section(&mut w, "needs", d.dashboard.sections.needs),
             favorites: section(&mut w, "favorites", d.dashboard.sections.favorites),
             layouts: section(&mut w, "layouts", d.dashboard.sections.layouts),
@@ -750,6 +752,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             border_lights_speed,
             border_lights_density,
             tab_transition,
+            show_background_tabs,
             scrim,
             backdrop,
             scrollback,
@@ -801,6 +804,17 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "tabTransition": "no" }"#);
         assert!(s.tab_transition);
         assert_eq!(w, vec!["tabTransition: invalid value, using default"]);
+    }
+
+    #[test]
+    fn show_background_tabs_is_off_by_default() {
+        let (s, _) = parse_settings("{}");
+        assert!(!s.show_background_tabs);
+        let (s, _) = parse_settings(r#"{ "showBackgroundTabs": true }"#);
+        assert!(s.show_background_tabs);
+        let (s, w) = parse_settings(r#"{ "showBackgroundTabs": "yes" }"#);
+        assert!(!s.show_background_tabs);
+        assert_eq!(w, vec!["showBackgroundTabs: invalid value, using default"]);
     }
 
     #[test]
@@ -1154,6 +1168,7 @@ mod tests {
             d.sections,
             DashboardSections {
                 launch: true,
+                pins: true,
                 needs: true,
                 favorites: false,
                 layouts: false,
@@ -1173,6 +1188,9 @@ mod tests {
         assert!(w.is_empty(), "{w:?}");
         assert!(s.dashboard.sections.clock && !s.dashboard.sections.panes);
         assert!(!s.dashboard.sections.favorites && s.dashboard.sections.external);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "pins": false } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!s.dashboard.sections.pins && s.dashboard.sections.launch);
         let (s, w) = parse_settings(r#"{ "dashboard": { "sections": { "launch": false } } }"#);
         assert!(w.is_empty(), "{w:?}");
         assert!(!s.dashboard.sections.launch && s.dashboard.sections.panes);

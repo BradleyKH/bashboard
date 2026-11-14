@@ -198,7 +198,7 @@ the working directory's last folder, 4.4) and follows it as focus and folders ch
 the tab fixes its name; renaming it to an empty string returns it to following the focused
 pane. A tab opened from a layout starts with the layout's name, fixed.
 
-## 4.30 Tab transition and flux mode
+## 4.30 Tab transition and background tabs
 
 **Tab transition** (`tabTransition`, on by default). Switching tabs or opening a new one plays a
 depth swap: the outgoing panes recede (scale 0.93, 6 px blur, fade out, 240 ms) and the incoming
@@ -222,20 +222,43 @@ plays it.
 - Rects read during the rise are scaled, so the drag overlay rereads them when the transition
   settles.
 
-**Flux mode** (planned). A second pane mode beside the default grid. The active tab's panes
-keep their split-tree layout, while every other tab drifts behind them as a loose cluster of its
-panes in `#drift`, over whichever backdrop style is mounted (section 6) or none.
+**Background tabs** (`showBackgroundTabs`, off by default). The active tab's panes keep their
+split-tree layout, while every other tab drifts behind them as a loose cluster of its panes in
+`#drift`, over whichever backdrop style is mounted (section 6) or none. The
+`toggleBackgroundTabs` action (4.5, no default key) turns it on or off and saves the setting.
+Geometry and motion live in `backgroundTabsModel.ts`; `backgroundTabsLayer.ts` draws the
+clusters.
 
-- Background panes are not live terminals. Each is a small snapshot drawn from the terminal's
-  buffer a few times a second (inactive tabs' terminals keep receiving pty output); other kinds
-  show a card with their kind, title, and accent. The layer takes the scrim's
-  `--backdrop-brightness` and `--backdrop-blur` plus extra dimming for depth, so the drifting
-  panes sit with the backdrop and stay under the readability bar of section 5.
-- Clusters drift slowly on deterministic paths, mostly toward the window's edges and the gaps
-  between panes. A cluster with a pane that needs you (4.7) drifts forward and brightens; an idle
-  one sinks back. Reduced motion holds them still.
-- Switching tabs is the tab transition with a different start: the incoming cluster comes forward
-  from where it drifts, and the outgoing panes recede into a cluster.
+- **Homes.** Every tab, the active one included, has a home on an ellipse that nearly touches
+  the pane area's edges, starting at the top left and running clockwise in tab order. The home
+  sets where the cluster's drift is measured from; a cluster is drawn wherever its drift has
+  carried it. A cluster is the
+  tab's split tree at 30% of the pane area, shrinking by 2% per tab past three down to 16%, with
+  a 6 px gap between its panes. A tab whose panes are all collapsed shows them in a row; a tab
+  with no panes has no cluster.
+- **Pictures.** Background panes are not live. A terminal is drawn from its buffer
+  (`drawTerminalInto` in `terminalSnapshot.ts`) every 250 ms while it has new output, at most
+  six per pass in turn, and not while the window is hidden. Rows under 7 px tall are drawn as
+  runs of ink in each run's color rather than glyphs. Other kinds show a card with their kind's
+  icon and the pane's title. Clusters take no pointer events.
+- **Dimming.** Each cluster's panes take the scrim's `--backdrop-brightness` (times 0.9) and
+  `--backdrop-blur`, and the cluster's opacity is 0.75, so the drifting panes sit with the
+  backdrop and stay under the readability bar of section 5. The filter sits inside the drifting
+  element, so the compositor moves an already filtered layer.
+- **Drift.** Each cluster floats across the pane area on a Lissajous loop that spans 80% of the
+  room it has on each axis, so clusters pass behind the active panes and each other. The axis
+  frequencies (1:2, 1:3, or 2:3), phases, and loop length (90 to 150 s) come from a hash of the
+  tab id, so neighbors take different paths. A cluster's place in its loop follows the clock, so
+  a tab that returns to the background picks its path up where it would have been. A change to
+  the pane area or the tab count replans the loop. Reduced motion holds them still at home.
+- **Depth.** A cluster with a pane that needs you (4.7) or a waiting terminal comes forward
+  (scale 1.1, opacity 1, drawn over the others); one whose terminals are all idle sinks back
+  (scale 0.92, opacity 0.55). Depth changes ease over 1.6 s.
+- **Switching** is the tab transition with different paths: each incoming pane rises from where
+  its cluster drew it (380 ms) and each outgoing ghost shrinks into its spot in its tab's cluster
+  (360 ms), which stays hidden until the ghosts land and then takes their place. Panes with no
+  cluster spot, such as a new tab's first pane, use the depth swap. Under reduced motion it is
+  the crossfade.
 
 ## 4.11 Pane kinds
 

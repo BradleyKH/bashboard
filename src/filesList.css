@@ -39,7 +39,7 @@
 }
 
 .files-crumb-btn.on {
-  color: #e6c15a;
+  color: var(--accent);
 }
 
 .files-crumb-seg:disabled {
@@ -242,4 +242,12 @@
 
 .files-filter[hidden] {
   display: none;
+}
+
+.files-crumb-pin svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  /* Matches the 18px line box of the text-glyph buttons. */
+  margin: 3px 0;
 }

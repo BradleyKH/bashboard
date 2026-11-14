@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CODE_SCHEME_IDS } from './code/schemes';
-import { DEFAULT_ELEMENT_ORDER } from './dashboardSections';
+import { SHOWABLE_ORDER } from './dashboardSections';
 import { DEFAULT_SETTINGS, type BackdropStyle, type Settings } from './settings';
 import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
@@ -43,10 +43,10 @@ describe('Dashboard section', () => {
     expect(parseInput(side, 'top').ok).toBe(false);
   });
 
-  it('has one grouped toggle per element, in element order, then the clock style and port rows', () => {
+  it('has one grouped toggle per element and Pins, in settings order, then the clock style and port rows', () => {
     const grouped = fields.filter((f) => f.group === 'Show on the dashboard');
     expect(grouped.map((f) => f.path.join('.'))).toEqual([
-      ...DEFAULT_ELEMENT_ORDER.map((id) => `dashboard.sections.${id}`),
+      ...SHOWABLE_ORDER.map((id) => `dashboard.sections.${id}`),
       'dashboard.clockStyle',
       'dashboard.portRows',
     ]);

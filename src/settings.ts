@@ -8,7 +8,7 @@ import { DEFAULT_CONTENT_TEXT_MODE, type ContentTextMode } from './contentText';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ClockStyle } from './clockModel';
 import type { DashboardSide } from './dashboardResize';
-import { ELEMENT_SHOWN_BY_DEFAULT, type DashboardElement } from './dashboardSections';
+import { ELEMENT_SHOWN_BY_DEFAULT, type ShowableSection } from './dashboardSections';
 import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
 
 export type BackdropStyle = 'none' | 'lights' | 'galaxy' | 'matrix' | 'wave' | 'image' | 'slideshow';
@@ -36,6 +36,8 @@ export interface Settings {
   borderLightsDensity: number;
   /** Design 4.30: the outgoing tab's panes recede as the incoming ones rise. */
   tabTransition: boolean;
+  /** Design 4.30: the other tabs drift behind the active one as clusters of their panes. */
+  showBackgroundTabs: boolean;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design/backdrop.md section 6.4). */
   backdrop: {
@@ -59,7 +61,7 @@ export interface Settings {
     visibleOnStart: boolean;
     peekOnWaiting: boolean;
     side: DashboardSide;
-    sections: Record<DashboardElement, boolean>;
+    sections: Record<ShowableSection, boolean>;
     clockStyle: ClockStyle;
     /** Ports the Ports section lists before counting the rest, 1 to 50. */
     portRows: number;
@@ -126,6 +128,7 @@ export const DEFAULT_SETTINGS: Settings = {
   borderLightsSpeed: 120,
   borderLightsDensity: 1,
   tabTransition: true,
+  showBackgroundTabs: false,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {
     style: 'lights',

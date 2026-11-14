@@ -92,14 +92,97 @@ body {
   z-index: 0;
 }
 
-/* Holds the outgoing tab's ghosts while they recede (docs/design/workspace.md section 4.30).
-   Same z as #panes but earlier in the document, so the incoming panes rise over it. */
+/* Holds the background tab clusters and the outgoing tab's ghosts while they recede
+   (docs/design/workspace.md section 4.30). Same z as #panes but earlier in the document, so the
+   incoming panes rise over it. */
 #drift {
   position: fixed;
   inset: 0;
   z-index: 1;
   pointer-events: none;
   overflow: hidden;
+}
+
+/* Background tab clusters (section 4.30). The body carries the dimming, with the scrim's own
+   brightness and blur, so the clusters sit with the backdrop under the readability bar. */
+.tab-cluster {
+  position: absolute;
+  opacity: 0.75;
+  transition:
+    transform 1.6s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 1.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-cluster[data-depth='forward'] {
+  z-index: 1;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.tab-cluster[data-depth='back'] {
+  opacity: 0.55;
+  transform: scale(0.92);
+}
+
+/* A cluster panes are receding into stays hidden until they land, then fades in under them. */
+.tab-cluster.tab-cluster-arriving {
+  opacity: 0;
+  transition: none;
+}
+
+.tab-cluster-drift,
+.tab-cluster-body {
+  position: absolute;
+  inset: 0;
+}
+
+.tab-cluster-body {
+  filter: brightness(calc(var(--backdrop-brightness, 1) * 0.9)) blur(var(--backdrop-blur, 0px));
+}
+
+.tab-cluster-pane {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.tab-cluster-pane canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tab-cluster-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px;
+  color: var(--content-fg);
+  text-align: center;
+}
+
+.tab-cluster-card-icon {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.tab-cluster-card-title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-cluster {
+    transition: none;
+  }
 }
 
 #panes {
@@ -255,6 +338,12 @@ body.agent-glow .pane.agent-working::after {
 .strip-action-slot > * {
   display: flex;
   gap: 2px;
+}
+
+/* The pane's own buttons show only on the focused or hovered pane. Hidden, not removed, so the
+   title does not change width as the pointer crosses panes. */
+.pane:not(.focused):not(:hover):not(:focus-within) .strip-action-slot {
+  visibility: hidden;
 }
 
 .strip-clouds:empty {

@@ -81,6 +81,7 @@ export const ACTION_REGISTRY = [
   { name: 'openLayout', arg: 'none', label: 'Open a saved layout', section: 'Workspace' },
   { name: 'splitWithProfile', arg: 'none', label: 'Split with a chosen shell', section: 'Workspace' },
   { name: 'cycleScrim', arg: 'none', label: 'Cycle background brightness', section: 'Workspace' },
+  { name: 'toggleBackgroundTabs', arg: 'none', label: 'Show or hide other tabs in the background', section: 'Workspace' },
   { name: 'toggleBackdrop', arg: 'none', label: 'Pause or resume the background animation', section: 'Workspace' },
   { name: 'toggleFullscreen', arg: 'none', label: 'Toggle full screen', section: 'Workspace' },
   { name: 'showHelp', arg: 'none', label: 'Help', section: 'Workspace' },
