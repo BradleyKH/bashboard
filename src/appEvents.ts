@@ -55,7 +55,6 @@ export function listenAppEvents(deps: AppEventsDeps): void {
   const { state, workspace, saver, refreshPanel, favorites, repo, appWindow } = deps;
   cloudContextStore.applySettings(state.settings);
   cloudContextStore.subscribe(() => workspace.refreshStatuses());
-  cloudContextStore.start();
   // Listen only: AgentContexts owns the core's tracking flag, so with the Panes and Needs you
   // sections both hidden no model arrives and a Copilot pane saves without resumeModel.
   onAgentContext((ctx) => workspace.setSessionModel(ctx.sessionId, ctx.model)).catch((e) =>

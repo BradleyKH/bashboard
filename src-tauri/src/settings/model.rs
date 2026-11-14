@@ -446,7 +446,7 @@ impl Default for Settings {
             restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5, branch_size_threshold: 400 },
-            cloud: CloudSettings { badge: true, production_pattern: "prod|prd|live".into() },
+            cloud: CloudSettings { badge: false, production_pattern: "prod|prd|live".into() },
             local_models: LocalModels { ollama_url: String::new(), lm_studio_url: String::new(), min_context: 64000 },
             ship: Ship {
                 hosts: HashMap::new(),

@@ -1141,29 +1141,21 @@ See [Runs on a terminal's branch](#runs-on-a-terminals-branch).
 
 ## Cloud context chip
 
-A terminal's title strip shows a small chip, just left of its pin button, naming the AWS profile
-and region the shell is using, such as `aws prod-admin · us-east-1`. The terminal's card in the
-dashboard shows the same chip. The profile and region come from the shell's `AWS_PROFILE` and
-`AWS_REGION` (or `AWS_DEFAULT_REGION`), so each pane shows its own, and the chip follows the shell
-when you switch profiles. A region with no profile reads `aws default · us-east-1`. The chip is
-hidden while neither is set.
+With `cloud.badge` on (it is off by default), a terminal's title strip shows a small chip, just left
+of its pin button, naming the AWS profile and region the shell is using, such as
+`aws prod-admin · us-east-1`. The terminal's card in the dashboard shows the same chip. The profile
+and region come from the shell's `AWS_PROFILE` and `AWS_REGION` (or `AWS_DEFAULT_REGION`), so each
+pane shows its own, and the chip follows the shell when you switch profiles. A region with no
+profile reads `aws default · us-east-1`. The chip is hidden while neither is set.
 
 The chip is gray, and red when the profile matches the production pattern (`prod|prd|live` by
-default, matched ignoring case). Hover it for the provider, profile, region, and, for Azure, the
-subscription id and user.
+default, matched ignoring case). Hover it for the provider, profile, and region.
 
-Azure is not tied to a shell: it is the default subscription from `az login`, shared by every pane.
-To keep it from cluttering each strip, an Azure chip, such as `az Contoso Production`, shows only
-when the subscription name matches the production pattern, and then it is red. Bashboard reads the
-subscription from `azureProfile.json` in `AZURE_CONFIG_DIR` or `~/.azure`, watching that folder
-without running `az`. If that folder did not exist when Bashboard started, restart the app after
-the first `az login`.
-
-The AWS chip needs the `~/.bashrc` lines from
+The chip needs the `~/.bashrc` lines from
 [New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash; PowerShell
-panes report without setup, and Command Prompt panes show none. Turn the chips off with
-`cloud.badge`, or change what counts as production with `cloud.productionPattern` (see
-[Settings](settings.md#settings)).
+panes report without setup, and Command Prompt panes show none. Turn the chip on with **Cloud
+context chips** in the Terminal section of the Settings tab (`cloud.badge`), and change what counts
+as production with `cloud.productionPattern` (see [Settings](settings.md#settings)).
 
 ## Command palette
 

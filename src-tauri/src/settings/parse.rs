@@ -1561,10 +1561,10 @@ mod tests {
     #[test]
     fn cloud_values_parse() {
         let d = Settings::default();
-        assert!(d.cloud.badge);
+        assert!(!d.cloud.badge);
         assert_eq!(d.cloud.production_pattern, "prod|prd|live");
-        let (s, w) = parse_settings(r#"{ "cloud": { "badge": false, "productionPattern": "^p-" } }"#);
-        assert!(!s.cloud.badge);
+        let (s, w) = parse_settings(r#"{ "cloud": { "badge": true, "productionPattern": "^p-" } }"#);
+        assert!(s.cloud.badge);
         assert_eq!(s.cloud.production_pattern, "^p-");
         assert!(w.is_empty(), "{w:?}");
     }
@@ -1572,7 +1572,7 @@ mod tests {
     #[test]
     fn cloud_values_reject_invalid_types() {
         let (s, w) = parse_settings(r#"{ "cloud": { "badge": "yes", "productionPattern": 3 } }"#);
-        assert!(s.cloud.badge);
+        assert!(!s.cloud.badge);
         assert_eq!(s.cloud.production_pattern, "prod|prd|live");
         assert_eq!(w.len(), 2, "{w:?}");
         assert!(w[0].starts_with("cloud.badge"), "{w:?}");
@@ -1582,7 +1582,7 @@ mod tests {
     #[test]
     fn cloud_settings_serialize_camel_case() {
         let v = serde_json::to_value(Settings::default()).unwrap();
-        assert_eq!(v["cloud"]["badge"], true);
+        assert_eq!(v["cloud"]["badge"], false);
         assert_eq!(v["cloud"]["productionPattern"], "prod|prd|live");
     }
 

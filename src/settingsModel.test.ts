@@ -113,6 +113,7 @@ describe('isShown', () => {
         'dashboard.clockStyle',
         'borderLightsSpeed',
         'borderLightsDensity',
+        'cloud.productionPattern',
       ].sort(),
     );
   });
@@ -129,6 +130,7 @@ describe('isShown', () => {
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
         'borderLightsSpeed',
         'borderLightsDensity',
+        'cloud.productionPattern',
       ].sort(),
     );
   });

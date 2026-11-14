@@ -39,7 +39,6 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.23 CI for agents (`src-tauri/src/ci.rs`, `src-tauri/src/forge/failure.rs`, `src-tauri/src/forge/diagnostic.rs`) | [ship.md](ship.md) |
 | 3.24 Agent table (`src/agents.json`) | [sessions.md](sessions.md) |
 | 3.25 Branch size (`src-tauri/src/git_branch_size.rs`, `src-tauri/src/size_route.rs`) | [git.md](git.md) |
-| 3.26 Azure context (`src-tauri/src/cloud_context.rs`) | [terminal.md](terminal.md) |
 | 3.27 New worktree (`src-tauri/src/worktree_new.rs`, `src-tauri/src/worktree_trust.rs`, `src-tauri/src/worktree_route.rs`) | [git.md](git.md) |
 | 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`) | [sessions.md](sessions.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |

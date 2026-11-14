@@ -130,24 +130,6 @@ of the descriptor's symbolic traits, false when the traits cannot be read. Sever
 family collapse in the sort, keeping the monospace entry. On other platforms the list is always
 empty.
 
-## 3.26 Azure context (`src-tauri/src/cloud_context.rs`)
-
-The machine-wide half of the cloud chip (4.25): the default Azure subscription, read from disk.
-The core never runs `az` and never polls.
-
-- **Source.** `azureProfile.json` in `AZURE_CONFIG_DIR` (when set and non-empty) or `~/.azure`.
-  The file is UTF-8 with a BOM, which is stripped before parsing. The context is the
-  subscription with `isDefault` true: its `name`, its `id`, and `user.name` when present. A file
-  that is missing, unparseable, or has no default subscription yields no context; a missing
-  login is not an error.
-- **Watching.** The directory is watched (not the file, since `az login` rewrites it in several
-  steps), and a burst of events is coalesced by a 250 ms debounce into one re-read. A change that
-  alters the context emits `cloud://azure` with `{ name, id, user }`, or null when it is gone.
-  If the directory does not exist at launch, nothing is watched, so a first `az login` after
-  that needs an app restart.
-- **Command.** `azure_context() -> { name, id, user } | null` returns the current context; the
-  front end calls it once at startup and then follows `cloud://azure`.
-
 ## 4.4 Terminal pane (`pane.ts`)
 
 One `TerminalPane` per terminal: an xterm `Terminal` with fit, WebGL, Unicode 11, and search
@@ -336,22 +318,14 @@ handler passes the body to `parseOsc7502` (`osc.ts`), which returns `{ profile, 
 may be empty) or null for another provider, so a later provider does not confuse an older build.
 The context is kept per pane and is not saved.
 
-**Azure, machine-wide.** The context from 3.26 applies to every pane alike, since an `az login`
-is per user, not per shell.
+**Chip.** `cloudChips(aws, pattern, enabled)` returns the AWS chip when the profile or the region
+is set: `aws <profile>`, plus ` · <region>` when a region is set, with `default` standing in for an
+empty profile. The chip is gray, and red when the profile matches the production pattern (the
+region is not matched). Hovering it lists the provider, the profile, and the region. With
+`cloud.badge` false (the default), or with nothing set, there is no chip.
 
-**Chips.** `cloudChips(aws, azure, pattern, enabled)` returns the chips in order, AWS first.
-
-| Chip | Shown when | Text |
-| --- | --- | --- |
-| AWS | the profile or the region is set | `aws <profile>`, plus ` · <region>` when a region is set; `default` stands in for an empty profile |
-| Azure | the subscription name matches the production pattern | `az <subscription name>` |
-
-Azure is limited to production matches so that a developer who is logged in to Azure does not see
-a chip in every pane. A chip is gray, and red when it matches the production pattern: for AWS the
-profile (the region is not matched), for Azure the subscription name, so every Azure chip is red.
-Hovering a chip lists the provider, the profile or subscription name, the region or subscription
-id, and the user when known (Azure only). With `cloud.badge` false, or with nothing set, there
-are no chips.
+Only identities a shell holds itself get a chip. An Azure CLI login is per user, not per shell, so
+it says nothing about a particular pane and has no chip.
 
 **Pattern.** `cloud.productionPattern` (section 8; default `prod|prd|live`) is a JavaScript
 regular expression, compiled case-insensitively and without the global flag, which would carry

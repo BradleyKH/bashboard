@@ -1,19 +1,13 @@
-// Cloud-context chips (pure, no DOM): which AWS and Azure identities a pane shows, and whether
-// they look like production (docs/design/terminal.md section 4.25).
+// Cloud-context chips (pure, no DOM): which AWS identity a pane shows, and whether it looks like
+// production (docs/design/terminal.md section 4.25).
 
 export interface AwsContext {
   profile: string;
   region: string;
 }
 
-export interface AzureContext {
-  name: string;
-  id: string;
-  user: string | null;
-}
-
 export interface CloudChip {
-  provider: 'aws' | 'azure';
+  provider: 'aws';
   text: string;
   /** Hover text, one fact per line. */
   title: string;
@@ -36,13 +30,7 @@ export function compileProductionPattern(pattern: string): RegExp | null {
   }
 }
 
-/** AWS chip first, then Azure. Azure appears only when its subscription name looks like production. */
-export function cloudChips(
-  aws: AwsContext | null,
-  azure: AzureContext | null,
-  pattern: RegExp | null,
-  enabled: boolean,
-): CloudChip[] {
+export function cloudChips(aws: AwsContext | null, pattern: RegExp | null, enabled: boolean): CloudChip[] {
   if (!enabled) return [];
   const chips: CloudChip[] = [];
 
@@ -56,12 +44,6 @@ export function cloudChips(
       title: lines.join('\n'),
       production: pattern?.test(aws.profile) ?? false,
     });
-  }
-
-  if (azure && pattern?.test(azure.name)) {
-    const lines = ['Azure', `Subscription: ${azure.name}`, `Subscription id: ${azure.id}`];
-    if (azure.user) lines.push(`User: ${azure.user}`);
-    chips.push({ provider: 'azure', text: `az ${azure.name}`, title: lines.join('\n'), production: true });
   }
 
   return chips;

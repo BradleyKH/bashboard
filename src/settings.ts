@@ -142,7 +142,7 @@ export const DEFAULT_SETTINGS: Settings = {
   restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
   git: { autoFetchMinutes: 5, branchSizeThreshold: 400 },
-  cloud: { badge: true, productionPattern: 'prod|prd|live' },
+  cloud: { badge: false, productionPattern: 'prod|prd|live' },
   localModels: { ollamaUrl: '', lmStudioUrl: '', minContext: 64000 },
   ship: { hosts: {}, overviewRefreshMinutes: 5, pinnedRepos: [], cliWrites: false },
   localBrowser: {
