@@ -1,4 +1,5 @@
-import { tourSections, type TourPart } from './helpTour';
+import { tourSections } from './helpTour';
+import { tourPartsElement } from './tourPartsView';
 import type { KeybindingEntry } from './keymap';
 import type { SetupStatus } from './setupStatus';
 import { linkButton } from './dialogLink';
@@ -10,7 +11,10 @@ export class HelpTab {
   private root: HTMLElement | null = null;
   private tour: HTMLElement | null = null;
 
-  constructor(private readonly status: SetupStatus) {}
+  constructor(
+    private readonly status: SetupStatus,
+    private readonly onTakeTour: () => void,
+  ) {}
 
   mount(host: HTMLElement, entries: KeybindingEntry[]): void {
     const root = document.createElement('div');
@@ -20,7 +24,13 @@ export class HelpTab {
     const more = document.createElement('p');
     more.className = 'app-dialog-note';
     more.append('The full ', linkButton('user guide', USER_GUIDE_URL), ' covers every feature.');
-    root.append(tour, more, this.status.element);
+    const take = document.createElement('button');
+    take.type = 'button';
+    take.className = 'app-dialog-button help-tab-take';
+    take.textContent = 'Take the tour';
+    take.title = 'Try the main keys one at a time';
+    take.addEventListener('click', () => this.onTakeTour());
+    root.append(take, tour, more, this.status.element);
     host.append(root);
     this.root = root;
     this.tour = tour;
@@ -40,7 +50,7 @@ export class HelpTab {
         const el = document.createElement('section');
         const h = document.createElement('h3');
         h.textContent = s.title;
-        el.append(h, ...s.paragraphs.map((p) => paragraph(p)));
+        el.append(h, ...s.paragraphs.map((p) => tourPartsElement(p)));
         return el;
       }),
     );
@@ -51,27 +61,4 @@ export class HelpTab {
     this.root = null;
     this.tour = null;
   }
-}
-
-function paragraph(parts: TourPart[]): HTMLElement {
-  const p = document.createElement('p');
-  for (const part of parts) {
-    if ('text' in part) {
-      p.append(part.text);
-    } else if ('keys' in part) {
-      part.keys.forEach((k, i) => {
-        if (i > 0) p.append(' or ');
-        const kbd = document.createElement('kbd');
-        kbd.textContent = k;
-        p.append(kbd);
-      });
-    } else {
-      const span = document.createElement('span');
-      span.className = 'help-tab-unbound';
-      span.textContent = 'no key';
-      span.title = `Bind ${part.unbound} in the Shortcuts tab, or run it from the command palette`;
-      p.append(span);
-    }
-  }
-  return p;
 }

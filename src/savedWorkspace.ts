@@ -150,6 +150,8 @@ export interface SavedWorkspace {
   hideGlobalPins?: boolean;
   /** Whether hiding the dashboard with × has shown its notice; absent means not yet. */
   dashboardHideNoticeShown?: boolean;
+  /** Whether the first-run tour finished or was skipped; absent means not yet. */
+  tourDone?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
 }
@@ -424,6 +426,7 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
     if (hides.length > 0) saved.needsYouHides = hides;
   }
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
+  if (raw.tourDone === true) saved.tourDone = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   return saved;
 }

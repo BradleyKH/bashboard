@@ -92,6 +92,7 @@ export class Workspace {
   /** Tracked locally so quick repeats don't act on a size the file watcher hasn't reported back yet. */
   private fontSize: number;
   private readonly listeners = new Set<() => void>();
+  private readonly actionListeners = new Set<(action: Action) => void>();
   private readonly sessions = new WorkspaceSessions();
   /** Container shell pane ids to their container's name. */
   private readonly containerShells = new Map<string, string>();
@@ -921,7 +922,13 @@ export class Workspace {
   }
 
   private dispatch(action: Action): boolean {
+    for (const cb of this.actionListeners) cb(action);
     return dispatchAction(this.ctx, action);
+  }
+
+  /** Every action run from a key or the palette, before it runs. */
+  onAction(cb: (action: Action) => void): void {
+    this.actionListeners.add(cb);
   }
 
   private cycleScrim(): void {

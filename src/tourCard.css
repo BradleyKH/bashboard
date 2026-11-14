@@ -1,0 +1,93 @@
+/* At the bottom, which a new terminal leaves empty; below the modals (4, 5) and menus. */
+.tour-card {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(6, 12, 18, 0.94);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  color: #d6dde2;
+  font: 12px system-ui, sans-serif;
+  transform: translateX(-50%);
+  user-select: none;
+}
+
+.tour-card-counter {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7f8c94;
+}
+
+.tour-card h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eef3f5;
+}
+
+.tour-card h2.tour-card-done {
+  color: var(--accent);
+}
+
+.tour-card p {
+  margin: 0;
+  line-height: 1.6;
+  color: #b8c3c9;
+}
+
+.tour-card kbd {
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eef3f5;
+  font: 11px ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+}
+
+.tour-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.tour-card-nav {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.tour-card-button {
+  padding: 3px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  background: transparent;
+  color: #d6dde2;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tour-card-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tour-card-primary {
+  border-color: var(--accent);
+}
+
+.tour-card-skip {
+  border-color: transparent;
+  color: #9aa6ad;
+}

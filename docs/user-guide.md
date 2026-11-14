@@ -1206,7 +1206,8 @@ again closes the dialog, and Escape or a click outside closes it too. Up, Down, 
 Down scroll the tab you're on, except in a dropdown, a number field, a slider, or a list, which use
 those keys themselves.
 
-- **Help** is a short tour of the main features with your current keys, and a Setup list that
+- **Help** is a short tour of the main features with your current keys, a **Take the tour**
+  button that walks you through the main keys one at a time, and a Setup list that
   checks Git Bash, each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),
   and the hooks of each coding agent that has run here. Anything missing has an Install button, and **Run setup** reopens the
   setup wizard.

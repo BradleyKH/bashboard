@@ -15,6 +15,8 @@ export interface LaunchControllerDeps {
   repo: RepoTracker;
   workspace: () => Workspace;
   containers: ContainersStore;
+  /** Every launch, before it runs; the tour waits for one. */
+  onLaunch?: (kind: LaunchKind) => void;
 }
 
 export class LaunchController {
@@ -39,6 +41,7 @@ export class LaunchController {
 
   readonly launch = (kind: LaunchKind): void => {
     this.launchPreview.hide();
+    this.deps.onLaunch?.(kind);
     if (isFolderless(kind)) {
       this.deps.workspace().openPane({ kind });
       return;

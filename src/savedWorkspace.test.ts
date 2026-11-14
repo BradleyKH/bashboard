@@ -694,6 +694,12 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace({ ...v3([]), dashboardHideNoticeShown: 1 })).not.toHaveProperty('dashboardHideNoticeShown');
   });
 
+  it('keeps only a true tour-done flag', () => {
+    expect(parseSavedWorkspace({ ...v3([]), tourDone: true })?.tourDone).toBe(true);
+    expect(parseSavedWorkspace({ ...v3([]), tourDone: false })).not.toHaveProperty('tourDone');
+    expect(parseSavedWorkspace({ ...v3([]), tourDone: 'yes' })).not.toHaveProperty('tourDone');
+  });
+
   it('keeps a saved element order and cleans it', () => {
     const order = ['clock', 'launch', 'needs', 'external', 'system', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'ship', 'branch', 'localModels'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);

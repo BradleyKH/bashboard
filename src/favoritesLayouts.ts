@@ -15,6 +15,8 @@ export interface FavoritesLayoutsDeps {
   workspace: () => Workspace;
   panel: () => DashboardPanel;
   focusTerminal: () => void;
+  /** A favorite or layout was added; the tour waits for one. */
+  onAdded?: () => void;
 }
 
 export class FavoritesLayouts {
@@ -110,6 +112,7 @@ export class FavoritesLayouts {
     const { favorites } = this.deps.state;
     if (favorites.some((f) => samePath(f.path, path))) return;
     this.updateFavorites([...favorites, { label: lastFolder(path) || path, path, ...(profile ? { profile } : {}) }]);
+    this.deps.onAdded?.();
   };
 
   private canAddFocusedFolder(): boolean {
@@ -152,6 +155,7 @@ export class FavoritesLayouts {
 
   readonly saveLayout = (name: string): void => {
     this.updateLayouts(upsertLayout(this.deps.state.layouts, layoutFromSnapshot(name, this.deps.workspace().snapshot())));
+    this.deps.onAdded?.();
   };
 
   readonly renameLayout = (index: number, name: string): void => {

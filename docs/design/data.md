@@ -166,6 +166,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   section; anything but `true` reads as absent.
 - `dashboardHideNoticeShown` (whether hiding the dashboard with × has shown its toast, 4.6):
   false; anything but `true` reads as absent.
+- `tourDone` (whether the first-run tour finished or was skipped, 4.29): false; anything but
+  `true` reads as absent.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.

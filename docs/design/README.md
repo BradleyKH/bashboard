@@ -69,6 +69,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.26 Runs bound to panes (`src/paneRunModel.ts`, `src/paneRunTracker.ts`) | [ship.md](ship.md) |
 | 4.27 New worktree flow (`src/worktreeNewModel.ts`, `src/worktreeNewFlow.ts`) | [git.md](git.md) |
 | 4.28 Needs you (`src/needsYouModel.ts`, `src/needsYouStore.ts`, `src/needsYouSection.ts`) | [dashboard.md](dashboard.md) |
+| 4.29 Tour (`src/tourModel.ts`, `src/tourController.ts`) | [app.md](app.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |

@@ -22,4 +22,6 @@ export interface AppState {
   globalPins: GlobalPinsFile;
   /** Set once hiding the dashboard with × has shown its notice; restored from the saved workspace. */
   hideNoticeShown: boolean;
+  /** Set once the first-run tour finished or was skipped; restored from the saved workspace. */
+  tourDone: boolean;
 }

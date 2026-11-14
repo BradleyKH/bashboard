@@ -206,6 +206,11 @@
 
 /* Help */
 
+.help-tab-take {
+  align-self: flex-start;
+  margin-bottom: 12px;
+}
+
 .help-tab-tour {
   display: flex;
   flex-direction: column;

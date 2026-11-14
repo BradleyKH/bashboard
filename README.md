@@ -76,7 +76,8 @@ Bashboard runs the tools you already use:
 
 On first launch, a setup wizard walks you through the shell, the lines that let new panes open in
 the current folder, your editor, favorite repos, coding agent hooks, and the look. Each choice
-saves as you make it, and **Run setup** in the Help tab (F1) brings the wizard back.
+saves as you make it, and **Run setup** in the Help tab (F1) brings the wizard back. A short,
+skippable tour of the main keys follows; **Take the tour** in the Help tab replays it.
 
 WebView2 comes with Windows 11; on a machine without it, the installer downloads it. Uninstall
 from **Settings > Apps > Installed apps**. To build from source, see

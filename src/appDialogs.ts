@@ -36,6 +36,10 @@ export interface AppDialogsDeps {
   refreshProfiles: () => Promise<void>;
   focusTerminal: () => void;
   checkForUpdatesNow: () => void;
+  /** Help's Take the tour; the dialog has closed. */
+  startTour: () => void;
+  /** Any tab opening, which the tour's last step waits for. */
+  onTabOpened: (tab: DialogTab) => void;
 }
 
 export class AppDialogs {
@@ -45,6 +49,8 @@ export class AppDialogs {
   private readonly accountsTab: AccountsTab;
   private readonly appDialog: AppDialog;
   private readonly setupWizard: SetupWizard;
+  /** Resolves the open wizard's `showSetup` promise. */
+  private setupClosed: (() => void) | null = null;
 
   constructor(private readonly deps: AppDialogsDeps) {
     const { state, confirmDialog, hooks, refreshProfiles } = deps;
@@ -70,6 +76,10 @@ export class AppDialogs {
         installHooks: (agent) => hooks.install(agent).finally(() => this.appDialog.element?.focus()),
         onRunSetup: () => void this.showSetup(),
       }),
+      () => {
+        this.appDialog.close();
+        deps.startTour();
+      },
     );
     const cliTab = new CliTab();
     const aboutTab = new AboutTab({ onCheckForUpdates: deps.checkForUpdatesNow });
@@ -113,7 +123,11 @@ export class AppDialogs {
       },
     );
     this.setupWizard = new SetupWizard({
-      onClose: deps.focusTerminal,
+      onClose: () => {
+        deps.focusTerminal();
+        this.setupClosed?.();
+        this.setupClosed = null;
+      },
       onSave: saveSetting,
       getSettings: () => state.settings,
       getProfiles: () => state.profiles,
@@ -161,6 +175,7 @@ export class AppDialogs {
     // The settings tab's shell fields list only the shells installed now.
     if (tab === 'settings' || tab === 'help') await this.deps.refreshProfiles();
     this.appDialog.open(tab);
+    this.deps.onTabOpened(tab);
   }
 
   openAccounts(host: string | null, opts?: { openTokenForm?: boolean; org?: string }): void {
@@ -169,6 +184,7 @@ export class AppDialogs {
     });
   }
 
+  /** Resolves once the wizard closes. */
   async showSetup(): Promise<void> {
     await this.deps.refreshProfiles();
     const [previews, git] = await Promise.all([
@@ -187,6 +203,10 @@ export class AppDialogs {
       // An unknown Git state skips the Git step rather than offering an install that may not apply.
       gitBashFound: !supports('gitInstall') || (git?.gitBashFound ?? true),
       wingetFound: git?.wingetFound ?? false,
+    });
+    await new Promise<void>((resolve) => {
+      this.setupClosed?.();
+      this.setupClosed = resolve;
     });
   }
 

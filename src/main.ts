@@ -60,6 +60,7 @@ import { RepoTracker } from './repoTracker';
 import { LaunchController } from './launchController';
 import { HookOffer } from './hookOffer';
 import { PaletteController } from './paletteController';
+import { TourController } from './tourController';
 import { AppDialogs } from './appDialogs';
 import { listenAppEvents, listenSettingsChanges } from './appEvents';
 import { answerWatchdog } from './pageWatchdog';
@@ -154,6 +155,7 @@ const state: AppState = {
   repos: [],
   globalPins: [],
   hideNoticeShown: false,
+  tourDone: false,
 };
 setKeyHintBindings(state.settings.keybindings);
 
@@ -212,7 +214,7 @@ const controllerDeps = {
   panel: (): DashboardPanel => panel,
   focusTerminal,
 };
-const favorites = new FavoritesLayouts(controllerDeps);
+const favorites = new FavoritesLayouts({ ...controllerDeps, onAdded: () => tour.signal({ type: 'saved' }) });
 const repo = new RepoTracker(controllerDeps);
 const containers = new ContainersStore();
 const ports = new PortsStore();
@@ -220,7 +222,12 @@ const localModels = new LocalModelsStore();
 setKindMenuFilter(
   (kind) => (kind !== 'containers' || containers.available) && (kind !== 'browser' || supports('localBrowser')),
 );
-const launch = new LaunchController({ repo, workspace: controllerDeps.workspace, containers });
+const launch = new LaunchController({
+  repo,
+  workspace: controllerDeps.workspace,
+  containers,
+  onLaunch: (kind) => tour.signal({ type: 'launched', kind }),
+});
 
 /** Design 4.10: lists the panes closing the tab would lose work in; resolves true to close it. */
 function confirmCloseTab(tabId: string, busyPanes: PaneCardInput[]): Promise<boolean> {
@@ -377,6 +384,8 @@ const dialogs = new AppDialogs({
   favorites,
   refreshProfiles,
   checkForUpdatesNow,
+  startTour: () => tour.start(),
+  onTabOpened: (tab) => tour.signal({ type: 'dialog', tab }),
 });
 // Opened before the first pane mounts so the pane fits the narrowed area and keeps focus.
 panel.setContainersStore(containers);
@@ -460,6 +469,8 @@ listenFileDrops({
   drop: (id, paths) => void workspace.insertPaths(id, paths),
 });
 workspace.setSessions(state.sessions);
+const tour = new TourController({ state, workspace: () => workspace, save: () => saver.schedule() });
+workspace.onAction((action) => tour.signal({ type: 'action', action: action.type }));
 
 const saver = new DebouncedSaver(
   () => ({
@@ -475,6 +486,7 @@ const saver = new DebouncedSaver(
     hideStoppedContainers: !panel.stoppedContainersShown() || undefined,
     hideGlobalPins: !panel.globalPinsShown() || undefined,
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
+    tourDone: state.tourDone || undefined,
     textZoom: textZoomSnapshot(),
     needsYouHides: needsYouStore.hides(),
   }),
@@ -545,6 +557,7 @@ try {
   if (saved?.hideGlobalPins) panel.setShowGlobalPins(false);
   if (saved?.needsYouHides) needsYouStore.hydrateHides(saved.needsYouHides);
   if (saved?.dashboardHideNoticeShown) state.hideNoticeShown = true;
+  if (saved?.tourDone) state.tourDone = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, {
@@ -568,6 +581,6 @@ if (!restored) workspace.addPane(startupFolder ?? undefined);
 else if (startupFolder) workspace.newTab(startupFolder);
 repo.track();
 syncGitFetchRoots(workspace.panes());
-if (payload.firstRun) void dialogs.showSetup();
+if (payload.firstRun) void dialogs.showSetup().then(() => tour.offer());
 void checkForUpdate({ manual: false, confirm: (o) => confirmDialog.open(o) });
 listenSettingsChanges({ state, workspace, panel, dialogs, applyBackdropSettings, refreshProfiles });

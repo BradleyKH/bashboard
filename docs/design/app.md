@@ -412,7 +412,8 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
 
 - **Help** (`helpTab.ts`) is a short tour of the user guide (`helpTour.ts`), a paragraph or two
   per area, whose `{action}` tokens render as the action's live keycaps, or "no key" when it is
-  unbound, followed by a link to the full user guide. Below it, Setup (`setupStatus.ts`) checks Git
+  unbound, under Take the tour, which closes the dialog and starts the tour (4.29), and followed
+  by a link to the full user guide. Below it, Setup (`setupStatus.ts`) checks Git
   Bash (3.15), the shell integration lines of each installed shell that takes them (3.14), and the
   hooks of each agent (3.3, one row per agent, "Codex hooks (preview)" and the like), each row
   reading ✓, !, or • with a short status and, where the app can fix it, a button: Install Git
@@ -430,3 +431,32 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
   its usage, what it does, and examples, each with a Copy button.
 - **About** (`aboutTab.ts`) shows the version, Check for updates (3.16), and links to this
   version's release notes on GitHub, the documentation, and the source.
+
+## 4.29 Tour (`src/tourModel.ts`, `src/tourController.ts`, `src/tourCard.ts`)
+
+A short tour that has the user press the main keys once each. It starts when the setup wizard
+(4.17) closes on the first run, by any of its exits, unless `tourDone` (8) is already set, and
+from Help's Take the tour (4.18) at any time. Finishing or skipping it sets `tourDone`.
+
+It shows as one card centered at the bottom of the window, where a new terminal is still empty,
+under the modals and menus. The card never takes focus, and its buttons keep focus where it was
+when clicked, so each step's keys reach the focused pane, Escape included; Skip tour ends it.
+The step text names actions as the Help tab's tour does (`{action}`), so it shows the live keys.
+
+| Step | Done when |
+| --- | --- |
+| Split a pane (`splitRight`) | A terminal pane opens (a split with no room opens none) |
+| Move between panes (`moveFocus` left) | `moveFocus` runs |
+| Launch other panes (`openLaunch`, then F) | Launch picks Files, `openFiles` runs, or a Files pane opens |
+| Command palette (`openPalette`) | `openPalette` runs |
+| Save your setup (`openLayout`'s + Save, `openFavorite`'s + Add) | A layout is saved or a favorite added |
+| The dashboard (`nextAttention`, `toggleDashboard`, section menus) | Next |
+| Settings (⚙, `openSettings`; `showHelp` to replay) | The app dialog opens on Settings |
+
+Actions count whether they come from a key or the command palette (`Workspace.onAction`). Every
+step also has Next, so a step that cannot finish (Launch with no folder to open, say) does not
+strand the user. A finished step shows a check mark briefly before the next one.
+
+The last card offers to close the panes opened while the tour ran, in any tab, or keep them. When
+every open pane is one of those, it keeps one, since closing a window's last pane closes the
+window. Closing goes through `requestClosePane`, so a scratch pad with text still asks first.
