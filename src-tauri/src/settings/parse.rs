@@ -380,6 +380,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
     );
     let agent_glow = pick(&root, &["agentGlow"], &mut w, boolean, d.agent_glow);
     let border_lights = pick(&root, &["borderLights"], &mut w, boolean, d.border_lights);
+    let tab_transition = pick(&root, &["tabTransition"], &mut w, boolean, d.tab_transition);
     let border_lights_speed = pick(
         &root,
         &["borderLightsSpeed"],
@@ -748,6 +749,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             border_lights,
             border_lights_speed,
             border_lights_density,
+            tab_transition,
             scrim,
             backdrop,
             scrollback,
@@ -788,6 +790,17 @@ mod tests {
             assert_eq!(s.accent_color, DEFAULT_ACCENT, "{bad}");
             assert_eq!(w, vec!["accentColor: invalid value, using default"], "{bad}");
         }
+    }
+
+    #[test]
+    fn tab_transition_is_on_unless_turned_off() {
+        let (s, _) = parse_settings("{}");
+        assert!(s.tab_transition);
+        let (s, _) = parse_settings(r#"{ "tabTransition": false }"#);
+        assert!(!s.tab_transition);
+        let (s, w) = parse_settings(r#"{ "tabTransition": "no" }"#);
+        assert!(s.tab_transition);
+        assert_eq!(w, vec!["tabTransition: invalid value, using default"]);
     }
 
     #[test]

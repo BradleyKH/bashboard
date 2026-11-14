@@ -284,6 +284,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         shownWhen: BORDER_LIGHTS_ON,
       },
+      { path: ['tabTransition'], label: 'Tab transition', kind: 'toggle', hint: 'Panes recede and rise when you switch tabs', applies: 'live' },
     ],
   },
   {

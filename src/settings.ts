@@ -34,6 +34,8 @@ export interface Settings {
   borderLightsSpeed: number;
   /** Border light comets per 1000 px of a pane's loop, 0.25 to 4; every pane runs at least one. */
   borderLightsDensity: number;
+  /** Design 4.30: the outgoing tab's panes recede as the incoming ones rise. */
+  tabTransition: boolean;
   scrim: { opacity: number; blurPx: number };
   /** maxFps 0 is uncapped (docs/design/backdrop.md section 6.4). */
   backdrop: {
@@ -123,6 +125,7 @@ export const DEFAULT_SETTINGS: Settings = {
   borderLights: false,
   borderLightsSpeed: 120,
   borderLightsDensity: 1,
+  tabTransition: true,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {
     style: 'lights',

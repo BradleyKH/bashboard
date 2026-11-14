@@ -344,6 +344,8 @@ pub struct Settings {
     pub border_lights_speed: f64,
     /// Comets per 1000 px of a pane's loop, `BORDER_LIGHTS_DENSITY_RANGE`.
     pub border_lights_density: f64,
+    /// The tab switch transition (docs/design/workspace.md section 4.30); on by default.
+    pub tab_transition: bool,
     pub scrim: Scrim,
     pub backdrop: Backdrop,
     pub scrollback: u32,
@@ -397,6 +399,7 @@ impl Default for Settings {
             border_lights: false,
             border_lights_speed: 120.0,
             border_lights_density: 1.0,
+            tab_transition: true,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {
                 style: "lights".into(),

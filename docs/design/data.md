@@ -244,6 +244,9 @@ the focused pane's folder.
   "borderLights": false,
   "borderLightsSpeed": 120,
   "borderLightsDensity": 1,
+  // The tab switch transition (section 4.30): the outgoing tab's panes recede as the incoming
+  // ones rise. On by default.
+  "tabTransition": true,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
   // slideshow; a missing or invalid value falls back to lights. animate false freezes lights,

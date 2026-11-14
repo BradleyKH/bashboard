@@ -99,6 +99,11 @@ lights, and apply live. Neither appears while Windows is set to reduce animation
 `borderLightsDensity` (default `1`, 0.25 to 4) how many run per 1000 px of a pane's border, with
 at least one per pane. Both are sliders under Border lights in Settings, shown while it is on.
 
+`tabTransition` (default `true`) animates switching tabs and opening a new one: the panes you
+leave recede and fade while the incoming tab's panes rise into place, in about a third of a
+second. Windows' reduce animations setting turns it into a short crossfade. It is the Tab
+transition toggle in the Appearance section and applies live.
+
 The Shortcuts tab of the app dialog (open it with F1 or the dashboard's **?** button, then click
 Shortcuts) lists every key in effect, including your own bindings. It is also where keys are changed: click a key to
 replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all

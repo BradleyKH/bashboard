@@ -12,6 +12,7 @@ import { openLink } from './links';
 import type { AwsContext } from './cloudContextModel';
 import { type Osc133, parseOsc133, parseOsc7, parseOsc7502, parseOsc9 } from './osc';
 import { webglBudget } from './rendererBudget';
+import { drawTerminal } from './terminalSnapshot';
 import { replayText } from './scrollbackModel';
 import { noteShellFallback } from './shellFallback';
 import type { CellSize } from './layout';
@@ -495,6 +496,17 @@ export class TerminalPane implements PaneView {
     if (this.webgl === null) this.loadRenderer();
     // The host is re-attached by the caller after this returns.
     requestAnimationFrame(() => this.fitIfReady());
+  }
+
+  /**
+   * The visible rows drawn into a 2D canvas, for a tab transition ghost (4.30); null on the DOM
+   * renderer, whose rows a cloned host already carries. The WebGL canvas cannot be copied: its
+   * drawing buffer is cleared once composited.
+   */
+  snapshot(): HTMLCanvasElement | null {
+    if (this.disposed || this.webgl === null) return null;
+    const { width, height } = this.cellSize();
+    return drawTerminal(this.term, { width, height });
   }
 
   /** Types text into the pty as if from the keyboard. */

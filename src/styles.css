@@ -92,6 +92,16 @@ body {
   z-index: 0;
 }
 
+/* Holds the outgoing tab's ghosts while they recede (docs/design/workspace.md section 4.30).
+   Same z as #panes but earlier in the document, so the incoming panes rise over it. */
+#drift {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 #panes {
   position: fixed;
   inset: 8px;

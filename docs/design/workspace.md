@@ -186,6 +186,7 @@ outgoing tab's terminals leave the DOM the way collapsed terminals do (4.3), kee
 and scrollback and releasing their WebGL contexts. The incoming tab's layout is rendered and its
 terminals are refit, take WebGL contexts as the budget allows (4.4), and focus returns to the
 tab's focused pane. The backdrop keeps running throughout; switching tabs does not touch it.
+With `tabTransition` on, the switch and New tab animate (4.30).
 
 **Closing a tab** (Ctrl+Shift+W, or its close button) kills all of its terminals. When any of
 them has a running command or a live Claude session, a confirm dialog lists them first and
@@ -196,6 +197,45 @@ when it was last. Closing the last tab closes the window.
 the working directory's last folder, 4.4) and follows it as focus and folders change. Renaming
 the tab fixes its name; renaming it to an empty string returns it to following the focused
 pane. A tab opened from a layout starts with the layout's name, fixed.
+
+## 4.30 Tab transition and flux mode
+
+**Tab transition** (`tabTransition`, on by default). Switching tabs or opening a new one plays a
+depth swap: the outgoing panes recede (scale 0.93, 6 px blur, fade out, 240 ms) and the incoming
+panes rise through the same depth to rest (320 ms, starting 60 ms in). Under reduced motion both
+legs are a 150 ms crossfade. The motion lives in `tabTransitionModel.ts`; `tabTransition.ts`
+plays it.
+
+- The outgoing hosts leave the DOM as soon as the switch renders (4.10), so they recede as
+  ghosts: deep clones taken just before the switch, placed at their window rects in `#drift`, a
+  fixed layer under `#panes` that takes no pointer events. A clone's canvases come out blank, so
+  each 2D canvas is redrawn from its source. A WebGL terminal's canvas cannot be read once
+  composited, so its visible rows are drawn from the buffer instead (`terminalSnapshot.ts`, with
+  colors resolved through the theme in `terminalSnapshotModel.ts`); a DOM-renderer terminal's
+  rows come with the clone. Iframes are replaced with empty boxes so no page reloads, ids are
+  stripped, scroll offsets are copied, and the ghost is inert.
+- The incoming hosts animate in place with transforms, opacity, and a filter only. None of those
+  change a host's layout size, so no terminal refits and no pty resizes mid-animation; the
+  terminals refit and take WebGL as usual when the switch renders.
+- A switch during a transition ends it first: ghosts are dropped and the incoming panes snap to
+  rest before the new ghosts are captured. While the window is hidden the switch is instant.
+- Rects read during the rise are scaled, so the drag overlay rereads them when the transition
+  settles.
+
+**Flux mode** (planned). A second pane mode beside the default grid. The active tab's panes
+keep their split-tree layout, while every other tab drifts behind them as a loose cluster of its
+panes in `#drift`, over whichever backdrop style is mounted (section 6) or none.
+
+- Background panes are not live terminals. Each is a small snapshot drawn from the terminal's
+  buffer a few times a second (inactive tabs' terminals keep receiving pty output); other kinds
+  show a card with their kind, title, and accent. The layer takes the scrim's
+  `--backdrop-brightness` and `--backdrop-blur` plus extra dimming for depth, so the drifting
+  panes sit with the backdrop and stay under the readability bar of section 5.
+- Clusters drift slowly on deterministic paths, mostly toward the window's edges and the gaps
+  between panes. A cluster with a pane that needs you (4.7) drifts forward and brightens; an idle
+  one sinks back. Reduced motion holds them still.
+- Switching tabs is the tab transition with a different start: the incoming cluster comes forward
+  from where it drifts, and the outgoing panes recede into a cluster.
 
 ## 4.11 Pane kinds
 

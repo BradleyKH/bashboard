@@ -44,6 +44,7 @@ import type { HookEvent, Session } from './sessions';
 import { saveSetting, type Settings, type SettingsPayload } from './settings';
 import { PaneStatus, type PaneStatusContext } from './paneStatus';
 import { TabStore } from './tabStore';
+import { TabTransition } from './tabTransition';
 import { TabView, type TabViewContext } from './tabView';
 import { addTab, closeTab as closeTabState, renameTab as renameTabState, type TabState } from './tabs';
 import { reorderTab as reorderTabState, switchTab as switchTabState } from './tabs';
@@ -87,6 +88,8 @@ export class Workspace {
   private readonly pathDrop: PathDrop;
   private readonly paneDrag: PaneDrag;
   private readonly tabView: TabView;
+  /** Made on the first animated switch, since the #drift layer and matchMedia need a document. */
+  private transition: TabTransition | null = null;
   private readonly status: PaneStatus;
   private scrim: ScrimState;
   /** Tracked locally so quick repeats don't act on a size the file watcher hasn't reported back yet. */
@@ -384,18 +387,22 @@ export class Workspace {
    */
   newTab(cwd: string | undefined = this.folderForNew()): void {
     const prev = this.store.active;
-    this.store.state = addTab(this.store.state, this.store.emptyTab());
-    this.tabView.hideTab(prev);
-    const id = this.takeId();
-    this.mount(id, { kind: 'pane', paneId: id }, { kind: 'terminal', cwd });
+    this.withTransition(() => {
+      this.store.state = addTab(this.store.state, this.store.emptyTab());
+      this.tabView.hideTab(prev);
+      const id = this.takeId();
+      this.mount(id, { kind: 'pane', paneId: id }, { kind: 'terminal', cwd });
+    });
   }
 
   switchTab(id: string): void {
     if (id === this.store.activeId || !this.store.state.tabs.some((t) => t.id === id)) return;
     const prev = this.store.active;
-    this.store.state = switchTabState(this.store.state, id);
-    this.tabView.hideTab(prev);
-    this.tabView.showActive();
+    this.withTransition(() => {
+      this.store.state = switchTabState(this.store.state, id);
+      this.tabView.hideTab(prev);
+      this.tabView.showActive();
+    });
     this.notify();
     // A tab switched to mid-drag has different pane rects.
     this.paneDrag.refresh();
@@ -993,6 +1000,41 @@ export class Workspace {
   }
 
   /** Attaches and sizes the host via render before the pane builds in it, since start() fits to it. */
+  /**
+   * Design 4.30: runs a change of the active tab, with the outgoing panes receding and the
+   * incoming ones rising around it when `tabTransition` is on.
+   */
+  private withTransition(change: () => void): void {
+    const transition = this.tabTransition();
+    if (!transition) {
+      change();
+      return;
+    }
+    const ghosts = transition.capture(
+      this.onScreenHosts().map(([id, host, rect]) => ({ host, rect, snapshot: this.terminal(id)?.snapshot() ?? null })),
+    );
+    change();
+    // The drag overlay read the panes' rects mid-rise, scaled; it reads them again at rest.
+    transition.play(ghosts, this.onScreenHosts().map(([, host]) => host), () => this.paneDrag.refresh());
+  }
+
+  private tabTransition(): TabTransition | null {
+    if (!this.config.settings.tabTransition || document.hidden) return null;
+    const layer = document.getElementById('drift');
+    if (!layer) return null;
+    this.transition ??= new TabTransition(layer);
+    return this.transition;
+  }
+
+  private onScreenHosts(): Array<[string, HTMLElement, DOMRect]> {
+    const out: Array<[string, HTMLElement, DOMRect]> = [];
+    for (const [id, rect] of this.tabView.paneRects()) {
+      const host = this.hosts.get(id);
+      if (host) out.push([id, host, rect]);
+    }
+    return out;
+  }
+
   private mount(id: string, tree: Layout, spec: PaneSpec): void {
     const host = this.factory.createHost(id);
     this.store.addToActive(id, false);
