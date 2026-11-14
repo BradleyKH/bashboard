@@ -487,7 +487,7 @@ composites without repainting the terminal under it.
 
 **Border lights.** While `borderLights` is on, comets of accent light run clockwise around
 each pane of the active tab, along the middle of the gutter, at `borderLightsSpeed` px per
-second (default 60). Each comet is a small 4 px head with a 60 px trail on both sides, ahead of
+second (default 120). Each comet is a small 4 px head with a 60 px trail on both sides, ahead of
 the head as well as behind it, fading out toward each end. A pane runs `borderLightsDensity`
 comets per 1000 px of loop (default 1), rounded, and at least one, so larger panes carry more. A pane's first comet starts at a random point on its loop, so neighbors don't run in step;
 the rest spread out from it. When a pane or window resize changes the count, a new comet fades in

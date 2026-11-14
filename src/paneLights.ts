@@ -44,7 +44,7 @@ export class PaneLights {
   private lights = false;
   private visible = true;
   private accent = '#ffffff';
-  private speed = 60;
+  private speed = 120;
   private pxPerComet: number = L.pxPerDensityUnit;
   private frame = 0;
   private last = 0;

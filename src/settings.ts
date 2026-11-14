@@ -121,7 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiScale: 1.25,
   agentGlow: false,
   borderLights: false,
-  borderLightsSpeed: 60,
+  borderLightsSpeed: 120,
   borderLightsDensity: 1,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {

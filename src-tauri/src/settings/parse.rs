@@ -806,11 +806,11 @@ mod tests {
 
     #[test]
     fn border_light_speed_and_density_stay_in_range() {
-        let (s, w) = parse_settings(r#"{ "borderLightsSpeed": 120, "borderLightsDensity": 2.5 }"#);
-        assert_eq!((s.border_lights_speed, s.border_lights_density), (120.0, 2.5));
+        let (s, w) = parse_settings(r#"{ "borderLightsSpeed": 150, "borderLightsDensity": 2.5 }"#);
+        assert_eq!((s.border_lights_speed, s.border_lights_density), (150.0, 2.5));
         assert!(w.is_empty());
         let (s, w) = parse_settings(r#"{ "borderLightsSpeed": 5, "borderLightsDensity": 0 }"#);
-        assert_eq!((s.border_lights_speed, s.border_lights_density), (60.0, 1.0));
+        assert_eq!((s.border_lights_speed, s.border_lights_density), (120.0, 1.0));
         assert_eq!(
             w,
             vec!["borderLightsSpeed: invalid value, using default", "borderLightsDensity: invalid value, using default"]

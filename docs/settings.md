@@ -95,7 +95,7 @@ when the agent finishes or waits for you. `borderLights` (default `false`) sends
 around the border of every pane in the active tab. When a pane needs you, only that pane keeps
 its light until you get to it. Both are toggles in the Appearance section, Agent glow and Border
 lights, and apply live. Neither appears while Windows is set to reduce animations.
-`borderLightsSpeed` (default `60`, 10 to 300 px per second) sets how fast the lights travel, and
+`borderLightsSpeed` (default `120`, 10 to 300 px per second) sets how fast the lights travel, and
 `borderLightsDensity` (default `1`, 0.25 to 4) how many run per 1000 px of a pane's border, with
 at least one per pane. Both are sliders under Border lights in Settings, shown while it is on.
 

@@ -395,7 +395,7 @@ impl Default for Settings {
             ui_scale: 1.25,
             agent_glow: false,
             border_lights: false,
-            border_lights_speed: 60.0,
+            border_lights_speed: 120.0,
             border_lights_density: 1.0,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {

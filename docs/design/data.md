@@ -240,7 +240,7 @@ the focused pane's folder.
   // 1000 px of a pane's border. Out of range falls back to the default.
   "agentGlow": false,
   "borderLights": false,
-  "borderLightsSpeed": 60,
+  "borderLightsSpeed": 120,
   "borderLightsDensity": 1,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
