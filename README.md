@@ -6,6 +6,8 @@ live board of every AI agent session, and the Git, file, search, CI, port, and c
 agents work. It tracks Claude Code sessions in full, with previews for OpenAI Codex and GitHub
 Copilot CLI, and it works with any stack. It runs on Windows, with an early macOS preview.
 
+![Bashboard with Claude Code, Files, Git, CI pipelines, and the session dashboard](assets/bashboard-screenshot.png)
+
 ## Why Bashboard
 
 - **See every session at a glance.** The dashboard lists each pane with its status (working,
