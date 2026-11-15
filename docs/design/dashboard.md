@@ -659,7 +659,7 @@ A dashboard element (4.6) for the session 3.29 reports, hidden while there is no
 else the app's name, below it. Under them, one row holds the transport, shuffle, previous, a
 single play/pause button in the accent color whose icon follows the playback state, next, and
 repeat (its icon marks repeat one), with a mute button and volume slider at the right; where the
-row is too narrow for a usable slider (a container query at 250 px), only the mute button shows. Shuffle and
+row is too narrow for a usable slider (a container query at 300 px), only the mute button shows. Shuffle and
 repeat show in the accent color while on and are absent when the app does not offer them; a
 button the app does not allow is dimmed. Scrolling over the volume slider steps it by 5%. Below
 them, the elapsed time, a position slider, and the track length show while the track has a known

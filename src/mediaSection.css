@@ -88,9 +88,9 @@
   gap: 4px;
 }
 
-/* Below this the slider would be under about 56 px beside the full transport, too small to aim
-   at, so only the mute button stays. */
-@container (max-width: 250px) {
+/* Narrower than this, the slider beside the full transport is too short to set a level with, so
+   only the mute button stays. */
+@container (max-width: 300px) {
   .media-volume-row {
     flex: none;
   }
