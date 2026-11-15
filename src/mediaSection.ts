@@ -26,6 +26,7 @@ export class MediaSection {
   private readonly headTitle: HTMLElement;
   private readonly headPlay: HTMLButtonElement;
   private readonly art: HTMLElement;
+  private readonly now: HTMLElement;
   private readonly title: HTMLElement;
   private readonly sub: HTMLElement;
   private readonly shuffle: HTMLButtonElement;
@@ -68,9 +69,9 @@ export class MediaSection {
     const text = document.createElement('div');
     text.className = 'media-text';
     text.append(this.title, this.sub);
-    const now = document.createElement('div');
-    now.className = 'media-now';
-    now.append(this.art, text);
+    this.now = document.createElement('div');
+    this.now.className = 'media-now';
+    this.now.append(this.art, text);
 
     this.shuffle = this.button('media-toggle', 'Shuffle', { kind: 'toggleShuffle' });
     this.previous = this.button('', 'Previous', { kind: 'previous' });
@@ -125,7 +126,7 @@ export class MediaSection {
 
     const body = document.createElement('div');
     body.className = 'dashboard-list media-body';
-    body.append(now, controls, this.timeline);
+    body.append(this.now, controls, this.timeline);
     this.el.append(this.head, body);
 
     mediaState()
@@ -139,6 +140,12 @@ export class MediaSection {
   setGate(partial: Partial<PollGate>): void {
     this.gate = { ...this.gate, ...partial };
     this.syncTicker();
+  }
+
+  /** `dashboard.mediaArt`: hides the art and lets the title take its width. */
+  setShowArt(show: boolean): void {
+    this.art.hidden = !show;
+    this.now.classList.toggle('no-art', !show);
   }
 
   private apply(s: MediaSnapshot | null): void {

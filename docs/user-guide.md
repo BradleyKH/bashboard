@@ -793,7 +793,8 @@ The **Media** section shows what Spotify, a browser, or another media app is pla
 the album art, title, and artist, a play/pause button with previous and next beside it, shuffle
 and repeat when the app offers them, a position bar you can drag to seek, and the system volume
 with a mute button (scroll over the volume bar to nudge it). It appears only while something has
-a media session, and collapsed, its header keeps the title and a play/pause button. The
+a media session, and collapsed, its header keeps the title and a play/pause button. Right-click
+it to turn the album art off or on, or to hide the section. The
 `mediaPlayPause`, `mediaNext`, and `mediaPrevious` actions have no keys by default; bind them in
 the Shortcuts tab, or run them from the command palette.
 

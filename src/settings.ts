@@ -63,6 +63,8 @@ export interface Settings {
     side: DashboardSide;
     sections: Record<ShowableSection, boolean>;
     clockStyle: ClockStyle;
+    /** Whether the Media section shows the album art. */
+    mediaArt: boolean;
     /** Ports the Ports section lists before counting the rest, 1 to 50. */
     portRows: number;
   };
@@ -143,7 +145,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30, notifyWhenWaiting: true },
-  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both', portRows: 10 },
+  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both', mediaArt: true, portRows: 10 },
   needsYou: { walkAll: true, usagePercent: 80 },
   restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },

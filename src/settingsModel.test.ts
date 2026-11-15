@@ -43,14 +43,15 @@ describe('Dashboard section', () => {
     expect(parseInput(side, 'top').ok).toBe(false);
   });
 
-  it('has one grouped toggle per element and Pins, in settings order, then the clock style and port rows', () => {
+  it('has one grouped toggle per element and Pins, in settings order, then the clock style, album art, and port rows', () => {
     const grouped = fields.filter((f) => f.group === 'Show on the dashboard');
     expect(grouped.map((f) => f.path.join('.'))).toEqual([
       ...SHOWABLE_ORDER.map((id) => `dashboard.sections.${id}`),
       'dashboard.clockStyle',
+      'dashboard.mediaArt',
       'dashboard.portRows',
     ]);
-    for (const f of grouped.slice(0, -2)) expect(f.kind).toBe('toggle');
+    for (const f of grouped.slice(0, -3)) expect(f.kind).toBe('toggle');
   });
 
   it('accepts 1 to 50 ports listed, whole numbers only', () => {

@@ -631,6 +631,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             |v| v.as_str().filter(|s| CLOCK_STYLES.contains(s)).map(String::from),
             d.dashboard.clock_style,
         ),
+        media_art: pick(&root, &["dashboard", "mediaArt"], &mut w, boolean, d.dashboard.media_art),
         port_rows: pick(
             &root,
             &["dashboard", "portRows"],
@@ -1232,6 +1233,17 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "dashboard": { "clockStyle": "analog" } }"#);
         assert_eq!(s.dashboard.clock_style, "both");
         assert!(w.iter().any(|m| m.starts_with("dashboard.clockStyle")), "missing warning: {w:?}");
+    }
+
+    #[test]
+    fn dashboard_media_art_parse() {
+        assert!(Settings::default().dashboard.media_art);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "mediaArt": false } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!s.dashboard.media_art);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "mediaArt": "no" } }"#);
+        assert!(s.dashboard.media_art);
+        assert!(w.iter().any(|m| m.starts_with("dashboard.mediaArt")), "missing warning: {w:?}");
     }
 
     #[test]

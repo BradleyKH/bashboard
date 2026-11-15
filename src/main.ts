@@ -304,6 +304,10 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     saveSetting(['dashboard', 'clockStyle'], style).catch((err: unknown) =>
       showToast(`Could not save the setting: ${String(err)}`),
     ),
+  onSetMediaArt: (shown) =>
+    saveSetting(['dashboard', 'mediaArt'], shown).catch((err: unknown) =>
+      showToast(`Could not save the setting: ${String(err)}`),
+    ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onOpenShip: (target, tab) => workspace.openShip(target, tab),
   onOpenGit: (root) => workspace.showGit(root),

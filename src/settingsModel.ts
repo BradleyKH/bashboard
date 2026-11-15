@@ -188,6 +188,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         shownWhen: { path: ['dashboard', 'sections', 'clock'], value: true },
       },
       {
+        path: ['dashboard', 'mediaArt'],
+        label: 'Album art',
+        kind: 'toggle',
+        applies: 'live',
+        group: 'Show on the dashboard',
+        inline: true,
+        shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
+      },
+      {
         path: ['dashboard', 'portRows'],
         label: 'Ports listed',
         kind: 'number',

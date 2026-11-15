@@ -12,6 +12,10 @@
   column-gap: 10px;
 }
 
+.media-now.no-art {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .media-art {
   width: 48px;
   height: 48px;
@@ -22,6 +26,10 @@
   background: rgba(255, 255, 255, 0.06);
   color: var(--content-faint);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.media-art[hidden] {
+  display: none;
 }
 
 .media-art img {
@@ -60,6 +68,7 @@
 }
 
 .media-controls {
+  container-type: inline-size;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -75,8 +84,20 @@
 
 .media-volume-row {
   flex: 0 1 104px;
-  min-width: 56px;
+  min-width: 0;
   gap: 4px;
+}
+
+/* Below this the slider would be under about 56 px beside the full transport, too small to aim
+   at, so only the mute button stays. */
+@container (max-width: 250px) {
+  .media-volume-row {
+    flex: none;
+  }
+
+  .media-volume-row .media-slider {
+    display: none;
+  }
 }
 
 #dashboard .media-control {

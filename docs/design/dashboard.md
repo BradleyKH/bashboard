@@ -658,11 +658,14 @@ A dashboard element (4.6) for the session 3.29 reports, hidden while there is no
 (a note glyph without one) sits beside the title, with the album in its tooltip, and the artist,
 else the app's name, below it. Under them, one row holds the transport, shuffle, previous, a
 single play/pause button in the accent color whose icon follows the playback state, next, and
-repeat (its icon marks repeat one), with a mute button and volume slider at the right. Shuffle and
+repeat (its icon marks repeat one), with a mute button and volume slider at the right; where the
+row is too narrow for a usable slider (a container query at 250 px), only the mute button shows. Shuffle and
 repeat show in the accent color while on and are absent when the app does not offer them; a
 button the app does not allow is dimmed. Scrolling over the volume slider steps it by 5%. Below
 them, the elapsed time, a position slider, and the track length show while the track has a known
-length; dragging the position seeks on release.
+length; dragging the position seeks on release. `dashboard.mediaArt` (section 8) hides the art,
+letting the title take its width. Right-clicking the section opens its own menu: Show album art,
+checked while on, then Hide media, each saving its setting.
 
 Apps report the position only when it changes, so the section counts forward from the last report
 while playing, held within the track, ticking each second only while the element is enabled,
