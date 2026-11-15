@@ -492,7 +492,7 @@ const saver = new DebouncedSaver(
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
     tourDone: state.tourDone || undefined,
     textZoom: textZoomSnapshot(),
-    filesView: filesView() === 'tree' ? ('tree' as const) : undefined,
+    filesView: filesView() === 'folder' ? ('folder' as const) : undefined,
     needsYouHides: needsYouStore.hides(),
   }),
   workspaceSave,

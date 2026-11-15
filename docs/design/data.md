@@ -168,8 +168,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   false; anything but `true` reads as absent.
 - `tourDone` (whether the first-run tour finished or was skipped, 4.29): false; anything but
   `true` reads as absent.
-- `filesView` (the view a new Files pane starts in, 4.12): the Folder view; any value but
-  `"tree"` reads as absent.
+- `filesView` (the view a new Files pane starts in, 4.12): the Tree view; any value but
+  `"folder"` or `"tree"` reads as absent.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.

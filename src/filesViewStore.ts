@@ -1,7 +1,7 @@
 import type { FilesView } from './filesTreeModel';
 
 /** The view a new Files pane starts in: the one last picked in any pane (docs/design/files.md section 4.12). */
-let current: FilesView = 'folder';
+let current: FilesView = 'tree';
 let listener: (() => void) | null = null;
 
 export function filesView(): FilesView {

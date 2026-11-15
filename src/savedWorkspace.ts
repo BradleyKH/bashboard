@@ -159,7 +159,7 @@ export interface SavedWorkspace {
   tourDone?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
-  /** The view a new Files pane starts in; absent means folder. */
+  /** The view a new Files pane starts in; absent means tree. */
   filesView?: FilesView;
 }
 
@@ -439,7 +439,8 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
   if (raw.tourDone === true) saved.tourDone = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
-  if (raw.filesView === 'tree') saved.filesView = 'tree';
+  const filesView = parseFilesView(raw.filesView);
+  if (filesView) saved.filesView = filesView;
   return saved;
 }
 

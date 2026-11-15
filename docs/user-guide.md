@@ -139,7 +139,7 @@ Ctrl+V pastes into the folder of the selected row. The breadcrumb still shows th
 folder: going up, or clicking a segment, starts the tree there. Opening a pinned file or folder
 inside the tree expands down to it. Click **Tree** again to go back to one folder at a time,
 which opens the folder of the selected row. Each pane remembers its view and its open folders,
-and a new Files pane starts in the view you picked last. The command palette's **Switch a Files
+and a new Files pane starts in the view you picked last (the tree, until you pick). The command palette's **Switch a Files
 pane between folder and tree** (the `toggleFilesView` action, which you can bind to a key) does
 the same as the button.
 

@@ -168,7 +168,8 @@ starts at Modified, newest first; each pane saves its own sort (4.11).
 lit while the tree shows, switches the list between the Folder and Tree views, as does the
 `toggleFilesView` action (no default key, in the command palette) on the focused Files pane. Each
 pane saves its view and its expanded folders (4.11), and a new pane starts in the view last
-picked in any pane (`filesView` in workspace.json, section 7).
+picked in any pane (`filesView` in workspace.json, section 7), the Tree view until one is
+picked.
 
 The tree's top is the folder shown, so the breadcrumb, history, Backspace, the title strip
 buttons, and the empty area's menu work as in the Folder view, and going up or picking a

@@ -160,11 +160,12 @@
 /* The tree's chevron, indented by the row's depth through --depth. */
 .file-row-twisty {
   flex: none;
-  width: calc(12px * var(--text-scale, 1) * var(--files-zoom, 1));
+  width: calc(14px * var(--text-scale, 1) * var(--files-zoom, 1));
   margin-left: calc(var(--depth, 0) * 14px * var(--text-scale, 1) * var(--files-zoom, 1));
   margin-right: -2px;
   text-align: center;
-  font-size: 0.8em;
+  font-size: 1.1em;
+  line-height: 1;
   color: #9a9a9a;
   cursor: pointer;
 }
