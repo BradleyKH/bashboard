@@ -288,21 +288,23 @@ pins, then the global ones. A settings file that still has `sections.folder` and
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Needs you section lists what you should act on: waiting, failed, and finished terminals, and across the repos pinned to the Ship Overview a red health branch, your own pull request with changes requested, failing checks, or approval, pull requests awaiting your review, and a sign-in when a pinned repo needs one. The Ship section shows the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. The Media section shows what Spotify or another app is playing, with play/pause, skip, and volume, and hides itself while nothing has a media session; it is Windows only. All of them apply on save and are in the Dashboard section of the Settings tab, the
-elements under "Show on the dashboard".
+always. The Needs you section lists what you should act on: waiting, failed, and finished terminals, and across the repos pinned to the Ship Overview a red health branch, your own pull request with changes requested, failing checks, or approval, pull requests awaiting your review, and a sign-in when a pinned repo needs one. The Ship section shows the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. The Media section shows what Spotify or another app is playing, with play/pause, skip, and volume, and hides itself while nothing has a media session; it is Windows only. All of them apply on save and are toggles in the Dashboard section of the Settings tab, under
+the groups Start work (Launch, Pins, Favorites, Layouts), Sessions (Needs you, Panes, External
+sessions), Git & CI (Ship, Branch), Local services (Containers, Ports, Local AI models), and
+Ambient (System, Media, Clock, Wave). The panel's right-click menu lists them under the same headings.
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
 the time, `"time"` for the time only, or `"binary"` for the dots only. An unknown value falls back
-to `both` with a notice. It applies on save and is the Clock style select under "Show on the
-dashboard", shown while the clock is on; right-clicking the clock sets it too.
+to `both` with a notice. It applies on save and is the Clock style select under Ambient, shown
+while the clock is on; right-clicking the clock sets it too.
 
 `dashboard.mediaArt` (default `true`) shows the album art in the Media section; off, the title and
-artist take its place. It applies on save and is the Album art toggle under "Show on the
-dashboard", shown while Media is on; right-clicking the Media section sets it too.
+artist take its place. It applies on save and is the Album art toggle under Ambient, shown
+while Media is on; right-clicking the Media section sets it too.
 
 `dashboard.portRows` (default 10, 1 to 50) is how many ports the Ports section lists; the rest are
 counted in one "+ N more" row that opens the Ports tab. A value out of range falls back to 10 with
-a notice. It applies on save and is the Ports listed field under "Show on the dashboard", shown
+a notice. It applies on save and is the Ports listed field under Local services, shown
 while the Ports section is on.
 
 ```jsonc
@@ -334,8 +336,8 @@ while the Ports section is on.
 
 `needsYou.walkAll` (default `true`) makes the next-attention walk (Ctrl+Shift+N) visit the Needs you
 list's Ship and usage rows as well as terminals; `false` limits it to terminals. It applies on save
-and is the "Ctrl+Shift+N walks Ship and usage rows too" toggle in the Dashboard section of the
-Settings tab. `needsYou.usagePercent` (default 80, 1 to 100) is the percent of an agent's usage
+and is the "Ctrl+Shift+N walks Ship and usage rows too" toggle under Sessions in the Dashboard section
+of the Settings tab. `needsYou.usagePercent` (default 80, 1 to 100) is the percent of an agent's usage
 window at which it becomes a row in the list; a value out of range falls back to 80 with a notice. It
 applies on save and is the "Show a usage limit once it passes" field there.
 

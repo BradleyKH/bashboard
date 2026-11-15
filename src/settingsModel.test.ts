@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CODE_SCHEME_IDS } from './code/schemes';
-import { SHOWABLE_ORDER } from './dashboardSections';
+import { SECTION_GROUPS } from './dashboardSections';
 import { DEFAULT_SETTINGS, type BackdropStyle, type Settings } from './settings';
 import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
@@ -43,15 +43,23 @@ describe('Dashboard section', () => {
     expect(parseInput(side, 'top').ok).toBe(false);
   });
 
-  it('has one grouped toggle per element and Pins, in settings order, then the clock style, album art, and port rows', () => {
-    const grouped = fields.filter((f) => f.group === 'Show on the dashboard');
-    expect(grouped.map((f) => f.path.join('.'))).toEqual([
-      ...SHOWABLE_ORDER.map((id) => `dashboard.sections.${id}`),
-      'dashboard.clockStyle',
-      'dashboard.mediaArt',
-      'dashboard.portRows',
+  it('groups the show toggles as the dashboard menu does, each group followed by its fields', () => {
+    const dashboard = SETTINGS_SECTIONS.find((s) => s.title === 'Dashboard')!.fields;
+    const grouped = dashboard.filter((f) => f.group !== undefined);
+    expect(grouped.map((f) => [f.group, f.path.join('.')])).toEqual([
+      ...SECTION_GROUPS.flatMap((g) => {
+        const extras: Record<string, string[]> = {
+          Sessions: ['needsYou.walkAll', 'needsYou.usagePercent'],
+          'Local services': ['dashboard.portRows'],
+          Ambient: ['dashboard.mediaArt', 'dashboard.clockStyle'],
+        };
+        return [
+          ...g.sections.map((id) => [g.title, `dashboard.sections.${id}`]),
+          ...(extras[g.title] ?? []).map((p) => [g.title, p]),
+        ];
+      }),
     ]);
-    for (const f of grouped.slice(0, -3)) expect(f.kind).toBe('toggle');
+    for (const f of grouped.filter((f) => f.path[1] === 'sections')) expect(f.kind).toBe('toggle');
   });
 
   it('accepts 1 to 50 ports listed, whole numbers only', () => {

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ELEMENT_ORDER,
+  ELEMENT_LABELS,
   parseCollapsedSections,
   parseSectionOrder,
   parseTopElements,
   placeElement,
+  SHOWABLE_ORDER,
   toggleSection,
   type DashboardElement,
 } from './dashboardSections';
@@ -71,6 +73,12 @@ describe('DEFAULT_ELEMENT_ORDER', () => {
       'media',
       'wave',
     ]);
+  });
+});
+
+describe('SECTION_GROUPS', () => {
+  it('holds every element and Pins exactly once', () => {
+    expect([...SHOWABLE_ORDER].sort()).toEqual(Object.keys(ELEMENT_LABELS).sort());
   });
 });
 

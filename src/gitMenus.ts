@@ -6,7 +6,7 @@ export interface GitFileMenuHandlers {
   showDiff: (row: GitRow) => void;
   /** Stages the row, or unstages it in the Staged list. */
   toggle: (row: GitRow) => void;
-  openInEditor: (row: GitRow) => void;
+  showInFiles: (row: GitRow) => void;
   copyPath: (row: GitRow) => void;
   insertPath: (row: GitRow) => void;
 }
@@ -17,8 +17,8 @@ export function gitFileMenuItems(row: GitRow, staged: boolean, h: GitFileMenuHan
     item('Show diff', () => h.showDiff(row)),
     item(staged ? 'Unstage' : 'Stage', () => h.toggle(row)),
     separator(),
-    // A deleted file has nothing to open, and its row hides the Open button.
-    item('Open in editor', () => h.openInEditor(row), { enabled: row.entry.status !== 'D' }),
+    // A deleted file has nothing to show, and its row hides the Open button.
+    item('Show in Files', () => h.showInFiles(row), { enabled: row.entry.status !== 'D' }),
     item('Copy path', () => h.copyPath(row)),
     item('Insert path', () => h.insertPath(row)),
   ];

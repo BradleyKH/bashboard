@@ -177,7 +177,8 @@ knows opens a menu of that element's actions; right-clicking anything else does 
 module draws every menu, including the Open menu (4.6) and the kind menu (4.11), so they all look
 and behave alike.
 
-- **Content.** A menu holds items, separators, and submenus, one level deep. An item can be
+- **Content.** A menu holds items, separators, headings (a muted label over a group, never
+  focused), and submenus, one level deep. An item can be
   disabled, or drawn as a radio choice with a check mark. Builders append groups
   conditionally; leading, trailing, and doubled separators are dropped (in submenus too), a
   submenu with no enabled item is disabled, and a menu with nothing left opens nothing.

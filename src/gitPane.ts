@@ -4,7 +4,6 @@ import { startSplitDrag } from './splitDrag';
 import type { ConfirmOptions } from './confirmDialog';
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
-import { openInEditor } from './editors';
 import { samePath } from './favorites';
 import {
   gitBranches,
@@ -91,6 +90,8 @@ export interface GitPaneOptions {
   onPathDragStart?: (paths: string[], e: PointerEvent) => void;
   /** Insert path on a row: the entry's absolute path and this pane's root, to make it relative to. */
   onInsertPath: (absolute: string, baseRoot: string) => void;
+  /** Show in Files on a file row: the file's absolute path and this pane's root. */
+  onShowInFiles: (absolute: string, root: string) => void;
   /** Insert name on a branch row: the text goes into the tab's recent terminal as typed. */
   onInsertText: (text: string) => void;
   /** Opens (or focuses) a Git pane on another worktree, for a branch checked out there. */
@@ -221,7 +222,7 @@ export class GitPane implements PaneView {
       onToggle: (row) => void this.toggle([row], true),
       onToggleAll: (rows) => void this.toggle(rows, true),
       menuItems: (row) => this.fileMenu(row, true),
-      onOpen: (row) => void openInEditor(repoPath(this.rootPath, row.entry.path)),
+      onShowInFiles: (row) => this.showInFiles(row),
       onDragStart: (row, e) => this.opts.onPathDragStart?.([repoPath(this.rootPath, row.entry.path)], e),
     });
     this.changesList = new GitFileList({
@@ -231,7 +232,7 @@ export class GitPane implements PaneView {
       onToggle: (row) => void this.toggle([row], false),
       onToggleAll: (rows) => void this.toggle(rows, false),
       menuItems: (row) => this.fileMenu(row, false),
-      onOpen: (row) => void openInEditor(repoPath(this.rootPath, row.entry.path)),
+      onShowInFiles: (row) => this.showInFiles(row),
       onDragStart: (row, e) => this.opts.onPathDragStart?.([repoPath(this.rootPath, row.entry.path)], e),
     });
     this.logList = new GitLogList({
@@ -712,6 +713,10 @@ export class GitPane implements PaneView {
     this.diffView.setUndo(shown, shown ? this.undoError : null);
   }
 
+  private showInFiles(row: GitRow): void {
+    this.opts.onShowInFiles(repoPath(this.rootPath, row.entry.path), this.rootPath);
+  }
+
   private fileMenu(row: GitRow, staged: boolean): MenuEntry[] {
     const absolute = (r: GitRow): string => repoPath(this.rootPath, r.entry.path);
     return gitFileMenuItems(row, staged, {
@@ -720,7 +725,7 @@ export class GitPane implements PaneView {
         this.selectFile(r, staged);
       },
       toggle: (r) => void this.toggle([r], staged),
-      openInEditor: (r) => void openInEditor(absolute(r)),
+      showInFiles: (r) => this.showInFiles(r),
       copyPath: (r) => copyPath(absolute(r)),
       insertPath: (r) => this.opts.onInsertPath(absolute(r), this.rootPath),
     });

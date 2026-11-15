@@ -287,10 +287,11 @@ checks it out (as Check out does below); Create makes the branch from HEAD and s
   something is staged and the message is not empty. A failed commit (a hook rejecting it, for
   example) shows git's output under the box and keeps the message.
 - **Staged** and **Changes** lists. Changes holds unstaged and untracked files. Each row shows
-  its status letter and path, with stage or unstage and Open in editor on hover; each list's
+  its status letter and path, with stage or unstage and Show in Files on hover; each list's
   header has Stage all or Unstage all. Clicking a row shows its diff. A right-click on a row
-  offers Show diff, Stage or Unstage, then Open in editor (disabled for a deleted file), Copy
-  path, and Insert path. Staged and Changes rows drag
+  offers Show diff, Stage or Unstage, then Show in Files (disabled for a deleted file), Copy
+  path, and Insert path. Show in Files selects the file in the tab's Files pane for the repo,
+  opening one if there is none, where it can be edited. Staged and Changes rows drag
   their path onto a terminal or scratch pad (4.4), a deleted file's included.
 - **Recent commits:** the last 20, each with subject, short hash, relative time, and a mark when
   no remote-tracking branch contains it. Clicking one shows its diff. A right-click on a commit

@@ -305,8 +305,9 @@ or commit sits on the right:
   so a failing `pre-commit` hook stops the commit: its output shows under the box and your message
   stays in it.
 - **Staged** and **Changes** list the files. Changes holds unstaged, untracked, and conflicted
-  files, each with its status letter. Hover a row for **Stage** or **Unstage** and **Open in
-  editor**. The button in a list's header stages or unstages every row in it. A rename shows as
+  files, each with its status letter. Hover a row for **Stage** or **Unstage** and **Open**,
+  which shows the file in the tab's Files pane for the repo (opening one if there is none) so you
+  can edit it there; right-click a row for the same, as **Show in Files**. The button in a list's header stages or unstages every row in it. A rename shows as
   `old -> new`.
 - **Recent commits** lists the last 20 commits with subject, short hash, and relative time. A commit
   that no remote-tracking branch contains is marked unpushed. Right-click an unpushed commit to
@@ -781,8 +782,8 @@ rows of dots showing the hours (24-hour), minutes, and seconds in binary, and th
 or to hide it; Clock style in the Settings tab does the same. Drag it down among the other sections to move it there, or back to the top.
 It ticks only while the panel is on screen.
 
-The **System** section is off by default; turn it on under "Show on the
-dashboard" in Settings. It shows CPU use with a 60 second sparkline, memory used of total,
+The **System** section is off by default; turn it on under Ambient in
+the Dashboard section of Settings. It shows CPU use with a 60 second sparkline, memory used of total,
 network receive and send rates with a sparkline for each, and free space on each fixed drive, with bars that turn amber at
 80% and red at 90%. CPU and network fill in on the second sample after the section starts. It
 samples only while it is expanded, the panel is on screen, and the window is shown. Hover the CPU
@@ -806,7 +807,7 @@ keeps moving when the background animation is paused (Ctrl+Shift+A), and holds s
 Windows asks apps to reduce motion.
 
 The **Branch** section is off by default; right-click the panel and choose Branch, or turn it on
-under "Show on the dashboard" in Settings. It follows the folder of the focused pane (or the last
+under Git & CI in the Dashboard section of Settings. It follows the folder of the focused pane (or the last
 one that had a folder) and appears only while that folder is in a git repo. Its header shows the
 branch, or "detached HEAD", and the worktree's folder name; click it to open the Git pane. Below
 sit a meter of how much of the size limit the branch uses (full and amber once past it) with the
@@ -833,7 +834,7 @@ The list also manages your favorites: F2 or the row's **✎** renames the select
 Delete (once the cursor is at the end of the filter text) or the row's **×** removes it. Right-click a row
 for Open, Rename, and Remove.
 
-Turning Favorites on under "Show on the dashboard" lists them on the panel instead, above the
+Turning Favorites on under Start work in Settings lists them on the panel instead, above the
 terminals, where rows can be renamed, removed, and reordered by dragging, and the
 section's "+" adds the focused folder. Below them, **Recent** lists up to five folders from Claude
 sessions that are not already favorites, each with a star to promote it. While the section is
@@ -852,7 +853,7 @@ see it before you press Enter. F2 or the row's **✎** renames the selected layo
 removes it after the row asks "Remove?" (Enter confirms, Escape keeps it). Right-click a row for
 Open, Rename, and Remove.
 
-Turning Layouts on under "Show on the dashboard" lists them on the panel instead, below
+Turning Layouts on under Start work in Settings lists them on the panel instead, below
 Favorites. Each row shows the name and pane count; click it to open the layout, and use the row's
 buttons to rename it or remove it (removing asks first). The section's "+" asks for a name and
 asks again before it replaces an existing layout.

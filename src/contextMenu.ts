@@ -223,6 +223,14 @@ function renderList(entries: MenuEntry[], className: string): MenuList {
       el.append(sep);
       return null;
     }
+    if (entry.kind === 'heading') {
+      const head = document.createElement('div');
+      head.className = 'context-menu-heading';
+      head.setAttribute('role', 'presentation');
+      head.textContent = entry.label;
+      el.append(head);
+      return null;
+    }
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'context-menu-item';

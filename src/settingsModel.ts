@@ -6,7 +6,7 @@ import { UI_SCALE_MAX, UI_SCALE_MIN } from './uiScale';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { resolveScheme, SCHEMES } from './code/schemes';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
-import { ELEMENT_HINTS, ELEMENT_LABELS, SHOWABLE_ORDER } from './dashboardSections';
+import { ELEMENT_HINTS, ELEMENT_LABELS, SECTION_GROUPS, type ShowableSection } from './dashboardSections';
 import type { Settings } from './settings';
 
 export type FieldKind = 'toggle' | 'number' | 'slider' | 'text' | 'list' | 'select';
@@ -106,6 +106,83 @@ export function codeColorsLabel(value: string, settings: Settings): string {
   return `Match accent (${resolveScheme('matchAccent', settings.accentColor).label})`;
 }
 
+/** The fields that tune a dashboard element, listed after their group's show toggles while it shows. */
+const DASHBOARD_ELEMENT_FIELDS: Partial<Record<ShowableSection, Omit<SettingsField, 'group'>[]>> = {
+  needs: [
+    { path: ['needsYou', 'walkAll'], label: 'Ctrl+Shift+N walks Ship and usage rows too', kind: 'toggle', applies: 'live' },
+    {
+      path: ['needsYou', 'usagePercent'],
+      label: 'Show a usage limit once it passes',
+      kind: 'number',
+      min: 1,
+      max: 100,
+      step: 1,
+      unit: '%',
+      integer: true,
+      applies: 'live',
+      inline: true,
+      shownWhen: { path: ['dashboard', 'sections', 'needs'], value: true },
+    },
+  ],
+  ports: [
+    {
+      path: ['dashboard', 'portRows'],
+      label: 'Ports listed',
+      kind: 'number',
+      min: 1,
+      max: 50,
+      step: 1,
+      integer: true,
+      hint: 'The rest are counted in one "+ N more" row',
+      applies: 'live',
+      inline: true,
+      shownWhen: { path: ['dashboard', 'sections', 'ports'], value: true },
+    },
+  ],
+  media: [
+    {
+      path: ['dashboard', 'mediaArt'],
+      label: 'Album art',
+      kind: 'toggle',
+      applies: 'live',
+      inline: true,
+      shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
+    },
+  ],
+  clock: [
+    {
+      path: ['dashboard', 'clockStyle'],
+      label: 'Clock style',
+      kind: 'select',
+      options: [...CLOCK_STYLE_OPTIONS],
+      applies: 'live',
+      inline: true,
+      shownWhen: { path: ['dashboard', 'sections', 'clock'], value: true },
+    },
+  ],
+};
+
+/**
+ * One group per SECTION_GROUPS entry: its show toggles, then the fields tuning its elements. The
+ * toggles come first so the half-width ones pair up without a full-width field between them.
+ */
+function dashboardShowFields(): SettingsField[] {
+  return SECTION_GROUPS.flatMap((g) => [
+    ...g.sections.map(
+      (id): SettingsField => ({
+        path: ['dashboard', 'sections', id],
+        label: ELEMENT_LABELS[id],
+        hint: ELEMENT_HINTS[id],
+        kind: 'toggle',
+        applies: 'live',
+        group: g.title,
+        half: true,
+      }),
+    ),
+    ...g.sections.flatMap((id) => (DASHBOARD_ELEMENT_FIELDS[id] ?? []).map((f): SettingsField => ({ ...f, group: g.title }))),
+  ]);
+}
+
 /** Ranges mirror try_parse_settings in src-tauri/src/settings/parse.rs so a saved value always loads. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
@@ -168,62 +245,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'live',
         inline: true,
       },
-      ...SHOWABLE_ORDER.map((id): SettingsField => ({
-        path: ['dashboard', 'sections', id],
-        label: ELEMENT_LABELS[id],
-        hint: ELEMENT_HINTS[id],
-        kind: 'toggle',
-        applies: 'live',
-        group: 'Show on the dashboard',
-        half: true,
-      })),
-      {
-        path: ['dashboard', 'clockStyle'],
-        label: 'Clock style',
-        kind: 'select',
-        options: [...CLOCK_STYLE_OPTIONS],
-        applies: 'live',
-        group: 'Show on the dashboard',
-        inline: true,
-        shownWhen: { path: ['dashboard', 'sections', 'clock'], value: true },
-      },
-      {
-        path: ['dashboard', 'mediaArt'],
-        label: 'Album art',
-        kind: 'toggle',
-        applies: 'live',
-        group: 'Show on the dashboard',
-        inline: true,
-        shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
-      },
-      {
-        path: ['dashboard', 'portRows'],
-        label: 'Ports listed',
-        kind: 'number',
-        min: 1,
-        max: 50,
-        step: 1,
-        integer: true,
-        hint: 'The rest are counted in one "+ N more" row',
-        applies: 'live',
-        group: 'Show on the dashboard',
-        inline: true,
-        shownWhen: { path: ['dashboard', 'sections', 'ports'], value: true },
-      },
-      { path: ['needsYou', 'walkAll'], label: 'Ctrl+Shift+N walks Ship and usage rows too', kind: 'toggle', applies: 'live' },
-      {
-        path: ['needsYou', 'usagePercent'],
-        label: 'Show a usage limit once it passes',
-        kind: 'number',
-        min: 1,
-        max: 100,
-        step: 1,
-        unit: '%',
-        integer: true,
-        applies: 'live',
-        inline: true,
-        shownWhen: { path: ['dashboard', 'sections', 'needs'], value: true },
-      },
+      ...dashboardShowFields(),
     ],
   },
   {

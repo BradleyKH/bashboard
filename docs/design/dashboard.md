@@ -71,9 +71,11 @@ Branch, Local AI models, External sessions, System, Media, and Wave, in that def
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
 Favorites, Layouts, Branch, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
-panel no row's menu claims and lists every element with a check on the shown ones;
-Pins, fixed between the slots rather than an element, has a toggle the same way, listed after
-Launch and on by default; choosing one
+panel no row's menu claims and lists every element with a check on the shown ones, under the
+settings dialog's group headings (`SECTION_GROUPS` in `dashboardSections.ts`): Start work,
+Sessions, Git & CI, Local services, and Ambient;
+Pins, fixed between the slots rather than an element, has a toggle the same way, listed under
+Start work after Launch and on by default; choosing one
 flips its toggle. A disabled element is gone from the panel, not collapsed, and its
 rows leave the keyboard rows below. Toggles and `dashboard.side` apply live, and switching
 sides while a peek is showing ends the peek.
@@ -512,8 +514,10 @@ The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing s
 sections Terminal, Dashboard, Appearance, Background, Editor, Git, Ship, Local AI models, and Restore. A filter field above them
 shows only the fields whose label, hint, group, or section holds every word typed, and hides
 sections left empty. Dashboard holds the side choice, Left or Right, and a
-checkbox per element under "Show on the dashboard", followed by the Clock style select while the
-clock is on. Terminal includes a Default shell
+checkbox per element under five group subheadings (Start work, Sessions, Git & CI, Local services,
+Ambient). Each group's checkboxes come first, then the fields tuning its elements, each shown
+while its element is on: the Needs you options under Sessions, Ports listed under Local
+services, and Album art and Clock style under Ambient. Terminal includes a Default shell
 select listing the available profiles. Editor selects the preferred editor from those found (3.12),
 plus a custom command field. Ship holds the Overview refresh interval (4.20). Appearance's Font family field suggests installed fonts as you type
 (3.17), monospace first, with the bundled JetBrainsMono Nerd Font Mono (3.16) leading. It stays a

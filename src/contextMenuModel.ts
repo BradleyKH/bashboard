@@ -20,8 +20,14 @@ export interface MenuSeparator {
   kind: 'separator';
 }
 
+/** A muted, unchoosable label over the entries that follow it. */
+export interface MenuHeading {
+  kind: 'heading';
+  label: string;
+}
+
 /** What a submenu may hold: menus nest one level only. */
-export type MenuLeaf = MenuItem | MenuSeparator;
+export type MenuLeaf = MenuItem | MenuSeparator | MenuHeading;
 
 export interface MenuSubmenu {
   kind: 'submenu';
@@ -31,7 +37,7 @@ export interface MenuSubmenu {
   enabled?: boolean;
 }
 
-export type MenuEntry = MenuItem | MenuSeparator | MenuSubmenu;
+export type MenuEntry = MenuItem | MenuSeparator | MenuHeading | MenuSubmenu;
 
 export interface MenuItemOptions {
   enabled?: boolean;
@@ -50,13 +56,17 @@ export function separator(): MenuSeparator {
   return { kind: 'separator' };
 }
 
+export function heading(label: string): MenuHeading {
+  return { kind: 'heading', label };
+}
+
 export function submenu(label: string, items: MenuLeaf[], opts: { enabled?: boolean } = {}): MenuSubmenu {
   return { kind: 'submenu', label, items, ...opts };
 }
 
 /** Whether `entry` can be focused and chosen. */
 export function isEnabled(entry: MenuEntry): boolean {
-  return entry.kind !== 'separator' && entry.enabled !== false;
+  return (entry.kind === 'item' || entry.kind === 'submenu') && entry.enabled !== false;
 }
 
 function tidyList<T extends MenuEntry>(entries: T[]): T[] {
@@ -83,7 +93,7 @@ export function tidySeparators(entries: MenuEntry[]): MenuEntry[] {
 }
 
 /**
- * Index of the next enabled, non-separator entry after `from`, stepping by `delta` (1 or -1) and
+ * Index of the next enabled item or submenu after `from`, stepping by `delta` (1 or -1) and
  * wrapping; -1 when there is none. A negative `from` starts before the first entry going down
  * and after the last going up, which is how Home and End use it.
  */

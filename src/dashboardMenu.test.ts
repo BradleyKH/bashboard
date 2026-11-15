@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { dashboardMenuItems } from './dashboardMenu';
-import { SHOWABLE_ORDER, ELEMENT_LABELS, ELEMENT_SHOWN_BY_DEFAULT } from './dashboardSections';
+import { ELEMENT_LABELS, ELEMENT_SHOWN_BY_DEFAULT, SECTION_GROUPS } from './dashboardSections';
 
 describe('dashboardMenuItems', () => {
-  it('lists every element and Pins in settings order, checked when shown', () => {
+  it('lists every element and Pins under its group heading, checked when shown', () => {
     const entries = dashboardMenuItems(ELEMENT_SHOWN_BY_DEFAULT, () => {});
-    expect(entries.map((e) => (e.kind === 'item' ? [e.label, e.checked] : null))).toEqual(
-      SHOWABLE_ORDER.map((el) => [ELEMENT_LABELS[el], ELEMENT_SHOWN_BY_DEFAULT[el]]),
+    expect(entries.map((e) => (e.kind === 'item' ? [e.label, e.checked] : e.kind === 'heading' ? e.label : null))).toEqual(
+      SECTION_GROUPS.flatMap((g) => [
+        g.title,
+        ...g.sections.map((el) => [ELEMENT_LABELS[el], ELEMENT_SHOWN_BY_DEFAULT[el]]),
+      ]),
     );
   });
 

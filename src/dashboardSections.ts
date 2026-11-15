@@ -31,12 +31,25 @@ export type DashboardElement = (typeof DEFAULT_ELEMENT_ORDER)[number];
  */
 export type ShowableSection = DashboardElement | 'pins';
 
-/** The settings dialog's and the dashboard menu's order: Pins where it sits under the default top slot. */
-export const SHOWABLE_ORDER: readonly ShowableSection[] = [
-  ...DEFAULT_ELEMENT_ORDER.slice(0, 2),
-  'pins',
-  ...DEFAULT_ELEMENT_ORDER.slice(2),
+export interface SectionGroup {
+  title: string;
+  sections: readonly ShowableSection[];
+}
+
+/**
+ * How the settings dialog and the dashboard menu group the show toggles. Only those lists follow
+ * it; the panel keeps DEFAULT_ELEMENT_ORDER, which also places elements missing from older saves.
+ */
+export const SECTION_GROUPS: readonly SectionGroup[] = [
+  { title: 'Start work', sections: ['launch', 'pins', 'favorites', 'layouts'] },
+  { title: 'Sessions', sections: ['needs', 'panes', 'external'] },
+  { title: 'Git & CI', sections: ['ship', 'branch'] },
+  { title: 'Local services', sections: ['containers', 'ports', 'localModels'] },
+  { title: 'Ambient', sections: ['system', 'media', 'clock', 'wave'] },
 ];
+
+/** Every show toggle in SECTION_GROUPS order. */
+export const SHOWABLE_ORDER: readonly ShowableSection[] = SECTION_GROUPS.flatMap((g) => g.sections);
 
 /** Elements with no header to collapse them by. */
 type Uncollapsible = 'clock' | 'launch' | 'wave';

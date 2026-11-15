@@ -87,6 +87,20 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+.context-menu-heading {
+  flex: none;
+  margin: 6px 0 0;
+  padding: 2px 8px;
+  color: #7f8c94;
+  font-size: 11px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.context-menu-heading:first-child {
+  margin-top: 0;
+}
+
 /* A right-clicked row while its menu is open: outlined, not selected. */
 .menu-target {
   outline: 1px solid var(--accent);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  heading,
   isKeyboardContextMenu,
   isMenuKey,
   item,
@@ -125,8 +126,13 @@ describe('nextEnabled', () => {
     expect(nextEnabled(entries, -1, -1)).toBe(3);
   });
 
+  it('skips headings', () => {
+    expect(nextEnabled([heading('H'), item('A', noop), heading('I'), item('B', noop)], 1, 1)).toBe(3);
+    expect(nextEnabled([heading('H'), item('A', noop)], -1, 1)).toBe(1);
+  });
+
   it('returns -1 with nothing enabled', () => {
-    expect(nextEnabled([separator(), item('X', noop, { enabled: false })], -1, 1)).toBe(-1);
+    expect(nextEnabled([separator(), heading('H'), item('X', noop, { enabled: false })], -1, 1)).toBe(-1);
     expect(nextEnabled([], -1, 1)).toBe(-1);
   });
 });

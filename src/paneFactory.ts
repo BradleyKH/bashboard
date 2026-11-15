@@ -349,6 +349,7 @@ export class PaneFactory {
       onPathDragStart: (paths, e) => ctx.startPathDrag(paths, e),
       onInsertPath: (absolute, baseRoot) => ctx.insertPathIntoTab(id, [absolute], baseRoot),
       onInsertText: (text) => ctx.insertTextIntoTab(id, text),
+      onShowInFiles: (absolute, root) => ctx.showFiles({ root, ...pinTarget(root, absolute, false) }),
       onOpenGit: (root) => ctx.showGit(root),
       onOpenIn: (kind, path) => ctx.hooks.onOpenIn?.(kind, path),
       onDeleteWorktree: (root, w) => ctx.hooks.onDeleteWorktree?.(root, w) ?? Promise.resolve(null),

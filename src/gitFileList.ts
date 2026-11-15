@@ -13,8 +13,8 @@ export interface GitFileListOptions {
   onToggle: (row: GitRow) => void;
   /** The header button, with every row currently listed. */
   onToggleAll: (rows: readonly GitRow[]) => void;
-  /** The hover Open in editor button. */
-  onOpen: (row: GitRow) => void;
+  /** The hover Show in Files button. */
+  onShowInFiles: (row: GitRow) => void;
   /** The row body was dragged; the caller starts a path drag. */
   onDragStart?: (row: GitRow, e: PointerEvent) => void;
   /** Right-click (or the Menu key) on a row; the menu never changes the selection. */
@@ -129,7 +129,7 @@ export class GitFileList {
     const actions = document.createElement('span');
     actions.className = 'git-row-actions';
     if (entry.status !== 'D') {
-      actions.append(this.action('Open', 'Open in editor', () => this.opts.onOpen(row)));
+      actions.append(this.action('Open', 'Show in Files', () => this.opts.onShowInFiles(row)));
     }
     actions.append(
       this.opts.staged

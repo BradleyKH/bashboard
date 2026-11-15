@@ -26,7 +26,7 @@ function fileHandlers() {
   return {
     showDiff: vi.fn(),
     toggle: vi.fn(),
-    openInEditor: vi.fn(),
+    showInFiles: vi.fn(),
     copyPath: vi.fn(),
     insertPath: vi.fn(),
   };
@@ -35,7 +35,7 @@ function fileHandlers() {
 describe('gitFileMenuItems', () => {
   it('lists the items in order', () => {
     const labels = items(gitFileMenuItems(row('M'), false, fileHandlers())).map((i) => i.label);
-    expect(labels).toEqual(['Show diff', 'Stage', 'Open in editor', 'Copy path', 'Insert path']);
+    expect(labels).toEqual(['Show diff', 'Stage', 'Show in Files', 'Copy path', 'Insert path']);
   });
 
   it('offers Unstage in the Staged list', () => {
@@ -44,9 +44,9 @@ describe('gitFileMenuItems', () => {
     expect(labels).not.toContain('Stage');
   });
 
-  it('disables Open in editor for a deleted file but keeps the path items enabled', () => {
+  it('disables Show in Files for a deleted file but keeps the path items enabled', () => {
     const entries = gitFileMenuItems(row('D'), false, fileHandlers());
-    expect(byLabel(entries, 'Open in editor').enabled).toBe(false);
+    expect(byLabel(entries, 'Show in Files').enabled).toBe(false);
     expect(byLabel(entries, 'Copy path').enabled).not.toBe(false);
     expect(byLabel(entries, 'Insert path').enabled).not.toBe(false);
   });
@@ -55,12 +55,12 @@ describe('gitFileMenuItems', () => {
     const h = fileHandlers();
     const r = row('M');
     const entries = gitFileMenuItems(r, false, h);
-    for (const label of ['Show diff', 'Stage', 'Open in editor', 'Copy path', 'Insert path']) {
+    for (const label of ['Show diff', 'Stage', 'Show in Files', 'Copy path', 'Insert path']) {
       byLabel(entries, label).run();
     }
     expect(h.showDiff).toHaveBeenCalledWith(r);
     expect(h.toggle).toHaveBeenCalledWith(r);
-    expect(h.openInEditor).toHaveBeenCalledWith(r);
+    expect(h.showInFiles).toHaveBeenCalledWith(r);
     expect(h.copyPath).toHaveBeenCalledWith(r);
     expect(h.insertPath).toHaveBeenCalledWith(r);
   });
