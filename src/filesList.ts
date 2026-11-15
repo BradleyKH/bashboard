@@ -16,6 +16,7 @@ import {
   type TreeState,
 } from './filesTreeModel';
 import { renderFileRow } from './fileRow';
+import { loadingNote } from './loadingNote';
 import {
   EMPTY_SELECTION,
   isMarked,
@@ -448,6 +449,13 @@ export class FilesList {
     if (this.renaming === null) this.paint();
   }
 
+  private note(text: string): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'files-list-note';
+    el.textContent = text;
+    return el;
+  }
+
   private paint(): void {
     this.filterBar.hidden = this.filterValue === '';
     this.filterText.textContent = this.filterValue;
@@ -467,7 +475,10 @@ export class FilesList {
         onDragStart: this.opts.onDragStart ? (e) => this.dragStarted(entry, e) : undefined,
       }),
     );
-    this.list.replaceChildren(...rows);
+    if (rows.length > 0) this.list.replaceChildren(...rows);
+    else if (!this.children.has('')) this.list.replaceChildren(loadingNote('Loading...', { delayed: true, className: 'files-list-note' }));
+    else if (this.filterValue === '') this.list.replaceChildren(this.note('This folder is empty.'));
+    else this.list.replaceChildren();
     this.list.querySelector('.file-row.cursor')?.scrollIntoView({ block: 'nearest' });
   }
 }

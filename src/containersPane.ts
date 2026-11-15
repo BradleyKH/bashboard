@@ -24,6 +24,7 @@ import { copyText } from './copyText';
 import { containerFixPrompt } from './fixWithAgentModel';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
+import { loadingNote } from './loadingNote';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
 import type { Settings } from './settings';
@@ -201,7 +202,9 @@ export class ContainersPane implements PaneView {
     if (engines.length === 0) {
       this.shownKey = null;
       this.rows.clear();
-      this.list.replaceChildren(this.note('No container engine found.'));
+      this.list.replaceChildren(
+        this.opts.store.ready ? this.note('No container engine found.') : loadingNote('Looking for container engines...', { className: 'ctr-note' }),
+      );
       return;
     }
     const groups = groupContainers(this.snapshot.containers);

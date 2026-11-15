@@ -130,6 +130,11 @@
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+.files-list-note {
+  padding: 8px 12px;
+  color: #9aa6ad;
+}
+
 .files-list-rows:not(:focus) .file-row.selected {
   background: rgba(255, 255, 255, 0.1);
 }

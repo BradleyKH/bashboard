@@ -62,6 +62,7 @@ import type { OpenInHandler } from './openMenu';
 import { gitWorktrees, type Worktree, type WorktreeList } from './worktreeApi';
 import { isRepoRoot } from './worktreeModel';
 import type { CellSize } from './layout';
+import { loadingNote } from './loadingNote';
 import { toFontFamily } from './pane';
 import { undoCommitConfirm } from './paneConfirm';
 import type { PaneView } from './paneView';
@@ -310,9 +311,10 @@ export class GitPane implements PaneView {
     this.body.append(head, this.main, this.branchesView.el, this.notice);
     this.body.classList.toggle('tab-branches', this.tab === 'branches');
     this.host.appendChild(this.body);
-    // Nothing shows until the root is checked, so a non-repo never flashes an empty pane.
+    // The regions stay hidden until the first read, so a non-repo never flashes an empty pane.
     this.setBodyShown(false);
-    this.notice.hidden = true;
+    this.notice.replaceChildren(loadingNote('Reading the repo...', { delayed: true }));
+    this.notice.hidden = false;
 
     this.listen(this.host, 'focusin', () => opts.onFocus());
     this.listen(this.divider, 'pointerdown', (e) =>

@@ -2,6 +2,7 @@ import type { ConfirmOptions } from './confirmDialog';
 import { asForgeError, forgeAuthStatus, onForgeAuthChanged, type HostAuth, type KnownTargets } from './forgeApi';
 import { azureOrgsFromRepoIds, guessProvider, hostCard, normalizeOrg, splitByDetection } from './forgeAccountsModel';
 import { ForgeHostCard } from './forgeHostCard';
+import { loadingNote } from './loadingNote';
 import { shipOverviewStore } from './shipOverviewStore';
 
 /**
@@ -35,6 +36,7 @@ export class AccountsTab {
   private moreToggle: HTMLButtonElement | null = null;
   private moreList: HTMLElement | null = null;
   private error: HTMLElement | null = null;
+  private loading: HTMLElement | null = null;
   private cards = new Map<string, ForgeHostCard>();
   private detected = new Set<string>();
   private expanded = false;
@@ -56,6 +58,7 @@ export class AccountsTab {
     const error = document.createElement('p');
     error.className = 'accounts-error';
     error.hidden = true;
+    const loading = loadingNote('Checking code hosts...');
     const list = document.createElement('div');
     list.className = 'accounts-list';
     const toggle = document.createElement('button');
@@ -67,13 +70,14 @@ export class AccountsTab {
     const more = document.createElement('div');
     more.className = 'accounts-list accounts-more';
     more.hidden = true;
-    root.append(intro, error, list, toggle, more);
+    root.append(intro, error, loading, list, toggle, more);
     host.append(root);
     this.root = root;
     this.list = list;
     this.moreToggle = toggle;
     this.moreList = more;
     this.error = error;
+    this.loading = loading;
     this.expanded = false;
 
     window.addEventListener('focus', this.onWindowFocus);
@@ -109,6 +113,7 @@ export class AccountsTab {
     this.moreToggle = null;
     this.moreList = null;
     this.error = null;
+    this.loading = null;
     this.loaded = false;
     this.pending = null;
     this.extraHosts = [];
@@ -198,10 +203,12 @@ export class AccountsTab {
       if (generation !== this.generation || !this.error) return;
       this.error.textContent = `Could not read the sign-in state: ${asForgeError(err).message}`;
       this.error.hidden = false;
+      if (this.loading) this.loading.hidden = true;
       return;
     }
     if (generation !== this.generation || !this.list || !this.moreList || !this.moreToggle || !this.error) return;
     this.error.hidden = true;
+    if (this.loading) this.loading.hidden = true;
     const split = splitByDetection(hosts);
     this.detected = new Set(split.detected.map((h) => h.host));
     this.render(split.detected, this.list);

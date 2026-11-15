@@ -2391,3 +2391,51 @@ h2.collapsible-head::before {
 .card-head > .status-dot {
   margin-inline: 4px;
 }
+
+/* A view waiting on its first data (loadingNote.ts). */
+.loading-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #9aa6ad;
+}
+
+.loading-note[hidden] {
+  display: none;
+}
+
+/* Held back so a quick load never flashes it. */
+.loading-note--delayed {
+  animation: loading-note-appear 0s linear 250ms both;
+}
+
+.loading-spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: loading-spin 0.9s linear infinite;
+}
+
+@keyframes loading-note-appear {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner {
+    animation: none;
+  }
+}
