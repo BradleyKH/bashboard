@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyLink, renderUnsanitized, samePath, slugify } from './markdownRender';
+import { classifyLink, localImagePath, renderUnsanitized, samePath, slugify } from './markdownRender';
 
 describe('heading anchors', () => {
   it('slugs headings the way GitHub does', () => {
@@ -23,11 +23,19 @@ describe('renderUnsanitized', () => {
     expect(out).toContain('&lt;script&gt;');
   });
 
-  it('renders an image as its alt text with no img element', () => {
+  it('renders a remote image as its alt text with no img element', () => {
     const out = renderUnsanitized('![a <cat>](https://example.com/cat.png)');
     expect(out).not.toContain('<img');
     expect(out).not.toContain('example.com/cat.png');
     expect(out).toContain('a &lt;cat&gt;');
+    expect(renderUnsanitized('![x](//example.com/cat.png)')).not.toContain('example.com');
+    expect(renderUnsanitized('![x](file:///C:/cat.png)')).not.toContain('md-image');
+  });
+
+  it('renders a relative image as a placeholder holding its alt text', () => {
+    const out = renderUnsanitized('![a <cat>](<assets/my cat.png>)');
+    expect(out).not.toContain('<img');
+    expect(out).toContain('<span class="md-image" data-src="assets/my%20cat.png">a &lt;cat&gt;</span>');
   });
 
   it('keeps links and linkifies bare URLs', () => {
@@ -88,5 +96,22 @@ describe('classifyLink', () => {
 
   it('ignores a malformed percent escape', () => {
     expect(classifyLink('%E0%A4%A.md', file)).toEqual({ kind: 'ignore' });
+  });
+});
+
+describe('localImagePath', () => {
+  const file = 'C:\\repo\\README.md';
+
+  it('resolves a relative image file against the markdown file', () => {
+    expect(localImagePath('assets/shot.png', file)).toBe('C:\\repo\\assets\\shot.png');
+    expect(localImagePath('./a%20b.SVG', file)).toBe('C:\\repo\\a b.SVG');
+  });
+
+  it('refuses remote, rooted, escaping, and non-image references', () => {
+    expect(localImagePath('https://a.test/x.png', file)).toBeNull();
+    expect(localImagePath('/x.png', file)).toBeNull();
+    expect(localImagePath('../../x.png', file)).toBeNull();
+    expect(localImagePath('notes.md', file)).toBeNull();
+    expect(localImagePath('#top', file)).toBeNull();
   });
 });

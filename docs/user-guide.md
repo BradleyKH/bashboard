@@ -146,8 +146,9 @@ the same as the button.
 The preview depends on the file:
 
 - **Markdown** (`.md`) is rendered. Links to other files in the repo open in the pane, `http` and
-  `https` links open in your browser, and other links do nothing. Images are never loaded; their
-  alt text is shown instead. An Edit toggle switches to the text editor and back.
+  `https` links open in your browser, and other links do nothing. Images stored in the repo (a
+  relative path such as `assets/screenshot.png`) show inline; images on the web are never loaded,
+  and their alt text is shown instead. An Edit toggle switches to the text editor and back.
 - **Text and code** open in the text editor, which saves as you type. Text files (`.txt`, or no
   extension) wrap long lines; every other text file (code, JSON, YAML, HTML, and so on) shows line
   numbers and scrolls sideways instead. A file that is not valid UTF-8 (an older encoding such as

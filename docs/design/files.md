@@ -207,7 +207,10 @@ The preview depends on the file:
 
 - **Markdown** (`.md`) renders through `markdown-it` with raw HTML off, then `DOMPurify`. Links
   to `http` and `https` open in the browser; a relative link to another file opens it in the
-  same pane. Images are not loaded. An Edit toggle switches to the text editor below.
+  same pane. An image with a relative path to a file in an image format below shows inline,
+  read through `fs_read_bytes` into a `blob:` URL as the image preview is, and capped at the
+  preview's width; any other image, remote ones included, shows as its alt text and is never
+  requested. An Edit toggle switches to the text editor below.
 - **CSV and TSV** (`.csv`, `.tsv`) show as a table (`csvModel.ts`, `csvView.ts`): the first
   row is a sticky header, short rows are padded, and quoted fields may hold the delimiter,
   newlines, and doubled quotes. Past 5000 rows the table stops with a note giving the total. An

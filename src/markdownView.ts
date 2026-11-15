@@ -3,7 +3,8 @@ import { colorFences, stripFences } from './code/fenceColors';
 import { type CodeColorsMode, codeColorsMode } from './code/schemes';
 import type { Action, Keymap } from './keymap';
 import { isOpenableUrl } from './links';
-import { classifyLink, renderMarkdown, samePath } from './markdownRender';
+import { imageMime } from './filesModel';
+import { classifyLink, localImagePath, renderMarkdown, samePath } from './markdownRender';
 import { PreviewFind, revealIn, selectRange, type FindSurface } from './previewFind';
 import { fsReadText } from './repoFiles';
 import type { SaveStatusSink } from './saveIndicator';
@@ -46,6 +47,10 @@ export class MarkdownView {
   private codeColors: CodeColorsMode;
   /** Bumped on every render and mode change, so a fence pass that lands late is dropped. */
   private fenceGeneration = 0;
+  /** Bumped on every render, so an inline image read that lands late is dropped. */
+  private imageGeneration = 0;
+  /** The `blob:` URLs behind the current render's inline images. */
+  private imageUrls: string[] = [];
 
   constructor(opts: MarkdownViewOptions) {
     this.opts = opts;
@@ -133,6 +138,7 @@ export class MarkdownView {
 
   dispose(): void {
     this.disposed = true;
+    this.releaseImages();
     this.find.dispose();
     this.editor?.dispose();
     this.el.remove();
@@ -165,6 +171,7 @@ export class MarkdownView {
       onUnsaved: this.opts.onUnsaved,
     });
     this.fenceGeneration++;
+    this.releaseImages();
     this.body.replaceChildren(this.editor.el);
     this.body.classList.add('editing');
     this.toggle.textContent = 'Done';
@@ -193,9 +200,58 @@ export class MarkdownView {
   }
 
   private renderBody(): void {
+    this.releaseImages();
     this.body.innerHTML = renderMarkdown(this.text);
     this.fenceGeneration++;
     if (this.codeColors === 'syntax') this.runFencePass();
+    this.loadImages();
+  }
+
+  /**
+   * Swaps each relative image's alt-text placeholder for the file, read through `fs_read_bytes`
+   * into a `blob:` URL as the image preview does. One that is missing or does not decode keeps
+   * its alt text.
+   */
+  private loadImages(): void {
+    const gen = this.imageGeneration;
+    for (const placeholder of this.body.querySelectorAll<HTMLElement>('span.md-image[data-src]')) {
+      const path = localImagePath(placeholder.dataset.src ?? '', this.opts.path);
+      if (path === null) continue;
+      void this.loadImage(path, placeholder, gen);
+    }
+  }
+
+  private async loadImage(path: string, placeholder: HTMLElement, gen: number): Promise<void> {
+    let buf: ArrayBuffer;
+    try {
+      buf = await invoke<ArrayBuffer>('fs_read_bytes', { path });
+    } catch {
+      return;
+    }
+    if (this.disposed || gen !== this.imageGeneration) return;
+    const mime = imageMime(path.split(/[\\/]/).pop() ?? '');
+    const url = URL.createObjectURL(new Blob([buf], mime ? { type: mime } : {}));
+    const img = document.createElement('img');
+    img.alt = placeholder.textContent ?? '';
+    img.src = url;
+    try {
+      await img.decode();
+    } catch {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    if (this.disposed || gen !== this.imageGeneration) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    this.imageUrls.push(url);
+    placeholder.replaceWith(img);
+  }
+
+  private releaseImages(): void {
+    this.imageGeneration++;
+    for (const url of this.imageUrls) URL.revokeObjectURL(url);
+    this.imageUrls = [];
   }
 
   private runFencePass(): void {

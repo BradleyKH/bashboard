@@ -1,17 +1,26 @@
 import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
+import { previewKind } from './filesModel';
 
 /**
  * Markdown preview rendering (docs/design/files.md section 4.12, section 9). Raw HTML
- * is off, no image is ever requested, and the output is sanitized again
+ * is off, no remote image is ever requested, and the output is sanitized again
  * before it reaches the DOM.
  */
 
 const md = new MarkdownIt({ html: false, linkify: true });
 
 // A remote image would be a network request made by a file the user only
-// opened to read, so images render as their alt text.
-md.renderer.rules.image = (tokens, idx) => md.utils.escapeHtml(tokens[idx].content);
+// opened to read, so an image with a scheme renders as its alt text. A relative
+// one becomes a placeholder holding its alt text, which MarkdownView swaps for
+// the file's bytes; no <img> leaves here, since the CSP admits no file path.
+md.renderer.rules.image = (tokens, idx) => {
+  const token = tokens[idx];
+  const alt = md.utils.escapeHtml(token.content);
+  const src = String(token.attrGet('src') ?? '');
+  if (src === '' || /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//')) return alt;
+  return `<span class="md-image" data-src="${md.utils.escapeHtml(src)}">${alt}</span>`;
+};
 
 // Headings carry their GitHub-style slug so a `#fragment` link can find them.
 // It goes in a data attribute rather than an id: DOMPurify strips ids that
@@ -94,6 +103,14 @@ export function classifyLink(href: string, currentFile: string): LinkTarget {
   }
   const path = segments.join(sep);
   return fragment === '' ? { kind: 'file', path } : { kind: 'file', path, fragment };
+}
+
+/** The absolute path a relative image reference names, or null when it is not a local image file. */
+export function localImagePath(src: string, currentFile: string): string | null {
+  const target = classifyLink(src, currentFile);
+  if (target.kind !== 'file') return null;
+  const name = target.path.split(/[\\/]/).pop() ?? '';
+  return previewKind(name, 0) === 'image' ? target.path : null;
 }
 
 function decodeFragment(fragment: string): string {

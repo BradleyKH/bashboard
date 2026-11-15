@@ -223,6 +223,11 @@
   text-decoration: underline;
 }
 
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
+
 .markdown-body code,
 .markdown-body pre {
   font-family: Consolas, 'Cascadia Mono', monospace;
