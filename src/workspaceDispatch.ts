@@ -5,6 +5,7 @@ import { DEFAULT_FONT_SIZE, stepFontSize } from './fontSize';
 import type { Action } from './keymap';
 import type { Direction } from './layout';
 import type { TerminalPane } from './pane';
+import { mediaControl } from './mediaApi';
 import { repoRoot } from './repoFiles';
 import { initialQuery } from './searchModel';
 import { nextTab, tabAt } from './tabs';
@@ -149,6 +150,15 @@ export function dispatchAction(ctx: DispatchContext, action: Action): boolean {
       return true;
     case 'toggleFullscreen':
       ctx.hooks.onToggleFullscreen?.();
+      return true;
+    case 'mediaPlayPause':
+      mediaControl({ kind: 'playPause' });
+      return true;
+    case 'mediaNext':
+      mediaControl({ kind: 'next' });
+      return true;
+    case 'mediaPrevious':
+      mediaControl({ kind: 'previous' });
       return true;
     case 'newTab':
       // Detaching the focused host from inside its own key handler leaves xterm mid-event.

@@ -174,6 +174,7 @@ pub struct DashboardSections {
     pub local_models: bool,
     pub external: bool,
     pub system: bool,
+    pub media: bool,
     pub wave: bool,
     pub clock: bool,
 }
@@ -444,6 +445,7 @@ impl Default for Settings {
                     local_models: true,
                     external: true,
                     system: false,
+                    media: true,
                     wave: false,
                     clock: false,
                 },

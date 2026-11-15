@@ -63,10 +63,12 @@ Cmd+Shift+Z, Cmd+X, Cmd+A, Cmd+Q, Cmd+H, Cmd+M), which is why zoom is Cmd+Shift+
 | Ctrl+, | Cmd+, | Open the app dialog on its Settings tab | `openSettings` |
 | F11 | Cmd+Ctrl+F | Toggle full screen | `toggleFullscreen` |
 
-Six more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
+Nine more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
 open the app dialog on its Accounts, Shortcuts, CLI, and About tabs, `toggleBackgroundTabs`
-shows or hides the other tabs in the background (4.30, saved to `showBackgroundTabs`), and
-`toggleFilesView` switches the focused Files pane between its Folder and Tree views (4.12).
+shows or hides the other tabs in the background (4.30, saved to `showBackgroundTabs`),
+`toggleFilesView` switches the focused Files pane between its Folder and Tree views (4.12), and
+`mediaPlayPause`, `mediaNext`, and `mediaPrevious` drive the app playing media (3.29; Windows
+only), as the Media section's buttons do.
 
 These are built-in defaults. Entries in the settings file (section 8) layer on top, as in
 Windows Terminal: an entry for a chord that has a default replaces it, a new chord adds a

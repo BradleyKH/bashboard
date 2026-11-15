@@ -30,6 +30,7 @@ const ITEM_SELECTOR = [
   '.terminal-card',
   '.session-head',
   '.claude-row',
+  '.media-control',
   '.dashboard-footer button',
 ].join(', ');
 

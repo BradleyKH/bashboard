@@ -13,6 +13,7 @@ export type CliAction =
   | { kind: 'ship'; root?: string | null }
   | { kind: 'ports' }
   | { kind: 'containers' }
+  | { kind: 'media'; command: 'playPause' | 'next' | 'previous' }
   | { kind: 'browse'; url?: string | null };
 
 /** Payload of `cli://command`; `ptyId` is the core's pty id, not a `p<n>` pane id. */

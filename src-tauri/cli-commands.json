@@ -65,6 +65,13 @@
       "examples": ["bb containers"]
     },
     {
+      "name": "media",
+      "usage": "bb media <play-pause|next|previous>",
+      "summary": "Play or pause media, or skip a track",
+      "details": "Sends play-pause, next, or previous to the app playing media, such as Spotify, as the dashboard's Media section does. Windows only.",
+      "examples": ["bb media play-pause", "bb media next"]
+    },
+    {
       "name": "browse",
       "usage": "bb browse [<url>]",
       "summary": "Open a Local Browser pane on a localhost address",

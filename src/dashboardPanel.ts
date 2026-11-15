@@ -28,6 +28,7 @@ import { DashboardNav } from './dashboardNav';
 import { dashboardRevealHandle } from './dashboardReveal';
 import { withKeys } from './dashboardRevealModel';
 import { DashboardSystem } from './dashboardSystem';
+import { MediaSection } from './mediaSection';
 import { DashboardWave } from './dashboardWave';
 import { ELEMENT_SHOWN_BY_DEFAULT, toggleSection } from './dashboardSections';
 import type { DashboardElement, DashboardSection, ShowableSection } from './dashboardSections';
@@ -177,6 +178,7 @@ export class DashboardPanel {
   private readonly clock = new DashboardClock();
   private clockStyle: ClockStyle = 'both';
   private readonly system = new DashboardSystem();
+  private readonly media = new MediaSection();
   private readonly wave = new DashboardWave();
   private readonly agentContexts = new AgentContexts(() => this.render());
   private panes: PaneCardInput[] = [];
@@ -403,6 +405,7 @@ export class DashboardPanel {
     this.addSection('localModels', this.localModelsSection.el, this.localModelsSection.head);
     this.sessionList = this.section('external', 'External sessions');
     this.addSection('system', this.system.el, this.system.head);
+    this.addSection('media', this.media.el, this.media.head);
     this.addElement('clock', this.clock.el, this.clock.el);
     attachContextMenu(this.clock.el, () => ({
       entries: clockMenuItems(
@@ -620,6 +623,12 @@ export class DashboardPanel {
     this.system.setGate({
       enabled: this.shown.system,
       expanded: !this.collapsed.includes('system'),
+      onScreen,
+      windowShown: this.windowShown,
+    });
+    this.media.setGate({
+      enabled: this.shown.media,
+      expanded: !this.collapsed.includes('media'),
       onScreen,
       windowShown: this.windowShown,
     });

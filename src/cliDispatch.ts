@@ -1,5 +1,6 @@
 import type { CliCommand } from './cli';
 import { pinTarget, type FilesRequest } from './filesRouting';
+import { mediaControl } from './mediaApi';
 import type { OpenPaneOptions } from './workspace';
 
 /** The app actions `bb` commands run through; `appEvents.ts` implements it over `Workspace`. */
@@ -38,6 +39,9 @@ export function runCliCommand(cmd: CliCommand, target: CliTarget): void {
       return;
     case 'containers':
       target.openContainers();
+      return;
+    case 'media':
+      mediaControl({ kind: action.command });
       return;
   }
 

@@ -1327,6 +1327,7 @@ mod tests {
             "ship",
             "ports",
             "containers",
+            "media",
             "browse",
             "auth",
             "ci",

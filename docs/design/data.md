@@ -313,6 +313,7 @@ the focused pane's folder.
       "localModels": true,
       "external": true,
       "system": false,
+      "media": true,
       "wave": false,
       "clock": false
     },

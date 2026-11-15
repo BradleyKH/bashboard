@@ -41,6 +41,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.25 Branch size (`src-tauri/src/git_branch_size.rs`, `src-tauri/src/size_route.rs`) | [git.md](git.md) |
 | 3.27 New worktree (`src-tauri/src/worktree_new.rs`, `src-tauri/src/worktree_trust.rs`, `src-tauri/src/worktree_route.rs`) | [git.md](git.md) |
 | 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`) | [sessions.md](sessions.md) |
+| 3.29 Media sessions (`src-tauri/src/media.rs`) | [dashboard.md](dashboard.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |
@@ -71,6 +72,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.28 Needs you (`src/needsYouModel.ts`, `src/needsYouStore.ts`, `src/needsYouSection.ts`) | [dashboard.md](dashboard.md) |
 | 4.29 Tour (`src/tourModel.ts`, `src/tourController.ts`) | [app.md](app.md) |
 | 4.30 Tab transition and background tabs (`src/tabTransitionModel.ts`, `src/tabTransition.ts`, `src/backgroundTabsModel.ts`, `src/backgroundTabsLayer.ts`) | [workspace.md](workspace.md) |
+| 4.31 Media section (`src/mediaModel.ts`, `src/mediaSection.ts`, `src/mediaSlider.ts`) | [dashboard.md](dashboard.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |

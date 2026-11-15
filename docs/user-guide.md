@@ -789,6 +789,14 @@ samples only while it is expanded, the panel is on screen, and the window is sho
 or Memory row to see the programs using the most of it, with all of a program's processes added
 together.
 
+The **Media** section shows what Spotify, a browser, or another media app is playing, on Windows:
+the album art, title, and artist, a play/pause button with previous and next beside it, shuffle
+and repeat when the app offers them, a position bar you can drag to seek, and the system volume
+with a mute button (scroll over the volume bar to nudge it). It appears only while something has
+a media session, and collapsed, its header keeps the title and a play/pause button. The
+`mediaPlayPause`, `mediaNext`, and `mediaPrevious` actions have no keys by default; bind them in
+the Shortcuts tab, or run them from the command palette.
+
 The **Wave**, also off by default, is a slowly turning looped line that reacts to your machine:
 it weaves tighter as CPU load rises, spins faster with network traffic, and changes shape faster
 as memory fills, while it slowly tumbles end over end. Hover it
@@ -1294,6 +1302,7 @@ not apply to them. `bb edit` opens a pane only when your editor is Vim or Neovim
 | `bb ship`                     | Shows the current folder's repo in the Ship pane, or the Overview outside a repo |
 | `bb ports`                    | Shows the Ports pane                                                          |
 | `bb containers`               | Shows the Containers pane                                                     |
+| `bb media <play-pause\|next\|previous>` | Plays or pauses Spotify or whatever app is playing, or skips a track (Windows) |
 | `bb browse [<url or file>]`   | Opens a Local Browser pane at a localhost address or an `.html` file, or on its start page |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` (the Accounts tab does the same) |

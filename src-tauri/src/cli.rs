@@ -51,6 +51,10 @@ pub enum CliAction {
     },
     Ports,
     Containers,
+    /// `playPause`, `next`, or `previous`, sent to the app playing media.
+    Media {
+        command: &'static str,
+    },
     /// A Local Browser pane; `url` is a normalized loopback http URL or a `file:///` URL of a local
     /// HTML file, or none for its start page.
     Browse {
@@ -144,13 +148,14 @@ pub fn parse(body: &[u8], pty_id: u32) -> Result<CliCommand, String> {
             CliAction::Containers
         }
         "browse" => browse(&cwd, &args)?,
+        "media" => media(&args)?,
         other => return Err(format!("unknown command: {other}")),
     };
     // These show the app's existing pane wherever it is, or open a tab of their own, as the
     // keyboard does; they never split the calling pane, so there is nothing to collapse.
     let app_wide = matches!(
         action,
-        CliAction::Ship { .. } | CliAction::Ports | CliAction::Containers
+        CliAction::Ship { .. } | CliAction::Ports | CliAction::Containers | CliAction::Media { .. }
     );
     if collapsed && app_wide {
         return Err(format!("--collapsed does not apply to bb {}", req.command));
@@ -241,6 +246,19 @@ fn no_args(command: &str, args: &[String]) -> Result<(), String> {
     } else {
         Err(format!("usage: bb {command}"))
     }
+}
+
+fn media(args: &[String]) -> Result<CliAction, String> {
+    let command = match args {
+        [arg] => match arg.as_str() {
+            "play-pause" | "pause" | "play" => "playPause",
+            "next" => "next",
+            "previous" | "prev" => "previous",
+            _ => return Err("usage: bb media <play-pause|next|previous>".into()),
+        },
+        _ => return Err("usage: bb media <play-pause|next|previous>".into()),
+    };
+    Ok(CliAction::Media { command })
 }
 
 const BROWSE_USAGE: &str = "usage: bb browse [<url or .html file>]";
@@ -725,6 +743,21 @@ mod tests {
         assert!(run("ship", &["x"], &dir).unwrap_err().starts_with("usage: bb ship"));
         let _ = fs::remove_dir_all(&dir);
         let _ = fs::remove_dir_all(&plain);
+    }
+
+    #[test]
+    fn media_takes_one_command() {
+        let dir = repo("media");
+        assert_eq!(run("media", &["next"], &dir).unwrap().action, CliAction::Media { command: "next" });
+        assert_eq!(run("media", &["play-pause"], &dir).unwrap().action, CliAction::Media { command: "playPause" });
+        assert_eq!(run("media", &["prev"], &dir).unwrap().action, CliAction::Media { command: "previous" });
+        assert!(run("media", &[], &dir).unwrap_err().starts_with("usage: bb media"));
+        assert!(run("media", &["stop"], &dir).unwrap_err().starts_with("usage: bb media"));
+        assert_eq!(
+            run("media", &["next", "--collapsed"], &dir).unwrap_err(),
+            "--collapsed does not apply to bb media"
+        );
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

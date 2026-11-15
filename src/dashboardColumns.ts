@@ -18,6 +18,7 @@ export function columnCount(width: number, current: 1 | 2): 1 | 2 {
 export const DEFAULT_RIGHT_ELEMENTS: readonly DashboardElement[] = [
   'clock',
   'wave',
+  'media',
   'system',
   'localModels',
   'containers',

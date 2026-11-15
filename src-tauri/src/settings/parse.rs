@@ -620,6 +620,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             local_models: section(&mut w, "localModels", d.dashboard.sections.local_models),
             external: section(&mut w, "external", d.dashboard.sections.external),
             system: section(&mut w, "system", d.dashboard.sections.system),
+            media: section(&mut w, "media", d.dashboard.sections.media),
             wave: section(&mut w, "wave", d.dashboard.sections.wave),
             clock: section(&mut w, "clock", d.dashboard.sections.clock),
         },
@@ -1180,6 +1181,7 @@ mod tests {
                 local_models: true,
                 external: true,
                 system: false,
+                media: true,
                 wave: false,
                 clock: false
             }

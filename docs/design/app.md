@@ -22,6 +22,7 @@ profile then puts its own folders ahead of it, which is harmless since none hold
 | `bb ship` | The Ship pane (4.20) on the working directory's repo, or the Overview outside a repo |
 | `bb ports` | The Ports pane (4.19) |
 | `bb containers` | The Containers pane (4.16) |
+| `bb media <play-pause\|next\|previous>` | Sends the command to the app playing media (3.29); `prev`, `play`, and `pause` are accepted too |
 | `bb browse [<url>]` | A Local Browser pane (4.21) at a loopback address, or on its start page; a bare port, `:port`, `host:port/path`, and a path to an `.html` or `.htm` file (resolved against the shell's working folder) are accepted, and a non-loopback address is refused |
 | `bb term [<folder>] [-- <command>]` | A terminal of the default profile in the working directory or `<folder>`, typing the command after `--` as one line once its shell is ready |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane (3.20), or removes it with `--clear` |
@@ -45,7 +46,7 @@ opens it as the only pane of a new tab, where `bb open` and `bb git` skip their 
 tab's Files or Git pane; the core refuses the two together, since a tab holding only a collapsed
 pane has nothing to type into. `bb ship`, `bb ports`, and `bb containers` instead show the
 existing pane in any tab or append a tab for it, as their keys do, so the core refuses
-`--collapsed` for them and `--tab` changes nothing. `--` ends the options, and for `bb term` separates the folder
+`--collapsed` for them and `--tab` changes nothing; `bb media` opens no pane, so the same holds. `--` ends the options, and for `bb term` separates the folder
 from the command; for the other commands the words after it are ordinary arguments.
 
 - **Transport.** `bb` reads `BASHBOARD_HOOK_URL`, `BASHBOARD_HOOK_TOKEN`, and

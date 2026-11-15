@@ -31,6 +31,7 @@ mod hooks;
 #[allow(dead_code)]
 mod hook_client;
 mod links;
+mod media;
 mod lock;
 mod login_path;
 // Built on every OS so a Windows build type-checks it; only macOS installs it.
@@ -191,6 +192,7 @@ pub fn run() {
         .manage(containers::ContainersState::default())
         .manage(search::SearchState::default())
         .manage(system::SystemState::default())
+        .manage(media::Media::default())
         .manage(ports::PortsState::default())
         .manage(transcript::Transcripts::default())
         .manage(usage::Usage::default())
@@ -210,6 +212,7 @@ pub fn run() {
             workspace::init(app.handle());
             pty::init_activity(app.handle());
             containers::init(app.handle());
+            media::init(app.handle());
             #[cfg(target_os = "macos")]
             toast_mac::install(app.handle());
             setup_main_window(&window);
@@ -338,6 +341,9 @@ pub fn run() {
             search::search_cancel,
             setup::setup_repo_candidates,
             system::system_sample,
+            media::media_state,
+            media::media_art,
+            media::media_control,
             system::system_top_processes,
             ports::ports_list,
             model_servers::model_servers_poll,

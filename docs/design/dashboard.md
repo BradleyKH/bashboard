@@ -31,7 +31,7 @@ always last in its top slot, and the footer sits at the bottom of the left colum
 the panel shows the left column's top slot, then the right column's top slot, Pins, the left
 column's lower list, and the right column's lower list, so the split between top slot and lower
 list survives. Elements first go to two columns the first time the panel is that wide: Clock,
-Wave, System, Local AI models, Containers, and Ports to the right column, and the rest, with
+Wave, Media, System, Local AI models, Containers, and Ports to the right column, and the rest, with
 Pins, to the left; until then every element is in the left column. A column's scrollbar shows only
 while the pointer or keyboard focus is in it. Keyboard rows run down the left column, then the
 right.
@@ -67,7 +67,7 @@ tooltip ends with its action's current keys in parentheses, read on hover so a r
 shows, and leaves them out when the action is unbound.
 
 **Elements.** The elements are Clock, Launch, Needs you, Favorites, Layouts, Panes, Containers, Ports, Ship,
-Branch, Local AI models, External sessions, System, and Wave, in that default order; Clock and Launch start in the top slot and the rest
+Branch, Local AI models, External sessions, System, Media, and Wave, in that default order; Clock and Launch start in the top slot and the rest
 in the lower list. Each has a `dashboard.sections.*` toggle (section 8), on by default except
 Favorites, Layouts, Branch, System, Wave, and Clock (Favorites and Layouts start as top bar menus, and Launch becomes one when disabled), set from the settings
 dialog's Dashboard section or from the panel's own right-click menu, which opens anywhere on the
@@ -497,6 +497,10 @@ appear, since the others have no session files and bind to a pane by hooks alone
 its cwd and session id with copy buttons. A `waiting` row shows the reason under the folder,
 the same as a card. The section is hidden while there are none.
 
+**Media.** What an app is playing, with its transport and the master volume (4.31). Shown while
+`dashboard.sections.media` is on, which it is by default, and an app has a media session; it never
+shows off Windows.
+
 **Footer.** One install button sits at the bottom of the panel for each detected agent whose
 hooks are not installed (3.3): "Install Claude Code hooks", "Install Codex hooks (preview)", and
 "Install Copilot hooks (preview)". A button reads "Update <agent> hooks" instead when
@@ -623,3 +627,47 @@ element is shown and the window is visible. Usage rows come from the usage feed 
 list keeps alive by keeping the agent transcript reader running while it is shown. `needsYouModel.ts` is the pure part (grouping, order,
 row text, hide keys), `needsYouStore.ts` composes the sources and holds the hides, and
 `needsYouSection.ts` renders what the store hands it.
+
+## 3.29 Media sessions (`src-tauri/src/media.rs`)
+
+The core reads what is playing from Windows' system media transport controls, the same source as
+the media flyout over the volume slider, so it works with any app that registers there: the
+Spotify app, a browser playing Spotify's web player or YouTube, and most media players. It follows
+the session Windows names current and reports it as one snapshot: the app's display name (looked
+up from its app id, else the readable end of the id), title, artist, album, whether it is playing,
+which of play/pause, next, previous, and seeking the app allows, shuffle and repeat (each absent
+when the app does not offer it), the position, the track length, the time the app reported that
+position, and the default output device's master volume and mute. Volume is the system's, not the
+app's, since a browser shares one audio session across all its tabs.
+
+One worker thread owns the session manager, the followed session, and the audio endpoint; the
+commands reach it over a channel. The session's media, playback, and timeline events wake it to
+reread the snapshot, which it emits as `media://changed` (null with no session) only when
+something differs. While a session exists it also rereads the volume each second, since a volume
+key or the system mixer changes it without an event, and it rereads the default device each time,
+so plugging in headphones is followed. Album art is scaled to at most 144 px and re-encoded as a
+JPEG when the track changes; the snapshot carries an `artId` that changes with it, and
+`media_art` returns the bytes. A track whose art has not arrived yet is retried on its next event.
+`media_state` returns the snapshot, and `media_control` takes play/pause, next, previous, toggle
+shuffle, cycle repeat (off, all, one), seek, set volume, and toggle mute. Other platforms report no
+session.
+
+## 4.31 Media section (`src/mediaModel.ts`, `src/mediaSection.ts`, `src/mediaSlider.ts`)
+
+A dashboard element (4.6) for the session 3.29 reports, hidden while there is none. The album art
+(a note glyph without one) sits beside the title, with the album in its tooltip, and the artist,
+else the app's name, below it. Under them, one row holds the transport, shuffle, previous, a
+single play/pause button in the accent color whose icon follows the playback state, next, and
+repeat (its icon marks repeat one), with a mute button and volume slider at the right. Shuffle and
+repeat show in the accent color while on and are absent when the app does not offer them; a
+button the app does not allow is dimmed. Scrolling over the volume slider steps it by 5%. Below
+them, the elapsed time, a position slider, and the track length show while the track has a known
+length; dragging the position seeks on release.
+
+Apps report the position only when it changes, so the section counts forward from the last report
+while playing, held within the track, ticking each second only while the element is enabled,
+expanded, on screen, and the window is shown. Collapsed, its header shows the title and a small
+play/pause button. The sliders are drawn from pointer events rather than range inputs, because
+the panel cancels mousedown to keep focus in the terminal. The buttons are keyboard rows (F6).
+The `mediaPlayPause`, `mediaNext`, and `mediaPrevious` actions (4.5) and `bb media` (3.13) send
+the same commands with or without the section.

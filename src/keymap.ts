@@ -41,6 +41,9 @@ export type Action =
   | { type: 'showCli' }
   | { type: 'showAbout' }
   | { type: 'toggleFullscreen' }
+  | { type: 'mediaPlayPause' }
+  | { type: 'mediaNext' }
+  | { type: 'mediaPrevious' }
   | { type: 'newTab' }
   | { type: 'newScratch' }
   | { type: 'openFiles' }

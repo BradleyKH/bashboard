@@ -280,7 +280,7 @@ the scrollback already saved, at the next close:
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `launch`, `pins`, `needs`, `panes`, `containers`, `ports`, `ship`, `localModels`, and `external` default to
+each dashboard element: `launch`, `pins`, `needs`, `panes`, `containers`, `ports`, `ship`, `localModels`, `external`, and `media` default to
 `true`, and `favorites`, `layouts`, `branch`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
 the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
 drops the Launch menu. While `pins` is off, the top bar's pin button lists the focused repo's
@@ -288,7 +288,7 @@ pins, then the global ones. A settings file that still has `sections.folder` and
 uses it for Launch. A settings file that still has `containers.enabled` and no
 `sections.containers` uses it for the Containers section. These only affect the dashboard; the
 kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Needs you section lists what you should act on: waiting, failed, and finished terminals, and across the repos pinned to the Ship Overview a red health branch, your own pull request with changes requested, failing checks, or approval, pull requests awaiting your review, and a sign-in when a pinned repo needs one. The Ship section shows the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. All of them apply on save and are in the Dashboard section of the Settings tab, the
+always. The Needs you section lists what you should act on: waiting, failed, and finished terminals, and across the repos pinned to the Ship Overview a red health branch, your own pull request with changes requested, failing checks, or approval, pull requests awaiting your review, and a sign-in when a pinned repo needs one. The Ship section shows the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. The Media section shows what Spotify or another app is playing, with play/pause, skip, and volume, and hides itself while nothing has a media session; it is Windows only. All of them apply on save and are in the Dashboard section of the Settings tab, the
 elements under "Show on the dashboard".
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
@@ -318,6 +318,7 @@ while the Ports section is on.
     "localModels": true,
     "external": true,
     "system": false,
+    "media": true,
     "wave": false,
     "clock": false
   },

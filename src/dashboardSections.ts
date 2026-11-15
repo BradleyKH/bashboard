@@ -19,6 +19,7 @@ export const DEFAULT_ELEMENT_ORDER = [
   'localModels',
   'external',
   'system',
+  'media',
   'wave',
 ] as const;
 
@@ -65,6 +66,7 @@ export const ELEMENT_SHOWN_BY_DEFAULT: Record<ShowableSection, boolean> = {
   localModels: true,
   external: true,
   system: false,
+  media: true,
   wave: false,
   clock: false,
 };
@@ -84,6 +86,7 @@ export const ELEMENT_LABELS: Record<ShowableSection, string> = {
   localModels: 'Local AI models',
   external: 'External sessions',
   system: 'System',
+  media: 'Media',
   wave: 'Wave',
   clock: 'Clock',
 };
@@ -95,6 +98,7 @@ export const ELEMENT_HINTS: Partial<Record<ShowableSection, string>> = {
   ship: 'Manage pipelines and PRs for selected repos',
   branch: "Git and CI summary for the focused pane's branch",
   pins: 'Saved files, folders, and terminal commands',
+  media: 'Now playing in Spotify or another app, on Windows',
 };
 
 function isSection(v: unknown): v is DashboardSection {
