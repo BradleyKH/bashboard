@@ -150,10 +150,11 @@ answers whether it would open one, so the notice can leave its button out.
 
 ## 4.12 Files and pins
 
-A Files pane shows one folder: on the left, a list with folders first and then files, under a
-breadcrumb that leads up to the repo root; on the right, a preview of the selected file. The
-divider between them drags. With no file selected (nothing, or a folder), the preview and
-divider hide and the list fills the pane. The list follows the folder on disk (`fs_watch`, 3.8).
+A Files pane shows one folder, the folder shown: on the left, a list with folders first and then
+files, under a breadcrumb that leads up to the repo root; on the right, a preview of the selected
+file. The divider between them drags. With no file selected (nothing, or a folder), the preview
+and divider hide and the list fills the pane. The list follows the folder on disk (`fs_watch`,
+3.8). The list has two views, Folder (the folder's own entries) and Tree (below).
 
 **Sort.** A button in the breadcrumb, left of the list's zoom buttons, shows the order (such as
 "Modified ↓") and opens a menu of Name, Type, and Modified, the current one checked
@@ -162,6 +163,37 @@ Z for Name and Type and newest first for Modified. Type compares extensions, ign
 dotfile such as `.gitignore` has none). Ties go by name, A to Z. Folders stay above the files and
 sort by name, A to Z, under every key except Name descending, which reverses them too. A new pane
 starts at Modified, newest first; each pane saves its own sort (4.11).
+
+**Tree view** (`filesTreeModel.ts`). The breadcrumb's Tree button, left of the sort button and
+lit while the tree shows, switches the list between the Folder and Tree views, as does the
+`toggleFilesView` action (no default key, in the command palette) on the focused Files pane. Each
+pane saves its view and its expanded folders (4.11), and a new pane starts in the view last
+picked in any pane (`filesView` in workspace.json, section 7).
+
+The tree's top is the folder shown, so the breadcrumb, history, Backspace, the title strip
+buttons, and the empty area's menu work as in the Folder view, and going up or picking a
+breadcrumb segment re-roots the tree, collapsing it. A folder row has a chevron (▸, ▾ while
+expanded) and indents its expanded children under it, each folder sorted on its own. A folder
+lists only when first expanded, and every expanded folder is watched (`fs_watch`); one that fails
+to list, or disappears, collapses. Collapsing a folder collapses those inside it, and a cursor
+inside moves to the folder.
+
+- Clicking the chevron expands or collapses the folder without selecting it; double-clicking a
+  folder row, or Enter on it, does the same. A file opens in the editor as in the Folder view.
+- Right expands a collapsed folder, or moves to the first child of an expanded one. Left
+  collapses an expanded folder, or moves to the row's parent folder.
+- The filter matches names in every listed folder, keeping each match's parent folders so the
+  nesting reads.
+- Selection, ranges, and Ctrl+A span folders in the order the rows show.
+- An action on a row acts in the row's own folder: Rename checks its siblings for a clash, and
+  Move to offers the pinned folders and the subfolders of the folder the row is in. Ctrl+V
+  pastes into the folder holding the cursor's row (the folder shown with no cursor), and a folder
+  row at any depth takes dropped files.
+- Showing a folder at or under the top (a pin, `bb open`, a markdown link) expands down to it
+  and selects the entry rather than re-rooting; a folder outside the top re-roots the tree there.
+
+Switching to the Folder view shows the folder holding the cursor's row, keeping it selected and
+previewed; switching to the tree keeps the folder shown as its top.
 
 **Title strip buttons.** After the folder's name, the title strip (4.4) carries a pin button,
 Open in File Explorer, Search in this folder (described below), and Open terminal here, all for

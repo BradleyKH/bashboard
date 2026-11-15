@@ -26,6 +26,8 @@ export interface DispatchContext {
   setFontSize(size: number): void;
   cycleScrim(): void;
   toggleBackgroundTabs(): void;
+  /** Switches the focused Files pane's view; false when the focused pane is not one. */
+  toggleFilesView(): boolean;
   split(side: Edge | 'auto'): void;
   requestClosePane(id: string): Promise<void>;
   collapsePane(id: string): void;
@@ -89,6 +91,8 @@ export function dispatchAction(ctx: DispatchContext, action: Action): boolean {
     case 'cycleScrim':
       ctx.cycleScrim();
       return true;
+    case 'toggleFilesView':
+      return ctx.toggleFilesView();
     case 'toggleBackgroundTabs':
       ctx.toggleBackgroundTabs();
       return true;

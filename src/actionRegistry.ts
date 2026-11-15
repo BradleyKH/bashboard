@@ -30,6 +30,13 @@ export const ACTION_REGISTRY = [
   { name: 'closePane', arg: 'none', label: 'Close pane', section: 'Panes' },
   { name: 'newScratch', arg: 'none', label: 'New scratch pad', section: 'Panes' },
   { name: 'openFiles', arg: 'none', label: 'Open files for the repo', section: 'Panes' },
+  {
+    name: 'toggleFilesView',
+    arg: 'none',
+    label: 'Switch a Files pane between folder and tree',
+    section: 'Panes',
+    note: 'Acts on the focused Files pane',
+  },
   { name: 'openGit', arg: 'none', label: 'Git pane for this repo', section: 'Panes' },
   { name: 'openSearch', arg: 'none', label: "Search the repo's code", section: 'Panes' },
   { name: 'openEditor', arg: 'none', label: 'Open the repo in the editor', section: 'Panes' },

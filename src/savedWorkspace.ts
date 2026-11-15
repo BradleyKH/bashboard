@@ -14,6 +14,7 @@ import type { GitTab } from './gitBranchModel';
 import type { PaneKind } from './paneKinds';
 import { normalizeDevtools, type DevtoolsState } from './browserPaneModel';
 import { parseFilesSort, type FilesSort } from './filesModel';
+import { parseFilesView, type FilesView } from './filesTreeModel';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
 import { type TextZoom, parseTextZoom } from './textZoomStore';
@@ -65,9 +66,11 @@ export type SavedPane = { key: string; collapsed: boolean } & (
   /** null in layouts, which open fresh pads. */
   | { kind: 'scratch'; scratchId: string | null }
   /**
-   * `selected` is the previewed file's absolute path. `root` is the repo the pane was opened
-   * for, which can be an ancestor of `folder`; absent, it resolves from `folder`. `expanded` is
-   * whether the preview filled the pane; absent means false.
+   * `selected` is the selected entry's path below `folder`, with forward slashes. `root` is the
+   * repo the pane was opened for, which can be an ancestor of `folder`; absent, it resolves from
+   * `folder`. `expanded` is whether the preview filled the pane; absent means false. `view` is
+   * the list's view, absent meaning folder; `openFolders` are the tree's expanded folders, as
+   * paths below `folder`.
    */
   | {
       kind: 'files';
@@ -76,6 +79,8 @@ export type SavedPane = { key: string; collapsed: boolean } & (
       root?: string;
       expanded?: boolean;
       sort?: FilesSort;
+      view?: FilesView;
+      openFolders?: string[];
     }
   /** `root` is the repo root the pane shows; `tab` is the open tab, absent meaning Changes. */
   | { kind: 'git'; root: string; tab?: GitTab }
@@ -154,6 +159,8 @@ export interface SavedWorkspace {
   tourDone?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
+  /** The view a new Files pane starts in; absent means folder. */
+  filesView?: FilesView;
 }
 
 export const EMPTY_WORKSPACE: SavedWorkspace = { version: 3, tabs: [], activeTab: 0, collapsedSections: [] };
@@ -243,6 +250,10 @@ const PANE_PARSERS: Record<PaneKind, (raw: Record<string, unknown>, base: PaneBa
       ...(typeof raw.root === 'string' && { root: raw.root }),
       ...(typeof raw.expanded === 'boolean' && { expanded: raw.expanded }),
       ...(raw.sort !== undefined && { sort: parseFilesSort(raw.sort) }),
+      ...(parseFilesView(raw.view) && { view: parseFilesView(raw.view) }),
+      ...(Array.isArray(raw.openFolders) && {
+        openFolders: raw.openFolders.filter((k): k is string => typeof k === 'string' && k !== '' && !k.includes('..')),
+      }),
     };
   },
   git: (raw, base) => {
@@ -428,6 +439,7 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
   if (raw.tourDone === true) saved.tourDone = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
+  if (raw.filesView === 'tree') saved.filesView = 'tree';
   return saved;
 }
 

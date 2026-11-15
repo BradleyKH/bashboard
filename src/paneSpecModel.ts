@@ -65,6 +65,9 @@ export function restoredSpec(
         root: p.root,
         expanded: p.expanded ?? false,
         sort: p.sort,
+        // A pane saved before the tree existed showed one folder.
+        view: p.view ?? 'folder',
+        openFolders: p.openFolders,
       };
     case 'git':
       return { kind: 'git', root: p.root, tab: p.tab };

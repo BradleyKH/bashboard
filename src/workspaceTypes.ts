@@ -7,6 +7,7 @@ import type { ContainersStore } from './containersStore';
 import type { PaneCardInput } from './dashboardModel';
 import type { DockTarget } from './docking';
 import type { FilesSort } from './filesModel';
+import type { FilesView } from './filesTreeModel';
 import type { GitTab } from './gitBranchModel';
 import type { DockZone, Rect } from './layout';
 import type { OpenInHandler } from './openMenu';
@@ -187,6 +188,8 @@ export type PaneSpec =
       root?: string;
       expanded?: boolean;
       sort?: FilesSort;
+      view?: FilesView;
+      openFolders?: string[];
     }
   | { kind: 'git'; root: string; tab?: GitTab }
   /** No `root` opens on the Overview. */

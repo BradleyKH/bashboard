@@ -168,6 +168,8 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   false; anything but `true` reads as absent.
 - `tourDone` (whether the first-run tour finished or was skipped, 4.29): false; anything but
   `true` reads as absent.
+- `filesView` (the view a new Files pane starts in, 4.12): the Folder view; any value but
+  `"tree"` reads as absent.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
@@ -178,7 +180,9 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   none, so the terminal starts without saved scrollback. Its `pty` (`{ id, startedAt }`, both
   integers, valid only while the core that spawned it runs): none, so the terminal starts a new
   shell. A Files pane's `root`: resolved from its
-  `folder`. Its `expanded`: false. A Ship pane's `root`: none, which opens on the Overview;
+  `folder`. Its `expanded`: false. Its `view`: `folder`, the other being `tree`. Its
+  `openFolders` (the tree's expanded folders, as paths below `folder` with forward slashes;
+  entries that are not strings, are empty, or hold `..` are dropped): none. A Ship pane's `root`: none, which opens on the Overview;
   a drilled pane saves its local repo root or `remote:<host>/<path>`. Its `tab`: `pipelines`, the
   other being `pulls`; it is omitted from the file when it is `pipelines`. Its `thisBranch`, `thisBranchPulls`, and
   `allPulls`: false, and each omitted when false; any value but `true` reads as false.

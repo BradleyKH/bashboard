@@ -18,24 +18,24 @@ export interface MoveTarget {
 }
 
 /** Each item reports the entries it acts on; the menu holds no app state. */
-export interface FileRowMenuHandlers {
-  openTerminalHere: (entry: FileEntry) => void;
-  searchHere: (entry: FileEntry) => void;
-  openInEditor: (entry: FileEntry) => void;
+export interface FileRowMenuHandlers<T extends FileEntry = FileEntry> {
+  openTerminalHere: (entry: T) => void;
+  searchHere: (entry: T) => void;
+  openInEditor: (entry: T) => void;
   /** Absent where the Local Browser is unavailable; the item is then left out. */
-  openInLocalBrowser?: (entry: FileEntry) => void;
-  copyPath: (entries: FileEntry[]) => void;
-  insertPath: (entries: FileEntry[]) => void;
+  openInLocalBrowser?: (entry: T) => void;
+  copyPath: (entries: T[]) => void;
+  insertPath: (entries: T[]) => void;
   /** `toDir` is the chosen target's absolute folder; `files` are never folders. */
-  moveTo: (files: FileEntry[], toDir: string) => void;
-  rename: (entry: FileEntry) => void;
-  pin: (entry: FileEntry) => void;
-  cut: (entries: FileEntry[]) => void;
-  copy: (entries: FileEntry[]) => void;
+  moveTo: (files: T[], toDir: string) => void;
+  rename: (entry: T) => void;
+  pin: (entry: T) => void;
+  cut: (entries: T[]) => void;
+  copy: (entries: T[]) => void;
   /** Pastes the clipboard's files into a folder row. */
-  pasteInto: (folder: FileEntry) => void;
+  pasteInto: (folder: T) => void;
   /** Sends the entries to the Recycle Bin. */
-  delete: (entries: FileEntry[]) => void;
+  delete: (entries: T[]) => void;
 }
 
 /**
@@ -45,11 +45,11 @@ export interface FileRowMenuHandlers {
  * (`fs_move` moves files) and appears only when there are files and targets. Paste appears on a
  * single folder row and pastes into that folder, as File Explorer's does.
  */
-export function fileRowMenuItems(
-  entry: FileEntry,
-  selection: readonly FileEntry[],
+export function fileRowMenuItems<T extends FileEntry>(
+  entry: T,
+  selection: readonly T[],
   moveTargets: readonly MoveTarget[],
-  handlers: FileRowMenuHandlers,
+  handlers: FileRowMenuHandlers<T>,
 ): MenuEntry[] {
   const entries = selection.length > 0 ? [...selection] : [entry];
   const many = entries.length > 1;

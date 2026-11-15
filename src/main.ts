@@ -43,6 +43,7 @@ import { livePty } from './paneSpecModel';
 import { parseSavedWorkspace, type PtyRef } from './savedWorkspace';
 import { loadSessions } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
+import { filesView, loadFilesView, onFilesViewChange } from './filesViewStore';
 import { showToast } from './toast';
 import { setTerminalEditorHost } from './editors';
 import { TabStrip } from './tabStrip';
@@ -491,6 +492,7 @@ const saver = new DebouncedSaver(
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
     tourDone: state.tourDone || undefined,
     textZoom: textZoomSnapshot(),
+    filesView: filesView() === 'tree' ? ('tree' as const) : undefined,
     needsYouHides: needsYouStore.hides(),
   }),
   workspaceSave,
@@ -533,6 +535,7 @@ workspace.onChange(() => {
   closeContextMenu();
 });
 onTextZoomChange(() => saver.schedule());
+onFilesViewChange(() => saver.schedule());
 listenAppEvents({ state, workspace, saver, refreshPanel, favorites, repo, appWindow });
 startScrollbackAutosave(
   () => state.settings.restore.scrollback,
@@ -562,6 +565,7 @@ try {
   if (saved?.dashboardHideNoticeShown) state.hideNoticeShown = true;
   if (saved?.tourDone) state.tourDone = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
+  if (saved?.filesView) loadFilesView(saved.filesView);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, {
       resumeSessions: payload.settings.restore.resumeSessions,

@@ -1,9 +1,11 @@
 import { formatSize } from './formatSize';
 import { iconButton } from './rowControls';
 import { attachBodyDrag } from './bodyDrag';
-import type { FileEntry } from './filesModel';
+import type { FileItem } from './filesTreeModel';
 
 export interface FileRowOptions {
+  /** The tree view, which indents rows and gives folders a chevron. */
+  tree?: boolean;
   selected: boolean;
   /** The keyboard cursor's row, which the preview shows. */
   cursor: boolean;
@@ -12,6 +14,8 @@ export interface FileRowOptions {
   /** A click, with its Ctrl and Shift state. */
   onSelect: (e: MouseEvent) => void;
   onActivate: () => void;
+  /** The chevron of a tree folder was clicked. */
+  onToggle?: () => void;
   /** Called with the row's menu button so the menu can anchor to it. */
   onMenu: (anchor: HTMLElement) => void;
   /** The body of the row was dragged past the threshold (a path drag). */
@@ -28,13 +32,16 @@ function formatModified(ms: number): string {
   );
 }
 
-/** One row of the Files list: icon, name, size, modified date, and a hover menu button. */
-export function renderFileRow(entry: FileEntry, opts: FileRowOptions): HTMLElement {
+/**
+ * One row of the Files list: in the tree a chevron indented by depth, then icon, name, size,
+ * modified date, and a hover menu button.
+ */
+export function renderFileRow(entry: FileItem, opts: FileRowOptions): HTMLElement {
   const row = document.createElement('div');
   row.className = 'file-row';
   row.setAttribute('role', 'option');
   row.setAttribute('aria-selected', String(opts.selected));
-  row.dataset.name = entry.name;
+  row.dataset.key = entry.key;
   if (opts.selected) row.classList.add('selected');
   if (opts.cursor) row.classList.add('cursor');
   if (opts.cut) row.classList.add('cut');
@@ -59,6 +66,23 @@ export function renderFileRow(entry: FileEntry, opts: FileRowOptions): HTMLEleme
 
   const menu = iconButton('⋯', 'file-row-menu', 'Row menu', () => opts.onMenu(menu));
 
+  if (opts.tree) {
+    const twisty = document.createElement('span');
+    twisty.className = 'file-row-twisty';
+    twisty.style.setProperty('--depth', String(entry.depth));
+    if (entry.isDir) {
+      row.setAttribute('aria-expanded', String(entry.open));
+      twisty.textContent = entry.open ? '▾' : '▸';
+      twisty.addEventListener('click', (e) => {
+        e.stopPropagation();
+        opts.onToggle?.();
+      });
+      // A quick second click toggles back rather than opening the row.
+      twisty.addEventListener('dblclick', (e) => e.stopPropagation());
+      twisty.addEventListener('pointerdown', (e) => e.stopPropagation());
+    }
+    row.append(twisty);
+  }
   row.append(icon, name, size, date, menu);
   row.addEventListener('click', (e) => opts.onSelect(e));
   row.addEventListener('dblclick', () => opts.onActivate());

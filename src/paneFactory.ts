@@ -477,6 +477,8 @@ export class PaneFactory {
       root: spec.root,
       expanded: spec.expanded,
       sort: spec.sort,
+      view: spec.view,
+      openFolders: spec.openFolders,
       keymap: () => ctx.keymap(),
       dispatch: (a) => ctx.dispatch(a),
       onFocus: () => ctx.setFocused(id),

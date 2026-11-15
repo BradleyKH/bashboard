@@ -1,15 +1,20 @@
 import './filesList.css';
 import { attachContextMenu } from './contextMenu';
 import type { MenuEntry } from './contextMenuModel';
+import { DEFAULT_FILES_SORT, fileNameError, listKey, type FileEntry, type FilesSort } from './filesModel';
 import {
-  DEFAULT_FILES_SORT,
-  fileNameError,
-  filterEntries,
-  listKey,
-  sortEntries,
-  type FileEntry,
-  type FilesSort,
-} from './filesModel';
+  childKey,
+  collapse,
+  isWithin,
+  listedKeys,
+  parentKey,
+  pruneOpen,
+  treeArrow,
+  visibleItems,
+  type FileItem,
+  type FilesView,
+  type TreeState,
+} from './filesTreeModel';
 import { renderFileRow } from './fileRow';
 import {
   EMPTY_SELECTION,
@@ -25,45 +30,51 @@ import { platformOs, primaryHeld, primaryOnly } from './platform';
 
 export interface FilesListOptions {
   /** A click or a keyboard move put the cursor on an entry (the preview follows). */
-  onSelect: (entry: FileEntry) => void;
-  /** Double click or Enter: a folder opens, a file opens in the editor. */
-  onActivate: (entry: FileEntry) => void;
+  onSelect: (entry: FileItem) => void;
+  /** Double click or Enter: a folder opens (or toggles in the tree), a file opens in the editor. */
+  onActivate: (entry: FileItem) => void;
+  /** A tree folder's chevron, Right, or Left asked to expand (`open`) or collapse it. */
+  onToggle: (entry: FileItem, open: boolean) => void;
   /** Backspace with no filter. */
   onUp: () => void;
   /**
    * The row's menu button was pressed; the caller opens the row's menu at the anchor.
    * `selection` is what the menu acts on: the selected entries when the row is one, else the row.
    */
-  onMenu: (entry: FileEntry, selection: FileEntry[], anchor: HTMLElement) => void;
+  onMenu: (entry: FileItem, selection: FileItem[], anchor: HTMLElement) => void;
   /** A row's right-click menu. */
-  rowMenu: (entry: FileEntry, selection: FileEntry[]) => MenuEntry[];
+  rowMenu: (entry: FileItem, selection: FileItem[]) => MenuEntry[];
   /** The right-click menu of the empty area below the rows, for the current folder. */
   folderMenu: () => MenuEntry[];
   /** A row's body was dragged past the threshold; `entries` are the dragged selection. */
-  onDragStart?: (entries: FileEntry[], e: PointerEvent) => void;
+  onDragStart?: (entries: FileItem[], e: PointerEvent) => void;
   /** Enter in a rename field with a new, valid name; resolves true when the rename went through. */
-  onRename: (entry: FileEntry, newName: string) => Promise<boolean>;
+  onRename: (entry: FileItem, newName: string) => Promise<boolean>;
   /** Ctrl+X and Ctrl+C (Cmd on macOS) on the selection. */
-  onCut: (entries: FileEntry[]) => void;
-  onCopy: (entries: FileEntry[]) => void;
-  /** Ctrl+V: paste into the folder shown. */
+  onCut: (entries: FileItem[]) => void;
+  onCopy: (entries: FileItem[]) => void;
+  /** Ctrl+V: paste into the folder holding the cursor's row, or the folder shown. */
   onPaste: () => void;
   /** Delete (Cmd+Backspace on macOS) on the selection. */
-  onDelete: (entries: FileEntry[]) => void;
+  onDelete: (entries: FileItem[]) => void;
   /** Whether a row was cut and not yet pasted, which draws it dimmed. */
-  isCut: (entry: FileEntry) => boolean;
+  isCut: (entry: FileItem) => boolean;
 }
 
 /**
- * Sorted, filtered, keyboard-driven list of a folder's entries, with File Explorer's Ctrl and
- * Shift multi-selection (docs/design/files.md section 4.12).
+ * Sorted, filtered, keyboard-driven list of a folder's entries, or of the tree below it, with File
+ * Explorer's Ctrl and Shift multi-selection (docs/design/files.md section 4.12). Rows go by key,
+ * their path below the folder shown (`filesTreeModel.ts`).
  */
 export class FilesList {
   readonly el: HTMLElement;
   private readonly filterBar: HTMLElement;
   private readonly filterText: HTMLElement;
   private readonly list: HTMLElement;
-  private entries: FileEntry[] = [];
+  /** Each listed folder's entries by key, '' being the folder shown. */
+  private children = new Map<string, readonly FileEntry[]>();
+  private open = new Set<string>();
+  private view: FilesView = 'folder';
   private sel: FileSelection = EMPTY_SELECTION;
   private filterValue = '';
   private sort: FilesSort = DEFAULT_FILES_SORT;
@@ -104,10 +115,10 @@ export class FilesList {
         : e.target instanceof Element
           ? e.target.closest<HTMLElement>('.file-row')
           : null;
-      const entry = row ? this.entries.find((x) => x.name === row.dataset.name) : undefined;
+      const entry = row?.dataset.key === undefined ? null : this.item(row.dataset.key);
       if (!row || !entry) return { entries: this.opts.folderMenu() };
       // As in File Explorer, a right-click outside the selection selects just that row.
-      if (!isMarked(this.sel, entry.name)) this.clicked(entry, {});
+      if (!isMarked(this.sel, entry.key)) this.clicked(entry, {});
       return { entries: this.opts.rowMenu(entry, this.selectionFor(entry)), target: this.rowEl(entry) ?? row };
     });
 
@@ -118,21 +129,90 @@ export class FilesList {
     this.list.focus();
   }
 
-  /** The folder changed: filter, selection, and entries clear; the caller sets them next. */
+  /** The folder changed: filter, selection, entries, and expanded folders clear; the caller sets them next. */
   setFolder(): void {
     this.filterValue = '';
     this.sel = EMPTY_SELECTION;
-    this.entries = [];
+    this.children = new Map();
+    this.open = new Set();
     this.render();
   }
 
-  /** Replaces the entries (a first listing or a watch refresh); the selection stays by name. */
+  /** Replaces the folder shown's entries (a first listing or a watch refresh); the selection stays by key. */
   setEntries(entries: readonly FileEntry[]): void {
-    this.entries = [...entries];
-    this.sel = pruneSelection(
-      this.sel,
-      this.entries.map((e) => e.name),
-    );
+    this.setChildren('', entries);
+  }
+
+  /**
+   * Replaces one listed folder's entries. Expanded folders that vanished close, and the selection
+   * keeps what still lists.
+   */
+  setChildren(key: string, entries: readonly FileEntry[]): void {
+    this.children.set(key, [...entries]);
+    this.open = pruneOpen(this.state());
+    for (const k of [...this.children.keys()]) if (k !== '' && !this.open.has(k) && k !== key) this.children.delete(k);
+    this.sel = pruneSelection(this.sel, listedKeys(this.state(), this.view));
+    this.render();
+  }
+
+  /** Expands a folder whose entries `setChildren` has given. */
+  expand(key: string): void {
+    if (!this.children.has(key)) return;
+    this.open = pruneOpen({ children: this.children, open: new Set([...this.open, key]) });
+    this.render();
+  }
+
+  /**
+   * Collapses a folder and those inside it, forgetting their entries; a cursor inside moves to
+   * the folder, which `onSelect` reports. Returns the folder keys that closed.
+   */
+  collapse(key: string): string[] {
+    const closed = [...this.open].filter((k) => isWithin(k, key));
+    this.open = collapse(this.open, key);
+    for (const k of [...this.children.keys()]) if (k !== '' && isWithin(k, key)) this.children.delete(k);
+    const cursorInside = this.sel.cursor !== null && this.sel.cursor !== key && isWithin(this.sel.cursor, key);
+    if (cursorInside) this.sel = single(key);
+    else this.sel = pruneSelection(this.sel, listedKeys(this.state(), this.view));
+    this.render();
+    const folder = this.item(key);
+    if (cursorInside && folder) this.opts.onSelect(folder);
+    return closed;
+  }
+
+  /** The expanded folders, outermost first. */
+  openKeys(): string[] {
+    return [...this.open].sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
+  }
+
+  /** Whether a folder's entries are listed; '' is the folder shown. */
+  isListed(key: string): boolean {
+    return this.children.has(key);
+  }
+
+  /** A listed folder's entries, or undefined when it is not listed. */
+  childrenOf(key: string): readonly FileEntry[] | undefined {
+    return this.children.get(key);
+  }
+
+  /** The listed row with this key, whether or not the filter shows it. */
+  item(key: string): FileItem | null {
+    const folder = parentKey(key);
+    const name = folder === '' ? key : key.slice(folder.length + 1);
+    const entry = this.children.get(folder)?.find((e) => e.name === name);
+    if (!entry) return null;
+    if (folder !== '' && (this.view === 'folder' || !this.open.has(folder))) return null;
+    const depth = key.split('/').length - 1;
+    return { ...entry, key, depth, open: this.view === 'tree' && entry.isDir && this.open.has(key) && this.children.has(key) };
+  }
+
+  /** Switches between the folder's entries and the tree; the caller lists what the view needs. */
+  setView(view: FilesView): void {
+    this.view = view;
+    if (view === 'folder') {
+      this.open = new Set();
+      for (const k of [...this.children.keys()]) if (k !== '') this.children.delete(k);
+    }
+    this.sel = pruneSelection(this.sel, listedKeys(this.state(), this.view));
     this.render();
   }
 
@@ -148,30 +228,30 @@ export class FilesList {
   }
 
   /**
-   * Selects the named entries that are listed, the first one as the cursor, without firing
+   * Selects the keyed entries that are listed, the first one as the cursor, without firing
    * `onSelect`; what a paste created.
    */
-  selectNames(names: readonly string[]): void {
-    const listed = this.visibleNames().filter((n) => names.includes(n));
+  selectKeys(keys: readonly string[]): void {
+    const listed = this.visibleKeys().filter((k) => keys.includes(k));
     if (listed.length === 0) return;
     this.sel = { cursor: listed[0], anchor: listed[0], marked: listed };
     this.render();
   }
 
-  /** Selects one entry by name without firing `onSelect` (a restored selection); null clears it. */
-  select(name: string | null): void {
-    this.sel = single(name);
+  /** Selects one entry by key without firing `onSelect` (a restored selection); null clears it. */
+  select(key: string | null): void {
+    this.sel = single(key);
     this.render();
   }
 
   /** The cursor's entry, which the preview shows. */
-  selected(): FileEntry | null {
-    return this.entries.find((e) => e.name === this.sel.cursor) ?? null;
+  selected(): FileItem | null {
+    return this.sel.cursor === null ? null : this.item(this.sel.cursor);
   }
 
   /** The selected entries that are visible, in list order. */
-  selection(): FileEntry[] {
-    return this.visible().filter((e) => isMarked(this.sel, e.name));
+  selection(): FileItem[] {
+    return this.visible().filter((e) => isMarked(this.sel, e.key));
   }
 
   filter(): string {
@@ -179,13 +259,13 @@ export class FilesList {
   }
 
   /** Opens a name field on `entry`, or on the cursor's entry; F2 and the row menu's Rename. */
-  startRename(entry: FileEntry | null = this.selected()): void {
+  startRename(entry: FileItem | null = this.selected()): void {
     if (!entry || this.renaming !== null) return;
-    this.sel = single(entry.name);
+    this.sel = single(entry.key);
     this.paint();
     const label = this.rowEl(entry)?.querySelector<HTMLElement>('.file-row-name');
     if (!label) return;
-    this.renaming = entry.name;
+    this.renaming = entry.key;
     label.replaceWith(this.renameField(entry));
   }
 
@@ -193,8 +273,10 @@ export class FilesList {
    * Enter renames; Escape or leaving the field cancels, as in the Git pane's branch rename, so a
    * stray click never renames something on disk.
    */
-  private renameField(entry: FileEntry): HTMLInputElement {
+  private renameField(entry: FileItem): HTMLInputElement {
     const from = entry.name;
+    const folder = parentKey(entry.key);
+    const siblings = this.children.get(folder) ?? [];
     const input = document.createElement('input');
     input.className = 'file-rename-field';
     input.value = from;
@@ -202,17 +284,18 @@ export class FilesList {
     let done = false;
     const end = (renamed: string | null, focus: boolean): void => {
       this.renaming = null;
-      if (renamed !== null) this.sel = single(renamed);
+      const key = renamed === null ? null : childKey(folder, renamed);
+      if (key !== null) this.sel = single(key);
       this.paint();
       if (focus) this.focus();
-      const now = renamed === null ? undefined : this.entries.find((e) => e.name === renamed);
+      const now = key === null ? null : this.item(key);
       if (now) this.opts.onSelect(now);
     };
     input.addEventListener('input', () => {
       const to = input.value.trim();
       // A change of case alone names the same entry, so it is not a clash.
       const clash =
-        to.toLowerCase() !== from.toLowerCase() && this.entries.some((e) => e.name.toLowerCase() === to.toLowerCase());
+        to.toLowerCase() !== from.toLowerCase() && siblings.some((e) => e.name.toLowerCase() === to.toLowerCase());
       const err = to === from ? null : (fileNameError(to) ?? (clash ? `${to} already exists` : null));
       input.classList.toggle('invalid', err !== null);
       input.title = err ?? '';
@@ -256,20 +339,24 @@ export class FilesList {
   }
 
   /** What an action on `entry` covers: the whole selection when the entry is in it. */
-  private selectionFor(entry: FileEntry): FileEntry[] {
-    return isMarked(this.sel, entry.name) ? this.selection() : [entry];
+  private selectionFor(entry: FileItem): FileItem[] {
+    return isMarked(this.sel, entry.key) ? this.selection() : [entry];
   }
 
-  private visible(): FileEntry[] {
-    return filterEntries(sortEntries(this.entries, this.sort), this.filterValue);
+  private state(): TreeState {
+    return { children: this.children, open: this.open };
   }
 
-  private visibleNames(): string[] {
-    return this.visible().map((v) => v.name);
+  private visible(): FileItem[] {
+    return visibleItems(this.state(), this.view, this.sort, this.filterValue);
   }
 
-  private rowEl(entry: FileEntry): HTMLElement | null {
-    return this.list.querySelector<HTMLElement>(`.file-row[data-name="${CSS.escape(entry.name)}"]`);
+  private visibleKeys(): string[] {
+    return this.visible().map((v) => v.key);
+  }
+
+  private rowEl(entry: FileItem): HTMLElement | null {
+    return this.list.querySelector<HTMLElement>(`.file-row[data-key="${CSS.escape(entry.key)}"]`);
   }
 
   private onKeyDown(e: KeyboardEvent): void {
@@ -297,7 +384,7 @@ export class FilesList {
       if (key === 'a') {
         e.preventDefault();
         e.stopPropagation();
-        this.sel = selectAll(this.sel, this.visibleNames());
+        this.sel = selectAll(this.sel, this.visibleKeys());
         this.render();
       } else if (key === 'x' || key === 'c' || key === 'v') {
         e.preventDefault();
@@ -309,19 +396,33 @@ export class FilesList {
       // Other chords belong to the pane's keymap handler, which runs as the event bubbles.
       return;
     }
-    const names = this.visibleNames();
-    const { state, effect } = listKey({ selected: this.sel.cursor, filter: this.filterValue }, e.key, names);
+    if (this.view === 'tree' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey) {
+      const items = this.visible();
+      const move = treeArrow(items, this.sel.cursor, e.key);
+      if (move === null) return;
+      e.preventDefault();
+      const item = items.find((i) => i.key === move.key);
+      if (!item) return;
+      if (move.kind === 'cursor') {
+        this.sel = single(item.key);
+        this.render();
+        this.opts.onSelect(item);
+      } else this.opts.onToggle(item, move.kind === 'expand');
+      return;
+    }
+    const keys = this.visibleKeys();
+    const { state, effect } = listKey({ selected: this.sel.cursor, filter: this.filterValue }, e.key, keys);
     const moved = state.selected !== this.sel.cursor;
     const filtered = state.filter !== this.filterValue;
     if (effect === 'none' && !moved && !filtered) return;
     e.preventDefault();
     if (filtered) {
       this.filterValue = state.filter;
-      this.sel = pruneSelection(this.sel, this.visibleNames());
+      this.sel = pruneSelection(this.sel, this.visibleKeys());
     }
     if (moved && state.selected !== null) {
       const extend = e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown');
-      this.sel = extend ? selectAt(this.sel, state.selected, { shift: true }, names) : single(state.selected);
+      this.sel = extend ? selectAt(this.sel, state.selected, { shift: true }, keys) : single(state.selected);
     }
     this.render();
     const entry = this.selected();
@@ -330,16 +431,16 @@ export class FilesList {
     else if (effect === 'up') this.opts.onUp();
   }
 
-  private clicked(entry: FileEntry, mods: SelectMods): void {
-    this.sel = selectAt(this.sel, entry.name, mods, this.visibleNames());
+  private clicked(entry: FileItem, mods: SelectMods): void {
+    this.sel = selectAt(this.sel, entry.key, mods, this.visibleKeys());
     this.render();
     this.focus();
     this.opts.onSelect(entry);
   }
 
-  private dragStarted(entry: FileEntry, e: PointerEvent): void {
+  private dragStarted(entry: FileItem, e: PointerEvent): void {
     // Dragging a row outside the selection drags just that row, as File Explorer does.
-    if (!isMarked(this.sel, entry.name)) this.clicked(entry, {});
+    if (!isMarked(this.sel, entry.key)) this.clicked(entry, {});
     this.opts.onDragStart?.(this.selectionFor(entry), e);
   }
 
@@ -352,13 +453,15 @@ export class FilesList {
     this.filterText.textContent = this.filterValue;
     const rows = this.visible().map((entry) =>
       renderFileRow(entry, {
-        selected: isMarked(this.sel, entry.name),
-        cursor: entry.name === this.sel.cursor,
+        tree: this.view === 'tree',
+        selected: isMarked(this.sel, entry.key),
+        cursor: entry.key === this.sel.cursor,
         cut: this.opts.isCut(entry),
         onSelect: (e) => this.clicked(entry, { shift: e.shiftKey, ctrl: primaryHeld(e) }),
         onActivate: () => this.opts.onActivate(entry),
+        onToggle: () => this.opts.onToggle(entry, !entry.open),
         onMenu: (anchor) => {
-          if (!isMarked(this.sel, entry.name)) this.clicked(entry, {});
+          if (!isMarked(this.sel, entry.key)) this.clicked(entry, {});
           this.opts.onMenu(entry, this.selectionFor(entry), this.rowEl(entry)?.querySelector<HTMLElement>('.file-row-menu') ?? anchor);
         },
         onDragStart: this.opts.onDragStart ? (e) => this.dragStarted(entry, e) : undefined,

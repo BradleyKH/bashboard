@@ -102,7 +102,7 @@ not in a git repo), as a split of the focused pane. When the active tab already 
 for that repo, Ctrl+Shift+E focuses it instead (expanding it if collapsed). The kind menu on a
 title strip lists Files too, and so does the Open menu on dashboard rows (see
 [Dashboard](#dashboard)). A Files pane comes back on relaunch in the same folder with the same
-file selected, and layouts keep it.
+file selected, in the same view, and layouts keep it.
 
 The title strip, after the folder's name, has a pin button, Open in File Explorer, Search in this
 folder (⌕, which opens a Search pane limited to the folder), and Open terminal here, all for the
@@ -113,8 +113,8 @@ pick in this pane, and its **+ Add** pins the current folder.
 The left side is a breadcrumb over the list of the current folder, with folders first and then
 files, newest first. The breadcrumb has back and forward buttons (the mouse back and forward
 buttons work over the pane too), the path from the repo root (click a segment to go there), a
-sort button, zoom buttons for the list, and a pin button that pins or unpins the folder (lit
-while it is pinned). The sort button sorts
+**Tree** button, a sort button, zoom buttons for the list, and a pin button that pins or unpins
+the folder (lit while it is pinned). The sort button sorts
 files by **Name**, **Type** (extension), or **Modified**; pick the current one again to reverse
 it. Folders always stay on top, A to Z (Z to A when you sort by name in reverse). Each Files pane
 keeps its own sort. Click a row to select and preview it, and press
@@ -130,6 +130,18 @@ in a Files pane, or the other way round. Cut rows show dimmed until pasted. Past
 its own folder names it `name - Copy`, as Explorer does; a name already taken anywhere else is
 reported rather than overwritten. The divider between
 the list and the preview can be dragged; until a file is selected, the list fills the pane.
+
+The **Tree** button (lit while on) shows the folder as a tree, as code editors do: each folder
+row has a chevron, and clicking it, double-clicking the row, or pressing Enter expands the folder
+in place. Right expands a folder or steps into an open one, and Left collapses it or steps out to
+its parent folder. Sorting applies within each folder, the filter searches every open folder, and
+Ctrl+V pastes into the folder of the selected row. The breadcrumb still shows the tree's top
+folder: going up, or clicking a segment, starts the tree there. Opening a pinned file or folder
+inside the tree expands down to it. Click **Tree** again to go back to one folder at a time,
+which opens the folder of the selected row. Each pane remembers its view and its open folders,
+and a new Files pane starts in the view you picked last. The command palette's **Switch a Files
+pane between folder and tree** (the `toggleFilesView` action, which you can bind to a key) does
+the same as the button.
 
 The preview depends on the file:
 

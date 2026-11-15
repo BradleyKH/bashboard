@@ -157,6 +157,22 @@
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
+/* The tree's chevron, indented by the row's depth through --depth. */
+.file-row-twisty {
+  flex: none;
+  width: calc(12px * var(--text-scale, 1) * var(--files-zoom, 1));
+  margin-left: calc(var(--depth, 0) * 14px * var(--text-scale, 1) * var(--files-zoom, 1));
+  margin-right: -2px;
+  text-align: center;
+  font-size: 0.8em;
+  color: #9a9a9a;
+  cursor: pointer;
+}
+
+.file-row-twisty:hover {
+  color: #eef3f5;
+}
+
 .file-row-icon {
   flex: none;
   width: calc(16px * var(--text-scale, 1) * var(--files-zoom, 1));

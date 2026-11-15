@@ -69,7 +69,7 @@ describe('restoredSpec', () => {
     ).toEqual({ kind: 'scratch' });
   });
 
-  it('defaults a Files pane to not expanded', () => {
+  it('defaults a Files pane to not expanded, in the Folder view', () => {
     const spec = restoredSpec(
       { key: 'v1', collapsed: false, kind: 'files', folder: 'C:\\r\\src', selected: null, root: 'C:\\r' },
       { loadScratch: true, loadScrollback: true },
@@ -82,6 +82,8 @@ describe('restoredSpec', () => {
       root: 'C:\\r',
       expanded: false,
       sort: undefined,
+      view: 'folder',
+      openFolders: undefined,
     });
   });
 

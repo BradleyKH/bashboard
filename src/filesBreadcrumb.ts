@@ -21,6 +21,8 @@ export interface FilesBreadcrumbOptions {
   onNavigate: (folder: string) => void;
   /** A key was picked from the sort button's menu. */
   onSort: (key: FilesSortKey) => void;
+  /** The Tree button: switch between the Folder and Tree views. */
+  onToggleView: () => void;
   /** The list's starting zoom level. */
   zoom: number;
   /** Applies the list's zoom level. */
@@ -39,14 +41,20 @@ export interface FilesBreadcrumbState {
   history: History;
   pinned: boolean;
   sort: FilesSort;
+  /** The Tree view shows, which lights the Tree button. */
+  tree: boolean;
 }
 
-/** Back and forward buttons, the path from the repo root, the sort button, the list's zoom buttons, and the pin button. */
+/**
+ * Back and forward buttons, the path from the repo root, the Tree button, the sort button, the
+ * list's zoom buttons, and the pin button.
+ */
 export class FilesBreadcrumb {
   readonly el: HTMLElement;
   private readonly backBtn: HTMLButtonElement;
   private readonly forwardBtn: HTMLButtonElement;
   private readonly trail: HTMLElement;
+  private readonly treeBtn: HTMLButtonElement;
   private readonly sortBtn: HTMLButtonElement;
   private readonly pinBtn: HTMLButtonElement;
   private sort: FilesSort = DEFAULT_FILES_SORT;
@@ -58,13 +66,15 @@ export class FilesBreadcrumb {
     this.forwardBtn = this.button('›', 'Forward', opts.onForward);
     this.trail = document.createElement('div');
     this.trail.className = 'files-crumb-trail';
+    this.treeBtn = this.button('Tree', 'Show as a tree', opts.onToggleView);
+    this.treeBtn.classList.add('files-crumb-tree');
     this.sortBtn = this.button('', 'Sort', () => this.toggleSortMenu());
     this.sortBtn.classList.add('files-crumb-sort');
     const zoom = new ZoomButtons('files-crumb-btn', 'filesList', opts.zoom, opts.onZoom, opts.zoomWheelTarget);
     this.pinBtn = this.button('', 'Pin this folder', opts.onTogglePin);
     this.pinBtn.classList.add('files-crumb-pin');
     this.pinBtn.append(filledPinIcon());
-    this.el.append(this.backBtn, this.forwardBtn, this.trail, this.sortBtn, zoom.el, this.pinBtn);
+    this.el.append(this.backBtn, this.forwardBtn, this.trail, this.treeBtn, this.sortBtn, zoom.el, this.pinBtn);
     attachContextMenu(this.el, () => ({ entries: opts.folderMenu() }));
   }
 
@@ -73,6 +83,9 @@ export class FilesBreadcrumb {
     this.forwardBtn.disabled = !canForward(state.history);
     this.pinBtn.title = state.pinned ? 'Unpin this folder' : 'Pin this folder';
     this.pinBtn.classList.toggle('on', state.pinned);
+    this.treeBtn.classList.toggle('on', state.tree);
+    this.treeBtn.title = state.tree ? 'Show one folder at a time' : 'Show as a tree';
+    this.treeBtn.setAttribute('aria-pressed', String(state.tree));
     this.sort = state.sort;
     this.sortBtn.textContent = sortLabel(state.sort);
 

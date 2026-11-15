@@ -33,6 +33,17 @@ import {
   type FilesSort,
   type History,
 } from './filesModel';
+import {
+  ancestorsOf,
+  childKey,
+  joinKey,
+  keyWithin,
+  parentKey,
+  selectionKey,
+  type FileItem,
+  type FilesView,
+} from './filesTreeModel';
+import { filesView, setFilesView } from './filesViewStore';
 import { insertPathText, pinTarget } from './filesRouting';
 import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
@@ -59,6 +70,10 @@ export interface FilesPaneOptions {
   expanded?: boolean;
   /** The list's order; defaults to newest modified first. */
   sort?: FilesSort;
+  /** Folder or tree; defaults to the view last picked in any pane. */
+  view?: FilesView;
+  /** The tree's expanded folders, as keys below `folder`. */
+  openFolders?: string[];
   keymap: () => Keymap;
   dispatch: (action: Action) => boolean;
   onFocus: () => void;
@@ -103,22 +118,6 @@ function itemCount(n: number): string {
   return n === 1 ? '1 item' : `${n} items`;
 }
 
-function childPath(folder: string, name: string): string {
-  const sep = folder.includes('\\') ? '\\' : '/';
-  return /[\\/]$/.test(folder) ? `${folder}${name}` : `${folder}${sep}${name}`;
-}
-
-/**
- * The entry name a selection refers to: a bare name as is, an absolute path by its basename when
- * its parent is `folder`, else null.
- */
-function selectionName(folder: string, select: string | null | undefined): string | null {
-  if (!select) return null;
-  if (!/[\\/]/.test(select)) return select;
-  const parent = pinTarget(folder, select, false).folder;
-  return samePath(parent, folder) ? baseName(select) : null;
-}
-
 /** A folder's files beside a preview of the selected one (docs/design/files.md section 4.12). */
 export class FilesPane implements PaneView {
   readonly kind = 'files' as const;
@@ -138,11 +137,12 @@ export class FilesPane implements PaneView {
   private settings: Settings;
   private rootPath: string;
   private currentPath: string;
-  private selectedName: string | null;
+  /** The cursor's key below the folder shown (`filesTreeModel.ts`). */
+  private selectedKey: string | null;
   private selectedModified: number | null = null;
   private history: History = EMPTY_HISTORY;
-  private entries: FileEntry[] = [];
   private sort: FilesSort;
+  private view: FilesView;
   private split = 0.4;
   /** The preview fills the pane, with the list, breadcrumb, and divider hidden. */
   private previewExpanded = false;
@@ -151,7 +151,8 @@ export class FilesPane implements PaneView {
    * shown preview takes it back so Esc still reaches the pane.
    */
   private refocusPreview = false;
-  private watchId: number | null = null;
+  /** Watch ids by folder key: '' for the folder shown, and each expanded tree folder. */
+  private readonly watches = new Map<string, number>();
   /** Bumped on every folder change, so late listings and watch ids for an old folder are dropped. */
   private generation = 0;
   private disposed = false;
@@ -164,8 +165,9 @@ export class FilesPane implements PaneView {
     this.settings = opts.settings;
     this.rootPath = opts.root ?? opts.folder;
     this.currentPath = opts.folder;
-    this.selectedName = selectionName(opts.folder, opts.selected);
+    this.selectedKey = selectionKey(opts.folder, opts.selected);
     this.sort = opts.sort ?? DEFAULT_FILES_SORT;
+    this.view = opts.view ?? filesView();
     this.stripActions = this.buildStripActions();
 
     this.host.style.display = 'flex';
@@ -181,6 +183,7 @@ export class FilesPane implements PaneView {
       onForward: () => this.goForward(),
       onNavigate: (folder) => void this.navigate(folder, null, true),
       onSort: (key) => this.setSort(nextSort(this.sort, key)),
+      onToggleView: () => this.toggleView(),
       zoom: textZoom('filesList'),
       onZoom: (zoom) => this.left.style.setProperty('--files-zoom', String(zoom)),
       zoomWheelTarget: this.left,
@@ -190,6 +193,7 @@ export class FilesPane implements PaneView {
     this.list = new FilesList({
       onSelect: (entry) => this.selectEntry(entry),
       onActivate: (entry) => this.activate(entry),
+      onToggle: (entry, open) => void this.toggleFolder(entry, open),
       onUp: () => this.goUp(),
       onMenu: (entry, selection, anchor) => {
         if (isContextMenuOpenFor(anchor)) closeContextMenu();
@@ -204,14 +208,15 @@ export class FilesPane implements PaneView {
       onRename: (entry, newName) => this.renameEntry(entry, newName),
       onCut: (entries) => void putFiles(this.pathsOf(entries), true),
       onCopy: (entries) => void putFiles(this.pathsOf(entries), false),
-      onPaste: () => void this.pasteInto(this.currentPath),
+      onPaste: () => void this.pasteInto(this.pasteFolder()),
       onDelete: (entries) => void this.deletePaths(this.pathsOf(entries)),
       isCut: (entry) => {
-        const path = childPath(this.currentPath, entry.name);
+        const path = joinKey(this.currentPath, entry.key);
         return currentCut().some((p) => samePath(p, path));
       },
     });
     this.list.setSort(this.sort);
+    this.list.setView(this.view);
     this.notice = document.createElement('div');
     this.notice.className = 'files-notice';
     this.notice.hidden = true;
@@ -245,11 +250,11 @@ export class FilesPane implements PaneView {
 
     this.body.append(this.left, this.divider, this.right);
     this.host.appendChild(this.body);
-    this.setPreviewShown(this.selectedName !== null);
+    this.setPreviewShown(this.selectedKey !== null);
     this.applySplit();
     // Restored expanded before the first listing, so the list does not flash; the navigation
     // rules show it again if the file is missing or not previewable.
-    if (opts.expanded && this.selectedName !== null) {
+    if (opts.expanded && this.selectedKey !== null) {
       this.previewExpanded = true;
       this.body.classList.add('preview-expanded');
       this.preview.setExpanded(true);
@@ -281,7 +286,7 @@ export class FilesPane implements PaneView {
     });
 
     if (opts.root === undefined) void this.resolveRoot(opts.folder);
-    void this.navigate(opts.folder, opts.selected ?? null, true);
+    void this.navigate(opts.folder, opts.selected ?? null, true, opts.openFolders ?? []);
   }
 
   /** The folder shown (a saved folder that no longer exists stays here). */
@@ -299,8 +304,8 @@ export class FilesPane implements PaneView {
   }
 
   /**
-   * The `files` saved-pane fields; `selected` is the selected entry's name within `folder`, and
-   * `expanded` whether the preview fills the pane.
+   * The `files` saved-pane fields; `selected` is the selected entry's key below `folder`,
+   * `expanded` whether the preview fills the pane, and `openFolders` the tree's expanded folders.
    */
   saved(): {
     folder: string;
@@ -308,14 +313,41 @@ export class FilesPane implements PaneView {
     root: string;
     expanded: boolean;
     sort: FilesSort;
+    view: FilesView;
+    openFolders?: string[];
   } {
+    const open = this.view === 'tree' ? this.list.openKeys() : [];
     return {
       folder: this.currentPath,
-      selected: this.selectedName,
+      selected: this.selectedKey,
       root: this.rootPath,
       expanded: this.previewExpanded,
       sort: this.sort,
+      view: this.view,
+      ...(open.length > 0 && { openFolders: open }),
     };
+  }
+
+  /** Switches between the Folder and Tree views; the next new pane starts in the one picked. */
+  toggleView(): void {
+    const view: FilesView = this.view === 'tree' ? 'folder' : 'tree';
+    setFilesView(view);
+    const cursor = this.selectedKey;
+    this.view = view;
+    for (const key of [...this.watches.keys()]) if (key !== '') this.unwatchKey(key);
+    // The Folder view shows the folder holding the cursor's row, so the preview stays.
+    if (view === 'folder' && cursor !== null && parentKey(cursor) !== '') {
+      const focused = this.hasFocus();
+      this.list.setView(view);
+      this.renderCrumb();
+      void this.navigate(joinKey(this.currentPath, parentKey(cursor)), joinKey(this.currentPath, cursor), true).then(() => {
+        if (focused && !this.previewExpanded) this.list.focus();
+      });
+      return;
+    }
+    this.list.setView(view);
+    this.renderCrumb();
+    this.opts.onChange();
   }
 
   private setSort(sort: FilesSort): void {
@@ -357,15 +389,23 @@ export class FilesPane implements PaneView {
    * absolute path whose parent is the folder; anything else selects nothing.
    */
   async showFolder(folder: string, select?: string | null): Promise<void> {
+    const name = selectionKey(folder, select);
     // Showing a folder brings the list back; selecting a file keeps the preview expanded.
-    if (this.previewExpanded && selectionName(folder, select) === null) this.showList(this.hasFocus());
-    if (samePath(folder, this.currentPath) && this.notice.hidden) {
-      const name = selectionName(folder, select);
-      if (name === null) return;
-      const entry = this.entries.find((e) => e.name === name);
+    if (this.previewExpanded && name === null) this.showList(this.hasFocus());
+    // The Folder view reuses the listing of the folder shown; the tree, of anything below it.
+    const at = keyWithin(this.currentPath, folder);
+    if (at !== null && (at === '' || this.view === 'tree') && this.notice.hidden && this.list.isListed('')) {
+      const key = name === null ? (at === '' ? null : at) : childKey(at, name);
+      if (key === null) return;
+      const gen = this.generation;
+      const before = this.list.openKeys().length;
+      for (const k of ancestorsOf(key)) if (!(await this.expandKey(k, gen))) break;
+      if (gen !== this.generation) return;
+      const entry = this.list.item(key);
       if (entry) {
-        this.list.select(entry.name);
+        this.list.select(key);
         this.selectEntry(entry);
+        if (this.list.openKeys().length !== before) this.opts.onChange();
         return;
       }
     }
@@ -384,7 +424,7 @@ export class FilesPane implements PaneView {
     const rows = this.list.el.querySelector<HTMLElement>('.files-list-rows');
     if (!rows?.contains(el)) return null;
     const dir = el.closest<HTMLElement>('.file-row.dir');
-    if (dir?.dataset.name) return { folder: childPath(this.currentPath, dir.dataset.name), el: dir };
+    if (dir?.dataset.key) return { folder: joinKey(this.currentPath, dir.dataset.key), el: dir };
     return { folder: this.currentPath, el: rows };
   }
 
@@ -404,11 +444,17 @@ export class FilesPane implements PaneView {
     if (failed.length === 1) showToast(`Could not move ${failed[0]}`);
     else if (failed.length > 1) showToast(`Could not move ${failed.length} files; ${failed[0]}`);
     // The folder watch re-lists too; this makes the rows disappear without waiting for it.
-    if (!this.disposed) await this.relist(this.generation);
+    if (!this.disposed) await this.relistAll(this.generation);
   }
 
-  private pathsOf(entries: readonly FileEntry[]): string[] {
-    return entries.map((e) => childPath(this.currentPath, e.name));
+  private pathsOf(entries: readonly FileItem[]): string[] {
+    return entries.map((e) => joinKey(this.currentPath, e.key));
+  }
+
+  /** Where Ctrl+V pastes: the folder holding the cursor's row in the tree, else the folder shown. */
+  private pasteFolder(): string {
+    const cursor = this.view === 'tree' ? this.list.selected() : null;
+    return cursor ? joinKey(this.currentPath, parentKey(cursor.key)) : this.currentPath;
   }
 
   /**
@@ -444,10 +490,11 @@ export class FilesPane implements PaneView {
     const verb = move ? 'move' : 'paste';
     if (report.failed.length === 1) showToast(`Could not ${verb} ${report.failed[0]}`);
     else if (report.failed.length > 1) showToast(`Could not ${verb} ${report.failed.length} items; ${report.failed[0]}`);
-    if (this.disposed || !samePath(toDir, this.currentPath)) return;
+    const key = keyWithin(this.currentPath, toDir);
+    if (this.disposed || key === null || !this.list.isListed(key)) return;
     const gen = this.generation;
-    await this.relist(gen);
-    if (gen === this.generation) this.list.selectNames(report.pasted.map(baseName));
+    await this.relistKey(key, gen);
+    if (gen === this.generation) this.list.selectKeys(report.pasted.map((p) => childKey(key, baseName(p))));
   }
 
   /** Sends entries to the Recycle Bin, toasting a failure, then re-lists. */
@@ -460,12 +507,12 @@ export class FilesPane implements PaneView {
     } catch (e) {
       showToast(`Could not delete: ${errorText(e)}`);
     }
-    if (!this.disposed) await this.relist(this.generation);
+    if (!this.disposed) await this.relistAll(this.generation);
   }
 
   /** Renames an entry of the folder shown, toasting a failure, then re-lists. */
-  private async renameEntry(entry: FileEntry, newName: string): Promise<boolean> {
-    const path = childPath(this.currentPath, entry.name);
+  private async renameEntry(entry: FileItem, newName: string): Promise<boolean> {
+    const path = joinKey(this.currentPath, entry.key);
     // The preview's unsaved text goes to the file before its name changes.
     if (this.preview.path !== null && samePath(path, this.preview.path) && !(await this.savedBefore('it was not renamed'))) return false;
     try {
@@ -474,7 +521,7 @@ export class FilesPane implements PaneView {
       showToast(`Could not rename ${entry.name}: ${errorText(e)}`);
       return false;
     }
-    if (!this.disposed) await this.relist(this.generation);
+    if (!this.disposed) await this.relistKey(parentKey(entry.key), this.generation);
     return true;
   }
 
@@ -545,7 +592,7 @@ export class FilesPane implements PaneView {
     if (this.disposed) return;
     this.disposed = true;
     this.generation++;
-    this.unwatch();
+    this.unwatchAll();
     this.preview.dispose();
     for (const off of this.listeners) off();
     this.listeners.length = 0;
@@ -564,23 +611,30 @@ export class FilesPane implements PaneView {
     }
   }
 
-  private async navigate(folder: string, select: string | null, record: boolean): Promise<void> {
+  /**
+   * Shows `folder` as the top of the list. `open` are tree folders to expand, as keys below it;
+   * the tree also expands down to a nested `select`.
+   */
+  private async navigate(folder: string, select: string | null, record: boolean, open: readonly string[] = []): Promise<void> {
     const gen = ++this.generation;
     const focused = this.hasFocus();
-    this.unwatch();
+    this.unwatchAll();
     const changed = !samePath(folder, this.currentPath);
     this.currentPath = folder;
     if (record) this.history = visit(this.history, folder);
-    this.selectedName = selectionName(folder, select);
+    this.selectedKey = selectionKey(folder, select);
     this.selectedModified = null;
-    this.entries = [];
     this.list.setFolder();
     this.renderCrumb();
     if (changed) this.opts.onChange();
     // A named selection keeps the preview's space while the listing loads, so it does not flash.
-    this.setPreviewShown(this.selectedName !== null);
-    await this.preview.show(null);
-    if (gen !== this.generation) return;
+    this.setPreviewShown(this.selectedKey !== null);
+    // A preview already on the selected file stays, as when the Folder view takes over from the tree.
+    const target = this.selectedKey === null ? null : joinKey(folder, this.selectedKey);
+    if (target === null || this.preview.path === null || !samePath(target, this.preview.path)) {
+      await this.preview.show(null);
+      if (gen !== this.generation) return;
+    }
 
     let entries: FileEntry[];
     try {
@@ -592,62 +646,130 @@ export class FilesPane implements PaneView {
     }
     if (gen !== this.generation) return;
     this.hideNotice();
-    this.entries = entries;
     this.list.setEntries(entries);
-    this.startWatch(folder, gen);
+    this.watchKey('', gen);
+    if (this.view === 'tree') {
+      const want = [...open, ...(this.selectedKey === null ? [] : ancestorsOf(this.selectedKey))];
+      const ordered = [...new Set(want)].sort((a, b) => a.split('/').length - b.split('/').length);
+      for (const key of ordered) {
+        await this.expandKey(key, gen);
+        if (gen !== this.generation) return;
+      }
+    }
 
-    const entry = this.selectedName === null ? undefined : entries.find((e) => e.name === this.selectedName);
+    const entry = this.selectedKey === null ? null : this.list.item(this.selectedKey);
     if (this.previewExpanded && (!entry || entry.isDir)) {
       // Clearing the preview dropped its focus to the page; take it back unless it moved on.
       this.showList(this.hasFocus() || (focused && document.activeElement === document.body));
     }
     if (entry) {
-      this.list.select(entry.name);
+      this.list.select(entry.key);
       this.selectEntry(entry);
     } else {
       this.setPreviewShown(false);
-      if (this.selectedName !== null) {
-        this.selectedName = null;
+      if (this.preview.path !== null) void this.preview.show(null);
+      if (this.selectedKey !== null) {
+        this.selectedKey = null;
         this.opts.onChange();
       }
     }
   }
 
-  private startWatch(folder: string, gen: number): void {
-    fsWatch(folder, () => void this.relist(gen)).then(
+  /**
+   * Lists a tree folder, expands it, and watches it; true when it is open. Its parent must be
+   * listed and open, which callers ensure by expanding from the outside in.
+   */
+  private async expandKey(key: string, gen = this.generation): Promise<boolean> {
+    if (this.list.openKeys().includes(key)) return true;
+    if (this.view !== 'tree' || !this.list.isListed(parentKey(key))) return false;
+    let entries: FileEntry[];
+    try {
+      entries = await fsList(joinKey(this.currentPath, key));
+    } catch {
+      return false;
+    }
+    if (gen !== this.generation || this.disposed || this.view !== 'tree') return false;
+    this.list.setChildren(key, entries);
+    this.list.expand(key);
+    if (!this.list.openKeys().includes(key)) return false;
+    this.watchKey(key, gen);
+    return true;
+  }
+
+  /** A tree folder's chevron, Right, Left, Enter, or double click. */
+  private async toggleFolder(entry: FileItem, open: boolean): Promise<void> {
+    if (open) {
+      if (await this.expandKey(entry.key)) this.opts.onChange();
+      return;
+    }
+    for (const key of this.list.collapse(entry.key)) this.unwatchKey(key);
+    this.opts.onChange();
+  }
+
+  private watchKey(key: string, gen: number): void {
+    fsWatch(joinKey(this.currentPath, key), () => void this.relistKey(key, gen)).then(
       (id) => {
-        if (gen === this.generation && !this.disposed) this.watchId = id;
+        const wanted = key === '' || this.list.openKeys().includes(key);
+        if (gen === this.generation && !this.disposed && wanted && !this.watches.has(key)) this.watches.set(key, id);
         else void fsUnwatch(id).catch(() => {});
       },
       () => {},
     );
   }
 
-  private unwatch(): void {
-    if (this.watchId === null) return;
-    const id = this.watchId;
-    this.watchId = null;
+  private unwatchKey(key: string): void {
+    const id = this.watches.get(key);
+    if (id === undefined) return;
+    this.watches.delete(key);
     void fsUnwatch(id).catch(() => {});
   }
 
-  private async relist(gen: number): Promise<void> {
+  private unwatchAll(): void {
+    for (const key of [...this.watches.keys()]) this.unwatchKey(key);
+  }
+
+  /** Re-lists the folder shown and every expanded folder; after a change this pane made. */
+  private async relistAll(gen: number): Promise<void> {
+    await this.relistKey('', gen);
+    for (const key of this.list.openKeys()) {
+      if (gen !== this.generation) return;
+      await this.relistKey(key, gen);
+    }
+  }
+
+  /** Re-lists one listed folder ('' being the folder shown), as its watch or a change asks. */
+  private async relistKey(key: string, gen: number): Promise<void> {
+    if (key !== '' && !this.list.isListed(key)) return;
     let entries: FileEntry[];
     try {
-      entries = await fsList(this.currentPath);
+      entries = await fsList(joinKey(this.currentPath, key));
     } catch (e) {
       if (gen !== this.generation) return;
-      this.unwatch();
-      this.showNotice(this.currentPath, e);
+      if (key === '') {
+        this.unwatchAll();
+        this.showNotice(this.currentPath, e);
+      } else {
+        const folder = this.list.item(key);
+        if (folder) await this.toggleFolder(folder, false);
+      }
       return;
     }
-    if (gen !== this.generation) return;
-    this.entries = entries;
-    this.list.setEntries(entries);
-    if (this.selectedName === null) return;
-    const entry = entries.find((e) => e.name === this.selectedName);
+    if (gen !== this.generation || (key !== '' && !this.list.isListed(key))) return;
+    if (key === '') this.list.setEntries(entries);
+    else this.list.setChildren(key, entries);
+    // Folders that vanished closed with their parent's listing.
+    const open = new Set(this.list.openKeys());
+    for (const k of [...this.watches.keys()]) if (k !== '' && !open.has(k)) this.unwatchKey(k);
+    this.checkSelected();
+  }
+
+  /** After a listing: a selected entry that vanished clears, and a changed file reloads. */
+  private checkSelected(): void {
+    if (this.selectedKey === null) return;
+    const entry = this.list.item(this.selectedKey);
     if (!entry) {
       this.showList(this.hasFocus());
-      this.selectedName = null;
+      this.selectedKey = null;
       this.selectedModified = null;
       this.list.select(null);
       this.setPreviewShown(false);
@@ -659,9 +781,9 @@ export class FilesPane implements PaneView {
     }
   }
 
-  private selectEntry(entry: FileEntry): void {
-    const changed = entry.name !== this.selectedName;
-    this.selectedName = entry.name;
+  private selectEntry(entry: FileItem): void {
+    const changed = entry.key !== this.selectedKey;
+    this.selectedKey = entry.key;
     if (entry.isDir) {
       if (this.previewExpanded) this.showList(this.hasFocus());
       this.selectedModified = null;
@@ -670,14 +792,17 @@ export class FilesPane implements PaneView {
     } else if (changed || this.preview.path === null) {
       this.setPreviewShown(true);
       this.selectedModified = entry.modified;
-      void this.preview.show(childPath(this.currentPath, entry.name), entry.size);
+      void this.preview.show(joinKey(this.currentPath, entry.key), entry.size);
+    } else if (this.selectedModified === null) {
+      this.selectedModified = entry.modified;
     }
     if (changed) this.opts.onChange();
   }
 
-  private activate(entry: FileEntry): void {
-    const path = childPath(this.currentPath, entry.name);
-    if (entry.isDir) void this.navigate(path, null, true);
+  private activate(entry: FileItem): void {
+    const path = joinKey(this.currentPath, entry.key);
+    if (entry.isDir && this.view === 'tree') void this.toggleFolder(entry, !entry.open);
+    else if (entry.isDir) void this.navigate(path, null, true);
     else this.openInEditor(path);
   }
 
@@ -715,18 +840,21 @@ export class FilesPane implements PaneView {
     else void openInEditor(path);
   }
 
-  private moveTargets(selection: readonly FileEntry[]): MoveTarget[] {
+  /** Move to's targets for rows in the folder `folderKey`: the pinned folders, then its subfolders. */
+  private moveTargets(folderKey: string, selection: readonly FileItem[]): MoveTarget[] {
+    const here = joinKey(this.currentPath, folderKey);
     const out: MoveTarget[] = [];
     const add = (path: string, label: string) => {
-      if (samePath(path, this.currentPath)) return;
+      if (samePath(path, here)) return;
       if (out.some((t) => samePath(t.path, path))) return;
       out.push({ label, path });
     };
     for (const p of this.opts.getPinnedFolders()) {
       add(p, samePath(p, this.rootPath) ? baseName(p) : insertPathText(this.rootPath, p));
     }
-    for (const e of this.entries) {
-      if (e.isDir && !selection.some((x) => x.name === e.name)) add(childPath(this.currentPath, e.name), `${e.name}/`);
+    for (const e of this.list.childrenOf(folderKey) ?? []) {
+      const key = childKey(folderKey, e.name);
+      if (e.isDir && !selection.some((x) => x.key === key)) add(joinKey(this.currentPath, key), `${e.name}/`);
     }
     return out;
   }
@@ -738,10 +866,10 @@ export class FilesPane implements PaneView {
   }
 
   // Paths are fixed when a menu is built, so a choice acts on the folder the menu was opened in.
-  private rowMenu(entry: FileEntry, selection: FileEntry[]): MenuEntry[] {
+  private rowMenu(entry: FileItem, selection: FileItem[]): MenuEntry[] {
     const folder = this.currentPath;
-    const pathOf = (e: FileEntry) => childPath(folder, e.name);
-    const handlers: FileRowMenuHandlers = {
+    const pathOf = (e: FileItem) => joinKey(folder, e.key);
+    const handlers: FileRowMenuHandlers<FileItem> = {
       openTerminalHere: (e) => this.opts.onOpenTerminalHere(pathOf(e)),
       searchHere: (e) => this.opts.onSearchHere(pathOf(e)),
       openInEditor: (e) => this.openInEditor(pathOf(e)),
@@ -759,12 +887,15 @@ export class FilesPane implements PaneView {
       pasteInto: (e) => void this.pasteInto(pathOf(e)),
       delete: (es) => void this.deletePaths(es.map(pathOf)),
     };
-    return fileRowMenuItems(entry, selection, this.moveTargets(selection), handlers);
+    return fileRowMenuItems(entry, selection, this.moveTargets(parentKey(entry.key), selection), handlers);
   }
 
-  private startRowDrag(entries: FileEntry[], e: PointerEvent): void {
-    const paths = entries.map((x) => childPath(this.currentPath, x.name));
-    const move = entries.every((x) => !x.isDir) ? { paneId: this.paneId, folder: this.currentPath } : undefined;
+  private startRowDrag(entries: FileItem[], e: PointerEvent): void {
+    const paths = this.pathsOf(entries);
+    // Files from one folder skip it as a target; from several (the tree), no folder is skipped.
+    const parents = new Set(entries.map((x) => parentKey(x.key)));
+    const from = parents.size === 1 ? joinKey(this.currentPath, [...parents][0]) : '';
+    const move = entries.every((x) => !x.isDir) ? { paneId: this.paneId, folder: from } : undefined;
     this.opts.onPathDragStart?.(paths, e, move);
   }
 
@@ -802,7 +933,6 @@ export class FilesPane implements PaneView {
       this.showList(false);
       if (focused) this.body.focus();
     }
-    this.entries = [];
     const head = document.createElement('div');
     head.className = 'files-notice-head';
     head.textContent = 'This folder could not be opened:';
@@ -830,6 +960,7 @@ export class FilesPane implements PaneView {
       history: this.history,
       pinned: this.isPinned(this.currentPath),
       sort: this.sort,
+      tree: this.view === 'tree',
     });
   }
 
@@ -858,7 +989,7 @@ export class FilesPane implements PaneView {
     this.preview.setExpanded(false);
     this.opts.onChange();
     // Re-selecting scrolls the row into view, which did nothing while the list was hidden.
-    this.list.select(this.selectedName);
+    this.list.select(this.selectedKey);
     if (focus) this.list.focus();
   }
 

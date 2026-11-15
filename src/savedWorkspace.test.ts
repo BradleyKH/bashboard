@@ -121,6 +121,13 @@ describe('parseSavedTab', () => {
     expect(bad?.panes[0]).toEqual({ ...files('a'), sort: { key: 'modified', desc: true } });
   });
 
+  it('round-trips a Files pane tree, dropping an unknown view and bad folder keys', () => {
+    const tree = { ...files('a'), view: 'tree' as const, openFolders: ['src', 'src/ui'] };
+    expect(parseSavedTab({ panes: [tree], layout: pane('a'), focused: 'a' })?.panes[0]).toEqual(tree);
+    const bad = { ...files('a'), view: 'list', openFolders: ['src', 3, '', '../up'] };
+    expect(parseSavedTab({ panes: [bad], layout: pane('a'), focused: 'a' })?.panes[0]).toEqual({ ...files('a'), openFolders: ['src'] });
+  });
+
   it('drops a Files pane with no folder', () => {
     const { folder: _f, ...bad } = files('b');
     const r = parseSavedTab({ panes: [term('a'), bad], layout: row(pane('a'), pane('b')), focused: 'a' });

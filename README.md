@@ -17,8 +17,8 @@ Copilot CLI, and it works with any stack. It runs on Windows, with an early macO
 
 ## Also included
 
-- **Git, Files, and Search:** stage, commit, and branch beside the diff; browse a repo and
-  preview images, tables, and markdown; find a line across it.
+- **Git, Files, and Search:** stage, commit, and branch beside the diff; browse a repo one folder at
+  a time or as a tree and preview images, tables, and markdown; find a line across it.
 - **A built-in text editor:** edit files in place, with code colors and go to line, and it
   saves as you type.
 - **Pins:** keep the files, folders, and commands you use most one click away, per repo or

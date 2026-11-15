@@ -182,6 +182,12 @@ export class Workspace {
       setFontSize: (size) => this.setFontSize(size),
       cycleScrim: () => this.cycleScrim(),
       toggleBackgroundTabs: () => this.toggleBackgroundTabs(),
+      toggleFilesView: () => {
+        const view = this.paneViews.get(this.store.focusedId);
+        if (!(view instanceof FilesPane)) return false;
+        view.toggleView();
+        return true;
+      },
       layoutCell: () => this.layoutCell(),
       paneRects: () => this.tabView.paneRects(),
       containerRect: () => this.containerRect(),

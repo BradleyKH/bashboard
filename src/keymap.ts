@@ -24,6 +24,7 @@ export type Action =
   | { type: 'focusDashboard' }
   | { type: 'cycleScrim' }
   | { type: 'toggleBackgroundTabs' }
+  | { type: 'toggleFilesView' }
   | { type: 'toggleBackdrop' }
   | { type: 'collapsePane' }
   | { type: 'togglePaneZoom' }
