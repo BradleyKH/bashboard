@@ -112,6 +112,9 @@ pub struct EngineState {
     pub can_start: bool,
     /// Whether `containers_engine_stop` knows how to stop this engine.
     pub can_stop: bool,
+    /// A command the user can run themselves to start this engine when the app has no control
+    /// of its own (a system `docker.service` needs root). Shown, never run.
+    pub start_command: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,6 +136,9 @@ enum Control {
     DockerDesktopExe(PathBuf),
     /// `podman machine start` and `podman machine stop` on this machine.
     PodmanMachine(String),
+    /// `systemctl --user start` and `stop` on a user unit: Docker Desktop for Linux, or rootless
+    /// Docker Engine.
+    SystemdUser(String),
 }
 
 impl Control {
@@ -141,7 +147,10 @@ impl Control {
     }
 
     fn can_stop(&self) -> bool {
-        matches!(self, Control::DockerDesktopCli | Control::PodmanMachine(_))
+        matches!(
+            self,
+            Control::DockerDesktopCli | Control::PodmanMachine(_) | Control::SystemdUser(_)
+        )
     }
 }
 
@@ -509,13 +518,11 @@ fn version_says_running(success: bool, stdout: &str) -> bool {
         }
 }
 
-/// Whether the engine behind `cli` answers `version`.
-fn probe(cli: &Path) -> bool {
-    let mut cmd = command(cli, &["version", "--format", "json"]);
+/// Runs `cmd` and returns whether it succeeded plus its stdout, or None when it cannot start or
+/// outlasts `timeout` (it is killed then). Stderr is discarded.
+fn capture(mut cmd: Command, timeout: Duration) -> Option<(bool, String)> {
     cmd.stderr(Stdio::null());
-    let Ok(mut child) = cmd.spawn() else {
-        return false;
-    };
+    let mut child = cmd.spawn().ok()?;
     let stdout = child.stdout.take();
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
@@ -525,13 +532,19 @@ fn probe(cli: &Path) -> bool {
         }
         let _ = tx.send(bytes);
     });
-    let Ok(bytes) = rx.recv_timeout(PROBE_TIMEOUT) else {
+    let Ok(bytes) = rx.recv_timeout(timeout) else {
         let _ = child.kill();
         let _ = child.wait();
-        return false;
+        return None;
     };
     let success = child.wait().is_ok_and(|s| s.success());
-    version_says_running(success, &String::from_utf8_lossy(&bytes))
+    Some((success, String::from_utf8_lossy(&bytes).into_owned()))
+}
+
+/// Whether the engine behind `cli` answers `version`.
+fn probe(cli: &Path) -> bool {
+    capture(command(cli, &["version", "--format", "json"]), PROBE_TIMEOUT)
+        .is_some_and(|(success, out)| version_says_running(success, &out))
 }
 
 /// The machine `podman machine start` should act on: the default one, else the first. Podman
@@ -554,24 +567,94 @@ fn docker_desktop_exe_for(cli: &Path) -> Option<PathBuf> {
 
 /// Whether `docker desktop` exists: without the plugin, docker rejects the command.
 fn has_docker_desktop_cli(cli: &Path) -> bool {
-    exec(cli, &["desktop", "--help"]).is_ok_and(|out| out.contains("start"))
+    capture(command(cli, &["desktop", "--help"]), PROBE_TIMEOUT).is_some_and(|(success, out)| success && out.contains("start"))
 }
 
-fn detect_control(engine: Engine, cli: &Path) -> Control {
+/// Docker's user units in the order they are preferred: Docker Desktop for Linux, then rootless
+/// Docker Engine.
+const DOCKER_USER_UNITS: [&str; 2] = ["docker-desktop.service", "docker.service"];
+const DOCKER_SYSTEM_UNIT: &str = "docker.service";
+/// What the user runs themselves when only the system unit exists, since starting it needs root.
+const SYSTEM_START_COMMAND: &str = "sudo systemctl start docker";
+/// `systemctl` answers from local files, so a probe that takes longer than this is wedged.
+const SYSTEMCTL_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How a Linux machine starts Docker, from what the probes found: the `docker desktop` command,
+/// the user units that exist (any order), and whether the system `docker.service` exists. With
+/// no control but a system unit, the second value is the command for the user to run.
+fn linux_control(
+    desktop_cli: bool,
+    user_units: &[&str],
+    system_docker_unit: bool,
+) -> (Control, Option<String>) {
+    if desktop_cli {
+        return (Control::DockerDesktopCli, None);
+    }
+    if let Some(unit) = DOCKER_USER_UNITS.iter().find(|u| user_units.contains(u)) {
+        return (Control::SystemdUser((*unit).to_string()), None);
+    }
+    let command = system_docker_unit.then(|| SYSTEM_START_COMMAND.to_string());
+    (Control::None, command)
+}
+
+/// Whether `systemctl list-unit-files --no-legend` output lists `unit`. Each line starts with
+/// the unit name; the command exits 0 with no output when nothing matches.
+fn unit_listed(output: &str, unit: &str) -> bool {
+    output
+        .lines()
+        .any(|line| line.split_whitespace().next() == Some(unit))
+}
+
+/// Whether `unit` exists, for the user manager or (`user` false) the system one. Any failure,
+/// such as no user bus (WSL), a missing binary, or a timeout, counts as absent.
+fn systemd_unit_exists(systemctl: &Path, user: bool, unit: &str) -> bool {
+    let mut args = vec!["list-unit-files", "--no-legend", unit];
+    if user {
+        args.insert(0, "--user");
+    }
+    capture(command(systemctl, &args), SYSTEMCTL_TIMEOUT)
+        .is_some_and(|(success, out)| success && unit_listed(&out, unit))
+}
+
+fn detect_linux_docker(cli: &Path, systemctl: Option<&Path>) -> (Control, Option<String>) {
+    if has_docker_desktop_cli(cli) {
+        return linux_control(true, &[], false);
+    }
+    let Some(systemctl) = systemctl else {
+        return linux_control(false, &[], false);
+    };
+    let user_units: Vec<&str> = DOCKER_USER_UNITS
+        .iter()
+        .copied()
+        .filter(|u| systemd_unit_exists(systemctl, true, u))
+        .collect();
+    // Only a machine with no control of its own needs the system unit's command.
+    let system = user_units.is_empty() && systemd_unit_exists(systemctl, false, DOCKER_SYSTEM_UNIT);
+    linux_control(false, &user_units, system)
+}
+
+fn detect_control(engine: Engine, cli: &Path) -> (Control, Option<String>) {
     match engine {
+        Engine::Docker if cfg!(target_os = "linux") => {
+            let systemctl = std::env::var_os("PATH").and_then(|p| find_in(&p, "systemctl"));
+            detect_linux_docker(cli, systemctl.as_deref())
+        }
         Engine::Docker => {
             if has_docker_desktop_cli(cli) {
-                return Control::DockerDesktopCli;
+                return (Control::DockerDesktopCli, None);
             }
             match docker_desktop_exe_for(cli) {
-                Some(exe) if exe.is_file() => Control::DockerDesktopExe(exe),
-                _ => Control::None,
+                Some(exe) if exe.is_file() => (Control::DockerDesktopExe(exe), None),
+                _ => (Control::None, None),
             }
         }
-        Engine::Podman => exec(cli, &["machine", "list", "--format", "json"])
-            .ok()
-            .and_then(|out| podman_machine(&out))
-            .map_or(Control::None, Control::PodmanMachine),
+        Engine::Podman => (
+            exec(cli, &["machine", "list", "--format", "json"])
+                .ok()
+                .and_then(|out| podman_machine(&out))
+                .map_or(Control::None, Control::PodmanMachine),
+            None,
+        ),
     }
 }
 
@@ -654,6 +737,16 @@ fn run_lifecycle(inner: &Inner, slot: &Slot, to: Lifecycle) -> Result<(), String
         (Control::PodmanMachine(name), Lifecycle::Stopping) => exec_timeout(
             &slot.cli,
             &["machine", "stop", "--", name],
+            LIFECYCLE_TIMEOUT,
+        )?,
+        (Control::SystemdUser(unit), Lifecycle::Starting) => exec_timeout(
+            Path::new("systemctl"),
+            &["--user", "start", "--", unit],
+            LIFECYCLE_TIMEOUT,
+        )?,
+        (Control::SystemdUser(unit), Lifecycle::Stopping) => exec_timeout(
+            Path::new("systemctl"),
+            &["--user", "stop", "--", unit],
             LIFECYCLE_TIMEOUT,
         )?,
         (_, Lifecycle::Starting) => return Err(format!("Bashboard cannot start {label} here")),
@@ -812,6 +905,7 @@ struct Slot {
     cli: PathBuf,
     running: bool,
     control: Control,
+    start_command: Option<String>,
 }
 
 #[derive(Default)]
@@ -859,11 +953,16 @@ impl Inner {
     }
 
     /// Records how an engine is controlled; true when it changed.
-    fn set_control(&self, engine: Engine, control: Control) -> bool {
+    fn set_control(
+        &self,
+        engine: Engine,
+        (control, start_command): (Control, Option<String>),
+    ) -> bool {
         let mut guard = self.engines.lock_or_recover();
         match guard.iter_mut().flatten().find(|s| s.engine == engine) {
-            Some(slot) if slot.control != control => {
+            Some(slot) if slot.control != control || slot.start_command != start_command => {
                 slot.control = control;
+                slot.start_command = start_command;
                 true
             }
             _ => false,
@@ -919,6 +1018,7 @@ impl Inner {
                 pending: pending.get(&slot.engine).copied(),
                 can_start: slot.control.can_start(),
                 can_stop: slot.control.can_stop(),
+                start_command: slot.start_command.clone(),
             });
             containers.extend(listed.into_iter().flatten());
         }
@@ -973,12 +1073,13 @@ pub fn init(app: &AppHandle) {
             .filter_map(|&engine| {
                 let cli = locate(engine)?;
                 let running = probe(&cli);
-                let control = detect_control(engine, &cli);
+                let (control, start_command) = detect_control(engine, &cli);
                 Some(Slot {
                     engine,
                     cli,
                     running,
                     control,
+                    start_command,
                 })
             })
             .collect();
@@ -1701,5 +1802,146 @@ mod tests {
         assert!(!Control::DockerDesktopExe(PathBuf::from("x")).can_stop());
         assert!(Control::DockerDesktopCli.can_stop());
         assert!(Control::PodmanMachine("m".into()).can_stop());
+        assert!(Control::SystemdUser("docker.service".into()).can_start());
+        assert!(Control::SystemdUser("docker.service".into()).can_stop());
+    }
+
+    fn user(unit: &str) -> Control {
+        Control::SystemdUser(unit.to_string())
+    }
+
+    #[test]
+    fn the_docker_desktop_command_wins_on_linux() {
+        let all = ["docker.service", "docker-desktop.service"];
+        assert_eq!(linux_control(true, &all, true), (Control::DockerDesktopCli, None));
+    }
+
+    #[test]
+    fn a_user_docker_desktop_unit_beats_rootless_docker() {
+        let both = ["docker.service", "docker-desktop.service"];
+        assert_eq!(
+            linux_control(false, &both, true),
+            (user("docker-desktop.service"), None)
+        );
+        assert_eq!(
+            linux_control(false, &["docker-desktop.service"], false),
+            (user("docker-desktop.service"), None)
+        );
+    }
+
+    #[test]
+    fn a_rootless_user_unit_controls_docker() {
+        assert_eq!(
+            linux_control(false, &["docker.service"], true),
+            (user("docker.service"), None)
+        );
+    }
+
+    #[test]
+    fn only_a_system_unit_gives_the_command_and_no_control() {
+        let (control, command) = linux_control(false, &[], true);
+        assert_eq!(control, Control::None);
+        assert_eq!(command.as_deref(), Some("sudo systemctl start docker"));
+    }
+
+    #[test]
+    fn nothing_found_gives_neither() {
+        assert_eq!(linux_control(false, &[], false), (Control::None, None));
+        assert_eq!(
+            linux_control(false, &["podman.socket"], false),
+            (Control::None, None)
+        );
+    }
+
+    #[test]
+    fn unit_files_output_is_matched_by_unit_name() {
+        let out = "docker.service                 disabled enabled\n";
+        assert!(unit_listed(out, "docker.service"));
+        assert!(!unit_listed(out, "docker-desktop.service"));
+        assert!(!unit_listed("", "docker.service"));
+        assert!(!unit_listed("mydocker.service enabled enabled", "docker.service"));
+    }
+
+    #[test]
+    fn engine_state_serializes_the_start_command() {
+        let state = |start_command: Option<&str>| EngineState {
+            engine: Engine::Docker,
+            running: false,
+            pending: None,
+            can_start: false,
+            can_stop: false,
+            start_command: start_command.map(str::to_string),
+        };
+        let v = serde_json::to_value(state(Some("sudo systemctl start docker"))).unwrap();
+        assert_eq!(v["startCommand"], "sudo systemctl start docker");
+        assert!(serde_json::to_value(state(None)).unwrap()["startCommand"].is_null());
+    }
+
+    /// A shell script named `name` in a fresh temp dir, for standing in for a CLI.
+    #[cfg(unix)]
+    fn fake_tool(tag: &str, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("bashboard-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_docker_whose_version_fails_is_not_running_and_has_no_control() {
+        let docker = fake_tool("docker-fail", "docker", "exit 1");
+        // A systemctl that fails stands in for a machine with no user bus, such as WSL.
+        let systemctl = fake_tool("systemctl-fail", "systemctl", "echo 'Failed to connect to bus' >&2; exit 1");
+        assert!(!probe(&docker));
+        let (control, command) = detect_linux_docker(&docker, Some(&systemctl));
+        assert_eq!(control, Control::None);
+        assert_eq!(command, None);
+        assert_eq!(detect_linux_docker(&docker, None), (Control::None, None));
+        for tool in [&docker, &systemctl] {
+            let _ = std::fs::remove_dir_all(tool.parent().unwrap());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detection_reads_units_from_systemctl_output() {
+        let docker = fake_tool("docker-units", "docker", "exit 1");
+        let script = r#"
+case "$*" in
+  "--user list-unit-files --no-legend docker.service") echo "docker.service enabled enabled" ;;
+  "list-unit-files --no-legend docker.service") echo "docker.service enabled enabled" ;;
+esac
+exit 0"#;
+        let systemctl = fake_tool("systemctl-units", "systemctl", script);
+        assert_eq!(
+            detect_linux_docker(&docker, Some(&systemctl)),
+            (user("docker.service"), None)
+        );
+        let system_only = fake_tool(
+            "systemctl-system",
+            "systemctl",
+            r#"[ "$1" = "--user" ] && exit 0; echo "docker.service enabled enabled""#,
+        );
+        assert_eq!(
+            detect_linux_docker(&docker, Some(&system_only)),
+            (Control::None, Some("sudo systemctl start docker".to_string()))
+        );
+        for tool in [&docker, &systemctl, &system_only] {
+            let _ = std::fs::remove_dir_all(tool.parent().unwrap());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn real_detection_with_a_failing_docker_neither_panics_nor_hangs() {
+        let docker = fake_tool("docker-real", "docker", "exit 1");
+        let started = Instant::now();
+        assert!(!probe(&docker));
+        let _ = detect_control(Engine::Docker, &docker);
+        assert!(started.elapsed() < Duration::from_secs(20));
+        let _ = std::fs::remove_dir_all(docker.parent().unwrap());
     }
 }

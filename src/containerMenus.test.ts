@@ -157,7 +157,7 @@ describe('containerSectionMenuItems', () => {
 
   it('has no menu for an unavailable engine and calls handlers', () => {
     const handlers = h();
-    expect(containerSectionMenuItems({ kind: 'unavailable', engine: 'docker', canStart: true, pending: null }, handlers)).toEqual([]);
+    expect(containerSectionMenuItems({ kind: 'unavailable', engine: 'docker', canStart: true, startCommand: null, pending: null }, handlers)).toEqual([]);
     const entries = containerSectionMenuItems(row({}), handlers);
     find(entries, 'Start').run();
     find(entries, 'Open Containers').run();

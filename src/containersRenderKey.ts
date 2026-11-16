@@ -31,7 +31,7 @@ export function containerKey(c: Pick<Container, 'engine' | 'id'>): string {
 export function renderKey(input: RenderKeyInput): string {
   const { expandedGroups, busy } = input;
   return JSON.stringify([
-    input.engines.map((e) => [e.engine, e.running, e.pending, e.canStart, e.canStop, busy.has(engineBusyKey(e.engine))]),
+    input.engines.map((e) => [e.engine, e.running, e.pending, e.canStart, e.canStop, e.startCommand, busy.has(engineBusyKey(e.engine))]),
     input.logsKey,
     input.groups.map((g) => {
       const expanded = expandedGroups.has(g.key);

@@ -43,8 +43,18 @@ is not running, the core works out how that engine can be controlled:
 - **Docker:** `docker desktop start` and `docker desktop stop` when the `docker desktop` command
   exists (Docker Desktop 4.37 and later). Otherwise, when `Docker Desktop.exe` is in the install
   that holds `docker.exe` (`<install>\resources\bin`), start only, by launching it, since an
-  older Docker Desktop has no clean stop short of its own Quit. Docker Engine inside WSL,
-  Rancher Desktop, and other setups get neither, so no button appears that cannot work.
+  older Docker Desktop has no clean stop short of its own Quit. On Linux, the `docker desktop`
+  command first, then a user systemd unit, `docker-desktop.service` before a rootless
+  `docker.service`, found with `systemctl --user list-unit-files`, and started and stopped with
+  `systemctl --user start` and `stop`. Docker Engine inside WSL, Rancher Desktop, and other
+  setups get no control, so no button appears that cannot work. Any `systemctl` failure (no
+  binary, no user bus, a 5-second timeout) counts as the unit being absent.
+- **A command to run by hand:** on Linux, when Docker has no control but the system
+  `docker.service` unit exists, starting it needs root, so the app never runs it. The engine's
+  state carries `startCommand` (`sudo systemctl start docker`; null everywhere else), which the
+  Containers pane shows on the engine's heading while it is not running, with a Copy button. The
+  dashboard's "Docker is not running" row carries it as a tooltip. The choice among these
+  controls is one pure function over the probe results, `linux_control`.
 - **Podman:** `podman machine start` and `podman machine stop` on the machine that `podman
   machine list` marks as default, else the first one listed. With no machine there is nothing to
   start; the app does not run `podman machine init`.
@@ -103,10 +113,11 @@ docked anywhere.
 
 **Containers pane.** One heading per available engine, Docker and then Podman, each showing
 whether that engine is running, starting, or stopping, and at its right a Start button when the
-engine is not running or a Stop button when it is, for each the app can do (3.10). A lone engine
-gets a heading only when it has one of those buttons. Stop asks first, saying how many running
-containers will stop and that the engine shuts down for every app that uses it. The buttons are
-disabled while a start or stop runs. Under each,
+engine is not running or a Stop button when it is, for each the app can do (3.10). An engine the
+app cannot start but that has a start command to run by hand shows that command in monospace
+with a Copy button instead. A lone engine gets a heading only when it has a button or a start
+command. Stop asks first, saying how many running containers will stop and that the engine shuts
+down for every app that uses it. The buttons are disabled while a start or stop runs. Under each,
 groups expand to their containers. Each container row shows its state dot,
 service or container name, image, status text ("Up 3 hours"), published ports as links to
 `http://localhost:<port>` (through `open_url`), and CPU and memory, refreshed every 5 seconds

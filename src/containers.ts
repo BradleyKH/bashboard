@@ -44,10 +44,12 @@ export interface EngineState {
   running: boolean;
   /** A start or stop the app has in flight. */
   pending: EngineLifecycle | null;
-  /** Whether the app knows how to start this engine (Docker Desktop or a Podman machine). */
+  /** Whether the app knows how to start this engine (Docker Desktop, a Podman machine, or a user systemd unit). */
   canStart: boolean;
   /** Whether the app knows how to stop it; an older Docker Desktop can only be started. */
   canStop: boolean;
+  /** A command to run in a shell to start the engine when the app cannot, or null. Shown, never run. */
+  startCommand: string | null;
 }
 
 export interface ContainersSnapshot {

@@ -62,6 +62,19 @@
   color: var(--ctr-running);
 }
 
+.ctr-engine-command {
+  margin-left: auto;
+  align-self: center;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--ctr-ui-fg);
+  user-select: text;
+}
+
+.ctr-engine-command + .ctr-engine-action {
+  margin-left: 0;
+}
+
 .ctr-engine-action {
   margin-left: auto;
   align-self: center;

@@ -21,7 +21,7 @@ function container(over: Partial<Container> = {}): Container {
 
 function input(containers: Container[], over: Partial<RenderKeyInput> = {}): RenderKeyInput {
   return {
-    engines: [{ engine: 'docker', running: true, pending: null, canStart: false, canStop: false }],
+    engines: [{ engine: 'docker', running: true, pending: null, canStart: false, canStop: false, startCommand: null }],
     groups: groupContainers(containers),
     expandedGroups: new Set(['docker:container:abc']),
     busy: new Set(),
@@ -53,14 +53,14 @@ describe('renderKey', () => {
     expect(renderKey(input([container()], { busy: new Set(['docker:container:abc']) }))).not.toBe(renderKey(base));
     expect(renderKey(input([container()], { logsKey: 'docker:abc' }))).not.toBe(renderKey(base));
     expect(
-      renderKey(input([container()], { engines: [{ engine: 'docker', running: false, pending: null, canStart: false, canStop: false }] })),
+      renderKey(input([container()], { engines: [{ engine: 'docker', running: false, pending: null, canStart: false, canStop: false, startCommand: null }] })),
     ).not.toBe(renderKey(base));
     expect(renderKey(input([container()], { usageText: () => '' }))).not.toBe(renderKey(base));
   });
 
   it('changes when an engine starts or stops, its controls change, or its own action is busy', () => {
-    const docker = { engine: 'docker' as const, running: true, pending: null, canStart: false, canStop: false };
-    for (const over of [{ pending: 'stopping' as const }, { canStart: true }, { canStop: true }]) {
+    const docker = { engine: 'docker' as const, running: true, pending: null, canStart: false, canStop: false, startCommand: null };
+    for (const over of [{ pending: 'stopping' as const }, { canStart: true }, { canStop: true }, { startCommand: 'sudo systemctl start docker' }]) {
       expect(renderKey(input([container()], { engines: [{ ...docker, ...over }] }))).not.toBe(renderKey(base));
     }
     expect(renderKey(input([container()], { busy: new Set([engineBusyKey('docker')]) }))).not.toBe(

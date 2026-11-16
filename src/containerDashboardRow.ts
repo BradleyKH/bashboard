@@ -22,6 +22,9 @@ export function renderContainerDashboardRow(
     const text = document.createElement('div');
     text.className = 'container-name';
     text.textContent = `${engineLabel(row.engine)} ${unavailableText(row)}`;
+    if (!row.canStart && row.startCommand !== null && row.pending === null) {
+      text.title = `To start it, run: ${row.startCommand}`;
+    }
     el.append(text);
     if (row.canStart && row.pending === null) {
       const start = iconButton('Start', 'container-engine-start', `Start ${engineLabel(row.engine)}`, () =>

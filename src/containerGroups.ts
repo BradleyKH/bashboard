@@ -30,6 +30,8 @@ export interface DashboardUnavailableRow {
   engine: Engine;
   /** Show Start. */
   canStart: boolean;
+  /** The command to run by hand when the app cannot start the engine; shown as a tooltip. */
+  startCommand: string | null;
   pending: EngineLifecycle | null;
 }
 
@@ -101,7 +103,7 @@ export function dashboardRows(snapshot: ContainersSnapshot): DashboardContainerR
   }
   const unavailable: DashboardUnavailableRow[] = snapshot.engines
     .filter((e) => !e.running)
-    .map((e) => ({ kind: 'unavailable', engine: e.engine, canStart: e.canStart, pending: e.pending }));
+    .map((e) => ({ kind: 'unavailable', engine: e.engine, canStart: e.canStart, startCommand: e.startCommand, pending: e.pending }));
   return [...rows, ...unavailable];
 }
 

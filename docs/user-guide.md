@@ -973,8 +973,11 @@ and its projects expand to their containers. An engine's heading has a Start or 
 the engine itself. Stop asks first, since it stops every container on that engine and shuts the
 engine down for other apps too; the dashboard offers only Start. Bashboard starts Docker Desktop
 with `docker desktop start` (or by launching Docker Desktop, which it can then only start, on
-versions before 4.37) and Podman with `podman machine start`. Other setups, such as Docker Engine
-inside WSL, get no buttons. A container row shows its service or container name,
+versions before 4.37) and Podman with `podman machine start`. On Linux it uses `docker desktop
+start`, or `systemctl --user start` on a `docker-desktop.service` or rootless `docker.service`
+user unit. When Docker's only unit is the system `docker.service`, which needs root, the heading
+shows `sudo systemctl start docker` with a Copy button for you to run yourself; Bashboard never
+runs it. Other setups, such as Docker Engine inside WSL, get no buttons. A container row shows its service or container name,
 image, status text, and published ports, which open `http://localhost:<port>` when clicked, and its
 CPU and memory, refreshed every 5 seconds while the pane is on screen. Start, Stop, and Restart act
 on a container or on a whole project; every row shows its buttons, greyed when they do not apply,

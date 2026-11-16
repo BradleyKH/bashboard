@@ -225,7 +225,7 @@ export class ContainersPane implements PaneView {
     const out: HTMLElement[] = [];
     for (const e of engines) {
       // A lone engine needs no heading for its name, but it is where Start and Stop live.
-      if (engines.length > 1 || e.canStart || e.canStop) out.push(this.engineHeading(e));
+      if (engines.length > 1 || e.canStart || e.canStop || e.startCommand !== null) out.push(this.engineHeading(e));
       if (!e.running) {
         const what = e.pending === 'starting' ? 'is starting…' : 'is not running';
         out.push(this.note(`${engineLabel(e.engine)} ${what}`));
@@ -269,6 +269,13 @@ export class ContainersPane implements PaneView {
       h.append(this.engineButton('Start', `Start ${engineLabel(e.engine)}`, busy, () => void this.startEngine(e)));
     } else if (e.running && e.canStop) {
       h.append(this.engineButton('Stop', `Stop ${engineLabel(e.engine)}`, busy, () => void this.stopEngine(e)));
+    } else if (!e.running && e.startCommand !== null) {
+      // The app cannot start this engine itself (it needs root), so it shows the command to run.
+      const command = e.startCommand;
+      const code = document.createElement('code');
+      code.className = 'ctr-engine-command';
+      code.textContent = command;
+      h.append(code, this.engineButton('Copy', 'Copy the start command', false, () => void copyText(command, 'command')));
     }
     return h;
   }
