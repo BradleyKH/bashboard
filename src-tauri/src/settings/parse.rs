@@ -750,6 +750,15 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             d.local_browser.reload_on_change,
         ),
     };
+    let linux = LinuxSettings {
+        disable_dmabuf_renderer: pick(
+            &root,
+            &["linux", "disableDmabufRenderer"],
+            &mut w,
+            |v| v.as_str().and_then(AutoSwitch::from_id),
+            d.linux.disable_dmabuf_renderer,
+        ),
+    };
     let keybindings = parse_keybindings(&root, &mut w);
 
     Ok((
@@ -779,6 +788,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             local_models,
             ship,
             local_browser,
+            linux,
             keybindings,
         },
         w,

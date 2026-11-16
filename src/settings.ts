@@ -107,6 +107,8 @@ export interface Settings {
     cdnHosts: string[];
     reloadOnChange: boolean;
   };
+  /** Read by the core once at launch on Linux; other OSes ignore it (docs/settings.md). */
+  linux: { disableDmabufRenderer: 'auto' | 'on' | 'off' };
   keybindings: KeybindingEntry[];
 }
 
@@ -166,6 +168,7 @@ export const DEFAULT_SETTINGS: Settings = {
     cdnHosts: ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'unpkg.com', 'fonts.googleapis.com', 'fonts.gstatic.com'],
     reloadOnChange: true,
   },
+  linux: { disableDmabufRenderer: 'auto' },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

@@ -362,6 +362,20 @@ sends its uncaught errors, unhandled rejections, and failed pane restores throug
 an immediate repeat and anything past 20 a minute, and the core caps each at 4000 characters.
 Debug builds keep stderr on the terminal.
 
+## 3.31 WebKitGTK environment (`src-tauri/src/webkit_env.rs`)
+
+On Linux, WebKitGTK's DMA-BUF renderer draws a blank window on NVIDIA's proprietary driver and
+on some others; `WEBKIT_DISABLE_DMABUF_RENDERER=1` falls back to a renderer that works there.
+WebKit reads the variable when it starts its web process, so `webkit_env::apply` sets it at the
+top of `run`, before Tauri starts any thread (setting a variable later would race other
+threads' reads of the environment). Settings are not loaded yet at that point, so it reads
+`linux.disableDmabufRenderer` (`auto`, `on`, or `off`) straight from the settings file, at the
+path Tauri's config folder gives it on Linux (`$XDG_CONFIG_HOME` or `~/.config`, then
+`dev.bashboard`). `auto` turns the renderer off when `/proc/driver/nvidia/version` exists. A
+value the user already set in the environment wins and is left alone. When the app set the
+variable itself, `child_process::prepare` removes it from every program the app starts, so a
+browser or another WebKit app opened from a pane keeps its own renderer.
+
 ## 4.17 Setup wizard
 
 Shown at launch when `settings.json` did not exist before that launch (the settings payload's

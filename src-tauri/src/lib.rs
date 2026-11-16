@@ -64,6 +64,7 @@ mod toast;
 mod toast_mac;
 mod transcript;
 mod usage;
+mod webkit_env;
 mod workspace;
 mod worktree_new;
 mod worktree_route;
@@ -170,6 +171,8 @@ fn setup_main_window(window: &tauri::WebviewWindow) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     app_log::install_panic_hook();
+    #[cfg(target_os = "linux")]
+    webkit_env::apply();
     login_path::adopt();
     let builder = tauri::Builder::default();
     // Release builds only: the lock is keyed on the app identifier, which debug builds share,

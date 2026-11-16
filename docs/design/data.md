@@ -374,6 +374,11 @@ the focused pane's folder.
     "cdnHosts": ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"],
     "reloadOnChange": true
   },
+  // Linux only, read once at launch (3.31). disableDmabufRenderer turns off WebKitGTK's DMA-BUF
+  // renderer, which draws a blank window on some GPU drivers: auto turns it off on NVIDIA's
+  // proprietary driver, on always, off never. A WEBKIT_DISABLE_DMABUF_RENDERER the user already
+  // set wins over all three. No Settings tab field.
+  "linux": { "disableDmabufRenderer": "auto" },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, vim, nvim,
   // or default (the file's default app). vim and nvim open in a pane. A non-empty command

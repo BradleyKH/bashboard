@@ -98,6 +98,13 @@ pub fn settings_open_file(app: AppHandle) -> Result<(), String> {
     crate::child_process::open_default(&app, &file.to_string_lossy(), false)
 }
 
+/// The settings in the file at `path`, or the defaults, for a decision made before Tauri starts
+/// and so before `init` (webkit_env.rs).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn read_before_start(path: &Path) -> Settings {
+    load(path).0
+}
+
 /// Creates the default file if missing, loads it into state, and starts the watcher.
 pub fn init(app: &AppHandle) {
     let Some(path) = settings_path(app) else {

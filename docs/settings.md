@@ -515,6 +515,19 @@ also in the Local Browser section of the Settings tab.
 }
 ```
 
+## Linux
+
+`linux.disableDmabufRenderer` (default `"auto"`) works around a blank window on Linux. WebKitGTK's
+DMA-BUF renderer draws nothing on NVIDIA's proprietary driver and on some others. `"auto"` turns it
+off when the NVIDIA driver is loaded, `"on"` always turns it off, and `"off"` never does. Try `"on"`
+if the window opens blank on another GPU. If you set `WEBKIT_DISABLE_DMABUF_RENDERER` in your
+environment, that value wins. It applies at the next launch, other OSes ignore it, and it has no
+field in the Settings tab; edit the file.
+
+```jsonc
+"linux": { "disableDmabufRenderer": "on" }
+```
+
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to
 `settings.json`. Bashboard rewrites `workspace.json` itself (version 3, holding every tab);
 `favorites.json`, `layouts.json`, and `repos.json` are plain JSON you can edit by hand, and the

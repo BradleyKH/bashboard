@@ -20,9 +20,10 @@ describe('SETTINGS_SECTIONS', () => {
   it('covers every non-keybinding leaf exactly once', () => {
     const { keybindings: _keybindings, ...rest } = DEFAULT_SETTINGS;
     // Pins are edited from the Ship pane and bookmarks from the Local Browser pane, so neither
-    // list has a Settings tab field; the CDN host list is edited in the file.
-    const listsWithoutFields = ['ship.pinnedRepos', 'localBrowser.bookmarks', 'localBrowser.cdnHosts'];
-    const expected = leaves(rest).filter((p) => !listsWithoutFields.includes(p));
+    // list has a Settings tab field; the CDN host list is edited in the file. The Linux renderer
+    // switch is a launch-time workaround that means nothing on the other OSes.
+    const withoutFields = ['ship.pinnedRepos', 'localBrowser.bookmarks', 'localBrowser.cdnHosts', 'linux.disableDmabufRenderer'];
+    const expected = leaves(rest).filter((p) => !withoutFields.includes(p));
     expect(fields.map((f) => f.path.join('.')).sort()).toEqual(expected.sort());
   });
 

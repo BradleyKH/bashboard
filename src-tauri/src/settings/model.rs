@@ -272,6 +272,35 @@ pub struct LocalBrowser {
     pub reload_on_change: bool,
 }
 
+/// A switch the app may also decide for itself: `auto` leaves it to the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AutoSwitch {
+    Auto,
+    On,
+    Off,
+}
+
+impl AutoSwitch {
+    pub fn from_id(id: &str) -> Option<Self> {
+        match id {
+            "auto" => Some(Self::Auto),
+            "on" => Some(Self::On),
+            "off" => Some(Self::Off),
+            _ => None,
+        }
+    }
+}
+
+/// Linux-only settings, read once at launch; other OSes ignore them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinuxSettings {
+    /// Turns off WebKitGTK's DMA-BUF renderer, which draws a blank window on some GPU drivers
+    /// (docs/design/app.md section 3.31). `auto` turns it off on NVIDIA's proprietary driver.
+    pub disable_dmabuf_renderer: AutoSwitch,
+}
+
 /// The public CDNs a generated page usually loads scripts, styles, and fonts from.
 pub const DEFAULT_CDN_HOSTS: [&str; 5] =
     ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"];
@@ -370,6 +399,7 @@ pub struct Settings {
     pub local_models: LocalModels,
     pub ship: Ship,
     pub local_browser: LocalBrowser,
+    pub linux: LinuxSettings,
     pub keybindings: Vec<Keybinding>,
 }
 
@@ -480,6 +510,7 @@ impl Default for Settings {
                 cdn_hosts: DEFAULT_CDN_HOSTS.iter().map(|h| h.to_string()).collect(),
                 reload_on_change: true,
             },
+            linux: LinuxSettings { disable_dmabuf_renderer: AutoSwitch::Auto },
             keybindings: default_keybindings(),
         }
     }

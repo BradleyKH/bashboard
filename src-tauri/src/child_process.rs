@@ -37,7 +37,9 @@ fn hide_console(cmd: &mut Command) {
 fn hide_console(_cmd: &mut Command) {}
 
 /// The changes a child's environment needs: a value to set, or `None` to remove. Empty outside
-/// an AppImage. Read fresh each time, since `login_path` replaces `PATH` after startup.
+/// an AppImage unless the app set WebKit's renderer switch for itself (webkit_env.rs), which a
+/// browser or another WebKit app started from here must not inherit. Read fresh each time, since
+/// `login_path` replaces `PATH` after startup.
 pub fn fixes() -> Vec<(String, Option<String>)> {
     if !cfg!(target_os = "linux") {
         return Vec::new();
@@ -45,7 +47,11 @@ pub fn fixes() -> Vec<(String, Option<String>)> {
     let vars: Vec<(String, String)> = std::env::vars_os()
         .filter_map(|(k, v)| Some((k.into_string().ok()?, v.into_string().ok()?)))
         .collect();
-    appimage_fixes(&vars)
+    let mut fixes = appimage_fixes(&vars);
+    if crate::webkit_env::app_set_dmabuf() {
+        fixes.push((crate::webkit_env::DMABUF_VAR.to_string(), None));
+    }
+    fixes
 }
 
 /// `name` as a child sees it after `fixes`.
