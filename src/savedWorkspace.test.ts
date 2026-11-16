@@ -707,6 +707,12 @@ describe('parseSavedWorkspace', () => {
     expect(parseSavedWorkspace({ ...v3([]), tourDone: 'yes' })).not.toHaveProperty('tourDone');
   });
 
+  it('keeps only a true AppImage offer flag', () => {
+    expect(parseSavedWorkspace({ ...v3([]), appImageOfferShown: true })?.appImageOfferShown).toBe(true);
+    expect(parseSavedWorkspace({ ...v3([]), appImageOfferShown: false })).not.toHaveProperty('appImageOfferShown');
+    expect(parseSavedWorkspace({ ...v3([]), appImageOfferShown: 'yes' })).not.toHaveProperty('appImageOfferShown');
+  });
+
   it('keeps a saved element order and cleans it', () => {
     const order = ['clock', 'launch', 'needs', 'external', 'system', 'media', 'wave', 'favorites', 'layouts', 'panes', 'containers', 'ports', 'ship', 'branch', 'localModels'];
     expect(parseSavedWorkspace({ ...v3([]), dashboardSectionOrder: order })?.dashboardSectionOrder).toEqual(order);

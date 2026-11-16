@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name={{name}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}} %F
+Icon={{icon}}
+StartupWMClass={{exec}}
+Terminal=false
+Type=Application
+Categories=Development;System;TerminalEmulator;
+Keywords=terminal;claude;agent;
+MimeType=inode/directory;

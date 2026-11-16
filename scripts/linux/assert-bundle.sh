@@ -2,8 +2,9 @@
 # Fails unless the .deb and .rpm keep bashboard and bb in /usr/lib/bashboard, with
 # /usr/bin/bashboard a symlink and no /usr/bin/bb (where it would collide with Babashka), and the
 # AppImage carries bb beside bashboard. pty.rs puts bb's folder on the pane PATH and
-# hook_install.rs copies the hook from it (docs/design/app.md section 3.13). Run from the repo
-# root after scripts/linux/relayout-packages.sh.
+# hook_install.rs copies the hook from it (docs/design/app.md section 3.13). It also checks the
+# desktop integration: the webkit and gtk dependencies, a desktop file that opens folders, and
+# a valid hicolor icon set. Run from the repo root after scripts/linux/relayout-packages.sh.
 set -euo pipefail
 
 bundle=src-tauri/target/release/bundle
@@ -28,7 +29,50 @@ check_layout() {
     echo "::error::$1 puts bb in usr/bin"
     exit 1
   fi
-  echo "$1 ships usr/lib/bashboard/{bashboard,bb}"
+  if ! grep -qx 'usr/share/icons/hicolor/256x256/apps/bashboard.png' <<<"$listing"; then
+    echo "::error::$1 has no hicolor/256x256/apps/bashboard.png icon"
+    echo "$listing"
+    exit 1
+  fi
+  if grep -q 'hicolor/[^/]*@' <<<"$listing"; then
+    echo "::error::$1 ships an invalid hicolor size folder (the @2 kind)"
+    grep 'hicolor/[^/]*@' <<<"$listing"
+    exit 1
+  fi
+  echo "$1 ships usr/lib/bashboard/{bashboard,bb} and a valid icon set"
+}
+
+# $1 names the package; stdin is its dependency list, one per line.
+check_depends() {
+  local deps
+  deps=$(cat)
+  for want in webkit2gtk 'gtk[-_]\{0,1\}3'; do
+    if ! grep -q "$want" <<<"$deps"; then
+      echo "::error::$1 does not depend on $want"
+      echo "$deps"
+      exit 1
+    fi
+  done
+  echo "$1 depends on webkit2gtk and gtk3"
+}
+
+# $1 names the package; stdin is its desktop file.
+check_desktop() {
+  local desktop
+  desktop=$(cat)
+  for want in 'Exec=bashboard %F' 'MimeType=inode/directory;' 'Icon=bashboard' 'StartupWMClass=bashboard'; do
+    if ! grep -qxF "$want" <<<"$desktop"; then
+      echo "::error::$1 desktop file lacks $want"
+      echo "$desktop"
+      exit 1
+    fi
+  done
+  if ! grep -qE '^Categories=.+;$' <<<"$desktop"; then
+    echo "::error::$1 desktop file has an empty Categories"
+    echo "$desktop"
+    exit 1
+  fi
+  echo "$1 desktop file opens folders (Exec=bashboard %F, MimeType=inode/directory;)"
 }
 
 deb=$(find "$bundle/deb" -maxdepth 1 -name '*.deb' | head -n 1)
@@ -37,6 +81,8 @@ if [ -z "$deb" ]; then
   exit 1
 fi
 dpkg-deb -c "$deb" | awk '{ $1=$2=$3=$4=$5=""; sub(/^ +/, ""); sub(/^\.\//, ""); print }' | check_layout "$deb"
+dpkg-deb -f "$deb" Depends | tr ',' '\n' | check_depends "$deb"
+dpkg-deb --fsys-tarfile "$deb" | tar -xO --wildcards './usr/share/applications/*.desktop' | check_desktop "$deb"
 
 rpm=$(find "$bundle/rpm" -maxdepth 1 -name '*.rpm' 2>/dev/null | head -n 1)
 if [ -z "$rpm" ]; then
@@ -45,6 +91,9 @@ if [ -z "$rpm" ]; then
 fi
 rpm -qp --qf '[%{FILENAMES}|%{FILELINKTOS}\n]' "$rpm" \
   | awk -F '|' '{ sub(/^\//, "", $1); print ($2 == "" ? $1 : $1 " -> " $2) }' | check_layout "$rpm"
+rpm -qpR "$rpm" | check_depends "$rpm"
+# Ubuntu 22.04's rpm2cpio exits 1 after writing a whole payload, so the desktop file is the test.
+(rpm2cpio "$rpm" 2>/dev/null || true) | cpio -i --to-stdout --quiet './usr/share/applications/*.desktop' 2>/dev/null | check_desktop "$rpm"
 
 image=$(find "$bundle/appimage" -maxdepth 1 -name '*.AppImage' | head -n 1)
 if [ -z "$image" ]; then
@@ -60,3 +109,9 @@ if [ ! -x "$work/squashfs-root/usr/bin/bashboard" ] || [ ! -x "$work/squashfs-ro
   exit 1
 fi
 echo "$image ships usr/bin/bb"
+desktop=$(find "$work/squashfs-root" -maxdepth 1 -name '*.desktop' | head -n 1)
+if [ -z "$desktop" ]; then
+  echo "::error::$image has no desktop file"
+  exit 1
+fi
+check_desktop "$image" <"$desktop"

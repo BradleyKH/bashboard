@@ -566,3 +566,13 @@ without asking. `bb auth` writes to the file only once it exists, so allow it fr
 tab first, or start a keyring. Each stored token on the Accounts tab says whether it is in the
 keyring or in a file, and once a keyring is running, **Move to keyring** moves the file's tokens
 into it and removes them from the file.
+
+## AppImage on Linux
+
+An AppImage has no applications-menu entry of its own. The first time Bashboard runs from one
+(and no `~/.local/share/applications/bashboard.desktop` exists), a toast offers to add it:
+**Add** writes that file, with Open with Bashboard for folders in file managers, and copies the
+icon to `~/.local/share/icons` (`$XDG_DATA_HOME` replaces `~/.local/share` when it is set). The
+offer appears once, and ignoring the toast declines it. To add the entry later, write that
+desktop file yourself with `Exec` naming the AppImage; the `.deb` and `.rpm` packages install
+their own.

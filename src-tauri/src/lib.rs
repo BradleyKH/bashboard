@@ -1,5 +1,6 @@
 mod agents;
 mod app_log;
+mod appimage_entry;
 mod atomic_file;
 mod backdrop_image;
 mod background_agents;
@@ -267,6 +268,8 @@ pub fn run() {
             second_instance::startup_folder_take,
             shell_integration::shell_integration_preview,
             shell_integration::shell_integration_install,
+            appimage_entry::appimage_entry_status,
+            appimage_entry::appimage_entry_install,
             git_install::git_install_status,
             git_install::git_install,
             links::open_url,

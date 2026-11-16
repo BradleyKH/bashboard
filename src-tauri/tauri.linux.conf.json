@@ -1,0 +1,19 @@
+{
+  "bundle": {
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/256x256.png"
+    ],
+    "longDescription": "Bashboard runs shell panes (bash, zsh, fish) in xterm.js over a live colony-simulation backdrop, with tabs, a dashboard, file, git, search, container, and port panes, and the bb command for driving panes from a shell. It is built for running Claude Code and other AI coding agents side by side.",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/bashboard.desktop"
+      },
+      "rpm": {
+        "depends": ["webkit2gtk4.1", "gtk3"],
+        "desktopTemplate": "linux/bashboard.desktop"
+      }
+    }
+  }
+}

@@ -157,6 +157,8 @@ export interface SavedWorkspace {
   dashboardHideNoticeShown?: boolean;
   /** Whether the first-run tour finished or was skipped; absent means not yet. */
   tourDone?: boolean;
+  /** Whether the AppImage menu entry offer has been shown (4.17); absent means not yet. */
+  appImageOfferShown?: boolean;
   /** The zoom new Files, Git, Search, Scratch, and Containers panes start at; absent means 1 for each. */
   textZoom?: TextZoom;
   /** The view a new Files pane starts in; absent means tree. */
@@ -438,6 +440,7 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   }
   if (raw.dashboardHideNoticeShown === true) saved.dashboardHideNoticeShown = true;
   if (raw.tourDone === true) saved.tourDone = true;
+  if (raw.appImageOfferShown === true) saved.appImageOfferShown = true;
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   const filesView = parseFilesView(raw.filesView);
   if (filesView) saved.filesView = filesView;

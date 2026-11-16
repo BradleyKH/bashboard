@@ -415,6 +415,31 @@ value the user already set in the environment wins and is left alone. When the a
 variable itself, `child_process::prepare` removes it from every program the app starts, so a
 browser or another WebKit app opened from a pane keeps its own renderer.
 
+## 3.32 AppImage menu entry (`src-tauri/src/appimage_entry.rs`, `src/appImageOffer.ts`)
+
+An AppImage is one file that nothing registers, so it has no applications-menu entry, no icon,
+and no Open with Bashboard for folders. When the app runs from one (`APPIMAGE` names its file, on
+Linux only) and `$XDG_DATA_HOME/applications/bashboard.desktop` (default
+`~/.local/share/applications`) does not exist, `appimage_entry_status` says to offer, and the
+front end shows one toast, after the first run's setup and tour card, asking to add Bashboard to
+the applications menu. Its **Add** button calls `appimage_entry_install`; leaving the toast alone
+is the decline. The offer is shown once, whatever the answer: `appImageOfferShown` (8) is set when
+it appears, so a launch after a decline or a missed toast stays quiet. Deleting the entry by hand
+does not bring the offer back.
+
+The install writes the desktop file with the keys of the package's template, except that `Exec`
+and `TryExec` name the AppImage: `Exec="<path>" %F` (quoted per the Desktop Entry Specification
+when the path has spaces or other reserved characters, with `%` doubled), `Icon=bashboard`,
+`MimeType=inode/directory;` (a folder argument opens a tab, 3.18), the same `Categories` and
+`Keywords`, and `StartupWMClass=bashboard`. It copies `bashboard.png` from each
+`usr/share/icons/hicolor/<W>x<H>/apps/` folder of the AppImage's mount (`APPDIR`) to the same
+place under `$XDG_DATA_HOME/icons`, skipping a folder whose name is not a plain size. A mount with
+none falls back to the top-level `bashboard.png`, then `.DirIcon`, filed under the size its PNG
+header declares. Icons are written before the desktop file, so a failure never leaves an entry
+without its icon, and the desktop file is replaced atomically. Last, `update-desktop-database`
+runs on the applications folder when it exists; its failure is ignored. The entry points at the
+AppImage's current path, so moving the file leaves the entry stale until it is edited.
+
 ## 4.17 Setup wizard
 
 Shown at launch when `settings.json` did not exist before that launch (the settings payload's

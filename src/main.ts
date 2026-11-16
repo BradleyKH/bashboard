@@ -60,6 +60,7 @@ import { FavoritesLayouts } from './favoritesLayouts';
 import { RepoTracker } from './repoTracker';
 import { LaunchController } from './launchController';
 import { HookOffer } from './hookOffer';
+import { offerAppImageEntry } from './appImageOffer';
 import { PaletteController } from './paletteController';
 import { TourController } from './tourController';
 import { AppDialogs } from './appDialogs';
@@ -157,6 +158,7 @@ const state: AppState = {
   globalPins: [],
   hideNoticeShown: false,
   tourDone: false,
+  appImageOfferShown: false,
 };
 setKeyHintBindings(state.settings.keybindings);
 
@@ -495,6 +497,7 @@ const saver = new DebouncedSaver(
     hideGlobalPins: !panel.globalPinsShown() || undefined,
     dashboardHideNoticeShown: state.hideNoticeShown || undefined,
     tourDone: state.tourDone || undefined,
+    appImageOfferShown: state.appImageOfferShown || undefined,
     textZoom: textZoomSnapshot(),
     filesView: filesView() === 'folder' ? ('folder' as const) : undefined,
     needsYouHides: needsYouStore.hides(),
@@ -568,6 +571,7 @@ try {
   if (saved?.needsYouHides) needsYouStore.hydrateHides(saved.needsYouHides);
   if (saved?.dashboardHideNoticeShown) state.hideNoticeShown = true;
   if (saved?.tourDone) state.tourDone = true;
+  if (saved?.appImageOfferShown) state.appImageOfferShown = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (saved?.filesView) loadFilesView(saved.filesView);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
@@ -592,6 +596,8 @@ if (!restored) workspace.addPane(startupFolder ?? undefined);
 else if (startupFolder) workspace.newTab(startupFolder);
 repo.track();
 syncGitFetchRoots(workspace.panes());
-if (payload.firstRun) void dialogs.showSetup().then(() => tour.offer());
+// The AppImage menu offer waits for the first run's setup and tour card, so it never lands on them.
+const firstRunDone = payload.firstRun ? dialogs.showSetup().then(() => tour.offer()) : Promise.resolve();
+void firstRunDone.then(() => offerAppImageEntry({ state, save: () => saver.schedule() }));
 void checkForUpdate({ manual: false, confirm: (o) => confirmDialog.open(o) });
 listenSettingsChanges({ state, workspace, panel, dialogs, applyBackdropSettings, refreshProfiles });

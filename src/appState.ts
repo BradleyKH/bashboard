@@ -24,4 +24,6 @@ export interface AppState {
   hideNoticeShown: boolean;
   /** Set once the first-run tour finished or was skipped; restored from the saved workspace. */
   tourDone: boolean;
+  /** Set once the AppImage menu entry offer has been shown, accepted or not; restored from the saved workspace. */
+  appImageOfferShown: boolean;
 }
