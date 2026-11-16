@@ -97,6 +97,8 @@ from **Settings > Apps > Installed apps**. To build from source, see
 - [Development](docs/development.md): building from source, releasing, and debugging input.
 - [Testing a macOS preview build](docs/macos-testing.md): installing an early macOS build and
   what to check.
+- [Testing a Linux build](docs/linux-testing.md): installing a Linux build and what to check on
+  a real machine.
 - [Design](docs/design/README.md): the spec, for anyone changing Bashboard itself.
 
 ## License

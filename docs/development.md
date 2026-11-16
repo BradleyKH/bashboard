@@ -119,7 +119,9 @@ shares the installed app's lock and saved workspace.
 `main` and every pull request, then builds the installer and uploads it as the
 `bashboard-installer` artifact on the workflow run. Its `macos` job runs the same checks on a
 Mac runner and builds a universal `.app` (not uploaded); for a `.dmg` to hand to a tester, run
-the `macOS preview` workflow from the Actions tab.
+the `macOS preview` workflow from the Actions tab. Its `linux` job builds the `.deb`, `.rpm`,
+and AppImage and uploads them as the `bashboard-linux` artifact; [Testing a Linux
+build](linux-testing.md) lists what to check with them.
 
 To publish a release:
 
@@ -197,6 +199,10 @@ built app:
 - a right-click in a terminal shows no browser menu
 - with a Local Browser page focused, typing and Ctrl+A reach the page, and Ctrl+Tab, Ctrl+Shift+Tab,
   Ctrl+, and the pane focus chords still act on the app
+
+On Linux, run the first list on each desktop you have, with IBus active for Ctrl+Shift+E, and
+note any chord the desktop takes, and record the result with the other checks for the release.
+[Testing a Linux build](linux-testing.md) has the rest of what to check on a Linux machine.
 
 On macOS, run this list as well:
 
