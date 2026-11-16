@@ -163,6 +163,13 @@ signal are not shown: Windows offers GPU load only through costly counters or ve
 and the Wi-Fi values need the WLAN API for little benefit. `system_sample(includeDisks)` returns
 the rows; the front end passes `includeDisks` on its 60 second beat.
 
+A drive is a drive letter on Windows; on macOS, `/` and each external drive under `/Volumes/`
+(the APFS system volumes share the root's container and would count its space again). On Linux
+it is any mount on a disk file system (ext4, btrfs, xfs, zfs, vfat, exfat, ntfs, and the like;
+`LINUX_DISK_FS` in `system.rs`) outside `/boot` and `/efi`, which leaves out tmpfs, overlay, snap
+and AppImage mounts, and WSL's shares. A device mounted at several paths, as btrfs subvolumes and
+bind mounts are, shows once, under its shortest mount path.
+
 Hovering the CPU or Memory row for a moment opens a popup of the six busiest programs by that
 measure. Processes are grouped by executable name (`.exe` dropped, case ignored), so a browser's
 dozens of processes read as one line with a `×24` count. CPU is each group's share of the whole

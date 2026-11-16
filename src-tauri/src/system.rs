@@ -125,25 +125,53 @@ fn drive_root(mount: &Path) -> Option<String> {
         .then(|| s[..2].to_ascii_uppercase())
 }
 
-/// Folders whose direct mounts are user volumes: macOS's external drives, and Linux's
-/// conventional places for extra disks.
-const UNIX_VOLUME_PARENTS: &[&str] = &["/Volumes/", "/mnt/", "/media/", "/run/media/"];
-
-/// `/` and the user volumes under `UNIX_VOLUME_PARENTS`, as their mount paths. Everything else
-/// is left out: macOS's APFS system volumes under `/System/Volumes` share the root's container
-/// and would count its space again, and Linux's `/boot`, tmpfs, and snap mounts are not disks a
-/// user thinks of.
-fn unix_volume(mount: &Path) -> Option<String> {
+/// `/` and the external drives under `/Volumes/`, as their mount paths. macOS's APFS system
+/// volumes under `/System/Volumes` share the root's container and would count its space again.
+fn mac_volume(mount: &Path) -> Option<String> {
     let s = mount.to_str()?;
-    let user_volume = UNIX_VOLUME_PARENTS
-        .iter()
-        .any(|parent| s.strip_prefix(parent).is_some_and(|rest| !rest.is_empty()));
-    (s == "/" || user_volume).then(|| s.to_string())
+    let external = s.strip_prefix("/Volumes/").is_some_and(|rest| !rest.is_empty());
+    (s == "/" || external).then(|| s.to_string())
+}
+
+/// Linux file systems that hold a user's files. An allowlist, since Linux mounts many virtual
+/// ones (tmpfs, overlay, squashfs, snap and AppImage FUSE mounts, WSL's 9p shares) and a new one
+/// should stay out rather than show up as a disk.
+const LINUX_DISK_FS: &[&str] = &[
+    "ext2", "ext3", "ext4", "btrfs", "xfs", "zfs", "f2fs", "bcachefs", "jfs", "reiserfs", "nilfs2",
+    "vfat", "exfat", "ntfs", "ntfs3", "fuseblk", "hfsplus",
+];
+
+/// A mount on a disk file system, except the boot and EFI partitions, which are not where a
+/// user's files live.
+fn linux_volume(mount: &Path, fs_type: &str) -> Option<String> {
+    let s = mount.to_str()?;
+    let boot = ["/boot", "/efi"].iter().any(|b| s == *b || s.starts_with(&format!("{b}/")));
+    (LINUX_DISK_FS.contains(&fs_type) && !boot).then(|| s.to_string())
 }
 
 /// The label a disk row shows: a drive letter on Windows, a mount path elsewhere.
-fn disk_label(mount: &Path) -> Option<String> {
-    if cfg!(windows) { drive_root(mount) } else { unix_volume(mount) }
+fn disk_label(mount: &Path, fs_type: &str) -> Option<String> {
+    if cfg!(windows) {
+        drive_root(mount)
+    } else if cfg!(target_os = "macos") {
+        mac_volume(mount)
+    } else {
+        linux_volume(mount, fs_type)
+    }
+}
+
+/// One row per device, the one with the shortest mount path: btrfs subvolumes and bind mounts
+/// show one device at several paths, each reporting the same space. Keeps first-seen order.
+fn one_per_device<T>(rows: Vec<(String, T)>, label: impl Fn(&T) -> &str) -> Vec<T> {
+    let mut kept: Vec<(String, T)> = Vec::new();
+    for (device, row) in rows {
+        match kept.iter_mut().find(|(d, _)| *d == device) {
+            Some(slot) if label(&row).len() < label(&slot.1).len() => slot.1 = row,
+            Some(_) => {}
+            None => kept.push((device, row)),
+        }
+    }
+    kept.into_iter().map(|(_, row)| row).collect()
 }
 
 /// `chrome.exe` as `chrome`; grouping ignores case, keeping the first spelling seen.
@@ -260,17 +288,23 @@ impl SystemSampler {
                 }
                 None => self.disks.insert(Disks::new_with_refreshed_list()),
             };
-            let mut rows: Vec<DiskRow> = disks
+            let rows: Vec<(String, DiskRow)> = disks
                 .iter()
                 .filter(|d| !d.is_removable())
                 .filter_map(|d| {
-                    Some(DiskRow {
-                        mount: disk_label(d.mount_point())?,
+                    let row = DiskRow {
+                        mount: disk_label(d.mount_point(), &d.file_system().to_string_lossy())?,
                         total_bytes: d.total_space(),
                         available_bytes: d.available_space(),
-                    })
+                    };
+                    Some((d.name().to_string_lossy().into_owned(), row))
                 })
                 .collect();
+            let mut rows = if cfg!(target_os = "linux") {
+                one_per_device(rows, |r| r.mount.as_str())
+            } else {
+                rows.into_iter().map(|(_, row)| row).collect()
+            };
             rows.sort_by(|a, b| a.mount.cmp(&b.mount));
             rows
         });
@@ -342,23 +376,59 @@ mod tests {
     }
 
     #[test]
-    fn unix_volumes_are_the_root_and_user_mounts() {
-        for keep in ["/", "/Volumes/Backup", "/mnt/data", "/media/usb", "/run/media/me/stick"] {
-            assert_eq!(unix_volume(Path::new(keep)).as_deref(), Some(keep), "{keep}");
+    fn mac_volumes_are_the_root_and_external_drives() {
+        for keep in ["/", "/Volumes/Backup"] {
+            assert_eq!(mac_volume(Path::new(keep)).as_deref(), Some(keep), "{keep}");
         }
-        for skip in [
-            "/System/Volumes/Data",
-            "/System/Volumes/VM",
-            "/boot",
-            "/boot/efi",
-            "/dev/shm",
-            "/snap/core/1",
-            "/Volumes/",
-            "/mnt",
-        ] {
-            assert_eq!(unix_volume(Path::new(skip)), None, "{skip}");
+        for skip in ["/System/Volumes/Data", "/System/Volumes/VM", "/Volumes/", "/private/var/vm"] {
+            assert_eq!(mac_volume(Path::new(skip)), None, "{skip}");
         }
     }
+
+    #[test]
+    fn linux_volumes_are_disk_file_systems_outside_boot() {
+        for (keep, fs) in [
+            ("/", "ext4"),
+            ("/home", "btrfs"),
+            ("/mnt/data", "xfs"),
+            ("/media/me/USB", "vfat"),
+            ("/data", "fuseblk"),
+            ("/bootstrap", "ext4"),
+        ] {
+            assert_eq!(linux_volume(Path::new(keep), fs).as_deref(), Some(keep), "{keep}");
+        }
+        // As WSL, an AppImage, snap, and a desktop session mount them.
+        for (skip, fs) in [
+            ("/boot", "ext4"),
+            ("/boot/efi", "vfat"),
+            ("/efi", "vfat"),
+            ("/tmp/.mount_BashbXYZ", "fuse.Bashboard_0.4.11_amd64.AppImage"),
+            ("/snap/core20/1778", "squashfs"),
+            ("/snap/bare/5", "fuse.snapfuse"),
+            ("/mnt/c", "9p"),
+            ("/usr/lib/wsl/lib", "overlay"),
+            ("/dev/shm", "tmpfs"),
+            ("/run/user/1000/doc", "fuse.portal"),
+            ("/sys/firmware/efi/efivars", "efivarfs"),
+        ] {
+            assert_eq!(linux_volume(Path::new(skip), fs), None, "{skip}");
+        }
+    }
+
+    #[test]
+    fn one_row_per_device_keeps_the_shortest_mount() {
+        // WSL's root disk at /, /snap, and /mnt/wslg/distro; a btrfs device with subvolumes.
+        let rows = vec![
+            ("/dev/sde".to_string(), "/mnt/wslg/distro"),
+            ("/dev/sde".to_string(), "/"),
+            ("/dev/sde".to_string(), "/snap"),
+            ("/dev/nvme0n1p2".to_string(), "/home"),
+            ("/dev/nvme0n1p2".to_string(), "/var/log"),
+            ("/dev/sdb1".to_string(), "/mnt/data"),
+        ];
+        assert_eq!(one_per_device(rows, |r| r), ["/", "/home", "/mnt/data"]);
+    }
+
     #[test]
     fn second_sample_fills_cpu_and_network() {
         let mut s = SystemSampler::default();
