@@ -50,6 +50,20 @@ export function undoCommitConfirm(shortHash: string, subject: string, pushed: bo
   };
 }
 
+/** Revert changes on a Changes row (docs/design/git.md section 4.13). */
+export function revertFileConfirm(path: string, untracked: boolean): ConfirmOptions {
+  return {
+    title: 'Revert changes',
+    body: [
+      untracked
+        ? `Delete ${path}? It is untracked, so git has no copy of it.`
+        : `Discard the unstaged changes to ${path}? Any staged changes to it are kept.`,
+      'This cannot be undone.',
+    ],
+    confirmLabel: untracked ? 'Delete' : 'Revert',
+  };
+}
+
 export function replaceConfirm(card: PaneCard, kind: PaneKind): ConfirmOptions {
   const loses = REPLACE_LOSES[card.kind];
   return {

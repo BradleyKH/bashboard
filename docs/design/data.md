@@ -110,7 +110,8 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
   of the open pull requests only). It is what `forge_overview_repo` returns (3.20). `PinnedRepo`
   is a `ship.pinnedRepos` entry (section 8): `repo`, and optionally `root` and `branches`.
 - `ForgeError`: `kind` (`notARepo`, `noRemote`, `unsupportedHost`, `notInstalled`, `signedOut`,
-  `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, or `other`), `message` (plain
+  `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, `needsFilePermission` (a
+  Linux token save with no keyring and no permission for the file; 3.20), or `other`), `message` (plain
   text, never a token or an `Authorization` header), `url` (a page to open), `signIn` (the argv to
   run in a new terminal pane), and `retryAfterSecs`.
 - `HostAuth`: `provider` (a `ProviderKind`), `host`, `cliInstalled` (`gh`, `glab`, or `az` was
@@ -118,10 +119,12 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
   CLI, at most one for GitLab CLI and Azure CLI; empty for Bitbucket), `activeAccount` (or null),
   `tokenSource` (a `TokenSourceKind`: `ghCli`, `glabCli`, `azCli`, `gitCredentialManager`,
   `bashboardCredential`, or `environment`; null when no source has a token), `storedTokens` (the
-  tokens Bashboard stored for the host, each `{ org }`: at most one for Bitbucket, with `org` null,
-  and one per Azure DevOps organization), `ghEnvToken` (the variable's name, or null; see 3.20),
-  `detected` (some signal says the host is used on this machine), and `detectedBy` (the reasons, in
-  words; empty when undetected). It never holds a token. `Known`, the argument of
+  tokens Bashboard stored for the host, each `{ org, location }`: at most one for Bitbucket, with
+  `org` null, and one per Azure DevOps organization; `location`, `keyring` or `file`, is present on
+  Linux only), `ghEnvToken` (the variable's name, or null; see 3.20), `detected` (some signal says
+  the host is used on this machine), `detectedBy` (the reasons, in words; empty when undetected),
+  `knownOrgs`, and `canMoveToKeyring` (Linux: a stored token is in the fallback file and a keyring
+  answers). It never holds a token. `Known`, the argument of
   `forge_auth_status`, is `{ hosts, dirs }`: `hosts` holds `{ provider, host }` for each pin and
   open Ship pane, and `dirs` the folders of open terminal panes. `AuthCheck`: `ok`, `login`,
   `scopes` (the granted scopes when the host reports them), and `message`. The
@@ -375,11 +378,13 @@ the focused pane's folder.
     "cdnHosts": ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"],
     "reloadOnChange": true
   },
-  // Linux only, read once at launch (3.31). disableDmabufRenderer turns off WebKitGTK's DMA-BUF
+  // Linux only. disableDmabufRenderer, read once at launch (3.31), turns off WebKitGTK's DMA-BUF
   // renderer, which draws a blank window on some GPU drivers: auto turns it off on NVIDIA's
   // proprietary driver, on always, off never. A WEBKIT_DISABLE_DMABUF_RENDERER the user already
-  // set wins over all three. No Settings tab field.
-  "linux": { "disableDmabufRenderer": "auto" },
+  // set wins over all three. allowFileCredentials, read on each token save, lets forge tokens go
+  // to a 0600 file when no Secret Service answers (3.20); the Accounts tab sets it when the user
+  // allows that. Neither has a Settings tab field.
+  "linux": { "disableDmabufRenderer": "auto", "allowFileCredentials": false },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, vim, nvim,
   // or default (the file's default app). vim and nvim open in a pane. A non-empty command

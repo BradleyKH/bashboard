@@ -289,8 +289,11 @@ checks it out (as Check out does below); Create makes the branch from HEAD and s
 - **Staged** and **Changes** lists. Changes holds unstaged and untracked files. Each row shows
   its status letter and path, with stage or unstage and Show in Files on hover; each list's
   header has Stage all or Unstage all. Clicking a row shows its diff. A right-click on a row
-  offers Show diff, Stage or Unstage, then Show in Files (disabled for a deleted file), Copy
-  path, and Insert path. Show in Files selects the file in the tab's Files pane for the repo,
+  offers Show diff, Stage or Unstage, Revert changes (Changes rows only), then Show in Files
+  (disabled for a deleted file), Copy path, and Insert path. Revert changes asks first, then
+  restores a modified or deleted file to its index version (`git restore --worktree`, so a staged
+  change to it survives) or deletes an untracked one (`git clean -f`); it is left off conflicted
+  rows and unstaged renames. Show in Files selects the file in the tab's Files pane for the repo,
   opening one if there is none, where it can be edited. Staged and Changes rows drag
   their path onto a terminal or scratch pad (4.4), a deleted file's included.
 - **Recent commits:** the last 20, each with subject, short hash, relative time, and a mark when

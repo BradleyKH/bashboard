@@ -135,8 +135,8 @@ reported rather than overwritten. The divider between
 the list and the preview can be dragged; until a file is selected, the list fills the pane.
 
 The **Tree** button (lit while on) shows the folder as a tree, as code editors do: each folder
-row has a chevron, and clicking it, double-clicking the row, or pressing Enter expands the folder
-in place. Right expands a folder or steps into an open one, and Left collapses it or steps out to
+row has a chevron, and clicking the row or its chevron, or pressing Enter, expands or collapses
+the folder in place. Right expands a folder or steps into an open one, and Left collapses it or steps out to
 its parent folder. Sorting applies within each folder, the filter searches every open folder, and
 Ctrl+V pastes into the folder of the selected row. The breadcrumb still shows the tree's top
 folder: going up, or clicking a segment, starts the tree there. Opening a pinned file or folder
@@ -313,7 +313,9 @@ or commit sits on the right:
 - **Staged** and **Changes** list the files. Changes holds unstaged, untracked, and conflicted
   files, each with its status letter. Hover a row for **Stage** or **Unstage** and **Open**,
   which shows the file in the tab's Files pane for the repo (opening one if there is none) so you
-  can edit it there; right-click a row for the same, as **Show in Files**. The button in a list's header stages or unstages every row in it. A rename shows as
+  can edit it there; right-click a row for the same, as **Show in Files**. Right-click a row in
+  Changes for **Revert changes**, which asks first, then throws away the file's unstaged changes
+  (keeping anything staged) or, for an untracked file, deletes it. The button in a list's header stages or unstages every row in it. A rename shows as
   `old -> new`.
 - **Recent commits** lists the last 20 commits with subject, short hash, and relative time. A commit
   that no remote-tracking branch contains is marked unpushed. Right-click an unpushed commit to
@@ -705,8 +707,8 @@ Containers, and Ports on the right, and the rest on the left. **Panes** has a ca
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab, or right-click it to rename the tab). A terminal's card shows its status (a green check mark when it is done),
 folder, and time since its status last changed, plus, while a coding agent session runs in it, the model
-and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k / 200k tokens" for Claude Code, and
-"Codex · gpt-5.5 · 112k / 272k tokens" for the others, which lead with the agent's name). When the context window
+and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k / 200k" for Claude Code, and
+"Codex · gpt-5.5 · 112k / 272k" for the others, which lead with the agent's name). When the context window
 is known, a small bar after the count shows how full it is, turning amber at 80% and red at 90%; Claude Code's
 window comes from its status line, so it appears once the status line has drawn with the Claude hooks installed
 (see [Usage limits and your status line](setup.md#usage-limits-and-your-status-line)). A card for any other kind of pane shows the
@@ -1119,7 +1121,7 @@ Besides Claude Code, Bashboard follows OpenAI Codex and GitHub Copilot CLI sessi
 dots, waiting and done markers, pane borders, notifications, Panes cards, and resume on relaunch
 work the way they do for Claude Code once that agent's hooks are installed (see
 [Agent hooks](setup.md#agent-hooks)). A card leads its model line with the agent's name, for
-example "Codex · gpt-5.5 · 112k / 272k tokens". Install each agent's hooks from the footer button
+example "Codex · gpt-5.5 · 112k / 272k". Install each agent's hooks from the footer button
 in the dashboard ("Install Codex hooks", "Install Copilot hooks") or the setup wizard's Coding
 agents step. Codex asks you to trust the hooks the next time it starts.
 
@@ -1287,8 +1289,13 @@ those keys themselves.
   **Sign in** runs `glab auth login` in a new terminal pane the same way, **Install GitLab CLI**
   runs `winget` or Homebrew the same way, and **Sign out** asks first and then signs out of the GitLab CLI for every app that
   uses it. The Bitbucket card says whether an API token is stored; **Add token** (or **Replace
-  token**) opens a password field, **Save** stores the token in Windows Credential Manager or the macOS Keychain, and
-  **Remove token** asks first and deletes it. It also lists the scopes the token needs, with
+  token**) opens a password field, **Save** stores the token in Windows Credential Manager, the macOS Keychain, or
+  the Linux keyring (GNOME Keyring, KWallet, or another Secret Service), and
+  **Remove token** asks first and deletes it. On Linux with no keyring running, the first **Save**
+  asks whether to keep tokens in a file only you can read (`~/.local/share/bashboard/credentials.json`);
+  **Allow** stores it there and saves later tokens there without asking, and **Cancel** stores
+  nothing. On Linux each stored token says whether it is in the keyring or in a file, and once a
+  keyring is running, **Move to keyring** moves the file's tokens into it. It also lists the scopes the token needs, with
   **Open the API token page** and **Copy scopes**. The Azure DevOps card has one row for each
   organization with a stored personal access token, each with **Replace**, **Remove** (which asks
   first), and **Test**; **Add token** opens a form with an organization field and a password
@@ -1406,7 +1413,7 @@ the setup script and its variables, and the approval are described in
 [New worktree](#new-worktree).
 
 `bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
-input), save it in Windows Credential Manager or the macOS Keychain (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
+input), save it in Windows Credential Manager, the macOS Keychain, or the Linux keyring (the same place the Accounts tab's **Add token** saves it), and do not open a pane. On Linux with no keyring running, they use the credentials file only after you allowed it from the Accounts tab, and otherwise say to start a keyring or save a token there once. `--clear` removes it. Each
 Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
 
 ```sh

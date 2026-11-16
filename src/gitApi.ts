@@ -52,6 +52,11 @@ export function gitUnstage(root: string, paths: string[]): Promise<void> {
   return invoke<void>('git_unstage', { root, paths });
 }
 
+/** Restores `tracked` paths to their index version and deletes `untracked` files. */
+export function gitDiscard(root: string, tracked: string[], untracked: string[]): Promise<void> {
+  return invoke<void>('git_discard', { root, tracked, untracked });
+}
+
 export function gitDiff(root: string, path: string, staged: boolean): Promise<GitDiff> {
   return invoke<GitDiff>('git_diff', { root, path, staged });
 }

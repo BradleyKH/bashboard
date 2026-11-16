@@ -9,6 +9,17 @@ export interface GitFileMenuHandlers {
   showInFiles: (row: GitRow) => void;
   copyPath: (row: GitRow) => void;
   insertPath: (row: GitRow) => void;
+  /** Throws away the row's unstaged change; the caller confirms first. */
+  revert: (row: GitRow) => void;
+}
+
+/**
+ * Revert applies to an unstaged edit or deletion and to an untracked file. A conflicted file has
+ * no single version to go back to, and an unstaged rename (from `add -N`) has two paths whose
+ * index versions do not undo it cleanly.
+ */
+export function canRevert(row: GitRow): boolean {
+  return row.kind === 'untracked' || (row.kind === 'unstaged' && !row.entry.origPath);
 }
 
 /** The menu for a changed-file row (docs/design/terminal.md section 4.4). */
@@ -16,6 +27,7 @@ export function gitFileMenuItems(row: GitRow, staged: boolean, h: GitFileMenuHan
   return [
     item('Show diff', () => h.showDiff(row)),
     item(staged ? 'Unstage' : 'Stage', () => h.toggle(row)),
+    ...(!staged && canRevert(row) ? [item('Revert changes...', () => h.revert(row))] : []),
     separator(),
     // A deleted file has nothing to show, and its row hides the Open button.
     item('Show in Files', () => h.showInFiles(row), { enabled: row.entry.status !== 'D' }),

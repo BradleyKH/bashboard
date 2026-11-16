@@ -638,6 +638,29 @@ impl Git {
         Self::ok(self.write(args)?).map(|_| ())
     }
 
+    /// Throws away unstaged work: `tracked` paths go back to their index version, and
+    /// `untracked` files are deleted. Status lists untracked files one by one
+    /// (`--untracked-files=all`), so `clean` never needs `-d`.
+    fn discard(&self, tracked: &[String], untracked: &[String]) -> Result<(), String> {
+        check_paths(tracked)?;
+        check_paths(untracked)?;
+        if !tracked.is_empty() {
+            let args = ["restore", "--worktree", "--"]
+                .iter()
+                .map(OsStr::new)
+                .chain(tracked.iter().map(OsStr::new));
+            Self::ok(self.write(args)?)?;
+        }
+        if !untracked.is_empty() {
+            let args = ["clean", "-f", "-q", "--"]
+                .iter()
+                .map(OsStr::new)
+                .chain(untracked.iter().map(OsStr::new));
+            Self::ok(self.write(args)?)?;
+        }
+        Ok(())
+    }
+
     fn diff(&self, path: &str, staged: bool) -> Result<GitDiff, String> {
         check_paths(&[path.to_string()])?;
         let p = OsStr::new(path);
@@ -801,6 +824,16 @@ pub async fn git_unstage(
     paths: Vec<String>,
 ) -> Result<(), String> {
     run(settings, root, move |g| g.unstage(&paths)).await
+}
+
+#[tauri::command]
+pub async fn git_discard(
+    settings: State<'_, SettingsState>,
+    root: String,
+    tracked: Vec<String>,
+    untracked: Vec<String>,
+) -> Result<(), String> {
+    run(settings, root, move |g| g.discard(&tracked, &untracked)).await
 }
 
 #[tauri::command]
@@ -1101,6 +1134,38 @@ mod tests {
         assert_eq!(paths(&s.staged), ["b c.txt"]);
         assert_eq!(paths(&s.untracked), ["a.txt"]);
         assert!(g.log(20).unwrap().is_empty());
+    }
+
+    #[test]
+    fn git_discard_restores_the_index_version_and_deletes_untracked_files() {
+        let g = repo("discard");
+        commit_file(&g, "a.txt", "one
+", "first");
+        commit_file(&g, "b.txt", "one
+", "second");
+        write(&g, "a.txt", "two
+");
+        sh(&g.root, &["add", "--", "a.txt"]);
+        write(&g, "a.txt", "three
+");
+        fs::remove_file(g.root.join("b.txt")).unwrap();
+        write(&g, "new file.txt", "hi
+");
+        write(&g, "keep.txt", "hi
+");
+        g.discard(&["a.txt".into(), "b.txt".into()], &["new file.txt".into()])
+            .unwrap();
+        // The staged change survives; only the unstaged one is gone.
+        assert_eq!(fs::read_to_string(g.root.join("a.txt")).unwrap(), "two
+");
+        assert_eq!(fs::read_to_string(g.root.join("b.txt")).unwrap(), "one
+");
+        assert!(!g.root.join("new file.txt").exists());
+        let s = g.status().unwrap();
+        assert!(s.unstaged.is_empty());
+        assert_eq!(paths(&s.staged), ["a.txt"]);
+        assert_eq!(paths(&s.untracked), ["keep.txt"]);
+        assert!(g.discard(&["../x".into()], &[]).is_err());
     }
 
     #[test]

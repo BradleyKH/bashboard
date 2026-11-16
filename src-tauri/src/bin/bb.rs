@@ -1060,18 +1060,43 @@ fn auth(rest: &[String]) -> Result<(), String> {
         }
         AuthAction::Store => {
             let token = clean_token(&read_secret(&prompt)?)?;
-            credential_store::write(&target, user, token.as_bytes())?;
-            println!("{}", stored_message(&provider));
+            // bb cannot read the app's settings, so an existing credentials file stands for the
+            // permission the user gave there.
+            let written = credential_store::write_with(
+                &target,
+                user,
+                token.as_bytes(),
+                credential_store::file_store_exists(),
+            );
+            credential_store::wipe(token);
+            let location = written.map_err(|e| {
+                if e == credential_store::NEEDS_FILE_PERMISSION {
+                    NO_KEYRING.to_string()
+                } else {
+                    e
+                }
+            })?;
+            println!("{}", stored_message(&provider, location));
         }
     }
     Ok(())
 }
 
-fn stored_message(provider: &AuthProvider) -> String {
+/// What `bb auth` says when a Linux machine has no keyring and the user has not allowed the file.
+const NO_KEYRING: &str = "no keyring is running, so bb can't store the token. Start one (GNOME Keyring or KWallet) and try again, or save a token once from Bashboard's Accounts tab, which asks whether to keep tokens in a file only you can read; bb then uses that file too";
+
+fn stored_message(provider: &AuthProvider, location: credential_store::Location) -> String {
+    let place = match location {
+        credential_store::Location::Keyring => STORE_NAME.to_string(),
+        credential_store::Location::File => credential_store::file_store_path().map_or_else(
+            || "the credentials file".into(),
+            |p| p.display().to_string(),
+        ),
+    };
     match provider {
-        AuthProvider::Bitbucket => format!("Stored the Bitbucket token in {STORE_NAME}."),
+        AuthProvider::Bitbucket => format!("Stored the Bitbucket token in {place}."),
         AuthProvider::AzureDevOps(org) => {
-            format!("Stored the Azure DevOps token for {org} in {STORE_NAME}.")
+            format!("Stored the Azure DevOps token for {org} in {place}.")
         }
     }
 }

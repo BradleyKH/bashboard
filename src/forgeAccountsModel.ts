@@ -1,6 +1,6 @@
 // Pure view model for the Accounts tab: one card per host, generic enough that the DOM view renders
 // the action unions without knowing about providers (docs/design/ship.md section 4.20).
-import type { HostAuth, ProviderKind, TokenSourceKind } from './forgeApi';
+import type { HostAuth, ProviderKind, TokenLocation, TokenSourceKind } from './forgeApi';
 import { signInAnotherArgv } from './shipMenus';
 import {
   AZURE_DEVOPS_SCOPE_INFO,
@@ -34,6 +34,8 @@ export interface TokenAction {
 
 export interface TokenRow {
   org: string;
+  /** Where the token is kept, on Linux only; null elsewhere. */
+  location: string | null;
   actions: TokenAction[];
 }
 
@@ -53,7 +55,8 @@ export type CardAction =
   | { kind: 'test'; label: string }
   | { kind: 'openUrl'; label: string; url: string }
   | { kind: 'openTokenPage'; label: string }
-  | { kind: 'copyScopes'; label: string; text: string };
+  | { kind: 'copyScopes'; label: string; text: string }
+  | { kind: 'moveToKeyring'; label: string };
 
 export interface HostCard {
   host: string;
@@ -111,6 +114,18 @@ function title(h: HostAuth): string {
   }
 }
 
+/** Linux reports a location for each stored token; other OSes have one store and report none. */
+function locationText(location: TokenLocation | undefined): string | null {
+  if (location === 'keyring') return 'in the keyring';
+  if (location === 'file') return 'in a file';
+  return null;
+}
+
+/** Moves file tokens into a keyring that now answers (Linux only). */
+function moveAction(h: HostAuth): CardAction[] {
+  return h.canMoveToKeyring ? [{ kind: 'moveToKeyring', label: 'Move to keyring' }] : [];
+}
+
 function storedOrgs(h: HostAuth): string[] {
   return h.storedTokens.flatMap((t) => (t.org ? [t.org] : []));
 }
@@ -145,7 +160,10 @@ function gitlabStatus(h: HostAuth): { status: string; severity: Severity } {
 
 function bitbucketStatus(h: HostAuth): { status: string; severity: Severity } {
   // A stored token wins over any other source, so it decides the status.
-  if (h.storedTokens.length > 0) return { status: 'API token stored', severity: 'ok' };
+  if (h.storedTokens.length > 0) {
+    const where = locationText(h.storedTokens[0].location);
+    return { status: where ? `API token stored ${where}` : 'API token stored', severity: 'ok' };
+  }
   if (h.tokenSource === 'gitCredentialManager') {
     return {
       status: "Using Git Credential Manager's sign-in, which can't read pipelines or pull requests",
@@ -238,6 +256,7 @@ function bitbucketCard(h: HostAuth): CardBody {
   ];
   if (stored) actions.push({ kind: 'removeToken', label: 'Remove token' });
   if (stored || h.tokenSource) actions.push({ kind: 'test', label: 'Test' });
+  actions.push(...moveAction(h));
   actions.push(
     { kind: 'openUrl', label: 'Open the API token page', url: BITBUCKET_TOKEN_URL },
     { kind: 'copyScopes', label: 'Copy scopes', text: BITBUCKET_SCOPES.join(' ') },
@@ -246,17 +265,25 @@ function bitbucketCard(h: HostAuth): CardBody {
 }
 
 function azureCard(h: HostAuth): CardBody {
-  const tokens: TokenRow[] = storedOrgs(h).map((org) => ({
-    org,
-    actions: [
-      { kind: 'replaceToken', label: 'Replace', org },
-      { kind: 'removeToken', label: 'Remove', org },
-      { kind: 'test', label: 'Test', org },
-    ],
-  }));
+  const tokens: TokenRow[] = h.storedTokens.flatMap(({ org, location }) =>
+    org
+      ? [
+          {
+            org,
+            location: locationText(location),
+            actions: [
+              { kind: 'replaceToken', label: 'Replace', org },
+              { kind: 'removeToken', label: 'Remove', org },
+              { kind: 'test', label: 'Test', org },
+            ],
+          },
+        ]
+      : [],
+  );
   const actions: CardAction[] = [{ kind: 'addToken', label: 'Add token' }];
   if (h.cliInstalled) actions.push({ kind: 'signIn', label: 'Sign in with Azure CLI', argv: [...AZ_LOGIN_ARGV] });
   if (tokens.length > 0 || h.tokenSource) actions.push({ kind: 'test', label: 'Test' });
+  actions.push(...moveAction(h));
   actions.push(
     { kind: 'openTokenPage', label: 'Open the token page' },
     {

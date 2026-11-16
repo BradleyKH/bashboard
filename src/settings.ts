@@ -107,8 +107,11 @@ export interface Settings {
     cdnHosts: string[];
     reloadOnChange: boolean;
   };
-  /** Read by the core once at launch on Linux; other OSes ignore it (docs/settings.md). */
-  linux: { disableDmabufRenderer: 'auto' | 'on' | 'off' };
+  /**
+   * Linux only; other OSes ignore it (docs/settings.md). The core reads `disableDmabufRenderer` once
+   * at launch and `allowFileCredentials` on each token save; the Accounts tab sets the latter.
+   */
+  linux: { disableDmabufRenderer: 'auto' | 'on' | 'off'; allowFileCredentials: boolean };
   keybindings: KeybindingEntry[];
 }
 
@@ -168,7 +171,7 @@ export const DEFAULT_SETTINGS: Settings = {
     cdnHosts: ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'unpkg.com', 'fonts.googleapis.com', 'fonts.gstatic.com'],
     reloadOnChange: true,
   },
-  linux: { disableDmabufRenderer: 'auto' },
+  linux: { disableDmabufRenderer: 'auto', allowFileCredentials: false },
   keybindings: DEFAULT_KEYBINDINGS,
 };
 

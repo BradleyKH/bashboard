@@ -7,6 +7,7 @@ import {
   forgeGhLogout,
   forgeGhSwitch,
   forgeGlabLogout,
+  forgeMoveTokensToKeyring,
   type AuthCheck,
   type HostAuth,
 } from './forgeApi';
@@ -110,7 +111,7 @@ export class ForgeHostCard {
     this.note.hidden = card.note === null;
     this.accounts.replaceChildren(...card.accounts.map((row) => this.accountRow(row.user, row.active, row.actions)));
     this.accounts.hidden = card.accounts.length === 0;
-    this.tokens.replaceChildren(...card.tokens.map((row) => this.tokenRow(row.org, row.actions)));
+    this.tokens.replaceChildren(...card.tokens.map((row) => this.tokenRow(row.org, row.location, row.actions)));
     this.tokens.hidden = card.tokens.length === 0;
     const buttons = card.actions.map((a) => this.actionButton(a));
     this.actions.replaceChildren(...buttons);
@@ -132,6 +133,7 @@ export class ForgeHostCard {
       this.form = new ForgeTokenForm({
         provider,
         org: org ?? this.suggestedOrg(),
+        confirm: (o) => this.options.confirm(o),
         onSaved: () => {
           this.closeTokenForm();
           this.options.onChanged();
@@ -182,16 +184,23 @@ export class ForgeHostCard {
     return row;
   }
 
-  private tokenRow(org: string, actions: TokenAction[]): HTMLElement {
+  private tokenRow(org: string, location: string | null, actions: TokenAction[]): HTMLElement {
     const row = document.createElement('div');
     row.className = 'accounts-row accounts-org';
     const name = document.createElement('span');
     name.className = 'accounts-user';
     name.textContent = org;
+    row.append(name);
+    if (location) {
+      const where = document.createElement('span');
+      where.className = 'accounts-badge';
+      where.textContent = location;
+      row.append(where);
+    }
     const buttons = document.createElement('span');
     buttons.className = 'accounts-row-actions';
     for (const a of actions) buttons.append(this.button(a.label, () => this.tokenAction(a)));
-    row.append(name, buttons);
+    row.append(buttons);
     return row;
   }
 
@@ -335,6 +344,10 @@ export class ForgeHostCard {
       }
       case 'copyScopes':
         await copyText(a.text, 'scopes');
+        break;
+      case 'moveToKeyring':
+        await forgeMoveTokensToKeyring();
+        this.options.onChanged();
         break;
     }
   }

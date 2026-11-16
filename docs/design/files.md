@@ -220,8 +220,10 @@ lists only when first expanded, and every expanded folder is watched (`fs_watch`
 to list, or disappears, collapses. Collapsing a folder collapses those inside it, and a cursor
 inside moves to the folder.
 
-- Clicking the chevron expands or collapses the folder without selecting it; double-clicking a
-  folder row, or Enter on it, does the same. A file opens in the editor as in the Folder view.
+- Clicking the chevron expands or collapses the folder without selecting it. Clicking a folder
+  row selects it and expands or collapses it (a Ctrl or Shift click only selects), Enter on it
+  does the same, and a double click adds nothing. A file opens in the editor as in the Folder
+  view.
 - Right expands a collapsed folder, or moves to the first child of an expanded one. Left
   collapses an expanded folder, or moves to the row's parent folder.
 - The filter matches names in every listed folder, keeping each match's parent folders so the

@@ -4,8 +4,8 @@ import type { GitCommit } from './gitApi';
 import { gitCommitMenuItems, gitFileMenuItems, type GitCommitMenuState } from './gitMenus';
 import type { GitRow } from './gitModel';
 
-function row(status: string, path = 'src/a.ts'): GitRow {
-  return { key: `unstaged:${path}`, kind: 'unstaged', entry: { path, status } as GitRow['entry'] };
+function row(status: string, path = 'src/a.ts', kind: GitRow['kind'] = 'unstaged'): GitRow {
+  return { key: `${kind}:${path}`, kind, entry: { path, status } as GitRow['entry'] };
 }
 
 function commit(hash: string): GitCommit {
@@ -29,13 +29,25 @@ function fileHandlers() {
     showInFiles: vi.fn(),
     copyPath: vi.fn(),
     insertPath: vi.fn(),
+    revert: vi.fn(),
   };
 }
 
 describe('gitFileMenuItems', () => {
   it('lists the items in order', () => {
     const labels = items(gitFileMenuItems(row('M'), false, fileHandlers())).map((i) => i.label);
-    expect(labels).toEqual(['Show diff', 'Stage', 'Show in Files', 'Copy path', 'Insert path']);
+    expect(labels).toEqual(['Show diff', 'Stage', 'Revert changes...', 'Show in Files', 'Copy path', 'Insert path']);
+  });
+
+  it('offers Revert changes for unstaged and untracked rows only', () => {
+    const has = (r: GitRow, staged = false): boolean =>
+      items(gitFileMenuItems(r, staged, fileHandlers())).some((i) => i.label === 'Revert changes...');
+    expect(has(row('D'))).toBe(true);
+    expect(has(row('?', 'new.ts', 'untracked'))).toBe(true);
+    expect(has(row('M', 'src/a.ts', 'staged'), true)).toBe(false);
+    expect(has(row('U', 'src/a.ts', 'conflicted'))).toBe(false);
+    const renamed: GitRow = { key: 'unstaged:b.ts', kind: 'unstaged', entry: { path: 'b.ts', origPath: 'a.ts', status: 'R' } };
+    expect(has(renamed)).toBe(false);
   });
 
   it('offers Unstage in the Staged list', () => {
@@ -55,7 +67,7 @@ describe('gitFileMenuItems', () => {
     const h = fileHandlers();
     const r = row('M');
     const entries = gitFileMenuItems(r, false, h);
-    for (const label of ['Show diff', 'Stage', 'Show in Files', 'Copy path', 'Insert path']) {
+    for (const label of ['Show diff', 'Stage', 'Revert changes...', 'Show in Files', 'Copy path', 'Insert path']) {
       byLabel(entries, label).run();
     }
     expect(h.showDiff).toHaveBeenCalledWith(r);
@@ -63,6 +75,7 @@ describe('gitFileMenuItems', () => {
     expect(h.showInFiles).toHaveBeenCalledWith(r);
     expect(h.copyPath).toHaveBeenCalledWith(r);
     expect(h.insertPath).toHaveBeenCalledWith(r);
+    expect(h.revert).toHaveBeenCalledWith(r);
   });
 });
 

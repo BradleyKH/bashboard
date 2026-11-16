@@ -1,7 +1,9 @@
-//! Forge tokens in the OS credential store (generic credentials in Windows Credential Manager,
-//! generic passwords in the macOS Keychain), shared by the app and `bb` (which includes this
-//! file by path), so both read and write tokens the same way. It depends on nothing in the crate
-//! for that reason.
+//! Forge tokens in the OS credential store: generic credentials in Windows Credential Manager,
+//! generic passwords in the macOS Keychain, and Secret Service items on Linux, with a `0600` file
+//! fallback there when no keyring answers and the user allowed it
+//! (`credential_store_linux.rs`). Shared by the app and `bb` (which includes this file by path),
+//! so both read and write tokens the same way. It depends on nothing in the crate for that
+//! reason.
 
 /// The store's name, for messages. Only `bb` names it, so the app sees it as unused.
 #[allow(dead_code)]
@@ -9,9 +11,26 @@ pub const STORE_NAME: &str = if cfg!(windows) {
     "Windows Credential Manager"
 } else if cfg!(target_os = "macos") {
     "the macOS Keychain"
+} else if cfg!(target_os = "linux") {
+    "the system keyring (Secret Service)"
 } else {
     "the system credential store"
 };
+
+/// A Linux write's error when no keyring answers and file storage was not allowed; callers match
+/// on it to ask for permission.
+#[allow(dead_code)]
+pub const NEEDS_FILE_PERMISSION: &str =
+    "no keyring is running; storing the token in a file needs permission";
+
+/// Where a token is stored. Only Linux has a second place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Location {
+    Keyring,
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    File,
+}
 
 /// The target the app's Bitbucket token lookup reads.
 pub const BITBUCKET_TARGET: &str = "bashboard:bitbucket.org";
@@ -289,7 +308,7 @@ mod imp {
     }
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 mod imp {
     const UNSUPPORTED: &str = "storing a token is not supported on this platform";
 
@@ -314,7 +333,73 @@ mod imp {
     }
 }
 
-pub use imp::{delete, exists, list_targets, read, write};
+#[cfg(target_os = "linux")]
+#[path = "credential_store_linux.rs"]
+mod imp;
+
+#[cfg(target_os = "linux")]
+#[allow(unused_imports)]
+pub use imp::{
+    file_store_exists, file_store_path, keyring_available, list_located, location,
+    move_file_tokens_to_keyring, write_with,
+};
+
+pub use imp::{delete, read};
+// The app asks `location` and `list_located` instead; the tests use these.
+#[allow(unused_imports)]
+pub use imp::{exists, list_targets};
+
+/// The one store these platforms have, so every token is in the keyring and there is nothing to
+/// move.
+#[cfg(not(target_os = "linux"))]
+mod single {
+    use super::{Location, imp};
+
+    pub fn write_with(
+        target: &str,
+        user: &str,
+        blob: &[u8],
+        _allow_file: bool,
+    ) -> Result<Location, String> {
+        imp::write(target, user, blob).map(|()| Location::Keyring)
+    }
+
+    pub fn location(target: &str) -> Option<Location> {
+        imp::exists(target).then_some(Location::Keyring)
+    }
+
+    pub fn list_located(prefix: &str) -> Vec<(String, Location)> {
+        imp::list_targets(prefix)
+            .into_iter()
+            .map(|t| (t, Location::Keyring))
+            .collect()
+    }
+
+    pub fn move_file_tokens_to_keyring() -> Result<usize, String> {
+        Ok(0)
+    }
+
+    pub fn keyring_available() -> bool {
+        true
+    }
+
+    /// Only `bb` asks: to it, an existing file is the user's permission to write there.
+    #[allow(dead_code)]
+    pub fn file_store_exists() -> bool {
+        false
+    }
+
+    pub fn file_store_path() -> Option<std::path::PathBuf> {
+        None
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+#[allow(unused_imports)]
+pub use single::{
+    file_store_exists, file_store_path, keyring_available, list_located, location,
+    move_file_tokens_to_keyring, write_with,
+};
 
 #[cfg(test)]
 mod tests {

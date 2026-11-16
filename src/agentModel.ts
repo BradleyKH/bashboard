@@ -46,9 +46,9 @@ export function modelDisplayName(id: string): string {
 }
 
 /**
- * "Opus 5.5 · 112k tokens" for Claude; other agents lead with their name ("Codex · gpt-5.5 · 112k / 272k
- * tokens"). Null when neither a model nor a count is known. `windowOverride` supplies a window the context
- * lacks, such as a local server's loaded context length.
+ * "Opus 5.5 · 112k / 200k" for Claude; other agents lead with their name ("Codex · gpt-5.5 · 112k / 272k").
+ * Null when neither a model nor a count is known. `windowOverride` supplies a window the context lacks, such
+ * as a local server's loaded context length.
  */
 export function agentLine(agent: AgentId, ctx: AgentContext | undefined, windowOverride?: number | null): string | null {
   if (!ctx) return null;
@@ -57,7 +57,7 @@ export function agentLine(agent: AgentId, ctx: AgentContext | undefined, windowO
   if (ctx.contextTokens !== null) {
     const window = windowOf(ctx, windowOverride);
     const count = window !== null ? `${formatTokens(ctx.contextTokens)} / ${formatTokens(window)}` : formatTokens(ctx.contextTokens);
-    parts.push(`${count} tokens`);
+    parts.push(count);
   }
   if (parts.length === 0) return null;
   if (agent !== 'claude') parts.unshift(agentName(agent));

@@ -142,6 +142,8 @@ export type ForgeErrorKind =
   | 'notFound'
   | 'rateLimited'
   | 'network'
+  /** Linux: no keyring answered; ask, then save again with `allowFile`. */
+  | 'needsFilePermission'
   | 'other';
 
 export interface ForgeError {
@@ -167,6 +169,7 @@ const ERROR_KINDS: ReadonlySet<string> = new Set<ForgeErrorKind>([
   'notFound',
   'rateLimited',
   'network',
+  'needsFilePermission',
   'other',
 ]);
 
@@ -285,9 +288,13 @@ export type TokenSourceKind =
   | 'bashboardCredential'
   | 'environment';
 
+/** Where a stored token is kept; only Linux reports it, since only Linux has a fallback file. */
+export type TokenLocation = 'keyring' | 'file';
+
 /** A token Bashboard stored; `org` is the Azure DevOps organization, null for Bitbucket. */
 export interface StoredToken {
   org: string | null;
+  location?: TokenLocation;
 }
 
 /** One host's sign-in state. Ordered GitHub hosts, GitLab hosts, bitbucket.org, then dev.azure.com. */
@@ -313,6 +320,8 @@ export interface HostAuth {
   detectedBy: string[];
   /** Azure DevOps organizations the core knows of (stored tokens, pins, Ship panes, terminal folders); empty for other providers. */
   knownOrgs: string[];
+  /** Linux: a stored token is in the fallback file and a keyring now answers. */
+  canMoveToKeyring: boolean;
 }
 
 /** What the front end knows that the core does not: hosts of pins and open Ship panes, and open terminals' folders. */
@@ -339,9 +348,17 @@ export function forgeAuthTest(provider: AuthProvider, host: string, account?: st
   return invoke<AuthCheck>('forge_auth_test', { provider, host, account, org });
 }
 
-/** Stores a token for Bitbucket (`org` null) or one Azure DevOps organization. */
-export function forgeSetToken(provider: AuthProvider, org: string | null, token: string): Promise<void> {
-  return invoke<void>('forge_set_token', { provider, org, token });
+/**
+ * Stores a token for Bitbucket (`org` null) or one Azure DevOps organization. `allowFile` lets it go
+ * to the Linux fallback file when no keyring answers.
+ */
+export function forgeSetToken(provider: AuthProvider, org: string | null, token: string, allowFile = false): Promise<void> {
+  return invoke<void>('forge_set_token', { provider, org, token, allowFile });
+}
+
+/** Moves every token in the Linux fallback file into the keyring; resolves to how many moved. */
+export function forgeMoveTokensToKeyring(): Promise<number> {
+  return invoke<number>('forge_move_tokens_to_keyring');
 }
 
 /** False when nothing was stored. */

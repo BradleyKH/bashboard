@@ -581,6 +581,7 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
       return notice('No remote', [err.message], [RETRY]);
     case 'network':
       return notice("Can't reach the host", [err.message], [RETRY]);
+    case 'needsFilePermission':
     case 'other':
       return notice('Something went wrong', [err.message], [RETRY]);
   }

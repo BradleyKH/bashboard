@@ -387,8 +387,8 @@ Each card shows:
   folder, if any.
 - For a terminal bound to an agent session (3.4), a dimmed line below that with the session's
   model and the tokens in its context, read from its transcript. Claude Code's reads
-  "Opus 5.5 · 112k / 200k tokens"; the other agents lead with their name, as "Codex · gpt-5.5 ·
-  112k / 272k tokens". Either half shows alone while the other is unknown (Copilot reports no
+  "Opus 5.5 · 112k / 200k"; the other agents lead with their name, as "Codex · gpt-5.5 ·
+  112k / 272k". Either half shows alone while the other is unknown (Copilot reports no
   tokens), and the line is absent until the transcript has a model or a count. The count is shown
   against a window only when one is known: Claude Code's status line input reports it (3.4),
   Codex's transcript reports it, and for a model loaded in Ollama the window is the loaded context

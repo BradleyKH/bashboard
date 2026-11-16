@@ -531,6 +531,23 @@ field in the Settings tab; edit the file.
 "linux": { "disableDmabufRenderer": "on" }
 ```
 
+`linux.allowFileCredentials` (default `false`) decides where forge tokens go when no keyring is
+running. Bashboard keeps the Bitbucket and Azure DevOps tokens you save in the system keyring
+(GNOME Keyring, KWallet, or another Secret Service). When none answers, it can keep them in
+`~/.local/share/bashboard/credentials.json` (under `$XDG_DATA_HOME` when that is set), a file only
+you can read, but only with this setting on. You rarely set it by hand: the first time a save finds
+no keyring, the Accounts tab asks, and **Allow** turns it on. With it off, a save from the Accounts
+tab with no keyring asks again instead of writing the file; tokens already there stay readable
+until you remove them or use **Move to keyring** on the Accounts tab. `bb auth` cannot read this
+setting, so it goes by the file instead: with no keyring it writes to the file whenever the file
+exists, whatever the setting says, and refuses when it does not. To stop `bb` too, delete the
+file once its tokens are moved or removed. It has no field in the Settings tab, and other OSes
+ignore it.
+
+```jsonc
+"linux": { "allowFileCredentials": true }
+```
+
 Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to
 `settings.json`. Bashboard rewrites `workspace.json` itself (version 3, holding every tab);
 `favorites.json`, `layouts.json`, and `repos.json` are plain JSON you can edit by hand, and the

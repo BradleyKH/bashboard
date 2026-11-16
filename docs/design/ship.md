@@ -11,9 +11,10 @@ knows a host only through a few capability flags. The module is split by concern
 commands, repo resolution, and the `ForgeProvider` trait), `types.rs` (the shapes), `remote.rs`
 (remote URLs), `auth.rs` (token sources and accounts), `accounts.rs` (the Accounts tab's commands,
 below), `http.rs` (the client), and one file per provider: `github.rs`, `bitbucket.rs`,
-`gitlab.rs`, and `azure_devops.rs`. The credential store access (Windows Credential Manager, or
-the macOS Keychain) sits in `src-tauri/src/credential_store.rs`, outside the module, because `bb`
-compiles it too.
+`gitlab.rs`, and `azure_devops.rs`. The credential store access (Windows Credential Manager, the
+macOS Keychain, or the Secret Service on Linux) sits in `src-tauri/src/credential_store.rs`, with
+the Linux backend in `credential_store_linux.rs` beside it, outside the module, because `bb`
+compiles both.
 
 - **Provider trait.** `ForgeProvider` has `kind`, `capabilities`, and the blocking methods `runs`,
   `jobs`, `log`, `rerun`, `cancel`, `pulls`, `pull_checks`, and `default_branch`, each taking a
@@ -70,7 +71,8 @@ compiles it too.
   that GitLab CLI's config does not list.
 - **Tokens.** Bashboard never runs an OAuth flow, and the secrets it writes are a Bitbucket API
   token and Azure DevOps personal access tokens (PATs), one per organization, into the OS
-  credential store, Windows Credential Manager or the macOS Keychain (below). Each provider
+  credential store: Windows Credential Manager, the macOS Keychain, or on Linux the Secret
+  Service, with a file fallback the user must allow (below). Each provider
   lists sources in order, and the first that yields a token wins. GitHub: `gh auth token
   --hostname <host>` (with `--user <account>` when an account is chosen), found on `PATH` or in
   GitHub CLI's install folders, since a `gh` installed while Bashboard runs is not on the `PATH` it
@@ -140,7 +142,9 @@ compiles it too.
   under `bashboard:dev.azure.com/`. An Azure DevOps card with a stored PAT reports
   `bashboardCredential`, since a stored PAT wins for its organization and the card has no one
   organization to resolve for. Hosts are inspected side by side, and only the source's kind leaves
-  the lookup. `ghEnvToken` is the name of the environment variable that `gh` in a terminal would use
+  the lookup. A token Bashboard stored counts as a source by its attributes alone, without reading
+  it, so opening the tab never unlocks a locked Linux keyring; only a save, a **Test**
+  (`forge_auth_test`), or a Ship pane's request reads one. `ghEnvToken` is the name of the environment variable that `gh` in a terminal would use
   for the host instead of its saved accounts, or null (always null off GitHub, and for a GitHub
   host with none set); only the name leaves the core, never the value. The app's own lookup passes
   `--user`, so it reads the saved account whatever the variable says. GitHub CLI's rules: for `github.com` and `*.ghe.com` hosts, `GH_TOKEN` then
@@ -159,7 +163,38 @@ compiles it too.
   `org`; an Azure DevOps organization's is `bashboard:dev.azure.com/<org>` with the user name
   `x-azure-devops-pat`, and `org` is required. On Windows the target is a generic credential's
   name; on macOS it is the account of a generic password in the login Keychain under the service
-  `bashboard`, which stores no user name. The organization is trimmed and lowercased, and an empty name, or
+  `bashboard`, which stores no user name. On Linux it is an item in the Secret Service's default
+  collection with the attributes `application` (`bashboard`) and `target`, the label
+  `Bashboard <target>`, and the content type `text/plain`, over a session encrypted with
+  Diffie-Hellman. A write replaces the item and unlocks a locked collection first, a read unlocks
+  a locked item, and either may raise the keyring's prompt; existence checks and listings search
+  attributes only, so they never unlock the keyring or read a secret. New items go into the
+  collection behind the `default` alias, else the one behind `login`; a Secret Service with
+  neither (KeePassXC with no database exposed) counts as no keyring everywhere. When the session
+  bus or the Secret Service does not answer, the token can go to `$XDG_DATA_HOME/bashboard/credentials.json`
+  (default `~/.local/share/bashboard/`) instead: a JSON object of target to `{ "user", "token" }`
+  in a `0700` folder, written through a temporary file created `0600` in the same folder, synced,
+  and renamed over the old one, so no other user can read it even for a moment. Every
+  read-modify-write holds an exclusive `flock` on `credentials.lock` (created `0600` in the same
+  folder), so the app and `bb` saving at once both land. Buffers holding the file's text are
+  allocated at their final size (the read from the file's length, the write measured first), so
+  no reallocation leaves a token copy behind, and are wiped after use. A file that does
+  not parse reads as empty, and a write refuses to replace it rather than lose the tokens in it.
+  The file needs permission: `forge_set_token` takes `allow_file`, and with no keyring the core
+  writes the file only when that or `linux.allowFileCredentials` is true, else fails with the
+  kind `needsFilePermission`, whose message is the question the Accounts tab asks (4.20).
+  `allow_file` carries the answer because the setting reaches the core through the settings
+  watcher, after the retry. Reads try the file, then the keyring: a keyring write deletes any copy
+  of that token left in the file, so a file copy that exists is newer than a keyring item for the
+  same target, saved while the keyring did not answer. Listings and existence checks cover both
+  and report such a target's location as `file`, and `forge_clear_token` removes the token from
+  both. On Linux each `StoredToken` carries its `location`
+  (`keyring` or `file`), and `HostAuth.canMoveToKeyring` is true when one is in the file and a
+  keyring now answers; `forge_move_tokens_to_keyring()` writes every file token to the keyring
+  (replacing an older item for the same target),
+  removes each from the file once the keyring holds it, and returns how many moved. An emptied
+  file stays, since `bb` treats its presence as the permission (docs/design/app.md section 3.13).
+  The organization is trimmed and lowercased, and an empty name, or
   one holding a slash, whitespace, or a control character, is refused. Any other provider is
   refused. `forge_gh_switch(host, user)` and
   `forge_gh_logout(host, user)` run `gh auth switch` and `gh auth logout` with `--hostname` and
@@ -707,7 +742,10 @@ status and never a token. The tab loads when it is shown, when the window regain
   Buttons: **Add token** (**Replace token** and **Remove token** once one is stored), **Test**,
   **Open the API token page**, and **Copy scopes**, with the scope list and what each is for
   beneath. **Remove token** asks first, and the Bitbucket panes stop working until a token is
-  added again. Add and Replace open the token form below the buttons.
+  added again. Add and Replace open the token form below the buttons. On Linux the status says
+  where the token is kept ("API token stored in the keyring" or "in a file"), and **Move to
+  keyring** follows Test when `canMoveToKeyring` is true; it moves every file token, on this card
+  and the Azure DevOps card alike.
 - **Azure DevOps card.** One card for `dev.azure.com`, whatever the organization. The status line
   lists the organizations with a stored PAT ("Personal access token stored for <orgs>"), since a
   stored PAT outranks every other source for its organization; else the source the pane would use
@@ -716,9 +754,11 @@ status and never a token. The tab loads when it is shown, when the window regain
   installed" when `az` is missing. Under it, one row per organization with a stored PAT, each
   with **Replace** (opens the token form with that organization filled in), **Remove** (asks
   first: "Deletes the personal access token Bashboard stored for the <org> organization. Its Ship
-  panes fall back to the next token source, if there is one."), and **Test**. Buttons: **Add
+  panes fall back to the next token source, if there is one."), and **Test**; on Linux the row
+  also says where its PAT is kept ("in the keyring" or "in a file"). Buttons: **Add
   token**, **Sign in with Azure CLI** when `az` is installed (runs `az login` in a new terminal
-  pane), a card-level **Test** when a PAT is stored or any source exists, **Open the token page**,
+  pane), a card-level **Test** when a PAT is stored or any source exists, **Move to keyring** when
+  `canMoveToKeyring` is true, **Open the token page**,
   and **Copy scopes**, with the scope list and what each is for beneath. **Open the token page**
   opens the organization's `_usersSettings/tokens` page for the form's organization, else the
   suggested one, else the first with a stored PAT; with none known it opens the form and asks for
@@ -739,6 +779,12 @@ status and never a token. The tab loads when it is shown, when the window regain
   core once, as the argument of `forge_set_token(provider, org, token)`, and the page keeps no copy:
   the field is emptied on save, cancel, when the tab is hidden, and when the dialog closes. Escape
   cancels an open form before it closes the dialog. A failed save shows its error in the form.
+  A save that fails with `needsFilePermission` (Linux, no keyring) asks once in the confirm
+  dialog with the core's message ("No keyring is running, so Bashboard can't store the token in
+  it. Store it in a file only you can read (~/.local/share/bashboard/credentials.json)?") and
+  **Allow**: Allow sets `linux.allowFileCredentials` to true through `settings_set` and saves
+  again with `allowFile`; Cancel stores nothing and says so in the form. With the setting on,
+  later saves go to the file without asking.
 - **Changes.** A successful switch, sign-out, save, or removal drops the host's cached credentials
   in the core and emits `forge://auth-changed` (3.20); open Ship panes, the Overview, and the tab
   itself refresh on it. The account chip's per-repo `credential.username` behavior is separate and

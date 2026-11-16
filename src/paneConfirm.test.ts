@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { OtherCard, TerminalCard } from './dashboardModel';
-import { cleanupGoneConfirm, closePadConfirm, closeTabConfirm, deleteUnmergedConfirm, replaceConfirm, undoCommitConfirm } from './paneConfirm';
+import { cleanupGoneConfirm, closePadConfirm, closeTabConfirm, deleteUnmergedConfirm, replaceConfirm, revertFileConfirm, undoCommitConfirm } from './paneConfirm';
 
 const terminal: TerminalCard = {
   kind: 'terminal',
@@ -87,6 +87,18 @@ describe('replaceConfirm', () => {
 
   it('warns about a force push when the commit is pushed', () => {
     expect(undoCommitConfirm('1a2b3c4', 'Fix the parser', true).body.join(' ')).toContain('force push');
+  });
+
+  it('says reverting a tracked file keeps its staged changes', () => {
+    const o = revertFileConfirm('src/a.ts', false);
+    expect(o.confirmLabel).toBe('Revert');
+    expect(o.body[0]).toBe('Discard the unstaged changes to src/a.ts? Any staged changes to it are kept.');
+  });
+
+  it('says reverting an untracked file deletes it', () => {
+    const o = revertFileConfirm('new.ts', true);
+    expect(o.confirmLabel).toBe('Delete');
+    expect(o.body[0]).toContain('Delete new.ts?');
   });
 });
 

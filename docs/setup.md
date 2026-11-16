@@ -328,7 +328,8 @@ The Ship pane shows a repo's pipeline runs, job logs, and open pull requests. It
 the code host's API with a sign-in you already have, so each host needs a one-time setup. Bashboard
 never runs a sign-in flow of its own and keeps tokens in memory only; the only things it stores are
 a Bitbucket API token and a personal access token for each Azure DevOps organization, in Windows
-Credential Manager or the macOS Keychain. Open the pane from any pane's kind menu (see
+Credential Manager, the macOS Keychain, or the Linux keyring (see
+[Tokens on Linux](#tokens-on-linux)). Open the pane from any pane's kind menu (see
 the [user guide](user-guide.md#ship-pane)); when something is missing, the pane shows the same
 steps with buttons that do them.
 
@@ -430,7 +431,9 @@ On Windows it is the Windows Credential Manager generic credential `bashboard:bi
 it with `cmdkey /list:bashboard:bitbucket.org`. On macOS it is a generic password in the login
 Keychain with the service `bashboard` and the account `bashboard:bitbucket.org`; check it with
 `security find-generic-password -s bashboard -a bashboard:bitbucket.org`, which prints the item
-without its password. Remove it with **Remove token** (after a confirmation)
+without its password. On Linux it is a keyring item with the attributes `application bashboard`
+and `target bashboard:bitbucket.org`; check it with `secret-tool search application bashboard`
+(from `libsecret-tools`), or see [Tokens on Linux](#tokens-on-linux) for the file. Remove it with **Remove token** (after a confirmation)
 or `bb auth bitbucket --clear`. The command works in any terminal, not only a Bashboard pane.
 Bashboard reads the token from there and sends it to Bitbucket only. The Accounts tab never shows
 the token again after you save it, and Bashboard writes it nowhere else; the field in the tab is
@@ -524,7 +527,8 @@ Credential Manager generic credential with the user name `x-azure-devops-pat`; c
 `cmdkey /list:bashboard:dev.azure.com/*`. On macOS it is a generic password in the login Keychain
 with the service `bashboard` and that name as the account; check it with `security
 find-generic-password -s bashboard -a bashboard:dev.azure.com/<org>`, which prints the item without
-its password. Remove it with **Remove** on the organization's row (after a confirmation) or `bb
+its password. On Linux it is a keyring item with the attributes `application bashboard` and
+`target bashboard:dev.azure.com/<org>` (see [Tokens on Linux](#tokens-on-linux)). Remove it with **Remove** on the organization's row (after a confirmation) or `bb
 auth azure-devops <org> --clear`. Bashboard sends it to dev.azure.com only, and the Accounts tab
 never shows it again after you save it.
 
@@ -548,3 +552,17 @@ failed and not a plain Re-run.
 
 **Renewing.** When a token expires, the pane says Azure DevOps rejected it. Make a new one and
 choose **Replace** on the organization's row, or run `bb auth azure-devops <org>` again.
+
+### Tokens on Linux
+
+Bashboard and `bb auth` keep tokens in the system keyring through the Secret Service API, which
+GNOME Keyring, KWallet, and KeePassXC provide. A locked keyring may ask for its password when
+Bashboard first reads or saves a token. With no keyring running (a minimal window manager, a
+headless session), the first save from the Accounts tab asks whether to keep tokens in
+`~/.local/share/bashboard/credentials.json` instead (`$XDG_DATA_HOME/bashboard/` when that is set).
+The file and its folder are readable only by you (`0600` and `0700`). **Allow** turns on
+`linux.allowFileCredentials` (see [Settings](settings.md#linux)); later saves go to the file
+without asking. `bb auth` writes to the file only once it exists, so allow it from the Accounts
+tab first, or start a keyring. Each stored token on the Accounts tab says whether it is in the
+keyring or in a file, and once a keyring is running, **Move to keyring** moves the file's tokens
+into it and removes them from the file.

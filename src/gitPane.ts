@@ -9,6 +9,7 @@ import {
   gitBranches,
   gitCommit,
   gitDiff,
+  gitDiscard,
   gitFetch,
   gitLastFetch,
   gitLog,
@@ -63,7 +64,7 @@ import { isRepoRoot } from './worktreeModel';
 import type { CellSize } from './layout';
 import { loadingNote } from './loadingNote';
 import { toFontFamily } from './pane';
-import { undoCommitConfirm } from './paneConfirm';
+import { revertFileConfirm, undoCommitConfirm } from './paneConfirm';
 import type { PaneView } from './paneView';
 import { fsList, repoRoot, type RepoInfo } from './repoFiles';
 import type { Settings } from './settings';
@@ -728,7 +729,21 @@ export class GitPane implements PaneView {
       showInFiles: (r) => this.showInFiles(r),
       copyPath: (r) => copyPath(absolute(r)),
       insertPath: (r) => this.opts.onInsertPath(absolute(r), this.rootPath),
+      revert: (r) => void this.revert(r),
     });
+  }
+
+  private async revert(row: GitRow): Promise<void> {
+    const untracked = row.kind === 'untracked';
+    const ok = await this.opts.confirm(revertFileConfirm(row.entry.path, untracked));
+    if (!ok || this.disposed) return;
+    const path = [row.entry.path];
+    try {
+      await gitDiscard(this.rootPath, untracked ? [] : path, untracked ? path : []);
+    } catch (e) {
+      showToast(`Could not revert: ${errorText(e)}`);
+    }
+    this.refresh();
   }
 
   private selectFile(row: GitRow, staged: boolean): void {
