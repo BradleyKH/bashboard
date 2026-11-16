@@ -166,6 +166,17 @@ process's descendants from the process list (stopping at a child older than its 
 a reused pid), sends SIGTERM to them and then the process, waits up to 2 s, and sends SIGKILL to
 whatever is left, so the end state matches the forceful Windows stop.
 
+**Linux.** The listener table comes from `/proc/net/tcp` and `/proc/net/tcp6`; `parse_proc_net_tcp`
+keeps the rows in state `0A` (LISTEN) that carry a socket inode, decoding each hex address (one
+host-byte-order word for IPv4, four for IPv6) into the same text the other platforms produce, so a
+wildcard reads `0.0.0.0` or `::`. When there is at least one such row, a single pass over
+`/proc/<pid>/fd/*` matches each `socket:[inode]` link to the processes holding it. A process whose
+fd folder cannot be read, such as another user's, is skipped and its listeners are dropped, so
+like macOS the list is the user's own processes. A row whose process is owned by a uid below 1000
+(root and the system accounts) is marked `system` and the checkbox reads Linux services. Stop works
+as on macOS, and `ptyId` attribution is as on macOS (the pane's session id stands in for the
+console host).
+
 **Owning pane.** A row's `ptyId` is the pane terminal (3.1) it came from. The core walks the
 process's parent chain up to a pane's shell, stopping at a parent that started after its child,
 which is a reused pid rather than the real parent. MSYS exec can leave a process parented to a
@@ -201,7 +212,7 @@ for. A Ports pane is also in the kind menu (4.11).
 owning pane's title; Escape clears it), a count of the rows shown and hidden, a Started from a
 pane checkbox, checked when the pane opens, that keeps only rows whose owning pane is still open
 (Show in Ports on a row no pane started, and the "+ N other programs" row, clear it so the rows
-they point at show), a Windows services (macOS services)
+they point at show), a Windows services (macOS services, Linux services)
 checkbox that also lists `system` rows, dimmed, and a Command lines checkbox, unchecked when the
 pane opens, that shows each row's command line. The count sits left of the checkboxes so its
 changing width never moves them. The list is a grid under a sticky header, with the columns

@@ -1005,7 +1005,7 @@ Ports tab. Right-click a row to open it in your browser, copy its URL, command l
 process id, or **Stop** it. Stop asks first, then ends the program and everything it started.
 The section lists dev servers: anything started from a terminal or by a program like node,
 python, or dotnet. Other apps that listen, such as a music player or a sync client, are counted
-in a "+ N other programs" row that opens the Ports tab, and Windows services and Bashboard itself
+in a "+ N other programs" row that opens the Ports tab, and system services and Bashboard itself
 are left out. The section lists up to 10 ports and counts the rest in a "+ N more" row; set how
 many under **Ports listed** in the Dashboard section of Settings. The Manage button (an arrow
 leaving a square) in the header opens the Ports tab.
@@ -1021,8 +1021,9 @@ beside the Ports pane, and a right-click gives a menu like the dashboard's, with
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
 clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
 started; untick it to see everything else, and tick **Windows services** (**macOS services** on a
-Mac) to include the system's own ports, dimmed. On a Mac those are the services macOS runs for
-you, such as AirPlay Receiver on ports 5000 and 7000. Opening the pane from the dashboard on a port no pane started unticks it for
+Mac, **Linux services** on Linux) to include the system's own ports, dimmed. On a Mac those are
+the services macOS runs for you, such as AirPlay Receiver on ports 5000 and 7000; on Linux they
+are the daemons owned by root or another system account. Opening the pane from the dashboard on a port no pane started unticks it for
 you. Any pane can also become a Ports pane from its kind menu.
 
 ## Local Browser

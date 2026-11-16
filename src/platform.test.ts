@@ -12,17 +12,14 @@ import {
 describe('supports', () => {
   it('keeps every feature on Windows', () => {
     expect(supports('localBrowser', 'windows')).toBe(true);
-    expect(supports('systemPorts', 'windows')).toBe(true);
   });
 
   it('hides only the WebView2 Local Browser on macOS', () => {
     expect(supports('localBrowser', 'macos')).toBe(false);
-    expect(supports('systemPorts', 'macos')).toBe(true);
   });
 
-  it('hides the Local Browser and system ports on Linux', () => {
+  it('hides only the WebView2 Local Browser on Linux', () => {
     expect(supports('localBrowser', 'linux')).toBe(false);
-    expect(supports('systemPorts', 'linux')).toBe(false);
   });
 
   it('defaults to Windows before the core answers', () => {

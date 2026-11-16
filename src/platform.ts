@@ -7,14 +7,12 @@ export type Os = string;
  * Features with no implementation yet on some OS. The UI hides what is listed for the running
  * OS, so a tester sees a smaller app rather than controls that fail.
  * - localBrowser: drives its frames through the WebView2 DevTools Protocol.
- * - systemPorts: the Ports pane's services filter, which keys on Windows session 0 or on an
- *   executable inside macOS itself.
  */
-export type Feature = 'localBrowser' | 'systemPorts';
+export type Feature = 'localBrowser';
 
 const UNSUPPORTED: Readonly<Record<Os, readonly Feature[]>> = {
   macos: ['localBrowser'],
-  linux: ['localBrowser', 'systemPorts'],
+  linux: ['localBrowser'],
 };
 
 // Browser-only runs have no core to ask; they keep the Windows feature set.

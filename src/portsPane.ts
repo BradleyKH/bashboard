@@ -8,7 +8,7 @@ import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
-import { osName, supports } from './platform';
+import { osName } from './platform';
 import { isLoopbackUrl } from './localBrowserModel';
 import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
@@ -95,7 +95,6 @@ export class PortsPane implements PaneView {
     this.paneOnlyBox.checked = true;
     this.servicesBox = document.createElement('input');
     const services = this.checkbox(this.servicesBox, `${osName()} services`, `Also list ports held by ${osName()}'s own services`);
-    services.hidden = !supports('systemPorts');
     this.commandsBox = document.createElement('input');
     const commands = this.checkbox(this.commandsBox, 'Command lines', "Show each port's full command line under its folder");
     this.count = document.createElement('span');

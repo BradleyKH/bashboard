@@ -31,7 +31,9 @@ pub struct Listener {
     pub pty_id: Option<u32>,
     /// A live ancestor is a shell or Claude Code, so it was likely started from a terminal.
     pub from_shell: bool,
-    /// A Windows service or the kernel (session 0), which the dashboard leaves out.
+    /// The OS's own listener, which the dashboard leaves out: on Windows a service or the kernel
+    /// (session 0), on macOS a program shipped inside the system, on Linux a process owned by a
+    /// uid below 1000 (root and the system accounts).
     pub system: bool,
     /// Bashboard itself (its hook receiver), which the dashboard also leaves out.
     pub own: bool,
@@ -573,7 +575,107 @@ mod os {
     }
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+/// The LISTEN rows of `/proc/net/tcp` (or `tcp6` when `v6`) as (port, address, socket inode).
+/// Each address is a hex IP in the kernel's host byte order (IPv4 one word, IPv6 four), formatted
+/// like the other platforms' rows, so a wildcard is `0.0.0.0` or `::`. Rows that do not parse and
+/// sockets with no inode (inode 0, which belongs to no process) are skipped.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn parse_proc_net_tcp(text: &str, v6: bool) -> Vec<(u16, String, u64)> {
+    const LISTEN: &str = "0A";
+    text.lines()
+        .filter_map(|line| {
+            let mut f = line.split_whitespace();
+            let (_, local, _, state) = (f.next()?, f.next()?, f.next()?, f.next()?);
+            if state != LISTEN {
+                return None;
+            }
+            // After the state: tx:rx queues, timer, retransmits, uid, timeout, then the inode.
+            let inode: u64 = f.nth(5)?.parse().ok().filter(|&i| i != 0)?;
+            let (ip, port) = local.split_once(':')?;
+            let port = u16::from_str_radix(port, 16).ok()?;
+            let address = if v6 {
+                if ip.len() != 32 || !ip.is_ascii() {
+                    return None;
+                }
+                let mut octets = [0u8; 16];
+                for (i, chunk) in octets.chunks_exact_mut(4).enumerate() {
+                    chunk.copy_from_slice(&u32::from_str_radix(&ip[i * 8..i * 8 + 8], 16).ok()?.to_ne_bytes());
+                }
+                std::net::Ipv6Addr::from(octets).to_string()
+            } else {
+                if ip.len() != 8 {
+                    return None;
+                }
+                std::net::Ipv4Addr::from(u32::from_str_radix(ip, 16).ok()?.to_ne_bytes()).to_string()
+            };
+            Some((port, address, inode))
+        })
+        .collect()
+}
+
+/// The inode in a `/proc/<pid>/fd/<n>` link target such as `socket:[12345]`.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn socket_inode(link: &str) -> Option<u64> {
+    link.strip_prefix("socket:[")?.strip_suffix(']')?.parse().ok()
+}
+
+#[cfg(target_os = "linux")]
+mod os {
+    use super::{parse_proc_net_tcp, socket_inode, RawListener};
+    use std::collections::{HashMap, HashSet};
+    use std::os::unix::fs::MetadataExt;
+
+    /// Uids below this belong to root and the system accounts; people start at 1000.
+    const FIRST_USER_UID: u32 = 1000;
+
+    /// The pids holding each wanted socket inode, from one pass over every `/proc/<pid>/fd`. A
+    /// process whose fd folder cannot be read (another user's) is skipped, so its listeners have
+    /// no pid and are dropped, as lsof on macOS shows only the user's own.
+    fn inode_pids(wanted: &HashSet<u64>) -> HashMap<u64, Vec<u32>> {
+        let mut out: HashMap<u64, Vec<u32>> = HashMap::new();
+        let Ok(procs) = std::fs::read_dir("/proc") else { return out };
+        for entry in procs.flatten() {
+            let Some(pid) = entry.file_name().to_str().and_then(|n| n.parse::<u32>().ok()) else { continue };
+            let Ok(fds) = std::fs::read_dir(entry.path().join("fd")) else { continue };
+            for fd in fds.flatten() {
+                let Ok(target) = std::fs::read_link(fd.path()) else { continue };
+                let Some(inode) = target.to_str().and_then(socket_inode).filter(|i| wanted.contains(i)) else { continue };
+                let pids = out.entry(inode).or_default();
+                if !pids.contains(&pid) {
+                    pids.push(pid);
+                }
+            }
+        }
+        out
+    }
+
+    pub fn listeners() -> Vec<RawListener> {
+        let mut rows = Vec::new();
+        for (path, v6) in [("/proc/net/tcp", false), ("/proc/net/tcp6", true)] {
+            if let Ok(text) = std::fs::read_to_string(path) {
+                rows.extend(parse_proc_net_tcp(&text, v6));
+            }
+        }
+        if rows.is_empty() {
+            return Vec::new();
+        }
+        let wanted: HashSet<u64> = rows.iter().map(|r| r.2).collect();
+        let owners = inode_pids(&wanted);
+        rows.into_iter()
+            .flat_map(|(port, address, inode)| {
+                owners.get(&inode).into_iter().flatten().map(move |&pid| RawListener { port, address: address.clone(), pid })
+            })
+            .collect()
+    }
+
+    /// Owned by root or a system account (uid below 1000), such as a database or web server
+    /// daemon, as opposed to a dev server the user started.
+    pub fn is_system(pid: u32, _exe: Option<&std::path::Path>) -> bool {
+        std::fs::metadata(format!("/proc/{pid}")).is_ok_and(|m| m.uid() < FIRST_USER_UID)
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 mod os {
     use super::RawListener;
 
@@ -766,6 +868,135 @@ mod tests {
     fn quotes_arguments_with_spaces() {
         let args: Vec<std::ffi::OsString> = ["node", "C:\\Program Files\\x.js", "--port", "3000"].iter().map(Into::into).collect();
         assert_eq!(join_command(&args), "node \"C:\\Program Files\\x.js\" --port 3000");
+    }
+
+    // Real rows from WSL Ubuntu, trimmed: systemd-resolved on 127.0.0.53:53 and 10.255.255.254:53,
+    // python3 -m http.server on 0.0.0.0:8765, and an ESTABLISHED row.
+    const TCP4: &str = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n\
+   0: 3500007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000   101        0 654964 1 0000000000000000 100 0 0 10 5\n\
+   1: 00000000:223D 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 659706 1 0000000000000000 100 0 0 10 0\n\
+   2: FEFFFF0A:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 104 1 0000000000000000 100 0 0 10 0\n\
+   3: 0100007F:E3D2 0100007F:1F90 01 00000000:00000000 00:00000000 00000000  1000        0 660001 1 0000000000000000 100 0 0 10 0\n";
+
+    // Real rows: a listener on :: (8766), one on ::1 (8767), and an ESTABLISHED one.
+    const TCP6: &str = "  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n\
+   0: 00000000000000000000000000000000:223E 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 647787 1 0000000000000000 100 0 0 10 0\n\
+   1: 00000000000000000000000001000000:223F 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 647788 1 0000000000000000 100 0 0 10 0\n\
+   2: 0000000000000000FFFF00000100007F:1F90 00000000000000000000000000000000:0000 01 00000000:00000000 00:00000000 00000000  1000        0 647789 1 0000000000000000 100 0 0 10 0\n";
+
+    // The kernel prints each address word in host byte order, so these fixtures are little-endian.
+    #[cfg(target_endian = "little")]
+    #[test]
+    fn parses_proc_net_tcp_listeners() {
+        assert_eq!(
+            parse_proc_net_tcp(TCP4, false),
+            vec![
+                (53, "127.0.0.53".to_string(), 654964),
+                (8765, "0.0.0.0".to_string(), 659706),
+                (53, "10.255.255.254".to_string(), 104),
+            ]
+        );
+    }
+
+    #[cfg(target_endian = "little")]
+    #[test]
+    fn parses_proc_net_tcp6_listeners() {
+        assert_eq!(parse_proc_net_tcp(TCP6, true), vec![(8766, "::".to_string(), 647787), (8767, "::1".to_string(), 647788)]);
+        let mapped = "0: 0000000000000000FFFF00000100007F:1F90 00000000000000000000000000000000:0000 0A 0:0 0:0 0 1000 0 55 1";
+        assert_eq!(parse_proc_net_tcp(mapped, true), vec![(8080, "::ffff:127.0.0.1".to_string(), 55)]);
+    }
+
+    #[cfg(target_endian = "little")]
+    #[test]
+    fn proc_net_tcp_skips_unusable_rows() {
+        let text = "garbage\n\n0: nocolon 0:0 0A 0:0 0:0 0 0 0 5 1\n\
+                    1: 0100007F:ZZZZ 0:0 0A 0:0 0:0 0 0 0 5 1\n\
+                    2: 0100007F:0050 0:0 0A 0:0 0:0 0 0 0 0 1\n\
+                    3: 0100007F:0050 0:0 0A 0:0 0:0 0 0 0 notanumber 1\n\
+                    4: 0100007F:0050 0:0 0A\n\
+                    5: 0100007F:0050 0:0 0A 0:0 0:0 0 0 0 6 1\n";
+        assert_eq!(parse_proc_net_tcp(text, false), vec![(80, "127.0.0.1".to_string(), 6)]);
+        // An address of the wrong width for its family is skipped, not misread.
+        assert_eq!(parse_proc_net_tcp("0: 0100007F:0050 0:0 0A 0:0 0:0 0 0 0 6 1", true), Vec::new());
+        let v6_row = "0: 00000000000000000000000001000000:0050 0:0 0A 0:0 0:0 0 0 0 6 1";
+        assert_eq!(parse_proc_net_tcp(v6_row, false), Vec::new());
+    }
+
+    #[test]
+    fn reads_socket_inodes() {
+        assert_eq!(socket_inode("socket:[12345]"), Some(12345));
+        assert_eq!(socket_inode("socket:[]"), None);
+        assert_eq!(socket_inode("pipe:[12345]"), None);
+        assert_eq!(socket_inode("/dev/null"), None);
+        assert_eq!(socket_inode("anon_inode:[eventpoll]"), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn reads_own_listener_from_proc() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let me = std::process::id();
+        assert!(os::listeners().iter().any(|r| r.port == port && r.pid == me && r.address == "127.0.0.1"));
+        let list = PortsProbe::default().list(&[], None);
+        let row = list.iter().find(|l| l.port == port).expect("own listener");
+        assert_eq!(row.pid, me);
+        assert!(row.own && row.started_at > 0);
+        assert_eq!(row.addresses, vec!["127.0.0.1".to_string()]);
+        // CI containers often run as root, which is a system uid.
+        if unsafe { libc::getuid() } >= 1000 {
+            assert!(!row.system && !os::is_system(me, None));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn pid_one_is_a_system_process() {
+        assert!(os::is_system(1, None));
+    }
+
+    /// Starts a real server, finds it in the list, stops its tree, and confirms it is gone.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn lists_and_stops_a_spawned_server() {
+        use std::process::{Command, Stdio};
+
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let Ok(mut child) = Command::new("python3")
+            .args(["-m", "http.server", &port.to_string(), "--bind", "127.0.0.1"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        else {
+            eprintln!("python3 is not installed; skipping");
+            return;
+        };
+        let mut probe = PortsProbe::default();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let found = loop {
+            if let Some(l) = probe.list(&[], None).into_iter().find(|l| l.port == port) {
+                break Some(l);
+            }
+            if Instant::now() >= deadline {
+                break None;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        };
+        let Some(found) = found else {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("the spawned server never appeared in the list");
+        };
+        let stopped = kill_tree(found.pid, found.started_at);
+        // Reaping the child turns the zombie into a vanished pid.
+        let _ = child.wait();
+        let gone = !probe.list(&[], None).iter().any(|l| l.port == port);
+        let _ = child.kill();
+        assert_eq!(found.pid, child.id());
+        assert!(found.command.contains("http.server"));
+        stopped.unwrap();
+        assert!(gone, "the server still listens after kill_tree");
     }
 
     #[cfg(windows)]

@@ -417,7 +417,7 @@ program is a known dev runtime (node, python, dotnet, java, postgres, and the li
 started from a pane come first, then the rest by port number. The section lists at most
 `dashboard.portRows` (section 8, default 10); the rest are counted in one muted "+ N more" row that opens the Ports tab. Other programs' ports (a music
 app, a sync client) are counted in one muted "+ N other programs" row that opens the Ports tab,
-and Windows services and Bashboard itself are left out. A row shows a dot (green for loopback only,
+and system services and Bashboard itself are left out. A row shows a dot (green for loopback only,
 amber when reachable from other machines), the port, the program, and, for a port traced to a
 pane, that pane's title in the accent color; its tooltip adds the command line, folder, pid, and
 uptime. Clicking a row goes to its pane, or opens the Ports tab on it when no pane started it. A
