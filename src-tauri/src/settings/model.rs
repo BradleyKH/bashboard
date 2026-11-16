@@ -183,6 +183,8 @@ pub struct DashboardSections {
 
 /// Bounds of `needsYou.usagePercent` (docs/design/dashboard.md section 4.28).
 pub const NEEDS_YOU_USAGE_PERCENT_RANGE: std::ops::RangeInclusive<u32> = 1..=100;
+/// `needsYou.stuckAgentMinutes`; 0 turns the check off.
+pub const NEEDS_YOU_STUCK_AGENT_MINUTES_RANGE: std::ops::RangeInclusive<u32> = 0..=1440;
 
 /// The Needs you list's options (docs/design/dashboard.md section 4.28).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -192,6 +194,9 @@ pub struct NeedsYou {
     pub walk_all: bool,
     /// Percent of an agent usage window at which it becomes a row; `NEEDS_YOU_USAGE_PERCENT_RANGE`.
     pub usage_percent: u32,
+    /// Minutes a background agent may go without writing to its transcript before its session
+    /// shows as waiting; `NEEDS_YOU_STUCK_AGENT_MINUTES_RANGE`, 0 for never.
+    pub stuck_agent_minutes: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -455,7 +460,7 @@ impl Default for Settings {
                 media_art: true,
                 port_rows: 10,
             },
-            needs_you: NeedsYou { walk_all: true, usage_percent: 80 },
+            needs_you: NeedsYou { walk_all: true, usage_percent: 80, stuck_agent_minutes: 15 },
             restore: Restore { enabled: true, resume_sessions: true, scrollback: true },
             editor: Editor { preferred: "default".into(), command: String::new() },
             git: GitSettings { auto_fetch_minutes: 5, branch_size_threshold: 400 },

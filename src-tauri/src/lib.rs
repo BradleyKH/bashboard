@@ -2,6 +2,7 @@ mod agents;
 mod app_log;
 mod atomic_file;
 mod backdrop_image;
+mod background_agents;
 mod browser;
 mod browser_files;
 pub mod browser_policy;

@@ -1,7 +1,7 @@
 import './filesPane.css';
 import { startSplitDrag } from './splitDrag';
 import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextMenu } from './contextMenu';
-import type { MenuEntry } from './contextMenuModel';
+import { separator, type MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
 import { copiedPathText } from './displayPath';
 import { openInFileManagerLabel, platformOs } from './platform';
@@ -14,6 +14,7 @@ import {
   filePreviewMenuItems,
   fileRowMenuItems,
   folderMenuItems,
+  treeViewItem,
   type FileRowMenuHandlers,
   type MoveTarget,
 } from './fileRowMenu';
@@ -202,7 +203,12 @@ export class FilesPane implements PaneView {
           openContextMenu(this.rowMenu(entry, selection), { anchorEl: anchor, align: 'right' }, { target });
         }
       },
-      rowMenu: (entry, selection) => this.rowMenu(entry, selection),
+      // The right-click menu, unlike the row's menu button, also switches the view.
+      rowMenu: (entry, selection) => [
+        ...this.rowMenu(entry, selection),
+        separator(),
+        treeViewItem(this.view === 'tree', () => this.toggleView()),
+      ],
       folderMenu: () => this.folderMenu(),
       onDragStart: (entries, e) => this.startRowDrag(entries, e),
       onRename: (entry, newName) => this.renameEntry(entry, newName),
@@ -902,7 +908,7 @@ export class FilesPane implements PaneView {
   private folderMenu(): MenuEntry[] {
     const folder = this.currentPath;
     return folderMenuItems(
-      { pinned: this.isPinned(folder) },
+      { pinned: this.isPinned(folder), tree: this.view === 'tree' },
       {
         openTerminalHere: () => this.opts.onOpenTerminalHere(folder),
         openInExplorer: () => openFolder(folder),
@@ -910,6 +916,7 @@ export class FilesPane implements PaneView {
         copyPath: () => void copyPath(folder),
         paste: () => void this.pasteInto(folder),
         togglePin: () => this.togglePin(folder),
+        toggleTree: () => this.toggleView(),
       },
     );
   }

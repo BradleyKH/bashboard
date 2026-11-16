@@ -123,6 +123,19 @@ const DASHBOARD_ELEMENT_FIELDS: Partial<Record<ShowableSection, Omit<SettingsFie
       inline: true,
       shownWhen: { path: ['dashboard', 'sections', 'needs'], value: true },
     },
+    {
+      path: ['needsYou', 'stuckAgentMinutes'],
+      label: 'Flag a background agent as stuck after',
+      kind: 'number',
+      min: 0,
+      max: 1440,
+      step: 1,
+      unit: 'min',
+      integer: true,
+      applies: 'live',
+      inline: true,
+      hint: 'Minutes without activity before its session shows as waiting; 0 never flags one',
+    },
   ],
   ports: [
     {

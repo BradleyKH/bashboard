@@ -25,9 +25,9 @@ use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::lock::LockExt;
 use crate::usage::{self, UsageWindow};
-use crate::{agents::AgentId, ci, cli, pty::Ptys, roster, size_route, transcript, worktree_route};
+use crate::{agents::AgentId, ci, cli, hook_client, pty::Ptys, roster, size_route, transcript, worktree_route};
 
-const MAX_BODY: usize = 64 * 1024;
+const MAX_BODY: usize = hook_client::MAX_BODY;
 const MAX_CLI_BODY: usize = 1024 * 1024;
 const MAX_CI_BODY: usize = 64 * 1024;
 /// Longest waiting reason kept, in characters.
@@ -38,6 +38,39 @@ pub enum HookStatus {
     Busy,
     Idle,
     Waiting,
+    /// The turn ended with background work still running that will wake the session again
+    /// (docs/design/sessions.md section 3.30); `HookOverlay::background` lists it.
+    Background,
+}
+
+/// One running background task a Claude Code `Stop` listed in `background_tasks`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackgroundTask {
+    /// The task id; for a subagent, also its transcript's `agent-<id>.jsonl` name.
+    pub id: String,
+    /// `subagent`, `workflow`, `teammate`, and so on.
+    pub kind: String,
+    pub description: String,
+}
+
+/// Background shells and monitors are left out: a dev server or a log watch runs on purpose for
+/// as long as the session does, so counting them would keep a session from ever reading as done.
+const IGNORED_TASK_KINDS: [&str; 2] = ["shell", "monitor"];
+/// Statuses a task in `background_tasks` can end in; any other counts as still running.
+const ENDED_TASK_STATUSES: [&str; 5] = ["completed", "failed", "killed", "stopped", "cancelled"];
+
+fn background_tasks(json: &serde_json::Value) -> Vec<BackgroundTask> {
+    let Some(tasks) = json.get("background_tasks").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    let text = |t: &serde_json::Value, k: &str| t.get(k).and_then(|v| v.as_str()).unwrap_or_default().to_owned();
+    tasks
+        .iter()
+        .filter(|t| !IGNORED_TASK_KINDS.contains(&text(t, "type").as_str()))
+        .filter(|t| !ENDED_TASK_STATUSES.contains(&text(t, "status").as_str()))
+        .map(|t| BackgroundTask { id: text(t, "id"), kind: text(t, "type"), description: text(t, "description") })
+        .filter(|t| !t.id.is_empty())
+        .collect()
 }
 
 /// What hooks have said about one session. Times are receive times in epoch ms; `last_at` is
@@ -60,6 +93,8 @@ pub struct HookOverlay {
     pub cwd: Option<String>,
     /// Receive time of the entry's first event.
     pub first_at: u64,
+    /// The background tasks the last `Stop` left running, while the status is `Background`.
+    pub background: Vec<BackgroundTask>,
 }
 
 /// One accepted hook post, as emitted on `sessions://hook`. `transcript_path` and
@@ -85,6 +120,12 @@ pub struct HookEvent {
     /// `tool_input.description`.
     #[serde(skip_serializing)]
     pub tool_description: Option<String>,
+    /// A Claude Code `Stop`'s running `background_tasks`, less shells and monitors.
+    #[serde(skip_serializing)]
+    pub background_tasks: Vec<BackgroundTask>,
+    /// The subagent a `SubagentStart` or `SubagentStop` is about.
+    #[serde(skip_serializing)]
+    pub agent_id: Option<String>,
 }
 
 #[derive(Default)]
@@ -403,6 +444,8 @@ fn handle(
             .and_then(|t| t.get("description"))
             .and_then(|v| v.as_str())
             .map(str::to_owned),
+        background_tasks: background_tasks(&json),
+        agent_id: field("agent_id"),
     };
     (204, Some(ev))
 }
@@ -520,9 +563,11 @@ fn apply(overlay: &mut HashMap<String, HookOverlay>, ev: &HookEvent) {
         .or_insert_with(|| HookOverlay { first_at: ev.at, ..Default::default() });
     entry.last_at = ev.at;
     entry.agent = ev.agent;
-    if let Some(s) = status_for(ev) {
+    let status = status_for(ev).or_else(|| resumed_by(entry, ev).then_some(HookStatus::Busy));
+    if let Some(s) = status {
         entry.status = Some((s, ev.at));
         entry.waiting_message = if s == HookStatus::Waiting { waiting_reason(ev) } else { None };
+        entry.background = if s == HookStatus::Background { ev.background_tasks.clone() } else { Vec::new() };
     }
     if let Some(cwd) = &ev.cwd {
         entry.cwd = Some(cwd.clone());
@@ -549,10 +594,19 @@ fn status_for(ev: &HookEvent) -> Option<HookStatus> {
         // Codex sends nothing when an approval is answered, so the approved tool finishing is
         // what clears `Waiting`; Copilot is treated the same way.
         (AgentId::Codex | AgentId::Copilot, "PostToolUse") => Some(HookStatus::Busy),
+        (_, "Stop") if !ev.background_tasks.is_empty() => Some(HookStatus::Background),
         (_, "Stop") => Some(HookStatus::Idle),
         (AgentId::Codex, "Interrupt") => Some(HookStatus::Idle),
         _ => None,
     }
+}
+
+/// A background subagent the last `Stop` was waiting on has finished, which wakes the session
+/// with no prompt of its own. A nested subagent's stop wakes only its parent, so it does not count.
+fn resumed_by(entry: &HookOverlay, ev: &HookEvent) -> bool {
+    ev.hook_event_name == "SubagentStop"
+        && matches!(entry.status, Some((HookStatus::Background, _)))
+        && ev.agent_id.as_ref().is_some_and(|id| entry.background.iter().any(|t| &t.id == id))
 }
 
 fn waiting_reason(ev: &HookEvent) -> Option<String> {
@@ -623,6 +677,8 @@ mod tests {
             permission_mode: None,
             tool_name: None,
             tool_description: None,
+            background_tasks: Vec::new(),
+            agent_id: None,
         }
     }
 
@@ -703,6 +759,8 @@ mod tests {
                 permission_mode: Some("bypassPermissions".into()),
                 tool_name: None,
                 tool_description: None,
+                background_tasks: Vec::new(),
+                agent_id: None,
             }
         );
         let json = serde_json::to_value(&ev).unwrap();
@@ -792,6 +850,54 @@ mod tests {
         assert_eq!(o["s1"].status, Some((HookStatus::Idle, 5)));
         apply(&mut o, &event("SessionEnd", Some(9), 6));
         assert!(o.is_empty());
+    }
+
+    #[test]
+    fn stop_keeps_running_background_agents_but_not_shells() {
+        let body = r#"{"session_id":"s1","hook_event_name":"Stop","background_tasks":[
+            {"id":"a1","type":"subagent","status":"running","description":"Drift review"},
+            {"id":"b1","type":"shell","status":"running","description":"pnpm dev"},
+            {"id":"m1","type":"monitor","status":"running","description":"tail"},
+            {"id":"w1","type":"workflow","status":"pending","description":"wf"},
+            {"id":"a2","type":"subagent","status":"completed","description":"done"}]}"#;
+        let ev = post_as(None, body).1.unwrap();
+        let ids: Vec<&str> = ev.background_tasks.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["a1", "w1"]);
+        assert_eq!(ev.background_tasks[0].description, "Drift review");
+        let only_shell = r#"{"session_id":"s1","hook_event_name":"Stop","background_tasks":[
+            {"id":"b1","type":"shell","status":"running"}]}"#;
+        assert!(post_as(None, only_shell).1.unwrap().background_tasks.is_empty());
+        let agent = post_as(None, r#"{"session_id":"s1","hook_event_name":"SubagentStop","agent_id":"a1"}"#).1.unwrap();
+        assert_eq!(agent.agent_id.as_deref(), Some("a1"));
+    }
+
+    #[test]
+    fn background_wait_and_wake() {
+        let task = |id: &str| BackgroundTask { id: id.into(), kind: "subagent".into(), description: String::new() };
+        let stop = |tasks: Vec<BackgroundTask>, at| HookEvent { background_tasks: tasks, ..event("Stop", None, at) };
+        let sub_stop = |id: &str, at| HookEvent { agent_id: Some(id.into()), ..event("SubagentStop", None, at) };
+        let mut o = HashMap::new();
+        apply(&mut o, &event("UserPromptSubmit", None, 1));
+        // A foreground subagent finishing mid-turn changes nothing.
+        apply(&mut o, &sub_stop("a1", 2));
+        assert_eq!(o["s1"].status, Some((HookStatus::Busy, 1)));
+        apply(&mut o, &stop(vec![task("a1"), task("a2")], 3));
+        assert_eq!(o["s1"].status, Some((HookStatus::Background, 3)));
+        assert_eq!(o["s1"].background.len(), 2);
+        // A nested agent's stop wakes only its parent agent.
+        apply(&mut o, &sub_stop("nested", 4));
+        assert_eq!(o["s1"].status, Some((HookStatus::Background, 3)));
+        apply(&mut o, &event("SubagentStart", None, 5));
+        assert_eq!(o["s1"].status, Some((HookStatus::Background, 3)));
+        apply(&mut o, &sub_stop("a1", 6));
+        assert_eq!(o["s1"].status, Some((HookStatus::Busy, 6)));
+        assert!(o["s1"].background.is_empty());
+        apply(&mut o, &stop(vec![task("a2")], 7));
+        assert_eq!(o["s1"].status, Some((HookStatus::Background, 7)));
+        apply(&mut o, &sub_stop("a2", 8));
+        apply(&mut o, &stop(Vec::new(), 9));
+        assert_eq!(o["s1"].status, Some((HookStatus::Idle, 9)));
+        assert!(o["s1"].background.is_empty());
     }
 
     #[test]
@@ -1145,9 +1251,9 @@ mod tests {
         assert_eq!(cli_post(Some(TOKEN), Some("5"), small, Some(MAX_CLI_BODY + 1)).0, 413);
         let big = vec![b' '; MAX_CLI_BODY + 1];
         assert_eq!(cli_post(Some(TOKEN), Some("5"), &big, None).0, 413);
-        // Past the /hook cap but under the /cli cap: reaches parse, which rejects the JSON.
-        let mid = vec![b' '; MAX_BODY + 1];
-        assert_eq!(cli_post(Some(TOKEN), Some("5"), &mid, Some(mid.len())).0, 400);
+        // Under the cap: reaches parse, which rejects the JSON.
+        let under = vec![b' '; MAX_CLI_BODY];
+        assert_eq!(cli_post(Some(TOKEN), Some("5"), &under, Some(under.len())).0, 400);
     }
 
     #[test]

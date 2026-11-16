@@ -129,7 +129,9 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
 
 **Session status.** A hook event newer than the roster's `statusUpdatedAt` wins; otherwise the
 roster's value. `waiting` exists only from hooks, and clears on the next `UserPromptSubmit`,
-`Stop`, or roster change to `busy`. The roster payload carries `waitingReason: string | null`
+`Stop`, or roster change to `busy`. A Claude Code turn that ends with background agents running
+reads as `busy` rather than `idle`, held the same way, and as `waiting` once one of those agents
+looks stuck (3.30). The roster payload carries `waitingReason: string | null`
 beside each session's status; it is the agent's waiting reason (3.3) and is present only while
 the merged status is `waiting`. Each session also carries `agent` (`claude`, `codex`, or
 `copilot`). A terminal's `done` is `idle` after a `Stop`, or a long command
@@ -323,8 +325,10 @@ the focused pane's folder.
   },
   // walkAll makes the next-attention walk visit Ship and usage rows of the Needs you list as well
   // as terminals (4.28). usagePercent (1 to 100) is the percent of an agent's usage window at
-  // which it becomes a row; anything else falls back to 80.
-  "needsYou": { "walkAll": true, "usagePercent": 80 },
+  // which it becomes a row; anything else falls back to 80. stuckAgentMinutes (0 to 1440) is how
+  // long a background agent may go without writing to its transcript before its session shows as
+  // waiting (3.30); 0 turns the check off, and anything else falls back to 15.
+  "needsYou": { "walkAll": true, "usagePercent": 80, "stuckAgentMinutes": 15 },
   // resumeSessions types each agent's resume command into restored terminals (4.9). An older
   // file's resumeClaude is still read when resumeSessions is absent.
   "restore": { "enabled": true, "resumeSessions": true, "scrollback": true },

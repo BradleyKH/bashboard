@@ -42,6 +42,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.27 New worktree (`src-tauri/src/worktree_new.rs`, `src-tauri/src/worktree_trust.rs`, `src-tauri/src/worktree_route.rs`) | [git.md](git.md) |
 | 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`) | [sessions.md](sessions.md) |
 | 3.29 Media sessions (`src-tauri/src/media.rs`) | [dashboard.md](dashboard.md) |
+| 3.30 Background waits (`src-tauri/src/hooks.rs`, `src-tauri/src/background_agents.rs`) | [sessions.md](sessions.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |

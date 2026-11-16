@@ -21,11 +21,13 @@ const HOOK_STEM: &str = "bashboard-hook";
 /// deletes it.
 const LEGACY_SCRIPT: &str = "bashboard-hook.sh";
 const COMMAND_FIELDS: [&str; 2] = ["command", "commandWindows"];
-const EVENTS: [&str; 5] = [
+const EVENTS: [&str; 7] = [
     "SessionStart",
     "UserPromptSubmit",
     "Notification",
     "Stop",
+    "SubagentStart",
+    "SubagentStop",
     "SessionEnd",
 ];
 const CODEX_EVENTS: [&str; 7] = [

@@ -340,9 +340,13 @@ and is the "Ctrl+Shift+N walks Ship and usage rows too" toggle under Sessions in
 of the Settings tab. `needsYou.usagePercent` (default 80, 1 to 100) is the percent of an agent's usage
 window at which it becomes a row in the list; a value out of range falls back to 80 with a notice. It
 applies on save and is the "Show a usage limit once it passes" field there.
+`needsYou.stuckAgentMinutes` (default 15, 0 to 1440) is how long a Claude Code background agent may
+go without any activity before its terminal shows as waiting, with "agent may be stuck" in the Needs
+you list; 0 never flags one, and a value out of range falls back to 15 with a notice. It applies on
+save and is the "Flag a background agent as stuck after" field there.
 
 ```jsonc
-"needsYou": { "walkAll": true, "usagePercent": 80 }
+"needsYou": { "walkAll": true, "usagePercent": 80, "stuckAgentMinutes": 15 }
 ```
 
 `terminal.doneAfterSeconds` (default 30) is the shortest shell command that marks its terminal

@@ -342,14 +342,17 @@ Delete.
 - Pin.
 - Delete: as the Delete key, below.
 
+A right-click menu (not the menu button's) ends with Tree view after a separator: a check item,
+checked while the Tree view shows, that switches views as the Tree button does (`treeViewItem`).
+
 The title strip's Search in this folder button shows the Search pane's kind icon (⌕). It opens a new Search pane (4.14) as a split of the Files pane, on the
 folder's own repo root (`repo_root`, since a Files pane opened outside any repo can browse into
 one), with Files to include set to the folder as an anchored glob (`/src/ui/**`, glob characters
 escaped and a comma standing in as `?`; `folderInclude`), or empty at the repo root, and focuses
 its query field. A right-click on the breadcrumb, or on the list outside any row (or the
 Menu key with no row selected), opens a menu for the current folder: Open terminal here, Open in
-File Explorer, Search in this folder, Paste (into the current folder), Copy path, and Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
-does.
+File Explorer, Search in this folder, Paste (into the current folder), Copy path, Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
+does, and Tree view, as on a row's right-click menu.
 
 A right-click in the preview outside the text editor offers Copy (with text selected), Find
 (disabled when the preview has no find bar), Open in editor, and Copy path, for the previewed

@@ -649,6 +649,17 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             |v| v.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| NEEDS_YOU_USAGE_PERCENT_RANGE.contains(n)),
             d.needs_you.usage_percent,
         ),
+        stuck_agent_minutes: pick(
+            &root,
+            &["needsYou", "stuckAgentMinutes"],
+            &mut w,
+            |v| {
+                v.as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .filter(|n| NEEDS_YOU_STUCK_AGENT_MINUTES_RANGE.contains(n))
+            },
+            d.needs_you.stuck_agent_minutes,
+        ),
     };
     let restore = Restore {
         enabled: pick(&root, &["restore", "enabled"], &mut w, boolean, d.restore.enabled),
@@ -1207,10 +1218,17 @@ mod tests {
     #[test]
     fn needs_you_defaults_and_parse() {
         let n = Settings::default().needs_you;
-        assert!(n.walk_all && n.usage_percent == 80);
-        let (s, w) = parse_settings(r#"{ "needsYou": { "walkAll": false, "usagePercent": 100 } }"#);
+        assert!(n.walk_all && n.usage_percent == 80 && n.stuck_agent_minutes == 15);
+        let (s, w) = parse_settings(
+            r#"{ "needsYou": { "walkAll": false, "usagePercent": 100, "stuckAgentMinutes": 0 } }"#,
+        );
         assert!(w.is_empty(), "{w:?}");
-        assert!(!s.needs_you.walk_all && s.needs_you.usage_percent == 100);
+        assert!(!s.needs_you.walk_all && s.needs_you.usage_percent == 100 && s.needs_you.stuck_agent_minutes == 0);
+        for bad in ["1441", "-1", "2.5", "\"15\""] {
+            let (s, w) = parse_settings(&format!(r#"{{ "needsYou": {{ "stuckAgentMinutes": {bad} }} }}"#));
+            assert_eq!(s.needs_you.stuck_agent_minutes, 15, "{bad}");
+            assert!(w.iter().any(|m| m.starts_with("needsYou.stuckAgentMinutes")), "{bad}: {w:?}");
+        }
         for bad in ["0", "101", "-1", "80.5", "\"80\""] {
             let (s, w) = parse_settings(&format!(r#"{{ "needsYou": {{ "usagePercent": {bad} }} }}"#));
             assert_eq!(s.needs_you.usage_percent, 80, "{bad}");

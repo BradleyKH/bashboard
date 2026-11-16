@@ -210,7 +210,9 @@ it, quoted for the shell of the tab's most recently focused terminal, without pr
 **Move to** (files; the repo's pinned
 folders and the current folder's subfolders), **Rename**, **Pin**, and **Delete**. With several rows selected, the menu
 offers Cut, Copy, Copy paths, Insert paths, Move to, and Delete for all of them. A right-click on
-empty space below the rows, or on the breadcrumb, offers **Paste** into the current folder.
+empty space below the rows, or on the breadcrumb, offers **Paste** into the current folder. Every
+right-click menu in the list and on the breadcrumb ends with **Tree view**, checked while the tree
+shows, which switches views as the **Tree** button does.
 
 Drag files onto a folder row to move them there, for example a finished plan into `done/`. A
 breadcrumb segment takes them too (to move them back up), and so does another Files pane's list,
@@ -766,7 +768,12 @@ status line wrapper its hook install adds, and Codex's come from its session fil
 section or this list is shown (see [Setup](setup.md#usage-limits-and-your-status-line)); Copilot
 reports none. A row shows a status icon, the pane's title or the repo's `owner/name`, a short
 phrase ("needs permission", "main failed", "#12 needs your review"), and how long ago it started,
-with more detail in its tooltip. Click a row to go to the thing: its terminal, the repo's Pipelines
+with more detail in its tooltip. A Claude Code session that ends its turn while background agents it started
+are still running stays working rather than finished, since it picks up again on its own when they
+report back. If one of those agents goes 15 minutes without any activity (change it with
+`needsYou.stuckAgentMinutes`), the terminal moves under waiting as "agent may be stuck", naming the
+agent in its tooltip. Both need current Claude Code hooks; the dashboard shows
+an Update button when they are not. Click a row to go to the thing: its terminal, the repo's Pipelines
 or Pull requests in a Ship pane, or the Accounts tab (a usage row has nowhere to go). The list shows 6 rows and then "+ N more", which expands it ("Show fewer" collapses it), and
 reads "Nothing needs you" when there is nothing to act on.
 

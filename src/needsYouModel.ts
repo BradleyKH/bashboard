@@ -128,6 +128,8 @@ export function phrase(item: NeedsItem): string {
     case 'terminal':
       if (item.status === 'done') return 'finished';
       if (item.status === 'failed') return 'session failed';
+      // The core words a stuck background agent's reason this way (docs/design/sessions.md section 3.30).
+      if (/^Background agent may be stuck/.test(item.reason)) return 'agent may be stuck';
       return /permission/i.test(item.reason) ? 'needs permission' : 'asked a question';
     case 'ship':
       return itemText(item.item);

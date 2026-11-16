@@ -209,10 +209,11 @@ describe('folderMenuItems', () => {
     copyPath: vi.fn(),
     paste: vi.fn(),
     togglePin: vi.fn(),
+    toggleTree: vi.fn(),
   });
 
   it('labels the pin item Pin or Unpin by state', () => {
-    expect(labels(folderMenuItems({ pinned: false }, handlers()))).toEqual([
+    expect(labels(folderMenuItems({ pinned: false, tree: false }, handlers()))).toEqual([
       'Open terminal here',
       'Open in File Explorer',
       'Search in this folder',
@@ -221,13 +222,25 @@ describe('folderMenuItems', () => {
       'Copy path',
       '-',
       'Pin',
+      '-',
+      'Tree view',
     ]);
-    expect(labels(folderMenuItems({ pinned: true }, handlers()))).toContain('Unpin');
+    expect(labels(folderMenuItems({ pinned: true, tree: false }, handlers()))).toContain('Unpin');
+  });
+
+  it('checks Tree view while the tree shows and toggles it', () => {
+    const h = handlers();
+    const tree = (on: boolean) => folderMenuItems({ pinned: false, tree: on }, h).find((e) => e.kind === 'item' && e.label === 'Tree view');
+    expect(tree(false)).toMatchObject({ checked: false });
+    const on = tree(true);
+    expect(on).toMatchObject({ checked: true });
+    if (on?.kind === 'item') on.run();
+    expect(h.toggleTree).toHaveBeenCalledOnce();
   });
 
   it('calls each handler', () => {
     const h = handlers();
-    const items = folderMenuItems({ pinned: true }, h);
+    const items = folderMenuItems({ pinned: true, tree: false }, h);
     find(items, 'Open terminal here').run();
     find(items, 'Open in File Explorer').run();
     find(items, 'Search in this folder').run();

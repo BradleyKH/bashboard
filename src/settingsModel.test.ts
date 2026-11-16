@@ -49,7 +49,7 @@ describe('Dashboard section', () => {
     expect(grouped.map((f) => [f.group, f.path.join('.')])).toEqual([
       ...SECTION_GROUPS.flatMap((g) => {
         const extras: Record<string, string[]> = {
-          Sessions: ['needsYou.walkAll', 'needsYou.usagePercent'],
+          Sessions: ['needsYou.walkAll', 'needsYou.usagePercent', 'needsYou.stuckAgentMinutes'],
           'Local services': ['dashboard.portRows'],
           Ambient: ['dashboard.mediaArt', 'dashboard.clockStyle'],
         };

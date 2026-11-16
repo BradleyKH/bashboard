@@ -578,8 +578,9 @@ terminal; for a Ship row it is a failure icon, the success icon for an approval,
 for a review request; a usage row draws a small ring meter filled to its percent, in the warning
 color under 100% and the error color at 100%. The subject is the pane's title for a terminal, `owner/name` for a Ship row,
 the agent's display name ("Claude Code", "Codex") for a usage row, and the host for the sign-in
-row ("Ship" when it has none). The phrase for a terminal is "needs
-permission" when its waiting reason mentions permission, else "asked a question", then "finished"
+row ("Ship" when it has none). The phrase for a terminal is "agent may be stuck" when its waiting
+reason is a stuck background agent's (3.30), "needs permission" when it mentions permission, else
+"asked a question", then "finished"
 or "session failed". For Ship it is "main failed", "#12 needs your review", "#12 changes
 requested", "#12 checks failing", or "#12 approved by Andrew Cartwright" (naming up to two
 approvers, "and 2 others" past that); for a usage row, "5-hour limit 84%" (the percent rounded down,

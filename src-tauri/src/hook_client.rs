@@ -11,16 +11,18 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Bump on every change to the hook's behavior: the app only replaces an installed copy whose
 /// version is lower than its own.
-pub const HOOK_VERSION: u32 = 4;
+pub const HOOK_VERSION: u32 = 5;
 pub const VERSION_PREFIX: &str = "bashboard-hook-version:";
 
 /// The installer finds the version by scanning an installed binary's bytes for this marker, so
 /// it must survive linking; `#[used]` and `--version` reading it both keep it.
 #[used]
-static VERSION_MARKER: [u8; 25] = *b"bashboard-hook-version:4;";
+static VERSION_MARKER: [u8; 25] = *b"bashboard-hook-version:5;";
 
-/// Matches `MAX_BODY` in hooks.rs; the receiver rejects anything larger.
-pub const MAX_BODY: usize = 64 * 1024;
+/// The receiver's `MAX_BODY` too, so it rejects anything larger. Claude Code's `Stop` and
+/// `SubagentStop` carry the final message whole, which can run well past 64 KiB, and a cut body is
+/// not JSON, so the event would be lost.
+pub const MAX_BODY: usize = 1024 * 1024;
 /// An agent waits on every hook call, so a stalled stdin must not hold it for long.
 pub const READ_DEADLINE: Duration = Duration::from_secs(2);
 const USAGE: &str = "usage: bb hook <claude|codex|copilot> [event] | bb hook --version";

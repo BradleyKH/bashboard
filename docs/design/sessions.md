@@ -80,7 +80,8 @@ exact transitions as they happen.
      post cannot cost the agent its reply. For Claude Code, Codex, and Copilot the reply is
      nothing, because Codex's `PermissionRequest` and Copilot's `permissionRequest` read a
      hook's stdout as an allow or deny decision, and empty output leaves the normal prompt.
-  3. Reads standard input with bounds: at most 64 KiB (`MAX_BODY` in `hooks.rs`), a 2 second
+  3. Reads standard input with bounds: at most 1 MiB (`MAX_BODY` in `hook_client.rs`, which the
+     receiver shares; Claude Code's `Stop` and `SubagentStop` carry the final message whole), a 2 second
      deadline, and an early stop as soon as the bytes read are one complete JSON object or
      array, which returns promptly when an agent writes its payload and leaves stdin open.
   4. When `BASHBOARD_HOOK_LOG` names a file, appends `--- <UTC ISO time> agent=<agent>`, the
@@ -92,7 +93,7 @@ exact transitions as they happen.
      is ignored, and the exit code is always 0, because a failing hook would surface as an
      error in the agent, and Bashboard being away is not one.
 
-  `bb hook --version` prints the embedded marker `bashboard-hook-version:4;`.
+  `bb hook --version` prints the embedded marker `bashboard-hook-version:5;`.
 
   `bb statusline <agent> [<command>]` (`src-tauri/src/statusline_client.rs`, included by `bb`
   beside `hook_client.rs`, whose bounded reader and limits it shares) is the program behind a
@@ -102,7 +103,7 @@ exact transitions as they happen.
   original command string reaches the shell exactly. Each run:
 
   1. With no `<command>` and outside a Bashboard pane, exits 0 without reading standard input.
-  2. Otherwise reads standard input with `bb hook`'s bounds (64 KiB, a 2 second deadline, an
+  2. Otherwise reads standard input with `bb hook`'s bounds (1 MiB, a 2 second deadline, an
      early stop at one complete JSON value).
   3. Inside a pane, and when the body is not empty, posts it to `$BASHBOARD_HOOK_URL/usage` with
      `X-Bashboard-Token`, `X-Bashboard-Pane`, and `X-Bashboard-Agent`, under the same timeouts as
@@ -149,7 +150,9 @@ exact transitions as they happen.
   | `SessionStart` | Session bound to its pane |
   | `UserPromptSubmit` | `busy` |
   | `Notification` | `waiting` when its `notification_type` needs input (a permission prompt, an elicitation dialog, or an agent needing input; or no type, from older Claude Code); other notices, including the idle prompt, change nothing; carries `message` |
-  | `Stop` | `idle`, shown as `done` until the pane is looked at (4.8) |
+  | `Stop` | `idle`, shown as `done` until the pane is looked at (4.8); `background` instead when its `background_tasks` lists running work other than shells and monitors (3.30) |
+  | `SubagentStart` | Nothing yet |
+  | `SubagentStop` | `busy` when it names a task the session's `background` wait lists, since the session wakes on its own (3.30); otherwise nothing |
   | `SessionEnd` | Session unbound from its pane |
 
   Each event gets one group appended, and the registered command is exactly:
@@ -232,12 +235,13 @@ exact transitions as they happen.
   waits on it. For `/hook` it answers with these
   codes, checked in this order:
   404 for any other path or method, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a
-  body over 64 KiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on
+  body over 1 MiB, 400 for a body that is not JSON or has no string `session_id`, and 204 on
   success. The `X-Bashboard-Agent` header names the sending agent; an absent header means Claude
   Code, and an unknown value is a 400. A payload without a `hook_event_name` takes it from the
   optional `X-Bashboard-Event` header. The receiver
   keeps only `session_id`, `hook_event_name`, `cwd`, `message`, `transcript_path`,
-  `permission_mode`, and for Codex's waiting reason the tool's name and description, and emits
+  `permission_mode`, for Codex's waiting reason the tool's name and description, and for Claude
+  Code's background waits (3.30) a `Stop`'s `background_tasks` and a subagent event's `agent_id`, and emits
   `sessions://hook` with the first four plus the pane id from the header, the agent, and the
   receive time. Each event is mapped to a status by its agent's table above; an event that table
   does not list leaves the status unchanged. `transcript_path` is not forwarded; the
@@ -399,7 +403,7 @@ uninstall; `docs/setup.md` says how to restore `X` by hand.
 
 `POST /usage` takes the body on `/hook`'s terms: the token alone, with no pane check, because
 Claude Code may run outside a Bashboard pane. The receiver answers 404 for a method other than
-POST, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a body over 64 KiB, 400 for an
+POST, 403 for a missing or wrong `X-Bashboard-Token`, 413 for a body over 1 MiB, 400 for an
 unknown `X-Bashboard-Agent` (absent means Claude Code) or a body that is not JSON, and 204
 otherwise, including for an input with no rate limits. It reads the body as a Claude Code status
 line input, the only wrapper there is. It answers on the loop that carries hook events.
@@ -430,6 +434,51 @@ never drops a window; the Needs you list ignores one whose reset time has passed
 a minute, so a window disappears at its reset without a new report. A window with no reset time
 stays until a report replaces it. Which windows become rows is the `needsYou.usagePercent`
 threshold (4.28, section 8).
+
+## 3.30 Background waits (`src-tauri/src/hooks.rs`, `src-tauri/src/background_agents.rs`)
+
+Claude Code ends a turn, and sends `Stop`, while background agents it launched are still running;
+when one finishes, the session wakes and works on its result with no prompt from the user. Read
+as `idle`, such a turn would show as `done` and enter Needs you (4.28) while the session is still
+at work.
+
+**The wait.** A Claude Code `Stop` carries `background_tasks`, each with `id`, `type`, `status`,
+and `description`. The receiver keeps the entries whose status is not `completed`, `failed`,
+`killed`, `stopped`, or `cancelled`, leaving out `shell` and `monitor` tasks: a dev server or a log
+watch can run for as long as the session does, and counting it would keep the session from ever
+reading as done. A `Stop` with any left sets the overlay to `background` and keeps that list; any
+other status clears it. A `SubagentStop` whose `agent_id` is in the list sets `busy`, because the
+session is waking; a nested subagent's stop wakes only its parent agent and changes nothing. The
+next `Stop` decides again between `background` and `idle`.
+
+The roster payload has no `background` status: the merge (3.2) reports it as `busy`, held like
+`waiting` against anything but a newer roster `busy`, since Claude Code's session file says `idle`
+while the session waits. The roster's own `busy` on waking wins as it does for `waiting`.
+
+**Stuck agents.** Claude Code writes each subagent's transcript to
+`<session>/subagents/agent-<id>.jsonl` beside the session's own transcript (the overlay's
+`transcript_path` without `.jsonl`), appending on every message and tool result, so its modified
+time is the agent's heartbeat. `agent-<id>.meta.json` beside it names the agent's parent
+(`parentAgentId`) and gains `"finished": true` when the agent ends. An agent waiting on its own
+background agents writes nothing until they report, so an agent's activity is the newest write
+among its own transcript and those of its unfinished descendants.
+
+The roster's 10 second sweep judges each `subagent` task of every session in `background`: one
+whose activity is at least `needsYou.stuckAgentMinutes` (section 8, default 15; 0 turns the check
+off) old is stuck, and the stalest stuck task speaks for the session. A stuck session's merged
+status is `waiting`, changed at its last activity plus the threshold, with the reason
+`Background agent may be stuck: <description>`, so it is Blocked in Needs you (4.28) and raises
+attention (4.7) like any other wait. A verdict applies only while the session's wait still lists
+its task, so one from an earlier wait never colors a later one, and it clears on the next sweep
+after the agent writes again. Tasks of other types, and a subagent whose transcript cannot be read,
+are never judged.
+
+The check sees only transcript writes, so a subagent blocked on one long tool call, or on a
+background shell of its own, past the threshold reads as stuck while it may not be; the threshold
+is the trade between that and how long a hung agent goes unnoticed. Across 591 past subagent
+transcripts the longest silence was under 3 minutes in 95 percent of them, and nearly every
+silence past 10 minutes was an agent waiting on agents of its own, which the descendant rule
+covers.
 
 ## 4.7 Attention
 

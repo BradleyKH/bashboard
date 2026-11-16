@@ -99,6 +99,8 @@ export function fileRowMenuItems<T extends FileEntry>(
 export interface FolderMenuState {
   /** The current folder is pinned, so the pin item unpins. */
   pinned: boolean;
+  /** The pane shows the Tree view, which checks the Tree view item. */
+  tree: boolean;
 }
 
 export interface FolderMenuHandlers {
@@ -110,6 +112,13 @@ export interface FolderMenuHandlers {
   paste: () => void;
   /** Pins the current folder, or unpins it when pinned, as the breadcrumb's pin button does. */
   togglePin: () => void;
+  /** Switches between the Folder and Tree views, as the breadcrumb's Tree button does. */
+  toggleTree: () => void;
+}
+
+/** The Tree view toggle that ends the folder menu and a row's right-click menu. */
+export function treeViewItem(tree: boolean, toggle: () => void): MenuEntry {
+  return item('Tree view', toggle, { checked: tree });
 }
 
 /** The breadcrumb's and the empty list area's menu, acting on the current folder. */
@@ -123,6 +132,8 @@ export function folderMenuItems(state: FolderMenuState, handlers: FolderMenuHand
     item('Copy path', handlers.copyPath),
     separator(),
     item(state.pinned ? 'Unpin' : 'Pin', handlers.togglePin),
+    separator(),
+    treeViewItem(state.tree, handlers.toggleTree),
   ];
 }
 

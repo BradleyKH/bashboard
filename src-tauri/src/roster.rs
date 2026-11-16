@@ -23,7 +23,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::lock::LockExt;
 use crate::agents::AgentId;
+use crate::background_agents::{self, Stuck};
 use crate::hooks::{self, HookOverlay, HookStatus, Hooks};
+use crate::settings::SettingsState;
 use crate::pty::Ptys;
 use crate::transcript::{self, Transcripts};
 
@@ -324,7 +326,46 @@ fn codex_names(text: &str, wanted: &HashSet<&str>) -> HashMap<String, String> {
     out
 }
 
-fn hook_born_sessions(overlay: &HashMap<String, HookOverlay>, born: &HookBorn) -> Vec<Session> {
+/// The stuck verdict that applies to a session in `Background`: one naming a task its last `Stop`
+/// listed, so a verdict from an earlier wait never leaks into a later one.
+fn stuck_for<'a>(id: &str, o: &HookOverlay, stuck: &'a HashMap<String, Stuck>) -> Option<&'a Stuck> {
+    if !matches!(o.status, Some((HookStatus::Background, _))) {
+        return None;
+    }
+    stuck.get(id).filter(|k| o.background.iter().any(|t| t.id == k.task_id))
+}
+
+/// A `Background` session reads as busy, since it is not done and will wake on its own, or as
+/// waiting once one of its agents looks stuck (docs/design/sessions.md section 3.30).
+fn background_status(id: &str, o: &HookOverlay, t: u64, stuck: &HashMap<String, Stuck>) -> (SessionStatus, u64) {
+    match stuck_for(id, o, stuck) {
+        Some(k) => (SessionStatus::Waiting, k.since.max(t)),
+        None => (SessionStatus::Busy, t),
+    }
+}
+
+/// The waiting reason: a stuck agent's, else the blocking notification's.
+fn waiting_reason(id: &str, o: &HookOverlay, stuck: &HashMap<String, Stuck>) -> Option<String> {
+    stuck_for(id, o, stuck).map(|k| k.reason.clone()).or_else(|| o.waiting_message.clone())
+}
+
+/// Judges every session whose last `Stop` left background agents running.
+fn stuck_agents(overlay: &HashMap<String, HookOverlay>, now: u64, threshold_ms: u64) -> HashMap<String, Stuck> {
+    overlay
+        .iter()
+        .filter(|(_, o)| matches!(o.status, Some((HookStatus::Background, _))))
+        .filter_map(|(id, o)| {
+            let path = o.transcript_path.as_deref()?;
+            Some((id.clone(), background_agents::check(path, &o.background, now, threshold_ms)?))
+        })
+        .collect()
+}
+
+fn hook_born_sessions(
+    overlay: &HashMap<String, HookOverlay>,
+    born: &HookBorn,
+    stuck: &HashMap<String, Stuck>,
+) -> Vec<Session> {
     overlay
         .iter()
         .filter(|(id, o)| is_hook_born(id, o, born))
@@ -333,6 +374,7 @@ fn hook_born_sessions(overlay: &HashMap<String, HookOverlay>, born: &HookBorn) -
                 Some((HookStatus::Busy, t)) => (SessionStatus::Busy, t),
                 Some((HookStatus::Idle, t)) => (SessionStatus::Idle, t),
                 Some((HookStatus::Waiting, t)) => (SessionStatus::Waiting, t),
+                Some((HookStatus::Background, t)) => background_status(id, o, t, stuck),
                 None => (SessionStatus::Unknown, o.first_at),
             };
             Session {
@@ -347,7 +389,7 @@ fn hook_born_sessions(overlay: &HashMap<String, HookOverlay>, born: &HookBorn) -
                 started_at: o.first_at,
                 version: None,
                 pane_id: o.pane_id,
-                waiting_reason: if status == SessionStatus::Waiting { o.waiting_message.clone() } else { None },
+                waiting_reason: if status == SessionStatus::Waiting { waiting_reason(id, o, stuck) } else { None },
                 permission_mode: o.permission_mode.clone(),
                 agent: o.agent,
             }
@@ -450,8 +492,9 @@ fn build_list(raws: Vec<RawSession>, procs: &ProcTable, shells: &HashMap<u32, u3
 /// over ancestry. Hook busy or idle wins only when newer than the roster's status; waiting holds
 /// against anything but a newer roster busy, since the session file never reports waiting and
 /// would otherwise clear it on its next write. A waiting session carries the overlay's message
-/// as its reason.
-fn apply_overlay(sessions: &mut [Session], overlay: &HashMap<String, HookOverlay>) {
+/// as its reason. Background holds the same way, since the session file reports idle while
+/// background agents run.
+fn apply_overlay(sessions: &mut [Session], overlay: &HashMap<String, HookOverlay>, stuck: &HashMap<String, Stuck>) {
     for s in sessions {
         let Some(o) = overlay.get(&s.session_id) else { continue };
         if let Some(pane) = o.pane_id {
@@ -465,6 +508,11 @@ fn apply_overlay(sessions: &mut [Session], overlay: &HashMap<String, HookOverlay
             {
                 Some((SessionStatus::Waiting, t))
             }
+            Some((HookStatus::Background, t))
+                if !(s.status == SessionStatus::Busy && s.status_changed_at > t) =>
+            {
+                Some(background_status(&s.session_id, o, t, stuck))
+            }
             _ => None,
         };
         if let Some((status, t)) = status {
@@ -473,7 +521,7 @@ fn apply_overlay(sessions: &mut [Session], overlay: &HashMap<String, HookOverlay
             s.status_changed_at = t;
         }
         s.waiting_reason =
-            if s.status == SessionStatus::Waiting { o.waiting_message.clone() } else { None };
+            if s.status == SessionStatus::Waiting { waiting_reason(&s.session_id, o, stuck) } else { None };
         s.permission_mode = o.permission_mode.clone();
     }
 }
@@ -485,6 +533,8 @@ struct Lists {
     /// The merged list last emitted.
     emitted: Vec<Session>,
     hook_born: HookBorn,
+    /// The last sweep's stuck background agents, by session id.
+    stuck: HashMap<String, Stuck>,
 }
 
 pub struct Roster {
@@ -513,8 +563,8 @@ pub fn refresh(app: &AppHandle) {
     let merged = {
         let mut lists = state.lists.lock_or_recover();
         let mut merged = lists.scanned.clone();
-        apply_overlay(&mut merged, &overlay);
-        merged.extend(hook_born_sessions(&overlay, &lists.hook_born));
+        apply_overlay(&mut merged, &overlay, &lists.stuck);
+        merged.extend(hook_born_sessions(&overlay, &lists.hook_born, &lists.stuck));
         merged.sort_by_key(|s| s.started_at);
         if lists.emitted != merged {
             lists.emitted = merged.clone();
@@ -560,10 +610,13 @@ pub fn init(app: &AppHandle) {
             let live = live_ids(&list, &born_ids);
             app.state::<Hooks>().prune(&live, now);
             app.state::<Transcripts>().prune(&live);
+            let threshold = u64::from(app.state::<SettingsState>().current().needs_you.stuck_agent_minutes) * 60_000;
+            let stuck = stuck_agents(&overlay, now, threshold);
             {
                 let mut lists = roster.lists.lock_or_recover();
                 lists.hook_born = born;
                 lists.scanned = list;
+                lists.stuck = stuck;
             }
             refresh(&app);
         }
@@ -767,12 +820,44 @@ mod tests {
             r#"{{"pid": 7, "sessionId": "a", "status": "{status}", "statusUpdatedAt": {changed_at}}}"#
         ))];
         list[0].pane_id = Some(1);
-        apply_overlay(&mut list, &HashMap::from([("a".to_string(), overlay)]));
+        apply_overlay(&mut list, &HashMap::from([("a".to_string(), overlay)]), &HashMap::new());
         list.remove(0)
     }
 
     fn hook(status: HookStatus, at: u64) -> HookOverlay {
         HookOverlay { status: Some((status, at)), pane_id: None, last_at: at, ..Default::default() }
+    }
+
+    #[test]
+    fn background_reads_busy_over_a_newer_roster_idle_and_waiting_once_stuck() {
+        use crate::hooks::BackgroundTask;
+        let task = |id: &str| BackgroundTask { id: id.into(), kind: "subagent".into(), description: "Review".into() };
+        let overlay = HookOverlay { background: vec![task("t1")], ..hook(HookStatus::Background, 150) };
+        let one = |roster: &str, at: u64, stuck: &HashMap<String, Stuck>| {
+            let mut list = vec![session(&format!(
+                r#"{{"pid": 7, "sessionId": "a", "status": "{roster}", "statusUpdatedAt": {at}}}"#
+            ))];
+            apply_overlay(&mut list, &HashMap::from([("a".to_string(), overlay.clone())]), stuck);
+            list.remove(0)
+        };
+        let none = HashMap::new();
+        // The session file writes idle at the end of the turn, around the Stop.
+        let s = one("idle", 200, &none);
+        assert_eq!((s.status, s.status_changed_at), (SessionStatus::Busy, 150));
+        // The session waking on its own writes a newer busy, which wins.
+        assert_eq!(one("busy", 300, &none).status_changed_at, 300);
+        let stuck = |task_id: &str| {
+            HashMap::from([(
+                "a".to_string(),
+                Stuck { task_id: task_id.into(), reason: "Background agent may be stuck: Review".into(), since: 900 },
+            )])
+        };
+        let s = one("idle", 200, &stuck("t1"));
+        assert_eq!((s.status, s.status_changed_at), (SessionStatus::Waiting, 900));
+        assert_eq!(s.waiting_reason.as_deref(), Some("Background agent may be stuck: Review"));
+        // A verdict about a task this wait does not list is stale.
+        assert_eq!(one("idle", 200, &stuck("old")).status, SessionStatus::Busy);
+        assert_eq!(one("busy", 1000, &stuck("t1")).status, SessionStatus::Busy);
     }
 
     #[test]
@@ -850,7 +935,7 @@ mod tests {
         list[0].pane_id = Some(4);
         let before = list.clone();
         let overlay = HashMap::from([("other".to_string(), hook(HookStatus::Waiting, u64::MAX))]);
-        apply_overlay(&mut list, &overlay);
+        apply_overlay(&mut list, &overlay, &HashMap::new());
         assert_eq!(list, before);
     }
 
@@ -895,7 +980,7 @@ mod tests {
             ("cl".to_string(), born_overlay(AgentId::Claude, Some(7), 50)),
             ("np".to_string(), born_overlay(AgentId::Copilot, None, 50)),
         ]);
-        let list = hook_born_sessions(&overlay, &HookBorn::default());
+        let list = hook_born_sessions(&overlay, &HookBorn::default(), &HashMap::new());
         assert_eq!(list.len(), 1);
         let s = &list[0];
         assert_eq!(s.session_id, "cx");
@@ -912,11 +997,11 @@ mod tests {
             waiting_message: Some("Approve?".into()),
             ..born_overlay(AgentId::Copilot, Some(7), 60)
         };
-        let s = hook_born_sessions(&HashMap::from([("cp".to_string(), waiting)]), &HookBorn::default())
+        let s = hook_born_sessions(&HashMap::from([("cp".to_string(), waiting)]), &HookBorn::default(), &HashMap::new())
             .remove(0);
         assert_eq!((s.status, s.waiting_reason.as_deref()), (SessionStatus::Waiting, Some("Approve?")));
         let none = HookOverlay { status: None, ..born_overlay(AgentId::Codex, Some(7), 60) };
-        let s = hook_born_sessions(&HashMap::from([("n".to_string(), none)]), &HookBorn::default())
+        let s = hook_born_sessions(&HashMap::from([("n".to_string(), none)]), &HookBorn::default(), &HashMap::new())
             .remove(0);
         assert_eq!((s.status, s.status_changed_at), (SessionStatus::Unknown, 10));
     }
@@ -934,7 +1019,7 @@ mod tests {
         let mut born = HookBorn::default();
         sweep_hook_born(&mut born, &overlay, &mut table, &shells, 100, no_cmds);
         assert_eq!(born.pids.get("cx"), Some(&(101, 11)));
-        assert_eq!(hook_born_sessions(&overlay, &born)[0].pid, 101);
+        assert_eq!(hook_born_sessions(&overlay, &born, &HashMap::new())[0].pid, 101);
     }
 
     #[test]
@@ -979,7 +1064,7 @@ mod tests {
         let gone = HashMap::new();
         sweep_hook_born(&mut born, &gone, &mut table, &shells, 200, no_cmds);
         assert_eq!(born, HookBorn::default());
-        assert!(hook_born_sessions(&gone, &born).is_empty());
+        assert!(hook_born_sessions(&gone, &born, &HashMap::new()).is_empty());
     }
 
     #[test]
@@ -990,7 +1075,7 @@ mod tests {
         sweep_hook_born(&mut born, &overlay, &mut table, &shells, 100, no_cmds);
         table.remove(&101);
         sweep_hook_born(&mut born, &overlay, &mut table, &shells, 200, no_cmds);
-        assert!(hook_born_sessions(&overlay, &born).is_empty());
+        assert!(hook_born_sessions(&overlay, &born, &HashMap::new()).is_empty());
         assert!(hook_born_ids(&overlay, &born).is_empty());
 
         // A reused pid with a later start is not the same process.

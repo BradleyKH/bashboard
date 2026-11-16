@@ -168,6 +168,7 @@ describe('row text', () => {
     expect(phrase(term({ reason: 'Claude needs your permission to use Bash' }))).toBe('needs permission');
     expect(phrase(term({ reason: 'Which date format?' }))).toBe('asked a question');
     expect(phrase(term({ reason: '' }))).toBe('asked a question');
+    expect(phrase(term({ reason: 'Background agent may be stuck: Drift review' }))).toBe('agent may be stuck');
     expect(phrase(term({ status: 'done' }))).toBe('finished');
     expect(phrase(term({ status: 'failed' }))).toBe('session failed');
   });

@@ -143,7 +143,9 @@ happen. They map to status like this:
 | `SessionStart` | Binds the session to its pane |
 | `UserPromptSubmit` | `busy` |
 | `Notification` | `waiting` (permission prompt or idle prompt) |
-| `Stop` | `idle`, shown as `done` until you focus that pane |
+| `Stop` | `idle`, shown as `done` until you focus that pane; still `busy` while background agents it started are running |
+| `SubagentStop` | `busy` again when a background agent finishes, since Claude picks back up on its own |
+| `SubagentStart` | Nothing yet |
 | `SessionEnd` | Unbinds the session |
 
 Without hooks, a terminal can still show working, waiting, and done when the program reports its
@@ -181,7 +183,7 @@ update every installed copy.
 
 To add them by hand, copy `bb.exe` from the install folder to
 `~/.claude/hooks/bashboard-hook.exe` and add this group to the `SessionStart`,
-`UserPromptSubmit`, `Notification`, `Stop`, and `SessionEnd` arrays under `hooks` in
+`UserPromptSubmit`, `Notification`, `Stop`, `SubagentStart`, `SubagentStop`, and `SessionEnd` arrays under `hooks` in
 `~/.claude/settings.json`:
 
 ```json
