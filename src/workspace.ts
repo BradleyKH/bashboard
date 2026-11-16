@@ -56,7 +56,7 @@ import * as persistence from './workspacePersistence';
 import { WorkspaceSessions } from './workspaceSessions';
 import type { Edge, LaunchTarget, OpenPaneOptions, OpenTerminalOptions, PaneSpec } from './workspaceTypes';
 import type { TabInfo, TerminalInfo, WorkspaceHooks } from './workspaceTypes';
-import { supports } from './platform';
+import { osName, supports } from './platform';
 
 export type { DragSource };
 export type { LaunchTarget, OpenPaneOptions, OpenTerminalOptions, PaneSpec, TabInfo, TerminalInfo, WorkspaceHooks };
@@ -896,6 +896,7 @@ export class Workspace {
         return;
       }
       if (url) void invoke('open_url', { url }).catch((err: unknown) => console.warn('open_url failed', err));
+      else showToast(`bb browse needs a localhost address on ${osName()}`);
       return;
     }
     routing.openLocalBrowser(this.ctx, url, opts);

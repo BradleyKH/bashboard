@@ -121,8 +121,8 @@ visible to the user. Relative paths resolve against the folder `bb` runs in.
   `--` are typed into the new shell as one line followed by Enter, in that shell's syntax.
 - `bb ship`: show this folder's repo in the Ship pane (the Overview outside a repo).
 - `bb ports`, `bb containers`: show the Ports or Containers pane.
-- `bb browse [<url>]`: open a Local Browser pane. Only localhost and 127.0.0.1 are allowed; a bare
-  port such as `5173` works.
+- `bb browse [<url>]`: on Windows, open a Local Browser pane; on macOS and Linux, open the system
+  browser. Only localhost and 127.0.0.1 are allowed; a bare port such as `5173` works.
 - `bb auth bitbucket` and `bb auth azure-devops <org>`: store a token for the Ship pane. They
   prompt the user with echo off, so leave these to the user.
 - `bb help`: list the commands.

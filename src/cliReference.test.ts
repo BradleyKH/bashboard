@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLI_COMMANDS, CLI_OPTIONS } from './cliReference';
+import { CLI_COMMANDS, CLI_OPTIONS, entryFor } from './cliReference';
 
 describe('the bb reference', () => {
   it('covers every command the core dispatches, plus help', () => {
@@ -13,5 +13,19 @@ describe('the bb reference', () => {
       expect(e.examples.length).toBeGreaterThan(0);
       for (const x of e.examples) expect(x).toContain(e.name);
     }
+  });
+
+  it('words bb browse for the system browser off Windows', () => {
+    const browse = CLI_COMMANDS.find((c) => c.name === 'browse')!;
+    expect(entryFor(browse, 'windows')).toBe(browse);
+    for (const os of ['linux', 'macos']) {
+      const e = entryFor(browse, os);
+      expect(e.summary).toBe('Open a localhost address in the system browser');
+      expect(e.details).not.toContain('start page');
+      expect(e.examples).not.toContain('bb browse');
+      expect(e.examples.length).toBeGreaterThan(0);
+    }
+    const ports = CLI_COMMANDS.find((c) => c.name === 'ports')!;
+    expect(entryFor(ports, 'linux')).toBe(ports);
   });
 });

@@ -20,7 +20,11 @@ use crate::{profiles, settings::SettingsState};
 
 const DIFF_CAP: usize = 1024 * 1024;
 const BACKGROUND_FETCH_TIMEOUT: Duration = Duration::from_secs(60);
-const NOT_FOUND: &str = "git was not found on PATH or beside Git Bash";
+const NOT_FOUND: &str = if cfg!(windows) {
+    "git was not found on PATH or beside Git Bash"
+} else {
+    "git was not found on PATH"
+};
 
 #[cfg(windows)]
 const GIT_EXE: &str = "git.exe";

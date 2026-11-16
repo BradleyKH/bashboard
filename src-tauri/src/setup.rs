@@ -58,9 +58,20 @@ fn list_repos(dir: &Path, skip: &[&str]) -> Vec<Repo> {
     repos
 }
 
+/// Where people keep their clones, most specific first. `source/repos` is the Visual Studio
+/// convention; the rest are the common Linux and macOS ones.
+const REPO_FOLDERS: &[&[&str]] = &[&["source", "repos"], &["src"], &["code"], &["projects"]];
+
+/// The first of `REPO_FOLDERS` under `home` that `is_dir` accepts.
+fn first_repo_dir(home: &Path, is_dir: impl Fn(&Path) -> bool) -> Option<PathBuf> {
+    REPO_FOLDERS
+        .iter()
+        .map(|parts| parts.iter().fold(home.to_path_buf(), |p, part| p.join(part)))
+        .find(|dir| is_dir(dir))
+}
+
 fn default_dir() -> Option<PathBuf> {
-    let dir = crate::platform::user_home()?.join("source").join("repos");
-    dir.is_dir().then_some(dir)
+    first_repo_dir(&crate::platform::user_home()?, |p| p.is_dir())
 }
 
 fn candidates(dir: Option<String>) -> Result<RepoCandidates, String> {
@@ -144,6 +155,36 @@ mod tests {
         assert!(skipped_names(&dir, Some(&dir), false).is_empty());
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_default_folder_is_the_first_existing_candidate() {
+        let home = Path::new("/h");
+        let with = |existing: &[&str]| {
+            let existing: Vec<PathBuf> = existing.iter().map(|e| home.join(e)).collect();
+            first_repo_dir(home, |p| existing.iter().any(|e| e == p))
+        };
+        assert_eq!(with(&[]), None);
+        assert_eq!(with(&["projects"]), Some(home.join("projects")));
+        assert_eq!(with(&["projects", "code"]), Some(home.join("code")));
+        assert_eq!(with(&["projects", "code", "src"]), Some(home.join("src")));
+        assert_eq!(
+            with(&["code", "src", "source/repos"]),
+            Some(home.join("source").join("repos"))
+        );
+        // A parent without the repos folder inside it does not count.
+        assert_eq!(with(&["source"]), None);
+    }
+
+    #[test]
+    fn the_default_folder_checks_the_real_disk() {
+        let home = temp_dir("default-dir");
+        assert_eq!(first_repo_dir(&home, |p| p.is_dir()), None);
+        std::fs::write(home.join("code"), "a file, not a folder").unwrap();
+        assert_eq!(first_repo_dir(&home, |p| p.is_dir()), None);
+        std::fs::create_dir_all(home.join("projects")).unwrap();
+        assert_eq!(first_repo_dir(&home, |p| p.is_dir()), Some(home.join("projects")));
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]

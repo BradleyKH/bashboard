@@ -265,7 +265,8 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
 in the order Git Bash, PowerShell 7, Windows PowerShell, Command Prompt, with a notice the first
 time each missing shell is asked for. On macOS and Linux the ids are `loginShell` (the default,
 the shell in `$SHELL`), `zsh`, `bash`, and `fish`, each offered when installed and not already
-the login shell. `shell.path` and `shell.args` configure Git Bash only. The
+the login shell. `shell.path` and `shell.args` configure Git Bash, so they apply, and show in the
+Settings tab, on Windows only. The
 Default shell select in the Terminal section of the Settings tab sets it too (see
 [PowerShell, Windows PowerShell, and Command Prompt](setup.md#powershell-windows-powershell-and-command-prompt)):
 
@@ -356,7 +357,8 @@ save and is the "Flag a background agent as stuck after" field there.
 
 `terminal.doneAfterSeconds` (default 30) is the shortest shell command that marks its terminal
 `done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
-the `~/.bashrc` lines only.
+the `~/.bashrc` lines only (on macOS and Linux, the shell integration lines, which the Settings
+tab's hint for this field says it needs).
 
 `terminal.notifyWhenWaiting` (default `true`) shows a system notification (Windows or macOS) when a
 terminal starts waiting while Bashboard is in the background; clicking it brings the window forward
@@ -384,7 +386,7 @@ the Settings tab.
 ```
 
 `scrollback` (default 10000) is how many lines each terminal keeps. `shell.startingDirectory`
-(default `%USERPROFILE%`, and it may hold other `%VARS%`) is where a terminal starts when it has
+(default `%USERPROFILE%` on Windows and `%HOME%` elsewhere, and it may hold other `%VARS%`) is where a terminal starts when it has
 no folder to inherit. All of these are in the Terminal section of the Settings tab.
 
 `git.autoFetchMinutes` (default 5, 0 to 1440) is the number of minutes between background fetches
@@ -463,6 +465,9 @@ Settings tab.
 ```
 
 ## Local Browser
+
+The Local Browser exists only on Windows. On macOS and Linux these settings have no effect and the
+Settings tab hides the section.
 
 `localBrowser.bookmarks` (default `[]`) lists the pages saved in the Local Browser pane, in order.
 Each entry is `{ "name": "...", "url": "..." }`. A URL must be `http` or `https` on `localhost`

@@ -7,7 +7,10 @@ export interface RepoCandidates {
   repos: { name: string; path: string }[];
 }
 
-/** Lists the git repos under `dir`, or under `%USERPROFILE%\source\repos` when omitted. */
+/**
+ * Lists the git repos under `dir`. When omitted, the core picks the first existing of
+ * `~/source/repos`, `~/src`, `~/code`, and `~/projects` under the home folder.
+ */
 export function repoCandidates(dir?: string): Promise<RepoCandidates> {
   return invoke<RepoCandidates>('setup_repo_candidates', { dir: dir ?? null });
 }

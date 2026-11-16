@@ -8,6 +8,7 @@ import { resolveScheme, SCHEMES } from './code/schemes';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { ELEMENT_HINTS, ELEMENT_LABELS, SECTION_GROUPS, type ShowableSection } from './dashboardSections';
 import type { Settings } from './settings';
+import { platformOs, supports, type Feature, type Os } from './platform';
 
 export type FieldKind = 'toggle' | 'number' | 'slider' | 'text' | 'list' | 'select';
 export type AppliesWhen = 'live' | 'nextLaunch' | 'newPanes';
@@ -49,6 +50,8 @@ export interface SettingsField {
   /** Text fields only: suggest values while typing, filled from the core after the dialog opens. */
   suggestFrom?: 'fonts';
   hint?: string;
+  /** Replaces `hint` off Windows, for a hint that names a Windows-only shell. */
+  hintOffWindows?: string;
   applies: AppliesWhen;
   /** A subheading shown above the first field of a run of fields sharing it. */
   group?: string;
@@ -58,6 +61,10 @@ export interface SettingsField {
   inline?: boolean;
   /** Shown only while every condition holds; for settings that do nothing otherwise. */
   shownWhen?: ShownWhen | ShownWhen[];
+  /** Shown only on these operating systems, as `platform_info` names them; for settings that mean nothing elsewhere. */
+  os?: Os[];
+  /** Hidden on an OS that lacks this feature (see platform.ts); a section goes with its last field. */
+  feature?: Feature;
 }
 
 /** The field at `path` holds `value`, or, when `oneOf` is set, any of those values. */
@@ -219,8 +226,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         installedFrom: 'profiles',
         applies: 'newPanes',
       },
-      { path: ['shell', 'path'], label: 'Git Bash path', kind: 'text', applies: 'newPanes' },
-      { path: ['shell', 'args'], label: 'Git Bash arguments', kind: 'list', hint: 'One argument per line', applies: 'newPanes' },
+      { path: ['shell', 'path'], label: 'Git Bash path', kind: 'text', applies: 'newPanes', os: ['windows'] },
+      { path: ['shell', 'args'], label: 'Git Bash arguments', kind: 'list', hint: 'One argument per line', applies: 'newPanes', os: ['windows'] },
       {
         path: ['shell', 'startingDirectory'],
         label: 'Starting directory',
@@ -230,7 +237,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         applies: 'newPanes',
       },
       { path: ['scrollback'], label: 'Scrollback', kind: 'number', min: 0, max: 1000000, step: 1000, unit: 'lines', integer: true, applies: 'live' },
-      { path: ['terminal', 'doneAfterSeconds'], label: 'Mark long commands done after', kind: 'number', min: 0, max: 86400, step: 1, unit: 's', integer: true, hint: '0 turns it off; Git Bash with the ~/.bashrc lines only', applies: 'live' },
+      { path: ['terminal', 'doneAfterSeconds'], label: 'Mark long commands done after', kind: 'number', min: 0, max: 86400, step: 1, unit: 's', integer: true, hint: '0 turns it off; Git Bash with the ~/.bashrc lines only', hintOffWindows: '0 turns it off; needs the shell integration lines in your shell startup file (Help tab, Setup)', applies: 'live' },
       { path: ['cloud', 'badge'], label: 'Cloud context chips', kind: 'toggle', hint: 'Show the AWS profile and region on terminals and their cards', applies: 'live' },
       {
         path: ['cloud', 'productionPattern'],
@@ -604,9 +611,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Local Browser',
     fields: [
-      { path: ['localBrowser', 'homeUrl'], label: 'Home page', kind: 'text', allowEmpty: true, hint: 'An http or https URL on localhost or 127.0.0.1, or a file:/// URL to an .html file; empty opens the start page', applies: 'live' },
-      { path: ['localBrowser', 'trustedFolders'], label: 'Trusted folders', kind: 'list', hint: 'One absolute folder per line; HTML files in them may reach any host', applies: 'live' },
-      { path: ['localBrowser', 'reloadOnChange'], label: 'Reload on file change', kind: 'toggle', hint: 'Reload an HTML page when its file changes on disk', applies: 'live' },
+      { path: ['localBrowser', 'homeUrl'], label: 'Home page', kind: 'text', allowEmpty: true, hint: 'An http or https URL on localhost or 127.0.0.1, or a file:/// URL to an .html file; empty opens the start page', applies: 'live', feature: 'localBrowser' },
+      { path: ['localBrowser', 'trustedFolders'], label: 'Trusted folders', kind: 'list', hint: 'One absolute folder per line; HTML files in them may reach any host', applies: 'live', feature: 'localBrowser' },
+      { path: ['localBrowser', 'reloadOnChange'], label: 'Reload on file change', kind: 'toggle', hint: 'Reload an HTML page when its file changes on disk', applies: 'live', feature: 'localBrowser' },
     ],
   },
   {
@@ -646,7 +653,9 @@ export function sliderPosition(field: SettingsField, value: number): number {
 export type ParseResult = { ok: true; value: unknown } | { ok: false; error: string };
 
 /** Whether a field is shown, given a reader for the current value at a path. */
-export function isShown(field: SettingsField, read: (path: string[]) => unknown): boolean {
+export function isShown(field: SettingsField, read: (path: string[]) => unknown, os: Os = platformOs()): boolean {
+  if (field.os && !field.os.includes(os)) return false;
+  if (field.feature && !supports(field.feature, os)) return false;
   const conditions = field.shownWhen === undefined ? [] : [field.shownWhen].flat();
   return conditions.every((c) => {
     const current = read(c.path);
@@ -728,6 +737,11 @@ export function selectChoices(options: { value: string; label: string }[], saved
   return [...options, { value, label: `Custom (${unit ? `${value} ${unit}` : value})` }];
 }
 
+/** The field's hint for this OS. */
+export function fieldHint(field: SettingsField, os: Os = platformOs()): string | undefined {
+  return os !== 'windows' && field.hintOffWindows !== undefined ? field.hintOffWindows : field.hint;
+}
+
 export function appliesNote(field: SettingsField): string {
   if (field.applies === 'nextLaunch') return 'Applies at next launch';
   if (field.applies === 'newPanes') return 'Applies to new panes';
@@ -735,9 +749,9 @@ export function appliesNote(field: SettingsField): string {
 }
 
 /** Whether every word of `query` appears in the field's label, hint, group, or section title. */
-export function matchesFilter(field: SettingsField, sectionTitle: string, query: string): boolean {
+export function matchesFilter(field: SettingsField, sectionTitle: string, query: string, os: Os = platformOs()): boolean {
   const words = query.toLowerCase().split(/\s+/).filter((w) => w);
   if (words.length === 0) return true;
-  const text = [field.label, field.hint, field.group, sectionTitle].filter((s) => s).join(' ').toLowerCase();
+  const text = [field.label, fieldHint(field, os), field.group, sectionTitle].filter((s) => s).join(' ').toLowerCase();
   return words.every((w) => text.includes(w));
 }

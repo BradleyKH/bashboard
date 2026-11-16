@@ -1,4 +1,4 @@
-import { CLI_COMMANDS, CLI_INTRO, CLI_OPTIONS, type CliEntry } from './cliReference';
+import { CLI_COMMANDS, CLI_INTRO, CLI_OPTIONS, entryFor, type CliEntry } from './cliReference';
 import { copyText } from './copyText';
 
 /** The app dialog's CLI tab: the `bb` commands, their syntax, and copyable examples (docs/design/app.md section 3.13). */
@@ -25,7 +25,7 @@ function section(title: string, entries: CliEntry[]): HTMLElement {
   const el = document.createElement('section');
   const h = document.createElement('h3');
   h.textContent = title;
-  el.append(h, ...entries.map(entry));
+  el.append(h, ...entries.map((e) => entry(entryFor(e))));
   return el;
 }
 

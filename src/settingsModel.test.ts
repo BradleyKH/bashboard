@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CODE_SCHEME_IDS } from './code/schemes';
 import { SECTION_GROUPS } from './dashboardSections';
 import { DEFAULT_SETTINGS, type BackdropStyle, type Settings } from './settings';
-import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { appliesNote, fieldHint, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 
 const fields = SETTINGS_SECTIONS.flatMap((s) => s.fields);
 const byPath = (p: string) => fields.find((f) => f.path.join('.') === p) as SettingsField;
@@ -402,6 +402,43 @@ describe('sliderPosition', () => {
 
   it('leaves other sliders as stored', () => {
     expect(sliderPosition(byPath('scrim.blurPx'), 6)).toBe(6);
+  });
+});
+
+describe('per-OS fields', () => {
+  const none = (): unknown => undefined;
+
+  it('hides the Git Bash path and arguments off Windows', () => {
+    for (const path of ['shell.path', 'shell.args']) {
+      expect(isShown(byPath(path), none, 'windows')).toBe(true);
+      expect(isShown(byPath(path), none, 'linux')).toBe(false);
+      expect(isShown(byPath(path), none, 'macos')).toBe(false);
+    }
+  });
+
+  it('hides the whole Local Browser section where the feature is unsupported', () => {
+    const section = SETTINGS_SECTIONS.find((s) => s.title === 'Local Browser')!.fields;
+    expect(section.length).toBeGreaterThan(0);
+    for (const os of ['linux', 'macos']) expect(section.some((f) => isShown(f, none, os))).toBe(false);
+    expect(section.every((f) => isShown(f, none, 'windows'))).toBe(true);
+  });
+
+  it('shows fields with no OS list everywhere', () => {
+    expect(isShown(byPath('shell.startingDirectory'), none, 'linux')).toBe(true);
+  });
+
+  it('words the done-after hint for the OS', () => {
+    const field = byPath('terminal.doneAfterSeconds');
+    expect(fieldHint(field, 'windows')).toContain('Git Bash');
+    expect(fieldHint(field, 'linux')).not.toContain('Git Bash');
+    expect(fieldHint(field, 'macos')).toContain('shell integration');
+    expect(fieldHint(byPath('shell.args'), 'linux')).toBe('One argument per line');
+  });
+
+  it('filters on the hint shown for the OS', () => {
+    const field = byPath('terminal.doneAfterSeconds');
+    expect(matchesFilter(field, 'Terminal', 'git bash', 'windows')).toBe(true);
+    expect(matchesFilter(field, 'Terminal', 'git bash', 'linux')).toBe(false);
   });
 });
 

@@ -62,3 +62,17 @@ export function snapshotTabs(
   }
   return { version: 3, tabs, activeTab, collapsedSections: [...collapsedSections] };
 }
+
+/**
+ * The saved tab without panes whose kind this OS cannot open (a Local Browser saved on Windows,
+ * restored on macOS), its layout closed around them and its focus moved off them. The tab may
+ * come back with no panes, or with only collapsed ones.
+ */
+export function withoutPaneKinds(saved: SavedTab, drop: (kind: SavedPane['kind']) => boolean): SavedTab {
+  const panes = saved.panes.filter((p) => !drop(p.kind));
+  if (panes.length === saved.panes.length) return saved;
+  const layout = saved.layout ? pruneLayout(saved.layout, new Set(panes.map((p) => p.key))) : null;
+  const inLayout = layout ? leaves(layout) : [];
+  const focused = saved.focused && inLayout.includes(saved.focused) ? saved.focused : (inLayout[0] ?? null);
+  return { ...saved, panes, layout, focused };
+}

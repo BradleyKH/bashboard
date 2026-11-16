@@ -5,6 +5,7 @@ import type { Editor } from './editors';
 import type { GitInstallStatus, GitInstaller } from './gitInstall';
 import { samePath, type Favorite } from './favorites';
 import { forgeRepo } from './forgeApi';
+import { platformOs } from './platform';
 import type { ShellProfile } from './profiles';
 import type { AgentId } from './savedWorkspace';
 import { repoCandidates } from './repoCandidates';
@@ -16,6 +17,7 @@ import {
   effectiveProfile,
   favoritesToAdd,
   pinsToAdd,
+  repoFolderPlaceholder,
   setupSteps,
   type AgentHooks,
   type AutoColors,
@@ -397,7 +399,7 @@ export class SetupWizard {
     let agents: AgentHooks[] | null = null;
     if (!failure) {
       [preview, agents] = await Promise.all([
-        this.callbacks.getShellIntegrationPreview('gitBash').catch(() => null),
+        this.gitBashPreview(),
         this.callbacks.getHookState().catch(() => null),
       ]);
     }
@@ -428,7 +430,7 @@ export class SetupWizard {
     let agents: AgentHooks[] | null = null;
     if (status?.gitFound) {
       [preview, agents] = await Promise.all([
-        this.callbacks.getShellIntegrationPreview('gitBash').catch(() => null),
+        this.gitBashPreview(),
         this.callbacks.getHookState().catch(() => null),
       ]);
     }
@@ -442,6 +444,12 @@ export class SetupWizard {
       if (failure && this.steps[this.index] === 'git') this.setError(failure);
     }
     if (this.steps[this.index] === 'git') this.box.focus();
+  }
+
+  /** Git Bash's integration state; only Windows has a Git Bash, so elsewhere there is none to read. */
+  private gitBashPreview(): Promise<ShellIntegrationPreview | null> {
+    if (platformOs() !== 'windows') return Promise.resolve(null);
+    return this.callbacks.getShellIntegrationPreview('gitBash').catch(() => null);
   }
 
   private markGitInstalled(preview: ShellIntegrationPreview | null, agents: AgentHooks[] | null): void {
@@ -578,7 +586,7 @@ export class SetupWizard {
     input.className = 'setup-wizard-input';
     input.spellcheck = false;
     input.value = this.folder;
-    input.placeholder = 'C:\\Users\\you\\source\\repos';
+    input.placeholder = repoFolderPlaceholder(platformOs());
     input.addEventListener('input', () => (this.folder = input.value));
     input.addEventListener('blur', () => {
       if (input.value.trim() !== this.listedFolder) void this.listRepos(input.value);

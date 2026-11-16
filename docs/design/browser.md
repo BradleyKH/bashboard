@@ -484,6 +484,14 @@ settings (8), not in the workspace.
 
 ### Entry points
 
+The pane exists only on Windows. On macOS and Linux every entry point below is hidden or goes to
+the system browser instead: the kind menu and Launch menu offer no Local Browser, the Files pane
+has no **Open in Local Browser**, the Ports and Containers menus show only **Open in system
+browser** (and Open and a double-click use it), Ctrl+click on a loopback link in a terminal opens
+the system browser, `bb browse` opens a loopback address in the system browser and refuses a file
+path with a toast, the Settings tab has no Local Browser section, and restoring a workspace or
+opening a saved layout drops its browser panes.
+
 The kind menu (4.11) and the Launch menu (4.6, key **b**) open a pane on `localBrowser.homeUrl`, or on the start page when it is empty.
 `bb browse [<url>] [--tab|-t] [--collapsed]` (3.13) opens one at an address in the same shorthand
 as the address field and refuses a non-loopback address; a file path is resolved against the

@@ -11,8 +11,9 @@ import { showToast } from './toast';
 import type { PaneView } from './paneView';
 import { scratchLoad, scrollbackLoad, scrollbackSave, scrollbackSaveAll, type ScrollbackEntry } from './persistence';
 import { PortsPane } from './portsPane';
-import { restoredTab, snapshotTabs } from './savedTabs';
+import { restoredTab, snapshotTabs, withoutPaneKinds } from './savedTabs';
 import { resumeCommand, type PtyRef, type SavedPane, type SavedTab, type SavedWorkspace } from './savedWorkspace';
+import { supports } from './platform';
 import { ScratchPane } from './scratchPane';
 import { SearchPane } from './searchPane';
 import { ShipPane } from './shipPane';
@@ -85,6 +86,13 @@ export function restore(
   opts: { resumeSessions: boolean; scrollback: boolean; livePtys: readonly PtyRef[] },
 ): void {
   if (saved.tabs.length === 0) return;
+  const openable = openableTabs(saved);
+  if (openable.tabs.length === 0) {
+    const id = ctx.takeId();
+    ctx.mount(id, { kind: 'pane', paneId: id }, { kind: 'terminal' });
+    return;
+  }
+  saved = openable;
   const built = saved.tabs.map((t) => ({
     saved: t,
     ...restoredTab(t, ctx.store.takeTabId(), t.name, (p) => ctx.takeIdFor(p.kind)),
@@ -112,6 +120,7 @@ export function restore(
  * resuming Claude sessions; its scratch pads open fresh.
  */
 export function openLayout(ctx: PersistenceContext, saved: SavedTab, name: string): void {
+  saved = withoutPaneKinds(saved, unopenable);
   const prev = ctx.store.active;
   const { tab, ids } = restoredTab(saved, ctx.store.takeTabId(), name, (p) => ctx.takeIdFor(p.kind));
   ctx.store.state = addTab(ctx.store.state, tab);
@@ -132,6 +141,24 @@ export function openLayout(ctx: PersistenceContext, saved: SavedTab, name: strin
   }
   ctx.paneViews.get(ctx.store.focusedId)?.focus();
   ctx.notify();
+}
+
+/** A kind this OS has no pane for; a saved pane of it is left out rather than opened broken. */
+function unopenable(kind: PaneKind): boolean {
+  return kind === 'browser' && !supports('localBrowser');
+}
+
+/** The saved tabs without unopenable panes; a tab left empty is dropped, keeping the active one where it can. */
+function openableTabs(saved: SavedWorkspace): SavedWorkspace {
+  const tabs: SavedTab[] = [];
+  let activeTab = 0;
+  saved.tabs.forEach((t, i) => {
+    const kept = withoutPaneKinds(t, unopenable);
+    if (kept.panes.length === 0) return;
+    if (i <= saved.activeTab) activeTab = tabs.length;
+    tabs.push(kept);
+  });
+  return { ...saved, tabs, activeTab };
 }
 
 /** Builds a saved tab's panes; for a visible tab the caller has already attached the expanded hosts. */

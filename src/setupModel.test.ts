@@ -7,6 +7,7 @@ import {
   effectiveProfile,
   favoritesToAdd,
   pinsToAdd,
+  repoFolderPlaceholder,
   MATRIX_ACCENT,
   scrimPresetFor,
   agentHooksFrom,
@@ -263,5 +264,16 @@ describe('pinsToAdd', () => {
     expect(pinsToAdd(['C:/src/web', 'C:/src/web2', 'C:/src/kweb'], pinnable, pinned)).toEqual([
       { repo: 'github.com/me/web', root: 'C:/src/web' },
     ]);
+  });
+});
+
+describe('repoFolderPlaceholder', () => {
+  it('shows a Windows path on Windows', () => {
+    expect(repoFolderPlaceholder('windows')).toBe('C:\\Users\\you\\source\\repos');
+  });
+
+  it('shows a home-relative path on Linux and macOS', () => {
+    expect(repoFolderPlaceholder('linux')).toBe('~/source/repos');
+    expect(repoFolderPlaceholder('macos')).toBe('~/source/repos');
   });
 });

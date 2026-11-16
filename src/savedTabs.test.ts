@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Layout } from './layout';
-import { restoredTab, snapshotTabs } from './savedTabs';
+import { restoredTab, snapshotTabs, withoutPaneKinds } from './savedTabs';
 import type { SavedPane, SavedTab } from './savedWorkspace';
 import type { TabsState } from './tabs';
 
@@ -123,5 +123,49 @@ describe('snapshotTabs', () => {
 
   it('saves an empty workspace when nothing is left', () => {
     expect(snapshotTabs(state, () => null)).toEqual({ version: 3, tabs: [], activeTab: 0, collapsedSections: [] });
+  });
+});
+
+describe('withoutPaneKinds', () => {
+  const browser = (key: string, collapsed = false): SavedPane => ({
+    key,
+    kind: 'browser',
+    collapsed,
+    url: 'http://localhost:5173/',
+    devtools: { open: false, tab: 'console', height: 200, split: false, splitRatio: 0.5 },
+    device: 'responsive',
+  });
+  const isBrowser = (kind: SavedPane['kind']): boolean => kind === 'browser';
+
+  it('returns the tab unchanged when nothing is dropped', () => {
+    const saved: SavedTab = { name: null, panes: [term('a')], layout: pane('a'), focused: 'a' };
+    expect(withoutPaneKinds(saved, isBrowser)).toBe(saved);
+  });
+
+  it('closes the layout around a dropped pane and moves focus off it', () => {
+    const saved: SavedTab = {
+      name: 'Dev',
+      panes: [term('a'), browser('b'), browser('c', true)],
+      layout: row(pane('a'), pane('b')),
+      focused: 'b',
+    };
+    expect(withoutPaneKinds(saved, isBrowser)).toEqual({ name: 'Dev', panes: [term('a')], layout: pane('a'), focused: 'a' });
+  });
+
+  it('keeps focus on a surviving pane', () => {
+    const saved: SavedTab = {
+      name: null,
+      panes: [term('a'), browser('b'), scratch('c')],
+      layout: row(pane('a'), row(pane('b'), pane('c'))),
+      focused: 'c',
+    };
+    const out = withoutPaneKinds(saved, isBrowser);
+    expect(out.layout).toEqual(row(pane('a'), pane('c')));
+    expect(out.focused).toBe('c');
+  });
+
+  it('leaves a tab of only dropped panes empty, for the caller to skip', () => {
+    const saved: SavedTab = { name: null, panes: [browser('b')], layout: pane('b'), focused: 'b' };
+    expect(withoutPaneKinds(saved, isBrowser)).toEqual({ name: null, panes: [], layout: null, focused: null });
   });
 });

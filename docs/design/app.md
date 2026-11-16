@@ -442,8 +442,10 @@ has Back, Next, and Skip setup.
    with Add to .bashrc. A `custom` status shows the lines and an error instead of the
    button.
 4. **Editor.** The editors found (3.12) and the file's default app; sets `editor.preferred`.
-5. **Favorites.** A folder field, starting at `%USERPROFILE%\source\repos` when it exists,
-   listing its subfolders that are git repos with checkboxes. The subfolders come from
+5. **Favorites.** A folder field, starting at the first of `~/source/repos`, `~/src`, `~/code`,
+   and `~/projects` under the home folder that exists (`first_repo_dir` in `src-tauri/src/setup.rs`), with an example path for the OS as its
+   placeholder (`repoFolderPlaceholder`), listing its subfolders that are git repos with
+   checkboxes. The subfolders come from
    `setup_repo_candidates(dir?)` (`src-tauri/src/setup.rs`), which lists the direct subfolders
    holding `.git`, as a folder or as a worktree's file. On macOS a scan of the home folder
    passes over Desktop, Documents, Downloads, Library, Movies, Music, and Pictures, since

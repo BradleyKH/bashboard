@@ -261,9 +261,18 @@ fn media(args: &[String]) -> Result<CliAction, String> {
     Ok(CliAction::Media { command })
 }
 
-const BROWSE_USAGE: &str = "usage: bb browse [<url or .html file>]";
-const LOOPBACK_ONLY: &str =
-    "Local Browser opens only localhost, 127.0.0.1, and local .html or .htm files.";
+const BROWSE_USAGE: &str = if cfg!(windows) {
+    "usage: bb browse [<url or .html file>]"
+} else {
+    "usage: bb browse <localhost url>"
+};
+// Off Windows there is no Local Browser pane; the address goes to the system browser, which
+// cannot open a local file.
+const LOOPBACK_ONLY: &str = if cfg!(windows) {
+    "Local Browser opens only localhost, 127.0.0.1, and local .html or .htm files."
+} else {
+    "bb browse opens only localhost and 127.0.0.1 addresses, in the system browser."
+};
 
 /// Mirrors `normalizeInput` in `localBrowserModel.ts`: `5173` and `:5173` mean
 /// `http://localhost:5173/`, and a missing scheme means http. A path to an `.html` or `.htm`

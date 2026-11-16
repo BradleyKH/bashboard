@@ -7,6 +7,7 @@ import { hookAction } from './hookInstallModel';
 import type { AgentId } from './savedWorkspace';
 import type { Editor } from './editors';
 import { samePath, type Favorite } from './favorites';
+import type { Os } from './platform';
 import { SCRIM_PRESETS } from './scrim';
 import type { BackdropStyle } from './settings';
 import type { ShellIntegrationStatus } from './shellIntegration';
@@ -93,6 +94,11 @@ export function setupSteps(opts: SetupStepOptions): SetupStep[] {
  */
 export function effectiveProfile(saved: string, installed: string[]): string | null {
   return installed.includes(saved) ? saved : (installed[0] ?? null);
+}
+
+/** The Favorites folder field's example path: the folder the core looks in first on each OS. */
+export function repoFolderPlaceholder(os: Os): string {
+  return os === 'windows' ? 'C:\\Users\\you\\source\\repos' : '~/source/repos';
 }
 
 /** New favorites for the checked repo paths, without paths already favorited or repeated. */

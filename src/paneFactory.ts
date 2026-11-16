@@ -257,7 +257,7 @@ export class PaneFactory {
       keyHandler: (e, term, send) =>
         handleKey(e, { keymap: () => ctx.keymap(), term, send, dispatch: (a) => ctx.dispatch(a) }),
       onFocus: () => ctx.setFocused(id),
-      onOpenLocal: (url) => ctx.openLocalBrowser(url, { fromPaneId: id }),
+      onOpenLocal: supports('localBrowser') ? (url) => ctx.openLocalBrowser(url, { fromPaneId: id }) : undefined,
       onExit: (code) => {
         // Matches Windows Terminal: a clean exit closes the pane, a failure stays readable.
         if (code === 0) ctx.closePane(id);
@@ -406,7 +406,7 @@ export class PaneFactory {
       keymap: () => ctx.keymap(),
       dispatch: (a) => ctx.dispatch(a),
       onFocus: () => ctx.setFocused(id),
-      onOpenLocal: (url) => ctx.openLocalBrowser(url, { fromPaneId: id }),
+      onOpenLocal: supports('localBrowser') ? (url) => ctx.openLocalBrowser(url, { fromPaneId: id }) : undefined,
       // Without a store from the app (a browser-only run) the pane shows no engines.
       store: ctx.hooks.containers ?? (this.emptyContainers ??= new ContainersStore()),
       onShell: (c) => this.openContainerShell(id, c),
@@ -431,7 +431,7 @@ export class PaneFactory {
       keymap: () => ctx.keymap(),
       dispatch: (a) => ctx.dispatch(a),
       onFocus: () => ctx.setFocused(id),
-      onOpenLocal: (url) => ctx.openLocalBrowser(url, { fromPaneId: id }),
+      onOpenLocal: supports('localBrowser') ? (url) => ctx.openLocalBrowser(url, { fromPaneId: id }) : undefined,
       // Without a store from the app (a browser-only run) the pane lists nothing.
       store: ctx.hooks.ports ?? (this.emptyPorts ??= new PortsStore()),
       ownerTitle: (ptyId) => ctx.titleForPty(ptyId),

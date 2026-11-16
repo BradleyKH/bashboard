@@ -37,15 +37,26 @@ struct Reference {
 
 #[derive(serde::Deserialize)]
 struct Entry {
+    name: String,
     usage: String,
     summary: String,
+}
+
+/// The summary `bb help` prints. Off Windows there is no Local Browser pane, so `bb browse`
+/// hands the address to the system browser and the help says so.
+fn summary_for(e: &Entry) -> &str {
+    if !cfg!(windows) && e.name == "browse" {
+        "Open a localhost address in the system browser"
+    } else {
+        &e.summary
+    }
 }
 
 fn help_text() -> String {
     let r: Reference = serde_json::from_str(REFERENCE).expect("cli-commands.json is valid");
     // Pads to the longest usage, so a long one never runs into its summary.
     let width = r.commands.iter().chain(&r.options).map(|e| e.usage.len()).max().unwrap_or(0) + 2;
-    let line = |e: &Entry| format!("  {:<width$}{}\n", e.usage, e.summary);
+    let line = |e: &Entry| format!("  {:<width$}{}\n", e.usage, summary_for(e));
     let mut text = format!("{}\n\nUsage:\n", r.intro);
     r.commands.iter().for_each(|e| text.push_str(&line(e)));
     text.push_str("\nOptions:\n");
@@ -920,7 +931,11 @@ fn skill(rest: &[String]) -> Result<(), String> {
     if !matches!(rest, [a] if a == "install") {
         return Err(SKILL_USAGE.into());
     }
-    let home = home_dir().ok_or("could not find the home folder (HOME and USERPROFILE are unset)")?;
+    let home = home_dir().ok_or(if cfg!(windows) {
+        "could not find the home folder (HOME and USERPROFILE are unset)"
+    } else {
+        "could not find the home folder (HOME is unset)"
+    })?;
     println!("{}", install_skill(std::path::Path::new(&home))?);
     Ok(())
 }

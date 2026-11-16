@@ -1022,6 +1022,7 @@ port's folder gets its own column when the pane is wide enough, and sits beneath
 otherwise; tick **Command lines** to show each full command line under its folder. Each row has
 **Open**, **Go to pane**, and **Stop** buttons, a double-click opens it in a [Local Browser](#local-browser) pane
 beside the Ports pane, and a right-click gives a menu like the dashboard's, with **Open in Local Browser** and **Open in system browser**.
+On macOS and Linux there is no Local Browser, so Open and a double-click use your system browser and the menu offers only **Open in system browser**.
 
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
 clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
@@ -1042,6 +1043,12 @@ kind menu at the top left of any pane, from the Launch menu (**b**), with `bb br
 Local Browser** entry in the port and container menus, or by Ctrl+clicking a `localhost` link in
 a terminal. Ctrl+Shift+click on such a link, and **Open in system browser** in the menus, use your
 system browser instead.
+
+The Local Browser is Windows only. On macOS and Linux it has no entry in the kind menu or the
+Launch menu, the Files pane has no **Open in Local Browser**, the port and container menus offer
+only **Open in system browser**, Ctrl+clicking a `localhost` link opens your system browser,
+`bb browse` opens a `localhost` address in your system browser and refuses an `.html` file with a
+notice, and a saved workspace or layout that holds a Local Browser pane opens without it.
 
 **Address bar.** Type a bare port (`5173`), `:5173`, `localhost:3000/app`, or a full URL; a missing
 host means `localhost`, and a missing scheme means `http`. An `http` address on a port that only
@@ -1236,8 +1243,8 @@ pane closes or collapses, or when focus moves to another pane.
 
 Ctrl+click a link in terminal output to open it in your browser. Only `http` and `https` links
 open; other schemes are ignored. A link to `localhost` or `127.0.0.1` opens a
-[Local Browser](#local-browser) pane beside the terminal instead, and Ctrl+Shift+click sends it to
-your system browser.
+[Local Browser](#local-browser) pane beside the terminal instead (on macOS and Linux, which have no
+Local Browser, it opens your system browser), and Ctrl+Shift+click sends it to your system browser.
 
 ## Text size
 
@@ -1360,7 +1367,9 @@ reads standard input, up to 1 MiB.
 `https` URL on `localhost` or `127.0.0.1`, or the path to an `.html` or `.htm` file (`bb browse
 report.html`, `bb browse C:\reports\q3.html`), and refuses any other address. A relative file path
 resolves against the folder the shell is in, as the path arguments above do. With no address it opens
-the start page. `--tab` and `--collapsed` work as for the other pane commands.
+the start page. `--tab` and `--collapsed` work as for the other pane commands. On macOS and Linux
+there is no Local Browser: `bb browse` opens a `localhost` address in your system browser and
+refuses an `.html` file.
 
 `bb term` opens a terminal with your default shell profile. The words after `--` are typed into
 it as one line followed by Enter, the way you would type them, so they follow that shell's

@@ -5,7 +5,7 @@ import type { Settings, SettingsPayload } from './settings';
 import type { ShellProfile } from './profiles';
 import { listEditors, type Editor } from './editors';
 import { fontSuggestions, isSuggestionPick, listFonts } from './fonts';
-import { appliesNote, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
+import { appliesNote, fieldHint, installedChoices, isShown, matchesFilter, parseInput, readField, selectChoices, SETTINGS_SECTIONS, sliderPosition, type SettingsField } from './settingsModel';
 import { primaryHeld } from './platform';
 
 export interface SettingsTabCallbacks {
@@ -256,7 +256,7 @@ export class SettingsTab {
     label.htmlFor = id;
     label.textContent = field.label;
     labelCell.append(label);
-    const noteText = [field.hint, appliesNote(field)].filter((s) => s).join('. ');
+    const noteText = [fieldHint(field), appliesNote(field)].filter((s) => s).join('. ');
     const describedBy: string[] = [];
     if (noteText) {
       const note = document.createElement('div');
