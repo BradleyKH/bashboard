@@ -8,7 +8,7 @@ export interface AgentContext {
   sessionId: string;
   model: string | null;
   contextTokens: number | null;
-  /** The model's context window, when the transcript reports one. */
+  /** The model's context window: from the status line for Claude, the transcript for the others. */
   contextWindow: number | null;
 }
 
@@ -55,11 +55,23 @@ export function agentLine(agent: AgentId, ctx: AgentContext | undefined, windowO
   const parts: string[] = [];
   if (ctx.model !== null) parts.push(modelDisplayName(ctx.model));
   if (ctx.contextTokens !== null) {
-    const window = ctx.contextWindow ?? windowOverride ?? null;
+    const window = windowOf(ctx, windowOverride);
     const count = window !== null ? `${formatTokens(ctx.contextTokens)} / ${formatTokens(window)}` : formatTokens(ctx.contextTokens);
     parts.push(`${count} tokens`);
   }
   if (parts.length === 0) return null;
   if (agent !== 'claude') parts.unshift(agentName(agent));
   return parts.join(' · ');
+}
+
+function windowOf(ctx: AgentContext, windowOverride?: number | null): number | null {
+  return ctx.contextWindow ?? windowOverride ?? null;
+}
+
+/** The share of the context window in use, at most 1; null without both a count and a window. */
+export function contextFraction(ctx: AgentContext | undefined, windowOverride?: number | null): number | null {
+  if (!ctx || ctx.contextTokens === null) return null;
+  const window = windowOf(ctx, windowOverride);
+  if (window === null || window <= 0) return null;
+  return Math.min(ctx.contextTokens / window, 1);
 }

@@ -8,11 +8,14 @@ import { paneCardMenuItems } from './paneCardMenus';
 import { paneKindInfo } from './paneKinds';
 import { profileBadge } from './profiles';
 import { runChip } from './paneRunModel';
+import { loadBand } from './systemModel';
 
 export interface PaneCardOptions {
   now: number;
   /** The bound Claude session's model and context size, shown under the path; null for none. */
   agentLine: string | null;
+  /** The share of the session's context window in use, drawn as a bar after the agent text; null or omitted for none. */
+  contextUsed?: number | null;
   /** Branch size chip on the agent line; null or omitted for none. A card with a chip always gets the agent line, even with no agent text. */
   sizeBadge?: { text: string; title: string } | null;
   /** Shows the folder path under the title; hidden, the path moves into the title's tooltip. */
@@ -47,6 +50,18 @@ function button(label: string, className: string, onClick: () => void): HTMLButt
     onClick();
   });
   return el;
+}
+
+function contextBar(used: number): HTMLElement {
+  const track = document.createElement('span');
+  track.className = 'card-context-bar';
+  track.title = `${Math.round(used * 100)}% of the context window`;
+  const fill = document.createElement('span');
+  fill.className = 'card-context-fill';
+  fill.style.width = `${used * 100}%`;
+  fill.dataset.band = loadBand(used);
+  track.append(fill);
+  return track;
 }
 
 /** One card in the dashboard's Panes section (docs/design/dashboard.md section 4.6). */
@@ -201,6 +216,8 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
       text.textContent = opts.agentLine;
       text.title = opts.agentLine;
       line.append(text);
+      const used = opts.contextUsed ?? null;
+      if (used !== null) line.append(contextBar(used));
     }
     if (sizeBadge !== null) {
       const chip = document.createElement('span');

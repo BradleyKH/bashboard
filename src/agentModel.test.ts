@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentLine, formatTokens, modelDisplayName } from './agentModel';
+import { agentLine, contextFraction, formatTokens, modelDisplayName } from './agentModel';
 
 describe('formatTokens', () => {
   it('prints each tier at its boundaries', () => {
@@ -77,5 +77,31 @@ describe('agentLine', () => {
   it('uses the window override only when the context has none', () => {
     expect(agentLine('codex', ctx('qwen3-coder:30b', 8000), 32_768)).toBe('Codex · qwen3-coder:30b · 8.0k / 32k tokens');
     expect(agentLine('codex', ctx('gpt-5.5', 8000, 272_000), 32_768)).toBe('Codex · gpt-5.5 · 8.0k / 272k tokens');
+  });
+});
+
+describe('contextFraction', () => {
+  const ctx = (contextTokens: number | null, contextWindow: number | null = null) => ({
+    sessionId: 's',
+    model: null,
+    contextTokens,
+    contextWindow,
+  });
+
+  it('divides the count by the window, preferring the context window to the override', () => {
+    expect(contextFraction(ctx(50_000, 200_000))).toBe(0.25);
+    expect(contextFraction(ctx(50_000, 200_000), 100_000)).toBe(0.25);
+    expect(contextFraction(ctx(50_000), 100_000)).toBe(0.5);
+  });
+
+  it('caps at 1', () => {
+    expect(contextFraction(ctx(250_000, 200_000))).toBe(1);
+  });
+
+  it('is null without a count or a window', () => {
+    expect(contextFraction(undefined)).toBeNull();
+    expect(contextFraction(ctx(null, 200_000))).toBeNull();
+    expect(contextFraction(ctx(50_000))).toBeNull();
+    expect(contextFraction(ctx(50_000, 0))).toBeNull();
   });
 });

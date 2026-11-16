@@ -25,7 +25,7 @@ use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::lock::LockExt;
 use crate::usage::{self, UsageWindow};
-use crate::{agents::AgentId, ci, cli, pty::Ptys, roster, size_route, worktree_route};
+use crate::{agents::AgentId, ci, cli, pty::Ptys, roster, size_route, transcript, worktree_route};
 
 const MAX_BODY: usize = 64 * 1024;
 const MAX_CLI_BODY: usize = 1024 * 1024;
@@ -168,7 +168,12 @@ pub fn init(app: &AppHandle) {
                     respond_json(req, code, &json);
                 });
             },
-            |windows| usage::report(&app, windows),
+            |report: StatusLineReport| {
+                usage::report(&app, report.windows);
+                if let Some((id, size)) = report.context_window {
+                    transcript::report_status_window(&app, &id, size);
+                }
+            },
         )
     });
 }
@@ -190,7 +195,7 @@ fn header<'a>(headers: &'a [Header], name: &'static str) -> Option<&'a str> {
 /// Answers requests until the server shuts down, passing each accepted hook event to
 /// `on_event`, each accepted `/cli` command to `on_cli`, and each accepted `/ci`, `/size`, or
 /// `/worktree` request, unanswered, to `on_ci`, which must answer it off this thread, and each
-/// accepted `/usage` report's windows to `on_usage`. `pane_live` says whether a pty id belongs to
+/// accepted `/usage` report to `on_usage`. `pane_live` says whether a pty id belongs to
 /// a running pane. Nothing here waits on the front end or a forge.
 fn serve(
     server: &Server,
@@ -199,7 +204,7 @@ fn serve(
     pane_live: impl Fn(u32) -> bool,
     mut on_cli: impl FnMut(cli::CliCommand),
     mut on_ci: impl FnMut(Request, Vec<u8>),
-    mut on_usage: impl FnMut(Vec<UsageWindow>),
+    mut on_usage: impl FnMut(StatusLineReport),
 ) {
     for req in server.incoming_requests() {
         // A request whose handling panics is dropped unanswered instead of ending this loop,
@@ -237,7 +242,7 @@ fn answer(
     pane_live: &impl Fn(u32) -> bool,
     on_cli: &mut impl FnMut(cli::CliCommand),
     on_ci: &mut impl FnMut(Request, Vec<u8>),
-    on_usage: &mut impl FnMut(Vec<UsageWindow>),
+    on_usage: &mut impl FnMut(StatusLineReport),
 ) {
     let path = route(&req).to_string();
     let is_cli = path == "/cli";
@@ -274,7 +279,7 @@ fn answer(
         return;
     }
     if path == "/usage" {
-        let (code, windows) = handle_usage(
+        let (code, report) = handle_usage(
             token,
             req.method(),
             header(req.headers(), "X-Bashboard-Token"),
@@ -282,8 +287,8 @@ fn answer(
             &body,
             content_length,
         );
-        if let Some(windows) = windows {
-            on_usage(windows);
+        if let Some(report) = report {
+            on_usage(report);
         }
         let _ = req.respond(Response::empty(StatusCode(code)));
         return;
@@ -402,6 +407,14 @@ fn handle(
     (204, Some(ev))
 }
 
+/// What one status line input reports: its rate-limit windows, and the session's id and
+/// context window size.
+#[derive(Debug, PartialEq)]
+struct StatusLineReport {
+    windows: Vec<UsageWindow>,
+    context_window: Option<(String, u64)>,
+}
+
 /// Answers `POST /usage`, a Claude Code status line input from `bb statusline`, on `/hook`'s
 /// terms: token only, no pane check, since Claude Code may run outside a Bashboard pane. An
 /// input with no rate limits is still a 204, with no windows.
@@ -412,7 +425,7 @@ fn handle_usage(
     agent_header: Option<&str>,
     body: &[u8],
     content_length: Option<usize>,
-) -> (u16, Option<Vec<UsageWindow>>) {
+) -> (u16, Option<StatusLineReport>) {
     if *method != Method::Post {
         return (404, None);
     }
@@ -432,7 +445,11 @@ fn handle_usage(
     let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) else {
         return (400, None);
     };
-    (204, Some(usage::from_claude_status_line(agent, &json)))
+    let report = StatusLineReport {
+        windows: usage::from_claude_status_line(agent, &json),
+        context_window: transcript::status_line_window(&json),
+    };
+    (204, Some(report))
 }
 
 /// Answers `POST /cli`: status, a JSON body for a 400, and the resolved command on success.
@@ -1016,11 +1033,11 @@ mod tests {
     }
 
     fn usage_post(token: Option<&str>, agent: Option<&str>, body: &[u8], len: Option<usize>) -> (u16, Option<Vec<UsageWindow>>) {
-        handle_usage(TOKEN, &Method::Post, token, agent, body, len)
+        let (code, report) = handle_usage(TOKEN, &Method::Post, token, agent, body, len);
+        (code, report.map(|r| r.windows))
     }
 
-    const STATUS_LINE: &str =
-        r#"{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":84,"resets_at":1999999999}}}"#;
+    const STATUS_LINE: &str = r#"{"session_id":"s1","context_window":{"context_window_size":200000},"rate_limits":{"five_hour":{"used_percentage":84,"resets_at":1999999999}}}"#;
 
     #[test]
     fn usage_admits_on_hook_terms() {
@@ -1041,6 +1058,8 @@ mod tests {
         assert_eq!(usage_post(Some(TOKEN), Some("claude"), &big, None), (413, None));
         let get = handle_usage(TOKEN, &Method::Get, Some(TOKEN), Some("claude"), body, None);
         assert_eq!(get, (404, None));
+        let (_, report) = handle_usage(TOKEN, &Method::Post, Some(TOKEN), Some("claude"), body, None);
+        assert_eq!(report.unwrap().context_window, Some(("s1".into(), 200_000)));
         // A status line without rate limits (an API-key login) is accepted with no windows.
         assert_eq!(usage_post(Some(TOKEN), Some("claude"), br#"{"model":{}}"#, None), (204, Some(Vec::new())));
     }
@@ -1078,7 +1097,7 @@ mod tests {
         };
         let ok = send(TOKEN);
         assert!(ok.starts_with("HTTP/1.1 204"), "{ok}");
-        assert_eq!(rx.recv().unwrap()[0].used_percent, 84.0);
+        assert_eq!(rx.recv().unwrap().windows[0].used_percent, 84.0);
         assert!(send("wrong!").starts_with("HTTP/1.1 403"));
         assert!(rx.try_recv().is_err());
     }

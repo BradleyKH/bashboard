@@ -1,7 +1,9 @@
 //! Session transcripts (design sections 3.3 and 3.4): finds each pane-bound agent session's
 //! transcript (Claude Code's JSONL, a Codex rollout, or Copilot's `events.jsonl`), tails it for the
 //! newest model and context size, and emits `agent://context` when any of them changes. A Codex
-//! rollout's rate limits go to the usage store (docs/design/sessions.md section 3.28). Every
+//! rollout's rate limits go to the usage store (docs/design/sessions.md section 3.28). Claude
+//! Code's transcript has no context window, so a Claude session's comes from its status line
+//! (`report_status_window`). Every
 //! format is internal to its tool and undocumented, so every field is optional and an unreadable
 //! line is skipped.
 
@@ -73,7 +75,8 @@ pub struct AgentContext {
     pub session_id: String,
     pub model: Option<String>,
     pub context_tokens: Option<u64>,
-    /// Null for Claude Code, whose transcript does not record the window.
+    /// From the status line for Claude Code, whose transcript does not record it, and from the
+    /// transcript for the others; null until either reports one.
     pub context_window: Option<u64>,
 }
 
@@ -319,6 +322,8 @@ struct Tracked {
     last_search: Option<Instant>,
     /// The rate-limit windows last reported to the usage store.
     limits: Vec<UsageWindow>,
+    /// The context window the session's status line last reported.
+    status_window: Option<u64>,
 }
 
 #[derive(Default)]
@@ -439,6 +444,40 @@ fn apply_sync(inner: &mut Inner, list: SyncList) {
             t.last_read = None;
         }
     }
+}
+
+/// The session id and context window size in Claude Code's status line input, or `None` when
+/// either is missing.
+pub fn status_line_window(json: &Value) -> Option<(String, u64)> {
+    let id = json["session_id"].as_str().filter(|id| !id.is_empty())?;
+    let size = json["context_window"]["context_window_size"]
+        .as_u64()
+        .filter(|&n| n > 0)?;
+    Some((id.to_owned(), size))
+}
+
+/// Records a session's status line window and emits `agent://context` when it changes a known
+/// context. A window for a session nobody tracks is dropped; the status line repeats it.
+pub fn report_status_window(app: &AppHandle, session_id: &str, size: u64) {
+    let changed = apply_status_window(
+        &mut app.state::<Transcripts>().inner.lock_or_recover(),
+        session_id,
+        size,
+    );
+    if let Some(ctx) = changed {
+        let _ = app.emit("agent://context", ctx);
+    }
+}
+
+fn apply_status_window(inner: &mut Inner, session_id: &str, size: u64) -> Option<AgentContext> {
+    let t = inner.tracked.get_mut(session_id)?;
+    t.status_window = Some(size);
+    let ctx = inner.contexts.get_mut(session_id)?;
+    if ctx.context_window == Some(size) {
+        return None;
+    }
+    ctx.context_window = Some(size);
+    Some(ctx.clone())
 }
 
 fn mark_dirty(inner: &mut Inner, event: &notify::Event) {
@@ -579,14 +618,14 @@ impl Worker {
             let inner = &mut *inner;
             let mut changed = Vec::new();
             for (id, r) in readings {
-                if !inner.tracked.contains_key(&id) {
+                let Some(t) = inner.tracked.get(&id) else {
                     continue;
-                }
+                };
                 let next = AgentContext {
                     session_id: id.clone(),
                     model: r.model,
                     context_tokens: r.context_tokens,
-                    context_window: r.context_window,
+                    context_window: t.status_window.or(r.context_window),
                 };
                 if inner.contexts.get(&id) != Some(&next) {
                     inner.contexts.insert(id, next.clone());
@@ -848,6 +887,39 @@ mod tests {
             agent: AgentId::Claude,
             hook: hook.map(str::to_owned),
         }
+    }
+
+    #[test]
+    fn status_line_window_needs_an_id_and_a_size() {
+        let json = serde_json::json!({ "session_id": "s1", "context_window": { "context_window_size": 1_000_000 } });
+        assert_eq!(status_line_window(&json), Some(("s1".into(), 1_000_000)));
+        for bad in [
+            serde_json::json!({ "context_window": { "context_window_size": 200_000 } }),
+            serde_json::json!({ "session_id": "", "context_window": { "context_window_size": 200_000 } }),
+            serde_json::json!({ "session_id": "s1", "context_window": { "context_window_size": 0 } }),
+            serde_json::json!({ "session_id": "s1" }),
+        ] {
+            assert_eq!(status_line_window(&bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn status_window_fills_a_tracked_context_once() {
+        let mut inner = Inner::default();
+        // Untracked: dropped.
+        assert_eq!(apply_status_window(&mut inner, "s", 200_000), None);
+        inner.tracked.insert("s".into(), Tracked::default());
+        // Tracked with no context yet: kept for the next reading, nothing to emit.
+        assert_eq!(apply_status_window(&mut inner, "s", 200_000), None);
+        assert_eq!(inner.tracked["s"].status_window, Some(200_000));
+        inner.contexts.insert("s".into(), ctx("s"));
+        let changed = apply_status_window(&mut inner, "s", 200_000).unwrap();
+        assert_eq!(changed.context_window, Some(200_000));
+        assert_eq!(apply_status_window(&mut inner, "s", 200_000), None);
+        assert_eq!(
+            apply_status_window(&mut inner, "s", 1_000_000).unwrap().context_window,
+            Some(1_000_000)
+        );
     }
 
     #[test]

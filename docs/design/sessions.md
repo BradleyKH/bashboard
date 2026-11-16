@@ -266,7 +266,11 @@ roster without a pane link.
 **Transcripts.** Each pane-bound session's Panes card (4.6) shows its model and context, which
 `transcript.rs` reads from the session's transcript. The formats are internal to each tool and
 undocumented, so every field is optional and an unreadable line is skipped. A reading is the
-newest model, the context tokens, and the context window when the transcript reports one.
+newest model, the context tokens, and the context window when the transcript reports one. A
+Claude Code session's window comes from its status line input instead (3.28): each `/usage`
+post's `session_id` and `context_window.context_window_size` set the window on that session's
+reading, which wins over the transcript's. A post for a session the reader is not tracking is
+dropped, since the status line sends the window again on its next update.
 
 **Branch size badge.** A terminal card (4.6) whose folder is in a git repo shows a warning chip
 at the end of its agent line, reading the line count ("512 lines"), while the worktree's changes
@@ -286,7 +290,7 @@ timer, and paused while the window is hidden.
   seconds until found. The reading is the newest line of `type` `assistant` that is not
   `isSidechain` and carries `message.usage` (a `<synthetic>` model is skipped): context is
   `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`, and the model is
-  `message.model`. The transcript does not name the context window.
+  `message.model`. The transcript does not name the context window; the status line does.
 - **Codex** (`transcript/codex.rs`). The newest `sessions/YYYY/MM/DD/rollout-*-<id>.jsonl` under
   the Codex home. The model is the newest `turn_context` line's `model`; context tokens are the
   newest `token_count` event's `last_token_usage.total_tokens`, with its `model_context_window`
@@ -370,7 +374,8 @@ come from the window's length in minutes: 10080 is "weekly", a whole number of d
 update and feeds it a JSON document on standard input; `rate_limits.five_hour` and
 `rate_limits.seven_day` each hold `used_percentage` and `resets_at`. They are absent until a
 response carried rate-limit headers, which only subscription logins get, and an absent window
-yields nothing. Claude Code accepts one status line command and shows its output, so Bashboard
+yields nothing. The same input's `session_id` and `context_window.context_window_size` give the
+session's context window to the transcript reader (3.4). Claude Code accepts one status line command and shows its output, so Bashboard
 cannot read the input beside the user's command. The install therefore wraps the command rather
 than taking its place. With an existing `{ "type": "command", "command": X }` it writes
 

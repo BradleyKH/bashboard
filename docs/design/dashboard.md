@@ -380,12 +380,14 @@ Each card shows:
   folder, if any.
 - For a terminal bound to an agent session (3.4), a dimmed line below that with the session's
   model and the tokens in its context, read from its transcript. Claude Code's reads
-  "Opus 5.5 · 112k tokens"; the other agents lead with their name, as "Codex · gpt-5.5 · 112k /
-  272k tokens". Either half shows alone while the other is unknown (Copilot reports no tokens),
-  and the line is absent until the transcript has a model or a count. The count is shown against a
-  window only when one is known: Codex's transcript reports it, and for a model loaded in Ollama
-  the window is the loaded context length from the Local AI models poll (3.19). Claude Code's
-  transcript does not name the window, so its count stands alone rather than guess a fraction.
+  "Opus 5.5 · 112k / 200k tokens"; the other agents lead with their name, as "Codex · gpt-5.5 ·
+  112k / 272k tokens". Either half shows alone while the other is unknown (Copilot reports no
+  tokens), and the line is absent until the transcript has a model or a count. The count is shown
+  against a window only when one is known: Claude Code's status line input reports it (3.4),
+  Codex's transcript reports it, and for a model loaded in Ollama the window is the loaded context
+  length from the Local AI models poll (3.19). Without a window the count stands alone rather than
+  guess one. With a window, a 40 px bar after the text shows the share in use, in the System
+  section's bands (warn from 80%, error from 90%), with the percentage in its tooltip.
 - For a terminal, time since the last status change.
 - A profile badge when the terminal's shell is not `shell.defaultProfile`.
 - Whether it is expanded or collapsed. Clicking an expanded card switches to its tab if needed

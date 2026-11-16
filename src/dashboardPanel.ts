@@ -5,7 +5,7 @@ import { badgeText, badgeTitle, isOverThreshold } from './branchSizeModel';
 import { branchSizeStore } from './branchSizeStore';
 import type { AgentId } from './savedWorkspace';
 import { makeCollapsible, setSectionCollapsed } from './collapsibleSection';
-import { agentLine } from './agentModel';
+import { agentLine, contextFraction } from './agentModel';
 import { clockMenuItems } from './clockMenu';
 import type { ClockStyle } from './clockModel';
 import { AgentContexts } from './agentContexts';
@@ -1044,34 +1044,36 @@ export class DashboardPanel {
 
     this.cardBadgesKey = this.badgesKey();
     // Group headers appear only with two or more tabs (docs/design/dashboard.md section 4.6).
-    const cardOptions = (card: (typeof cards)[number]) => ({
-      now,
-      agentLine:
-        card.kind === 'terminal' && card.sessionId !== null
-          ? agentLine(
-              this.sessions.find((s) => s.sessionId === card.sessionId)?.agent ?? 'claude',
-              this.agentContexts.get(card.sessionId),
-              this.loadedWindow(card.sessionId),
-            )
-          : null,
-      sizeBadge: card.kind === 'terminal' && card.path !== '' ? this.sizeBadge(card.path) : null,
-      showPath: this.showPanePaths,
-      defaultProfile: this.defaultProfile(),
-      confirming: this.confirming.has(card.paneId),
-      onFocus: this.callbacks.onFocus,
-      onToggleCollapse: this.callbacks.onToggleCollapse,
-      onOpenIn: this.callbacks.onOpenIn,
-      onDragStart: this.callbacks.onCardDragStart,
-      onClose: (paneId: string) => {
-        this.confirming.delete(paneId);
-        this.callbacks.onClose(paneId);
-      },
-      onConfirmChange: (paneId: string, confirming: boolean) => {
-        if (confirming) this.confirming.add(paneId);
-        else this.confirming.delete(paneId);
-        this.render();
-      },
-    });
+    const cardOptions = (card: (typeof cards)[number]) => {
+      const sessionId = card.kind === 'terminal' ? card.sessionId : null;
+      const ctx = sessionId !== null ? this.agentContexts.get(sessionId) : undefined;
+      const loaded = sessionId !== null ? this.loadedWindow(sessionId) : null;
+      return {
+        now,
+        agentLine:
+          sessionId !== null
+            ? agentLine(this.sessions.find((s) => s.sessionId === sessionId)?.agent ?? 'claude', ctx, loaded)
+            : null,
+        contextUsed: contextFraction(ctx, loaded),
+        sizeBadge: card.kind === 'terminal' && card.path !== '' ? this.sizeBadge(card.path) : null,
+        showPath: this.showPanePaths,
+        defaultProfile: this.defaultProfile(),
+        confirming: this.confirming.has(card.paneId),
+        onFocus: this.callbacks.onFocus,
+        onToggleCollapse: this.callbacks.onToggleCollapse,
+        onOpenIn: this.callbacks.onOpenIn,
+        onDragStart: this.callbacks.onCardDragStart,
+        onClose: (paneId: string) => {
+          this.confirming.delete(paneId);
+          this.callbacks.onClose(paneId);
+        },
+        onConfirmChange: (paneId: string, confirming: boolean) => {
+          if (confirming) this.confirming.add(paneId);
+          else this.confirming.delete(paneId);
+          this.render();
+        },
+      };
+    };
     // The AI filter leaves each tab's count and status alone; only the card list narrows. A
     // group header already shows its tab's pane count, so the folded row appears only without
     // headers, where it is the sole sign the filtered-out panes exist.

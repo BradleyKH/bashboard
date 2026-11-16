@@ -700,8 +700,11 @@ Containers, and Ports on the right, and the rest on the left. **Panes** has a ca
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab, or right-click it to rename the tab). A terminal's card shows its status (a green check mark when it is done),
 folder, and time since its status last changed, plus, while a coding agent session runs in it, the model
-and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k tokens" for Claude Code, and
-"Codex · gpt-5.5 · 112k / 272k tokens" for the others, which lead with the agent's name); a card for any other kind of pane shows the
+and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k / 200k tokens" for Claude Code, and
+"Codex · gpt-5.5 · 112k / 272k tokens" for the others, which lead with the agent's name). When the context window
+is known, a small bar after the count shows how full it is, turning amber at 80% and red at 90%; Claude Code's
+window comes from its status line, so it appears once the status line has drawn with the Claude hooks installed
+(see [Usage limits and your status line](setup.md#usage-limits-and-your-status-line)). A card for any other kind of pane shows the
 kind's icon and the pane's title. A terminal in a branch over the size limit also gets an amber chip
 with its line count on that line (see the [size badge](#git-pane)). Folder paths under the card titles are hidden by default; the
 **↳** button on the Panes header shows them, and the choice is saved with the workspace. While

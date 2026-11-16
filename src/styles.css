@@ -1014,6 +1014,30 @@ body.dashboard-resizing {
   white-space: nowrap;
 }
 
+/* The context bar keeps its width so the model line truncates first; it shares the System
+   section's bands (warn from 80%, error from 90%). */
+.card-context-bar {
+  flex: 0 0 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.card-context-fill {
+  display: block;
+  height: 100%;
+  background: var(--system-accent);
+}
+
+.card-context-fill[data-band='warn'] {
+  background: var(--system-warn);
+}
+
+.card-context-fill[data-band='error'] {
+  background: var(--system-error);
+}
+
 /* The chip keeps its width so a long model line truncates before the size warning does. */
 .card-size-badge {
   flex-shrink: 0;

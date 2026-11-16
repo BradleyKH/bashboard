@@ -191,8 +191,8 @@ To add them by hand, copy `bb.exe` from the install folder to
 ### Usage limits and your status line
 
 The Claude Code install also changes the `statusLine` setting in `~/.claude/settings.json`, so
-Bashboard can show your subscription's 5-hour and weekly limits in the dashboard's Needs you list
-(see the [user guide](user-guide.md#dashboard)). Claude Code hands its status line command a JSON
+Bashboard can show your subscription's 5-hour and weekly limits in the dashboard's Needs you list,
+and each session's context window on its Panes card (see the [user guide](user-guide.md#dashboard)). Claude Code hands its status line command a JSON
 document on every update, and the usage numbers are in it. Claude Code runs only one status line
 command, so the install wraps yours instead of adding a second. If you have a status line command,
 say `bash ~/.claude/statusline.sh`, it becomes
