@@ -7,19 +7,27 @@ import {
   azureTokenPageUrl,
   guessProvider,
   hostCard,
-  INSTALL_GH_ARGV,
-  INSTALL_GLAB_ARGV,
   NOT_DETECTED,
   normalizeOrg,
   splitByDetection,
 } from './forgeAccountsModel';
-import { AZURE_DEVOPS_SCOPE_INFO, BITBUCKET_SCOPES, BITBUCKET_TOKEN_URL } from './shipModel';
+import {
+  AZURE_DEVOPS_SCOPE_INFO,
+  BITBUCKET_SCOPES,
+  BITBUCKET_TOKEN_URL,
+  GITHUB_CLI_URL,
+  GITLAB_CLI_URL,
+} from './shipModel';
+
+const WINGET_GH = ['winget', 'install', '--id', 'GitHub.cli', '-e'];
+const WINGET_GLAB = ['winget', 'install', '--id', 'GLab.GLab', '-e'];
 
 function gh(over: Partial<HostAuth> = {}): HostAuth {
   return {
     provider: 'github',
     host: 'github.com',
     cliInstalled: true,
+    installArgv: null,
     accounts: [],
     activeAccount: null,
     tokenSource: null,
@@ -48,11 +56,15 @@ const kinds = (c: { actions: { kind: string }[] }) => c.actions.map((a) => a.kin
 
 describe('hostCard, GitHub', () => {
   it('offers an install, not a sign-in, when gh is missing', () => {
-    const c = hostCard(gh({ cliInstalled: false }));
+    const c = hostCard(gh({ cliInstalled: false, installArgv: WINGET_GH }));
     expect(c.severity).toBe('missing');
     expect(c.status).toContain('not installed');
-    expect(c.actions).toEqual([{ kind: 'installCli', label: 'Install GitHub CLI', argv: [...INSTALL_GH_ARGV] }]);
-    expect(INSTALL_GH_ARGV).toEqual(['winget', 'install', '--id', 'GitHub.cli', '-e']);
+    expect(c.actions).toEqual([{ kind: 'installCli', label: 'Install GitHub CLI', argv: WINGET_GH }]);
+  });
+
+  it("links to gh's page when the core has no install command for this machine", () => {
+    const c = hostCard(gh({ cliInstalled: false }));
+    expect(c.actions).toEqual([{ kind: 'openUrl', label: 'Install GitHub CLI', url: GITHUB_CLI_URL }]);
   });
 
   it('with gh and zero accounts offers Sign in with the host in the argv', () => {
@@ -110,7 +122,7 @@ describe('hostCard, GitHub', () => {
   });
 
   it('still offers an install when only Git Credential Manager is present and gh is missing', () => {
-    const c = hostCard(gh({ cliInstalled: false, tokenSource: 'gitCredentialManager' }));
+    const c = hostCard(gh({ cliInstalled: false, installArgv: WINGET_GH, tokenSource: 'gitCredentialManager' }));
     expect(c.severity).toBe('ok');
     expect(kinds(c)).toEqual(['installCli', 'test']);
   });
@@ -178,13 +190,23 @@ describe('hostCard, Bitbucket', () => {
 
 describe('hostCard, GitLab', () => {
   it('offers an install when glab is missing, and no account rows', () => {
-    const c = hostCard(gl({ cliInstalled: false }));
+    const c = hostCard(gl({ cliInstalled: false, installArgv: WINGET_GLAB }));
     expect(c.title).toBe('GitLab');
     expect(c.status).toBe('Not signed in, and GitLab CLI is not installed');
     expect(c.severity).toBe('missing');
     expect(c.accounts).toEqual([]);
-    expect(c.actions).toEqual([{ kind: 'installCli', label: 'Install GitLab CLI', argv: [...INSTALL_GLAB_ARGV] }]);
-    expect(INSTALL_GLAB_ARGV).toEqual(['winget', 'install', '--id', 'GLab.GLab', '-e']);
+    expect(c.actions).toEqual([{ kind: 'installCli', label: 'Install GitLab CLI', argv: WINGET_GLAB }]);
+  });
+
+  it('runs Homebrew when that is the install command', () => {
+    const brew = ['brew', 'install', 'glab'];
+    const c = hostCard(gl({ cliInstalled: false, installArgv: brew }));
+    expect(c.actions).toEqual([{ kind: 'installCli', label: 'Install GitLab CLI', argv: brew }]);
+  });
+
+  it("links to glab's page with no install command", () => {
+    const c = hostCard(gl({ cliInstalled: false }));
+    expect(c.actions).toEqual([{ kind: 'openUrl', label: 'Install GitLab CLI', url: GITLAB_CLI_URL }]);
   });
 
   it('with glab and no sign-in offers Sign in with the host in the argv, and no Test', () => {

@@ -43,16 +43,23 @@ pub enum TokenSource {
 /// The Azure DevOps resource id that `az account get-access-token` mints tokens for.
 const AZURE_DEVOPS_RESOURCE: &str = "499b84ac-1321-427f-aa17-267ca6975798";
 
-/// `<program>.exe` (`az.cmd` for `az`) on `PATH`, then the CLI's install folders: a CLI
-/// installed while Bashboard runs is not on the `PATH` it inherited until it restarts, the same
-/// reason git.rs falls back to the folder beside Git Bash.
-pub fn locate_program(program: &str) -> Option<PathBuf> {
-    let name = program.strip_suffix(".exe").unwrap_or(program);
-    let file = if name == "az" {
+/// The CLI's file name: `<program>.exe` (`az.cmd` for `az`) on Windows, the bare name elsewhere.
+fn program_file(name: &str) -> String {
+    if !cfg!(windows) {
+        name.to_string()
+    } else if name == "az" {
         "az.cmd".to_string()
     } else {
         format!("{name}.exe")
-    };
+    }
+}
+
+/// The CLI on `PATH`, then in its install folders: a CLI installed while Bashboard runs is not
+/// on the `PATH` it inherited until it restarts, the same reason git.rs falls back to the folder
+/// beside Git Bash.
+pub fn locate_program(program: &str) -> Option<PathBuf> {
+    let name = program.strip_suffix(".exe").unwrap_or(program);
+    let file = program_file(name);
     let on_path = std::env::var_os("PATH").and_then(|p| {
         std::env::split_paths(&p)
             .map(|d| d.join(&file))
@@ -61,14 +68,33 @@ pub fn locate_program(program: &str) -> Option<PathBuf> {
     if on_path.is_some() {
         return on_path;
     }
+    install_folders(name)
+        .into_iter()
+        .map(|d| d.join(&file))
+        .find(|p| p.is_file())
+}
+
+/// Where Homebrew (Apple silicon, Intel, Linux) and pipx-style user installs put programs.
+#[cfg(not(windows))]
+fn install_folders(_name: &str) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = ["/opt/homebrew/bin", "/usr/local/bin", "/home/linuxbrew/.linuxbrew/bin"]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    dirs.extend(crate::platform::user_home().map(|h| h.join(".local").join("bin")));
+    dirs
+}
+
+#[cfg(windows)]
+fn install_folders(name: &str) -> Vec<PathBuf> {
     let env_dir = |var: &str, rel: &[&str]| {
         std::env::var_os(var).map(|d| rel.iter().fold(PathBuf::from(d), |p, s| p.join(s)))
     };
-    let az = ["Microsoft SDKs", "Azure", "CLI2", "wbin", "az.cmd"];
+    let az = ["Microsoft SDKs", "Azure", "CLI2", "wbin"];
     let candidates = match name {
         "gh" => vec![
-            env_dir("ProgramFiles", &["GitHub CLI", "gh.exe"]),
-            env_dir("LOCALAPPDATA", &["Programs", "GitHub CLI", "gh.exe"]),
+            env_dir("ProgramFiles", &["GitHub CLI"]),
+            env_dir("LOCALAPPDATA", &["Programs", "GitHub CLI"]),
         ],
         // The 64-bit and 32-bit MSI folders; the MSI does not let the user choose.
         "az" => vec![
@@ -77,22 +103,45 @@ pub fn locate_program(program: &str) -> Option<PathBuf> {
         ],
         // The Inno installer's per-user and machine folders, then winget's links folder.
         "glab" => vec![
-            env_dir("LOCALAPPDATA", &["Programs", "glab", "glab.exe"]),
-            env_dir("ProgramFiles", &["glab", "glab.exe"]),
-            env_dir(
-                "LOCALAPPDATA",
-                &["Microsoft", "WinGet", "Links", "glab.exe"],
-            ),
+            env_dir("LOCALAPPDATA", &["Programs", "glab"]),
+            env_dir("ProgramFiles", &["glab"]),
+            env_dir("LOCALAPPDATA", &["Microsoft", "WinGet", "Links"]),
         ],
         _ => Vec::new(),
     };
-    candidates.into_iter().flatten().find(|p| p.is_file())
+    candidates.into_iter().flatten().collect()
 }
 
 /// Whether `gh` is reachable by name from a new terminal pane, or only by its full path.
 pub fn gh_on_path() -> bool {
+    on_path("gh")
+}
+
+fn on_path(name: &str) -> bool {
+    let file = program_file(name);
     std::env::var_os("PATH")
-        .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join("gh.exe").is_file()))
+        .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(&file).is_file()))
+}
+
+/// The command a terminal pane runs to install `gh` or `glab`: winget on Windows, Homebrew
+/// elsewhere when it is installed. `None` leaves the card to link to the CLI's install page.
+pub fn install_argv(program: &str) -> Option<Vec<String>> {
+    if cfg!(windows) {
+        let id = match program {
+            "gh" => "GitHub.cli",
+            "glab" => "GLab.GLab",
+            _ => return None,
+        };
+        return Some(["winget", "install", "--id", id, "-e"].map(String::from).to_vec());
+    }
+    if !matches!(program, "gh" | "glab") {
+        return None;
+    }
+    // By full path when brew is only in its install folder, since the pane's shell may not
+    // have it on PATH either.
+    let brew = locate_program("brew")?;
+    let brew = if on_path("brew") { "brew".to_string() } else { brew.to_string_lossy().into_owned() };
+    Some(vec![brew, "install".into(), program.into()])
 }
 
 /// Runs a located CLI with no console and no stdin, returning (success, stdout, stderr); `None`
@@ -524,6 +573,25 @@ pub fn choose_account(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    #[test]
+    fn program_files_and_install_commands_follow_the_os() {
+        if cfg!(windows) {
+            assert_eq!(program_file("gh"), "gh.exe");
+            assert_eq!(program_file("az"), "az.cmd");
+            assert_eq!(
+                install_argv("glab").unwrap(),
+                ["winget", "install", "--id", "GLab.GLab", "-e"]
+            );
+        } else {
+            assert_eq!(program_file("az"), "az");
+            // Homebrew's formula is the program's own name, when brew is there at all.
+            if let Some(argv) = install_argv("gh") {
+                assert_eq!(&argv[1..], ["install", "gh"]);
+            }
+        }
+        assert_eq!(install_argv("az"), None);
+    }
 
     /// Two users on github.com and one on a GHES host; the token values are fake.
     pub(crate) const SAMPLE_HOSTS_YML: &str = "\

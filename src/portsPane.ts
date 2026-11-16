@@ -8,7 +8,7 @@ import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
-import { supports } from './platform';
+import { osName, supports } from './platform';
 import { isLoopbackUrl } from './localBrowserModel';
 import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
@@ -94,7 +94,7 @@ export class PortsPane implements PaneView {
     const paneOnly = this.checkbox(this.paneOnlyBox, 'Started from a pane', 'List only ports started from a Bashboard pane');
     this.paneOnlyBox.checked = true;
     this.servicesBox = document.createElement('input');
-    const services = this.checkbox(this.servicesBox, 'Windows services', 'Also list ports held by Windows services and the system');
+    const services = this.checkbox(this.servicesBox, `${osName()} services`, `Also list ports held by ${osName()}'s own services`);
     services.hidden = !supports('systemPorts');
     this.commandsBox = document.createElement('input');
     const commands = this.checkbox(this.commandsBox, 'Command lines', "Show each port's full command line under its folder");
@@ -303,7 +303,7 @@ export class PortsPane implements PaneView {
       actions,
     );
 
-    el.append(this.cell('ports-detail', l.command || (l.system ? 'Windows service' : 'Command line not available')));
+    el.append(this.cell('ports-detail', l.command || (l.system ? `${osName()} service` : 'Command line not available')));
 
     // Selecting in place, rather than rebuilding, keeps the row under the pointer for a double-click.
     el.addEventListener('click', () => {

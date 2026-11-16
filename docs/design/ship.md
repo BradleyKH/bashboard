@@ -197,10 +197,13 @@ compiles it too.
   effect without a restart, while an ordinary 403 costs no extra request and a mutating call
   (re-run, cancel) never repeats with the same token. `signedOut` is finished in `mod.rs` into the next
   step. For GitHub with `gh` installed, `signIn` is `gh auth login --hostname <host> --web`; with
-  `gh` missing, the kind becomes `notInstalled`, `url` is cli.github.com, and `signIn` is `winget
-  install --id GitHub.cli -e`. For GitLab the same split applies with `glab`: `signIn` is `glab
+  `gh` missing, the kind becomes `notInstalled`, `url` is cli.github.com, and `signIn` is the
+  install command from `auth::install_argv`: `winget install --id GitHub.cli -e` on Windows,
+  `brew install gh` elsewhere when Homebrew is found, else none, which leaves the page link alone.
+  The install button names its installer (Install with winget, Install with Homebrew). For GitLab the same split applies with `glab`: `signIn` is `glab
   auth login --hostname <host>`, or, with `glab` missing, the kind becomes `notInstalled`, `url` is
-  GitLab CLI's page, and `signIn` is `winget install --id GLab.GLab -e`. For Bitbucket the message says whether no token is stored or the
+  GitLab CLI's page, and `signIn` is `winget install --id GLab.GLab -e` or `brew install glab` the
+  same way. For Bitbucket the message says whether no token is stored or the
   stored token was rejected (it may have expired or lack a scope), `url` is the Atlassian token
   page, and `signIn` is `bb auth bitbucket`, and the message names the Accounts tab first. For
   Azure DevOps, `signedOut` and `forbidden` both carry the organization's token page

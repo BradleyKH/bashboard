@@ -201,8 +201,8 @@ export class AppDialogs {
     this.setupWizard.open({
       agents: agentHooksFrom(previews),
       // An unknown Git state skips the Git step rather than offering an install that may not apply.
-      gitBashFound: !supports('gitInstall') || (git?.gitBashFound ?? true),
-      wingetFound: git?.wingetFound ?? false,
+      gitFound: !supports('gitInstall') || (git?.gitFound ?? true),
+      installer: git?.installer ?? null,
     });
     await new Promise<void>((resolve) => {
       this.setupClosed?.();

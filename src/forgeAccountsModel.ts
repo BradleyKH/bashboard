@@ -2,7 +2,13 @@
 // the action unions without knowing about providers (docs/design/ship.md section 4.20).
 import type { HostAuth, ProviderKind, TokenSourceKind } from './forgeApi';
 import { signInAnotherArgv } from './shipMenus';
-import { AZURE_DEVOPS_SCOPE_INFO, BITBUCKET_SCOPES, BITBUCKET_TOKEN_URL } from './shipModel';
+import {
+  AZURE_DEVOPS_SCOPE_INFO,
+  BITBUCKET_SCOPES,
+  BITBUCKET_TOKEN_URL,
+  GITHUB_CLI_URL,
+  GITLAB_CLI_URL,
+} from './shipModel';
 
 export type Severity = 'ok' | 'warn' | 'missing';
 
@@ -66,8 +72,6 @@ export interface HostCard {
   note: string | null;
 }
 
-export const INSTALL_GH_ARGV: readonly string[] = ['winget', 'install', '--id', 'GitHub.cli', '-e'];
-export const INSTALL_GLAB_ARGV: readonly string[] = ['winget', 'install', '--id', 'GLab.GLab', '-e'];
 export const AZ_LOGIN_ARGV: readonly string[] = ['az', 'login'];
 export const NOT_DETECTED = 'Not detected on this machine';
 export const AZURE_DEVOPS_HOST = 'dev.azure.com';
@@ -182,6 +186,11 @@ function azureStatus(h: HostAuth): { status: string; severity: Severity } {
 
 type CardBody = Omit<HostCard, 'host' | 'title' | 'undetected' | 'tooltip'>;
 
+/** Runs the core's install command in a terminal, or opens the CLI's page when there is none. */
+function installAction(h: HostAuth, label: string, url: string): CardAction {
+  return h.installArgv ? { kind: 'installCli', label, argv: [...h.installArgv] } : { kind: 'openUrl', label, url };
+}
+
 function githubCard(h: HostAuth): CardBody {
   const accounts: AccountRow[] = h.accounts.map((user) => {
     const active = user === h.activeAccount;
@@ -192,7 +201,7 @@ function githubCard(h: HostAuth): CardBody {
   });
   const actions: CardAction[] = [];
   if (!h.cliInstalled) {
-    actions.push({ kind: 'installCli', label: 'Install GitHub CLI', argv: [...INSTALL_GH_ARGV] });
+    actions.push(installAction(h, 'Install GitHub CLI', GITHUB_CLI_URL));
   } else {
     actions.push({
       kind: 'signIn',
@@ -212,7 +221,7 @@ function githubCard(h: HostAuth): CardBody {
 function gitlabCard(h: HostAuth): CardBody {
   const actions: CardAction[] = [];
   if (!h.cliInstalled) {
-    actions.push({ kind: 'installCli', label: 'Install GitLab CLI', argv: [...INSTALL_GLAB_ARGV] });
+    actions.push(installAction(h, 'Install GitLab CLI', GITLAB_CLI_URL));
   } else if (h.activeAccount) {
     actions.push({ kind: 'signOut', label: 'Sign out', user: h.activeAccount });
   } else {

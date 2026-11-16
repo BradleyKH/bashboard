@@ -189,10 +189,12 @@ whether the file or `.bash_profile` would be created, and a warning.
 
 ## 3.15 Git install (`src-tauri/src/git_install.rs`)
 
-Git Bash is the default shell. When no
-Git Bash is found (3.1), the setup wizard's Git step (4.17) installs Git for Windows with
-winget. `git_install_status` reports whether Git Bash was found and whether `winget.exe` was;
-winget is looked up on `PATH`, then at the App Execution Alias under
+`git_install_status` reports `gitFound` and `installer` (`winget`, `xcodeSelect`, or null), and
+the setup wizard's Git step (4.17) shows while `gitFound` is false.
+
+**Windows.** Git Bash is the default shell, so `gitFound` means Git Bash was found (3.1), and
+the step installs Git for Windows with winget. `installer` is `winget` when `winget.exe` is
+found: on `PATH`, then at the App Execution Alias under
 `%LOCALAPPDATA%\Microsoft\WindowsApps`, which a GUI process may not have on its `PATH`.
 
 `git_install` runs `winget install --id Git.Git -e --source winget --silent
@@ -205,6 +207,16 @@ reloads the shell profiles so the new Git Bash is offered without a restart.
 
 When winget is missing, the step offers a link to git-scm.com instead (opened through
 `open_url`) and asks the user to run setup again once Git is installed.
+
+**macOS.** `/usr/bin/git` is always present, but until Apple's Command Line Tools are installed
+it is a stub that opens their installer instead of running. So `gitFound` is
+`xcode-select -p` succeeding, or a Homebrew git in `/opt/homebrew/bin` or `/usr/local/bin`, and
+`installer` is always `xcodeSelect`. `git_install` runs `xcode-select --install`, which opens
+macOS's own installer and returns; the install runs there, outside the app, so the step reads
+"Installer opened; Git is ready once it finishes" rather than waiting for it.
+
+**Linux.** `gitFound` is `git` on `PATH`, and there is no installer; the Git step and its status
+row stay hidden there (`gitInstall` in `src/platform.ts`).
 
 ## 3.16 Updates and releases
 
@@ -291,8 +303,8 @@ spreading the panic to every later caller. Two long-lived loops also contain pan
 the hook receiver answers each request inside `catch_unwind`, and a pty's reader drops a sink
 that panics while it keeps filling the output tail, so a reattached page still gets output.
 
-The core and its ptys outlive the page, so a WebView2 failure must not leave a live process
-behind a dead window. The main window's `ProcessFailed` event drives recovery:
+The core and its ptys outlive the page, so a WebView failure must not leave a live process
+behind a dead window. On Windows the main window's `ProcessFailed` event drives recovery:
 
 - **Browser process exited.** The whole WebView is gone and cannot be reloaded. The core marks a
   rebuild, destroys the window, holds off the exit that destroying the only window requests, and
@@ -301,6 +313,12 @@ behind a dead window. The main window's `ProcessFailed` event drives recovery:
   restores the saved workspace, reattaching each terminal to its still-running shell (3.1, 4.9).
   If the window cannot be rebuilt, the app exits rather than run with no window.
 - **Page renderer exited.** The WebView reloads the page.
+
+On macOS, WKWebView has no browser process to lose; its one failure event is the page's web
+content process ending, from a crash or because macOS reclaimed it under memory pressure. Tauri
+takes that handler on the app builder (`on_web_content_process_terminate`), and for the main
+window it reloads the page as for WebView2's page renderer, falling back to a rebuild if the
+reload fails. Linux has no hook yet.
 - **Page renderer unresponsive**, and every other kind (GPU, utility, a Local Browser frame's
   renderer): logged only. An unresponsive page can recover on its own; the watchdog below and
   the close fallback are the ways out when it does not.
@@ -341,9 +359,10 @@ Shown at launch when `settings.json` did not exist before that launch (the setti
 `settings_set` as soon as a choice is made, so leaving partway keeps what was chosen. Every step
 has Back, Next, and Skip setup.
 
-1. **Git.** Shown only while Git Bash is missing (3.15). With winget available, an Install Git
-   button runs the install and shows its progress and result; the step stays in the list once
-   Git is installed, reading "Git installed". Without winget, a button opens git-scm.com.
+1. **Git.** Shown only while Git (Git Bash on Windows) is missing (3.15). With winget available,
+   an Install Git button runs the install and shows its progress and result; the step stays in
+   the list once Git is installed, reading "Git installed". On macOS, Install Command Line Tools
+   opens Apple's installer. Without an installer, a button opens git-scm.com.
 2. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
 3. **Shell integration.** For the shell new panes open with: the chosen default when it is
    installed, else the first installed profile, as the core resolves it (3.1). Shown when that
@@ -415,10 +434,10 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
   per area, whose `{action}` tokens render as the action's live keycaps, or "no key" when it is
   unbound, under Take the tour, which closes the dialog and starts the tour (4.29), and followed
   by a link to the full user guide. Below it, Setup (`setupStatus.ts`) checks Git
-  Bash (3.15), the shell integration lines of each installed shell that takes them (3.14), and the
+  Bash, or Git off Windows (3.15), the shell integration lines of each installed shell that takes them (3.14), and the
   hooks of each agent (3.3, one row per agent, "Codex hooks (preview)" and the like), each row
   reading ✓, !, or • with a short status and, where the app can fix it, a button: Install Git
-  (winget, or Download without it), Install or Update for the shell lines, and Install for the
+  (winget or the Command Line Tools installer, or Download without either), Install or Update for the shell lines, and Install for the
   hooks, which opens that agent's hook preview (3.3) over the dialog. An agent that has not run
   on this machine reads "<agent> has not run on this machine".
   Missing lines warn only for the default shell; other shells get the button without the warning.

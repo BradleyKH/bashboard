@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { primaryHeld, primaryName, primaryOnly, supports } from './platform';
+import {
+  fileManagerName,
+  openInFileManagerLabel,
+  osName,
+  primaryHeld,
+  primaryName,
+  primaryOnly,
+  supports,
+} from './platform';
 
 describe('supports', () => {
   it('keeps every feature on Windows', () => {
@@ -7,9 +15,10 @@ describe('supports', () => {
     expect(supports('gitInstall', 'windows')).toBe(true);
   });
 
-  it('hides the WebView2 and winget features on macOS', () => {
+  it('hides only the WebView2 Local Browser on macOS', () => {
     expect(supports('localBrowser', 'macos')).toBe(false);
-    expect(supports('gitInstall', 'macos')).toBe(false);
+    expect(supports('gitInstall', 'macos')).toBe(true);
+    expect(supports('systemPorts', 'macos')).toBe(true);
   });
 
   it('defaults to Windows before the core answers', () => {
@@ -34,5 +43,14 @@ describe('primary modifier', () => {
     expect(primaryHeld(ctrl, 'macos')).toBe(false);
     expect(primaryOnly(both, 'macos')).toBe(false);
     expect(primaryName('macos')).toBe('Cmd');
+  });
+});
+
+describe('OS names for labels', () => {
+  it('names the OS and its file manager', () => {
+    expect(osName('macos')).toBe('macOS');
+    expect(fileManagerName('windows')).toBe('File Explorer');
+    expect(openInFileManagerLabel('macos')).toBe('Open in Finder');
+    expect(openInFileManagerLabel('linux')).toBe('Open in File Manager');
   });
 });

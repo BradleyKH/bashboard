@@ -1,13 +1,14 @@
 import './setupWizard.css';
 import { agentName, isPreviewAgent } from './agentNames';
 import type { Editor } from './editors';
+import type { GitInstaller } from './gitInstall';
 import { samePath, type Favorite } from './favorites';
 import { forgeRepo } from './forgeApi';
 import type { ShellProfile } from './profiles';
 import type { AgentId } from './savedWorkspace';
 import { repoCandidates } from './repoCandidates';
 import type { Settings } from './settings';
-import { renderGitStep } from './setupGitStep';
+import { gitStepIntro, renderGitStep } from './setupGitStep';
 import { renderLookStep } from './setupLookStep';
 import {
   editorChoices,
@@ -53,8 +54,8 @@ export interface SetupWizardCallbacks {
 
 export interface SetupWizardOpenOptions {
   agents: AgentHooks[];
-  gitBashFound: boolean;
-  wingetFound: boolean;
+  gitFound: boolean;
+  installer: GitInstaller | null;
 }
 
 type BaseStepOptions = Omit<SetupStepOptions, 'defaultShell' | 'shellIntegrationStatus'>;
@@ -68,7 +69,7 @@ interface Repo {
 const RESOLVE_PARALLEL = 4;
 
 const STEP_TEXT: Record<SetupStep, { title: string; intro: string }> = {
-  git: { title: 'Git', intro: 'Install Git for Windows, which brings Git Bash.' },
+  git: { title: 'Git', intro: '' },
   shell: { title: 'Shell', intro: 'The shell new panes open with.' },
   shellIntegration: { title: 'Shell integration', intro: "A few lines in your shell's startup file that report each prompt to the app." },
   editor: { title: 'Editor', intro: 'Where files and folders open from the Files pane, the Git pane, and search.' },
@@ -117,7 +118,7 @@ export class SetupWizard {
   private installing: AgentId | null = null;
 
   private base!: BaseStepOptions;
-  private wingetFound = false;
+  private installer: GitInstaller | null = null;
   private gitInstalling = false;
   private gitDone = false;
   /** Per shell; absent while it is read, null when it could not be. */
@@ -143,9 +144,9 @@ export class SetupWizard {
     if (this.backdrop) this.close();
     this.base = {
       agents: opts.agents,
-      gitBashFound: opts.gitBashFound,
+      gitFound: opts.gitFound,
     };
-    this.wingetFound = opts.wingetFound;
+    this.installer = opts.installer;
     this.gitInstalling = false;
     this.gitDone = false;
     this.previews = new Map();
@@ -305,7 +306,7 @@ export class SetupWizard {
     const step = this.steps[this.index];
     this.counter.textContent = `Step ${this.index + 1} of ${this.steps.length}`;
     this.title.textContent = STEP_TEXT[step].title;
-    this.intro.textContent = STEP_TEXT[step].intro;
+    this.intro.textContent = step === 'git' ? gitStepIntro() : STEP_TEXT[step].intro;
     this.back.disabled = this.index === 0;
     this.next.textContent = this.index === this.steps.length - 1 ? 'Done' : 'Next';
   }
@@ -353,7 +354,7 @@ export class SetupWizard {
   private renderGit(): void {
     renderGitStep(
       this.content,
-      { wingetFound: this.wingetFound, installing: this.gitInstalling, done: this.gitDone },
+      { installer: this.installer, installing: this.gitInstalling, done: this.gitDone },
       this.ui,
       { install: () => void this.installGit(), openDownload: () => this.callbacks.openGitDownload() },
     );

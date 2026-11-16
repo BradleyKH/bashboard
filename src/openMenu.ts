@@ -3,6 +3,7 @@ import { closeContextMenu, contextMenuGeneration, isContextMenuOpenFor, openCont
 import { item, type MenuItem } from './contextMenuModel';
 import { openFolder } from './folderButton';
 import { iconButton } from './rowControls';
+import { fileManagerName } from './platform';
 
 /** What the Open menu can open a row's repo as (docs/design/dashboard.md section 4.6). */
 export type OpenInKind = 'terminal' | 'files' | 'git' | 'search' | 'editor';
@@ -61,7 +62,7 @@ export function openMenuButton(
     const generation = contextMenuGeneration();
     void openInMenuItems(path, onOpenIn).then((items) => {
       if (generation !== contextMenuGeneration()) return;
-      const entries = opts.explorer ? [...items, item('File Explorer', () => openFolder(path))] : items;
+      const entries = opts.explorer ? [...items, item(fileManagerName(), () => openFolder(path))] : items;
       openContextMenu(entries, { anchorEl: button, align: 'left' });
     });
   });

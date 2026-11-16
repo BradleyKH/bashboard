@@ -14,7 +14,7 @@ import {
 } from './setupModel';
 
 describe('setupSteps', () => {
-  const base = { gitBashFound: true, defaultShell: 'gitBash', shellIntegrationStatus: 'installed' as const };
+  const base = { gitFound: true, defaultShell: 'gitBash', shellIntegrationStatus: 'installed' as const };
 
   const noHooks = { agents: [] };
   const claudeMissing = { agent: 'claude' as const, installed: false };
@@ -43,11 +43,11 @@ describe('setupSteps', () => {
   });
 
   const hooks = noHooks;
-  const bash = { ...hooks, gitBashFound: true, defaultShell: 'gitBash' };
+  const bash = { ...hooks, gitFound: true, defaultShell: 'gitBash' };
 
   it('puts git first only when Git Bash is not found', () => {
     expect(
-      setupSteps({ ...hooks, gitBashFound: false, defaultShell: 'cmd', shellIntegrationStatus: null }),
+      setupSteps({ ...hooks, gitFound: false, defaultShell: 'cmd', shellIntegrationStatus: null }),
     ).toEqual(['git', 'shell', 'editor', 'favorites', 'look']);
   });
 
@@ -78,7 +78,7 @@ describe('setupSteps', () => {
 
   it('hides Git Bash integration while Git Bash is missing', () => {
     expect(
-      setupSteps({ ...hooks, gitBashFound: false, defaultShell: 'gitBash', shellIntegrationStatus: 'missing' }),
+      setupSteps({ ...hooks, gitFound: false, defaultShell: 'gitBash', shellIntegrationStatus: 'missing' }),
     ).toEqual(['git', 'shell', 'editor', 'favorites', 'look']);
   });
 
@@ -86,7 +86,7 @@ describe('setupSteps', () => {
     expect(
       setupSteps({
         ...hooks,
-        gitBashFound: false,
+        gitFound: false,
         gitInstalled: true,
         defaultShell: 'gitBash',
         shellIntegrationStatus: 'missing',

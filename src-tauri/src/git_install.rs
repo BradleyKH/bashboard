@@ -1,6 +1,7 @@
-//! Installs Git for Windows (which provides Git Bash) through winget when it is missing
-//! (docs/design/app.md section 3.15). The pure parts (winget lookup, argument list, output
-//! trimming) take their inputs as parameters so tests never touch the real machine.
+//! Installs Git when it is missing (docs/design/app.md section 3.15): Git for Windows (which
+//! provides Git Bash) through winget, or Apple's Command Line Tools through `xcode-select` on
+//! macOS. The pure parts (winget lookup, argument list, output trimming) take their inputs as
+//! parameters so tests never touch the real machine.
 
 use std::ffi::OsStr;
 use std::io::Read;
@@ -13,21 +14,35 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::lock::LockExt;
-use crate::profiles;
 use crate::settings::SettingsState;
 
+#[cfg_attr(not(windows), allow(dead_code))]
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 const TAIL_LINES: usize = 8;
+
+/// What can install Git here.
+#[derive(Serialize, Debug, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub enum GitInstaller {
+    Winget,
+    /// `xcode-select --install`, which opens macOS's own installer for the Command Line Tools.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    XcodeSelect,
+}
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GitInstallStatus {
-    pub git_bash_found: bool,
-    pub winget_found: bool,
+    /// Git Bash on Windows, a working `git` elsewhere.
+    pub git_found: bool,
+    /// `None` when nothing here can install it, so the front end links to git-scm.com.
+    pub installer: Option<GitInstaller>,
 }
 
 /// `winget.exe` on PATH, else the App Execution Alias under `%LOCALAPPDATA%\Microsoft\WindowsApps`
 /// (which a GUI process may not have on its PATH).
+#[cfg_attr(not(windows), allow(dead_code))]
 fn find_winget(path_var: &OsStr, local_app_data: Option<&Path>) -> Option<PathBuf> {
     std::env::split_paths(path_var)
         .map(|dir| dir.join("winget.exe"))
@@ -35,6 +50,7 @@ fn find_winget(path_var: &OsStr, local_app_data: Option<&Path>) -> Option<PathBu
         .find(|p| p.is_file())
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn winget_path() -> Option<PathBuf> {
     let path_var = std::env::var_os("PATH").unwrap_or_default();
     let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
@@ -43,6 +59,7 @@ fn winget_path() -> Option<PathBuf> {
 
 /// `--scope user` makes winget run the Inno installer with /CURRENTUSER, so there is no admin
 /// prompt and Git lands in `%LOCALAPPDATA%\Programs\Git`, a location profiles.rs detects.
+#[cfg_attr(not(windows), allow(dead_code))]
 fn install_args() -> Vec<&'static str> {
     vec![
         "install",
@@ -61,6 +78,7 @@ fn install_args() -> Vec<&'static str> {
 
 /// The last `n` non-blank lines, with the carriage-return progress spinner winget prints
 /// collapsed to its final frame.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 fn tail_lines(output: &str, n: usize) -> String {
     let lines: Vec<&str> = output
         .lines()
@@ -70,18 +88,53 @@ fn tail_lines(output: &str, n: usize) -> String {
     lines[lines.len().saturating_sub(n)..].join("\n")
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn status_for(git_bash_found: bool, winget: Option<PathBuf>) -> GitInstallStatus {
-    GitInstallStatus { git_bash_found, winget_found: winget.is_some() }
+    GitInstallStatus {
+        git_found: git_bash_found,
+        installer: winget.map(|_| GitInstaller::Winget),
+    }
 }
 
+#[cfg(windows)]
 #[tauri::command]
 pub fn git_install_status(settings: State<'_, SettingsState>) -> GitInstallStatus {
-    let git_bash_found = profiles::available_profiles(&settings.current().shell)
+    let git_bash_found = crate::profiles::available_profiles(&settings.current().shell)
         .iter()
-        .any(|p| p.id == profiles::GIT_BASH);
+        .any(|p| p.id == crate::profiles::GIT_BASH);
     status_for(git_bash_found, winget_path())
 }
 
+/// `/usr/bin/git` is always there on macOS, but until the Command Line Tools are installed it
+/// is a stub that opens their installer instead of running, so the check is `xcode-select -p`.
+/// A Homebrew git works without them.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub fn git_install_status(_settings: State<'_, SettingsState>) -> GitInstallStatus {
+    let tools = Command::new("/usr/bin/xcode-select")
+        .arg("-p")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    let brew_git = ["/opt/homebrew/bin/git", "/usr/local/bin/git"].iter().any(|p| Path::new(p).is_file());
+    GitInstallStatus {
+        git_found: tools || brew_git,
+        installer: Some(GitInstaller::XcodeSelect),
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+#[tauri::command]
+pub fn git_install_status(_settings: State<'_, SettingsState>) -> GitInstallStatus {
+    let file = crate::platform::exe_name("git");
+    let found = std::env::var_os("PATH")
+        .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(&file).is_file()));
+    GitInstallStatus { git_found: found, installer: None }
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
 fn drain<R: Read + Send + 'static>(mut r: R, buf: Arc<Mutex<Vec<u8>>>) {
     std::thread::spawn(move || {
         let mut chunk = [0u8; 4096];
@@ -94,6 +147,7 @@ fn drain<R: Read + Send + 'static>(mut r: R, buf: Arc<Mutex<Vec<u8>>>) {
     });
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn run_install(winget: &Path, timeout: Duration) -> Result<(), String> {
     let mut cmd = Command::new(winget);
     cmd.args(install_args())
@@ -138,12 +192,40 @@ fn run_install(winget: &Path, timeout: Duration) -> Result<(), String> {
     Err(format!("winget exited with code {code}\n{}", tail_lines(&text, TAIL_LINES)))
 }
 
+#[cfg(windows)]
 #[tauri::command]
 pub async fn git_install() -> Result<(), String> {
     let winget = winget_path().ok_or("winget was not found on this machine")?;
     tauri::async_runtime::spawn_blocking(move || run_install(&winget, INSTALL_TIMEOUT))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// Opens macOS's Command Line Tools installer and returns once it is showing; the install
+/// itself runs in that window, outside Bashboard.
+#[cfg(target_os = "macos")]
+#[tauri::command]
+pub async fn git_install() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let out = Command::new("/usr/bin/xcode-select")
+            .arg("--install")
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| format!("could not start xcode-select: {e}"))?;
+        if out.status.success() {
+            return Ok(());
+        }
+        let text = String::from_utf8_lossy(&[out.stdout, out.stderr].concat()).into_owned();
+        Err(format!("xcode-select did not open the installer\n{}", tail_lines(&text, TAIL_LINES)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+#[tauri::command]
+pub async fn git_install() -> Result<(), String> {
+    Err("install Git with your distribution's package manager".into())
 }
 
 #[cfg(test)]
@@ -182,7 +264,7 @@ mod tests {
         let local = temp_dir("none");
         assert_eq!(find_winget(OsStr::new(""), Some(&local)), None);
         assert_eq!(find_winget(OsStr::new(""), None), None);
-        assert!(!status_for(false, None).winget_found);
+        assert_eq!(status_for(false, None).installer, None);
     }
 
     #[test]
@@ -207,6 +289,10 @@ mod tests {
     #[test]
     fn status_serializes_camel_case() {
         let json = serde_json::to_string(&status_for(true, None)).unwrap();
-        assert_eq!(json, r#"{"gitBashFound":true,"wingetFound":false}"#);
+        assert_eq!(json, r#"{"gitFound":true,"installer":null}"#);
+        let json = serde_json::to_string(&status_for(false, Some(PathBuf::from("winget.exe")))).unwrap();
+        assert_eq!(json, r#"{"gitFound":false,"installer":"winget"}"#);
+        let mac = GitInstallStatus { git_found: false, installer: Some(GitInstaller::XcodeSelect) };
+        assert_eq!(serde_json::to_string(&mac).unwrap(), r#"{"gitFound":false,"installer":"xcodeSelect"}"#);
     }
 }

@@ -296,6 +296,8 @@ export interface HostAuth {
   host: string;
   /** Whether the provider's CLI (gh, glab, or az) was found, on PATH or in its install folders. */
   cliInstalled: boolean;
+  /** The terminal command that installs the missing CLI (winget, or Homebrew off Windows); null when there is none to run. */
+  installArgv: string[] | null;
   /** Accounts the CLI holds for this host (several for gh, at most one for glab and az); empty for Bitbucket. */
   accounts: string[];
   activeAccount: string | null;

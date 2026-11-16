@@ -7,13 +7,15 @@ export type Os = string;
  * Features with no implementation yet on some OS. The UI hides what is listed for the running
  * OS, so a tester sees a smaller app rather than controls that fail.
  * - localBrowser: drives its frames through the WebView2 DevTools Protocol.
- * - gitInstall: Git for Windows through winget, and the Git Bash setup row.
- * - systemPorts: the Ports pane's "Windows services" filter, which keys on Windows session 0.
+ * - gitInstall: the Git setup step and status row; winget on Windows, Apple's Command Line
+ *   Tools on macOS.
+ * - systemPorts: the Ports pane's services filter, which keys on Windows session 0 or on an
+ *   executable inside macOS itself.
  */
 export type Feature = 'localBrowser' | 'gitInstall' | 'systemPorts';
 
 const UNSUPPORTED: Readonly<Record<Os, readonly Feature[]>> = {
-  macos: ['localBrowser', 'gitInstall', 'systemPorts'],
+  macos: ['localBrowser'],
   linux: ['localBrowser', 'gitInstall', 'systemPorts'],
 };
 
@@ -53,4 +55,23 @@ export function primaryOnly(e: Mods, os: Os = current): boolean {
 /** The command modifier's name for labels: "Cmd" on macOS, "Ctrl" elsewhere. */
 export function primaryName(os: Os = current): string {
   return os === 'macos' ? 'Cmd' : 'Ctrl';
+}
+
+/** The OS's name for labels: "Windows", "macOS", or "Linux". */
+export function osName(os: Os = current): string {
+  if (os === 'macos') return 'macOS';
+  if (os === 'windows') return 'Windows';
+  return 'Linux';
+}
+
+/** The OS's file manager, for menu labels: "File Explorer", "Finder", or "File Manager". */
+export function fileManagerName(os: Os = current): string {
+  if (os === 'macos') return 'Finder';
+  if (os === 'windows') return 'File Explorer';
+  return 'File Manager';
+}
+
+/** The label of the item that opens a folder in the OS's file manager. */
+export function openInFileManagerLabel(os: Os = current): string {
+  return `Open in ${fileManagerName(os)}`;
 }

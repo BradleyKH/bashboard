@@ -307,8 +307,9 @@ same from a terminal.
 Bashboard reads GitHub through the GitHub CLI, then falls back to Git Credential Manager's token.
 
 1. Install the GitHub CLI. In the Accounts tab, the GitHub card's **Install GitHub CLI** runs
-   `winget install --id GitHub.cli -e` in a terminal pane. You can run that command yourself, or use
-   the installer from [cli.github.com](https://cli.github.com). Restart any terminals that were
+   `winget install --id GitHub.cli -e` in a terminal pane (`brew install gh` on macOS, when
+   Homebrew is installed). You can run that command yourself, or use the installer from
+   [cli.github.com](https://cli.github.com). Restart any terminals that were
    open, so they see it.
 2. Sign in. In the Accounts tab, choose **Sign in** on the GitHub card; it closes the dialog and
    runs `gh auth login --hostname github.com --web` in a terminal pane, where you follow the
@@ -411,7 +412,7 @@ token. It serves gitlab.com and self-managed GitLab hosts, and its pane says "me
 GitHub says "pull request".
 
 1. Install the GitLab CLI. In the Accounts tab, the GitLab card's **Install GitLab CLI** runs
-   `winget install --id GLab.GLab -e` in a terminal pane. Restart any terminals that were open, so
+   `winget install --id GLab.GLab -e` in a terminal pane (`brew install glab` on macOS). Restart any terminals that were open, so
    they see it.
 2. Sign in. In the Accounts tab, choose **Sign in** on the GitLab card; it closes the dialog and
    runs `glab auth login --hostname gitlab.com` in a terminal pane, where you follow the prompts.

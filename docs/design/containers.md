@@ -157,7 +157,10 @@ powershell, nu) or Claude Code, walked the same way as the owning pane below.
 full path because an app launched from the Dock has a minimal `PATH`; `parse_lsof` folds its
 output into the same per-address rows, a `*` becoming `0.0.0.0` or `::` by the row's family and
 IPv6 brackets dropped. Without root, lsof lists only the user's own processes, which is what the
-pane wants, so no row is marked `system` and the Windows services checkbox is hidden. Shell names
+pane wants. Those still include macOS's per-user services, such as AirPlay Receiver on 5000 and
+7000, so a row whose executable lies under `/System/`, `/usr/libexec/`, `/usr/sbin/`, or `/sbin/`
+is marked `system` and the checkbox reads macOS services. `/usr/bin` is left out, since it holds
+the developer tools' launchers. Shell names
 match with any `.exe` dropped, so `zsh` and the rest count. Stop has no `taskkill`: it gathers the
 process's descendants from the process list (stopping at a child older than its recorded parent,
 a reused pid), sends SIGTERM to them and then the process, waits up to 2 s, and sends SIGKILL to
@@ -198,7 +201,7 @@ for. A Ports pane is also in the kind menu (4.11).
 owning pane's title; Escape clears it), a count of the rows shown and hidden, a Started from a
 pane checkbox, checked when the pane opens, that keeps only rows whose owning pane is still open
 (Show in Ports on a row no pane started, and the "+ N other programs" row, clear it so the rows
-they point at show), a Windows services
+they point at show), a Windows services (macOS services)
 checkbox that also lists `system` rows, dimmed, and a Command lines checkbox, unchecked when the
 pane opens, that shows each row's command line. The count sits left of the checkboxes so its
 changing width never moves them. The list is a grid under a sticky header, with the columns

@@ -227,8 +227,8 @@ export const AZURE_DEVOPS_SCOPE_INFO: readonly ScopeLine[] = [
 export const AZURE_DEVOPS_SCOPES: readonly string[] = AZURE_DEVOPS_SCOPE_INFO.map((s) => s.scope);
 
 export const BITBUCKET_TOKEN_URL = 'https://id.atlassian.com/manage-profile/security/api-tokens';
-const GITHUB_CLI_URL = 'https://cli.github.com';
-const GITLAB_CLI_URL = 'https://gitlab.com/gitlab-org/cli';
+export const GITHUB_CLI_URL = 'https://cli.github.com';
+export const GITLAB_CLI_URL = 'https://gitlab.com/gitlab-org/cli';
 
 export type NoticeAction =
   | { kind: 'runTerminal'; label: string; argv: string[] }
@@ -288,10 +288,21 @@ function providerOf(err: ForgeError, repo: ForgeRepo | null | undefined): Provid
   }
   if (program === 'glab') return 'gitlab';
   if (program === 'az') return 'azureDevOps';
-  // The same winget argv shape installs either CLI; the package id tells them apart.
+  // The same installer argv shape installs either CLI; the package name tells them apart.
   if (program === 'winget') return argv.includes('GLab.GLab') ? 'gitlab' : 'github';
+  if (isBrew(argv)) return argv.includes('glab') ? 'gitlab' : 'github';
   if (program === 'gh') return 'github';
   return null;
+}
+
+/** Homebrew by name or by full path, which the core uses when brew is not on PATH. */
+function isBrew(argv: readonly string[]): boolean {
+  return /(^|\/)brew$/.test(argv[0] ?? '');
+}
+
+/** The button for a CLI install command: winget on Windows, Homebrew elsewhere. */
+export function installLabel(argv: readonly string[]): string {
+  return isBrew(argv) ? 'Install with Homebrew' : 'Install with winget';
 }
 
 function hostOf(err: ForgeError, repo: ForgeRepo | null | undefined): string {
@@ -466,7 +477,7 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
     case 'notInstalled': {
       if (provider === 'gitlab') {
         const glabActions: NoticeAction[] = [];
-        if (err.signIn) glabActions.push({ kind: 'runTerminal', label: 'Install with winget', argv: err.signIn });
+        if (err.signIn) glabActions.push({ kind: 'runTerminal', label: installLabel(err.signIn), argv: err.signIn });
         glabActions.push(
           { kind: 'openUrl', label: 'Open the GitLab CLI page', url: err.url ?? GITLAB_CLI_URL },
           { kind: 'openAccounts', label: 'Manage accounts', host: hostOf(err, repo) },
@@ -482,7 +493,7 @@ export function noticeFor(err: ForgeError, repo: ForgeRepo | null | undefined): 
         );
       }
       const actions: NoticeAction[] = [];
-      if (err.signIn) actions.push({ kind: 'runTerminal', label: 'Install with winget', argv: err.signIn });
+      if (err.signIn) actions.push({ kind: 'runTerminal', label: installLabel(err.signIn), argv: err.signIn });
       actions.push(
         { kind: 'openUrl', label: 'Open cli.github.com', url: err.url ?? GITHUB_CLI_URL },
         { kind: 'openAccounts', label: 'Manage accounts', host: hostOf(err, repo) },

@@ -400,6 +400,20 @@ describe('noticeFor', () => {
     expect(n.actions[1]).toMatchObject({ kind: 'openUrl', url: 'https://cli.github.com' });
   });
 
+  it('names Homebrew on a brew install, and tells glab from gh by the formula before the repo resolves', () => {
+    const brew = ['/opt/homebrew/bin/brew', 'install', 'glab'];
+    const n = noticeFor(err('notInstalled', { signIn: brew }), null);
+    expect(n.title).toBe('Bashboard reads GitLab through the GitLab CLI.');
+    expect(n.actions[0]).toEqual({ kind: 'runTerminal', label: 'Install with Homebrew', argv: brew });
+    const g = noticeFor(err('notInstalled', { signIn: ['brew', 'install', 'gh'] }), null);
+    expect(g.title).toBe('Bashboard reads GitHub through the GitHub CLI.');
+  });
+
+  it('offers only the site when there is no install command', () => {
+    const n = noticeFor(err('notInstalled', { url: 'https://cli.github.com' }), null);
+    expect(labels(n.actions)).toEqual(['Open cli.github.com', 'Manage accounts', 'Retry']);
+  });
+
   it('GitHub notInstalled without a winget argv still links to the site', () => {
     const n = noticeFor(err('notInstalled'), repo());
     expect(labels(n.actions)).toEqual(['Open cli.github.com', 'Manage accounts', 'Retry']);

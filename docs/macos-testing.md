@@ -19,7 +19,7 @@ testing only. This page lists what to check and what to send back.
 
 ## Not expected to work yet
 
-- The Local Browser pane and the Git install step are hidden.
+- The Local Browser pane is hidden.
 
 ## Checks
 
@@ -59,7 +59,7 @@ For each check, report pass or fail, plus what you saw if it failed.
 **Files and restore**
 
 16. Right-click the empty space in a Files pane. Copy path copies a path that uses `/`, and
-    "Open in File Explorer" (still the Windows label) opens the folder in Finder.
+    Open in Finder opens the folder in Finder.
 17. Make a layout with two tabs and a split, quit, and start the app again. The layout comes
     back.
 
@@ -90,6 +90,26 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 23. With VS Code or a JetBrains IDE installed in Applications, the editor setting lists it.
     Opening a search result opens the file at its line in that editor.
+
+**Setup and code hosts**
+
+24. Press F1. The Setup list has a Git row reading Installed. On a Mac without Apple's Command
+    Line Tools, it offers Install, which opens Apple's installer.
+25. With the GitHub CLI installed through Homebrew, Settings, Accounts shows it as installed
+    and lists your signed-in accounts. Without it, but with Homebrew, Install GitHub CLI runs
+    `brew install gh` in a new pane.
+
+**System ports**
+
+26. Turn on AirPlay Receiver (System Settings, General, AirDrop & Handoff). In a Ports pane,
+    untick Started from a pane. Ports 5000 and 7000 appear only with macOS services ticked,
+    dimmed, and the dashboard's port list does not count them.
+
+**Crash recovery**
+
+27. Open a few panes. In Activity Monitor, choose View, All Processes, Hierarchically, find the
+    `com.apple.WebKit.WebContent` process under Bashboard, and Force Quit it. The window
+    reloads, and every pane comes back with its shell still running.
 
 ## Measurements
 

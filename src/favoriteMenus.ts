@@ -1,4 +1,5 @@
 import { item, separator, type MenuEntry, type MenuItem } from './contextMenuModel';
+import { openInFileManagerLabel } from './platform';
 
 export interface PathMenuHandlers {
   openInExplorer: (path: string) => void;
@@ -25,7 +26,7 @@ function pathEntries(path: string, openItems: MenuItem[], h: PathMenuHandlers): 
   return [
     ...openItems,
     ...(openItems.length > 0 ? [separator()] : []),
-    item('Open in File Explorer', () => h.openInExplorer(path)),
+    item(openInFileManagerLabel(), () => h.openInExplorer(path)),
     item('Copy path', () => h.copyPath(path)),
   ];
 }

@@ -1,4 +1,4 @@
-//! Recovery from a dead or hung WebView2 (docs/design/app.md section 3.22). The core and its
+//! Recovery from a dead or hung WebView (docs/design/app.md section 3.22). The core and its
 //! ptys outlive the page, so a crash of the browser process otherwise leaves a live app behind
 //! a black window whose close button waits on a front end that will never answer.
 
@@ -158,6 +158,26 @@ pub fn watch(window: &tauri::WebviewWindow) {
 
 #[cfg(not(windows))]
 pub fn watch(_window: &tauri::WebviewWindow) {}
+
+/// WKWebView's page process died, from a crash or because macOS reclaimed it under memory
+/// pressure. Unlike WebView2's browser process, the WebView itself survives, so a reload starts
+/// a new page process, as for WebView2's page renderer. Registered on the app builder, since
+/// Tauri takes this handler there rather than per window.
+#[cfg(target_os = "macos")]
+pub fn on_content_process_terminated(webview: &tauri::Webview) {
+    if webview.label() != MAIN {
+        return;
+    }
+    eprintln!("{} WebKit page process exited; reloading", stamp());
+    webview.app_handle().state::<crate::browser::BrowserState>().reset();
+    crate::page_watchdog::disarm();
+    if let Err(e) = webview.reload() {
+        eprintln!("{} could not reload the page, rebuilding the window: {e}", stamp());
+        if let Some(window) = webview.app_handle().get_webview_window(MAIN) {
+            begin_rebuild(&window);
+        }
+    }
+}
 
 /// The `COREWEBVIEW2_PROCESS_FAILED_KIND` values, for the log.
 #[cfg_attr(not(windows), allow(dead_code))]

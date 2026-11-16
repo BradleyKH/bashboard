@@ -16,8 +16,8 @@ export type SetupStep = 'git' | 'shell' | 'shellIntegration' | 'editor' | 'favor
 export interface SetupStepOptions {
   /** The agents that have run on this machine, each with its hook state. */
   agents: AgentHooks[];
-  /** Whether Git Bash was found when the wizard opened. */
-  gitBashFound: boolean;
+  /** Whether Git (Git Bash on Windows) was found when the wizard opened. */
+  gitFound: boolean;
   /** Set once Git is installed from the wizard, which keeps the Git step listed. */
   gitInstalled?: boolean;
   /** The profile new panes open with (`effectiveProfile`); null when no shells were listed. */
@@ -63,16 +63,16 @@ export interface Choice {
 const DEFAULT_EDITOR: Choice = { value: 'default', label: "The file's default app" };
 
 /**
- * The steps to show, in order: Git only when Git Bash was missing, shell integration only when
+ * The steps to show, in order: Git only when Git (Git Bash on Windows) was missing, shell integration only when
  * the default shell takes the lines (Git Bash, zsh, or Unix bash) and they are not current, the agents step only when
  * a detected agent lacks the hooks.
  */
 export function setupSteps(opts: SetupStepOptions): SetupStep[] {
   const steps: SetupStep[] = [];
-  if (!opts.gitBashFound) steps.push('git');
+  if (!opts.gitFound) steps.push('git');
   steps.push('shell');
   const shell = opts.defaultShell;
-  const hasBash = opts.gitBashFound || opts.gitInstalled === true;
+  const hasBash = opts.gitFound || opts.gitInstalled === true;
   if (
     shell !== null &&
     (shell !== 'gitBash' || hasBash) &&

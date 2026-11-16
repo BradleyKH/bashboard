@@ -331,6 +331,9 @@ pub struct HostAuth {
     pub host: String,
     /// Whether the provider's CLI (gh, glab, or az) was found; false for Bitbucket.
     pub cli_installed: bool,
+    /// The terminal command that installs the missing CLI (`auth::install_argv`); `None` when
+    /// the CLI is installed, has no installer here, or the provider has no CLI to install.
+    pub install_argv: Option<Vec<String>>,
     /// The accounts the CLI holds for the host: several for gh, at most one for glab and az.
     pub accounts: Vec<String>,
     pub active_account: Option<String>,

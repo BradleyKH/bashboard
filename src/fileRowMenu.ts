@@ -1,7 +1,7 @@
 import { item, separator, submenu, type MenuEntry } from './contextMenuModel';
 import { isHtmlFile } from './browserPaneModel';
 import type { FileEntry } from './filesModel';
-import { platformOs, primaryName } from './platform';
+import { openInFileManagerLabel, platformOs, primaryName } from './platform';
 
 /** The shortcut hints beside Cut, Copy, Paste, and Delete; the Files list handles these keys itself. */
 function clipKey(letter: string): string {
@@ -116,7 +116,7 @@ export interface FolderMenuHandlers {
 export function folderMenuItems(state: FolderMenuState, handlers: FolderMenuHandlers): MenuEntry[] {
   return [
     item('Open terminal here', handlers.openTerminalHere),
-    item('Open in File Explorer', handlers.openInExplorer),
+    item(openInFileManagerLabel(), handlers.openInExplorer),
     item('Search in this folder', handlers.searchHere),
     separator(),
     item('Paste', handlers.paste, { hint: clipKey('V') }),

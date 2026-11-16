@@ -175,7 +175,10 @@ pub fn run() {
         second_instance::on_second_launch(app, args, cwd)
     }));
     #[cfg(target_os = "macos")]
-    let builder = builder.menu(mac_menu::build).on_menu_event(mac_menu::on_event);
+    let builder = builder
+        .menu(mac_menu::build)
+        .on_menu_event(mac_menu::on_event)
+        .on_web_content_process_terminate(crash_recovery::on_content_process_terminated);
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

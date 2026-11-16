@@ -1,4 +1,5 @@
 import type { GitInstallStatus } from './gitInstall';
+import { platformOs, type Os } from './platform';
 import { agentName, isPreviewAgent } from './agentNames';
 import type { HookInstallPreview } from './hookInstall';
 import { hookAction } from './hookInstallModel';
@@ -22,15 +23,17 @@ export interface StatusRow {
   fix?: StatusFix & { label: string };
 }
 
-export function gitRow(status: GitInstallStatus | null): StatusRow {
-  const base = { id: 'git', label: 'Git Bash' };
+/** Git Bash on Windows, where it is also the default shell; Git elsewhere. */
+export function gitRow(status: GitInstallStatus | null, os: Os = platformOs()): StatusRow {
+  const windows = os === 'windows';
+  const base = { id: 'git', label: windows ? 'Git Bash' : 'Git' };
   if (!status) return { ...base, level: 'info', text: 'Could not check' };
-  if (status.gitBashFound) return { ...base, level: 'ok', text: 'Installed' };
+  if (status.gitFound) return { ...base, level: 'ok', text: 'Installed' };
   return {
     ...base,
     level: 'missing',
-    text: 'Not found; Git Bash panes and the Git pane need it',
-    fix: status.wingetFound ? { kind: 'gitInstall', label: 'Install' } : { kind: 'gitDownload', label: 'Download' },
+    text: windows ? 'Not found; Git Bash panes and the Git pane need it' : 'Not found; the Git pane and worktrees need it',
+    fix: status.installer ? { kind: 'gitInstall', label: 'Install' } : { kind: 'gitDownload', label: 'Download' },
   };
 }
 

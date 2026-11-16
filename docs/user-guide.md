@@ -31,7 +31,8 @@
 
 This guide names the Windows keys. On macOS the app's keys move onto Cmd and every Ctrl and
 Option chord goes to the shell; see [Keys on macOS](#keys-on-macos). The Shortcuts tab (F1, then
-Shortcuts) always shows the keys for the machine you are on.
+Shortcuts) always shows the keys for the machine you are on. Menus name the Mac's own places
+too: Open in File Explorer reads Open in Finder, and Delete sends files to the Trash.
 
 ## Tabs
 
@@ -126,7 +127,9 @@ selected file or folder in place: Enter saves, and Escape or clicking away cance
 the selection to the Recycle Bin (Cmd+Backspace to the Trash on macOS), with no prompt since you
 can restore it from there. Ctrl+C and Ctrl+X copy or cut the selection and Ctrl+V pastes into the
 folder shown, as in File Explorer, and they work with File Explorer itself: copy there and paste
-in a Files pane, or the other way round. Cut rows show dimmed until pasted. Pasting a copy into
+in a Files pane, or the other way round. Cut rows show dimmed until pasted. On macOS, where
+Finder has no Cut, rows cut in a Files pane and pasted in Finder are copied; paste with
+Cmd+Option+V there to move them. Pasting a copy into
 its own folder names it `name - Copy`, as Explorer does; a name already taken anywhere else is
 reported rather than overwritten. The divider between
 the list and the preview can be dragged; until a file is selected, the list fills the pane.
@@ -1010,8 +1013,9 @@ beside the Ports pane, and a right-click gives a menu like the dashboard's, with
 
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
 clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
-started; untick it to see everything else, and on Windows tick **Windows services** to include the
-system's own ports, dimmed. Opening the pane from the dashboard on a port no pane started unticks it for
+started; untick it to see everything else, and tick **Windows services** (**macOS services** on a
+Mac) to include the system's own ports, dimmed. On a Mac those are the services macOS runs for
+you, such as AirPlay Receiver on ports 5000 and 7000. Opening the pane from the dashboard on a port no pane started unticks it for
 you. Any pane can also become a Ports pane from its kind menu.
 
 ## Local Browser
@@ -1251,7 +1255,7 @@ those keys themselves.
 
 - **Help** is a short tour of the main features with your current keys, a **Take the tour**
   button that walks you through the main keys one at a time, and a Setup list that
-  checks Git Bash, each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),
+  checks Git Bash (Git on macOS, where Install opens Apple's Command Line Tools installer), each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),
   and the hooks of each coding agent that has run here. Anything missing has an Install button, and **Run setup** reopens the
   setup wizard.
 - **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the
@@ -1264,11 +1268,12 @@ those keys themselves.
   toggle, which reveals them dimmed. A card shows status only, never a token. A GitHub card says whether the GitHub CLI is installed
   and lists its signed-in accounts, with the active one marked. **Sign in** (or **Sign in another
   account**) runs `gh auth login` in a new terminal pane and closes the dialog so you can see it,
-  **Install GitHub CLI** runs `winget` the same way, **Make active** switches accounts, and
+  **Install GitHub CLI** runs `winget` the same way (Homebrew on macOS, or opens cli.github.com
+  when neither is installed), **Make active** switches accounts, and
   **Sign out** asks first and then signs that account out of the GitHub CLI for every app that
   uses it. The GitLab card says whether the GitLab CLI is installed and who is signed in;
   **Sign in** runs `glab auth login` in a new terminal pane the same way, **Install GitLab CLI**
-  runs `winget`, and **Sign out** asks first and then signs out of the GitLab CLI for every app that
+  runs `winget` or Homebrew the same way, and **Sign out** asks first and then signs out of the GitLab CLI for every app that
   uses it. The Bitbucket card says whether an API token is stored; **Add token** (or **Replace
   token**) opens a password field, **Save** stores the token in Windows Credential Manager or the macOS Keychain, and
   **Remove token** asks first and deletes it. It also lists the scopes the token needs, with

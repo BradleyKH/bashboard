@@ -196,7 +196,8 @@ impl PortsProbe {
             ProcessRefreshKind::nothing()
                 .with_cmd(UpdateKind::OnlyIfNotSet)
                 .with_cwd(UpdateKind::OnlyIfNotSet)
-                .with_environ(UpdateKind::OnlyIfNotSet),
+                .with_environ(UpdateKind::OnlyIfNotSet)
+                .with_exe(UpdateKind::OnlyIfNotSet),
         );
         let procs = proc_map(&self.sys);
         let shells: HashMap<u32, u32> = ptys.iter().map(|p| (p.pid, p.id)).collect();
@@ -226,7 +227,7 @@ impl PortsProbe {
                 cwd: process.and_then(|p| p.cwd()).map(|c| c.to_string_lossy().into_owned()).filter(|c| !c.is_empty()),
                 from_shell: pty_id.is_some() || ancestor(pid, &procs, |p| terminals.contains(&p)).is_some(),
                 pty_id,
-                system: os::is_system(pid),
+                system: os::is_system(pid, process.and_then(|p| p.exe())),
                 own: pid == std::process::id(),
             });
         }
@@ -504,7 +505,7 @@ mod os {
 
     /// The kernel or a service in session 0; a process whose session Windows will not report is
     /// a protected service.
-    pub fn is_system(pid: u32) -> bool {
+    pub fn is_system(pid: u32, _exe: Option<&std::path::Path>) -> bool {
         let mut session = 0u32;
         pid <= 4 || unsafe { ProcessIdToSessionId(pid, &mut session) } == 0 || session == 0
     }
@@ -565,9 +566,10 @@ mod os {
             .unwrap_or_default()
     }
 
-    // No session-0 equivalent to key on, so nothing is hidden as a system port.
-    pub fn is_system(_pid: u32) -> bool {
-        false
+    /// lsof shows only the user's own processes, but those include macOS's per-user services,
+    /// such as AirPlay Receiver holding 5000 and 7000; they run from the sealed system volume.
+    pub fn is_system(_pid: u32, exe: Option<&std::path::Path>) -> bool {
+        exe.is_some_and(super::is_apple_system_path)
     }
 }
 
@@ -579,9 +581,18 @@ mod os {
         Vec::new()
     }
 
-    pub fn is_system(_pid: u32) -> bool {
+    pub fn is_system(_pid: u32, _exe: Option<&std::path::Path>) -> bool {
         false
     }
+}
+
+/// An executable that ships with macOS: the sealed system volume and the system's own
+/// daemons. `/usr/bin` is left out, since it holds the developer tools' launchers.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn is_apple_system_path(exe: &std::path::Path) -> bool {
+    ["/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/"]
+        .iter()
+        .any(|root| exe.to_str().is_some_and(|e| e.starts_with(root)))
 }
 
 #[cfg(test)]
@@ -590,6 +601,17 @@ mod tests {
 
     fn raw(port: u16, address: &str, pid: u32) -> RawListener {
         RawListener { port, address: address.into(), pid }
+    }
+
+    #[test]
+    fn apple_system_paths_are_services() {
+        use std::path::Path;
+        let control = "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter";
+        assert!(is_apple_system_path(Path::new(control)));
+        assert!(is_apple_system_path(Path::new("/usr/libexec/rapportd")));
+        assert!(!is_apple_system_path(Path::new("/usr/bin/python3")));
+        assert!(!is_apple_system_path(Path::new("/opt/homebrew/bin/node")));
+        assert!(!is_apple_system_path(Path::new("/Applications/Docker.app/Contents/MacOS/com.docker.backend")));
     }
 
     #[test]

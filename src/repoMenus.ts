@@ -1,4 +1,5 @@
 import { item, separator, type MenuEntry, type MenuItem } from './contextMenuModel';
+import { openInFileManagerLabel } from './platform';
 
 export interface PinRowMenuHandlers {
   open: () => void;
@@ -13,7 +14,7 @@ export function pinRowMenuItems(state: { exists: boolean }, h: PinRowMenuHandler
   const enabled = state.exists;
   return [
     item('Open', h.open, { enabled }),
-    item('Open in File Explorer', h.openInExplorer, { enabled }),
+    item(openInFileManagerLabel(), h.openInExplorer, { enabled }),
     item('Copy path', h.copyPath, { enabled }),
     separator(),
     item('Rename', h.rename, { enabled }),
@@ -38,7 +39,7 @@ export function commandPinRowMenuItems(state: { exists: boolean }, h: CommandPin
     item('Edit', h.edit, { enabled }),
     item('Copy command', h.copyCommand, { enabled }),
     separator(),
-    item('Open in File Explorer', h.openInExplorer, { enabled }),
+    item(openInFileManagerLabel(), h.openInExplorer, { enabled }),
     item('Copy path', h.copyPath, { enabled }),
     separator(),
     item('Remove pin', h.remove),
@@ -80,7 +81,7 @@ export function worktreeRowMenuItems(
   const entries: MenuEntry[] = [
     ...openItems.map((i) => ({ ...i, enabled: enabled && i.enabled !== false })),
     separator(),
-    item('Open in File Explorer', h.openInExplorer, { enabled }),
+    item(openInFileManagerLabel(), h.openInExplorer, { enabled }),
     item('Copy path', h.copyPath, { enabled }),
   ];
   if (h.delete) entries.push(separator(), item('Delete', h.delete, { enabled: !state.locked }));

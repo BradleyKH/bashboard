@@ -4,7 +4,7 @@ import { attachContextMenu, closeContextMenu, isContextMenuOpenFor, openContextM
 import type { MenuEntry } from './contextMenuModel';
 import { copyPath, copyText } from './copyText';
 import { copiedPathText } from './displayPath';
-import { platformOs } from './platform';
+import { openInFileManagerLabel, platformOs } from './platform';
 import { pathToFileUrl } from './localBrowserModel';
 import { openInEditor } from './editors';
 import { samePath } from './favorites';
@@ -376,7 +376,7 @@ export class FilesPane implements PaneView {
       el.append(pinStripButton('Pins: open a pinned file or folder, or pin this folder', (b) => open(b, this.currentPath)));
     }
     el.append(
-      button(FOLDER_ICON, 'Open in File Explorer', () => openFolder(this.currentPath), true),
+      button(FOLDER_ICON, openInFileManagerLabel(), () => openFolder(this.currentPath), true),
       // The Search pane's own icon, so the button reads as opening one.
       button(paneKindInfo('search').icon, 'Search in this folder', () => this.opts.onSearchHere(this.currentPath)),
       button('>_', 'Open terminal here', () => this.opts.onOpenTerminalHere(this.currentPath)),

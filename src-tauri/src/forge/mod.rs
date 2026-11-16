@@ -526,11 +526,7 @@ fn decorate(mut e: ForgeError, r: &Resolved, token: Option<&Token>) -> ForgeErro
                 e.kind = ForgeErrorKind::NotInstalled;
                 e.message = "GitHub CLI isn't installed. Install it, then sign in.".into();
                 e.url = Some(GH_INSTALL_URL.into());
-                e.sign_in = Some(
-                    ["winget", "install", "--id", "GitHub.cli", "-e"]
-                        .map(String::from)
-                        .to_vec(),
-                );
+                e.sign_in = auth::install_argv("gh");
             }
         },
         (ForgeErrorKind::SignedOut, ProviderKind::Bitbucket) => {
@@ -562,11 +558,7 @@ fn decorate(mut e: ForgeError, r: &Resolved, token: Option<&Token>) -> ForgeErro
                 e.kind = ForgeErrorKind::NotInstalled;
                 e.message = "GitLab CLI isn't installed. Install it, then sign in.".into();
                 e.url = Some(GLAB_INSTALL_URL.into());
-                e.sign_in = Some(
-                    ["winget", "install", "--id", "GLab.GLab", "-e"]
-                        .map(String::from)
-                        .to_vec(),
-                );
+                e.sign_in = auth::install_argv("glab");
             }
         },
         (ForgeErrorKind::SignedOut | ForgeErrorKind::Forbidden, ProviderKind::AzureDevOps) => {

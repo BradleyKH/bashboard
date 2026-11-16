@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { showToast } from './toast';
+import { openInFileManagerLabel } from './platform';
 
 /** Opens a folder in File Explorer, with a toast if it fails. */
 export function openFolder(path: string): void {
@@ -15,7 +16,7 @@ export function folderButton(path: string): HTMLButtonElement {
   el.type = 'button';
   el.className = 'folder-open';
   el.textContent = FOLDER_ICON;
-  el.title = 'Open in File Explorer';
+  el.title = openInFileManagerLabel();
   el.addEventListener('click', (e) => {
     // The row's own click opens a terminal, focuses a pane, or expands details.
     e.stopPropagation();

@@ -1,4 +1,5 @@
 import { item, separator, type MenuEntry, type MenuItem } from './contextMenuModel';
+import { openInFileManagerLabel } from './platform';
 
 export interface PaneCardMenuHandlers {
   onFocus(): void;
@@ -17,7 +18,7 @@ function folderEntries(
 ): MenuEntry[] {
   return [
     ...(openItems.length > 0 ? [...openItems, separator()] : []),
-    item('Open in File Explorer', () => handlers.onOpenInExplorer(path)),
+    item(openInFileManagerLabel(), () => handlers.onOpenInExplorer(path)),
     item('Copy path', () => handlers.onCopyPath(path)),
   ];
 }
