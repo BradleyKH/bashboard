@@ -136,7 +136,46 @@ fn read_families() -> Result<Vec<(String, bool)>, String> {
     Ok(found)
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+/// Parses `fc-list --format '%{family}\t%{spacing}\n'`. The family field lists every name of
+/// the face, comma separated with the base family first (`Ubuntu,Ubuntu Light`), and fontconfig
+/// backslash-escapes a comma inside a name. Spacing 90 (dual width, as CJK monospace faces are),
+/// 100 (mono), and 110 (charcell) all suit a terminal; an empty spacing is proportional.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn parse_fc_list(text: &str) -> Vec<(String, bool)> {
+    text.lines()
+        .filter_map(|line| {
+            let (family, spacing) = line.split_once('\t').unwrap_or((line, ""));
+            let mut name = String::new();
+            let mut chars = family.chars();
+            while let Some(c) = chars.next() {
+                match c {
+                    '\\' => name.extend(chars.next()),
+                    ',' => break,
+                    c => name.push(c),
+                }
+            }
+            let name = name.trim();
+            let monospace = matches!(spacing.trim(), "90" | "100" | "110");
+            (!name.is_empty()).then(|| (name.to_string(), monospace))
+        })
+        .collect()
+}
+
+#[cfg(target_os = "linux")]
+fn read_families() -> Result<Vec<(String, bool)>, String> {
+    let mut cmd = std::process::Command::new("fc-list");
+    cmd.args(["--format", "%{family}\t%{spacing}\n"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    crate::child_process::prepare(&mut cmd);
+    let out = cmd.output().map_err(|e| format!("fc-list: {e}"))?;
+    if !out.status.success() {
+        return Err(format!("fc-list exited with {}", out.status));
+    }
+    Ok(parse_fc_list(&String::from_utf8_lossy(&out.stdout)))
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 fn read_families() -> Result<Vec<(String, bool)>, String> {
     Ok(Vec::new())
 }
@@ -208,6 +247,43 @@ mod tests {
         assert!(has_monospace_trait((1 << 10) | (1 << 1) | (2 << 28)));
         assert!(!has_monospace_trait((1 << 1) | (1 << 11) | (12 << 28)));
         assert!(!has_monospace_trait(0));
+    }
+
+    #[test]
+    fn fc_list_takes_the_base_family_and_its_spacing() {
+        let text = concat!(
+            "DejaVu Sans\t\n",
+            "DejaVu Sans Mono\t100\n",
+            "Ubuntu,Ubuntu Light\t\n",
+            "\n",
+            "Noto Sans Mono CJK JP,Noto Sans Mono CJK JP Regular\t90\n",
+            "Terminus\t110\n",
+            "Acme\\, Inc Sans\t0\n",
+            "\t100\n",
+            "NoSpacing\n",
+        );
+        assert_eq!(
+            parse_fc_list(text),
+            vec![
+                ("DejaVu Sans".to_string(), false),
+                ("DejaVu Sans Mono".to_string(), true),
+                ("Ubuntu".to_string(), false),
+                ("Noto Sans Mono CJK JP".to_string(), true),
+                ("Terminus".to_string(), true),
+                ("Acme, Inc Sans".to_string(), false),
+                ("NoSpacing".to_string(), false),
+            ]
+        );
+    }
+
+    /// Needs fontconfig and at least one monospace font, which Ubuntu installs by default.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn list_includes_a_monospace_family() {
+        if std::process::Command::new("fc-list").arg("--version").output().is_err() {
+            return;
+        }
+        assert!(list().iter().any(|f| f.monospace));
     }
 
     #[cfg(windows)]

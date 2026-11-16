@@ -171,7 +171,7 @@ mapping. They talk through Tauri commands (request/response) and Tauri channels 
 | Git, containers | The `git`, `docker`, and `podman` command-line tools, run as child processes |
 | Pane CLI | `bb.exe`, a second binary in the Tauri crate, installed beside the app (3.13) |
 | Updates | `tauri-plugin-updater` against GitHub releases (3.16) |
-| Font list | DirectWrite through the `windows` crate on Windows, Core Text through `objc2-core-text` on macOS (3.17) |
+| Font list | DirectWrite through the `windows` crate on Windows, Core Text through `objc2-core-text` on macOS, `fc-list` on Linux (3.17) |
 
 The chrome is a pane tree, the dashboard panel, and a few overlays, so plain TypeScript with
 one class per file is enough to start. If the dashboard panel grows into real UI (richer drag

@@ -127,8 +127,11 @@ updates, so a font installed while the app runs shows up on the next call. If Di
 the list is empty. On macOS it reads Core Text's collection of available fonts instead: each
 matching font descriptor gives its family name attribute, and `monospace` is the monospace bit
 of the descriptor's symbolic traits, false when the traits cannot be read. Several faces of one
-family collapse in the sort, keeping the monospace entry. On other platforms the list is always
-empty.
+family collapse in the sort, keeping the monospace entry. On Linux it runs fontconfig's
+`fc-list --format '%{family}\t%{spacing}\n'`, one line per face: the family is the first of the
+face's comma-separated names (fontconfig backslash-escapes a comma inside one), and `monospace` is
+a spacing of 90 (dual width, as CJK monospace faces are), 100, or 110. Without `fc-list` the list
+is empty. On other platforms the list is always empty.
 
 ## 4.4 Terminal pane (`pane.ts`)
 
