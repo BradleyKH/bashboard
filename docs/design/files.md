@@ -142,7 +142,16 @@ double-clicking a file from a cloned repo never executes it. On macOS the list i
 `.applescript`), plus any file with an execute bit, since `open` runs an executable in Terminal
 whatever its name; the bit is ignored on `msdos`, `exfat`, and `ntfs` volumes, which mark every
 file executable. Such a file opens as text through `/usr/bin/open -t`. An application bundle
-is a folder, so `open_in_editor` refuses one with an error rather than launching it.
+is a folder, so `open_in_editor` refuses one with an error rather than launching it. On Linux the
+list is `RUNNABLE_LINUX` (`.desktop`, `.appimage`, `.jar`, the Windows programs Wine runs, and
+`.deb`, `.rpm`, `.snap`, and Flatpak files a software center installs), plus any file with an
+execute bit, which is ignored on `vfat`, `exfat`, `ntfs3`, and `fuseblk` volumes (read from
+`/proc/self/mountinfo`). Such a file opens with the default `text/plain` app: `xdg-mime query
+default text/plain` names its `.desktop` file, found in the XDG application folders, and its
+`Exec=` line runs with the file as the argument (`desktop_entry.rs`). `xdg-open` cannot do this,
+since it goes by the file's own type and would launch it. When there is no such app, or it needs
+a terminal, the file is not opened and the error says so; that holds on any platform without a
+text viewer.
 
 `open_with_default_app(path)` opens a file in its default app directly, for the binary notice
 (4.12), and refuses the same runnable files with an error; `can_open_with_default_app(path)`

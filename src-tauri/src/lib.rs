@@ -15,6 +15,7 @@ mod config_dir;
 mod containers;
 mod crash_recovery;
 mod credential_store;
+mod desktop_entry;
 mod editors;
 mod file_ops;
 mod files;
@@ -41,6 +42,7 @@ mod login_path;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod mac_menu;
 mod model_servers;
+mod mount_info;
 mod page_watchdog;
 mod platform;
 mod ports;

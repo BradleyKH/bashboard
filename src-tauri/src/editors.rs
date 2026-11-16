@@ -12,7 +12,8 @@
 //! bundle (`bundle_executable`), else a bare CLI name on `PATH` and in the Homebrew folders, else a
 //! JetBrains Toolbox script. The tables are plain functions over `SearchEnv`, so they are tested
 //! on every platform. Files whose default app would run them open as text through
-//! `/usr/bin/open -t` instead of Notepad.
+//! `/usr/bin/open -t` on macOS, and on Linux through the `Exec=` line of the default `text/plain`
+//! app's `.desktop` file, instead of Notepad.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -659,17 +660,19 @@ pub fn open_in_editor(
             }
         }
     }
-    // The default app for a script, shortcut, or program is to run it, so those open as text.
-    let viewer = if path.is_file() && runs_on_open(&path) {
-        text_viewer(&path)
-    } else {
-        None
-    };
     // A bundle is a folder, so it never reaches the viewer and `open` would launch it.
     if cfg!(target_os = "macos") && path.is_dir() && runs_when_opened_mac(&path) {
         return Err(format!("{} would run as a program, so it was not opened", path.display()));
     }
-    if let Some((program, args)) = viewer {
+    // The default app for a script, shortcut, or program is to run it, so those open as text,
+    // or not at all when no text viewer is known.
+    if path.is_file() && runs_on_open(&path) {
+        let (program, args) = text_viewer(&path).ok_or_else(|| {
+            format!(
+                "{} would run as a program and no text editor was found to show it, so it was not opened",
+                path.display()
+            )
+        })?;
         launch(&program, &args)?;
     } else {
         crate::child_process::open_default(&app, &path.display().to_string(), false)?;
@@ -730,23 +733,38 @@ const RUNNABLE_MAC: &[&str] = &[
     "applescript",
 ];
 
-fn runs_when_opened_mac(path: &Path) -> bool {
+/// Extensions a Linux desktop launches or installs on a plain open whatever their mode: a
+/// `.desktop` file runs its `Exec=` line, an AppImage launcher runs AppImages, Java runs a jar,
+/// Wine runs Windows programs, and the software center installs packages.
+const RUNNABLE_LINUX: &[&str] = &[
+    "desktop", "appimage", "jar", "exe", "msi", "bat", "cmd", "com", "lnk", "deb", "rpm", "snap",
+    "flatpak", "flatpakref", "flatpakrepo",
+];
+
+fn has_extension_in(path: &Path, list: &[&str]) -> bool {
     path.extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
-        .is_some_and(|ext| RUNNABLE_MAC.contains(&ext.as_str()))
+        .is_some_and(|ext| list.contains(&ext.as_str()))
 }
 
-/// Volume types that report every file as executable, so the bit says nothing there.
-const EXEC_BIT_MEANINGLESS: &[&str] = &["msdos", "exfat", "ntfs"];
+fn runs_when_opened_mac(path: &Path) -> bool {
+    has_extension_in(path, RUNNABLE_MAC)
+}
 
-/// macOS `open` runs any executable file in Terminal whatever its name, so an execute bit counts
-/// as runnable, except on a volume that marks every file executable.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+/// Volume types that report every file as executable, so the bit says nothing there: macOS
+/// names them `msdos`, `exfat`, and `ntfs`; Linux `vfat`, `exfat`, `ntfs3`, and `fuseblk` (ntfs-3g
+/// and exfat-fuse).
+const EXEC_BIT_MEANINGLESS: &[&str] = &["msdos", "vfat", "exfat", "ntfs", "ntfs3", "fuseblk"];
+
+/// macOS `open` runs any executable file in Terminal whatever its name, and a Linux file manager
+/// may run one too, so an execute bit counts as runnable, except on a volume that marks every
+/// file executable.
+#[cfg_attr(not(any(target_os = "macos", target_os = "linux")), allow(dead_code))]
 fn exec_bit_runs(mode: u32, fs_type: &str) -> bool {
     mode & 0o111 != 0 && !EXEC_BIT_MEANINGLESS.contains(&fs_type)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn has_exec_bit(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     let Ok(meta) = std::fs::metadata(path) else {
@@ -755,9 +773,14 @@ fn has_exec_bit(path: &Path) -> bool {
     exec_bit_runs(meta.permissions().mode(), &fs_type(path).unwrap_or_default())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn has_exec_bit(_path: &Path) -> bool {
     false
+}
+
+#[cfg(target_os = "linux")]
+fn fs_type(path: &Path) -> Option<String> {
+    crate::mount_info::fs_type(path)
 }
 
 /// The volume's file system name (`apfs`, `msdos`, ...) from `statfs`.
@@ -776,15 +799,17 @@ fn fs_type(path: &Path) -> Option<String> {
     Some(name.to_string_lossy().into_owned())
 }
 
-/// Whether the platform's default app would run `path` rather than show it. Other Unix targets
-/// have no list yet.
+/// Whether the platform's default app would run `path` rather than show it. Unix targets other
+/// than macOS and Linux count everything as runnable, since nothing is known about them.
 fn runs_on_open(path: &Path) -> bool {
     if cfg!(windows) {
         runs_when_opened(path, &std::env::var("PATHEXT").unwrap_or_default())
     } else if cfg!(target_os = "macos") {
         runs_when_opened_mac(path) || has_exec_bit(path)
+    } else if cfg!(target_os = "linux") {
+        has_extension_in(path, RUNNABLE_LINUX) || has_exec_bit(path)
     } else {
-        false
+        true
     }
 }
 
@@ -796,9 +821,27 @@ fn text_viewer(path: &Path) -> Option<(PathBuf, Vec<String>)> {
         Some((notepad(), vec![p]))
     } else if cfg!(target_os = "macos") {
         Some((PathBuf::from("/usr/bin/open"), vec!["-t".into(), p]))
+    } else if cfg!(target_os = "linux") {
+        linux_text_viewer(path)
     } else {
         None
     }
+}
+
+/// The default `text/plain` app's `Exec=` line, with the file as its argument. `xdg-open` cannot
+/// stand in: it goes by the file's own type, so it would launch a `.desktop` file or an AppImage.
+fn linux_text_viewer(path: &Path) -> Option<(PathBuf, Vec<String>)> {
+    let mut cmd = Command::new("xdg-mime");
+    cmd.args(["query", "default", "text/plain"]).stdin(Stdio::null()).stderr(Stdio::null());
+    let out = crate::child_process::prepare(&mut cmd).output().ok()?;
+    let id = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if !out.status.success() || id.is_empty() {
+        return None;
+    }
+    let file = crate::desktop_entry::find_in(&id, &crate::desktop_entry::system_application_dirs(), Path::is_file)?;
+    let entry = crate::desktop_entry::parse(&std::fs::read_to_string(&file).ok()?)?;
+    let mut argv = crate::desktop_entry::command_for_file(&entry, path, &file)?.into_iter();
+    Some((PathBuf::from(argv.next()?), argv.collect()))
 }
 
 /// Notepad by full path, so a `notepad.exe` in the working folder or early on `PATH` is not run.
@@ -1375,6 +1418,20 @@ mod tests {
         assert!(!exec_bit_runs(0o644, "apfs"));
         assert!(!exec_bit_runs(0o777, "msdos"));
         assert!(!exec_bit_runs(0o777, "exfat"));
+        assert!(exec_bit_runs(0o755, "ext4"));
+        for fs in ["vfat", "ntfs3", "fuseblk"] {
+            assert!(!exec_bit_runs(0o777, fs), "{fs}");
+        }
+    }
+
+    #[test]
+    fn linux_launchers_and_packages_are_runnable_by_extension() {
+        for name in ["app.desktop", "Tool.AppImage", "a.jar", "setup.exe", "x.deb", "y.rpm", "z.flatpakref"] {
+            assert!(has_extension_in(Path::new(name), RUNNABLE_LINUX), "{name}");
+        }
+        for name in ["README.md", "main.rs", "run.sh", "notes", "desktop"] {
+            assert!(!has_extension_in(Path::new(name), RUNNABLE_LINUX), "{name}");
+        }
     }
 
     #[test]
@@ -1393,10 +1450,9 @@ mod tests {
         } else {
             (PathBuf::from("/usr/bin/open"), vec!["-t".to_string(), "/x/a.command".to_string()])
         };
+        // Linux's viewer depends on the machine's default text app (desktop_entry's tests).
         if cfg!(windows) || cfg!(target_os = "macos") {
             assert_eq!(text_viewer(Path::new("/x/a.command")), Some((program, args)));
-        } else {
-            assert_eq!(text_viewer(Path::new("/x/a.command")), None);
         }
     }
 

@@ -19,7 +19,9 @@ app and a toast says so. Scripts, programs, and shortcuts (`.bat`, `.exe`, `.lnk
 the like) open in Notepad rather than their default app, which would run them. On macOS,
 runnable files (apps, scripts, installers, `.command` and `.tool` files, AppleScript, any file
 marked executable, and the like) open as text in the default text editor, through `open -t` (TextEdit unless you change
-it), for the same reason.
+it), for the same reason. On Linux, `.desktop` files, AppImages, packages, Windows programs, and
+any file marked executable open in the default app for plain text (`xdg-mime query default
+text/plain`), and are not opened at all when there is none.
 `editor.command` replaces the editor with your own command line, for example
 `code.cmd -g "{path}:{line}"`. Double quotes group an argument, and no shell runs it, so the
 program name must include its extension when it is a shim such as `code.cmd`. `{path}` and
