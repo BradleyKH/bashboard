@@ -77,6 +77,10 @@ webkit2gtk = { version = "2.0.2", features = ["v2_20"] }
 # Forge tokens (credential_store.rs). The async-io runtime is the one zbus already builds here,
 # and its blocking API needs no runtime, which `bb` does not have.
 secret-service = { version = "5.2", features = ["rt-async-io-crypto-rust"] }
+# Desktop notifications (toast_linux.rs). The default features use the pure-Rust zbus backend,
+# so notify-rust links no libdbus itself. 4.18 is the last release on zbus 5, the major
+# secret-service and tauri already build; 4.19 would add a second zbus major.
+notify-rust = "~4.18"
 
 # getsid, for attributing orphaned jobs to their pane (pty.rs), and statfs on macOS.
 [target.'cfg(unix)'.dependencies]

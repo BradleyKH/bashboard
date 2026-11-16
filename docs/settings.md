@@ -360,11 +360,12 @@ save and is the "Flag a background agent as stuck after" field there.
 the `~/.bashrc` lines only (on macOS and Linux, the shell integration lines, which the Settings
 tab's hint for this field says it needs).
 
-`terminal.notifyWhenWaiting` (default `true`) shows a system notification (Windows or macOS) when a
+`terminal.notifyWhenWaiting` (default `true`) shows a system notification (Windows, macOS, or Linux) when a
 terminal starts waiting while Bashboard is in the background; clicking it brings the window forward
 on that pane. It also sends one when a branch or pull request in the dashboard's Needs you list newly
 fails or gets changes requested while the window is in the background; clicking that opens its row.
-On macOS, the first notification asks for permission. It is the "Notify when something needs you"
+On macOS, the first notification asks for permission. On Linux, it goes to the desktop's notification
+daemon, so a session without one shows nothing. It is the "Notify when something needs you"
 toggle in the Terminal section of the Settings tab.
 
 ```jsonc

@@ -1,5 +1,5 @@
 //! Notifications for terminals that need the user (design section 4.7): a Windows toast here,
-//! a macOS notification in `toast_mac`. Clicking one brings the window forward and emits
+//! a macOS notification in `toast_mac`, a freedesktop one in `toast_linux`. Clicking one brings the window forward and emits
 //! `toast://activated` with the pane id, so the front end can focus that pane.
 
 use tauri::AppHandle;
@@ -51,7 +51,12 @@ pub fn toast_show(app: AppHandle, title: String, body: String, pane_id: String) 
         crate::toast_mac::show(&title, &body, &pane_id);
         Ok(())
     }
-    #[cfg(not(any(windows, target_os = "macos")))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::toast_linux::show(&app, &title, &body, &pane_id);
+        Ok(())
+    }
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     {
         let _ = (app, title, body, pane_id);
         Ok(())

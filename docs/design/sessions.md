@@ -493,11 +493,19 @@ existing `printf '\a'` hook):
   including when switching to its tab or when the window regains focus with it focused.
 - If the window is unfocused, the taskbar button flashes. For `waiting` (not the bell), and while
   `terminal.notifyWhenWaiting` is on, a system notification (`toast.rs` on Windows, `toast_mac.rs`
-  on macOS) also shows the pane's title and its waiting reason; clicking it brings the window
-  forward and focuses that pane. A debug build on Windows sends it under PowerShell's
-  AppUserModelID, since Windows drops toasts from an id no Start menu shortcut registers. On macOS
-  the first notification asks for permission, and a build without an app bundle (`pnpm tauri dev`)
-  sends none.
+  on macOS, `toast_linux.rs` on Linux) also shows the pane's title and its waiting reason; clicking
+  it brings the window forward and focuses that pane. A debug build on Windows sends it under
+  PowerShell's AppUserModelID, since Windows drops toasts from an id no Start menu shortcut
+  registers. On macOS the first notification asks for permission, and a build without an app
+  bundle (`pnpm tauri dev`) sends none. On Linux the notification goes over the session bus to
+  the desktop's freedesktop notification daemon (GNOME Shell, KDE Plasma, dunst, and the like)
+  through `notify-rust`'s zbus backend, which links no libdbus. It carries the app name
+  "Bashboard", the icon name `bashboard`, and a `default` action, which daemons trigger when the
+  notification body is clicked. The send and the wait for the click run on a background thread,
+  so the command never blocks; the thread ends when the notification is clicked or the daemon
+  reports it closed. At most 32 such threads wait at once; past that a notification still shows
+  but a click on it does nothing. With no session bus or no notification daemon the notification
+  is dropped and one line is logged.
 
 `done` and `failed` (4.8) are quieter: they change the status dot on the title strip, card,
 tab, and group header, and nothing else. They raise no attention, so no pulse, taskbar flash, or

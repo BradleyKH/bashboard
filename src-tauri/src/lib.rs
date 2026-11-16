@@ -60,6 +60,8 @@ mod shell_integration;
 mod size_route;
 mod system;
 mod toast;
+#[cfg(target_os = "linux")]
+mod toast_linux;
 #[cfg(target_os = "macos")]
 mod toast_mac;
 mod transcript;
