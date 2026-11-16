@@ -108,6 +108,36 @@ fn split_exec(s: &str) -> Option<Vec<String>> {
     Some(args)
 }
 
+/// The program an `Exec` line starts: its first argument, with no field codes expanded. `None`
+/// for an `Exec` that does not parse or is empty.
+pub fn exec_program(entry: &Entry) -> Option<String> {
+    split_exec(&entry.exec)?.into_iter().next()
+}
+
+/// The arguments after the program that come before the first field code, with `%%` read as a
+/// literal percent. They are flags the launcher needs on every run (an AppImage editor's
+/// `--no-sandbox`), so they are kept when the program is started directly. Empty for an `Exec`
+/// that does not parse.
+pub fn exec_args_before_field(entry: &Entry) -> Vec<String> {
+    let mut args = Vec::new();
+    for token in split_exec(&entry.exec).unwrap_or_default().into_iter().skip(1) {
+        let mut out = String::new();
+        let mut chars = token.chars().peekable();
+        while let Some(c) = chars.next() {
+            match (c, chars.peek()) {
+                ('%', Some('%')) => {
+                    chars.next();
+                    out.push('%');
+                }
+                ('%', Some(_)) => return args,
+                _ => out.push(c),
+            }
+        }
+        args.push(out);
+    }
+    args
+}
+
 /// The argument list that opens `file` with `entry`, whose file is at `entry_path`. The file
 /// fills `%f`, `%F`, `%u`, or `%U` (a path is a valid `%u`), or is appended when the line has
 /// none of them, as GLib does. `None` for a terminal program or an `Exec` that does not parse.
@@ -275,6 +305,29 @@ mod tests {
         // A literal backslash inside quotes is `\\\\` in the file: one level per escaping layer.
         let e = parse("[Desktop Entry]\nExec=ed \"a\\\\\\\\b\" %f\n").unwrap();
         assert_eq!(command_for_file(&e, Path::new("/f"), Path::new("/e")), strs(&["ed", r"a\b", "/f"]));
+    }
+
+    #[test]
+    fn the_program_is_the_first_argument() {
+        assert_eq!(exec_program(&entry("/usr/share/code/code %F")).as_deref(), Some("/usr/share/code/code"));
+        assert_eq!(exec_program(&entry("\"/opt/My Editor/ed\" %U")).as_deref(), Some("/opt/My Editor/ed"));
+        assert_eq!(exec_program(&entry("code")).as_deref(), Some("code"));
+        assert_eq!(exec_program(&entry("\"unclosed %f")), None);
+        assert_eq!(exec_program(&entry("   ")), None);
+    }
+
+    #[test]
+    fn args_before_the_first_field_code_are_kept() {
+        let args = |exec: &str| exec_args_before_field(&entry(exec));
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(args("/a/cursor.AppImage --no-sandbox %U"), v(&["--no-sandbox"]));
+        assert_eq!(args(r#"/a/ed --title "a b" -x %F --after"#), v(&["--title", "a b", "-x"]));
+        assert_eq!(args("/a/ed 100%% --flag=%f"), v(&["100%"]));
+        assert_eq!(args("/a/ed --one %i --two %f"), v(&["--one"]));
+        assert_eq!(args("/a/ed %c %f"), Vec::<String>::new());
+        assert_eq!(args("/a/ed --solo"), v(&["--solo"]));
+        assert_eq!(args("/a/ed"), Vec::<String>::new());
+        assert_eq!(args(r#"/a/ed "unclosed %f"#), Vec::<String>::new());
     }
 
     #[test]

@@ -118,6 +118,37 @@ listed.
 | `pycharm` | `PyCharm.app`, `PyCharm CE.app`, or `PyCharm Professional Edition.app`, `Contents/MacOS/pycharm` | `pycharm` |
 | `rider`, `webstorm`, `rustrover`, `goland`, `clion`, `phpstorm` | `Rider.app`, `WebStorm.app`, `RustRover.app`, `GoLand.app`, `CLion.app`, `PhpStorm.app`, `Contents/MacOS/<lowercase product name>` | the same lowercase name |
 
+On Linux each editor is looked for in four places, first match winning:
+
+1. A bare name on `PATH`, then in `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`,
+   `~/.local/bin`, and `/snap/bin`, using the bare names in the table above (`code`, `codium`,
+   `subl`, `idea`, ...). The IntelliJ IDEA and PyCharm snaps are named
+   `intellij-idea-community`, `intellij-idea-ultimate`, `pycharm-community`, and
+   `pycharm-professional`, and those names are tried too.
+2. For JetBrains, a Toolbox App script in `~/.local/share/JetBrains/Toolbox/scripts`, a shell
+   script run directly.
+3. A Flatpak's exported launcher, in `/var/lib/flatpak/exports/bin` and then
+   `$XDG_DATA_HOME/flatpak/exports/bin` (default `~/.local/share`), which forwards its arguments
+   to `flatpak run`. The app ids are `com.visualstudio.code`, `com.vscodium.codium`,
+   `com.sublimetext.three`, `dev.zed.Zed`, `com.jetbrains.IntelliJ-IDEA-Community` and
+   `-Ultimate`, `com.jetbrains.PyCharm-Community` and `-Professional`, `com.jetbrains.Rider`,
+   `com.jetbrains.WebStorm`, `com.jetbrains.GoLand`, `com.jetbrains.CLion`,
+   `com.jetbrains.PhpStorm`, and `com.jetbrains.RustRover`. Cursor, Windsurf, and VS Code
+   Insiders have none.
+4. The `Exec=` program of the editor's `.desktop` file, which finds an AppImage or tarball
+   install that put nothing on `PATH`. The folders are the XDG application folders plus Flatpak's
+   and Snap's exported ones. The file is `code.desktop`, `code-insiders.desktop`,
+   `codium.desktop`, `cursor.desktop`, `windsurf.desktop`, `sublime_text.desktop`, `zed.desktop`,
+   or `dev.zed.Zed.desktop`; for a JetBrains IDE it is any `jetbrains-<product>.desktop` or
+   `jetbrains-<product>-<suffix>.desktop` (`idea`, `pycharm`, `rider`, `webstorm`, `rustrover`,
+   `goland`, `clion`, `phpstorm`), which covers the Toolbox App's hashed names. The program counts
+   only when it is the first argument of `Exec=`, an absolute path to an existing file, and not
+   `flatpak`, `env`, `sh`, `bash`, or `snap`, since those wrappers are the Flatpak and Snap cases
+   above; a bare name is left to `PATH`, and a `Terminal=true` entry is skipped. The program is
+   run with the `Exec=` arguments that precede its first field code (`%f`, `%u`, or any other
+   `%` code), such as an AppImage's `--no-sandbox`, followed by the table's arguments; the field
+   code and anything after it are not carried over.
+
 Vim and Neovim run inside a terminal, so `open_in_editor` starts nothing for them: it returns
 `{ fallback: false, terminal: { argv, cwd } }`, and the front end runs `argv` in place of a
 shell in a new terminal pane (4.11) split off the focused one, in the file's folder (or the
@@ -127,7 +158,8 @@ macOS) on `PATH`, then in its usual folders: for Vim, the copy Git for Windows s
 `<root>\usr\bin`, with `<root>` being `%LOCALAPPDATA%\Programs\Git`, `%ProgramFiles%\Git`, or
 the parent of a `cmd` or `bin` folder on `PATH` holding `git.exe`; for Neovim,
 `%ProgramFiles%\Neovim\bin`. On macOS, where an app started from the Dock gets a minimal `PATH`,
-`/opt/homebrew/bin`, `/usr/local/bin`, and `/usr/bin` are checked. Emacs is reachable through
+`/opt/homebrew/bin`, `/usr/local/bin`, and `/usr/bin` are checked, and on Linux those plus
+`~/.local/bin` and `/snap/bin`. Emacs is reachable through
 `editor.command` (`emacsclientw -n +{line} {path}`).
 
 A non-empty `editor.command` replaces the table: it is split into arguments, with `{path}` and

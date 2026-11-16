@@ -10,8 +10,10 @@
 //!
 //! Off Windows, `detect_posix` replaces all of that: each editor's own CLI inside its macOS app
 //! bundle (`bundle_executable`), else a bare CLI name on `PATH` and in the Homebrew folders, else a
-//! JetBrains Toolbox script. The tables are plain functions over `SearchEnv`, so they are tested
-//! on every platform. Files whose default app would run them open as text through
+//! JetBrains Toolbox script. On Linux the search adds `~/.local/bin` and `/snap/bin`, Flatpak's
+//! exported launchers, and last the `Exec=` program of an editor's `.desktop` file (an AppImage or
+//! tarball install). The tables are plain functions over `SearchEnv`, so they are tested on every
+//! platform. Files whose default app would run them open as text through
 //! `/usr/bin/open -t` on macOS, and on Linux through the `Exec=` line of the default `text/plain`
 //! app's `.desktop` file, instead of Notepad.
 
@@ -75,8 +77,13 @@ struct SearchEnv {
     /// Folders searched after `PATH` off Windows: a macOS app started from the Dock gets a minimal
     /// `PATH`, so Homebrew's folders are checked by hand.
     bin_dirs: Vec<PathBuf>,
-    /// Where the JetBrains Toolbox App writes its launcher scripts (macOS only).
+    /// Where the JetBrains Toolbox App writes its launcher scripts (macOS and Linux only).
     toolbox_scripts: Option<PathBuf>,
+    /// Flatpak's `exports/bin` folders, whose launchers forward their arguments to `flatpak run`
+    /// (Linux only).
+    flatpak_bins: Vec<PathBuf>,
+    /// Folders searched for `.desktop` files (Linux only).
+    desktop_dirs: Vec<PathBuf>,
     local_app_data: Option<PathBuf>,
     program_files: Option<PathBuf>,
     program_files_x86: Option<PathBuf>,
@@ -89,7 +96,19 @@ impl SearchEnv {
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from)
         };
-        let mac_home = var("HOME").filter(|_| cfg!(target_os = "macos"));
+        let home = var("HOME");
+        let mac_home = home.clone().filter(|_| cfg!(target_os = "macos"));
+        let linux_home = home.filter(|_| cfg!(target_os = "linux"));
+        let (flatpak_bins, desktop_dirs) = match linux_home.as_deref() {
+            Some(home) => {
+                let data = user_data_home(crate::child_process::var("XDG_DATA_HOME").as_deref(), home);
+                (
+                    flatpak_bin_dirs(&data),
+                    linux_desktop_dirs(crate::desktop_entry::system_application_dirs(), &data),
+                )
+            }
+            None => (vec![], vec![]),
+        };
         Self {
             path: std::env::var_os("PATH")
                 .map(|p| std::env::split_paths(&p).collect())
@@ -99,8 +118,17 @@ impl SearchEnv {
             } else {
                 vec![]
             },
-            bin_dirs: if cfg!(windows) { vec![] } else { posix_bin_dirs() },
-            toolbox_scripts: mac_home.as_deref().map(toolbox_scripts_dir),
+            bin_dirs: if cfg!(windows) {
+                vec![]
+            } else {
+                posix_bin_dirs(linux_home.as_deref())
+            },
+            toolbox_scripts: mac_home
+                .as_deref()
+                .map(toolbox_scripts_dir)
+                .or_else(|| linux_home.as_deref().map(linux_toolbox_scripts_dir)),
+            flatpak_bins,
+            desktop_dirs,
             local_app_data: var("LOCALAPPDATA"),
             program_files: var("ProgramFiles"),
             program_files_x86: var("ProgramFiles(x86)"),
@@ -119,11 +147,55 @@ fn toolbox_scripts_dir(home: &Path) -> PathBuf {
     home.join("Library/Application Support/JetBrains/Toolbox/scripts")
 }
 
-fn posix_bin_dirs() -> Vec<PathBuf> {
-    ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
+fn linux_toolbox_scripts_dir(home: &Path) -> PathBuf {
+    home.join(".local/share/JetBrains/Toolbox/scripts")
+}
+
+/// The folders checked by hand after `PATH`. `linux_home` is set only on Linux, which adds Snap's
+/// command folder and the per-user `~/.local/bin` that `pip`, `npm`, and tarball installers use.
+fn posix_bin_dirs(linux_home: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
         .into_iter()
         .map(PathBuf::from)
-        .collect()
+        .collect();
+    if let Some(home) = linux_home {
+        dirs.push(home.join(".local/bin"));
+        dirs.push(PathBuf::from("/snap/bin"));
+    }
+    dirs
+}
+
+/// `$XDG_DATA_HOME`, else `~/.local/share`; Flatpak's per-user installation lives under it.
+fn user_data_home(xdg_data_home: Option<&str>, home: &Path) -> PathBuf {
+    match xdg_data_home.filter(|s| !s.is_empty()) {
+        Some(d) => PathBuf::from(d),
+        None => home.join(".local/share"),
+    }
+}
+
+/// Flatpak's exported launcher folders: system-wide, then per user.
+fn flatpak_bin_dirs(user_data: &Path) -> Vec<PathBuf> {
+    vec![
+        PathBuf::from("/var/lib/flatpak/exports/bin"),
+        user_data.join("flatpak/exports/bin"),
+    ]
+}
+
+/// The XDG application folders plus the ones Flatpak and Snap export their `.desktop` files to,
+/// which a session not started through a login shell may leave out of `XDG_DATA_DIRS`.
+fn linux_desktop_dirs(xdg: Vec<PathBuf>, user_data: &Path) -> Vec<PathBuf> {
+    let mut dirs = xdg;
+    let extra = [
+        PathBuf::from("/var/lib/flatpak/exports/share/applications"),
+        user_data.join("flatpak/exports/share/applications"),
+        PathBuf::from("/var/lib/snapd/desktop/applications"),
+    ];
+    for dir in extra {
+        if !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    }
+    dirs
 }
 
 /// CLI names looked for on `PATH` off Windows. A JetBrains name is also its launcher's name in
@@ -196,12 +268,23 @@ fn bundle_executable(id: &str, env: &SearchEnv) -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
+/// Command names Snap gives editors whose snap is not named like the CLI: the JetBrains IDEs
+/// that ship in separate Community and paid snaps. The others (`code`, `codium`, `subl`,
+/// `webstorm`, ...) keep their `posix_path_names` name.
+fn snap_command_names(id: &str) -> &'static [&'static str] {
+    match id {
+        "intellij" => &["intellij-idea-community", "intellij-idea-ultimate"],
+        "pycharm" => &["pycharm-community", "pycharm-professional"],
+        _ => &[],
+    }
+}
+
 fn find_on_path_posix(id: &str, env: &SearchEnv) -> Option<PathBuf> {
-    let names = posix_path_names(id);
+    let names = || posix_path_names(id).iter().chain(snap_command_names(id));
     env.path
         .iter()
         .chain(&env.bin_dirs)
-        .flat_map(|dir| names.iter().map(move |n| dir.join(n)))
+        .flat_map(|dir| names().map(move |n| dir.join(n)))
         .find(|p| p.is_file())
 }
 
@@ -214,15 +297,149 @@ fn toolbox_script(id: &str, env: &SearchEnv) -> Option<PathBuf> {
     script.is_file().then_some(script)
 }
 
+/// Flatpak application ids per editor. Cursor and Windsurf have no Flatpak, and VS Code Insiders
+/// has no id worth guessing.
+fn flatpak_app_ids(id: &str) -> &'static [&'static str] {
+    match id {
+        "vscode" => &["com.visualstudio.code"],
+        "vscodium" => &["com.vscodium.codium"],
+        "sublime" => &["com.sublimetext.three"],
+        "zed" => &["dev.zed.Zed"],
+        "intellij" => &[
+            "com.jetbrains.IntelliJ-IDEA-Community",
+            "com.jetbrains.IntelliJ-IDEA-Ultimate",
+        ],
+        "pycharm" => &[
+            "com.jetbrains.PyCharm-Community",
+            "com.jetbrains.PyCharm-Professional",
+        ],
+        "rider" => &["com.jetbrains.Rider"],
+        "webstorm" => &["com.jetbrains.WebStorm"],
+        "goland" => &["com.jetbrains.GoLand"],
+        "clion" => &["com.jetbrains.CLion"],
+        "phpstorm" => &["com.jetbrains.PhpStorm"],
+        "rustrover" => &["com.jetbrains.RustRover"],
+        _ => &[],
+    }
+}
+
+/// A Flatpak's exported launcher, which hands its arguments to `flatpak run`.
+fn flatpak_launcher(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    env.flatpak_bins
+        .iter()
+        .flat_map(|dir| flatpak_app_ids(id).iter().map(move |app| dir.join(app)))
+        .find(|p| p.is_file())
+}
+
+/// Desktop ids of the editors a package, tarball, or AppImage installs with a fixed name. The
+/// JetBrains IDEs are matched by `jetbrains_desktop_prefix` instead.
+fn desktop_ids(id: &str) -> &'static [&'static str] {
+    match id {
+        "vscode" => &["code.desktop"],
+        "vscodeInsiders" => &["code-insiders.desktop"],
+        "vscodium" => &["codium.desktop"],
+        "cursor" => &["cursor.desktop"],
+        "windsurf" => &["windsurf.desktop"],
+        "sublime" => &["sublime_text.desktop"],
+        "zed" => &["zed.desktop", "dev.zed.Zed.desktop"],
+        _ => &[],
+    }
+}
+
+/// What a JetBrains IDE's `.desktop` file name starts with. The Toolbox App appends a hash
+/// (`jetbrains-idea-3f9c2a1.desktop`) and tarball installs add `-ce` and the like.
+fn jetbrains_desktop_prefix(id: &str) -> Option<&'static str> {
+    Some(match id {
+        "intellij" => "jetbrains-idea",
+        "pycharm" => "jetbrains-pycharm",
+        "rider" => "jetbrains-rider",
+        "webstorm" => "jetbrains-webstorm",
+        "rustrover" => "jetbrains-rustrover",
+        "goland" => "jetbrains-goland",
+        "clion" => "jetbrains-clion",
+        "phpstorm" => "jetbrains-phpstorm",
+        _ => return None,
+    })
+}
+
+/// Whether `name` is `<prefix>.desktop` or `<prefix>-<anything>.desktop`, so `jetbrains-idea`
+/// matches `jetbrains-idea-ce.desktop` and not another product that merely starts the same way.
+fn is_jetbrains_desktop_name(prefix: &str, name: &str) -> bool {
+    name.strip_prefix(prefix)
+        .and_then(|rest| rest.strip_suffix(".desktop"))
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('-'))
+}
+
+/// Programs an `Exec=` line starts to run something else, which the Flatpak and Snap launchers
+/// above cover.
+const WRAPPERS: [&str; 5] = ["flatpak", "env", "sh", "bash", "snap"];
+
+/// The program a `.desktop` entry runs, when it is the editor itself: an absolute path, not a
+/// wrapper, and not a terminal program. A bare name is left to `PATH`, which was searched already.
+fn desktop_program(entry: &crate::desktop_entry::Entry) -> Option<PathBuf> {
+    if entry.terminal {
+        return None;
+    }
+    let program = PathBuf::from(crate::desktop_entry::exec_program(entry)?);
+    let wrapper = program
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| WRAPPERS.contains(&n));
+    (program.has_root() && !wrapper).then_some(program)
+}
+
+/// The editor's program, with the arguments its `Exec=` line puts before the file (an AppImage's
+/// `--no-sandbox`), from the first `.desktop` file in `env.desktop_dirs` that names an existing
+/// program.
+fn desktop_executable(id: &str, env: &SearchEnv) -> Option<(PathBuf, Vec<String>)> {
+    for dir in &env.desktop_dirs {
+        let mut files: Vec<PathBuf> = desktop_ids(id).iter().map(|f| dir.join(f)).collect();
+        if let Some(prefix) = jetbrains_desktop_prefix(id) {
+            let mut names: Vec<String> = std::fs::read_dir(dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|e| e.file_name().into_string().ok())
+                .filter(|n| is_jetbrains_desktop_name(prefix, n))
+                .collect();
+            names.sort();
+            files.extend(names.into_iter().map(|n| dir.join(n)));
+        }
+        for file in files {
+            let found = std::fs::read_to_string(&file)
+                .ok()
+                .and_then(|text| crate::desktop_entry::parse(&text))
+                .and_then(|entry| {
+                    let program = desktop_program(&entry)?;
+                    Some((program, crate::desktop_entry::exec_args_before_field(&entry)))
+                });
+            if let Some(found) = found.filter(|(p, _)| p.is_file()) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
 /// `detect` off Windows. A bundle comes first because a `PATH` entry for the same CLI is usually
 /// a symlink into it, and the bundle works when the Dock-launched app has no such `PATH`.
+#[cfg(test)]
 fn detect_posix(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    detect_posix_with_args(id, env).map(|(p, _)| p)
+}
+
+/// `detect_posix` and the arguments to put before the file's own: only a `.desktop` match has
+/// any.
+fn detect_posix_with_args(id: &str, env: &SearchEnv) -> Option<(PathBuf, Vec<String>)> {
     if is_terminal_editor(id) {
-        return find_terminal_editor(id, env);
+        return find_terminal_editor(id, env).map(|p| (p, Vec::new()));
     }
     bundle_executable(id, env)
         .or_else(|| find_on_path_posix(id, env))
         .or_else(|| toolbox_script(id, env))
+        .or_else(|| flatpak_launcher(id, env))
+        .map(|p| (p, Vec::new()))
+        .or_else(|| desktop_executable(id, env))
 }
 
 /// Executable names looked for on `PATH`, and `(shim, exe)` pairs where a `.cmd` shim on `PATH`
@@ -493,9 +710,19 @@ fn terminal_cwd(path: &Path) -> String {
 
 /// The editor's executable, or None when it is not installed. `default` has none.
 fn detect(id: &str, env: &SearchEnv) -> Option<PathBuf> {
+    detect_with_args(id, env).map(|(p, _)| p)
+}
+
+/// `detect` and the arguments the editor's launcher needs before the file's own (empty off
+/// Linux's `.desktop` matches).
+fn detect_with_args(id: &str, env: &SearchEnv) -> Option<(PathBuf, Vec<String>)> {
     if !cfg!(windows) {
-        return detect_posix(id, env);
+        return detect_posix_with_args(id, env);
     }
+    detect_windows(id, env).map(|p| (p, Vec::new()))
+}
+
+fn detect_windows(id: &str, env: &SearchEnv) -> Option<PathBuf> {
     if id == "visualStudio" {
         return find_devenv(env);
     }
@@ -648,14 +875,16 @@ pub fn open_in_editor(
     }
     let line = line.filter(|_| path.is_file());
     if editor.preferred != "default" {
-        if let Some(exe) = detect(&editor.preferred, &SearchEnv::from_process()) {
+        if let Some((exe, prefix)) = detect_with_args(&editor.preferred, &SearchEnv::from_process()) {
             if is_terminal_editor(&editor.preferred) {
                 let mut argv = vec![exe.display().to_string()];
                 argv.extend(terminal_args(&path, line));
                 let terminal = Some(TerminalLaunch { argv, cwd: terminal_cwd(&path) });
                 return Ok(Opened { fallback: false, terminal });
             }
-            if launch(&exe, &table_args(&editor.preferred, &path, line)).is_ok() {
+            let mut args = prefix;
+            args.extend(table_args(&editor.preferred, &path, line));
+            if launch(&exe, &args).is_ok() {
                 return Ok(Opened { fallback: false, terminal: None });
             }
         }
@@ -1454,6 +1683,322 @@ mod tests {
         if cfg!(windows) || cfg!(target_os = "macos") {
             assert_eq!(text_viewer(Path::new("/x/a.command")), Some((program, args)));
         }
+    }
+
+    fn desktop(exec: &str) -> crate::desktop_entry::Entry {
+        crate::desktop_entry::parse(&format!("[Desktop Entry]\nName=Ed\nExec={exec}\n")).unwrap()
+    }
+
+    #[test]
+    fn desktop_entries_name_the_editor_only_when_it_is_a_plain_absolute_program() {
+        let program = |exec: &str| desktop_program(&desktop(exec));
+        assert_eq!(program("/usr/share/code/code %F"), Some(PathBuf::from("/usr/share/code/code")));
+        assert_eq!(
+            program("/home/u/Applications/cursor.AppImage --no-sandbox %U"),
+            Some(PathBuf::from("/home/u/Applications/cursor.AppImage"))
+        );
+        assert_eq!(
+            program(
+                r#""/home/u/.local/share/JetBrains/Toolbox/apps/intellij-idea-ultimate/bin/idea" %u"#
+            ),
+            Some(PathBuf::from(
+                "/home/u/.local/share/JetBrains/Toolbox/apps/intellij-idea-ultimate/bin/idea"
+            ))
+        );
+        // Wrappers are covered by the Flatpak and Snap launchers.
+        assert_eq!(
+            program(
+                "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=code \
+                 --file-forwarding com.visualstudio.code @@ %F @@"
+            ),
+            None
+        );
+        assert_eq!(program("env BAMF_DESKTOP_FILE_HINT=/x.desktop /snap/bin/code %F"), None);
+        assert_eq!(program("/usr/bin/env FOO=1 /opt/ed/ed %F"), None);
+        assert_eq!(program("/bin/sh -c ed"), None);
+        assert_eq!(program("/bin/bash /opt/ed.sh %F"), None);
+        assert_eq!(program("/usr/bin/snap run code"), None);
+        // A bare name is found on PATH already.
+        assert_eq!(program("code %F"), None);
+        assert_eq!(program("./code"), None);
+        let terminal = crate::desktop_entry::parse("[Desktop Entry]\nExec=/usr/bin/vim %F\nTerminal=true\n").unwrap();
+        assert_eq!(desktop_program(&terminal), None);
+    }
+
+    #[test]
+    fn jetbrains_desktop_names_match_the_product_and_its_suffixes() {
+        for name in [
+            "jetbrains-idea.desktop",
+            "jetbrains-idea-ce.desktop",
+            "jetbrains-idea-3f9c2a1b.desktop",
+        ] {
+            assert!(is_jetbrains_desktop_name("jetbrains-idea", name), "{name}");
+        }
+        for name in [
+            "jetbrains-ideal.desktop",
+            "jetbrains-pycharm.desktop",
+            "jetbrains-idea",
+            "jetbrains-idea-ce.desktop.bak",
+            "idea.desktop",
+        ] {
+            assert!(!is_jetbrains_desktop_name("jetbrains-idea", name), "{name}");
+        }
+    }
+
+    #[test]
+    fn flatpak_desktop_and_snap_tables_cover_the_right_editors() {
+        for (id, _) in NAMES {
+            let jetbrains = jetbrains(id).is_some();
+            assert_eq!(jetbrains_desktop_prefix(id).is_some(), jetbrains, "{id}");
+            // Every JetBrains IDE and the editors with a Linux build in a store have a Flatpak.
+            let has_flatpak = jetbrains || matches!(id, "vscode" | "vscodium" | "sublime" | "zed");
+            assert_eq!(!flatpak_app_ids(id).is_empty(), has_flatpak, "{id}");
+            let has_desktop_id = matches!(
+                id,
+                "vscode" | "vscodeInsiders" | "vscodium" | "cursor" | "windsurf" | "sublime" | "zed"
+            );
+            assert_eq!(!desktop_ids(id).is_empty(), has_desktop_id, "{id}");
+            assert!(desktop_ids(id).iter().all(|d| d.ends_with(".desktop")), "{id}");
+            assert!(snap_command_names(id).is_empty() || matches!(id, "intellij" | "pycharm"), "{id}");
+        }
+        assert_eq!(flatpak_app_ids("vscode"), ["com.visualstudio.code"]);
+        assert_eq!(
+            flatpak_app_ids("pycharm"),
+            ["com.jetbrains.PyCharm-Community", "com.jetbrains.PyCharm-Professional"]
+        );
+    }
+
+    #[test]
+    fn linux_folders_follow_xdg_and_add_flatpak_and_snap() {
+        let home = Path::new("/home/u");
+        assert_eq!(
+            posix_bin_dirs(Some(home)),
+            [
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/usr/bin",
+                "/home/u/.local/bin",
+                "/snap/bin"
+            ]
+            .map(PathBuf::from)
+        );
+        assert_eq!(posix_bin_dirs(None), ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"].map(PathBuf::from));
+
+        assert_eq!(user_data_home(None, home), PathBuf::from("/home/u/.local/share"));
+        assert_eq!(user_data_home(Some(""), home), PathBuf::from("/home/u/.local/share"));
+        assert_eq!(user_data_home(Some("/data"), home), PathBuf::from("/data"));
+        assert_eq!(
+            flatpak_bin_dirs(Path::new("/home/u/.local/share")),
+            [
+                PathBuf::from("/var/lib/flatpak/exports/bin"),
+                PathBuf::from("/home/u/.local/share/flatpak/exports/bin")
+            ]
+        );
+
+        let xdg = vec![
+            PathBuf::from("/home/u/.local/share/applications"),
+            PathBuf::from("/var/lib/flatpak/exports/share/applications"),
+            PathBuf::from("/usr/share/applications"),
+        ];
+        assert_eq!(
+            linux_desktop_dirs(xdg, Path::new("/home/u/.local/share")),
+            [
+                "/home/u/.local/share/applications",
+                "/var/lib/flatpak/exports/share/applications",
+                "/usr/share/applications",
+                "/home/u/.local/share/flatpak/exports/share/applications",
+                "/var/lib/snapd/desktop/applications",
+            ]
+            .map(PathBuf::from)
+        );
+        assert_eq!(
+            linux_toolbox_scripts_dir(home),
+            PathBuf::from("/home/u/.local/share/JetBrains/Toolbox/scripts")
+        );
+    }
+
+    /// An env with only the Linux folders, under `root`.
+    fn linux_env(root: &Path) -> SearchEnv {
+        SearchEnv {
+            path: vec![root.join("usr/bin")],
+            bin_dirs: vec![root.join("home/.local/bin"), root.join("snap/bin")],
+            toolbox_scripts: Some(root.join("toolbox")),
+            flatpak_bins: vec![root.join("fp-system/bin"), root.join("fp-user/bin")],
+            desktop_dirs: vec![root.join("home/apps"), root.join("usr/apps")],
+            ..SearchEnv::default()
+        }
+    }
+
+    /// An absolute path as an `Exec=` line carries it; forward slashes survive on every OS.
+    fn exec_path(p: &Path) -> String {
+        p.to_string_lossy().replace('\\', "/")
+    }
+
+    fn write_desktop(dir: &Path, file: &str, exec: &str) {
+        touch(&dir.join(file));
+        std::fs::write(dir.join(file), format!("[Desktop Entry]\nName=x\nExec={exec}\n")).unwrap();
+    }
+
+    #[test]
+    fn snap_and_user_bin_commands_are_found_by_name() {
+        let root = temp_dir("linuxbins");
+        let env = linux_env(&root);
+        assert_eq!(detect_posix("pycharm", &env), None);
+        touch(&root.join("snap/bin/pycharm-community"));
+        touch(&root.join("home/.local/bin/subl"));
+        touch(&root.join("snap/bin/intellij-idea-ultimate"));
+        assert_eq!(detect_posix("pycharm", &env), Some(root.join("snap/bin/pycharm-community")));
+        assert_eq!(detect_posix("sublime", &env), Some(root.join("home/.local/bin/subl")));
+        assert_eq!(detect_posix("intellij", &env), Some(root.join("snap/bin/intellij-idea-ultimate")));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn linux_detection_order_is_path_toolbox_flatpak_then_desktop() {
+        let root = temp_dir("linuxorder");
+        let env = linux_env(&root);
+        let desktop_dir = root.join("home/apps");
+        let appimage = root.join("home/Applications/idea.AppImage");
+        touch(&appimage);
+        write_desktop(&desktop_dir, "jetbrains-idea-abc123.desktop", &exec_path(&appimage));
+        assert_eq!(detect_posix("intellij", &env), Some(appimage.clone()));
+
+        touch(&root.join("fp-user/bin/com.jetbrains.IntelliJ-IDEA-Community"));
+        assert_eq!(
+            detect_posix("intellij", &env),
+            Some(root.join("fp-user/bin/com.jetbrains.IntelliJ-IDEA-Community"))
+        );
+        // The system Flatpak folder is searched first.
+        touch(&root.join("fp-system/bin/com.jetbrains.IntelliJ-IDEA-Ultimate"));
+        assert_eq!(
+            detect_posix("intellij", &env),
+            Some(root.join("fp-system/bin/com.jetbrains.IntelliJ-IDEA-Ultimate"))
+        );
+
+        touch(&root.join("toolbox/idea"));
+        assert_eq!(detect_posix("intellij", &env), Some(root.join("toolbox/idea")));
+
+        touch(&root.join("usr/bin/idea"));
+        assert_eq!(detect_posix("intellij", &env), Some(root.join("usr/bin/idea")));
+        assert_eq!(detect_posix("pycharm", &env), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn flatpak_launchers_are_found_per_app_id() {
+        let root = temp_dir("linuxflatpak");
+        let env = linux_env(&root);
+        for (id, _) in NAMES {
+            assert_eq!(flatpak_launcher(id, &env), None, "{id}");
+        }
+        touch(&root.join("fp-user/bin/com.visualstudio.code"));
+        touch(&root.join("fp-user/bin/dev.zed.Zed"));
+        touch(&root.join("fp-user/bin/com.example.Other"));
+        assert_eq!(detect_posix("vscode", &env), Some(root.join("fp-user/bin/com.visualstudio.code")));
+        assert_eq!(detect_posix("zed", &env), Some(root.join("fp-user/bin/dev.zed.Zed")));
+        assert_eq!(detect_posix("vscodium", &env), None);
+        assert_eq!(detect_posix("cursor", &env), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn desktop_files_lead_to_the_editor_program_that_exists() {
+        let root = temp_dir("linuxdesktop");
+        let env = linux_env(&root);
+        let user_apps = root.join("home/apps");
+        let sys_apps = root.join("usr/apps");
+        let code = root.join("usr/share/code/code");
+        let cursor = root.join("home/Applications/cursor.AppImage");
+
+        // The deb's `code.desktop`, until its program exists.
+        write_desktop(&sys_apps, "code.desktop", &format!("{} %F", exec_path(&code)));
+        assert_eq!(detect_posix("vscode", &env), None);
+        touch(&code);
+        assert_eq!(detect_posix("vscode", &env), Some(code.clone()));
+
+        // Arguments before the file code travel with the program (Ubuntu's AppArmor needs the
+        // AppImage's `--no-sandbox`); a plain entry has none.
+        write_desktop(&user_apps, "cursor.desktop", &format!("{} --no-sandbox %U", exec_path(&cursor)));
+        assert_eq!(detect_posix("cursor", &env), None);
+        touch(&cursor);
+        assert_eq!(detect_posix("cursor", &env), Some(cursor.clone()));
+        assert_eq!(
+            detect_posix_with_args("cursor", &env),
+            Some((cursor, vec!["--no-sandbox".to_string()]))
+        );
+        assert_eq!(detect_posix_with_args("vscode", &env), Some((code.clone(), Vec::new())));
+
+        // A Flatpak export's entry and a relative name are skipped.
+        write_desktop(
+            &user_apps,
+            "codium.desktop",
+            "/usr/bin/flatpak run --command=codium com.vscodium.codium @@ %F @@",
+        );
+        assert_eq!(detect_posix("vscodium", &env), None);
+        write_desktop(&user_apps, "windsurf.desktop", "windsurf %F");
+        assert_eq!(detect_posix("windsurf", &env), None);
+
+        // A terminal entry is skipped even with a real program.
+        let zed = root.join("opt/zed/zed");
+        touch(&zed);
+        touch(&user_apps.join("zed.desktop"));
+        std::fs::write(
+            user_apps.join("zed.desktop"),
+            format!("[Desktop Entry]\nExec={} %U\nTerminal=true\n", exec_path(&zed)),
+        )
+        .unwrap();
+        assert_eq!(detect_posix("zed", &env), None);
+        // Zed's own id is tried after the plain one, and a later folder after an unusable first.
+        write_desktop(&sys_apps, "dev.zed.Zed.desktop", &format!("{} %U", exec_path(&zed)));
+        assert_eq!(detect_posix("zed", &env), Some(zed));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn toolbox_desktop_files_are_matched_by_product_prefix() {
+        let root = temp_dir("linuxtoolbox");
+        let env = linux_env(&root);
+        let apps = root.join("home/apps");
+        let idea = root.join("tb/apps/intellij-idea-ultimate/bin/idea");
+        let pycharm = root.join("tb/apps/pycharm-professional/bin/pycharm");
+        let rider = root.join("tb/apps/rider/bin/rider");
+        for p in [&idea, &pycharm, &rider] {
+            touch(p);
+        }
+        write_desktop(&apps, "jetbrains-idea-9d8c7b6a.desktop", &format!("\"{}\" %u", exec_path(&idea)));
+        write_desktop(&apps, "jetbrains-pycharm-ce.desktop", &format!("{} %u", exec_path(&pycharm)));
+        write_desktop(&apps, "jetbrains-toolbox.desktop", &format!("{} %u", exec_path(&rider)));
+        write_desktop(&apps, "jetbrains-riders.desktop", &format!("{} %u", exec_path(&rider)));
+        assert_eq!(detect_posix("intellij", &env), Some(idea));
+        assert_eq!(detect_posix("pycharm", &env), Some(pycharm));
+        assert_eq!(detect_posix("rider", &env), None);
+        write_desktop(&apps, "jetbrains-rider.desktop", &format!("{} %u", exec_path(&rider)));
+        assert_eq!(detect_posix("rider", &env), Some(rider));
+        assert_eq!(detect_posix("webstorm", &env), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn missing_linux_folders_find_nothing() {
+        let root = temp_dir("linuxmissing");
+        let env = SearchEnv {
+            flatpak_bins: vec![root.join("nope/bin")],
+            desktop_dirs: vec![root.join("nope/apps")],
+            ..SearchEnv::default()
+        };
+        for (id, _) in NAMES {
+            assert_eq!(detect_posix(id, &env), None, "{id}");
+        }
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn editors_runs_against_the_real_machine() {
+        let started = std::time::Instant::now();
+        let found = editors();
+        assert_eq!(found.last().map(|e| e.id.as_str()), Some("default"));
+        assert!(started.elapsed() < std::time::Duration::from_secs(2), "{:?}", started.elapsed());
     }
 
     #[test]

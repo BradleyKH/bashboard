@@ -12,16 +12,17 @@ launch, and `shell.*` applies to panes opened after the change.
 `visualStudio`, `notepadpp`, `sublime`, `rider`, `intellij`, `webstorm`, `pycharm`, `rustrover`,
 `goland`, `clion`, `phpstorm`, `windsurf`, `vscodeInsiders`, `vscodium`, `vim`, `nvim`, or
 `default` (the file's default app). JetBrains IDEs installed through the Toolbox App or the
-standalone installer are both found. Vim and Neovim open in a new pane beside the focused one,
-which closes when you quit the editor; the Vim that comes with Git for Windows is found even
-though it is not on `PATH`. If the chosen editor is not installed or will not start, the file opens in the default
-app and a toast says so. Scripts, programs, and shortcuts (`.bat`, `.exe`, `.lnk`, `.ps1`, and
-the like) open in Notepad rather than their default app, which would run them. On macOS,
-runnable files (apps, scripts, installers, `.command` and `.tool` files, AppleScript, any file
-marked executable, and the like) open as text in the default text editor, through `open -t` (TextEdit unless you change
-it), for the same reason. On Linux, `.desktop` files, AppImages, packages, Windows programs, and
-any file marked executable open in the default app for plain text (`xdg-mime query default
-text/plain`), and are not opened at all when there is none.
+standalone installer are both found. On Linux, editors from Flatpak, Snap, `~/.local/bin`, or an
+AppImage or tarball install with a `.desktop` file are found too. Vim and Neovim open in a new pane
+beside the focused one, which closes when you quit the editor; the Vim that comes with Git for
+Windows is found even though it is not on `PATH`. If the chosen editor is not installed or will not
+start, the file opens in the default app and a toast says so. Scripts, programs, and shortcuts
+(`.bat`, `.exe`, `.lnk`, `.ps1`, and the like) open in Notepad rather than their default app, which
+would run them. On macOS, runnable files (apps, scripts, installers, `.command` and `.tool` files,
+AppleScript, any file marked executable, and the like) open as text in the default text editor,
+through `open -t` (TextEdit unless you change it), for the same reason. On Linux, `.desktop` files,
+AppImages, packages, Windows programs, and any file marked executable open in the default app for
+plain text (`xdg-mime query default text/plain`), and are not opened at all when there is none.
 `editor.command` replaces the editor with your own command line, for example
 `code.cmd -g "{path}:{line}"`. Double quotes group an argument, and no shell runs it, so the
 program name must include its extension when it is a shim such as `code.cmd`. `{path}` and
