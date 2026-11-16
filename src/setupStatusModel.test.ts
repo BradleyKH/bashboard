@@ -27,21 +27,42 @@ const hooks = (over: Partial<HookInstallPreview>): HookInstallPreview => ({
 
 describe('gitRow', () => {
   it('offers the installer when there is one, else the download page', () => {
-    expect(gitRow({ gitFound: false, installer: 'winget' }).fix?.kind).toBe('gitInstall');
-    expect(gitRow({ gitFound: false, installer: null }).fix?.kind).toBe('gitDownload');
+    expect(gitRow({ gitFound: false, installer: 'winget', installCommand: null }).fix?.kind).toBe('gitInstall');
+    expect(gitRow({ gitFound: false, installer: null, installCommand: null }).fix?.kind).toBe('gitDownload');
   });
 
   it('is ok when found, and unknown without an answer', () => {
-    expect(gitRow({ gitFound: true, installer: null })).toMatchObject({ level: 'ok' });
-    expect(gitRow({ gitFound: true, installer: null }).fix).toBeUndefined();
+    expect(gitRow({ gitFound: true, installer: null, installCommand: null })).toMatchObject({ level: 'ok' });
+    expect(gitRow({ gitFound: true, installer: null, installCommand: null }).fix).toBeUndefined();
     expect(gitRow(null).level).toBe('info');
   });
 
   it('names Git Bash only on Windows', () => {
-    expect(gitRow({ gitFound: false, installer: 'winget' }, 'windows').label).toBe('Git Bash');
-    const mac = gitRow({ gitFound: false, installer: 'xcodeSelect' }, 'macos');
+    expect(gitRow({ gitFound: false, installer: 'winget', installCommand: null }, 'windows').label).toBe('Git Bash');
+    const mac = gitRow({ gitFound: false, installer: 'xcodeSelect', installCommand: null }, 'macos');
     expect(mac).toMatchObject({ label: 'Git', text: 'Not found; the Git pane and worktrees need it' });
     expect(mac.fix?.kind).toBe('gitInstall');
+  });
+
+  it('offers to copy the distro command on Linux, else the download page', () => {
+    const cmd = 'sudo apt install git';
+    const row = gitRow({ gitFound: false, installer: null, installCommand: cmd }, 'linux');
+    expect(row).toMatchObject({ label: 'Git', level: 'missing' });
+    expect(row.text).toContain(cmd);
+    expect(row.fix).toEqual({ kind: 'gitCopy', command: cmd, label: 'Copy command' });
+    const unknown = gitRow({ gitFound: false, installer: null, installCommand: null }, 'linux');
+    expect(unknown.fix?.kind).toBe('gitDownload');
+    expect(gitRow({ gitFound: true, installer: null, installCommand: cmd }, 'linux').fix).toBeUndefined();
+  });
+
+  it('keeps the Windows row unchanged', () => {
+    expect(gitRow({ gitFound: false, installer: 'winget', installCommand: null }, 'windows')).toEqual({
+      id: 'git',
+      label: 'Git Bash',
+      level: 'missing',
+      text: 'Not found; Git Bash panes and the Git pane need it',
+      fix: { kind: 'gitInstall', label: 'Install' },
+    });
   });
 });
 

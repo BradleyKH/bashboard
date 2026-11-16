@@ -199,8 +199,9 @@ whether the file or `.bash_profile` would be created, and a warning.
 
 ## 3.15 Git install (`src-tauri/src/git_install.rs`)
 
-`git_install_status` reports `gitFound` and `installer` (`winget`, `xcodeSelect`, or null), and
-the setup wizard's Git step (4.17) shows while `gitFound` is false.
+`git_install_status` reports `gitFound`, `installer` (`winget`, `xcodeSelect`, or null), and
+`installCommand` (a string on Linux for a recognized distribution, else null), and the setup
+wizard's Git step (4.17) shows while `gitFound` is false.
 
 **Windows.** Git Bash is the default shell, so `gitFound` means Git Bash was found (3.1), and
 the step installs Git for Windows with winget. `installer` is `winget` when `winget.exe` is
@@ -225,8 +226,23 @@ it is a stub that opens their installer instead of running. So `gitFound` is
 macOS's own installer and returns; the install runs there, outside the app, so the step reads
 "Installer opened; Git is ready once it finishes" rather than waiting for it.
 
-**Linux.** `gitFound` is `git` on `PATH`, and there is no installer; the Git step and its status
-row stay hidden there (`gitInstall` in `src/platform.ts`).
+**Linux.** `gitFound` is `git` on `PATH`, and there is no installer: `git_install` always
+fails and the app never runs a package manager, which needs root and differs by distribution.
+Instead `installCommand` is the command the user runs themselves. The core reads
+`/etc/os-release`, else `/usr/lib/os-release`, and matches its `ID` and then each word of
+`ID_LIKE` (first match wins, values may be quoted) against a table, so a derivative with no
+entry of its own gets its parent's command:
+
+| `ID` or `ID_LIKE` word | Command |
+| --- | --- |
+| `debian`, `ubuntu`, `kali`, `linuxmint`, `pop` | `sudo apt install git` |
+| `fedora`, `rhel`, `centos`, `almalinux`, `rocky` | `sudo dnf install git` |
+| `arch`, `cachyos`, `manjaro`, `endeavouros` | `sudo pacman -S git` |
+| `gentoo` | `sudo emerge --ask dev-vcs/git` |
+| `opensuse`, `suse`, `opensuse-leap`, `opensuse-tumbleweed`, `sles` | `sudo zypper install git` |
+
+An unrecognized distribution, or no readable file, gives null, and the step links to git-scm.com
+instead.
 
 ## 3.16 Updates and releases
 
@@ -389,7 +405,11 @@ has Back, Next, and Skip setup.
 1. **Git.** Shown only while Git (Git Bash on Windows) is missing (3.15). With winget available,
    an Install Git button runs the install and shows its progress and result; the step stays in
    the list once Git is installed, reading "Git installed". On macOS, Install Command Line Tools
-   opens Apple's installer. Without an installer, a button opens git-scm.com.
+   opens Apple's installer. On Linux the step shows the distribution's install command with
+   Copy and Check again buttons and never runs it; Check again reads the status once the user
+   has run the command in a shell. With no known command, a button opens git-scm.com, as it
+   does on Windows without winget. The Help tab's setup status row (4.18) offers Copy command
+   on Linux.
 2. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
 3. **Shell integration.** For the shell new panes open with: the chosen default when it is
    installed, else the first installed profile, as the core resolves it (3.1). Shown when that

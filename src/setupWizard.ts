@@ -1,7 +1,8 @@
 import './setupWizard.css';
 import { agentName, isPreviewAgent } from './agentNames';
+import { copyText } from './copyText';
 import type { Editor } from './editors';
-import type { GitInstaller } from './gitInstall';
+import type { GitInstallStatus, GitInstaller } from './gitInstall';
 import { samePath, type Favorite } from './favorites';
 import { forgeRepo } from './forgeApi';
 import type { ShellProfile } from './profiles';
@@ -48,6 +49,8 @@ export interface SetupWizardCallbacks {
   /** Installs Git and refreshes the shell profiles; rejects with the installer's error. */
   installGit(): Promise<void>;
   openGitDownload(): void;
+  /** A fresh Git check, for Check again; rejects when the core cannot answer. */
+  getGitStatus(): Promise<GitInstallStatus>;
   getShellIntegrationPreview(shell: IntegrationShell): Promise<ShellIntegrationPreview>;
   installShellIntegration(shell: IntegrationShell): Promise<void>;
 }
@@ -56,6 +59,7 @@ export interface SetupWizardOpenOptions {
   agents: AgentHooks[];
   gitFound: boolean;
   installer: GitInstaller | null;
+  installCommand: string | null;
 }
 
 type BaseStepOptions = Omit<SetupStepOptions, 'defaultShell' | 'shellIntegrationStatus'>;
@@ -119,7 +123,10 @@ export class SetupWizard {
 
   private base!: BaseStepOptions;
   private installer: GitInstaller | null = null;
+  private installCommand: string | null = null;
   private gitInstalling = false;
+  private gitChecking = false;
+  private gitNotFound = false;
   private gitDone = false;
   /** Per shell; absent while it is read, null when it could not be. */
   private previews = new Map<IntegrationShell, ShellIntegrationPreview | null>();
@@ -147,7 +154,10 @@ export class SetupWizard {
       gitFound: opts.gitFound,
     };
     this.installer = opts.installer;
+    this.installCommand = opts.installCommand;
     this.gitInstalling = false;
+    this.gitChecking = false;
+    this.gitNotFound = false;
     this.gitDone = false;
     this.previews = new Map();
     this.shellInstalling = false;
@@ -354,9 +364,21 @@ export class SetupWizard {
   private renderGit(): void {
     renderGitStep(
       this.content,
-      { installer: this.installer, installing: this.gitInstalling, done: this.gitDone },
+      {
+        installer: this.installer,
+        installCommand: this.installCommand,
+        installing: this.gitInstalling,
+        checking: this.gitChecking,
+        notFound: this.gitNotFound,
+        done: this.gitDone,
+      },
       this.ui,
-      { install: () => void this.installGit(), openDownload: () => this.callbacks.openGitDownload() },
+      {
+        install: () => void this.installGit(),
+        openDownload: () => this.callbacks.openGitDownload(),
+        copyCommand: (command) => void copyText(command, 'command'),
+        checkAgain: () => void this.checkGitAgain(),
+      },
     );
   }
 
@@ -385,13 +407,49 @@ export class SetupWizard {
       this.rerender('git');
       if (this.steps[this.index] === 'git') this.setError(failure);
     } else {
-      this.gitDone = true;
-      this.previews.set('gitBash', preview);
-      this.base = { ...this.base, ...(agents ? { agents } : {}), gitInstalled: true };
-      this.syncSteps();
-      this.rerender('git');
+      this.markGitInstalled(preview, agents);
     }
     if (this.steps[this.index] === 'git') this.box.focus();
+  }
+
+  /** The Check again button, for the path where the user installs Git themselves. */
+  private async checkGitAgain(): Promise<void> {
+    if (this.gitChecking) return;
+    const owner = this.backdrop;
+    this.gitChecking = true;
+    this.gitNotFound = false;
+    this.rerender('git');
+    let failure = '';
+    const status = await this.callbacks.getGitStatus().catch((err: unknown) => {
+      failure = errorText(err);
+      return null;
+    });
+    let preview: ShellIntegrationPreview | null = null;
+    let agents: AgentHooks[] | null = null;
+    if (status?.gitFound) {
+      [preview, agents] = await Promise.all([
+        this.callbacks.getShellIntegrationPreview('gitBash').catch(() => null),
+        this.callbacks.getHookState().catch(() => null),
+      ]);
+    }
+    this.gitChecking = false;
+    if (this.backdrop !== owner) return;
+    if (status?.gitFound) {
+      this.markGitInstalled(preview, agents);
+    } else {
+      this.gitNotFound = !failure;
+      this.rerender('git');
+      if (failure && this.steps[this.index] === 'git') this.setError(failure);
+    }
+    if (this.steps[this.index] === 'git') this.box.focus();
+  }
+
+  private markGitInstalled(preview: ShellIntegrationPreview | null, agents: AgentHooks[] | null): void {
+    this.gitDone = true;
+    this.previews.set('gitBash', preview);
+    this.base = { ...this.base, ...(agents ? { agents } : {}), gitInstalled: true };
+    this.syncSteps();
+    this.rerender('git');
   }
 
   private renderShellIntegration(): void {

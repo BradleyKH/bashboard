@@ -25,7 +25,6 @@ import { shipOverviewStore } from './shipOverviewStore';
 import { pinProvider } from './shipOverviewText';
 import { ShortcutsTab } from './shortcutsTab';
 import type { Workspace } from './workspace';
-import { supports } from './platform';
 
 export interface AppDialogsDeps {
   state: AppState;
@@ -142,6 +141,11 @@ export class AppDialogs {
       openGitDownload: () => {
         openGitDownload().catch((e: unknown) => console.warn('open_url failed', e));
       },
+      getGitStatus: () =>
+        gitInstallStatus().then(async (status) => {
+          if (status.gitFound) await refreshProfiles();
+          return status;
+        }),
       getShellIntegrationPreview: shellIntegrationPreview,
       installShellIntegration: shellIntegrationInstall,
     });
@@ -201,8 +205,9 @@ export class AppDialogs {
     this.setupWizard.open({
       agents: agentHooksFrom(previews),
       // An unknown Git state skips the Git step rather than offering an install that may not apply.
-      gitFound: !supports('gitInstall') || (git?.gitFound ?? true),
+      gitFound: git?.gitFound ?? true,
       installer: git?.installer ?? null,
+      installCommand: git?.installCommand ?? null,
     });
     await new Promise<void>((resolve) => {
       this.setupClosed?.();

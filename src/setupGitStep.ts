@@ -4,13 +4,21 @@ import type { SetupStepUi } from './setupModel';
 
 export interface GitStepState {
   installer: GitInstaller | null;
+  /** The distro's install command, shown for the user to run; only when there is no installer. */
+  installCommand: string | null;
   installing: boolean;
+  /** A Check again is running. */
+  checking: boolean;
+  /** The last Check again still found no Git. */
+  notFound: boolean;
   done: boolean;
 }
 
 export interface GitStepActions {
   install(): void;
   openDownload(): void;
+  copyCommand(command: string): void;
+  checkAgain(): void;
 }
 
 /** The step's intro line: Git for Windows brings Git Bash, the default shell there. */
@@ -21,7 +29,8 @@ export function gitStepIntro(os: Os = platformOs()): string {
 /**
  * The setup wizard's Git step, shown while Git is missing (docs/design/app.md section 4.17).
  * winget installs and reports back; macOS's Command Line Tools installer runs on its own, so
- * that path is done once the installer is open.
+ * that path is done once the installer is open. Where only a command is known (Linux), the step
+ * shows it and re-checks on request, since the app never runs it.
  */
 export function renderGitStep(
   content: HTMLElement,
@@ -62,6 +71,19 @@ export function renderGitStep(
       const wait = ui.note('This can take a few minutes.');
       actionsRow.append(wait);
     }
+  } else if (state.installCommand) {
+    const installCommand = state.installCommand;
+    content.append(ui.note('Install Git with your package manager, then check again.'));
+    const command = document.createElement('code');
+    command.className = 'setup-wizard-command';
+    command.textContent = installCommand;
+    content.append(command);
+    if (state.notFound) content.append(ui.note('Git still was not found.'));
+    const copy = ui.button('Copy', () => actions.copyCommand(installCommand));
+    const check = ui.button(state.checking ? 'Checking...' : 'Check again', actions.checkAgain);
+    check.classList.add('setup-wizard-primary');
+    check.disabled = state.checking;
+    actionsRow.append(copy, check);
   } else {
     content.append(
       ui.note(

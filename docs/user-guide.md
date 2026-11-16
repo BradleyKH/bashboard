@@ -1262,7 +1262,8 @@ those keys themselves.
 
 - **Help** is a short tour of the main features with your current keys, a **Take the tour**
   button that walks you through the main keys one at a time, and a Setup list that
-  checks Git Bash (Git on macOS, where Install opens Apple's Command Line Tools installer), each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),
+  checks Git Bash (Git on macOS, where Install opens Apple's Command Line Tools installer, and on
+  Linux, where Copy command copies your distribution's install command to run yourself), each shell's [current-folder lines](setup.md#new-panes-in-the-current-folder),
   and the hooks of each coding agent that has run here. Anything missing has an Install button, and **Run setup** reopens the
   setup wizard.
 - **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the

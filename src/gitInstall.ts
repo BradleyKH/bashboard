@@ -10,6 +10,11 @@ export interface GitInstallStatus {
   gitFound: boolean;
   /** Null when nothing here can install it, so the download page is offered instead. */
   installer: GitInstaller | null;
+  /**
+   * The distro's command to install Git, shown and never run (null on Windows and macOS, and on
+   * a Linux distro the core does not recognize).
+   */
+  installCommand: string | null;
 }
 
 export function gitInstallStatus(): Promise<GitInstallStatus> {

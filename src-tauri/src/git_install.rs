@@ -1,7 +1,9 @@
 //! Installs Git when it is missing (docs/design/app.md section 3.15): Git for Windows (which
 //! provides Git Bash) through winget, or Apple's Command Line Tools through `xcode-select` on
-//! macOS. The pure parts (winget lookup, argument list, output trimming) take their inputs as
-//! parameters so tests never touch the real machine.
+//! macOS. On Linux nothing is run; the status carries the distribution's install command, read
+//! from `os-release`, for the front end to show and copy. The pure parts (winget lookup,
+//! argument list, output trimming, os-release parsing) take their inputs as parameters so tests
+//! never touch the real machine.
 
 use std::ffi::OsStr;
 use std::io::Read;
@@ -38,6 +40,56 @@ pub struct GitInstallStatus {
     pub git_found: bool,
     /// `None` when nothing here can install it, so the front end links to git-scm.com.
     pub installer: Option<GitInstaller>,
+    /// The distribution's package-manager command, shown for the user to run themselves. Only
+    /// Linux fills it, and only for a distribution it recognizes.
+    pub install_command: Option<String>,
+}
+
+/// The `os-release` value for `key`, with one layer of single or double quotes removed.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn os_release_value<'a>(os_release: &'a str, key: &str) -> Option<&'a str> {
+    os_release.lines().find_map(|line| {
+        let (k, v) = line.trim().split_once('=')?;
+        if k.trim() != key {
+            return None;
+        }
+        let v = v.trim();
+        let unquoted = v
+            .strip_prefix('"')
+            .and_then(|r| r.strip_suffix('"'))
+            .or_else(|| v.strip_prefix('\'').and_then(|r| r.strip_suffix('\'')));
+        Some(unquoted.unwrap_or(v))
+    })
+}
+
+/// The command that installs Git on the distribution `os_release` describes: its `ID` first,
+/// then each family it declares in `ID_LIKE`, so a derivative with no entry of its own still
+/// gets its parent's command.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn install_command(os_release: &str) -> Option<String> {
+    let id = os_release_value(os_release, "ID").unwrap_or("");
+    let like = os_release_value(os_release, "ID_LIKE").unwrap_or("");
+    std::iter::once(id).chain(like.split_whitespace()).find_map(|id| {
+        let cmd = match id.to_ascii_lowercase().as_str() {
+            "debian" | "ubuntu" | "kali" | "linuxmint" | "pop" => "sudo apt install git",
+            "fedora" | "rhel" | "centos" | "almalinux" | "rocky" => "sudo dnf install git",
+            "arch" | "cachyos" | "manjaro" | "endeavouros" => "sudo pacman -S git",
+            "gentoo" => "sudo emerge --ask dev-vcs/git",
+            "opensuse" | "suse" | "opensuse-leap" | "opensuse-tumbleweed" | "sles" => {
+                "sudo zypper install git"
+            }
+            _ => return None,
+        };
+        Some(cmd.to_string())
+    })
+}
+
+/// `/etc/os-release`, else `/usr/lib/os-release`, which the spec makes the fallback location.
+#[cfg(target_os = "linux")]
+fn read_os_release() -> Option<String> {
+    ["/etc/os-release", "/usr/lib/os-release"]
+        .iter()
+        .find_map(|p| std::fs::read_to_string(p).ok())
 }
 
 /// `winget.exe` on PATH, else the App Execution Alias under `%LOCALAPPDATA%\Microsoft\WindowsApps`
@@ -93,6 +145,7 @@ fn status_for(git_bash_found: bool, winget: Option<PathBuf>) -> GitInstallStatus
     GitInstallStatus {
         git_found: git_bash_found,
         installer: winget.map(|_| GitInstaller::Winget),
+        install_command: None,
     }
 }
 
@@ -122,6 +175,7 @@ pub fn git_install_status(_settings: State<'_, SettingsState>) -> GitInstallStat
     GitInstallStatus {
         git_found: tools || brew_git,
         installer: Some(GitInstaller::XcodeSelect),
+        install_command: None,
     }
 }
 
@@ -131,7 +185,11 @@ pub fn git_install_status(_settings: State<'_, SettingsState>) -> GitInstallStat
     let file = crate::platform::exe_name("git");
     let found = std::env::var_os("PATH")
         .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(&file).is_file()));
-    GitInstallStatus { git_found: found, installer: None }
+    #[cfg(target_os = "linux")]
+    let install_command = read_os_release().and_then(|text| install_command(&text));
+    #[cfg(not(target_os = "linux"))]
+    let install_command = None;
+    GitInstallStatus { git_found: found, installer: None, install_command }
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -289,10 +347,136 @@ mod tests {
     #[test]
     fn status_serializes_camel_case() {
         let json = serde_json::to_string(&status_for(true, None)).unwrap();
-        assert_eq!(json, r#"{"gitFound":true,"installer":null}"#);
+        assert_eq!(json, r#"{"gitFound":true,"installer":null,"installCommand":null}"#);
         let json = serde_json::to_string(&status_for(false, Some(PathBuf::from("winget.exe")))).unwrap();
-        assert_eq!(json, r#"{"gitFound":false,"installer":"winget"}"#);
-        let mac = GitInstallStatus { git_found: false, installer: Some(GitInstaller::XcodeSelect) };
-        assert_eq!(serde_json::to_string(&mac).unwrap(), r#"{"gitFound":false,"installer":"xcodeSelect"}"#);
+        assert_eq!(json, r#"{"gitFound":false,"installer":"winget","installCommand":null}"#);
+        let mac = GitInstallStatus {
+            git_found: false,
+            installer: Some(GitInstaller::XcodeSelect),
+            install_command: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&mac).unwrap(),
+            r#"{"gitFound":false,"installer":"xcodeSelect","installCommand":null}"#
+        );
+        let linux = GitInstallStatus {
+            git_found: false,
+            installer: None,
+            install_command: Some("sudo apt install git".into()),
+        };
+        assert_eq!(
+            serde_json::to_string(&linux).unwrap(),
+            r#"{"gitFound":false,"installer":null,"installCommand":"sudo apt install git"}"#
+        );
+    }
+
+    const APT: Option<&str> = Some("sudo apt install git");
+    const DNF: Option<&str> = Some("sudo dnf install git");
+    const PACMAN: Option<&str> = Some("sudo pacman -S git");
+
+    #[test]
+    fn debian_family_uses_apt() {
+        let ubuntu = r#"PRETTY_NAME="Ubuntu 22.04.4 LTS"
+NAME="Ubuntu"
+VERSION_ID="22.04"
+VERSION="22.04.4 LTS (Jammy Jellyfish)"
+VERSION_CODENAME=jammy
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+UBUNTU_CODENAME=jammy
+"#;
+        assert_eq!(install_command(ubuntu).as_deref(), APT);
+        let debian = r#"PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+NAME="Debian GNU/Linux"
+VERSION_ID="12"
+VERSION="12 (bookworm)"
+VERSION_CODENAME=bookworm
+ID=debian
+HOME_URL="https://www.debian.org/"
+"#;
+        assert_eq!(install_command(debian).as_deref(), APT);
+        let kali = r#"PRETTY_NAME="Kali GNU/Linux Rolling"
+NAME="Kali GNU/Linux"
+VERSION_ID="2024.1"
+ID=kali
+ID_LIKE=debian
+HOME_URL="https://www.kali.org/"
+"#;
+        assert_eq!(install_command(kali).as_deref(), APT);
+    }
+
+    #[test]
+    fn fedora_and_rhel_family_use_dnf() {
+        let fedora = r#"NAME="Fedora Linux"
+VERSION="40 (Container Image)"
+ID=fedora
+VERSION_ID=40
+PLATFORM_ID="platform:f40"
+PRETTY_NAME="Fedora Linux 40 (Container Image)"
+"#;
+        assert_eq!(install_command(fedora).as_deref(), DNF);
+        let alma = r#"NAME="AlmaLinux"
+VERSION="10.0 (Purple Lion)"
+ID="almalinux"
+ID_LIKE="rhel centos fedora"
+VERSION_ID="10.0"
+"#;
+        assert_eq!(install_command(alma).as_deref(), DNF);
+        let rhel = r#"NAME="Red Hat Enterprise Linux"
+VERSION="10.0 (Coughlan)"
+ID="rhel"
+ID_LIKE="fedora"
+VERSION_ID="10.0"
+"#;
+        assert_eq!(install_command(rhel).as_deref(), DNF);
+    }
+
+    #[test]
+    fn arch_family_uses_pacman() {
+        let arch = "NAME=\"Arch Linux\"\nPRETTY_NAME=\"Arch Linux\"\nID=arch\nBUILD_ID=rolling\n";
+        assert_eq!(install_command(arch).as_deref(), PACMAN);
+        let cachy = "NAME=\"CachyOS Linux\"\nPRETTY_NAME=\"CachyOS\"\nID=cachyos\nID_LIKE=arch\nBUILD_ID=rolling\n";
+        assert_eq!(install_command(cachy).as_deref(), PACMAN);
+    }
+
+    #[test]
+    fn gentoo_and_suse_have_their_own_commands() {
+        let gentoo = "NAME=Gentoo\nID=gentoo\nPRETTY_NAME=\"Gentoo Linux\"\n";
+        assert_eq!(install_command(gentoo).as_deref(), Some("sudo emerge --ask dev-vcs/git"));
+        let tumbleweed = r#"NAME="openSUSE Tumbleweed"
+ID="opensuse-tumbleweed"
+ID_LIKE="opensuse suse"
+VERSION_ID="20240101"
+"#;
+        assert_eq!(install_command(tumbleweed).as_deref(), Some("sudo zypper install git"));
+    }
+
+    #[test]
+    fn id_beats_id_like_and_unknown_is_none() {
+        // A derivative's own ID is matched before the family it declares.
+        assert_eq!(install_command("ID=arch\nID_LIKE=debian\n").as_deref(), PACMAN);
+        // An unrecognized ID falls through to ID_LIKE, in order.
+        assert_eq!(install_command("ID=mydistro\nID_LIKE=\"foo ubuntu fedora\"\n").as_deref(), APT);
+        assert_eq!(install_command("ID=nixos\nNAME=NixOS\n"), None);
+        assert_eq!(install_command("ID=alpine\nID_LIKE=\"\"\n"), None);
+        assert_eq!(install_command(""), None);
+    }
+
+    #[test]
+    fn quoting_comments_and_blank_lines_are_tolerated() {
+        assert_eq!(install_command("# a comment\n\nID='fedora'\n").as_deref(), DNF);
+        assert_eq!(install_command("ID=\"fedora\"\n").as_deref(), DNF);
+        assert_eq!(install_command("ID=fedora\r\n").as_deref(), DNF);
+        // A commented-out ID is not an ID, and keys that merely end in ID are not ID.
+        assert_eq!(install_command("#ID=fedora\nBUILD_ID=fedora\nVARIANT_ID=fedora\n"), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_reads_an_os_release_file() {
+        // A minimal container can lack both files, so the read is checked against their presence.
+        let exists = ["/etc/os-release", "/usr/lib/os-release"].iter().any(|p| Path::new(p).is_file());
+        assert_eq!(read_os_release().is_some(), exists);
     }
 }

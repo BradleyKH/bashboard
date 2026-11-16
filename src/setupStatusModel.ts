@@ -11,6 +11,7 @@ export type StatusLevel = 'ok' | 'missing' | 'info';
 export type StatusFix =
   | { kind: 'gitInstall' }
   | { kind: 'gitDownload' }
+  | { kind: 'gitCopy'; command: string }
   | { kind: 'shell'; shell: IntegrationShell }
   | { kind: 'hooks'; agent: AgentId };
 
@@ -29,10 +30,19 @@ export function gitRow(status: GitInstallStatus | null, os: Os = platformOs()): 
   const base = { id: 'git', label: windows ? 'Git Bash' : 'Git' };
   if (!status) return { ...base, level: 'info', text: 'Could not check' };
   if (status.gitFound) return { ...base, level: 'ok', text: 'Installed' };
+  const need = windows ? 'Git Bash panes and the Git pane need it' : 'the Git pane and worktrees need it';
+  if (!status.installer && status.installCommand) {
+    return {
+      ...base,
+      level: 'missing',
+      text: `Not found; ${need}. Run: ${status.installCommand}`,
+      fix: { kind: 'gitCopy', command: status.installCommand, label: 'Copy command' },
+    };
+  }
   return {
     ...base,
     level: 'missing',
-    text: windows ? 'Not found; Git Bash panes and the Git pane need it' : 'Not found; the Git pane and worktrees need it',
+    text: `Not found; ${need}`,
     fix: status.installer ? { kind: 'gitInstall', label: 'Install' } : { kind: 'gitDownload', label: 'Download' },
   };
 }
