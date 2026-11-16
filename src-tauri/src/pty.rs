@@ -339,13 +339,19 @@ pub struct ProcEntry {
 
 pub type ProcNames = HashMap<u32, ProcEntry>;
 
-fn is_bash(name: &str) -> bool {
-    name.eq_ignore_ascii_case("bash.exe")
+/// Whether a process name is an interactive shell, one judged by its own children instead of
+/// counting as a running job.
+fn is_shell(name: &str) -> bool {
+    if cfg!(windows) {
+        name.eq_ignore_ascii_case("bash.exe")
+    } else {
+        matches!(name, "bash" | "zsh" | "fish")
+    }
 }
 
 /// Whether the shell under `pty_pid` is running a foreground job. Git's launcher bash.exe
 /// spawns the real usr\bin\bash.exe as its only child, so the launcher always "has a child";
-/// descend through such bash-only chains and judge the deepest shell. A missing process is idle.
+/// descend through such shell-only chains and judge the deepest shell. A missing process is idle.
 pub fn shell_busy(pty_pid: u32, procs: &ProcNames) -> bool {
     if !procs.contains_key(&pty_pid) {
         return false;
@@ -359,7 +365,7 @@ pub fn shell_busy(pty_pid: u32, procs: &ProcNames) -> bool {
     loop {
         let kids = children_of(current);
         match kids.as_slice() {
-            [only] if is_bash(&procs[only].name) && seen.insert(*only) => current = *only,
+            [only] if is_shell(&procs[only].name) && seen.insert(*only) => current = *only,
             _ => return !kids.is_empty(),
         }
     }
@@ -381,7 +387,9 @@ fn proc_names(sys: &mut System) -> ProcNames {
         .collect()
 }
 
-/// The console host process serving `pid`'s console, which every process in one ConPTY shares.
+/// The id that groups every process of `pid`'s pane. On Windows it is the console host process
+/// serving the ConPTY's console; on unix it is the session id, since portable-pty calls `setsid`
+/// for each spawned shell and everything the pane starts inherits that session.
 #[cfg(windows)]
 pub(crate) fn console_host(pid: u32) -> Option<usize> {
     const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
@@ -407,7 +415,13 @@ pub(crate) fn console_host(pid: u32) -> Option<usize> {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(unix)]
+pub(crate) fn console_host(pid: u32) -> Option<usize> {
+    let sid = unsafe { libc::getsid(pid as libc::pid_t) };
+    (sid > 0).then_some(sid as usize)
+}
+
+#[cfg(not(any(windows, unix)))]
 pub(crate) fn console_host(_pid: u32) -> Option<usize> {
     None
 }
@@ -415,45 +429,65 @@ pub(crate) fn console_host(_pid: u32) -> Option<usize> {
 /// Whether an orphan counts as a running job. A nested interactive shell is itself an orphan,
 /// so it is judged by its own children rather than by existing.
 fn orphan_busy(pid: u32, procs: &ProcNames) -> bool {
-    procs.get(&pid).is_some_and(|p| !is_bash(&p.name) || shell_busy(pid, procs))
+    procs.get(&pid).is_some_and(|p| !is_shell(&p.name) || shell_busy(pid, procs))
 }
 
 struct Orphan {
+    pid: u32,
     start: u64,
     host: usize,
     busy: bool,
 }
 
-/// Process table plus console hosts already looked up, keyed by (pid, start time) so a reused
-/// pid is looked up afresh.
+/// Process table plus pane hosts already looked up, keyed by (pid, start time) so a reused pid
+/// is looked up afresh.
 #[derive(Default)]
 pub struct ActivityProbe {
     sys: System,
     hosts: HashMap<(u32, u64), Option<usize>>,
 }
 
+fn cached_host(hosts: &mut HashMap<(u32, u64), Option<usize>>, pid: u32, start: u64) -> Option<usize> {
+    *hosts.entry((pid, start)).or_insert_with(|| console_host(pid))
+}
+
 impl ActivityProbe {
     /// MSYS exec leaves a foreground job such as `sleep` parented to a short-lived fork stub that
     /// has already exited, so the job is missing from the shell's subtree, and its Windows
     /// environment is trimmed so it cannot be tagged by variable either. Such an orphan still
-    /// shares its pane's console host.
+    /// shares its pane's host. On unix a reparented job's new parent (init or a subreaper) is in
+    /// the table, so an orphan there is a process whose parent is in another session; an ordinary
+    /// child shares its parent's session and is skipped.
     fn orphans(&mut self, procs: &ProcNames, since: u64) -> Vec<Orphan> {
         let mut live = HashSet::new();
         let mut out = Vec::new();
         for (pid, p) in self.sys.processes() {
             let (pid, start) = (pid.as_u32(), p.start_time());
-            if start < since || p.parent().is_some_and(|pp| procs.contains_key(&pp.as_u32())) {
+            let parent = p.parent().filter(|pp| procs.contains_key(&pp.as_u32()));
+            if start < since || (parent.is_some() && !cfg!(unix)) {
                 continue;
             }
             live.insert((pid, start));
-            let host = *self.hosts.entry((pid, start)).or_insert_with(|| console_host(pid));
-            if let Some(host) = host {
-                out.push(Orphan { start, host, busy: orphan_busy(pid, procs) });
+            let Some(host) = cached_host(&mut self.hosts, pid, start) else { continue };
+            if let Some(parent) = parent {
+                let Some(parent_start) = self.sys.process(parent).map(|pp| pp.start_time()) else { continue };
+                live.insert((parent.as_u32(), parent_start));
+                if cached_host(&mut self.hosts, parent.as_u32(), parent_start) == Some(host) {
+                    continue;
+                }
             }
+            out.push(Orphan { pid, start, host, busy: orphan_busy(pid, procs) });
         }
         self.hosts.retain(|k, _| live.contains(k));
         out
     }
+}
+
+/// A pane's spawn time as seconds comparable with process start times. Linux derives those from
+/// boot time and clock ticks, which can land a second before the wall-clock spawn, so allow a
+/// second of slack or a job started right after the pane is dropped.
+pub(crate) fn spawned_secs(started_at_ms: u64) -> u64 {
+    (started_at_ms / 1000).saturating_sub(1)
 }
 
 impl Ptys {
@@ -464,14 +498,16 @@ impl Ptys {
             return Vec::new();
         }
         let procs = proc_names(&mut probe.sys);
-        let since = list.iter().map(|p| p.started_at / 1000).min().unwrap_or(0);
+        let since = list.iter().map(|p| spawned_secs(p.started_at)).min().unwrap_or(0);
         let orphans = probe.orphans(&procs, since);
         list.into_iter()
             .map(|p| {
                 let busy = shell_busy(p.pid, &procs)
                     || (procs.contains_key(&p.pid)
                         && console_host(p.pid).is_some_and(|host| {
-                            orphans.iter().any(|o| o.busy && o.host == host && o.start >= p.started_at / 1000)
+                            // The pane's own shell is an orphan too on unix (its parent is the app,
+                            // in another session); shell_busy already judged it.
+                            orphans.iter().any(|o| o.pid != p.pid && o.busy && o.host == host && o.start >= spawned_secs(p.started_at))
                         }));
                 PtyActivity { id: p.id, busy }
             })
@@ -652,6 +688,7 @@ mod tests {
     // Generous because a Git Bash login shell starts slowly while the rest of `cargo test` runs
     // in parallel; a deadline only costs time when a test is already failing.
     const TIMEOUT: Duration = Duration::from_secs(30);
+    const BASH: &str = if cfg!(windows) { "bash.exe" } else { "bash" };
     const DEFAULT_SHELL: &str = crate::settings::DEFAULT_GIT_BASH_PATH;
 
     fn shell() -> Option<String> {
@@ -1045,15 +1082,15 @@ mod tests {
     #[test]
     fn launcher_chain_with_idle_shell_is_idle() {
         let procs: ProcNames = HashMap::from([
-            (1, proc(Some(0), "bash.exe")),
-            (2, proc(Some(1), "bash.exe")),
+            (1, proc(Some(0), BASH)),
+            (2, proc(Some(1), BASH)),
         ]);
         assert!(!shell_busy(1, &procs));
     }
 
     #[test]
     fn orphaned_nested_shell_is_judged_by_its_children() {
-        let mut procs: ProcNames = HashMap::from([(7, proc(Some(99), "bash.exe"))]);
+        let mut procs: ProcNames = HashMap::from([(7, proc(Some(99), BASH))]);
         assert!(!orphan_busy(7, &procs));
         procs.insert(8, proc(Some(7), "node.exe"));
         assert!(orphan_busy(7, &procs));
@@ -1069,8 +1106,8 @@ mod tests {
     #[test]
     fn launcher_chain_with_running_job_is_busy() {
         let procs: ProcNames = HashMap::from([
-            (1, proc(Some(0), "bash.exe")),
-            (2, proc(Some(1), "bash.exe")),
+            (1, proc(Some(0), BASH)),
+            (2, proc(Some(1), BASH)),
             (3, proc(Some(2), "sleep.exe")),
         ]);
         assert!(shell_busy(1, &procs));
@@ -1078,7 +1115,7 @@ mod tests {
 
     #[test]
     fn plain_shell_idle_and_busy() {
-        let mut procs: ProcNames = HashMap::from([(1, proc(Some(0), "bash.exe"))]);
+        let mut procs: ProcNames = HashMap::from([(1, proc(Some(0), BASH))]);
         assert!(!shell_busy(1, &procs));
         procs.insert(2, proc(Some(1), "node.exe"));
         assert!(shell_busy(1, &procs));
@@ -1087,8 +1124,8 @@ mod tests {
     #[test]
     fn shell_with_several_children_is_busy_even_if_one_is_bash() {
         let procs: ProcNames = HashMap::from([
-            (1, proc(Some(0), "bash.exe")),
-            (2, proc(Some(1), "bash.exe")),
+            (1, proc(Some(0), BASH)),
+            (2, proc(Some(1), BASH)),
             (3, proc(Some(1), "sleep.exe")),
         ]);
         assert!(shell_busy(1, &procs));
@@ -1097,9 +1134,9 @@ mod tests {
     #[test]
     fn lone_bash_child_is_descended_into() {
         let procs: ProcNames = HashMap::from([
-            (1, proc(Some(0), "bash.exe")),
-            (2, proc(Some(1), "bash.exe")),
-            (3, proc(Some(2), "bash.exe")),
+            (1, proc(Some(0), BASH)),
+            (2, proc(Some(1), BASH)),
+            (3, proc(Some(2), BASH)),
             (4, proc(Some(3), "git.exe")),
         ]);
         assert!(shell_busy(1, &procs));
@@ -1120,7 +1157,7 @@ mod tests {
             procs.insert(2, proc(Some(1), "node.exe"));
             assert!(shell_busy(1, &procs), "{shell} running a job");
             // bash started from pwsh or cmd is a nested shell, judged by its own children.
-            procs.insert(2, proc(Some(1), "bash.exe"));
+            procs.insert(2, proc(Some(1), BASH));
             assert!(!shell_busy(1, &procs), "{shell} with idle nested bash");
             procs.insert(3, proc(Some(2), "sleep.exe"));
             assert!(shell_busy(1, &procs), "{shell} with busy nested bash");
@@ -1136,8 +1173,8 @@ mod tests {
     #[test]
     fn parent_cycle_terminates() {
         let procs: ProcNames = HashMap::from([
-            (1, proc(Some(2), "bash.exe")),
-            (2, proc(Some(1), "bash.exe")),
+            (1, proc(Some(2), BASH)),
+            (2, proc(Some(1), BASH)),
         ]);
         let _ = shell_busy(1, &procs);
     }
@@ -1198,6 +1235,105 @@ mod tests {
         ptys.write(run.id, b"sleep 2\r").unwrap();
         assert!(until(&mut probe, true), "job in nested shell never reported busy");
         assert!(until(&mut probe, false), "nested shell never returned to idle");
+        ptys.kill(run.id).unwrap();
+        run.wait_exit();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn only_bash_exe_is_a_shell_on_windows() {
+        assert!(is_shell("bash.exe"));
+        assert!(is_shell("BASH.EXE"));
+        for name in ["bash", "zsh", "fish", "pwsh.exe", "cmd.exe", "sleep.exe"] {
+            assert!(!is_shell(name), "{name}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bash_zsh_and_fish_are_shells_on_unix() {
+        for name in ["bash", "zsh", "fish"] {
+            assert!(is_shell(name), "{name}");
+        }
+        for name in ["bash.exe", "Bash", "sh", "dash", "bashful", "sleep"] {
+            assert!(!is_shell(name), "{name}");
+        }
+    }
+
+    /// Kills the pane and the reparented job even when an assertion fails first.
+    #[cfg(unix)]
+    struct Cleanup {
+        ptys: Ptys,
+        pane: u32,
+        job: libc::pid_t,
+    }
+
+    #[cfg(unix)]
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = self.ptys.kill(self.pane);
+            if self.job > 0 {
+                unsafe { libc::kill(self.job, libc::SIGKILL) };
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reparented_job_in_the_pane_session_keeps_it_busy() {
+        let ptys = Ptys::default();
+        // The subshell exits at once, reparenting the sleep to init or a subreaper, while the
+        // pane's sh waits in the `read` builtin with no children. Plain sh is not a name
+        // is_shell accepts, so it also checks that the pane's own process never counts as its
+        // own orphan.
+        let run = start(&ptys, spec("/bin/sh", &["-c", "(sleep 30 & echo job-$! >&2); read line"], None));
+        let mut cleanup = Cleanup { ptys: ptys.clone(), pane: run.id, job: 0 };
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let job: u32 = loop {
+            let text = run.text();
+            // A digit run counts only once a non-digit follows it, so a pid is never read half
+            // written.
+            let rest = text.split_once("job-").map_or("", |(_, rest)| rest);
+            let digits = rest.trim_start_matches(|c: char| c.is_ascii_digit());
+            if let Ok(job) = rest[..rest.len() - digits.len()].parse() {
+                if !digits.is_empty() {
+                    break job;
+                }
+            }
+            assert!(Instant::now() < deadline, "no job pid in {text:?}");
+            thread::sleep(Duration::from_millis(20));
+        };
+        cleanup.job = job as libc::pid_t;
+
+        let pane_pid = ptys.list()[0].pid;
+        let snapshot = || proc_names(&mut System::new());
+        let busy_within = |probe: &mut ActivityProbe, want: bool| {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                if ptys.activity(probe).iter().find(|a| a.id == run.id).map(|a| a.busy) == Some(want) {
+                    return true;
+                }
+                if Instant::now() > deadline {
+                    return false;
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+        };
+
+        // Only the orphan path can report this pane busy: the shell has no children, and the
+        // job is parented to something outside the pane.
+        let procs = snapshot();
+        assert!(!shell_busy(pane_pid, &procs), "pane shell should have no children");
+        assert_ne!(procs[&job].parent, Some(pane_pid), "sleep should be reparented away from the pane shell");
+
+        let mut probe = ActivityProbe::default();
+        assert!(busy_within(&mut probe, true), "pane with a reparented job never reported busy");
+        assert!(!shell_busy(pane_pid, &snapshot()), "pane shell gained a child during the check");
+
+        unsafe { libc::kill(job as libc::pid_t, libc::SIGKILL) };
+        cleanup.job = 0;
+        assert!(busy_within(&mut probe, false), "pane never went idle after the job died");
+
         ptys.kill(run.id).unwrap();
         run.wait_exit();
     }

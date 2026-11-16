@@ -13,7 +13,7 @@ use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, Signal,
 use tauri::State;
 
 use crate::hooks::Hooks;
-use crate::pty::{console_host, PtyInfo, Ptys};
+use crate::pty::{console_host, spawned_secs, PtyInfo, Ptys};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,7 +258,7 @@ impl PortsProbe {
         let found = traced_owner(pid, procs, shells).or_else(|| {
             let host = self.host(pid, start)?;
             ptys.iter()
-                .filter(|p| start >= p.started_at / 1000)
+                .filter(|p| start >= spawned_secs(p.started_at))
                 .find(|p| {
                     let shell_start = procs.get(&p.pid).map(|s| s.start).unwrap_or(0);
                     self.host(p.pid, shell_start) == Some(host)
@@ -268,7 +268,7 @@ impl PortsProbe {
         .or_else(|| {
             let id = inherited_pane(self.sys.process(Pid::from_u32(pid))?.environ(), hook_url)?;
             // A process older than the pane holds an id from a previous run of this app.
-            ptys.iter().find(|p| p.id == id && start >= p.started_at / 1000).map(|p| p.id)
+            ptys.iter().find(|p| p.id == id && start >= spawned_secs(p.started_at)).map(|p| p.id)
         });
         if let Some(id) = found {
             self.owners.insert((pid, start), id);
