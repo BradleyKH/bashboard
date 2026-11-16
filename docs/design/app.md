@@ -12,6 +12,16 @@ works the same from Git Bash, PowerShell, and Command Prompt. The core finds it 
 `current_exe()` and puts that folder first on every pane's `PATH` (3.1); Git Bash's login
 profile then puts its own folders ahead of it, which is harmless since none holds a `bb`.
 
+On Linux, `/usr/bin/bb` would collide with Babashka's `bb`, so the `.deb` and `.rpm` put both
+binaries in `/usr/lib/bashboard` with `/usr/bin/bashboard` a symlink to the app. `current_exe()`
+reads `/proc/self/exe`, which names the symlink's target, so the pane `PATH` gains
+`/usr/lib/bashboard` and never `/usr/bin`. Tauri's bundler can only add files, not move them,
+so `scripts/linux/relayout-packages.sh` rewrites the `.deb` and `.rpm` it builds into that
+layout, each from its own payload: the bundler patches the binary with the package type the
+updater reads, so the two binaries differ. The `.rpm` keeps the bundler's soname requirements
+(`libwebkit2gtk-4.1.so.0`, `libgtk-3.so.0`). The AppImage keeps both in its own `usr/bin`,
+which is on no `PATH` outside it.
+
 | Command | Does |
 | --- | --- |
 | `bb open <path>` | A folder shows in the tab's Files pane for its repo, or opens one; a file does the same with its folder and selects it (as a pin does, 4.12) |

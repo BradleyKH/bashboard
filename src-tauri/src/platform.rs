@@ -24,6 +24,15 @@ pub fn user_home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+/// The folder holding `bb`, which is the app's own folder: the install folder on Windows, the
+/// bundle's `Contents/MacOS`, the AppImage's `usr/bin`, and `/usr/lib/bashboard` for a `.deb` or
+/// `.rpm`. There `/usr/bin/bashboard` is a symlink, but `current_exe` reads `/proc/self/exe`,
+/// which names the target, so the pane `PATH` never gains `/usr/bin` (docs/design/app.md
+/// section 3.13).
+pub fn bb_dir() -> Option<PathBuf> {
+    std::env::current_exe().ok()?.parent().map(PathBuf::from)
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformInfo {

@@ -133,7 +133,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
-            librsvg2-dev libssl-dev libxdo-dev patchelf file
+            librsvg2-dev libssl-dev libxdo-dev patchelf file rpm
 
       - uses: pnpm/action-setup@v6
         with:
@@ -164,7 +164,10 @@ jobs:
         run: cargo test
 
       - name: Build packages
-        run: pnpm tauri build --bundles deb,appimage
+        run: pnpm tauri build --bundles deb,rpm,appimage
+
+      - name: Move bb off the system PATH
+        run: bash scripts/linux/relayout-packages.sh
 
       - name: Assert the packages ship bb
         run: bash scripts/linux/assert-bundle.sh
@@ -174,5 +177,6 @@ jobs:
           name: bashboard-linux
           path: |
             src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: error

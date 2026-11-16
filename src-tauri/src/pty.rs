@@ -85,9 +85,9 @@ fn path_with(dir: &Path, inherited: Option<&OsStr>) -> OsString {
     out
 }
 
-/// The `PATH` for a new shell: the folder holding this exe (where `bb.exe` sits) first.
+/// The `PATH` for a new shell: the folder holding `bb` first.
 fn path_env() -> Vec<(String, String)> {
-    let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf)) else {
+    let Some(dir) = crate::platform::bb_dir() else {
         return Vec::new();
     };
     let inherited = crate::child_process::var("PATH").map(std::ffi::OsString::from);

@@ -139,8 +139,7 @@ fn target(agent: AgentId) -> Result<Target, String> {
 
 /// The `bb` installed beside the app, which is the hook's source.
 fn bundled_hook() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("could not locate Bashboard: {e}"))?;
-    let dir = exe.parent().ok_or("could not locate Bashboard's folder")?;
+    let dir = crate::platform::bb_dir().ok_or("could not locate Bashboard's folder")?;
     Ok(dir.join(crate::platform::exe_name("bb")))
 }
 
