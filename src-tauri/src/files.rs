@@ -19,7 +19,7 @@ use std::{
     time::{Duration, UNIX_EPOCH},
 };
 
-use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::{
     State,
@@ -372,10 +372,9 @@ fn watch_dir(
     watcher
         .watch(dir, RecursiveMode::NonRecursive)
         .map_err(|e| format!("{}: {e}", display(dir)))?;
-    let relevant = |ev: &notify::Result<notify::Event>| !matches!(ev, Ok(e) if matches!(e.kind, EventKind::Access(_)));
     thread::spawn(move || {
         while let Ok(ev) = rx.recv() {
-            if !relevant(&ev) {
+            if crate::fs_events::is_access(&ev) {
                 continue;
             }
             loop {

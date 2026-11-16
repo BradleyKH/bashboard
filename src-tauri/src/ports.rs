@@ -333,7 +333,7 @@ fn kill_tree(pid: u32, _started_at: u64) -> Result<(), String> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    crate::editors::hide_console(&mut cmd);
+    crate::child_process::prepare(&mut cmd);
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())

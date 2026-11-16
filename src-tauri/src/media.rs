@@ -44,6 +44,7 @@ pub struct MediaSnapshot {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub enum MediaCommand {
     PlayPause,
     Next,

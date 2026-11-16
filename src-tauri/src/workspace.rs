@@ -347,6 +347,9 @@ pub fn init(app: &AppHandle) {
     thread::spawn(move || {
         let touched = |ev: &notify::Result<notify::Event>, set: &mut [bool]| {
             let Ok(e) = ev else { return };
+            if crate::fs_events::is_access(ev) {
+                return;
+            }
             for p in &e.paths {
                 if let Some(i) = WATCHED.iter().position(|(name, _)| p.file_name().is_some_and(|n| n == *name)) {
                     set[i] = true;

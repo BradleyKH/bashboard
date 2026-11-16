@@ -71,7 +71,9 @@ mod tests {
     }
 
     /// Runs the wrapper in a real PowerShell when one is installed: the prompt must carry OSC 9;9
-    /// with the current folder, and applying it twice must not wrap it twice.
+    /// with the current folder, and applying it twice must not wrap it twice. Windows only: the
+    /// script starts in `$env:SystemRoot`.
+    #[cfg(windows)]
     #[test]
     fn the_wrapper_reports_the_folder_once() {
         let exe = ["pwsh.exe", "powershell.exe"].into_iter().find(|exe| {

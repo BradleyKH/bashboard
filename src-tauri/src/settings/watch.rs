@@ -20,7 +20,7 @@ pub(super) fn watch_file(file: &Path, on_change: impl Fn() + Send + 'static) -> 
     let file = file.to_path_buf();
     thread::spawn(move || {
         while let Ok(ev) = rx.recv() {
-            if !event_may_touch(&ev, &file) {
+            if crate::fs_events::is_access(&ev) || !event_may_touch(&ev, &file) {
                 continue;
             }
             // Coalesce the burst of events a single save produces.

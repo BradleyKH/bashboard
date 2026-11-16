@@ -93,12 +93,9 @@ pub fn settings_keybindings_edit(app: AppHandle, ops: Vec<KeybindingOp>) -> Resu
 /// Opens the settings file in the user's default editor, creating it first if missing.
 #[tauri::command]
 pub fn settings_open_file(app: AppHandle) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
     let file = settings_path(&app).ok_or("no config directory")?;
     ensure_default_file(&file).map_err(|e| e.to_string())?;
-    app.opener()
-        .open_path(file.to_string_lossy(), None::<&str>)
-        .map_err(|e| e.to_string())
+    crate::child_process::open_default(&app, &file.to_string_lossy(), false)
 }
 
 /// Creates the default file if missing, loads it into state, and starts the watcher.

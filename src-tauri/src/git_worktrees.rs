@@ -107,10 +107,12 @@ pub(crate) struct RawWorktree {
     prunable: bool,
 }
 
-/// Parses `worktree list --porcelain -z`: NUL-terminated lines, an empty one between entries.
-/// A bare repo's entry is skipped, and then no entry is the main worktree.
+/// Parses `worktree list --porcelain`: NUL-terminated lines with `-z`, newline-terminated
+/// without it, an empty one between entries. A bare repo's entry is skipped, and then no entry is
+/// the main worktree.
 pub(crate) fn parse_worktrees(bytes: &[u8]) -> Vec<RawWorktree> {
     let text = String::from_utf8_lossy(bytes);
+    let sep = if text.contains('\0') { '\0' } else { '\n' };
     let mut out = Vec::new();
     let mut current: Option<(RawWorktree, bool)> = None;
     let mut first = true;
@@ -121,7 +123,7 @@ pub(crate) fn parse_worktrees(bytes: &[u8]) -> Vec<RawWorktree> {
             }
         }
     };
-    for rec in text.split('\0') {
+    for rec in text.split(sep) {
         let (key, value) = match rec.split_once(' ') {
             Some((k, v)) => (k, Some(v)),
             None => (rec, None),
@@ -261,8 +263,14 @@ fn primary(g: &Git, configured: Option<&str>) -> Result<Primary, String> {
     })
 }
 
+/// `-z` needs git 2.36, and Ubuntu 22.04 ships 2.34, so a failure retries without it. Matching
+/// the error text instead would miss a translated message. The newline form only loses a path
+/// that holds a newline.
 fn list_raw(g: &Git) -> Result<Vec<RawWorktree>, String> {
-    let out = g.read(["worktree", "list", "--porcelain", "-z"])?;
+    let mut out = g.read(["worktree", "list", "--porcelain", "-z"])?;
+    if !out.ok {
+        out = g.read(["worktree", "list", "--porcelain"])?;
+    }
     if !out.ok {
         return Err(out.message());
     }
@@ -648,6 +656,12 @@ mod tests {
             "0".repeat(40)
         );
         assert_eq!(parse_worktrees(unborn.as_bytes())[0].head, None);
+
+        let newlines = "worktree /r\nHEAD aaaa\nbranch refs/heads/main\n\nworktree /r-d\nHEAD bbbb\ndetached\n\n";
+        let w = parse_worktrees(newlines.as_bytes());
+        assert_eq!(w.len(), 2);
+        assert_eq!((w[0].path.as_str(), w[0].branch.as_deref(), w[0].main), ("/r", Some("main"), true));
+        assert!(w[1].detached && !w[1].main);
     }
 
     #[test]

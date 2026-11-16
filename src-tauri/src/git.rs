@@ -357,8 +357,8 @@ impl Git {
             // Claude runs at the same moment fail.
             cmd.env("GIT_OPTIONAL_LOCKS", "0");
         }
-        // CREATE_NO_WINDOW, so no console flashes for each git run.
-        crate::editors::hide_console(&mut cmd);
+        // No console flashing for each git run, and no AppImage libraries in git.
+        crate::child_process::prepare(&mut cmd);
         cmd
     }
 

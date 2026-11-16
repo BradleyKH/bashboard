@@ -1200,7 +1200,7 @@ mod tests {
             None => {
                 assert_eq!(e.kind, ForgeErrorKind::NotInstalled);
                 assert_eq!(e.url.as_deref(), Some(GLAB_INSTALL_URL));
-                assert!(e.sign_in.unwrap().contains(&"GLab.GLab".to_string()));
+                assert_eq!(e.sign_in, auth::install_argv("glab"));
             }
         }
     }

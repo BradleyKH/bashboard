@@ -23,7 +23,7 @@ pub fn watch_file(
     let file = file.to_path_buf();
     thread::spawn(move || {
         while let Ok(ev) = rx.recv() {
-            if !event_may_touch(&ev, &file) {
+            if crate::fs_events::is_access(&ev) || !event_may_touch(&ev, &file) {
                 continue;
             }
             while rx.recv_timeout(DEBOUNCE).is_ok() {}

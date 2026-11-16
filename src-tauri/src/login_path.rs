@@ -34,7 +34,7 @@ pub fn adopt() {
 fn read_from(shell: &str) -> Option<String> {
     // Markers around the value, since shell startup files may print their own output.
     let script = format!("printf '%s%s%s' '{START}' \"$PATH\" '{END}'");
-    let mut child = Command::new(shell)
+    let mut child = crate::child_process::prepare(&mut Command::new(shell))
         .args(["-ilc", &script])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

@@ -583,7 +583,8 @@ pub fn init(app: &AppHandle) {
 
     thread::spawn(move || {
         let relevant = |ev: &notify::Result<notify::Event>| {
-            ev.as_ref().is_ok_and(|e| e.paths.iter().any(|p| p.extension().is_some_and(|x| x == "json")))
+            !crate::fs_events::is_access(ev)
+                && ev.as_ref().is_ok_and(|e| e.paths.iter().any(|p| p.extension().is_some_and(|x| x == "json")))
         };
         loop {
             match rx.recv_timeout(SWEEP) {

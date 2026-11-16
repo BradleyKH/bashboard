@@ -157,7 +157,7 @@ fn run_program(program: &str, args: &[String]) -> Option<(bool, String, String)>
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    crate::editors::hide_console(&mut cmd);
+    crate::child_process::prepare(&mut cmd);
     let out = cmd.output().ok()?;
     Some((
         out.status.success(),

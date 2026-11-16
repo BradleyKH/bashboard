@@ -31,7 +31,7 @@ use tauri::{
 };
 
 use crate::lock::LockExt;
-use crate::editors::hide_console;
+use crate::child_process::prepare;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -479,7 +479,7 @@ fn command(cli: &Path, args: &[&str]) -> Command {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    hide_console(&mut cmd);
+    prepare(&mut cmd);
     cmd
 }
 
@@ -643,7 +643,7 @@ fn run_lifecycle(inner: &Inner, slot: &Slot, to: Lifecycle) -> Result<(), String
             cmd.stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null());
-            hide_console(&mut cmd);
+            prepare(&mut cmd);
             cmd.spawn().map_err(|e| format!("{}: {e}", exe.display()))?;
         }
         (Control::PodmanMachine(name), Lifecycle::Starting) => exec_timeout(

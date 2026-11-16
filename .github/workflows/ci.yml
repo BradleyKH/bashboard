@@ -121,3 +121,58 @@ jobs:
 
       - name: Assert the bundle ships bb
         run: bash scripts/macos/assert-bundle.sh universal-apple-darwin
+
+  # Ubuntu 22.04 is the oldest distro Linux supports, so building here also checks the glibc floor
+  # every Linux package targets.
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libssl-dev libxdo-dev patchelf file
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Front end tests
+        run: pnpm test
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build packages
+        run: pnpm tauri build --bundles deb,appimage
+
+      - name: Assert the packages ship bb
+        run: bash scripts/linux/assert-bundle.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bashboard-linux
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error

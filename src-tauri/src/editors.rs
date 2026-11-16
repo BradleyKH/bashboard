@@ -19,7 +19,6 @@ use std::process::{Command, Stdio};
 
 use serde::Serialize;
 use tauri::State;
-use tauri_plugin_opener::OpenerExt;
 
 use crate::settings::SettingsState;
 
@@ -325,7 +324,7 @@ fn find_devenv(env: &SearchEnv) -> Option<PathBuf> {
     cmd.args(["-latest", "-property", "productPath"])
         .stdin(Stdio::null())
         .stderr(Stdio::null());
-    hide_console(&mut cmd);
+    crate::child_process::prepare(&mut cmd);
     let out = cmd.output().ok()?;
     let path = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
     path.is_file().then_some(path)
@@ -587,17 +586,6 @@ fn custom_argv(command: &str, path: &Path, line: Option<u32>) -> Option<Vec<Stri
     (!argv.is_empty()).then_some(argv)
 }
 
-#[cfg(windows)]
-pub(crate) fn hide_console(cmd: &mut Command) {
-    use std::os::windows::process::CommandExt;
-    // CREATE_NO_WINDOW: a console program (Zed's CLI, vswhere) would otherwise flash a window.
-    // GUI programs ignore it.
-    cmd.creation_flags(0x0800_0000);
-}
-
-#[cfg(not(windows))]
-pub(crate) fn hide_console(_cmd: &mut Command) {}
-
 /// Starts the program detached. A `.cmd` or `.bat` program (only possible through
 /// `editor.command`) is run by the standard library through `cmd.exe` with its batch-file
 /// argument escaping, which refuses arguments it cannot quote safely.
@@ -607,7 +595,7 @@ fn launch(program: &Path, args: &[String]) -> Result<(), String> {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    hide_console(&mut cmd);
+    crate::child_process::prepare(&mut cmd);
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("could not start {}: {e}", program.display()))?;
@@ -684,9 +672,7 @@ pub fn open_in_editor(
     if let Some((program, args)) = viewer {
         launch(&program, &args)?;
     } else {
-        app.opener()
-            .open_path(path.display().to_string(), None::<&str>)
-            .map_err(|e| e.to_string())?;
+        crate::child_process::open_default(&app, &path.display().to_string(), false)?;
     }
     Ok(Opened {
         fallback: editor.preferred != "default",
@@ -709,9 +695,7 @@ pub fn open_with_default_app(app: tauri::AppHandle, path: String) -> Result<(), 
     if !opens_safely(&path) {
         return Err(format!("{} would run as a program, so it was not opened", path.display()));
     }
-    app.opener()
-        .open_path(path.display().to_string(), None::<&str>)
-        .map_err(|e| e.to_string())
+    crate::child_process::open_default(&app, &path.display().to_string(), false)
 }
 
 fn opens_safely(path: &Path) -> bool {

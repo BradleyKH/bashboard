@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use tauri::AppHandle;
-use tauri_plugin_opener::OpenerExt;
 
 /// True only for absolute http(s) URLs with a host. Anything else (file:, javascript:,
 /// custom protocol handlers, bare paths) must never reach the OS shell.
@@ -29,9 +28,7 @@ pub async fn open_url(app: AppHandle, url: String) -> Result<(), String> {
     })
     .await
     .map_err(|e| e.to_string())?;
-    app.opener()
-        .open_url(url, None::<&str>)
-        .map_err(|e| e.to_string())
+    crate::child_process::open_default(&app, &url, true)
 }
 
 /// True only for an absolute path to an existing directory. A file path would make Explorer
@@ -55,8 +52,7 @@ pub fn open_folder(path: String) -> Result<(), String> {
         "xdg-open"
     };
     // Explorer exits with 1 even on success, so spawn without waiting on its status.
-    std::process::Command::new(program)
-        .arg(&dir)
+    crate::child_process::prepare(std::process::Command::new(program).arg(&dir))
         .spawn()
         .map(|_| ())
         .map_err(|e| e.to_string())

@@ -90,7 +90,8 @@ fn path_env() -> Vec<(String, String)> {
     let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf)) else {
         return Vec::new();
     };
-    match path_with(&dir, std::env::var_os("PATH").as_deref()).into_string() {
+    let inherited = crate::child_process::var("PATH").map(std::ffi::OsString::from);
+    match path_with(&dir, inherited.as_deref()).into_string() {
         Ok(path) => vec![("PATH".into(), path)],
         Err(_) => {
             eprintln!("pty: PATH is not valid Unicode, so bb will not be on the shell's PATH");
@@ -169,6 +170,12 @@ fn build_command(spec: &SpawnSpec, id: u32) -> CommandBuilder {
     // Git Bash's login profile rebuilds PATH from ORIGINAL_PATH when it is set, which it is when
     // this app was launched from a Git Bash; the inherited copy would drop the PATH set below.
     cmd.env_remove("ORIGINAL_PATH");
+    for (key, value) in crate::child_process::fixes() {
+        match value {
+            Some(v) => cmd.env(key, v),
+            None => cmd.env_remove(key),
+        }
+    }
     for (key, value) in &spec.env {
         cmd.env(key, value);
     }

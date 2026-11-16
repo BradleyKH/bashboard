@@ -744,7 +744,7 @@ fn run_gh(verb: &str, host: &str, user: &str) -> Result<(), ForgeError> {
     for var in GH_TOKEN_VARS {
         cmd.env_remove(var);
     }
-    crate::editors::hide_console(&mut cmd);
+    crate::child_process::prepare(&mut cmd);
     let out = cmd
         .output()
         .map_err(|e| ForgeError::other(format!("Could not run GitHub CLI: {e}")))?;

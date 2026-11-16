@@ -644,7 +644,9 @@ impl Worker {
         if self.watcher.is_none() && !wanted.is_empty() {
             let tx = self.fs_tx.clone();
             match notify::recommended_watcher(move |ev| {
-                let _ = tx.send(Msg::Fs(ev));
+                if !crate::fs_events::is_access(&ev) {
+                    let _ = tx.send(Msg::Fs(ev));
+                }
             }) {
                 Ok(w) => self.watcher = Some(w),
                 Err(e) => {
