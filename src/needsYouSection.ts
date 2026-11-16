@@ -68,7 +68,7 @@ export class NeedsYouSection {
     check.setAttribute('d', 'M3.5 7.4l2.3 2.3 4.7-5');
     icon.append(check);
     const text = document.createElement('span');
-    text.textContent = 'Nothing needs you';
+    text.textContent = 'All good';
     el.append(icon, text);
     return el;
   }

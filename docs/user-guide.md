@@ -775,7 +775,7 @@ report back. If one of those agents goes 15 minutes without any activity (change
 agent in its tooltip. Both need current Claude Code hooks; the dashboard shows
 an Update button when they are not. Click a row to go to the thing: its terminal, the repo's Pipelines
 or Pull requests in a Ship pane, or the Accounts tab (a usage row has nowhere to go). The list shows 6 rows and then "+ N more", which expands it ("Show fewer" collapses it), and
-reads "Nothing needs you" when there is nothing to act on.
+reads "All good" when there is nothing to act on.
 
 Right-click a Ship, usage, or sign-in row and choose **Hide until it changes** to put it away until
 something about it changes, such as a new failed run, a push to the pull request, or a limit

@@ -606,7 +606,7 @@ pin shares one). A usage row has nowhere to go, so clicking it does nothing.
 
 **Cap and empty state.** The list shows 6 rows and then a muted "+ N more" row, which expands the
 list in place; "Show fewer" collapses it again. The choice is not saved. With nothing to act on, one
-muted row with a check icon reads "Nothing needs you", so the element is never blank while enabled.
+muted row with a check icon reads "All good", so the element is never blank while enabled.
 
 **Walk.** Ctrl+Shift+N (4.7) walks the same order. With `needsYou.walkAll` (section 8, default on)
 it visits the Ship, usage, and sign-in rows as well as terminals; off, it visits only terminals. Hidden
