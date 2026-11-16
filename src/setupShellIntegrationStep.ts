@@ -14,7 +14,7 @@ const PURPOSE =
   'These lines let new panes open in the current folder, and let the app tell exactly when a shell is working or idle.';
 
 /**
- * The setup wizard's shell-integration step: the `.bashrc` or `.zshrc` lines, shown when the
+ * The setup wizard's shell-integration step: the `.bashrc`, `.zshrc`, or `bashboard.fish` lines, shown when the
  * shell new panes open with takes them (docs/design/app.md section 4.17).
  */
 export function renderShellIntegrationStep(

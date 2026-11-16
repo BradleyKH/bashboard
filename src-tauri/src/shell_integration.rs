@@ -1,6 +1,6 @@
-//! Installs the shell integration lines into bash's `~/.bashrc` or zsh's `~/.zshrc`
-//! (docs/design/app.md section 3.14): the OSC 133 markers and the working directory, in a marked
-//! block. PowerShell needs no install; its panes start with a prompt wrapper (`powershell_prompt`). The file work
+//! Installs the shell integration lines into bash's `~/.bashrc` or zsh's `~/.zshrc` in a marked
+//! block, or as fish's own `conf.d/bashboard.fish` (docs/design/app.md section 3.14): the OSC 133
+//! markers and the working directory. PowerShell needs no install; its panes start with a prompt wrapper (`powershell_prompt`). The file work
 //! runs over injectable paths so tests never touch the real ones; the Tauri commands resolve them
 //! and delegate.
 
@@ -44,8 +44,25 @@ PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 /// Bash off Windows: no `cygpath`, every folder goes out as OSC 7. Must stay byte-identical to
 /// docs/setup.md's bash block for macOS and Linux; a test enforces it. The OSC 133 markers need
 /// `PS0` (bash 4.4): macOS's own bash 3.2 would send the end marker without the start one, and a
-/// pane that has seen markers trusts them over its process check, so 3.2 sends neither.
+/// pane that has seen markers trusts them over its process check, so 3.2 sends neither. Linux
+/// setups often source `~/.bashrc` twice (a hand-made `~/.bash_profile` beside a `~/.profile` that
+/// already does), so `PS0` and `PROMPT_COMMAND` take the lines only once.
 const BASH_UNIX_SNIPPET: &str = r#"if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
+  [[ ${PS0-} == *'\e]133;C\e\\'* ]] || PS0="${PS0-}"'\e]133;C\e\\'
+  __bashboard_marks=1
+fi
+__bashboard_prompt() {
+  local status=$?
+  [[ -n ${__bashboard_marks-} ]] && printf '\e]133;D;%s\e\\' "$status"
+  printf '\e]7;file://%s\e\\' "${PWD//%/%25}"
+  printf '\e]7502;aws;%s;%s\e\\' "${AWS_PROFILE-}" "${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
+  return "$status"
+}
+[[ ${PROMPT_COMMAND-} == *__bashboard_prompt* ]] || PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+"#;
+
+/// The earlier macOS and Linux bash snippet, recognized when pasted by hand.
+const BASH_UNIX_SNIPPET_EARLIER: &str = r#"if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
   PS0="${PS0-}"'\e]133;C\e\\'
   __bashboard_marks=1
 fi
@@ -75,6 +92,32 @@ add-zsh-hook preexec __bashboard_preexec
 precmd_functions=(__bashboard_precmd ${precmd_functions:#__bashboard_precmd})
 "#;
 
+/// The first line of fish's file, which marks it as Bashboard's to rewrite.
+const FISH_HEADER: &str = "# Bashboard shell integration";
+
+/// The whole of `conf.d/bashboard.fish`. Must stay byte-identical to docs/setup.md's fish block; a
+/// test enforces it. fish 4.0 and later send their own OSC 133 markers around each command (but
+/// no OSC 7), so the C and D markers here are for fish 3 only; sent twice, a pane would see each
+/// command start and end twice. In fish's single quotes `\\` is one backslash, so `printf` gets
+/// the `\\` it turns into the backslash of the string terminator.
+const FISH_SNIPPET: &str = r#"# Bashboard shell integration: reports the folder and command status to Bashboard panes.
+# fish 4 and later mark commands themselves, so only fish 3 sends the OSC 133 markers here.
+if string match -qr '^[0-3]\.' -- $FISH_VERSION
+    function __bashboard_preexec --on-event fish_preexec
+        printf '\e]133;C\e\\\\'
+    end
+    function __bashboard_postexec --on-event fish_postexec
+        printf '\e]133;D;%s\e\\\\' $status
+    end
+end
+function __bashboard_prompt --on-event fish_prompt
+    set -l region $AWS_REGION
+    test -n "$region"; or set region $AWS_DEFAULT_REGION
+    printf '\e]7;file://%s\e\\\\' (string replace -a % %25 -- $PWD)
+    printf '\e]7502;aws;%s;%s\e\\\\' "$AWS_PROFILE" "$region"
+end
+"#;
+
 const BASH_PROFILE: &str = "test -f ~/.profile && . ~/.profile\ntest -f ~/.bashrc && . ~/.bashrc\n";
 const BACKUP_SUFFIX: &str = ".bashboard-backup";
 
@@ -87,6 +130,9 @@ struct Flavor {
     is_custom_line: fn(&str) -> bool,
     /// How errors name the file.
     file_label: &'static str,
+    /// The login startup files bash reads, the first that exists winning; it must source
+    /// `~/.bashrc`, and `~/.bash_profile` is created when none exists.
+    login_files: &'static [&'static str],
 }
 
 const BASH: Flavor = Flavor {
@@ -94,13 +140,17 @@ const BASH: Flavor = Flavor {
     older: &[BASH_SNIPPET_EARLIER],
     is_custom_line: defines_bash_prompt_fn,
     file_label: "~/.bashrc",
+    login_files: &[".bash_profile"],
 };
 
 const BASH_UNIX: Flavor = Flavor {
     snippet: BASH_UNIX_SNIPPET,
-    older: &[],
+    older: &[BASH_UNIX_SNIPPET_EARLIER],
     is_custom_line: defines_bash_prompt_fn,
     file_label: "~/.bashrc",
+    // Ubuntu and Debian ship only `~/.profile`, which already sources `~/.bashrc`; a created
+    // `~/.bash_profile` would shadow it and source `~/.bashrc` a second time.
+    login_files: &[".bash_profile", ".bash_login", ".profile"],
 };
 
 const ZSH: Flavor = Flavor {
@@ -108,6 +158,7 @@ const ZSH: Flavor = Flavor {
     older: &[],
     is_custom_line: defines_zsh_precmd_fn,
     file_label: "~/.zshrc",
+    login_files: &[],
 };
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -123,7 +174,7 @@ pub enum Status {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Preview {
-    /// The profile id the lines are for: gitBash, or a profile that runs zsh.
+    /// The profile id the lines are for: gitBash, or a profile that runs zsh, bash, or fish.
     pub shell: String,
     /// The file the install writes.
     pub path: String,
@@ -314,27 +365,32 @@ fn read_bashrc(path: &Path) -> Result<Option<String>, String> {
         .transpose()
 }
 
-/// Git Bash's login shell reads `~/.bash_profile`, which must source `~/.bashrc` for the lines
-/// to run. Returns (creates it, warning).
-fn bash_profile_state(home: &Path) -> Result<(bool, Option<String>), String> {
-    let path = home.join(".bash_profile");
-    Ok(match read_optional(&path)? {
-        None => (true, None),
-        Some(b) if b.windows(b".bashrc".len()).any(|w| w == b".bashrc") => (false, None),
-        Some(_) => (
+/// A login bash reads the first of the flavor's login files that exists, which must source
+/// `~/.bashrc` for the lines to run. Returns (creates `~/.bash_profile`, warning).
+fn bash_profile_state(home: &Path, f: &Flavor) -> Result<(bool, Option<String>), String> {
+    for name in f.login_files {
+        let path = home.join(name);
+        let Some(b) = read_optional(&path)? else {
+            continue;
+        };
+        if b.windows(b".bashrc".len()).any(|w| w == b".bashrc") {
+            return Ok((false, None));
+        }
+        return Ok((
             false,
             Some(format!(
                 "{} does not mention .bashrc, so login shells may not run these lines; add `test -f ~/.bashrc && . ~/.bashrc` to it.",
                 path.display()
             )),
-        ),
-    })
+        ));
+    }
+    Ok((true, None))
 }
 
 fn bash_preview_in(home: &Path, f: &Flavor, shell: &str) -> Result<Preview, String> {
     let bashrc = home.join(".bashrc");
     let text = read_bashrc(&bashrc)?;
-    let (creates_bash_profile, warning) = bash_profile_state(home)?;
+    let (creates_bash_profile, warning) = bash_profile_state(home, f)?;
     Ok(Preview {
         shell: shell.into(),
         path: bashrc.to_string_lossy().into_owned(),
@@ -351,7 +407,7 @@ fn bash_install_in(home: &Path, f: &Flavor) -> Result<(), String> {
     let text = read_bashrc(&bashrc)?;
     // Computed before any write so a customized file leaves the disk untouched.
     let next = apply(f, text.as_deref())?;
-    let (creates_bash_profile, _) = bash_profile_state(home)?;
+    let (creates_bash_profile, _) = bash_profile_state(home, f)?;
     if creates_bash_profile {
         write_atomic(&home.join(".bash_profile"), BASH_PROFILE)?;
     }
@@ -401,9 +457,66 @@ fn zsh_install_in(dir: &Path) -> Result<(), String> {
     write_atomic(&zshrc, &next)
 }
 
+/// fish reads every `*.fish` in `conf.d` under its config folder: `$XDG_CONFIG_HOME/fish` when
+/// that is set, else `~/.config/fish`.
+fn fish_conf_d() -> Result<PathBuf, String> {
+    let config = match std::env::var_os("XDG_CONFIG_HOME").filter(|d| !d.is_empty()) {
+        Some(dir) => PathBuf::from(dir),
+        None => home_dir()?.join(".config"),
+    };
+    Ok(config.join("fish").join("conf.d"))
+}
+
+/// The file is wholly Bashboard's, so there is no marked block: it is current, an earlier
+/// version (our header over other text), or the user's own file of the same name.
+fn fish_status(text: Option<&str>) -> Status {
+    match text {
+        None => Status::Missing,
+        Some(t) if t == FISH_SNIPPET => Status::Installed,
+        Some(t) if t.starts_with(FISH_HEADER) => Status::Outdated,
+        Some(_) => Status::Custom,
+    }
+}
+
+fn fish_preview_in(conf_d: &Path, shell: &str) -> Result<Preview, String> {
+    let file = conf_d.join("bashboard.fish");
+    let text = read_bashrc(&file)?;
+    Ok(Preview {
+        shell: shell.into(),
+        path: file.to_string_lossy().into_owned(),
+        status: fish_status(text.as_deref()),
+        block: FISH_SNIPPET.into(),
+        creates_file: text.is_none(),
+        creates_bash_profile: false,
+        warning: None,
+    })
+}
+
+fn fish_install_in(conf_d: &Path) -> Result<(), String> {
+    let file = conf_d.join("bashboard.fish");
+    let text = read_bashrc(&file)?;
+    match fish_status(text.as_deref()) {
+        Status::Installed => return Ok(()),
+        Status::Custom => {
+            return Err(format!(
+                "{} already has customized Bashboard shell integration lines; update them by hand.",
+                file.display()
+            ))
+        }
+        _ => {}
+    }
+    // The backup's name does not end in `.fish`, so fish does not load it.
+    if text.is_some() {
+        std::fs::copy(&file, backup_path(&file))
+            .map_err(|e| format!("could not back up {}: {e}", file.display()))?;
+    }
+    write_atomic(&file, FISH_SNIPPET)
+}
+
 enum UnixShell {
     Zsh,
     Bash,
+    Fish,
 }
 
 /// What a profile other than Git Bash runs, checked against the core's own profile list rather
@@ -417,6 +530,8 @@ fn unix_shell(shell: &str) -> Option<UnixShell> {
         Some(UnixShell::Zsh)
     } else if profiles::is_bash(&path) {
         Some(UnixShell::Bash)
+    } else if profiles::is_fish(&path) {
+        Some(UnixShell::Fish)
     } else {
         None
     }
@@ -427,6 +542,7 @@ fn preview_for(shell: &str) -> Result<Preview, String> {
         (GIT_BASH, _) => bash_preview_in(&home_dir()?, &BASH, GIT_BASH),
         (_, Some(UnixShell::Zsh)) => zsh_preview_in(&zsh_dir()?, shell),
         (_, Some(UnixShell::Bash)) => bash_preview_in(&home_dir()?, &BASH_UNIX, shell),
+        (_, Some(UnixShell::Fish)) => fish_preview_in(&fish_conf_d()?, shell),
         _ => Err(format!("{shell} has no shell integration to install")),
     }
 }
@@ -436,12 +552,13 @@ fn install_for(shell: &str) -> Result<(), String> {
         (GIT_BASH, _) => bash_install_in(&home_dir()?, &BASH),
         (_, Some(UnixShell::Zsh)) => zsh_install_in(&zsh_dir()?),
         (_, Some(UnixShell::Bash)) => bash_install_in(&home_dir()?, &BASH_UNIX),
+        (_, Some(UnixShell::Fish)) => fish_install_in(&fish_conf_d()?),
         _ => Err(format!("{shell} has no shell integration to install")),
     }
 }
 
-/// `shell` is a profile id and defaults to Git Bash; it and, on Unix, any profile running zsh or
-/// bash take lines.
+/// `shell` is a profile id and defaults to Git Bash; it and, on Unix, any profile running zsh,
+/// bash, or fish take lines.
 #[tauri::command]
 pub async fn shell_integration_preview(shell: Option<String>) -> Result<Preview, String> {
     let shell = shell.unwrap_or_else(|| GIT_BASH.into());
@@ -487,6 +604,113 @@ mod tests {
         assert!(doc.contains(&format!("```sh\n{BASH_SNIPPET}```\n")));
         assert!(doc.contains(&format!("```sh\n{ZSH_SNIPPET}```\n")));
         assert!(doc.contains(&format!("```sh\n{BASH_UNIX_SNIPPET}```\n")));
+        assert!(doc.contains(&format!("```fish\n{FISH_SNIPPET}```\n")));
+    }
+
+    #[test]
+    fn fish_install_writes_its_own_file_and_tracks_its_status() {
+        let dir = temp_dir("fish");
+        let conf_d = dir.join("fish").join("conf.d");
+        let file = conf_d.join("bashboard.fish");
+        let backup = conf_d.join("bashboard.fish.bashboard-backup");
+        let text = || std::fs::read_to_string(&file).unwrap();
+
+        let p = fish_preview_in(&conf_d, "loginShell").unwrap();
+        assert_eq!(
+            (p.status, p.shell.as_str()),
+            (Status::Missing, "loginShell")
+        );
+        assert!(p.creates_file && !p.creates_bash_profile && p.warning.is_none());
+        assert_eq!(p.block, FISH_SNIPPET);
+        assert!(p.path.ends_with("bashboard.fish"));
+
+        fish_install_in(&conf_d).unwrap();
+        assert_eq!(text(), FISH_SNIPPET);
+        assert_eq!(fish_preview_in(&conf_d, "fish").unwrap().status, Status::Installed);
+        fish_install_in(&conf_d).unwrap();
+        assert!(!backup.exists());
+
+        let older =
+            format!("{FISH_HEADER}\nfunction __bashboard_prompt --on-event fish_prompt\nend\n");
+        std::fs::write(&file, &older).unwrap();
+        assert_eq!(fish_preview_in(&conf_d, "fish").unwrap().status, Status::Outdated);
+        fish_install_in(&conf_d).unwrap();
+        assert_eq!(text(), FISH_SNIPPET);
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), older);
+
+        std::fs::write(&file, "set -g mine 1\n").unwrap();
+        assert_eq!(fish_preview_in(&conf_d, "fish").unwrap().status, Status::Custom);
+        assert!(fish_install_in(&conf_d).is_err());
+        assert_eq!(text(), "set -g mine 1\n");
+    }
+
+    #[test]
+    fn fish_markers_are_for_fish_3_only() {
+        let (guarded, rest) = FISH_SNIPPET.split_once("\nend\n").unwrap();
+        assert!(guarded.contains("$FISH_VERSION"));
+        assert!(guarded.contains("133;C") && guarded.contains("133;D"));
+        assert!(!rest.contains("133;"));
+    }
+
+    #[test]
+    fn unix_bash_login_file_follows_bash_order() {
+        let preview = |dir: &Path| bash_preview_in(dir, &BASH_UNIX, "bash").unwrap();
+        let sources_bashrc = "if [ -f \"$HOME/.bashrc\" ]; then\n    . \"$HOME/.bashrc\"\nfi\n";
+
+        // Ubuntu and Debian: only ~/.profile, which sources ~/.bashrc.
+        let dir = temp_dir("login-ubuntu");
+        std::fs::write(dir.join(".profile"), sources_bashrc).unwrap();
+        let p = preview(&dir);
+        assert!(!p.creates_bash_profile && p.warning.is_none());
+        bash_install_in(&dir, &BASH_UNIX).unwrap();
+        assert!(!dir.join(".bash_profile").exists());
+
+        // Fedora and Arch: ~/.bash_profile sources ~/.bashrc, whatever ~/.profile says.
+        let dir = temp_dir("login-fedora");
+        std::fs::write(
+            dir.join(".bash_profile"),
+            "[[ -f ~/.bashrc ]] && . ~/.bashrc\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join(".profile"), "export X=1\n").unwrap();
+        let p = preview(&dir);
+        assert!(!p.creates_bash_profile && p.warning.is_none());
+
+        // None of the three: ~/.bash_profile is created.
+        let dir = temp_dir("login-none");
+        assert!(preview(&dir).creates_bash_profile);
+        bash_install_in(&dir, &BASH_UNIX).unwrap();
+        assert_eq!(read(&dir, ".bash_profile"), BASH_PROFILE);
+
+        // The first that exists decides, and it does not source ~/.bashrc.
+        let dir = temp_dir("login-profile-plain");
+        std::fs::write(dir.join(".profile"), "export X=1\n").unwrap();
+        let p = preview(&dir);
+        assert!(!p.creates_bash_profile);
+        assert!(p.warning.unwrap().contains(".profile"));
+        let dir = temp_dir("login-bash-login");
+        std::fs::write(dir.join(".bash_login"), "export X=1\n").unwrap();
+        std::fs::write(dir.join(".profile"), sources_bashrc).unwrap();
+        assert!(preview(&dir).warning.unwrap().contains(".bash_login"));
+
+        // Git Bash goes by ~/.bash_profile alone.
+        let dir = temp_dir("login-gitbash");
+        std::fs::write(dir.join(".profile"), sources_bashrc).unwrap();
+        assert!(
+            bash_preview_in(&dir, &BASH, GIT_BASH)
+                .unwrap()
+                .creates_bash_profile
+        );
+    }
+
+    #[test]
+    fn the_earlier_unix_bash_snippet_is_recognized() {
+        let text = format!("x=1\n{BASH_UNIX_SNIPPET_EARLIER}");
+        assert_eq!(status(&BASH_UNIX, Some(&text)), Status::HandAdded);
+        assert_eq!(
+            apply(&BASH_UNIX, Some(&text)).unwrap(),
+            format!("x=1\n{}", block(&BASH_UNIX))
+        );
     }
 
     #[test]

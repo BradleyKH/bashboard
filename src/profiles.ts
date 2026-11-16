@@ -6,7 +6,7 @@ export interface ShellProfile {
   name: string;
   path: string;
   args: string[];
-  /** Takes the shell integration lines: Git Bash, and on Unix any profile that runs zsh or bash. */
+  /** Takes the shell integration lines: Git Bash, and on Unix any profile that runs zsh, bash, or fish. */
   integration: boolean;
 }
 
@@ -32,6 +32,7 @@ export const PROFILE_NAMES: Readonly<Record<string, string>> = {
   loginShell: 'Login shell',
   zsh: 'zsh',
   bash: 'bash',
+  fish: 'fish',
 };
 
 /** Display name for a profile id: the listed profile's name, else the static name, else the id. */

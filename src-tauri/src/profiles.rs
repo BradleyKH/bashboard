@@ -1,7 +1,7 @@
 //! Shell profiles a pane can run. On Windows: Git Bash (configured by `shell.path` and
 //! `shell.args`), PowerShell 7 and Windows PowerShell when installed, and Command Prompt. On
-//! macOS and other Unix systems: the login shell from `$SHELL`, plus zsh and bash when they are
-//! not already it. Only profiles whose executable exists are offered, and the last resort (cmd,
+//! macOS and other Unix systems: the login shell from `$SHELL`, plus zsh, bash, and fish when
+//! they are not already it. Only profiles whose executable exists are offered, and the last resort (cmd,
 //! or the login shell falling back as far as `/bin/sh`) always is, so resolving a profile can
 //! never land on a shell that fails to start.
 
@@ -23,8 +23,18 @@ pub const CMD: &str = "cmd";
 pub const LOGIN_SHELL: &str = "loginShell";
 pub const ZSH: &str = "zsh";
 pub const BASH: &str = "bash";
+pub const FISH: &str = "fish";
 /// Every id either OS can list, so a settings file shared between machines keeps its choice.
-pub const PROFILE_IDS: &[&str] = &[GIT_BASH, PWSH, POWERSHELL, CMD, LOGIN_SHELL, ZSH, BASH];
+pub const PROFILE_IDS: &[&str] = &[
+    GIT_BASH,
+    PWSH,
+    POWERSHELL,
+    CMD,
+    LOGIN_SHELL,
+    ZSH,
+    BASH,
+    FISH,
+];
 /// The `shell.defaultProfile` default.
 pub const DEFAULT_PROFILE: &str = if cfg!(windows) { GIT_BASH } else { LOGIN_SHELL };
 
@@ -38,13 +48,13 @@ pub struct ShellProfile {
     pub name: String,
     pub path: String,
     pub args: Vec<String>,
-    /// Takes the shell integration lines (`shell_integration`): Git Bash, and on Unix zsh or
-    /// bash, whichever profile runs it (on macOS usually the login shell).
+    /// Takes the shell integration lines (`shell_integration`): Git Bash, and on Unix zsh, bash,
+    /// or fish, whichever profile runs it (on macOS usually the login shell).
     pub integration: bool,
 }
 
 fn profile(id: &str, name: &str, path: String, args: Vec<String>) -> ShellProfile {
-    let integration = id == GIT_BASH || is_zsh(&path) || is_bash(&path);
+    let integration = id == GIT_BASH || is_zsh(&path) || is_bash(&path) || is_fish(&path);
     ShellProfile {
         id: id.into(),
         name: name.into(),
@@ -64,12 +74,22 @@ pub fn is_bash(path: &str) -> bool {
     Path::new(path).file_name() == Some(OsStr::new("bash"))
 }
 
+/// Whether `path` runs fish, judged by its file name.
+pub fn is_fish(path: &str) -> bool {
+    Path::new(path).file_name() == Some(OsStr::new("fish"))
+}
+
 /// The Unix profile with this id, if listed. Unix profiles do not depend on settings.
 pub fn unix_profile(id: &str) -> Option<ShellProfile> {
     let login_shell = std::env::var("SHELL").ok();
-    unix_profiles(login_shell.as_deref(), Path::is_file)
+    unix_profiles(login_shell.as_deref(), Path::is_file, canonical)
         .into_iter()
         .find(|p| p.id == id)
+}
+
+/// The path with symlinks resolved, else as given.
+fn canonical(p: &Path) -> PathBuf {
+    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
 
 fn path_string(p: &Path) -> String {
@@ -199,17 +219,35 @@ fn build_profiles(
     list
 }
 
-const ZSH_PATH: &str = "/bin/zsh";
 /// The login shell when `$SHELL` is unset or missing, first that exists: zsh (macOS's default),
 /// bash, then `/bin/sh`, which every Unix has.
-const LOGIN_FALLBACKS: &[&str] = &[ZSH_PATH, "/bin/bash", "/bin/sh"];
+const LOGIN_FALLBACKS: &[&str] = &["/bin/zsh", "/bin/bash", "/bin/sh"];
+/// `/usr/bin` for Linux systems whose `/bin` is not a link to it.
+const ZSH_CANDIDATES: &[&str] = &["/bin/zsh", "/usr/bin/zsh"];
 /// Homebrew's bash first: macOS ships bash 3.2.
-const BASH_CANDIDATES: &[&str] = &["/opt/homebrew/bin/bash", "/usr/local/bin/bash", "/bin/bash"];
+const BASH_CANDIDATES: &[&str] = &[
+    "/opt/homebrew/bin/bash",
+    "/usr/local/bin/bash",
+    "/bin/bash",
+    "/usr/bin/bash",
+];
+const FISH_CANDIDATES: &[&str] = &[
+    "/usr/bin/fish",
+    "/usr/local/bin/fish",
+    "/opt/homebrew/bin/fish",
+    "/bin/fish",
+];
 
 /// The Unix list, in fallback order. The login shell is `login_shell` (`$SHELL`) when it
 /// exists, else the first of `LOGIN_FALLBACKS`, so the list is never empty. Shells start with `-l` so they read the
-/// user's profile files and build their own `PATH`, as a terminal app's shells do.
-fn unix_profiles(login_shell: Option<&str>, exists: impl Fn(&Path) -> bool) -> Vec<ShellProfile> {
+/// user's profile files and build their own `PATH`, as a terminal app's shells do. A shell is
+/// compared with the login shell through `canonical`, since on usr-merged Linux `$SHELL` may be
+/// `/usr/bin/zsh` while the candidate found is `/bin/zsh`, the same file.
+fn unix_profiles(
+    login_shell: Option<&str>,
+    exists: impl Fn(&Path) -> bool,
+    canonical: impl Fn(&Path) -> PathBuf,
+) -> Vec<ShellProfile> {
     let login = login_shell
         .filter(|s| !s.is_empty() && exists(Path::new(s)))
         .or_else(|| LOGIN_FALLBACKS.iter().copied().find(|p| exists(Path::new(p))))
@@ -220,16 +258,20 @@ fn unix_profiles(login_shell: Option<&str>, exists: impl Fn(&Path) -> bool) -> V
         .map(|n| format!("Login shell ({})", n.to_string_lossy()))
         .unwrap_or_else(|| "Login shell".into());
     let args = || vec!["-l".to_string()];
+    let login_canonical = canonical(Path::new(&login));
     let mut list = vec![profile(LOGIN_SHELL, &login_name, login.clone(), args())];
-    if login != ZSH_PATH && exists(Path::new(ZSH_PATH)) {
-        list.push(profile(ZSH, "zsh", ZSH_PATH.into(), args()));
-    }
-    if let Some(bash) = BASH_CANDIDATES
-        .iter()
-        .find(|p| exists(Path::new(p)))
-        .filter(|p| **p != login)
-    {
-        list.push(profile(BASH, "bash", (*bash).into(), args()));
+    for (id, candidates) in [
+        (ZSH, ZSH_CANDIDATES),
+        (BASH, BASH_CANDIDATES),
+        (FISH, FISH_CANDIDATES),
+    ] {
+        if let Some(path) = candidates
+            .iter()
+            .find(|p| exists(Path::new(p)))
+            .filter(|p| canonical(Path::new(p)) != login_canonical)
+        {
+            list.push(profile(id, id, (*path).into(), args()));
+        }
     }
     list
 }
@@ -238,7 +280,7 @@ fn unix_profiles(login_shell: Option<&str>, exists: impl Fn(&Path) -> bool) -> V
 pub fn available_profiles(shell: &Shell) -> Vec<ShellProfile> {
     if !cfg!(windows) {
         let login_shell = std::env::var("SHELL").ok();
-        return unix_profiles(login_shell.as_deref(), Path::is_file);
+        return unix_profiles(login_shell.as_deref(), Path::is_file, canonical);
     }
     let is_default_path = shell.path == settings::DEFAULT_GIT_BASH_PATH;
     let path_var = std::env::var_os("PATH").unwrap_or_default();
@@ -580,29 +622,81 @@ mod tests {
         );
     }
 
+    fn same(p: &Path) -> PathBuf {
+        p.to_path_buf()
+    }
+
     #[test]
     fn unix_list_starts_with_the_login_shell_and_skips_duplicates() {
         let all = |_: &Path| true;
-        let list = unix_profiles(Some("/bin/zsh"), all);
-        assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH]);
+        let list = unix_profiles(Some("/bin/zsh"), all, same);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH, FISH]);
         assert_eq!(list[0].name, "Login shell (zsh)");
         assert!(list[0].integration, "a zsh login shell takes the zsh lines");
         assert!(list[1].integration, "bash on Unix takes the Unix bash lines");
+        assert!(list[2].integration, "fish takes the fish lines");
         assert_eq!(list[0].args, vec!["-l".to_string()]);
         assert_eq!(list[1].path, "/opt/homebrew/bin/bash");
+        assert_eq!(
+            (list[2].name.as_str(), list[2].path.as_str()),
+            ("fish", "/usr/bin/fish")
+        );
 
-        let list = unix_profiles(Some("/opt/homebrew/bin/fish"), all);
+        let list = unix_profiles(Some("/usr/bin/fish"), all, same);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, BASH]);
-        assert_eq!(list[0].path, "/opt/homebrew/bin/fish");
+        assert_eq!(list[0].name, "Login shell (fish)");
+        assert!(list[0].integration);
 
-        let list = unix_profiles(Some("/opt/homebrew/bin/bash"), all);
+        let list = unix_profiles(Some("/opt/homebrew/bin/bash"), all, same);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, FISH]);
+
+        let list = unix_profiles(Some("/usr/local/bin/nu"), all, same);
+        assert!(!list[0].integration);
+    }
+
+    #[test]
+    fn unix_login_shell_is_matched_through_symlinks() {
+        // A usr-merged Linux: `/bin` links to `/usr/bin`, and `$SHELL` names the `/usr/bin` path.
+        let linux = |p: &Path| {
+            [
+                "/bin/zsh",
+                "/usr/bin/zsh",
+                "/bin/bash",
+                "/usr/bin/bash",
+                "/usr/bin/fish",
+                "/bin/fish",
+            ]
+            .iter()
+            .any(|e| p == Path::new(e))
+        };
+        let merged = |p: &Path| match p.strip_prefix("/bin") {
+            Ok(rest) => Path::new("/usr/bin").join(rest),
+            Err(_) => p.to_path_buf(),
+        };
+        let list = unix_profiles(Some("/usr/bin/zsh"), linux, merged);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH, FISH]);
+        assert_eq!(list[1].path, "/bin/bash");
+        let list = unix_profiles(Some("/usr/bin/bash"), linux, merged);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, FISH]);
+        let list = unix_profiles(Some("/bin/fish"), linux, merged);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, BASH]);
+        // Without the link the two paths are different shells, and both are listed.
+        let list = unix_profiles(Some("/usr/bin/zsh"), linux, same);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, BASH, FISH]);
+    }
+
+    #[test]
+    fn unix_zsh_found_under_usr_bin_alone() {
+        let only = |p: &Path| p == Path::new("/usr/bin/zsh") || p == Path::new("/bin/sh");
+        let list = unix_profiles(Some("/bin/sh"), only, same);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH]);
+        assert_eq!(list[1].path, "/usr/bin/zsh");
     }
 
     #[test]
     fn unix_login_shell_falls_back_to_sh_without_zsh_or_bash() {
         let only_sh = |p: &Path| p == Path::new("/bin/sh");
-        let list = unix_profiles(None, only_sh);
+        let list = unix_profiles(None, only_sh, same);
         assert_eq!(ids(&list), vec![LOGIN_SHELL]);
         assert_eq!(list[0].path, "/bin/sh");
         assert_eq!(list[0].name, "Login shell (sh)");
@@ -612,7 +706,7 @@ mod tests {
     fn unix_login_shell_falls_back_to_zsh() {
         let only_system = |p: &Path| p == Path::new("/bin/zsh") || p == Path::new("/bin/bash");
         for login in [None, Some(""), Some("/missing/shell")] {
-            let list = unix_profiles(login, only_system);
+            let list = unix_profiles(login, only_system, same);
             assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH], "{login:?}");
             assert_eq!(list[0].path, "/bin/zsh");
             assert_eq!(list[1].path, "/bin/bash");

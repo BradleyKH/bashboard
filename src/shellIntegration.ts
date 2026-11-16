@@ -2,8 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ShellProfile } from './profiles';
 
 /**
- * The id of a profile that takes shell integration lines: Git Bash, or on Unix one running zsh
- * or bash (on macOS usually `loginShell`). cmd and PowerShell report their folder without any, from the prompt
+ * The id of a profile that takes shell integration lines: Git Bash, or on Unix one running zsh,
+ * bash, or fish (on macOS usually `loginShell`). cmd and PowerShell report their folder without any, from the prompt
  * Bashboard starts them with.
  */
 export type IntegrationShell = string;
@@ -17,7 +17,7 @@ export type ShellIntegrationStatus = 'missing' | 'installed' | 'outdated' | 'han
 
 export interface ShellIntegrationPreview {
   shell: IntegrationShell;
-  /** `~/.bashrc` or `~/.zshrc`. */
+  /** `~/.bashrc`, `~/.zshrc`, or fish's `conf.d/bashboard.fish`. */
   path: string;
   status: ShellIntegrationStatus;
   /** The marked block the install writes, LF line endings. */

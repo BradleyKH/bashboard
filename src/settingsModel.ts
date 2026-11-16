@@ -214,6 +214,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
           { value: 'loginShell', label: 'Login shell' },
           { value: 'zsh', label: 'zsh' },
           { value: 'bash', label: 'bash' },
+          { value: 'fish', label: 'fish' },
         ],
         installedFrom: 'profiles',
         applies: 'newPanes',

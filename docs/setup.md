@@ -69,13 +69,17 @@ in, so new panes and the Launch options open there rather than where you have si
 ### bash on macOS and Linux
 
 Off Windows, bash takes its own version of the lines, with no `cygpath`, in `~/.bashrc`. Panes
-start bash as a login shell, which reads `~/.bash_profile`, so the install creates one that reads
-`~/.profile` and `~/.bashrc` when it is missing, as it does for Git Bash. To add them yourself, put
-them at the end of `~/.bashrc` and make sure `~/.bash_profile` sources it:
+start bash as a login shell, which reads the first of `~/.bash_profile`, `~/.bash_login`, and
+`~/.profile` that exists, and that file must source `~/.bashrc`. Ubuntu's and Debian's
+`~/.profile` and Fedora's and Arch's `~/.bash_profile` already do, so the install leaves them
+alone. When none of the three exists, it creates `~/.bash_profile` reading `~/.profile` and
+`~/.bashrc`, as it does for Git Bash; when the first one does not mention `.bashrc`, the setup
+wizard says so and leaves the fix to you. To add the lines yourself, put them at the end of
+`~/.bashrc`:
 
 ```sh
 if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
-  PS0="${PS0-}"'\e]133;C\e\\'
+  [[ ${PS0-} == *'\e]133;C\e\\'* ]] || PS0="${PS0-}"'\e]133;C\e\\'
   __bashboard_marks=1
 fi
 __bashboard_prompt() {
@@ -85,12 +89,45 @@ __bashboard_prompt() {
   printf '\e]7502;aws;%s;%s\e\\' "${AWS_PROFILE-}" "${AWS_REGION:-${AWS_DEFAULT_REGION-}}"
   return "$status"
 }
-PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+[[ ${PROMPT_COMMAND-} == *__bashboard_prompt* ]] || PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 ```
 
-The OSC 133 markers need `PS0`, which arrived in bash 4.4. The bash that ships with macOS is 3.2,
-so there the lines report the folder and the AWS context only, and a pane's working or idle status
-comes from the check of its processes every 2 seconds. A newer bash from Homebrew sends both.
+They add themselves to `PS0` and `PROMPT_COMMAND` only once, so a `~/.bashrc` read twice at login
+still sends each report once. The OSC 133 markers need `PS0`, which arrived in bash 4.4. The bash
+that ships with macOS is 3.2, so there the lines report the folder and the AWS context only, and a
+pane's working or idle status comes from the check of its processes every 2 seconds. A newer bash
+from Homebrew sends both.
+
+### fish on macOS and Linux
+
+fish reads every `.fish` file in `~/.config/fish/conf.d` (or `$XDG_CONFIG_HOME/fish/conf.d`), so its lines
+are a file of their own, `bashboard.fish`, which the setup wizard and the Setup list in the Help
+tab create or update. A file of that name that does not start with the Bashboard comment is yours,
+and the install leaves it alone. To add the lines yourself, save them as
+`~/.config/fish/conf.d/bashboard.fish`:
+
+```fish
+# Bashboard shell integration: reports the folder and command status to Bashboard panes.
+# fish 4 and later mark commands themselves, so only fish 3 sends the OSC 133 markers here.
+if string match -qr '^[0-3]\.' -- $FISH_VERSION
+    function __bashboard_preexec --on-event fish_preexec
+        printf '\e]133;C\e\\\\'
+    end
+    function __bashboard_postexec --on-event fish_postexec
+        printf '\e]133;D;%s\e\\\\' $status
+    end
+end
+function __bashboard_prompt --on-event fish_prompt
+    set -l region $AWS_REGION
+    test -n "$region"; or set region $AWS_DEFAULT_REGION
+    printf '\e]7;file://%s\e\\\\' (string replace -a % %25 -- $PWD)
+    printf '\e]7502;aws;%s;%s\e\\\\' "$AWS_PROFILE" "$region"
+end
+```
+
+fish 4.0 and later send the OSC 133 command markers on their own, so the lines send them only
+under fish 3, and each command is marked once either way. Every fish version gets the folder as
+OSC 7 and the AWS context from the lines.
 
 ## PowerShell, Windows PowerShell, and Command Prompt
 

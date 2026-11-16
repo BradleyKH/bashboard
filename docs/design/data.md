@@ -214,7 +214,8 @@ the focused pane's folder.
     "path": "C:\\Program Files\\Git\\bin\\bash.exe",
     "args": ["--login", "-i"],
     "startingDirectory": "%USERPROFILE%",
-    // gitBash, pwsh, powershell, or cmd. path and args configure Git Bash only. An unknown or
+    // gitBash, pwsh, powershell, or cmd; off Windows loginShell (the default), zsh, bash, or
+    // fish. path and args configure Git Bash only. An unknown or
     // unavailable value falls back as described in 3.1.
     "defaultProfile": "gitBash"
   },

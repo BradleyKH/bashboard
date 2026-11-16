@@ -262,7 +262,9 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
 (PowerShell 7), `powershell` (Windows PowerShell), or `cmd`. An unknown value falls back to
 `gitBash` with a notice. A profile that is not installed falls back to the first available profile
 in the order Git Bash, PowerShell 7, Windows PowerShell, Command Prompt, with a notice the first
-time each missing shell is asked for. `shell.path` and `shell.args` configure Git Bash only. The
+time each missing shell is asked for. On macOS and Linux the ids are `loginShell` (the default,
+the shell in `$SHELL`), `zsh`, `bash`, and `fish`, each offered when installed and not already
+the login shell. `shell.path` and `shell.args` configure Git Bash only. The
 Default shell select in the Terminal section of the Settings tab sets it too (see
 [PowerShell, Windows PowerShell, and Command Prompt](setup.md#powershell-windows-powershell-and-command-prompt)):
 

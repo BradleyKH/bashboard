@@ -153,23 +153,33 @@ few lines in Git Bash's `~/.bashrc`. A folder on a drive (`/c/...`) goes out as 
 `$PWD` with no subprocess; only Git Bash's own folders such as `/tmp` run `cygpath -w` and go out as
 OSC 9;9, since starting a process in Git Bash costs a noticeable fraction of a second per prompt. The setup wizard (4.17) installs them with
 `shell_integration_preview(shell)` and `shell_integration_install(shell)`, where `shell` is the
-profile id `gitBash` or the id of a profile that runs zsh or, off Windows, bash; cmd and PowerShell need no lines, since
+profile id `gitBash` or the id of a profile that runs zsh, fish, or, off Windows, bash; cmd and PowerShell need no lines, since
 the core starts them with a prompt that reports the folder (3.1). The lines are the snippets in
-setup.md's "New panes in the current folder" and its zsh and macOS/Linux bash sections; a test
+setup.md's "New panes in the current folder" and its zsh, macOS/Linux bash, and fish sections; a test
 requires each to match byte for byte, ignoring line endings.
 
 zsh, the macOS default, takes the same reports from a `preexec` hook (OSC 133 C) and a `precmd`
 hook placed first in `precmd_functions` (OSC 133 D, the folder as OSC 7, the AWS context). A
-profile takes lines when it is Git Bash or its executable is named `zsh` or `bash`, which the
+profile takes lines when it is Git Bash or its executable is named `zsh`, `bash`, or `fish`, which the
 core marks with `integration` on each profile (3.1), so on macOS it is usually `loginShell`. The
 core checks a non-Git Bash id against its own Unix profile list before writing anything. Bash
-off Windows gets its own lines in `~/.bashrc`, with the same `.bash_profile` handling: every
+off Windows gets its own lines in `~/.bashrc`: every
 folder goes out as OSC 7 with no `cygpath`, and the OSC 133 markers are sent only from bash 4.4,
 which added `PS0`. macOS's bash 3.2 would send the end marker without the start one, and a pane
 that has seen a marker trusts markers over its process check, so it would read as idle mid-command. zsh's file is
 `.zshrc` in `ZDOTDIR` when set, else in `HOME`, backed up the same way; it has no
 `.bash_profile` counterpart. Off Windows, the front end takes an OSC 7 path as the POSIX path
 it names (`src/osc.ts`).
+
+fish reads every `.fish` file in `conf.d` under its config folder (`$XDG_CONFIG_HOME/fish`, else
+`~/.config/fish`), so its lines are a whole file, `conf.d/bashboard.fish`, with no marked block.
+Functions on the `fish_preexec` and `fish_postexec` events send OSC 133 C and D, and one on
+`fish_prompt` sends the folder as OSC 7 and the AWS context. fish 4.0 and later emit their own
+OSC 133 markers (A, B, C, and D, but no OSC 7), so the file sends C and D only when
+`$FISH_VERSION` is 3.x; doubled, every command would start and finish twice. The file is
+`installed` when it equals the snippet, `outdated` when it starts with the snippet's Bashboard
+comment line but differs, and `custom` (left alone) otherwise; an outdated file is backed up
+before it is rewritten.
 
 The install writes the snippet between two marker lines at the end of the file:
 `# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<`. The file is
@@ -193,7 +203,13 @@ whether the file or `.bash_profile` would be created, and a warning.
 - **Login shells.** Git Bash's login shell reads `~/.bash_profile`, not `~/.bashrc`. When that
   file is missing, the install creates it with the two standard lines that source `~/.profile`
   and `~/.bashrc`. When it exists and never mentions `.bashrc`, the preview carries a warning
-  and the file is left untouched.
+  and the file is left untouched. Bash off Windows goes by the file a login bash actually reads,
+  the first of `~/.bash_profile`, `~/.bash_login`, and `~/.profile` that exists: one that
+  mentions `.bashrc` (Ubuntu's `~/.profile`, Fedora's and Arch's `~/.bash_profile`) needs nothing,
+  one that does not gets the warning, and with none of the three `~/.bash_profile` is created.
+  A `~/.bash_profile` created beside Ubuntu's `~/.profile` would source `~/.bashrc` twice. The
+  Unix bash lines also add themselves to `PS0` and `PROMPT_COMMAND` only once, so a `~/.bashrc`
+  read twice still marks each command once.
 - Panes already open do not pick the lines up until their shell reads the file again
   (`source ~/.bashrc`).
 
@@ -413,7 +429,7 @@ has Back, Next, and Skip setup.
 2. **Shell.** The available profiles (3.1); sets `shell.defaultProfile`.
 3. **Shell integration.** For the shell new panes open with: the chosen default when it is
    installed, else the first installed profile, as the core resolves it (3.1). Shown when that
-   shell takes lines (Git Bash, zsh, or bash off Windows) and its startup file does not already hold the current block (3.14);
+   shell takes lines (Git Bash, zsh, bash off Windows, or fish) and its startup file does not already hold the current block (3.14);
    hidden for the other shells, which need no lines, and when the file's state could not be read. The
    file's state is read in the background when the wizard opens, so changing the Shell step's
    choice adds or drops this step at once, updating the step count without re-rendering the

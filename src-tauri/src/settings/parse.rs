@@ -1685,12 +1685,12 @@ mod tests {
     fn default_profile_parses_and_unknown_one_falls_back() {
         let default = crate::profiles::DEFAULT_PROFILE;
         assert_eq!(Settings::default().shell.default_profile, default);
-        for good in ["pwsh", "zsh", "loginShell"] {
+        for good in ["pwsh", "zsh", "fish", "loginShell"] {
             let (s, w) = parse_settings(&format!(r#"{{ "shell": {{ "defaultProfile": "{good}" }} }}"#));
             assert_eq!(s.shell.default_profile, good);
             assert!(w.is_empty(), "{w:?}");
         }
-        for bad in ["\"fish\"", "\"PWSH\"", "1"] {
+        for bad in ["\"nu\"", "\"PWSH\"", "1"] {
             let (s, w) = parse_settings(&format!(r#"{{ "shell": {{ "defaultProfile": {bad} }} }}"#));
             assert_eq!(s.shell.default_profile, default, "{bad}");
             assert!(w.iter().any(|m| m.starts_with("shell.defaultProfile")), "{bad}: {w:?}");
