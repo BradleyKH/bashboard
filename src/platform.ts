@@ -7,11 +7,13 @@ export type Os = string;
  * Features with no implementation yet on some OS. The UI hides what is listed for the running
  * OS, so a tester sees a smaller app rather than controls that fail.
  * - localBrowser: drives its frames through the WebView2 DevTools Protocol.
+ * - media: the dashboard's Media section reads system media sessions (Windows) or MPRIS players
+ *   (Linux); macOS has no backend.
  */
-export type Feature = 'localBrowser';
+export type Feature = 'localBrowser' | 'media';
 
 const UNSUPPORTED: Readonly<Record<Os, readonly Feature[]>> = {
-  macos: ['localBrowser'],
+  macos: ['localBrowser', 'media'],
   linux: ['localBrowser'],
 };
 

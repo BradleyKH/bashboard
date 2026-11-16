@@ -423,6 +423,15 @@ describe('per-OS fields', () => {
     expect(section.every((f) => isShown(f, none, 'windows'))).toBe(true);
   });
 
+  it('hides the Media toggle and Album art row on macOS only', () => {
+    for (const p of ['dashboard.sections.media', 'dashboard.mediaArt']) {
+      expect(isShown(byPath(p), (path) => (path[2] === 'media' ? true : undefined), 'macos'), p).toBe(false);
+      for (const os of ['windows', 'linux']) {
+        expect(isShown(byPath(p), (path) => (path[2] === 'media' ? true : undefined), os), `${p} ${os}`).toBe(true);
+      }
+    }
+  });
+
   it('shows fields with no OS list everywhere', () => {
     expect(isShown(byPath('shell.startingDirectory'), none, 'linux')).toBe(true);
   });

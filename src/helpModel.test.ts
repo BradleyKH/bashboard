@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { ACTION_LABELS, HELP_SECTIONS, actionLabel, actionOrder, formatChord, sendInputLabel } from './helpModel';
+import {
+  ACTION_LABELS,
+  HELP_SECTIONS,
+  actionLabel,
+  actionOrder,
+  actionSupported,
+  formatChord,
+  helpSections,
+  sendInputLabel,
+} from './helpModel';
 import { ACTION_NAMES, DEFAULT_KEYBINDINGS, parseChord } from './keymap';
 
 describe('formatChord', () => {
@@ -28,6 +37,25 @@ describe('actionLabel and actionOrder', () => {
     const order = actionOrder();
     expect(order).toContain('openPalette');
     expect(order).toContain('nextAttention');
+  });
+});
+
+describe('actions tied to a feature', () => {
+  const media = ['mediaPlayPause', 'mediaNext', 'mediaPrevious'];
+
+  it('keeps the media actions on Windows and Linux', () => {
+    for (const os of ['windows', 'linux']) {
+      for (const name of media) expect(actionOrder(os), `${os} ${name}`).toContain(name);
+      expect(helpSections(os).flatMap((s) => s.actions)).toEqual(HELP_SECTIONS.flatMap((s) => s.actions));
+    }
+  });
+
+  it('leaves the media actions out of the guide and palette order on macOS, and nothing else', () => {
+    const order = actionOrder('macos');
+    for (const name of media) expect(order).not.toContain(name);
+    expect(order).toEqual(HELP_SECTIONS.flatMap((s) => s.actions).filter((a) => !media.includes(a)));
+    expect(actionSupported('openPalette', 'macos')).toBe(true);
+    expect(actionSupported('mediaNext', 'macos')).toBe(false);
   });
 });
 

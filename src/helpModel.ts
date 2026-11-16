@@ -1,6 +1,6 @@
 import { ACTION_REGISTRY, HELP_SECTION_TITLES, actionArg, type ActionRow } from './actionRegistry';
 import { type Chord, type Direction } from './keymap';
-import { platformOs, type Os } from './platform';
+import { platformOs, supports, type Feature, type Os } from './platform';
 
 export interface HelpRow {
   label: string;
@@ -31,9 +31,24 @@ export function actionLabel(action: string, direction?: Direction): string | und
   return base;
 }
 
-/** Every action name in F1 guide order. */
-export function actionOrder(): string[] {
-  return HELP_SECTIONS.flatMap((s) => s.actions);
+const FEATURE_BY_ACTION = new Map<string, Feature>(
+  ACTION_REGISTRY.flatMap((r: ActionRow) => (r.feature === undefined ? [] : [[r.name, r.feature] as const])),
+);
+
+/** Whether the action works on the OS; one tied to an unsupported feature is hidden from every list. */
+export function actionSupported(action: string, os: Os = platformOs()): boolean {
+  const feature = FEATURE_BY_ACTION.get(action);
+  return feature === undefined || supports(feature, os);
+}
+
+/** The F1 guide's sections with the actions the OS lacks left out; the lists are built on use, since the OS is known only after loadPlatform. */
+export function helpSections(os: Os = platformOs()): { title: string; actions: string[] }[] {
+  return HELP_SECTIONS.map((s) => ({ title: s.title, actions: s.actions.filter((a) => actionSupported(a, os)) }));
+}
+
+/** Every action name in F1 guide order, for the OS. */
+export function actionOrder(os: Os = platformOs()): string[] {
+  return helpSections(os).flatMap((s) => s.actions);
 }
 
 export const ACTION_NOTES: Record<string, string> = Object.fromEntries(

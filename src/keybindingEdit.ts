@@ -9,7 +9,7 @@ import {
   type KeybindingEntry,
 } from './keymap';
 import { actionArg } from './actionRegistry';
-import { ACTION_LABELS, ACTION_NOTES, HELP_SECTIONS, formatChord, sendInputLabel } from './helpModel';
+import { ACTION_LABELS, ACTION_NOTES, formatChord, helpSections, sendInputLabel } from './helpModel';
 import type { KeybindingOp } from './settings';
 
 export interface EditArgs {
@@ -159,7 +159,7 @@ function sameSet(a: string[], b: string[]): boolean {
 /** Every editable row, in the F1 guide's section order, built from the live merged keybindings. */
 export function editSections(live: KeybindingEntry[]): EditSection[] {
   const bound = boundByChord(live);
-  return HELP_SECTIONS.map(({ title, actions }) => ({
+  return helpSections().map(({ title, actions }) => ({
     title,
     rows: actions.flatMap((action) =>
       rowArgs(action, bound).map((args): EditRow => {

@@ -13,6 +13,13 @@ describe('dashboardMenuItems', () => {
     );
   });
 
+  it('leaves out the Media toggle on macOS only', () => {
+    const labels = (os: string): unknown[] => dashboardMenuItems(ELEMENT_SHOWN_BY_DEFAULT, () => {}, os).flatMap((e) => (e.kind === 'item' ? [e.label] : []));
+    expect(labels('macos')).not.toContain('Media');
+    expect(labels('windows')).toContain('Media');
+    expect(labels('linux')).toContain('Media');
+  });
+
   it('flips the chosen element', () => {
     const onToggle = vi.fn();
     const entries = dashboardMenuItems({ ...ELEMENT_SHOWN_BY_DEFAULT, system: false, panes: true }, onToggle);

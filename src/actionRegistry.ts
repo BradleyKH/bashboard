@@ -1,4 +1,5 @@
 import type { Action, Direction } from './keymap';
+import type { Feature } from './platform';
 
 /**
  * Every keybinding action, one row each, in F1 guide order (docs/design/keys.md section 4.5).
@@ -19,6 +20,8 @@ export interface ActionRow {
   label?: string;
   section: HelpSectionTitle;
   note?: string;
+  /** Left out of the palette, F1 guide, and Shortcuts tab on an OS that lacks this feature. */
+  feature?: Feature;
 }
 
 export const ACTION_REGISTRY = [
@@ -91,9 +94,9 @@ export const ACTION_REGISTRY = [
   { name: 'toggleBackgroundTabs', arg: 'none', label: 'Show or hide other tabs in the background', section: 'Workspace' },
   { name: 'toggleBackdrop', arg: 'none', label: 'Pause or resume the background animation', section: 'Workspace' },
   { name: 'toggleFullscreen', arg: 'none', label: 'Toggle full screen', section: 'Workspace' },
-  { name: 'mediaPlayPause', arg: 'none', label: 'Play or pause media', section: 'Workspace', note: 'Windows only' },
-  { name: 'mediaNext', arg: 'none', label: 'Next track', section: 'Workspace', note: 'Windows only' },
-  { name: 'mediaPrevious', arg: 'none', label: 'Previous track', section: 'Workspace', note: 'Windows only' },
+  { name: 'mediaPlayPause', arg: 'none', label: 'Play or pause media', section: 'Workspace', note: 'Windows and Linux', feature: 'media' },
+  { name: 'mediaNext', arg: 'none', label: 'Next track', section: 'Workspace', note: 'Windows and Linux', feature: 'media' },
+  { name: 'mediaPrevious', arg: 'none', label: 'Previous track', section: 'Workspace', note: 'Windows and Linux', feature: 'media' },
   { name: 'showHelp', arg: 'none', label: 'Help', section: 'Workspace' },
   { name: 'openSettings', arg: 'none', label: 'Settings', section: 'Workspace' },
   { name: 'showAccounts', arg: 'none', label: 'Manage code host accounts', section: 'Workspace' },

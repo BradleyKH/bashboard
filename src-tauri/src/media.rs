@@ -3,15 +3,16 @@
 //!
 //! On Windows one worker thread owns the system media session manager, the session it follows, and
 //! the audio endpoint, and the commands reach it over a channel, so no WinRT or COM object crosses
-//! threads. Other platforms report no session.
+//! threads. On Linux a worker in `media_linux.rs` follows MPRIS players on the session bus over
+//! the same channel. Other platforms report no session.
 
 use serde::{Deserialize, Serialize};
 use std::sync::{Mutex, mpsc::Sender};
 use tauri::{AppHandle, State};
 
 /// Album art is scaled down to this many pixels on its longer side before it reaches the page.
-#[cfg_attr(not(windows), allow(dead_code))]
-const ART_PX: u32 = 144;
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+pub(crate) const ART_PX: u32 = 144;
 
 /// What the section shows; `None` on the wire while no app has a media session.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -44,7 +45,7 @@ pub struct MediaSnapshot {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
 pub enum MediaCommand {
     PlayPause,
     Next,
@@ -61,12 +62,15 @@ pub enum MediaCommand {
     ToggleMute,
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
-enum Msg {
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+pub(crate) enum Msg {
     Changed,
     Get(Sender<Option<MediaSnapshot>>),
     Art(Sender<Vec<u8>>),
     Control(MediaCommand, Sender<Result<(), String>>),
+    /// A remote art fetch finished: its URL and the scaled JPEG, empty when it failed.
+    #[cfg(target_os = "linux")]
+    ArtLoaded(String, Vec<u8>),
 }
 
 #[derive(Default)]
@@ -99,8 +103,8 @@ fn fallback_app_name(id: &str) -> String {
     }
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
-fn next_repeat(mode: &str) -> &'static str {
+#[cfg_attr(not(any(windows, target_os = "linux")), allow(dead_code))]
+pub(crate) fn next_repeat(mode: &str) -> &'static str {
     match mode {
         "none" => "list",
         "list" => "track",
@@ -131,7 +135,25 @@ pub fn init(app: &AppHandle) {
             eprintln!("media: could not start the worker: {e}");
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        use tauri::{Emitter, Manager};
+        let (tx, rx) = std::sync::mpsc::channel();
+        if let Ok(mut slot) = app.state::<Media>().0.lock() {
+            *slot = Some(tx.clone());
+        }
+        let app = app.clone();
+        let emit = move |s: &Option<MediaSnapshot>| {
+            let _ = app.emit("media://changed", s);
+        };
+        let spawned = std::thread::Builder::new()
+            .name("media".into())
+            .spawn(move || crate::media_linux::run(emit, tx, rx));
+        if let Err(e) = spawned {
+            eprintln!("media: could not start the worker: {e}");
+        }
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = app;
 }
 

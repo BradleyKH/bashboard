@@ -806,12 +806,16 @@ samples only while it is expanded, the panel is on screen, and the window is sho
 or Memory row to see the programs using the most of it, with all of a program's processes added
 together.
 
-The **Media** section shows what Spotify, a browser, or another media app is playing, on Windows:
-the album art, title, and artist, a play/pause button with previous and next beside it, shuffle
-and repeat when the app offers them, a position bar you can drag to seek, and the system volume
-with a mute button (scroll over the volume bar to nudge it). It appears only while something has
-a media session, and collapsed, its header keeps the title and a play/pause button. Right-click
-it to turn the album art off or on, or to hide the section. The
+The **Media** section shows what Spotify, a browser, or another media app is playing, on Windows
+and Linux: the album art, title, and artist, a play/pause button with previous and next beside it,
+shuffle and repeat when the app offers them, a position bar you can drag to seek, and the volume
+with a mute button (scroll over the volume bar to nudge it). On Windows the volume is the system's.
+On Linux it is the player's own volume, and mute sets it to zero and restores the previous level.
+On Linux the section follows the player that is playing; while none plays, it keeps the one it had,
+and it shows nothing playing when no player is running on the session bus. It appears only while
+something has a media session, and collapsed, its header keeps the title and a play/pause button.
+Right-click it to turn the album art off or on, or to hide the section. The Media section is
+hidden on macOS. The
 `mediaPlayPause`, `mediaNext`, and `mediaPrevious` actions have no keys by default; bind them in
 the Shortcuts tab, or run them from the command palette.
 
@@ -1339,7 +1343,7 @@ not apply to them. `bb edit` opens a pane only when your editor is Vim or Neovim
 | `bb ship`                     | Shows the current folder's repo in the Ship pane, or the Overview outside a repo |
 | `bb ports`                    | Shows the Ports pane                                                          |
 | `bb containers`               | Shows the Containers pane                                                     |
-| `bb media <play-pause\|next\|previous>` | Plays or pauses Spotify or whatever app is playing, or skips a track (Windows) |
+| `bb media <play-pause\|next\|previous>` | Plays or pauses Spotify or whatever app is playing, or skips a track (Windows and Linux) |
 | `bb browse [<url or file>]`   | Opens a Local Browser pane at a localhost address or an `.html` file, or on its start page |
 | `bb auth bitbucket [--clear]` | Stores a Bitbucket API token for the Ship pane, or removes it with `--clear` (the Accounts tab does the same) |
 | `bb auth azure-devops <org> [--clear]` | Stores an Azure DevOps personal access token for one organization, or removes it with `--clear` (the Accounts tab does the same) |

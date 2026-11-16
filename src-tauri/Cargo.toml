@@ -81,6 +81,11 @@ secret-service = { version = "5.2", features = ["rt-async-io-crypto-rust"] }
 # so notify-rust links no libdbus itself. 4.18 is the last release on zbus 5, the major
 # secret-service and tauri already build; 4.19 would add a second zbus major.
 notify-rust = "~4.18"
+# MPRIS players for the dashboard's Media section (media_linux.rs), through the blocking API on
+# the zbus 5 and async-io runtime the crates above already build.
+zbus = { version = "5.19", default-features = false, features = ["async-io", "blocking-api"] }
+# Album art for the Media section: decode any format, scale, and encode JPEG. GTK already builds it.
+gdk-pixbuf = "0.18"
 
 # getsid, for attributing orphaned jobs to their pane (pty.rs), and statfs on macOS.
 [target.'cfg(unix)'.dependencies]

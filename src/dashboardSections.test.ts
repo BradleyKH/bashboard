@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ELEMENT_ORDER,
   ELEMENT_LABELS,
+  elementSupported,
   parseCollapsedSections,
   parseSectionOrder,
   parseTopElements,
@@ -10,6 +11,17 @@ import {
   toggleSection,
   type DashboardElement,
 } from './dashboardSections';
+
+describe('elementSupported', () => {
+  it('hides Media on macOS and nothing on Windows or Linux', () => {
+    expect(elementSupported('media', 'macos')).toBe(false);
+    for (const el of SHOWABLE_ORDER) {
+      expect(elementSupported(el, 'windows'), el).toBe(true);
+      expect(elementSupported(el, 'linux'), el).toBe(true);
+      if (el !== 'media') expect(elementSupported(el, 'macos'), el).toBe(true);
+    }
+  });
+});
 
 describe('parseCollapsedSections', () => {
   it('returns [] for non-arrays', () => {

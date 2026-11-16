@@ -36,6 +36,9 @@ mod hooks;
 mod hook_client;
 mod links;
 mod media;
+#[cfg(target_os = "linux")]
+mod media_linux;
+mod media_mpris;
 mod lock;
 mod login_path;
 // Built on every OS so a Windows build type-checks it; only macOS installs it.

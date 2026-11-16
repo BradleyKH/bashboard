@@ -6,7 +6,7 @@ import { UI_SCALE_MAX, UI_SCALE_MIN } from './uiScale';
 import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { resolveScheme, SCHEMES } from './code/schemes';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
-import { ELEMENT_HINTS, ELEMENT_LABELS, SECTION_GROUPS, type ShowableSection } from './dashboardSections';
+import { ELEMENT_FEATURES, ELEMENT_HINTS, ELEMENT_LABELS, SECTION_GROUPS, type ShowableSection } from './dashboardSections';
 import type { Settings } from './settings';
 import { platformOs, supports, type Feature, type Os } from './platform';
 
@@ -167,6 +167,7 @@ const DASHBOARD_ELEMENT_FIELDS: Partial<Record<ShowableSection, Omit<SettingsFie
       applies: 'live',
       inline: true,
       shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
+      feature: 'media',
     },
   ],
   clock: [
@@ -197,6 +198,7 @@ function dashboardShowFields(): SettingsField[] {
         applies: 'live',
         group: g.title,
         half: true,
+        feature: ELEMENT_FEATURES[id],
       }),
     ),
     ...g.sections.flatMap((id) => (DASHBOARD_ELEMENT_FIELDS[id] ?? []).map((f): SettingsField => ({ ...f, group: g.title }))),

@@ -12,18 +12,22 @@ import {
 describe('supports', () => {
   it('keeps every feature on Windows', () => {
     expect(supports('localBrowser', 'windows')).toBe(true);
+    expect(supports('media', 'windows')).toBe(true);
   });
 
-  it('hides only the WebView2 Local Browser on macOS', () => {
+  it('hides the WebView2 Local Browser and Media on macOS', () => {
     expect(supports('localBrowser', 'macos')).toBe(false);
+    expect(supports('media', 'macos')).toBe(false);
   });
 
-  it('hides only the WebView2 Local Browser on Linux', () => {
+  it('hides only the WebView2 Local Browser on Linux, which has Media over MPRIS', () => {
     expect(supports('localBrowser', 'linux')).toBe(false);
+    expect(supports('media', 'linux')).toBe(true);
   });
 
   it('defaults to Windows before the core answers', () => {
     expect(supports('localBrowser')).toBe(true);
+    expect(supports('media')).toBe(true);
   });
 });
 

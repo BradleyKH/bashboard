@@ -509,8 +509,8 @@ its cwd and session id with copy buttons. A `waiting` row shows the reason under
 the same as a card. The section is hidden while there are none.
 
 **Media.** What an app is playing, with its transport and the master volume (4.31). Shown while
-`dashboard.sections.media` is on, which it is by default, and an app has a media session; it never
-shows off Windows.
+`dashboard.sections.media` is on, which it is by default, and an app has a media session; it is hidden
+on macOS, which has no media backend.
 
 **Footer.** One install button sits at the bottom of the panel for each detected agent whose
 hooks are not installed (3.3): "Install Claude Code hooks", "Install Codex hooks (preview)", and
@@ -642,9 +642,9 @@ list keeps alive by keeping the agent transcript reader running while it is show
 row text, hide keys), `needsYouStore.ts` composes the sources and holds the hides, and
 `needsYouSection.ts` renders what the store hands it.
 
-## 3.29 Media sessions (`src-tauri/src/media.rs`)
+## 3.29 Media sessions (`src-tauri/src/media.rs`, `media_linux.rs`, `media_mpris.rs`)
 
-The core reads what is playing from Windows' system media transport controls, the same source as
+On Windows, the core reads what is playing from the system media transport controls, the same source as
 the media flyout over the volume slider, so it works with any app that registers there: the
 Spotify app, a browser playing Spotify's web player or YouTube, and most media players. It follows
 the session Windows names current and reports it as one snapshot: the app's display name (looked
@@ -654,7 +654,16 @@ when the app does not offer it), the position, the track length, the time the ap
 position, and the default output device's master volume and mute. Volume is the system's, not the
 app's, since a browser shares one audio session across all its tabs.
 
-One worker thread owns the session manager, the followed session, and the audio endpoint; the
+On Linux, the worker reads MPRIS players on the D-Bus session bus (`org.mpris.MediaPlayer2.*`), so
+any player that exports MPRIS is followed. The section follows a playing player first: it keeps the
+current one while that one plays or while nothing plays, and otherwise takes the most recently
+changed. The app name is the player's `Identity`. Volume and mute act on the player's own MPRIS
+`Volume`, not the system volume; mute sets that volume to zero and restores the previous level.
+Seek calls `SetPosition` with the track id. Album art comes from `mpris:artUrl`, a file or an
+http(s) URL, scaled down to the same size and re-encoded the same way. With no session bus or no
+players, the section shows nothing playing.
+
+On Windows, one worker thread owns the session manager, the followed session, and the audio endpoint; the
 commands reach it over a channel. The session's media, playback, and timeline events wake it to
 reread the snapshot, which it emits as `media://changed` (null with no session) only when
 something differs. While a session exists it also rereads the volume each second, since a volume
@@ -663,8 +672,8 @@ so plugging in headphones is followed. Album art is scaled to at most 144 px and
 JPEG when the track changes; the snapshot carries an `artId` that changes with it, and
 `media_art` returns the bytes. A track whose art has not arrived yet is retried on its next event.
 `media_state` returns the snapshot, and `media_control` takes play/pause, next, previous, toggle
-shuffle, cycle repeat (off, all, one), seek, set volume, and toggle mute. Other platforms report no
-session.
+shuffle, cycle repeat (off, all, one), seek, set volume, and toggle mute. macOS has no media
+backend and reports no session.
 
 ## 4.31 Media section (`src/mediaModel.ts`, `src/mediaSection.ts`, `src/mediaSlider.ts`)
 

@@ -31,7 +31,7 @@ import { withKeys } from './dashboardRevealModel';
 import { DashboardSystem } from './dashboardSystem';
 import { MediaSection } from './mediaSection';
 import { DashboardWave } from './dashboardWave';
-import { ELEMENT_SHOWN_BY_DEFAULT, toggleSection } from './dashboardSections';
+import { ELEMENT_SHOWN_BY_DEFAULT, elementSupported, toggleSection } from './dashboardSections';
 import type { DashboardElement, DashboardSection, ShowableSection } from './dashboardSections';
 import { recentFolders, samePath } from './favorites';
 import type { Favorite } from './favorites';
@@ -549,6 +549,7 @@ export class DashboardPanel {
    */
   applyDashboardSettings(d: Settings['dashboard'], minContext: number): void {
     this.shown = { ...d.sections };
+    if (!elementSupported('media')) this.shown.media = false;
     this.minContext = minContext;
     this.localModelsSection.update(this.localModelsStore?.current() ?? null, minContext);
     this.clockStyle = d.clockStyle;

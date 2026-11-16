@@ -1,6 +1,8 @@
 // Dashboard elements and the sections the user can collapse (docs/design/dashboard.md sections 4.6
 // and 7). Pure, no DOM.
 
+import { supports, type Feature, type Os } from './platform';
+
 /**
  * The panel's draggable elements in default order (docs/design/dashboard.md section 4.6). The clock
  * and Launch lead, so each sits at the top of the lower list whenever it is not in the top slot.
@@ -111,8 +113,19 @@ export const ELEMENT_HINTS: Partial<Record<ShowableSection, string>> = {
   ship: 'Manage pipelines and PRs for selected repos',
   branch: "Git and CI summary for the focused pane's branch",
   pins: 'Saved files, folders, and terminal commands',
-  media: 'Now playing in Spotify or another app, on Windows',
+  media: 'Now playing in Spotify or another app, on Windows and Linux',
 };
+
+/** Elements that need a platform feature; one on an OS without it is hidden everywhere. */
+export const ELEMENT_FEATURES: Partial<Record<ShowableSection, Feature>> = {
+  media: 'media',
+};
+
+/** Whether the OS can show the element. */
+export function elementSupported(el: ShowableSection, os?: Os): boolean {
+  const feature = ELEMENT_FEATURES[el];
+  return feature === undefined || supports(feature, os);
+}
 
 function isSection(v: unknown): v is DashboardSection {
   return typeof v === 'string' && (SECTIONS as readonly string[]).includes(v);
