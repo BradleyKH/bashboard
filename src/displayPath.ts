@@ -1,3 +1,6 @@
+import { pathKey } from './pathCompare';
+import { platformOs, type Os } from './platform';
+
 let home: string | null = null;
 
 /** Sets the home folder that `displayPath` abbreviates; null (as in a browser-only run) disables it. */
@@ -9,13 +12,15 @@ export function getHomeDir(): string | null {
   return home;
 }
 
-/** `path` with a leading home folder shown as `~`, compared without regard to case or slash style. */
-export function displayPath(path: string, homeDir: string | null = home): string {
+/**
+ * `path` with a leading home folder shown as `~`, compared without regard to slash style, and to
+ * case where the OS folds it.
+ */
+export function displayPath(path: string, homeDir: string | null = home, os: Os = platformOs()): string {
   if (!homeDir) return path;
   const base = homeDir.replace(/[\\/]+$/, '');
   if (base === '' || path.length < base.length) return path;
-  const norm = (s: string) => s.replace(/\//g, '\\').toLowerCase();
-  if (norm(path.slice(0, base.length)) !== norm(base)) return path;
+  if (pathKey(path.slice(0, base.length), os) !== pathKey(base, os)) return path;
   const rest = path.slice(base.length);
   // A bare prefix match would turn C:\Users\my-username2 into ~2 when home is C:\Users\my-username.
   if (rest !== '' && !/^[\\/]/.test(rest)) return path;

@@ -1,6 +1,6 @@
 import { gitBranchSize, type BranchSize } from './branchSizeApi';
 import { getHomeDir } from './displayPath';
-import { samePath } from './favorites';
+import { pathKey, samePath } from './pathCompare';
 import { gitUnwatch, gitWatch, onGitChanged } from './gitApi';
 import { repoRoot } from './repoFiles';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
@@ -122,7 +122,7 @@ export class BranchSizeStore {
 
   /** The key a worktree's entry and watch are held under; `samePath`'s notion of equal. */
   private keyFor(root: string): string {
-    return root.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+    return pathKey(root);
   }
 
   private resolve(folder: string): Promise<string | null> {

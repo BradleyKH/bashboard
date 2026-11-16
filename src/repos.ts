@@ -1,4 +1,5 @@
-import { moveItem, samePath } from './favorites';
+import { moveItem } from './favorites';
+import { pathKey, samePath } from './pathCompare';
 
 /**
  * One pinned file or folder, or a command pin (docs/design/dashboard.md section 4.6) whose `path`
@@ -73,8 +74,8 @@ function trimEnd(p: string): string {
 export function toPinPath(root: string, absolute: string): string {
   const r = trimEnd(slashes(root));
   const a = trimEnd(slashes(absolute));
-  if (a.toLowerCase() === r.toLowerCase()) return '.';
-  if (a.toLowerCase().startsWith(r.toLowerCase() + '/')) return a.slice(r.length + 1);
+  if (pathKey(a) === pathKey(r)) return '.';
+  if (pathKey(a).startsWith(pathKey(r) + '/')) return a.slice(r.length + 1);
   return absolute;
 }
 
@@ -93,7 +94,7 @@ export function resolvePin(root: string, pin: Pin): string {
 }
 
 export function samePinPath(a: string, b: string): boolean {
-  return trimEnd(slashes(a)).toLowerCase() === trimEnd(slashes(b)).toLowerCase();
+  return samePath(a, b);
 }
 
 /** Same folder and command for command pins, same path for the others; labels are ignored. */

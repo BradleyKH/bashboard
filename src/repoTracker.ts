@@ -8,6 +8,7 @@ import { openContextMenu } from './contextMenu';
 import { item } from './contextMenuModel';
 import type { DashboardPanel } from './dashboardPanel';
 import { openInEditor } from './editors';
+import { nameKey, pathKey } from './pathCompare';
 import { pinTarget } from './filesRouting';
 import {
   addGlobalPin,
@@ -48,10 +49,6 @@ export interface RepoTrackerDeps {
   workspace: () => Workspace;
   panel: () => DashboardPanel;
   focusTerminal: () => void;
-}
-
-function pathKey(path: string): string {
-  return path.replace(/[\\/]+/g, '/').replace(/\/$/, '').toLowerCase();
 }
 
 function parentFolder(path: string): string {
@@ -177,12 +174,12 @@ export class RepoTracker {
         let listing = parents.get(pathKey(parent));
         if (!listing) {
           listing = fsList(parent).then(
-            (entries) => new Map(entries.map((e) => [e.name.toLowerCase(), e.isDir])),
+            (entries) => new Map(entries.map((e) => [nameKey(e.name), e.isDir])),
             () => new Map<string, boolean>(),
           );
           parents.set(pathKey(parent), listing);
         }
-        const name = abs.slice(parent.length).replace(/^[\\/]+/, '').toLowerCase();
+        const name = nameKey(abs.slice(parent.length).replace(/^[\\/]+/, ''));
         this.pinKinds.set(pathKey(abs), (await listing).get(name) ?? null);
       }),
     );

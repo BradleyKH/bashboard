@@ -17,6 +17,7 @@ import {
 } from './filesTreeModel';
 import { renderFileRow } from './fileRow';
 import { loadingNote } from './loadingNote';
+import { nameKey } from './pathCompare';
 import {
   EMPTY_SELECTION,
   isMarked,
@@ -294,9 +295,8 @@ export class FilesList {
     };
     input.addEventListener('input', () => {
       const to = input.value.trim();
-      // A change of case alone names the same entry, so it is not a clash.
-      const clash =
-        to.toLowerCase() !== from.toLowerCase() && siblings.some((e) => e.name.toLowerCase() === to.toLowerCase());
+      // Where the OS folds case, a change of case alone names the same entry, so it is not a clash.
+      const clash = nameKey(to) !== nameKey(from) && siblings.some((e) => nameKey(e.name) === nameKey(to));
       const err = to === from ? null : (fileNameError(to) ?? (clash ? `${to} already exists` : null));
       input.classList.toggle('invalid', err !== null);
       input.title = err ?? '';

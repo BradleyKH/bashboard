@@ -19,6 +19,12 @@ describe('displayPath', () => {
     expect(displayPath('C:\\Users\\my-username\\source', 'C:\\Users\\my-username\\')).toBe('~\\source');
   });
 
+  it('compares case exactly on Linux', () => {
+    expect(displayPath('/home/me/src', '/home/me', 'linux')).toBe('~/src');
+    expect(displayPath('/home/Me/src', '/home/me', 'linux')).toBe('/home/Me/src');
+    expect(displayPath('/Users/Me/src', '/Users/me', 'macos')).toBe('~/src');
+  });
+
   it('leaves a sibling folder that merely shares the prefix', () => {
     expect(displayPath('C:\\Users\\my-username2\\x', HOME)).toBe('C:\\Users\\my-username2\\x');
   });

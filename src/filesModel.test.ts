@@ -98,6 +98,11 @@ describe('relativeWithin', () => {
     expect(relativeWithin('C:\\Repo', 'C:\\Repository')).toBeNull();
     expect(relativeWithin('C:\\Repo', 'D:\\Repo\\a')).toBeNull();
   });
+
+  it('compares case exactly on Linux', () => {
+    expect(relativeWithin('/home/me/repo', '/home/me/repo/a', 'linux')).toBe('a');
+    expect(relativeWithin('/home/me/Repo', '/home/me/repo/a', 'linux')).toBeNull();
+  });
 });
 
 describe('breadcrumb', () => {

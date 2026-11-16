@@ -1,6 +1,7 @@
 import { lastFolder } from './dashboardModel';
 import { parseProfileId } from './profiles';
 import type { Session } from './sessions';
+import { samePath } from './pathCompare';
 
 /** favorites.json (docs/design/data.md sections 3.7 and 7), in display order. */
 export interface Favorite {
@@ -38,14 +39,7 @@ export function favoritePathText(favorite: Favorite): string {
   return /^[A-Za-z]:$/.test(parent) ? trimmed.slice(0, cut + 1) : parent;
 }
 
-function normalize(p: string): string {
-  return p.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
-}
-
-/** Case-insensitive; `/` and `\` alike; trailing separators ignored. */
-export function samePath(a: string, b: string): boolean {
-  return normalize(a) === normalize(b);
-}
+export { samePath };
 
 /** Session folders, most recently active first, without duplicates or favorites. */
 export function recentFolders(sessions: Session[], favorites: Favorite[], limit = 5): string[] {

@@ -2,6 +2,7 @@ import type { PaneCardInput } from './dashboardModel';
 import { samePath } from './favorites';
 import type { Session } from './sessions';
 import type { MergedState, PrimaryBranch, Worktree, WorktreeDetail } from './worktreeApi';
+import { sameOrInside } from './pathCompare';
 
 /**
  * Pure text and matching rules for the Git pane's worktree list (docs/design/git.md section 4.13).
@@ -63,16 +64,7 @@ export function workingTreeText(
   return parts.length === 0 ? 'Clean' : parts.join(', ');
 }
 
-function normalized(p: string): string {
-  return p.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
-}
-
-/** `path` equals or sits inside `folder`, ignoring case, slash style, and trailing separators. */
-export function sameOrInside(path: string, folder: string): boolean {
-  const p = normalized(path);
-  const f = normalized(folder);
-  return p === f || p.startsWith(f + '/');
-}
+export { sameOrInside };
 
 function lastFolder(p: string): string {
   const parts = p.split(/[\\/]+/).filter(Boolean);

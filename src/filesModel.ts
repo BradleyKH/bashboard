@@ -2,6 +2,8 @@
 
 import { languageIdFor } from './code/languages';
 import { samePath } from './favorites';
+import { nameKey } from './pathCompare';
+import { platformOs, type Os } from './platform';
 
 /** Mirrors the core's `fs_list` entry (docs/design/files.md section 3.8); times are epoch milliseconds. */
 export interface FileEntry {
@@ -102,13 +104,14 @@ function joinPath(base: string, part: string, sep: string): string {
 
 /**
  * The path below `root` with forward slashes (empty for the root itself), or null when `path` is
- * not inside it. Case-insensitive, either separator, trailing separators ignored.
+ * not inside it. Case folds where the OS folds it (`nameKey`); either separator, trailing separators
+ * ignored.
  */
-export function relativeWithin(root: string, path: string): string | null {
+export function relativeWithin(root: string, path: string, os: Os = platformOs()): string | null {
   const r = trimSeparators(root.replace(/\\/g, '/'));
   const p = trimSeparators(path.replace(/\\/g, '/'));
-  const rl = r.toLowerCase();
-  const pl = p.toLowerCase();
+  const rl = nameKey(r, os);
+  const pl = nameKey(p, os);
   if (pl === rl) return '';
   if (pl.startsWith(`${rl}/`)) return p.slice(r.length + 1);
   return null;

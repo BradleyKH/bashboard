@@ -121,8 +121,4 @@ function decodeFragment(fragment: string): string {
   }
 }
 
-/** Whether two absolute paths name the same file; Windows paths ignore case and slash direction. */
-export function samePath(a: string, b: string): boolean {
-  const norm = (p: string) => p.replace(/\//g, '\\').toLowerCase();
-  return norm(a) === norm(b);
-}
+export { samePath } from './pathCompare';

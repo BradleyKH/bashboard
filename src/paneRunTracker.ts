@@ -3,7 +3,7 @@
 // only after a git metadata change on a worktree with terminals, and polled only while a bound run
 // is active, so an idle workspace costs no host calls.
 import { getHomeDir } from './displayPath';
-import { samePath } from './favorites';
+import { pathKey, samePath } from './pathCompare';
 import { forgeRuns, type Run } from './forgeApi';
 import { gitUnwatch, gitWatch, onGitChanged } from './gitApi';
 import { isRunActive, newRuns, paneRunOf, runFinish, type PaneRun } from './paneRunModel';
@@ -75,13 +75,8 @@ interface KeyState {
   disposed: boolean;
 }
 
-/** `samePath`'s notion of equal, as a map key. */
-function rootKey(root: string): string {
-  return root.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
-}
-
 function keyOf(repo: FolderRepo): string | null {
-  return repo.branch === null ? null : `${rootKey(repo.root)}\n${repo.branch}`;
+  return repo.branch === null ? null : `${pathKey(repo.root)}\n${repo.branch}`;
 }
 
 export class PaneRunTracker {
@@ -172,7 +167,7 @@ export class PaneRunTracker {
       const repo = p.cwd ? this.folders.get(p.cwd) : undefined;
       paneKeys.set(p.paneId, repo ? keyOf(repo) : null);
       if (!repo) continue;
-      wantRoots.set(rootKey(repo.root), repo.root);
+      wantRoots.set(pathKey(repo.root), repo.root);
       const key = keyOf(repo);
       if (key !== null) wantKeys.set(key, repo);
     }
@@ -247,7 +242,7 @@ export class PaneRunTracker {
 
   private onChanged(root: string, metadata: boolean): void {
     if (!metadata || this.disposed) return;
-    const w = this.watched.get(rootKey(root));
+    const w = this.watched.get(pathKey(root));
     if (!w) return;
     const at = this.deps.now();
     this.deps.clearTimer(w.debounce);
@@ -255,9 +250,9 @@ export class PaneRunTracker {
       w.debounce = undefined;
       if (w.disposed) return;
       // The branch may have changed under every folder in this worktree; each re-resolve then asks for a read.
-      const key = rootKey(w.root);
+      const key = pathKey(w.root);
       for (const [folder, repo] of this.folders) {
-        if (repo === null || rootKey(repo.root) !== key) continue;
+        if (repo === null || pathKey(repo.root) !== key) continue;
         this.changedAt.set(folder, Math.min(at, this.changedAt.get(folder) ?? at));
         this.resolveFolder(folder);
       }

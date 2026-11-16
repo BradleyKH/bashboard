@@ -265,7 +265,7 @@ command palette lists them too.
 Pins are kept in `repos.json` next to `settings.json`, as a list of entries, each with a repo
 `root` and its `pins`. A pin's
 `path` is relative to the root with forward slashes when it is inside the repo, and absolute
-otherwise; `label` is optional, and a command pin adds a `command`. Roots and pins match without regard to case. Global pins are
+otherwise; `label` is optional, and a command pin adds a `command`. Roots and pins match without regard to case, except on Linux, where case counts. Global pins are
 kept in `pins.json` beside it, as a list of `{ "label": ..., "command": ... }` entries. Both files
 are plain JSON you can edit by hand, and the panel updates when you save them.
 

@@ -194,7 +194,7 @@ terminals carry no session ids, permission modes, scrollback ids, or ptys and wh
 `scratchId`, so they open fresh; the tab's own `name` is ignored, since it takes the layout's. An
 entry whose `workspace` holds a version 1 workspace loads as that one tab.
 
-**repos.json.** Roots compare without regard to case. A pin's path is relative to the root, with
+**repos.json.** Roots compare without regard to case on Windows and macOS and exactly on Linux, whose file systems tell case apart (`pathCompare.ts`). A pin's path is relative to the root, with
 forward slashes, when inside the repo, else absolute. A pin with a `command` (the whole command
 line, as one string) is a command pin, and its path is the folder the command runs in; `label` is
 optional on either kind. `primaryBranch`, the branch the Git pane
