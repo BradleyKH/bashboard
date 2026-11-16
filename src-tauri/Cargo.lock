@@ -286,6 +286,7 @@ dependencies = [
  "tiny_http",
  "trash",
  "ureq",
+ "webkit2gtk",
  "webview2-com",
  "windows",
  "windows-core",

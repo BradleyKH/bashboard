@@ -156,8 +156,35 @@ pub fn watch(window: &tauri::WebviewWindow) {
     });
 }
 
-#[cfg(not(windows))]
+/// WebKitGTK's web process died: a crash, the kernel's OOM killer, or WebKit's own memory limit.
+/// Tauri forwards this only for WKWebView, so the signal is connected here. The WebView survives
+/// its page process, and a reload starts a new one, as on macOS.
+#[cfg(target_os = "linux")]
+pub fn watch(window: &tauri::WebviewWindow) {
+    let app = window.app_handle().clone();
+    let connected = window.with_webview(move |webview| {
+        use webkit2gtk::WebViewExt;
+        webview.inner().connect_web_process_terminated(move |view, reason| {
+            eprintln!("{} WebKit web process exited ({reason:?}); reloading", stamp());
+            forget_page(&app);
+            view.reload();
+        });
+    });
+    if let Err(e) = connected {
+        eprintln!("crash recovery: could not watch the WebKit web process: {e}");
+    }
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn watch(_window: &tauri::WebviewWindow) {}
+
+/// What a page that died leaves behind in the core: its sessions and chord reports, and the
+/// watchdog's judgment of it.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn forget_page(app: &AppHandle) {
+    app.state::<crate::browser::BrowserState>().reset();
+    crate::page_watchdog::disarm();
+}
 
 /// WKWebView's page process died, from a crash or because macOS reclaimed it under memory
 /// pressure. Unlike WebView2's browser process, the WebView itself survives, so a reload starts
@@ -169,8 +196,7 @@ pub fn on_content_process_terminated(webview: &tauri::Webview) {
         return;
     }
     eprintln!("{} WebKit page process exited; reloading", stamp());
-    webview.app_handle().state::<crate::browser::BrowserState>().reset();
-    crate::page_watchdog::disarm();
+    forget_page(webview.app_handle());
     if let Err(e) = webview.reload() {
         eprintln!("{} could not reload the page, rebuilding the window: {e}", stamp());
         if let Some(window) = webview.app_handle().get_webview_window(MAIN) {

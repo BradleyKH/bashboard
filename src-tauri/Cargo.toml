@@ -70,6 +70,11 @@ tauri-plugin-process = "2.4.0"
 tauri-plugin-single-instance = "2.5.5"
 tauri-plugin-updater = "2.14.0"
 
+# Only for the web-process-terminated signal, which Tauri does not forward on Linux; the version
+# and features follow what wry already builds.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0.2", features = ["v2_20"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6.2"
 objc2 = "0.6.5"

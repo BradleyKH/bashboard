@@ -328,7 +328,10 @@ On macOS, WKWebView has no browser process to lose; its one failure event is the
 content process ending, from a crash or because macOS reclaimed it under memory pressure. Tauri
 takes that handler on the app builder (`on_web_content_process_terminate`), and for the main
 window it reloads the page as for WebView2's page renderer, falling back to a rebuild if the
-reload fails. Linux has no hook yet.
+reload fails. On Linux, WebKitGTK's web process can end the same way, from a crash, the kernel's
+OOM killer, or WebKit's memory limit, and Tauri forwards nothing for it, so `crash_recovery::watch`
+connects the WebView's `web-process-terminated` signal (through the `webkit2gtk` crate) and
+reloads the page, which starts a new web process.
 - **Page renderer unresponsive**, and every other kind (GPU, utility, a Local Browser frame's
   renderer): logged only. An unresponsive page can recover on its own; the watchdog below and
   the close fallback are the ways out when it does not.
