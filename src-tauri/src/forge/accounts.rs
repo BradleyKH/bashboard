@@ -20,7 +20,7 @@ use super::{
     forge_hosts, git_value, github, home_git, open_git, remote, token_sources,
 };
 use crate::lock::LockExt;
-use crate::credential_store;
+use crate::credential_store::{self, Location};
 use crate::git::Git;
 use crate::settings::SettingsState;
 
@@ -212,19 +212,28 @@ pub(crate) fn azure_orgs(stored: &[String], repos: &[RepoRef]) -> Vec<String> {
     orgs
 }
 
-/// The organizations with a stored Azure DevOps PAT, from the credentials' target names.
-fn stored_azure_orgs() -> Vec<String> {
-    let mut orgs: Vec<String> =
-        credential_store::list_targets(credential_store::AZURE_DEVOPS_PREFIX)
+/// The organizations with a stored Azure DevOps PAT, from the credentials' target names, each
+/// with where its PAT is stored.
+fn stored_azure_orgs() -> Vec<(String, Location)> {
+    let mut orgs: Vec<(String, Location)> =
+        credential_store::list_located(credential_store::AZURE_DEVOPS_PREFIX)
             .iter()
-            .filter_map(|t| {
+            .filter_map(|(t, loc)| {
                 credential_store::name_from_target(t, credential_store::AZURE_DEVOPS_PREFIX)
+                    .map(|o| (o.to_lowercase(), *loc))
             })
-            .map(|o| o.to_lowercase())
             .collect();
-    orgs.sort();
-    orgs.dedup();
+    orgs.sort_by(|a, b| a.0.cmp(&b.0));
+    orgs.dedup_by(|a, b| a.0 == b.0);
     orgs
+}
+
+/// A stored token for the card; the location only matters where there are two places to be.
+fn stored_token(org: Option<String>, location: Location) -> StoredToken {
+    StoredToken {
+        org,
+        location: cfg!(target_os = "linux").then_some(location),
+    }
 }
 
 fn env_set(var: &str) -> bool {
@@ -311,10 +320,12 @@ struct Machine {
     gh_installed: bool,
     glab_installed: bool,
     az_installed: bool,
-    bitbucket_stored: bool,
-    azure_orgs: Vec<String>,
+    bitbucket_stored: Option<Location>,
+    azure_orgs: Vec<(String, Location)>,
     /// The stored organizations, then those of known repos.
     azure_known_orgs: Vec<String>,
+    /// A token is in the fallback file and a keyring answers.
+    can_move_to_keyring: bool,
 }
 
 fn host_status(git: &Git, m: &Machine, l: &Listed) -> HostAuth {
@@ -336,8 +347,8 @@ fn host_status(git: &Git, m: &Machine, l: &Listed) -> HostAuth {
             m.glab_installed
         }
         ProviderKind::Bitbucket => {
-            if m.bitbucket_stored {
-                stored_tokens.push(StoredToken { org: None });
+            if let Some(loc) = m.bitbucket_stored {
+                stored_tokens.push(stored_token(None, loc));
             }
             false
         }
@@ -346,21 +357,22 @@ fn host_status(git: &Git, m: &Machine, l: &Listed) -> HostAuth {
                 active = auth::az_user();
                 accounts.extend(active.clone());
             }
-            stored_tokens.extend(m.azure_orgs.iter().map(|o| StoredToken {
-                org: Some(o.clone()),
-            }));
+            stored_tokens.extend(
+                m.azure_orgs
+                    .iter()
+                    .map(|(o, loc)| stored_token(Some(o.clone()), *loc)),
+            );
             m.az_installed
         }
     };
-    // Only the source's kind leaves here; the token is dropped. A stored Azure DevOps PAT wins
+    // Only the source's kind leaves here; no token does. A stored Azure DevOps PAT wins
     // for its organization.
     let token_source = if l.kind == ProviderKind::AzureDevOps && !stored_tokens.is_empty() {
         Some(TokenSourceKind::BashboardCredential)
     } else if l.kind == ProviderKind::AzureDevOps {
         // Git Credential Manager keys Azure DevOps sign-ins by organization path, so a lookup
         // with no organization misses them; each known organization is asked in turn.
-        auth::resolve(git, &token_sources(l.kind, host, None, None))
-            .ok()
+        auth::resolve_source(git, &token_sources(l.kind, host, None, None))
             .or_else(|| {
                 m.azure_known_orgs.iter().find_map(|org| {
                     let source = TokenSource::GitCredential {
@@ -368,18 +380,21 @@ fn host_status(git: &Git, m: &Machine, l: &Listed) -> HostAuth {
                         username: None,
                         path: Some(org.clone()),
                     };
-                    auth::resolve(git, &[source]).ok()
+                    auth::resolve_source(git, &[source])
                 })
             })
-            .map(|t| source_kind(&t.source))
+            .map(|s| source_kind(&s))
     } else {
         let account = (l.kind == ProviderKind::Github)
             .then_some(active.as_deref())
             .flatten();
-        auth::resolve(git, &token_sources(l.kind, host, account, None))
-            .ok()
-            .map(|t| source_kind(&t.source))
+        auth::resolve_source(git, &token_sources(l.kind, host, account, None))
+            .map(|s| source_kind(&s))
     };
+    let can_move_to_keyring = m.can_move_to_keyring
+        && stored_tokens
+            .iter()
+            .any(|t| t.location == Some(Location::File));
     HostAuth {
         provider: l.kind,
         host: l.host.clone(),
@@ -403,6 +418,7 @@ fn host_status(git: &Git, m: &Machine, l: &Listed) -> HostAuth {
             ProviderKind::AzureDevOps => m.azure_known_orgs.clone(),
             _ => Vec::new(),
         },
+        can_move_to_keyring,
     }
 }
 
@@ -444,13 +460,18 @@ pub async fn forge_auth_status(app: AppHandle, known: Known) -> Result<Vec<HostA
             .map(|(_, r)| r.repo.clone())
             .collect();
         let azure_stored_orgs = stored_azure_orgs();
-        let azure_known_orgs = azure_orgs(&azure_stored_orgs, &[dir_repos, pane_repos].concat());
+        let org_names: Vec<String> = azure_stored_orgs.iter().map(|(o, _)| o.clone()).collect();
+        let azure_known_orgs = azure_orgs(&org_names, &[dir_repos, pane_repos].concat());
+        let bitbucket_stored = credential_store::location(credential_store::BITBUCKET_TARGET);
+        let in_file = bitbucket_stored == Some(Location::File)
+            || azure_stored_orgs.iter().any(|(_, l)| *l == Location::File);
         let m = Machine {
             gh_installed: auth::locate_program("gh").is_some(),
             glab_installed: auth::locate_program("glab").is_some(),
             az_installed: auth::locate_program("az").is_some(),
-            bitbucket_stored: credential_store::exists(credential_store::BITBUCKET_TARGET),
+            bitbucket_stored,
             azure_orgs: azure_stored_orgs,
+            can_move_to_keyring: in_file && credential_store::keyring_available(),
             azure_known_orgs,
             hosts_yml,
         };
@@ -459,7 +480,7 @@ pub async fn forge_auth_status(app: AppHandle, known: Known) -> Result<Vec<HostA
             glab_hosts: remote::read_glab_hosts(),
             forge_hosts,
             known: known_hosts,
-            bitbucket_stored: m.bitbucket_stored,
+            bitbucket_stored: m.bitbucket_stored.is_some(),
             azure_stored: !m.azure_orgs.is_empty(),
             azure_env: env_set(AZURE_DEVOPS_PAT_VAR),
             az_installed: m.az_installed,
@@ -490,6 +511,7 @@ pub async fn forge_auth_status(app: AppHandle, known: Known) -> Result<Vec<HostA
                         detected: !l.detected_by.is_empty(),
                         detected_by: l.detected_by.clone(),
                         known_orgs: Vec::new(),
+                        can_move_to_keyring: false,
                     })
                 })
                 .collect()
@@ -675,17 +697,27 @@ fn stored_target(
     }
 }
 
-/// Stores a token in the OS credential store (Windows Credential Manager or the macOS Keychain):
-/// Bitbucket's, or one Azure DevOps organization's. The token never appears in an error, and every copy here is overwritten
-/// before it is freed.
+/// Stores a token in the OS credential store (Windows Credential Manager, the macOS Keychain, or
+/// the Secret Service): Bitbucket's, or one Azure DevOps organization's. On Linux with no keyring
+/// it goes to the fallback file when `allow_file` or `linux.allowFileCredentials` says so, and
+/// otherwise fails with `NeedsFilePermission`. `allow_file` exists because the setting the front
+/// end just saved reaches the core on the file watcher's schedule, after the retry. The token
+/// never appears in an error, and every copy here is overwritten before it is freed.
 #[tauri::command]
 pub async fn forge_set_token(
     app: AppHandle,
     provider: ProviderKind,
     org: Option<String>,
     token: String,
+    allow_file: Option<bool>,
 ) -> Result<(), ForgeError> {
     blocking(move || {
+        let allow_file = allow_file.unwrap_or(false)
+            || app
+                .state::<SettingsState>()
+                .current()
+                .linux
+                .allow_file_credentials;
         let cleaned = credential_store::clean_token(&token);
         credential_store::wipe(token);
         let fail = |e: String| ForgeError::other(format!("Could not store it: {e}."));
@@ -699,11 +731,47 @@ pub async fn forge_set_token(
             }
         };
         let cleaned = cleaned.map_err(fail)?;
-        let written = credential_store::write(&target, user, cleaned.as_bytes());
+        let written = credential_store::write_with(&target, user, cleaned.as_bytes(), allow_file);
         credential_store::wipe(cleaned);
-        written.map_err(fail)?;
+        match written {
+            Ok(_) => {}
+            Err(e) if e == credential_store::NEEDS_FILE_PERMISSION => {
+                return Err(ForgeError::new(
+                    ForgeErrorKind::NeedsFilePermission,
+                    needs_file_permission_message(),
+                ));
+            }
+            Err(e) => return Err(fail(e)),
+        }
         auth_changed(&app, provider, host);
         Ok(())
+    })
+    .await
+}
+
+/// The question the front end puts to the user, naming the file with `~` for the home folder.
+fn needs_file_permission_message() -> String {
+    let path = credential_store::file_store_path()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "~/.local/share/bashboard/credentials.json".into());
+    let home = std::env::var("HOME").unwrap_or_default();
+    let shown = match path.strip_prefix(&home) {
+        Some(rest) if !home.is_empty() && rest.starts_with('/') => format!("~{rest}"),
+        _ => path,
+    };
+    format!(
+        "No keyring is running, so Bashboard can't store the token in it. Store it in a file only you can read ({shown})?"
+    )
+}
+
+/// Moves every token in the Linux fallback file into the keyring, removing each from the file once
+/// the keyring holds it. Returns how many moved; elsewhere there is no file and it returns 0. The
+/// token values do not change, so cached tokens and Ship panes stay as they are.
+#[tauri::command]
+pub async fn forge_move_tokens_to_keyring() -> Result<usize, ForgeError> {
+    blocking(|| {
+        credential_store::move_file_tokens_to_keyring()
+            .map_err(|e| ForgeError::other(format!("Could not move the tokens: {e}.")))
     })
     .await
 }
@@ -1091,13 +1159,21 @@ mod tests {
             accounts: vec!["ann@example.com".into()],
             active_account: Some("ann@example.com".into()),
             token_source: Some(TokenSourceKind::BashboardCredential),
-            stored_tokens: vec![StoredToken {
-                org: Some("contoso".into()),
-            }],
+            stored_tokens: vec![
+                StoredToken {
+                    org: Some("contoso".into()),
+                    location: None,
+                },
+                StoredToken {
+                    org: Some("fabrikam".into()),
+                    location: Some(Location::File),
+                },
+            ],
             gh_env_token: None,
             detected: true,
             detected_by: vec!["Azure CLI is installed".into()],
             known_orgs: vec!["contoso".into(), "fabrikam".into()],
+            can_move_to_keyring: false,
         };
         assert_eq!(
             serde_json::to_value(&h).unwrap(),
@@ -1109,11 +1185,12 @@ mod tests {
                 "accounts": ["ann@example.com"],
                 "activeAccount": "ann@example.com",
                 "tokenSource": "bashboardCredential",
-                "storedTokens": [{ "org": "contoso" }],
+                "storedTokens": [{ "org": "contoso" }, { "org": "fabrikam", "location": "file" }],
                 "ghEnvToken": null,
                 "detected": true,
                 "detectedBy": ["Azure CLI is installed"],
-                "knownOrgs": ["contoso", "fabrikam"]
+                "knownOrgs": ["contoso", "fabrikam"],
+                "canMoveToKeyring": false
             })
         );
         let k: Known = serde_json::from_value(serde_json::json!({

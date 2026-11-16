@@ -135,8 +135,8 @@ reported rather than overwritten. The divider between
 the list and the preview can be dragged; until a file is selected, the list fills the pane.
 
 The **Tree** button (lit while on) shows the folder as a tree, as code editors do: each folder
-row has a chevron, and clicking it, double-clicking the row, or pressing Enter expands the folder
-in place. Right expands a folder or steps into an open one, and Left collapses it or steps out to
+row has a chevron, and clicking the row or its chevron, or pressing Enter, expands or collapses
+the folder in place. Right expands a folder or steps into an open one, and Left collapses it or steps out to
 its parent folder. Sorting applies within each folder, the filter searches every open folder, and
 Ctrl+V pastes into the folder of the selected row. The breadcrumb still shows the tree's top
 folder: going up, or clicking a segment, starts the tree there. Opening a pinned file or folder
@@ -1287,8 +1287,13 @@ those keys themselves.
   **Sign in** runs `glab auth login` in a new terminal pane the same way, **Install GitLab CLI**
   runs `winget` or Homebrew the same way, and **Sign out** asks first and then signs out of the GitLab CLI for every app that
   uses it. The Bitbucket card says whether an API token is stored; **Add token** (or **Replace
-  token**) opens a password field, **Save** stores the token in Windows Credential Manager or the macOS Keychain, and
-  **Remove token** asks first and deletes it. It also lists the scopes the token needs, with
+  token**) opens a password field, **Save** stores the token in Windows Credential Manager, the macOS Keychain, or
+  the Linux keyring (GNOME Keyring, KWallet, or another Secret Service), and
+  **Remove token** asks first and deletes it. On Linux with no keyring running, the first **Save**
+  asks whether to keep tokens in a file only you can read (`~/.local/share/bashboard/credentials.json`);
+  **Allow** stores it there and saves later tokens there without asking, and **Cancel** stores
+  nothing. On Linux each stored token says whether it is in the keyring or in a file, and once a
+  keyring is running, **Move to keyring** moves the file's tokens into it. It also lists the scopes the token needs, with
   **Open the API token page** and **Copy scopes**. The Azure DevOps card has one row for each
   organization with a stored personal access token, each with **Replace**, **Remove** (which asks
   first), and **Test**; **Add token** opens a form with an organization field and a password
@@ -1406,7 +1411,7 @@ the setup script and its variables, and the approval are described in
 [New worktree](#new-worktree).
 
 `bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
-input), save it in Windows Credential Manager or the macOS Keychain (the same place the Accounts tab's **Add token** saves it), and do not open a pane. `--clear` removes it. Each
+input), save it in Windows Credential Manager, the macOS Keychain, or the Linux keyring (the same place the Accounts tab's **Add token** saves it), and do not open a pane. On Linux with no keyring running, they use the credentials file only after you allowed it from the Accounts tab, and otherwise say to start a keyring or save a token there once. `--clear` removes it. Each
 Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
 
 ```sh

@@ -14,7 +14,7 @@ export interface FileRowOptions {
   /** A click, with its Ctrl and Shift state. */
   onSelect: (e: MouseEvent) => void;
   onActivate: () => void;
-  /** The chevron of a tree folder was clicked. */
+  /** A tree folder's chevron, or the folder row itself, was clicked. */
   onToggle?: () => void;
   /** Called with the row's menu button so the menu can anchor to it. */
   onMenu: (anchor: HTMLElement) => void;
@@ -84,8 +84,15 @@ export function renderFileRow(entry: FileItem, opts: FileRowOptions): HTMLElemen
     row.append(twisty);
   }
   row.append(icon, name, size, date, menu);
-  row.addEventListener('click', (e) => opts.onSelect(e));
-  row.addEventListener('dblclick', () => opts.onActivate());
+  // A tree folder toggles on a plain click, so its double click would only toggle it back.
+  const treeFolder = opts.tree === true && entry.isDir;
+  row.addEventListener('click', (e) => {
+    opts.onSelect(e);
+    if (treeFolder && !e.shiftKey && !e.ctrlKey && !e.metaKey) opts.onToggle?.();
+  });
+  row.addEventListener('dblclick', () => {
+    if (!treeFolder) opts.onActivate();
+  });
   if (opts.onDragStart) attachBodyDrag(row, opts.onDragStart);
   return row;
 }

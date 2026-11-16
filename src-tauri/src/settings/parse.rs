@@ -758,6 +758,13 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             |v| v.as_str().and_then(AutoSwitch::from_id),
             d.linux.disable_dmabuf_renderer,
         ),
+        allow_file_credentials: pick(
+            &root,
+            &["linux", "allowFileCredentials"],
+            &mut w,
+            Value::as_bool,
+            d.linux.allow_file_credentials,
+        ),
     };
     let keybindings = parse_keybindings(&root, &mut w);
 

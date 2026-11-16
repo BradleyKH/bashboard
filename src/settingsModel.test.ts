@@ -21,8 +21,15 @@ describe('SETTINGS_SECTIONS', () => {
     const { keybindings: _keybindings, ...rest } = DEFAULT_SETTINGS;
     // Pins are edited from the Ship pane and bookmarks from the Local Browser pane, so neither
     // list has a Settings tab field; the CDN host list is edited in the file. The Linux renderer
-    // switch is a launch-time workaround that means nothing on the other OSes.
-    const withoutFields = ['ship.pinnedRepos', 'localBrowser.bookmarks', 'localBrowser.cdnHosts', 'linux.disableDmabufRenderer'];
+    // switch is a launch-time workaround that means nothing on the other OSes, and the Linux
+    // credentials file switch is set by the Accounts tab when it asks.
+    const withoutFields = [
+      'ship.pinnedRepos',
+      'localBrowser.bookmarks',
+      'localBrowser.cdnHosts',
+      'linux.disableDmabufRenderer',
+      'linux.allowFileCredentials',
+    ];
     const expected = leaves(rest).filter((p) => !withoutFields.includes(p));
     expect(fields.map((f) => f.path.join('.')).sort()).toEqual(expected.sort());
   });

@@ -74,6 +74,9 @@ tauri-plugin-updater = "2.14.0"
 # and features follow what wry already builds.
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = { version = "2.0.2", features = ["v2_20"] }
+# Forge tokens (credential_store.rs). The async-io runtime is the one zbus already builds here,
+# and its blocking API needs no runtime, which `bb` does not have.
+secret-service = { version = "5.2", features = ["rt-async-io-crypto-rust"] }
 
 # getsid, for attributing orphaned jobs to their pane (pty.rs), and statfs on macOS.
 [target.'cfg(unix)'.dependencies]

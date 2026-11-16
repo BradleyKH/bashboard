@@ -1,5 +1,7 @@
+import type { ConfirmOptions } from './confirmDialog';
 import { asForgeError, forgeSetToken } from './forgeApi';
 import { normalizeOrg } from './forgeAccountsModel';
+import { saveSetting } from './settings';
 
 /** The providers whose token Bashboard stores itself. */
 export type TokenProvider = 'bitbucket' | 'azureDevOps';
@@ -8,6 +10,8 @@ export interface ForgeTokenFormOptions {
   provider: TokenProvider;
   /** Prefills the Azure DevOps organization field. */
   org?: string;
+  /** Asks before a Linux machine with no keyring keeps tokens in a file. */
+  confirm(options: ConfirmOptions): Promise<boolean>;
   /** The token was stored. */
   onSaved(): void;
   onCancel(): void;
@@ -141,7 +145,7 @@ export class ForgeTokenForm {
     this.setBusy(true);
     this.error.hidden = true;
     try {
-      await forgeSetToken(this.options.provider, org, token);
+      if (!(await this.store(org, token))) return;
     } catch (err) {
       this.showError(asForgeError(err).message);
       return;
@@ -149,6 +153,33 @@ export class ForgeTokenForm {
       this.setBusy(false);
     }
     this.options.onSaved();
+  }
+
+  /**
+   * Saves the token; false when the user declined file storage. The core asks for permission only
+   * while `linux.allowFileCredentials` is off, so this confirm shows once.
+   */
+  private async store(org: string | null, token: string): Promise<boolean> {
+    try {
+      await forgeSetToken(this.options.provider, org, token);
+      return true;
+    } catch (err) {
+      const e = asForgeError(err);
+      if (e.kind !== 'needsFilePermission') throw err;
+      const ok = await this.options.confirm({
+        title: 'Store the token in a file?',
+        body: [e.message],
+        confirmLabel: 'Allow',
+      });
+      if (!ok) {
+        this.showError('Nothing was stored.');
+        return false;
+      }
+      await saveSetting(['linux', 'allowFileCredentials'], true);
+      // The setting reaches the core on the file watcher's schedule, so the retry says it too.
+      await forgeSetToken(this.options.provider, org, token, true);
+      return true;
+    }
   }
 
   private showError(message: string): void {

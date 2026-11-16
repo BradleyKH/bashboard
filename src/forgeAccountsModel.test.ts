@@ -36,6 +36,7 @@ function gh(over: Partial<HostAuth> = {}): HostAuth {
     detected: true,
     detectedBy: [],
     knownOrgs: [],
+    canMoveToKeyring: false,
     ...over,
   };
 }
@@ -176,6 +177,15 @@ describe('hostCard, Bitbucket', () => {
     expect(kinds(c)).toEqual(['addToken', 'test', 'openUrl', 'copyScopes']);
   });
 
+  it('says where a Linux token is kept, and offers Move to keyring when the core says it can', () => {
+    expect(hostCard(bb({ storedTokens: [{ org: null, location: 'keyring' }] })).status).toBe(
+      'API token stored in the keyring',
+    );
+    const c = hostCard(bb({ storedTokens: [{ org: null, location: 'file' }], canMoveToKeyring: true }));
+    expect(c.status).toBe('API token stored in a file');
+    expect(kinds(c)).toEqual(['replaceToken', 'removeToken', 'test', 'moveToKeyring', 'openUrl', 'copyScopes']);
+  });
+
   it('prefers a stored token over Git Credential Manager', () => {
     const c = hostCard(bb({ storedTokens: [{ org: null }], tokenSource: 'gitCredentialManager' }));
     expect(c.severity).toBe('ok');
@@ -266,6 +276,23 @@ describe('hostCard, Azure DevOps', () => {
       { kind: 'test', label: 'Test', org: 'contoso' },
     ]);
     expect(kinds(c)).toEqual(['addToken', 'signIn', 'test', 'openTokenPage', 'copyScopes']);
+  });
+
+  it('labels each organization with where its PAT is kept on Linux, and none elsewhere', () => {
+    const c = hostCard(
+      az({
+        storedTokens: [
+          { org: 'contoso', location: 'keyring' },
+          { org: 'fabrikam', location: 'file' },
+        ],
+        canMoveToKeyring: true,
+      }),
+    );
+    expect(c.tokens.map((t) => t.location)).toEqual(['in the keyring', 'in a file']);
+    expect(kinds(c)).toContain('moveToKeyring');
+    const elsewhere = hostCard(az({ storedTokens: [{ org: 'contoso' }] }));
+    expect(elsewhere.tokens[0]!.location).toBeNull();
+    expect(kinds(elsewhere)).not.toContain('moveToKeyring');
   });
 
   it('names the environment variable when it supplies the token', () => {

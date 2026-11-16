@@ -397,24 +397,45 @@ fn git_credential(
     Some((password, expiry.map(expiry_instant)))
 }
 
+fn fetch(git: &Git, source: &TokenSource) -> Option<(String, Option<Instant>)> {
+    match source {
+        TokenSource::Cli { program, args } => run_cli(program, args).map(|t| (t, None)),
+        TokenSource::GitCredential {
+            host,
+            username,
+            path,
+        } => git_credential(git, host, username.as_deref(), path.as_deref()),
+        TokenSource::CredentialManager { target } => {
+            crate::credential_store::read(target).map(|t| (t, None))
+        }
+        TokenSource::Env { var } => env_token(var).map(|t| (t, None)),
+        TokenSource::AzCli => az_cli(),
+        TokenSource::Glab { host } => glab_cli(host),
+    }
+}
+
+/// The source `resolve` would take its token from, for status display. A Bashboard-stored token
+/// is only looked up by its attributes: reading it would unlock a locked Linux keyring, showing
+/// its password prompt before any token is needed.
+pub fn resolve_source(git: &Git, sources: &[TokenSource]) -> Option<TokenSource> {
+    sources
+        .iter()
+        .find(|source| match source {
+            TokenSource::CredentialManager { target } => {
+                crate::credential_store::location(target).is_some()
+            }
+            _ => fetch(git, source).is_some_and(|(value, _)| {
+                crate::credential_store::wipe(value);
+                true
+            }),
+        })
+        .cloned()
+}
+
 /// Tries each source in order and returns the first token found.
 pub fn resolve(git: &Git, sources: &[TokenSource]) -> Result<Token, ForgeError> {
     for source in sources {
-        let found = match source {
-            TokenSource::Cli { program, args } => run_cli(program, args).map(|t| (t, None)),
-            TokenSource::GitCredential {
-                host,
-                username,
-                path,
-            } => git_credential(git, host, username.as_deref(), path.as_deref()),
-            TokenSource::CredentialManager { target } => {
-                crate::credential_store::read(target).map(|t| (t, None))
-            }
-            TokenSource::Env { var } => env_token(var).map(|t| (t, None)),
-            TokenSource::AzCli => az_cli(),
-            TokenSource::Glab { host } => glab_cli(host),
-        };
-        if let Some((value, expires)) = found {
+        if let Some((value, expires)) = fetch(git, source) {
             return Ok(Token {
                 value,
                 source: source.clone(),

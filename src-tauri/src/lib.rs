@@ -378,6 +378,7 @@ pub fn run() {
             forge::accounts::forge_auth_test,
             forge::accounts::forge_set_token,
             forge::accounts::forge_clear_token,
+            forge::accounts::forge_move_tokens_to_keyring,
             forge::accounts::forge_gh_switch,
             forge::accounts::forge_gh_logout,
             forge::accounts::forge_glab_logout,

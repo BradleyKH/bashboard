@@ -264,6 +264,9 @@ pub enum ForgeErrorKind {
     NotFound,
     RateLimited,
     Network,
+    /// Linux only: no keyring answered and file storage is not allowed yet, so the front end
+    /// asks before saving the token again with `allowFile`.
+    NeedsFilePermission,
     Other,
 }
 
@@ -321,6 +324,9 @@ pub enum TokenSourceKind {
 #[serde(rename_all = "camelCase")]
 pub struct StoredToken {
     pub org: Option<String>,
+    /// Linux only, where a token can be in the keyring or in the fallback file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<crate::credential_store::Location>,
 }
 
 /// One host's sign-in state for the Accounts tab. Never carries a token.
@@ -351,6 +357,8 @@ pub struct HostAuth {
     /// Azure DevOps organizations known from stored tokens, pins, Ship panes, and terminal
     /// folders, so the card can test each; empty for other providers.
     pub known_orgs: Vec<String>,
+    /// Some of `stored_tokens` are in the fallback file and a keyring now answers (Linux only).
+    pub can_move_to_keyring: bool,
 }
 
 /// A host the front end knows a repo on: a pin or an open Ship pane.

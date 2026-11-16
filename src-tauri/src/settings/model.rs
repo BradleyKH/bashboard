@@ -292,13 +292,17 @@ impl AutoSwitch {
     }
 }
 
-/// Linux-only settings, read once at launch; other OSes ignore them.
+/// Linux-only settings; other OSes ignore them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinuxSettings {
     /// Turns off WebKitGTK's DMA-BUF renderer, which draws a blank window on some GPU drivers
     /// (docs/design/app.md section 3.31). `auto` turns it off on NVIDIA's proprietary driver.
+    /// Read once at launch.
     pub disable_dmabuf_renderer: AutoSwitch,
+    /// Lets a forge token go to a `0600` file when no Secret Service answers
+    /// (`credential_store_linux.rs`). Read on each save.
+    pub allow_file_credentials: bool,
 }
 
 /// The public CDNs a generated page usually loads scripts, styles, and fonts from.
@@ -510,7 +514,10 @@ impl Default for Settings {
                 cdn_hosts: DEFAULT_CDN_HOSTS.iter().map(|h| h.to_string()).collect(),
                 reload_on_change: true,
             },
-            linux: LinuxSettings { disable_dmabuf_renderer: AutoSwitch::Auto },
+            linux: LinuxSettings {
+                disable_dmabuf_renderer: AutoSwitch::Auto,
+                allow_file_credentials: false,
+            },
             keybindings: default_keybindings(),
         }
     }

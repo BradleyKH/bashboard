@@ -252,7 +252,7 @@ rename box out.
   reach the page, a log, or an error message, and `Token`'s `Debug` output hides the value. The one
   way a secret enters the core is the Accounts tab's password field, which sends a Bitbucket token
   or an Azure DevOps personal access token to `forge_set_token` as a single argument; the core writes it to Windows Credential
-  Manager, or on macOS to the Keychain as a generic password under the service `bashboard`, and nowhere else, and overwrites its copies afterward on a best effort basis, since the
+  Manager, on macOS to the Keychain as a generic password under the service `bashboard`, or on Linux to the Secret Service (or, only with the user's permission and no keyring running, to a `0600` file in a `0700` folder), and nowhere else, and overwrites its copies afterward on a best effort basis, since the
   IPC layer's own buffers are outside the app's control. The field is emptied on save, cancel, and
   when the dialog closes. A redirect to another
   host drops the `Authorization` header, the Bitbucket provider refuses any host but

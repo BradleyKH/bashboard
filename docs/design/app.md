@@ -134,7 +134,11 @@ from the command; for the other commands the words after it are ordinary argumen
   Windows Credential Manager generic credential persisted for the local machine, with the user
   name `x-bitbucket-api-token-auth` or `x-azure-devops-pat`. On macOS it is the account of a
   generic password in the login Keychain under the service `bashboard`; the user name is not
-  stored there. A token that is empty or over 2,560 bytes (the Credential Manager blob limit,
+  stored there. On Linux it is a Secret Service item, or an entry in the fallback credentials
+  file when no keyring answers (docs/design/ship.md section 3.20); `bb` cannot read the app's
+  settings, so it writes that file only when it already exists, which means the user allowed it
+  in the Accounts tab, and otherwise fails with a message saying to start a keyring or save a
+  token once from the Accounts tab. A token that is empty or over 2,560 bytes (the Credential Manager blob limit,
   applied on every platform so both accept the same tokens) is refused, as is an organization that is empty, holds a slash,
   whitespace, or a control character, or is written as a flag. `--clear` follows the provider
   (and the organization) and deletes the credential, saying when none was stored. The Ship pane's
