@@ -12,6 +12,7 @@ import {
   type MediaCommand,
   type MediaSnapshot,
 } from './mediaModel';
+import type { MediaPartsShown } from './mediaMenu';
 import { shouldPoll, type PollGate } from './pollTimer';
 
 const TICK_MS = 1000;
@@ -29,6 +30,7 @@ export class MediaSection {
   private readonly now: HTMLElement;
   private readonly title: HTMLElement;
   private readonly sub: HTMLElement;
+  private readonly text: HTMLElement;
   private readonly shuffle: HTMLButtonElement;
   private readonly previous: HTMLButtonElement;
   private readonly play: HTMLButtonElement;
@@ -66,12 +68,12 @@ export class MediaSection {
     this.title.className = 'media-title';
     this.sub = document.createElement('div');
     this.sub.className = 'media-sub';
-    const text = document.createElement('div');
-    text.className = 'media-text';
-    text.append(this.title, this.sub);
+    this.text = document.createElement('div');
+    this.text.className = 'media-text';
+    this.text.append(this.title, this.sub);
     this.now = document.createElement('div');
     this.now.className = 'media-now';
-    this.now.append(this.art, text);
+    this.now.append(this.art, this.text);
 
     this.shuffle = this.button('media-toggle', 'Shuffle', { kind: 'toggleShuffle' });
     this.previous = this.button('', 'Previous', { kind: 'previous' });
@@ -142,10 +144,17 @@ export class MediaSection {
     this.syncTicker();
   }
 
-  /** `dashboard.mediaArt`: hides the art and lets the title take its width. */
-  setShowArt(show: boolean): void {
-    this.art.hidden = !show;
-    this.now.classList.toggle('no-art', !show);
+  /**
+   * `dashboard.mediaArt`, `mediaTitle`, and `mediaArtist`. Without the art the text takes its
+   * width; with none of the three the whole row goes, leaving the controls.
+   */
+  setShown(shown: MediaPartsShown): void {
+    this.art.hidden = !shown.art;
+    this.title.hidden = !shown.title;
+    this.sub.hidden = !shown.artist;
+    this.text.hidden = !shown.title && !shown.artist;
+    this.now.classList.toggle('no-art', !shown.art);
+    this.now.hidden = !shown.art && this.text.hidden;
   }
 
   private apply(s: MediaSnapshot | null): void {

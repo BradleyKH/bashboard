@@ -59,7 +59,7 @@ describe('Dashboard section', () => {
         const extras: Record<string, string[]> = {
           Sessions: ['needsYou.walkAll', 'needsYou.usagePercent', 'needsYou.stuckAgentMinutes'],
           'Local services': ['dashboard.portRows'],
-          Ambient: ['dashboard.mediaArt', 'dashboard.clockStyle'],
+          Ambient: ['dashboard.mediaArt', 'dashboard.mediaTitle', 'dashboard.mediaArtist', 'dashboard.clockStyle'],
         };
         return [
           ...g.sections.map((id) => [g.title, `dashboard.sections.${id}`]),
@@ -423,8 +423,8 @@ describe('per-OS fields', () => {
     expect(section.every((f) => isShown(f, none, 'windows'))).toBe(true);
   });
 
-  it('hides the Media toggle and Album art row on macOS only', () => {
-    for (const p of ['dashboard.sections.media', 'dashboard.mediaArt']) {
+  it('hides the Media toggle and its art, title, and artist rows on macOS only', () => {
+    for (const p of ['dashboard.sections.media', 'dashboard.mediaArt', 'dashboard.mediaTitle', 'dashboard.mediaArtist']) {
       expect(isShown(byPath(p), (path) => (path[2] === 'media' ? true : undefined), 'macos'), p).toBe(false);
       for (const os of ['windows', 'linux']) {
         expect(isShown(byPath(p), (path) => (path[2] === 'media' ? true : undefined), os), `${p} ${os}`).toBe(true);

@@ -169,6 +169,24 @@ const DASHBOARD_ELEMENT_FIELDS: Partial<Record<ShowableSection, Omit<SettingsFie
       shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
       feature: 'media',
     },
+    {
+      path: ['dashboard', 'mediaTitle'],
+      label: 'Media title',
+      kind: 'toggle',
+      applies: 'live',
+      inline: true,
+      shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
+      feature: 'media',
+    },
+    {
+      path: ['dashboard', 'mediaArtist'],
+      label: 'Media artist',
+      kind: 'toggle',
+      applies: 'live',
+      inline: true,
+      shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
+      feature: 'media',
+    },
   ],
   clock: [
     {

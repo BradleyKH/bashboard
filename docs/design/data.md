@@ -301,7 +301,8 @@ the focused pane's folder.
   // side is right or left; an unknown value falls back to right. sections shows or hides each
   // dashboard element, and Pins (4.6). An older file's containers.enabled is still read when
   // sections.containers is absent. clockStyle is both, time, or binary; an unknown value falls
-  // back to both. mediaArt shows the Media section's album art. portRows (1 to 50) is how many ports the Ports section lists before counting
+  // back to both. mediaArt, mediaTitle, and mediaArtist show the Media section's album art, title
+  // line, and artist line. portRows (1 to 50) is how many ports the Ports section lists before counting
   // the rest; anything else falls back to 10.
   "dashboard": {
     "visibleOnStart": true,
@@ -327,6 +328,8 @@ the focused pane's folder.
     },
     "clockStyle": "both",
     "mediaArt": true,
+    "mediaTitle": true,
+    "mediaArtist": true,
     "portRows": 10
   },
   // walkAll makes the next-attention walk visit Ship and usage rows of the Needs you list as well

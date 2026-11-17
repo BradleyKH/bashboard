@@ -20,6 +20,7 @@ import { LocalModelsStore } from './localModelsStore';
 import { setKindMenuFilter } from './kindMenu';
 import { loadPlatform, supports } from './platform';
 import { DashboardPanel } from './dashboardPanel';
+import { MEDIA_PART_SETTINGS } from './mediaMenu';
 import { paneCards, type PaneCardInput } from './dashboardModel';
 import { hiddenNotice } from './dashboardRevealModel';
 import { chordHint } from './paletteModel';
@@ -306,8 +307,8 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     saveSetting(['dashboard', 'clockStyle'], style).catch((err: unknown) =>
       showToast(`Could not save the setting: ${String(err)}`),
     ),
-  onSetMediaArt: (shown) =>
-    saveSetting(['dashboard', 'mediaArt'], shown).catch((err: unknown) =>
+  onSetMediaShown: (part, shown) =>
+    saveSetting(['dashboard', MEDIA_PART_SETTINGS[part]], shown).catch((err: unknown) =>
       showToast(`Could not save the setting: ${String(err)}`),
     ),
   onOpenContainers: (keys) => workspace.openContainers(keys),

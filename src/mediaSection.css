@@ -16,6 +16,10 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.media-now[hidden] {
+  display: none;
+}
+
 .media-art {
   width: 48px;
   height: 48px;

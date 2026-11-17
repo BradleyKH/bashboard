@@ -305,8 +305,11 @@ to `both` with a notice. It applies on save and is the Clock style select under 
 while the clock is on; right-clicking the clock sets it too.
 
 `dashboard.mediaArt` (default `true`) shows the album art in the Media section; off, the title and
-artist take its place. It applies on save and is the Album art toggle under Ambient, shown
-while Media is on; right-clicking the Media section sets it too.
+artist take its place. `dashboard.mediaTitle` and `dashboard.mediaArtist` (both default `true`)
+show the title line and the artist line below it; each falls back to the app's name when the app
+reports none. With all three off, the section shows only its controls. They apply on save and are
+the Album art, Media title, and Media artist toggles under Ambient, shown while Media is on;
+right-clicking the Media section sets them too.
 
 `dashboard.portRows` (default 10, 1 to 50) is how many ports the Ports section lists; the rest are
 counted in one "+ N more" row that opens the Ports tab. A value out of range falls back to 10 with
@@ -336,6 +339,8 @@ while the Ports section is on.
   },
   "clockStyle": "both",
   "mediaArt": true,
+  "mediaTitle": true,
+  "mediaArtist": true,
   "portRows": 10
 }
 ```

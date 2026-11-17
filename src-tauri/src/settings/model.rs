@@ -117,6 +117,10 @@ pub struct Dashboard {
     pub clock_style: String,
     /// Whether the Media section shows the album art beside the title.
     pub media_art: bool,
+    /// Whether the Media section shows the title line.
+    pub media_title: bool,
+    /// Whether the Media section shows the artist line.
+    pub media_artist: bool,
     /// Ports the dashboard lists before counting the rest; `PORT_ROWS_RANGE`.
     pub port_rows: u32,
 }
@@ -492,6 +496,8 @@ impl Default for Settings {
                 },
                 clock_style: "both".into(),
                 media_art: true,
+                media_title: true,
+                media_artist: true,
                 port_rows: 10,
             },
             needs_you: NeedsYou { walk_all: true, usage_percent: 80, stuck_agent_minutes: 15 },

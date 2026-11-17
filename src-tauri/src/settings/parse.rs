@@ -632,6 +632,8 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             d.dashboard.clock_style,
         ),
         media_art: pick(&root, &["dashboard", "mediaArt"], &mut w, boolean, d.dashboard.media_art),
+        media_title: pick(&root, &["dashboard", "mediaTitle"], &mut w, boolean, d.dashboard.media_title),
+        media_artist: pick(&root, &["dashboard", "mediaArtist"], &mut w, boolean, d.dashboard.media_artist),
         port_rows: pick(
             &root,
             &["dashboard", "portRows"],
@@ -1279,6 +1281,19 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "dashboard": { "mediaArt": "no" } }"#);
         assert!(s.dashboard.media_art);
         assert!(w.iter().any(|m| m.starts_with("dashboard.mediaArt")), "missing warning: {w:?}");
+    }
+
+    #[test]
+    fn dashboard_media_title_and_artist_parse() {
+        let d = Settings::default().dashboard;
+        assert!(d.media_title && d.media_artist);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "mediaTitle": false, "mediaArtist": false } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!s.dashboard.media_title && !s.dashboard.media_artist);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "mediaTitle": 0, "mediaArtist": "no" } }"#);
+        assert!(s.dashboard.media_title && s.dashboard.media_artist);
+        assert!(w.iter().any(|m| m.starts_with("dashboard.mediaTitle")), "missing warning: {w:?}");
+        assert!(w.iter().any(|m| m.starts_with("dashboard.mediaArtist")), "missing warning: {w:?}");
     }
 
     #[test]

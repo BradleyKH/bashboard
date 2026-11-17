@@ -814,7 +814,7 @@ On Linux it is the player's own volume, and mute sets it to zero and restores th
 On Linux the section follows the player that is playing; while none plays, it keeps the one it had,
 and it shows nothing playing when no player is running on the session bus. It appears only while
 something has a media session, and collapsed, its header keeps the title and a play/pause button.
-Right-click it to turn the album art off or on, or to hide the section. The Media section is
+Right-click it to turn the album art, the title, or the artist off or on, or to hide the section. The Media section is
 hidden on macOS. The
 `mediaPlayPause`, `mediaNext`, and `mediaPrevious` actions have no keys by default; bind them in
 the Shortcuts tab, or run them from the command palette.

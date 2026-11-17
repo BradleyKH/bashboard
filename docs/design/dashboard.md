@@ -687,8 +687,10 @@ repeat show in the accent color while on and are absent when the app does not of
 button the app does not allow is dimmed. Scrolling over the volume slider steps it by 5%. Below
 them, the elapsed time, a position slider, and the track length show while the track has a known
 length; dragging the position seeks on release. `dashboard.mediaArt` (section 8) hides the art,
-letting the title take its width. Right-clicking the section opens its own menu: Show album art,
-checked while on, then Hide media, each saving its setting.
+letting the title take its width; `dashboard.mediaTitle` and `dashboard.mediaArtist` hide the
+title and artist lines, and with all three off the row goes, leaving the controls. Right-clicking
+the section opens its own menu: Show album art, Show title, and Show artist, each checked while
+on, then Hide media, each saving its setting.
 
 Apps report the position only when it changes, so the section counts forward from the last report
 while playing, held within the track, ticking each second only while the element is enabled,
