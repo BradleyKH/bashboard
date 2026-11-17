@@ -124,26 +124,26 @@ describe('runChip', () => {
   const pr = (over: Partial<ReturnType<typeof paneRunOf>> = {}) => ({ ...paneRunOf(run('a')), ...over });
 
   it.each<[RunStatus, string]>([
-    ['queued', 'build #42 queued'],
-    ['running', 'build #42 running'],
-    ['success', 'build #42 passed'],
-    ['failure', 'build #42 failed'],
-    ['cancelled', 'build #42 cancelled'],
+    ['queued', 'build queued'],
+    ['running', 'build running'],
+    ['success', 'build passed'],
+    ['failure', 'build failed'],
+    ['cancelled', 'build cancelled'],
   ])('%s reads %s', (status, text) => {
     const chip = runChip(pr({ status }));
     expect(chip.text).toBe(text);
     expect(chip.modifier).toBe(status);
   });
 
-  it('drops the number when there is none', () => {
-    expect(runChip(pr({ number: null, status: 'success' })).text).toBe('build passed');
+  it('puts the name, number, and URL in the title', () => {
+    expect(runChip(pr()).title).toBe('build #42\nhttps://example.com/runs/42');
   });
 
-  it('puts the full name and URL in the title', () => {
-    expect(runChip(pr()).title).toBe('build\nhttps://example.com/runs/42');
+  it('leaves the number out of the title when there is none', () => {
+    expect(runChip(pr({ number: null })).title).toBe('build\nhttps://example.com/runs/42');
   });
 
   it('omits the URL line when there is no URL', () => {
-    expect(runChip(pr({ url: '' })).title).toBe('build');
+    expect(runChip(pr({ url: '' })).title).toBe('build #42');
   });
 });

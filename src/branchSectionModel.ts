@@ -16,7 +16,8 @@ export type BranchSectionState =
       detail: WorktreeDetail | null;
       size: BranchSize | null;
       threshold: number;
-      ci: { label: string; status: string; url: string | null } | null;
+      /** `run` is the run's name and number, for the tooltip; `label` leaves the number off. */
+      ci: { label: string; run: string; status: string; url: string | null } | null;
       /** The branch's pull request, from `pickPull`; null when it has none or the host cannot be read. */
       pull: PullRequest | null;
     };
@@ -114,7 +115,7 @@ export function branchSectionView(state: BranchSectionState): BranchSectionView 
       kind: 'ci',
       label: ci.label,
       status: ci.status,
-      title: ci.url === null ? 'Open the Ship tab' : `${ci.url}\nOpen the Ship tab`,
+      title: [ci.run, ci.url, 'Open the Ship tab'].filter(Boolean).join('\n'),
     });
   }
 

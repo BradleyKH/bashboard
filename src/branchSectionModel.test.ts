@@ -141,15 +141,15 @@ describe('branchSectionView', () => {
 
   it('adds a CI row only when there is CI', () => {
     expect(view(repo()).rows.some((r) => r.kind === 'ci')).toBe(false);
-    const v = view(repo({ ci: { label: 'Build #42 passed', status: 'success', url: 'https://x/42' } }));
+    const v = view(repo({ ci: { label: 'Build passed', run: 'Build #42', status: 'success', url: 'https://x/42' } }));
     expect(v.rows[v.rows.length - 1]).toEqual({
       kind: 'ci',
-      label: 'Build #42 passed',
+      label: 'Build passed',
       status: 'success',
-      title: 'https://x/42\nOpen the Ship tab',
+      title: 'Build #42\nhttps://x/42\nOpen the Ship tab',
     });
-    const noUrl = view(repo({ ci: { label: 'Build', status: 'running', url: null } }));
-    expect(noUrl.rows[noUrl.rows.length - 1]).toMatchObject({ title: 'Open the Ship tab' });
+    const noUrl = view(repo({ ci: { label: 'Build running', run: 'Build', status: 'running', url: null } }));
+    expect(noUrl.rows[noUrl.rows.length - 1]).toMatchObject({ title: 'Build\nOpen the Ship tab' });
   });
 
   it('uses singular forms for a single line and file', () => {
@@ -210,7 +210,7 @@ describe('pull request row', () => {
   });
 
   it('comes last, after CI', () => {
-    const v = view(repo({ pull: pr(), ci: { label: 'Build', status: 'success', url: null } }));
+    const v = view(repo({ pull: pr(), ci: { label: 'Build', run: 'Build', status: 'success', url: null } }));
     expect(v.rows.slice(-2).map((r) => r.kind)).toEqual(['ci', 'pull']);
   });
 

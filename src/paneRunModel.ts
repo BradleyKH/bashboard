@@ -47,7 +47,8 @@ export function paneRunOf(run: Run): PaneRun {
 
 export function runChip(run: PaneRun): { text: string; title: string; modifier: string } {
   const info = statusInfo(run.status);
-  const number = run.number === null ? '' : ` #${run.number}`;
-  const title = run.url ? `${run.name}\n${run.url}` : run.name;
-  return { text: `${run.name}${number} ${info.label.toLowerCase()}`, title, modifier: info.modifier };
+  // The number sits in the tooltip only, since the card's model line has little room to spare.
+  const name = run.number === null ? run.name : `${run.name} #${run.number}`;
+  const title = run.url ? `${name}\n${run.url}` : name;
+  return { text: `${run.name} ${info.label.toLowerCase()}`, title, modifier: info.modifier };
 }

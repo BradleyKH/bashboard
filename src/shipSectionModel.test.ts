@@ -3,7 +3,7 @@ import type { OverviewRepo, PullRequest, Run } from './forgeApi';
 import type { DashboardItem, OverviewRow } from './shipOverviewModel';
 import type { ForgeError } from './forgeApi';
 import type { OverviewEntry } from './shipOverviewStore';
-import { itemStatus, itemText, pullsLine, repoLabel, runningLine, signInLine } from './shipSectionModel';
+import { itemStatus, itemText, pullsLine, repoLabel, runningLine, signInLine, TOOLTIP_ITEMS } from './shipSectionModel';
 
 const pull = (over: Partial<PullRequest> = {}): PullRequest =>
   ({ number: 7, title: 'Fix it', reviewDecision: null, checks: null, ...over }) as PullRequest;
@@ -84,6 +84,24 @@ describe('runningLine', () => {
     const line = runningLine([row('github.com/a/b', [active()]), row('github.com/c/d', [active(), active()])], NOW);
     expect(line).toMatchObject({ repo: null, text: '3 pipelines running in 2 repos', target: null });
   });
+
+  it('lists the runs in the tooltip, naming the repo only when they span several', () => {
+    const one = runningLine([row('github.com/a/b', [active(), active({ branch: 'dev', name: 'Test' })])], NOW);
+    expect(one.title).toBe('main · Build · 3m ago\ndev · Test · 3m ago\n\nClick to open its Pipelines.');
+    const two = runningLine([row('github.com/a/b', [active()]), row('github.com/c/d', [active()])], NOW);
+    expect(two.title).toBe('a/b · main · Build · 3m ago\nc/d · main · Build · 3m ago\n\nClick to open the Ship Overview.');
+  });
+
+  it('says only what a click does when nothing is running', () => {
+    expect(runningLine([row('github.com/a/b')], NOW).title).toBe('Click to open the Ship Overview.');
+  });
+
+  it('caps the tooltip list and counts the rest', () => {
+    const runs = Array.from({ length: TOOLTIP_ITEMS + 3 }, () => active());
+    const lines = runningLine([row('github.com/a/b', runs)], NOW).title.split('\n');
+    expect(lines).toHaveLength(TOOLTIP_ITEMS + 3);
+    expect(lines.slice(-3)).toEqual(['and 3 more', '', 'Click to open its Pipelines.']);
+  });
 });
 
 describe('pullsLine', () => {
@@ -107,6 +125,14 @@ describe('pullsLine', () => {
   it('counts every kind of open pull request, tagged or not', () => {
     const tagged = [open({ reviewRequested: true }), open({ isMine: true, reviewDecision: 'approved', checks: 'success' })];
     expect(pullsLine([row('github.com/a/b', [], tagged)])?.text).toBe('2 open PRs');
+  });
+
+  it('lists the open pull requests in the tooltip', () => {
+    const rows = [
+      row('github.com/a/b', [], [open({ number: 3, title: 'Add it' }), open({ draft: true })]),
+      row('github.com/c/d', [], [open({ number: 9, title: 'Fix it' })]),
+    ];
+    expect(pullsLine(rows)?.title).toBe('a/b #3 Add it\nc/d #9 Fix it\n\nDrafts left out. Click to open the Ship Overview.');
   });
 });
 

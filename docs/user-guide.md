@@ -611,7 +611,7 @@ clone. Pins are saved as `ship.pinnedRepos` in `settings.json`, where you can al
 
 **Dashboard.** The dashboard's Ship section, after Ports, has one line for the pipelines running (the
 run itself when there is just one, else a count) and another counting the open pull requests that
-aren't drafts. What the pinned repos need from you (a health branch that failed, your own pull
+aren't drafts. Hover a count to list the runs or pull requests behind it. What the pinned repos need from you (a health branch that failed, your own pull
 request with changes requested or failing checks, your own pull request that is approved and ready
 to merge, pull requests awaiting your review, and a pinned repo that needs a sign-in) is in the
 [Needs you](#dashboard) list instead. With no repo pinned yet, the Ship section shows a Pin repos

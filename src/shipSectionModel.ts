@@ -51,6 +51,17 @@ export function itemTitle(item: DashboardItem): string {
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+/** The most items a summary line's tooltip lists before it says how many more there are. */
+export const TOOLTIP_ITEMS = 10;
+
+/** A summary line's tooltip: the items it counts, one per line, then a blank line and what a click does. */
+function listTitle(items: readonly string[], click: string): string {
+  if (items.length === 0) return click;
+  const shown = items.slice(0, TOOLTIP_ITEMS);
+  const more = items.length - shown.length;
+  return [...shown, ...(more > 0 ? [`and ${more} more`] : []), '', click].join('\n');
+}
+
 /**
  * One run moving: that run's repo, branch, pipeline, and start. Several: their count, opening their
  * repo's Pipelines when they share one, else the Overview. Counts only each repo's newest 20 runs.
@@ -76,15 +87,22 @@ export function runningLine(rows: readonly OverviewRow[], now: number): SummaryL
   const repos = new Set(running.map((r) => r.target));
   const status: RunStatus = running.some((r) => r.run.status === 'running') ? 'running' : running.length > 0 ? 'queued' : 'other';
   const text = `${plural(running.length, 'pipeline')} running`;
+  // The row already names the repo when the runs share one, so each tooltip line leaves it off.
+  const runItems = running.map(({ repo, run }) =>
+    [repos.size > 1 ? repoLabel(repo) : null, run.branch, run.name, relativeTime(run.startedAt ?? run.createdAt, now)]
+      .filter(Boolean)
+      .join(' · '),
+  );
   if (repos.size === 1) {
     const { target, repo } = running[0];
-    return { status, repo: repoLabel(repo), text, title: 'Open its Pipelines', target, tab: 'pipelines' };
+    const title = listTitle(runItems, 'Click to open its Pipelines.');
+    return { status, repo: repoLabel(repo), text, title, target, tab: 'pipelines' };
   }
   return {
     status,
     repo: null,
     text: repos.size > 1 ? `${text} in ${repos.size} repos` : text,
-    title: 'Open the Ship Overview',
+    title: listTitle(runItems, 'Click to open the Ship Overview.'),
     target: null,
   };
 }
@@ -92,12 +110,15 @@ export function runningLine(rows: readonly OverviewRow[], now: number): SummaryL
 /** The open non-draft pull requests across the rows. Null with no rows. Counts only each repo's newest 50. */
 export function pullsLine(rows: readonly OverviewRow[]): SummaryLine | null {
   if (rows.length === 0) return null;
-  const open = rows.flatMap((r) => r.overview.pulls.items).filter((p) => p.state === 'open' && !p.draft);
+  const open = rows.flatMap((r) =>
+    r.overview.pulls.items.filter((p) => p.state === 'open' && !p.draft).map((pull) => ({ repo: r.pin.repo, pull })),
+  );
+  const items = open.map(({ repo, pull }) => `${repoLabel(repo)} #${pull.number} ${pull.title}`);
   return {
     status: 'other',
     repo: null,
     text: plural(open.length, 'open PR'),
-    title: 'Open pull requests across the pinned repos, drafts left out',
+    title: listTitle(items, 'Drafts left out. Click to open the Ship Overview.'),
     target: null,
   };
 }

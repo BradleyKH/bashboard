@@ -438,7 +438,9 @@ repo's Pipelines; otherwise it counts them ("0 pipelines running", "3 pipelines 
 repos"), naming and opening the repo when they share one, else opening the Overview. The pull
 request line counts the open pull requests across the pinned repos, drafts left out ("12 open
 PRs"), and opens the Overview. It is shown once some pinned repo has loaded. Both count from what each poll already
-fetches, a repo's newest 20 runs and 50 open pull requests.
+fetches, a repo's newest 20 runs and 50 open pull requests. A counting line's tooltip lists what it counts, one per
+line and at most 10 before "and N more": each run's branch, pipeline name, and start (led by its repo when the runs
+span several), or each pull request's repo, number, and title. A blank line follows the list, then what a click opens.
 
 The header's button, the Overview icon, opens the Overview. The section is never empty: before any pinned
 repo has loaded it shows a dash, and with no repo pinned it shows a "Pin repos" row
@@ -468,8 +470,8 @@ opens the Git pane (4.13) on that worktree rather than collapsing the section. R
   request. Omitted on a detached HEAD and when the upstream is the comparison ref, whose counts the
   ahead and behind row already shows.
 - **Working tree.** "2 staged, 3 changed, 1 untracked", omitted when all three are 0.
-- **CI.** The branch's latest run on the code host, with the status icon and the run's name; a
-  click opens the Ship pane (4.20) on the repo. It is omitted when the repo has no forge or the
+- **CI.** The branch's latest run on the code host, with the status icon and the run's name; hovering
+  adds its number and link, and a click opens the Ship pane (4.20) on the repo. It is omitted when the repo has no forge or the
   host cannot be read. The section reads the branch's runs itself, once when the branch changes
   and again when git metadata changes (a push moves the remote ref; at most every 30 s for the
   same branch), and polls at the fast interval (60 s) only while that run is queued or running.

@@ -823,8 +823,8 @@ push that starts more than one workflow), only the newest binds. The run stays
 bound until a newer one binds or the pane leaves that branch or worktree.
 
 **Chip.** The session card shows a chip on its model line, the line that holds the agent's model:
-the run's name, number, and status, such as `build #42 running`, `build #42 passed`, or
-`build #42 failed`. Its color follows the status, and hovering shows the run's name and link.
+the run's name and status, such as `build running`, `build passed`, or `build failed`. Its color
+follows the status, and hovering shows the run's name, number, and link.
 
 **Finish.** When a bound run reaches a final state, a `run` mark kind in `DoneTracker`
 (`src/doneStatus.ts`) marks the terminal: `done` for success, `failed` for failure, and nothing

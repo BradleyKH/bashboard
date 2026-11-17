@@ -26,8 +26,13 @@ function latestRun(runs: readonly Run[]): Run | null {
 function ciFor(run: Run): NonNullable<Ci> {
   const info = statusInfo(run.status);
   const name = run.name || run.title || 'CI';
-  const number = run.number === null ? '' : ` #${run.number}`;
-  return { label: `${name}${number} ${info.label.toLowerCase()}`, status: info.modifier, url: run.webUrl || null };
+  // The number sits in the tooltip only, as on a session card's run chip.
+  return {
+    label: `${name} ${info.label.toLowerCase()}`,
+    run: run.number === null ? name : `${name} #${run.number}`,
+    status: info.modifier,
+    url: run.webUrl || null,
+  };
 }
 
 /**
