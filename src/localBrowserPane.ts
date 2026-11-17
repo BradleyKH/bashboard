@@ -43,7 +43,7 @@ const NOTICE_MS = 5000;
 const START_REFRESH_MS = 3000;
 /** How long after a `blocked` event an error page is taken to be that navigation's, not a dead server. */
 const BLOCKED_ERROR_MS = 3000;
-// Mirrors the Overview's sandbox: no popups and no top navigation, so a page cannot escape its frame.
+// No popups and no top navigation, so a page cannot escape its frame.
 const SANDBOX = 'allow-scripts allow-forms allow-same-origin allow-modals';
 
 /** Shared by every Local Browser pane for URL suggestions; not saved across launches. */

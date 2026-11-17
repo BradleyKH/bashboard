@@ -225,9 +225,9 @@ pub struct Restore {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalModels {
-    /// Empty means the default `http://localhost:11434`.
+    /// Empty means the default `http://127.0.0.1:11434`.
     pub ollama_url: String,
-    /// Empty means the default `http://localhost:1234`.
+    /// Empty means the default `http://127.0.0.1:1234`.
     pub lm_studio_url: String,
     /// Context length below which a loaded model is flagged; 0 turns the warning off.
     pub min_context: u32,
@@ -348,7 +348,7 @@ pub struct PinnedRepo {
 pub struct Terminal {
     /// Shell commands running at least this many seconds mark the terminal done or failed; 0 turns it off.
     pub done_after_seconds: u32,
-    /// Shows a Windows notification when a terminal starts waiting while the window is unfocused.
+    /// Shows a system notification when a terminal starts waiting while the window is unfocused.
     pub notify_when_waiting: bool,
 }
 

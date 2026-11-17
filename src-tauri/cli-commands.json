@@ -73,9 +73,9 @@
     },
     {
       "name": "browse",
-      "usage": "bb browse [<url>]",
+      "usage": "bb browse [<url or .html file>]",
       "summary": "Open a Local Browser pane on a localhost address",
-      "details": "Accepts a bare port (5173 or :5173), host:port/path, or a full http URL; a missing scheme means http. Only localhost and 127.0.0.1 are allowed. Without a URL it opens the start page.",
+      "details": "Accepts a bare port (5173 or :5173), host:port/path, or a full http URL; a missing scheme means http. Only localhost and 127.0.0.1 are allowed, plus, on Windows, a path to a local .html or .htm file. Without a URL it opens the start page. Off Windows there is no Local Browser pane, so the address opens in the system browser.",
       "examples": ["bb browse 5173", "bb browse localhost:3000/docs", "bb browse --tab 8080", "bb browse"]
     },
     {

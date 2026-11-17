@@ -535,9 +535,12 @@ allow Keychain access the first time `bb auth` changes a token the app stored, o
 `bb` stored, and again after an update, since preview builds are ad-hoc signed. Choose **Always
 Allow**.
 
-**Environment variable.** To use `AZURE_DEVOPS_EXT_PAT`, set it as a user environment variable
-(System Properties, Environment Variables, or `setx AZURE_DEVOPS_EXT_PAT <token>`) and restart
-Bashboard, since it reads the environment it was started with. A variable set only in another
+**Environment variable.** Bashboard reads the environment it was started with, so set
+`AZURE_DEVOPS_EXT_PAT` where its launcher sees it and restart Bashboard. On Windows, make it a user
+environment variable (System Properties, Environment Variables, or
+`setx AZURE_DEVOPS_EXT_PAT <token>`). On macOS, an app opened from the Dock does not read shell
+profiles, so run `launchctl setenv AZURE_DEVOPS_EXT_PAT <token>` (it lasts until restart). On
+Linux, add it to `~/.profile` or a file in `~/.config/environment.d/` and log in again. A variable set only in another
 tool's configuration, such as another terminal's profile, an IDE's run settings, or a pipeline
 file, does not reach Bashboard.
 

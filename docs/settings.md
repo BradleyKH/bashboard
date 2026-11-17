@@ -100,14 +100,14 @@ Appearance section sets it live.
 when the agent finishes or waits for you. `borderLights` (default `false`) sends a small light
 around the border of every pane in the active tab. When a pane needs you, only that pane keeps
 its light until you get to it. Both are toggles in the Appearance section, Agent glow and Border
-lights, and apply live. Neither appears while Windows is set to reduce animations.
+lights, and apply live. Neither appears while the system is set to reduce motion.
 `borderLightsSpeed` (default `120`, 10 to 300 px per second) sets how fast the lights travel, and
 `borderLightsDensity` (default `1`, 0.25 to 4) how many run per 1000 px of a pane's border, with
 at least one per pane. Both are sliders under Border lights in Settings, shown while it is on.
 
 `tabTransition` (default `true`) animates switching tabs and opening a new one: the panes you
 leave recede and fade while the incoming tab's panes rise into place, in about a third of a
-second. Windows' reduce animations setting turns it into a short crossfade. It is the Tab
+second. The system's reduce motion setting turns it into a short crossfade. It is the Tab
 transition toggle in the Appearance section and applies live.
 
 `showBackgroundTabs` (default `false`) keeps your other tabs in view: they float behind the
@@ -169,7 +169,7 @@ animates.
 
 **Swirling Lights** runs at up to 20 frames per second; raise that with `backdrop.maxFps` (20 to
 240, or 0 for the display's refresh rate). The simulation runs at 12 generations per second under a slow
-camera orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
+camera orbit, held still while the system is set to reduce motion. It is tuned with `capacity` (the
 population it sustains, 300 to 5000; Density in the Settings tab), `mutationRate` (how far
 offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
 above 1 brings the colony closer so it fills more of the window). These apply to Swirling
@@ -186,7 +186,7 @@ slowly under a camera tilted 45 degrees from overhead, which sways a little unle
 animation effects are off.
 
 **Matrix** draws digital rain, one falling column of half-width katakana, digits, and symbols per
-cell column, in the `MS Gothic` or `Yu Gothic` font that ships with Windows. Its fields live under
+cell column, in a system Japanese font (`MS Gothic` or `Yu Gothic` on Windows, Hiragino on macOS, Noto Sans CJK on Linux). Its fields live under
 `backdrop.matrix`, which are Color, Zoom, Speed, and Density in the dialog:
 
 - `color` is the rain's color: `green` (the default, the classic `#00ff41`) or `accent`, a
@@ -200,7 +200,7 @@ cell column, in the `MS Gothic` or `Yu Gothic` font that ships with Windows. Its
   screen busy.
 
 An invalid `color`, `zoom`, `speed`, or `density` falls back to its default with a notice. With `animate` off
-(or while Windows animation effects are off) Matrix shows a still frame of rain that is already
+(or while the system is set to reduce motion) Matrix shows a still frame of rain that is already
 falling, not an empty screen.
 
 **Wave** draws the dashboard's Wave across the whole window: a looping line turning in 3D
@@ -223,7 +223,7 @@ Wave):
 - `echoes` (0 to 15, default 4) is how many faint copies trail the line through its spin.
 
 An invalid value falls back to its default with a notice. With `animate` off Wave shows a still
-figure shaped by the load when it froze; while Windows animation effects are off it holds still
+figure shaped by the load when it froze; while the system is set to reduce motion it holds still
 but reshapes on each new reading.
 
 **Image** and **Slideshow** draw pictures from your disk (PNG, JPEG, WebP, AVIF, BMP, or GIF; a GIF
@@ -243,7 +243,7 @@ shows its first frame). Their fields live under `backdrop.image`:
   repeats; off, it goes in name order. `includeSubfolders` (default `false`) also takes pictures
   from the folders inside it.
 
-Slideshow fades between pictures (and switches instantly while Windows animation effects are off),
+Slideshow fades between pictures (and switches instantly while the system is set to reduce motion),
 reads the folder again before each change so added and removed pictures are picked up, and
 holds its place while the window is minimized. A picture that cannot be shown (missing, unreadable,
 or over 100 MB) raises a notice; Slideshow skips it and moves on.

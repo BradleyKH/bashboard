@@ -191,8 +191,9 @@ Swirling Lights' colony tends itself so the window never sits empty for long
   `backdrop.matrix.density`, 0.25 to 4, default 3). Columns start independently, which keeps them
   out of lockstep, and the window opens with every column idle, so the rain arrives rather than
   appearing all at once.
-- Glyphs are half-width katakana, the digits, and a few symbols, drawn in the `MS Gothic` or
-  `Yu Gothic` font that ships with Windows 10 and 11, with `monospace` as the fallback. No font is
+- Glyphs are half-width katakana, the digits, and a few symbols, drawn in the first installed
+  of `MS Gothic`, `Yu Gothic` (Windows), `Hiragino Sans` (macOS), or `Noto Sans Mono CJK JP` and
+  `Noto Sans CJK JP` (Linux), with `monospace` as the fallback. No font is
   bundled. Drawing waits for the font to load, so the first frames do not cache fallback glyphs.
 - The film's glyphs are mirrored. The renderer sets `transform: scaleX(-1)` on its canvas, which
   the compositor applies for free; drops are column-symmetric, so only the glyph shapes change.

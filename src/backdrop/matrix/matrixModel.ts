@@ -14,9 +14,11 @@ export const GLYPHS =
   '0123456789' +
   ':.=*+-<>|';
 
-// MS Gothic and Yu Gothic both ship with every Windows 10 and 11 install and cover the
-// half-width katakana; the matching bundled-font option (Matrix Code NFI) is not redistributable.
-export const MATRIX_FONT_FAMILY = '"MS Gothic", "Yu Gothic", monospace';
+// System fonts that cover the half-width katakana: MS Gothic and Yu Gothic ship with Windows 10
+// and 11, Hiragino Sans with macOS, and Noto CJK with most Linux desktops. The matching
+// bundled-font option (Matrix Code NFI) is not redistributable.
+export const MATRIX_FONT_FAMILY =
+  '"MS Gothic", "Yu Gothic", "Hiragino Sans", "Noto Sans Mono CJK JP", "Noto Sans CJK JP", monospace';
 
 // Glyphs are drawn unmirrored here: the renderer flips the whole canvas with CSS scaleX(-1),
 // which mirrors them (the film look) without a per-glyph transform.

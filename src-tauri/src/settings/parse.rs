@@ -346,7 +346,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
     };
     let font = Font {
         family: pick(&root, &["font", "family"], &mut w, string, d.font.family),
-        size: pick(&root, &["font", "size"], &mut w, |v| number(v).filter(|n| *n > 0.0), d.font.size),
+        size: pick(&root, &["font", "size"], &mut w, |v| number(v).filter(|n| (6.0..=48.0).contains(n)), d.font.size),
     };
     let accent_color = pick(
         &root,
@@ -945,6 +945,18 @@ mod tests {
         assert_eq!(s.scrollback, 500);
         assert_eq!(s.font.family, Settings::default().font.family);
         assert_eq!(s.scrim, Settings::default().scrim);
+        assert!(w.is_empty());
+    }
+
+    #[test]
+    fn font_size_outside_settings_tab_range_falls_back() {
+        for size in ["5", "49"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "font": {{ "size": {size} }} }}"#));
+            assert_eq!(s.font.size, Settings::default().font.size, "size {size}");
+            assert!(w.iter().any(|m| m.starts_with("font.size")), "size {size}: {w:?}");
+        }
+        let (s, w) = parse_settings(r#"{ "font": { "size": 48 } }"#);
+        assert_eq!(s.font.size, 48.0);
         assert!(w.is_empty());
     }
 
