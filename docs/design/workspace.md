@@ -245,7 +245,7 @@ clusters.
   `--backdrop-blur`, and the cluster's opacity is 0.75, so the drifting panes sit with the
   backdrop and stay under the readability bar of section 5. The filter sits inside the drifting
   element, so the compositor moves an already filtered layer.
-- **Drift.** Each cluster floats across the pane area on a Lissajous loop that spans 80% of the
+- **Drift.** Each cluster floats across the pane area on a looping path that spans 80% of the
   room it has on each axis, so clusters pass behind the active panes and each other. The axis
   frequencies (1:2, 1:3, or 2:3), phases, and loop length (90 to 150 s) come from a hash of the
   tab id, so neighbors take different paths. A cluster's place in its loop follows the clock, so

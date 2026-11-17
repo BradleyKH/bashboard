@@ -178,6 +178,10 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   anything but `true` reads as absent.
 - `filesView` (the view a new Files pane starts in, 4.12): the Tree view; any value but
   `"folder"` or `"tree"` reads as absent.
+- `filesSorts` (the sort a new Files pane starts at, by folder, 4.12): an object from a folder's
+  comparison key (separators as `/`, case folded except on Linux) to `{ key, desc }`; a folder
+  absent starts at Modified, newest first. Reading drops malformed entries, and only the 200
+  folders sorted most recently are kept.
 - `textZoom` (`filesList`, `filePreview`, `gitDiff`, `searchPreview`, `scratch`, and
   `containerLogs`, the zoom new panes of those kinds start at, 4.12 to 4.16): 1 for an absent
   field or one outside 0.5 to 3.
@@ -278,8 +282,7 @@ the focused pane's folder.
   // accent (accentColor brightened as for matrix), white (#e6e6e6), or spectrum; size (0.3 to 2)
   // is the share of the window the figure fills, spilling past it above 1; speed (0.1 to 3)
   // scales its spin, tilt, and detune sweep; lineWidth (1 to 8) is CSS pixels on the line's near side; echoes is a whole
-  // number from 0 to 15. A style of lissajous loads as wave, and a lissajous block fills in any wave
-  // field the file doesn't set. image is for the image and slideshow styles (6.5): file
+  // number from 0 to 15. image is for the image and slideshow styles (6.5): file
   // and folder may contain %VARS% and are empty until set; fit is fill, fit, stretch, center, or
   // tile; intervalSeconds is a whole number from 5 to 86400; crossfadeSeconds is 0 to 10. Out-of-range or invalid values fall
   // back to their defaults.

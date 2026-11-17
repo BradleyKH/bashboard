@@ -44,6 +44,7 @@ import { livePty } from './paneSpecModel';
 import { parseSavedWorkspace, type PtyRef } from './savedWorkspace';
 import { loadSessions } from './sessions';
 import { loadTextZoom, onTextZoomChange, textZoomSnapshot } from './textZoomStore';
+import { filesSortsSnapshot, loadFilesSorts, onFilesSortChange } from './filesSortStore';
 import { filesView, loadFilesView, onFilesViewChange } from './filesViewStore';
 import { showToast } from './toast';
 import { setTerminalEditorHost } from './editors';
@@ -505,6 +506,7 @@ const saver = new DebouncedSaver(
     appImageOfferShown: state.appImageOfferShown || undefined,
     textZoom: textZoomSnapshot(),
     filesView: filesView() === 'folder' ? ('folder' as const) : undefined,
+    filesSorts: filesSortsSnapshot(),
     needsYouHides: needsYouStore.hides(),
   }),
   workspaceSave,
@@ -548,6 +550,7 @@ workspace.onChange(() => {
 });
 onTextZoomChange(() => saver.schedule());
 onFilesViewChange(() => saver.schedule());
+onFilesSortChange(() => saver.schedule());
 listenAppEvents({ state, workspace, saver, refreshPanel, favorites, repo, appWindow });
 startScrollbackAutosave(
   () => state.settings.restore.scrollback,
@@ -579,6 +582,7 @@ try {
   if (saved?.appImageOfferShown) state.appImageOfferShown = true;
   if (saved?.textZoom) loadTextZoom(saved.textZoom);
   if (saved?.filesView) loadFilesView(saved.filesView);
+  if (saved?.filesSorts) loadFilesSorts(saved.filesSorts);
   if (payload.settings.restore.enabled && saved && saved.tabs.length > 0) {
     workspace.restore(saved, {
       resumeSessions: payload.settings.restore.resumeSessions,

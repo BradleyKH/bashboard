@@ -302,7 +302,7 @@ one, so nothing is born or dies and the population never changes.
 
 ## 6.7 Wave
 
-Wave draws the dashboard's Wave (4.6) across the whole window: the same Lissajous figure
+Wave draws the dashboard's Wave (4.6) across the whole window: the same looping figure
 turning in 3D, on the same ladder of figures, driven the same way by CPU (the weave), memory (the
 detune sweep's pace), and network traffic (the spin). `waveModel.ts` holds the figure and its
 motion (`stepWave`) and `waveDraw.ts` strokes it, so the two cannot drift apart; only the look and

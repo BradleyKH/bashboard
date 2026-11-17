@@ -137,7 +137,7 @@ export interface WavePose {
 export type WavePoint = [x: number, y: number, depth: number];
 
 /**
- * One figure as `n` projected points. The flat Lissajous gains a depth wave at the vertical
+ * One figure as `n` projected points. The flat figure gains a depth wave at the vertical
  * frequency, spins about the vertical axis, tilts about the horizontal one, and is drawn in
  * perspective, so its near side is larger. The spin also turns the horizontal phase.
  */

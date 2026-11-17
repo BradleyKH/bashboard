@@ -108,12 +108,12 @@ export const ELEMENT_LABELS: Record<ShowableSection, string> = {
 
 /** Muted notes under the settings dialog's checkboxes, for elements whose name says little. */
 export const ELEMENT_HINTS: Partial<Record<ShowableSection, string>> = {
-  wave: 'A Lissajous figure that follows CPU and network load',
+  wave: 'A looping line that follows CPU and network load',
   containers: 'Podman and Docker',
   ship: 'Manage pipelines and PRs for selected repos',
   branch: "Git and CI summary for the focused pane's branch",
   pins: 'Saved files, folders, and terminal commands',
-  media: 'Now playing in Spotify or another app, on Windows and Linux',
+  media: 'Now playing in Spotify or another app',
 };
 
 /** Elements that need a platform feature; one on an OS without it is hidden everywhere. */

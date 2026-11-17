@@ -190,7 +190,7 @@ buttons work over the pane too), the path from the repo root (click a segment to
 the folder (lit while it is pinned). The sort button sorts
 files by **Name**, **Type** (extension), or **Modified**; pick the current one again to reverse
 it. Folders always stay on top, A to Z (Z to A when you sort by name in reverse). Each Files pane
-keeps its own sort. Click a row to select and preview it, and press
+keeps its own sort, and a new Files pane on a folder starts at the sort you last picked there. Click a row to select and preview it, and press
 Enter or double-click to open it: a folder is entered, a file opens in your editor. Ctrl+click
 adds or removes a row, Shift+click (or Shift+Up and Down) selects a range, and Ctrl+A selects
 every row, as in File Explorer. Up and Down move the selection, Backspace goes up a folder, typing filters the list by name (Backspace edits

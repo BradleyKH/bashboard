@@ -158,35 +158,6 @@ const DASHBOARD_ELEMENT_FIELDS: Partial<Record<ShowableSection, Omit<SettingsFie
       shownWhen: { path: ['dashboard', 'sections', 'ports'], value: true },
     },
   ],
-  media: [
-    {
-      path: ['dashboard', 'mediaArt'],
-      label: 'Album art',
-      kind: 'toggle',
-      applies: 'live',
-      inline: true,
-      shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
-      feature: 'media',
-    },
-    {
-      path: ['dashboard', 'mediaTitle'],
-      label: 'Media title',
-      kind: 'toggle',
-      applies: 'live',
-      inline: true,
-      shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
-      feature: 'media',
-    },
-    {
-      path: ['dashboard', 'mediaArtist'],
-      label: 'Media artist',
-      kind: 'toggle',
-      applies: 'live',
-      inline: true,
-      shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
-      feature: 'media',
-    },
-  ],
 };
 
 /**
@@ -261,7 +232,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     title: 'Dashboard',
     fields: [
-      { path: ['dashboard', 'visibleOnStart'], label: 'Show the dashboard at launch', kind: 'toggle', applies: 'nextLaunch', half: true },
+      { path: ['dashboard', 'visibleOnStart'], label: 'Show the dashboard at launch', kind: 'toggle', applies: 'live', half: true },
       { path: ['dashboard', 'peekOnWaiting'], label: 'Peek when a terminal is waiting', kind: 'toggle', applies: 'live', half: true },
       {
         path: ['dashboard', 'side'],

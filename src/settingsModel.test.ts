@@ -22,11 +22,14 @@ describe('SETTINGS_SECTIONS', () => {
     // Pins are edited from the Ship pane and bookmarks from the Local Browser pane, so neither
     // list has a Settings tab field; the CDN host list is edited in the file. The Linux renderer
     // switch is a launch-time workaround that means nothing on the other OSes, and the Linux
-    // credentials file switch is set by the Accounts tab when it asks. The clock style and the
-    // System rows are set from those elements' own right-click menus.
+    // credentials file switch is set by the Accounts tab when it asks. The clock style, the
+    // System rows, and the Media parts are set from those elements' own right-click menus.
     const withoutFields = [
       'ship.pinnedRepos',
       'dashboard.clockStyle',
+      'dashboard.mediaArt',
+      'dashboard.mediaTitle',
+      'dashboard.mediaArtist',
       ...['cpu', 'memory', 'network', 'disk'].map((r) => `dashboard.systemRows.${r}`),
       'localBrowser.bookmarks',
       'localBrowser.cdnHosts',
@@ -62,7 +65,6 @@ describe('Dashboard section', () => {
         const extras: Record<string, string[]> = {
           Sessions: ['needsYou.walkAll', 'needsYou.usagePercent', 'needsYou.stuckAgentMinutes'],
           'Local services': ['dashboard.portRows'],
-          Ambient: ['dashboard.mediaArt', 'dashboard.mediaTitle', 'dashboard.mediaArtist'],
         };
         return [
           ...g.sections.map((id) => [g.title, `dashboard.sections.${id}`]),
@@ -420,13 +422,10 @@ describe('per-OS fields', () => {
     expect(section.every((f) => isShown(f, none, 'windows'))).toBe(true);
   });
 
-  it('hides the Media toggle and its art, title, and artist rows on macOS only', () => {
-    for (const p of ['dashboard.sections.media', 'dashboard.mediaArt', 'dashboard.mediaTitle', 'dashboard.mediaArtist']) {
-      expect(isShown(byPath(p), (path) => (path[2] === 'media' ? true : undefined), 'macos'), p).toBe(false);
-      for (const os of ['windows', 'linux']) {
-        expect(isShown(byPath(p), (path) => (path[2] === 'media' ? true : undefined), os), `${p} ${os}`).toBe(true);
-      }
-    }
+  it('hides the Media toggle on macOS only', () => {
+    const p = 'dashboard.sections.media';
+    expect(isShown(byPath(p), none, 'macos')).toBe(false);
+    for (const os of ['windows', 'linux']) expect(isShown(byPath(p), none, os), os).toBe(true);
   });
 
   it('shows fields with no OS list everywhere', () => {

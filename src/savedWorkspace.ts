@@ -15,6 +15,7 @@ import type { PaneKind } from './paneKinds';
 import { normalizeDevtools, type DevtoolsState } from './browserPaneModel';
 import { parseFilesSort, type FilesSort } from './filesModel';
 import { parseFilesView, type FilesView } from './filesTreeModel';
+import { parseFilesSorts } from './filesSortStore';
 import { parseProfileId } from './profiles';
 import { type SearchOptions, parseSearchOptions } from './searchOptions';
 import { type TextZoom, parseTextZoom } from './textZoomStore';
@@ -163,6 +164,8 @@ export interface SavedWorkspace {
   textZoom?: TextZoom;
   /** The view a new Files pane starts in; absent means tree. */
   filesView?: FilesView;
+  /** The sort a new Files pane starts at, by folder (`pathKey`); a folder absent means Modified, newest first. */
+  filesSorts?: Record<string, FilesSort>;
 }
 
 export const EMPTY_WORKSPACE: SavedWorkspace = { version: 3, tabs: [], activeTab: 0, collapsedSections: [] };
@@ -444,6 +447,8 @@ export function parseSavedWorkspace(raw: unknown): SavedWorkspace | null {
   if (isRecord(raw.textZoom)) saved.textZoom = parseTextZoom(raw.textZoom);
   const filesView = parseFilesView(raw.filesView);
   if (filesView) saved.filesView = filesView;
+  const filesSorts = parseFilesSorts(raw.filesSorts);
+  if (filesSorts) saved.filesSorts = filesSorts;
   return saved;
 }
 

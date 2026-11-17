@@ -207,8 +207,7 @@ falling, not an empty screen.
 whose weave tightens with CPU load, whose spin quickens with network traffic, and whose
 lopsided detune sweeps faster as memory fills. It runs at up to `backdrop.maxFps` like Swirling
 Lights. Its fields live under `backdrop.wave`, which are Color, Size, Speed, Line width, and
-Echoes in the dialog (a file that says `lissajous` for the style or the block still loads as
-Wave):
+Echoes in the dialog:
 
 - `color` is the line's color: `accent` (the default, a vivid, full-brightness version of the
   accent color, as for the Matrix rain), `white`, or `spectrum`, a rainbow running along the line
@@ -319,9 +318,8 @@ right-clicking the System section sets them.
 `dashboard.mediaArt` (default `true`) shows the album art in the Media section; off, the title and
 artist take its place. `dashboard.mediaTitle` and `dashboard.mediaArtist` (both default `true`)
 show the title line and the artist line below it; each falls back to the app's name when the app
-reports none. With all three off, the section shows only its controls. They apply on save and are
-the Album art, Media title, and Media artist toggles under Ambient, shown while Media is on;
-right-clicking the Media section sets them too.
+reports none. With all three off, the section shows only its controls. They apply on save;
+right-clicking the Media section sets them.
 
 `dashboard.portRows` (default 10, 1 to 50) is how many ports the Ports section lists; the rest are
 counted in one "+ N more" row that opens the Ports tab. A value out of range falls back to 10 with

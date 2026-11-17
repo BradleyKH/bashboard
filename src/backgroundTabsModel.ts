@@ -110,7 +110,7 @@ export function seedOf(text: string): number {
 }
 
 /**
- * A closed loop of offsets from a cluster's home, played forever: a Lissajous path across the
+ * A closed loop of offsets from a cluster's home, played forever: a looping path across the
  * room the cluster has in the pane area, so clusters float past each other rather than holding
  * their corners. The axis frequencies, phases, and loop length come from the seed, so neighboring
  * clusters take different paths and never move in step.

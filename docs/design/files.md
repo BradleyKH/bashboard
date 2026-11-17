@@ -195,8 +195,10 @@ and divider hide and the list fills the pane. The list follows the folder on dis
 (`sortEntries`, `nextSort`). Picking the current key reverses it; picking another starts it A to
 Z for Name and Type and newest first for Modified. Type compares extensions, ignoring case (a
 dotfile such as `.gitignore` has none). Ties go by name, A to Z. Folders stay above the files and
-sort by name, A to Z, under every key except Name descending, which reverses them too. A new pane
-starts at Modified, newest first; each pane saves its own sort (4.11).
+sort by name, A to Z, under every key except Name descending, which reverses them too. Each pane
+saves its own sort (4.11), and a new pane starts at the sort last picked in any pane showing its
+folder (`filesSorts` in workspace.json, section 7, `filesSortStore.ts`), Modified, newest first,
+for a folder never sorted.
 
 **Tree view** (`filesTreeModel.ts`). The breadcrumb's Tree button, left of the sort button and
 lit while the tree shows, switches the list between the Folder and Tree views, as does the

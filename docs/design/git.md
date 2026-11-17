@@ -264,8 +264,8 @@ refuses `--prompt` without `--agent`, since the prompt is typed after the agent'
 
 ## 4.13 Git pane
 
-For one git repo. A head row spans the pane: the **branch line** and the **Changes** and
-**Branches** tabs. The tab shows in workspace.json as the pane's `tab`, absent for Changes.
+For one git repo. A head row spans the pane: the **Changes** and **Branches** tabs at its left,
+then the **branch line**. The tab shows in workspace.json as the pane's `tab`, absent for Changes.
 
 The **branch line** shows the branch with its upstream and the ahead and behind counts, the last
 fetch label, and the Fetch, Pull, and Push buttons. While the worktree's changes against its

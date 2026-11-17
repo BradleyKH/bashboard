@@ -306,7 +306,7 @@ export class GitPane implements PaneView {
 
     const head = document.createElement('div');
     head.className = 'git-head';
-    head.append(this.branch.el, this.tabStrip.el);
+    head.append(this.tabStrip.el, this.branch.el);
     this.main = document.createElement('div');
     this.main.className = 'git-main';
     this.main.append(this.left, this.divider, this.right);

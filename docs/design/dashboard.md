@@ -114,7 +114,7 @@ minimum. Its accessible name is the full time with AM or PM. It updates on each 
 boundary only while the panel is on screen and the window is shown, catching up at once on
 show, and no timer runs while it is disabled.
 
-**Wave.** A looping line (a Lissajous figure turning in 3D) 56 px tall across the panel's width,
+**Wave.** A looping line turning in 3D, 56 px tall across the panel's width,
 with no header, no collapse, and no keyboard row. CPU load climbs a ladder of figures whose
 frequency ratios gain a lobe at each step (1:2, 3:2, 3:4, 5:4), evenly spaced from a calm figure
 eight when idle to a modest weave at full load; between two steps both figures draw whole and

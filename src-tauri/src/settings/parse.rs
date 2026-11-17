@@ -272,24 +272,6 @@ fn parse_cdn_hosts(root: &Value, warnings: &mut Vec<String>) -> Vec<String> {
 }
 
 /// The settings file's root object with comments stripped.
-/// Settings files written before the Wave style took its name say `lissajous` for the style and
-/// the block. Both still load: the style maps to `wave`, and each `backdrop.lissajous` field fills
-/// in the matching `backdrop.wave` field the file doesn't set, so a Settings tab edit (which
-/// writes under `wave`) wins over the old value without discarding the rest.
-fn accept_legacy_wave(root: &mut Value) {
-    let Some(backdrop) = root.get_mut("backdrop").and_then(Value::as_object_mut) else { return };
-    if backdrop.get("style").and_then(Value::as_str) == Some("lissajous") {
-        backdrop.insert("style".into(), Value::from("wave"));
-    }
-    let Some(Value::Object(legacy)) = backdrop.remove("lissajous") else { return };
-    let wave = backdrop.entry("wave").or_insert_with(|| Value::Object(Default::default()));
-    if let Some(wave) = wave.as_object_mut() {
-        for (key, value) in legacy {
-            wave.entry(key).or_insert(value);
-        }
-    }
-}
-
 pub(super) fn parse_root(text: &str) -> Result<Value, String> {
     let mut stripped = String::new();
     let parsed = json_comments::StripComments::new(text.as_bytes())
@@ -311,8 +293,7 @@ pub(super) fn parse_settings(text: &str) -> (Settings, Vec<String>) {
 
 /// Errs only when the file as a whole is unusable; a bad field degrades to its default.
 pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), String> {
-    let mut root = parse_root(text)?;
-    accept_legacy_wave(&mut root);
+    let root = parse_root(text)?;
 
     let d = Settings::default();
     let mut w = Vec::new();
@@ -1040,21 +1021,6 @@ mod tests {
             assert_eq!(s.backdrop.wave, Settings::default().backdrop.wave, "{key}: {bad}");
             assert!(w.iter().any(|m| m.starts_with(&format!("backdrop.wave.{key}"))), "{key}: {w:?}");
         }
-    }
-
-    #[test]
-    fn legacy_lissajous_style_and_block_load_as_wave() {
-        let (s, w) = parse_settings(
-            r#"{ "backdrop": { "style": "lissajous", "lissajous": { "color": "white", "size": 1.4, "echoes": 9 } } }"#,
-        );
-        assert!(w.is_empty(), "{w:?}");
-        assert_eq!(s.backdrop.style, "wave");
-        let d = Settings::default().backdrop.wave;
-        assert_eq!(s.backdrop.wave, WaveBackdrop { color: "white".into(), size: 1.4, echoes: 9, ..d.clone() });
-
-        // A wave field the file also sets wins over its lissajous twin; the rest still carry over.
-        let (s, _) = parse_settings(r#"{ "backdrop": { "wave": { "size": 0.5 }, "lissajous": { "size": 1.4, "echoes": 9 } } }"#);
-        assert_eq!(s.backdrop.wave, WaveBackdrop { size: 0.5, echoes: 9, ..d });
     }
 
     #[test]

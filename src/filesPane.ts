@@ -24,7 +24,6 @@ import { FOLDER_ICON, openFolder } from './folderButton';
 import {
   back,
   currentFolder,
-  DEFAULT_FILES_SORT,
   EMPTY_HISTORY,
   forward,
   nextSort,
@@ -44,6 +43,7 @@ import {
   type FileItem,
   type FilesView,
 } from './filesTreeModel';
+import { filesSortFor, setFilesSort } from './filesSortStore';
 import { filesView, setFilesView } from './filesViewStore';
 import { insertPathText, pinTarget } from './filesRouting';
 import { lookup, type Action, type Keymap } from './keymap';
@@ -69,7 +69,7 @@ export interface FilesPaneOptions {
   root?: string;
   /** Start with the preview filling the pane (a restored pane whose `selected` is a file). */
   expanded?: boolean;
-  /** The list's order; defaults to newest modified first. */
+  /** The list's order; defaults to the one last picked for `folder`, else newest modified first. */
   sort?: FilesSort;
   /** Folder or tree; defaults to the view last picked in any pane. */
   view?: FilesView;
@@ -167,7 +167,7 @@ export class FilesPane implements PaneView {
     this.rootPath = opts.root ?? opts.folder;
     this.currentPath = opts.folder;
     this.selectedKey = selectionKey(opts.folder, opts.selected);
-    this.sort = opts.sort ?? DEFAULT_FILES_SORT;
+    this.sort = opts.sort ?? filesSortFor(opts.folder);
     this.view = opts.view ?? filesView();
     this.stripActions = this.buildStripActions();
 
@@ -356,8 +356,10 @@ export class FilesPane implements PaneView {
     this.opts.onChange();
   }
 
+  /** Sorts the list; the next new pane on this folder starts at the same sort. */
   private setSort(sort: FilesSort): void {
     this.sort = sort;
+    setFilesSort(this.currentPath, sort);
     this.list.setSort(sort);
     this.renderCrumb();
     this.opts.onChange();
