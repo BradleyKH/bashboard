@@ -795,7 +795,7 @@ fits.
 The **clock**, which is off by default, is one line in the top slot: three
 rows of dots showing the hours (24-hour), minutes, and seconds in binary, and the time as
 `h:mm` beside them. Right-click the clock to show just the time or just the dots instead,
-or to hide it; Clock style in the Settings tab does the same. Drag it down among the other sections to move it there, or back to the top.
+or to hide it. Drag it down among the other sections to move it there, or back to the top.
 It ticks only while the panel is on screen.
 
 The **System** section is off by default; turn it on under Ambient in
@@ -804,7 +804,8 @@ network receive and send rates with a sparkline for each, and free space on each
 80% and red at 90%. CPU and network fill in on the second sample after the section starts. It
 samples only while it is expanded, the panel is on screen, and the window is shown. Hover the CPU
 or Memory row to see the programs using the most of it, with all of a program's processes added
-together.
+together. Right-click the section to turn any of the CPU, Memory, Network, and Disk rows off or
+on, or to hide the section.
 
 The **Media** section shows what Spotify, a browser, or another media app is playing, on Windows
 and Linux: the album art, title, and artist, a play/pause button with previous and next beside it,

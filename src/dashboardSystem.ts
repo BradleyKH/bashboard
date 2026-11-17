@@ -14,6 +14,7 @@ import {
   type DiskRow,
   type SystemSample,
 } from './systemModel';
+import type { SystemRowsShown } from './systemMenu';
 
 const POLL_MS = 2000;
 const DISK_MS = 60_000;
@@ -23,6 +24,10 @@ export class DashboardSystem {
   readonly el: HTMLElement;
   readonly head: HTMLElement;
   private readonly list: HTMLElement;
+  private readonly cpuRow: HTMLElement;
+  private readonly memRow: HTMLElement;
+  private readonly netRow: HTMLElement;
+  private shown: SystemRowsShown = { cpu: true, memory: true, network: true, disk: true };
   private readonly cpuValue: HTMLElement;
   private readonly cpuSpark = new SparkCanvas('system-spark');
   private readonly memValue: HTMLElement;
@@ -54,14 +59,17 @@ export class DashboardSystem {
     this.list.className = 'dashboard-list';
 
     const cpu = this.row('CPU');
+    this.cpuRow = cpu.row;
     this.cpuValue = cpu.value;
     cpu.row.append(this.cpuSpark.el);
 
     const mem = this.row('Memory');
+    this.memRow = mem.row;
     this.memValue = mem.value;
     this.memBar = this.bar(mem.row);
 
     const net = this.row('Network');
+    this.netRow = net.row;
     this.netValue = net.value;
     const netSparks = document.createElement('div');
     netSparks.className = 'system-spark-pair';
@@ -84,6 +92,18 @@ export class DashboardSystem {
     this.gate = { ...this.gate, ...partial };
     // The panel can slide away or the window hide without a mouseleave on the row.
     if (!shouldPoll(this.gate)) this.popup.hide();
+  }
+
+  /** `dashboard.systemRows`: which of CPU, Memory, Network, and Disk show. */
+  setRowsShown(shown: SystemRowsShown): void {
+    // A drive list held back while Disk was off is stale; fetch it on the next sample.
+    if (shown.disk && !this.shown.disk) this.lastDisks = undefined;
+    this.shown = { ...shown };
+    this.cpuRow.hidden = !shown.cpu;
+    this.memRow.hidden = !shown.memory;
+    this.netRow.hidden = !shown.network;
+    this.diskBox.hidden = !shown.disk;
+    this.popup.hide();
   }
 
   private row(label: string): { row: HTMLElement; value: HTMLElement } {
@@ -110,7 +130,7 @@ export class DashboardSystem {
 
   private async poll(): Promise<void> {
     const now = Date.now();
-    const includeDisks = this.lastDisks === undefined || now - this.lastDisks >= DISK_MS;
+    const includeDisks = this.shown.disk && (this.lastDisks === undefined || now - this.lastDisks >= DISK_MS);
     try {
       const sample = await systemSample(includeDisks);
       if (sample.disks) {

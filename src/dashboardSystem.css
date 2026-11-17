@@ -57,6 +57,11 @@
   gap: 4px;
 }
 
+.system-row[hidden],
+.system-disks[hidden] {
+  display: none;
+}
+
 /* The CPU and Memory rows' top-processes popup. */
 .system-popup {
   position: fixed;

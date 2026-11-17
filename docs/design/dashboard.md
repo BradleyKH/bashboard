@@ -161,7 +161,10 @@ CPU and network on the second, since both are deltas between two refreshes; they
 then, and every row reads `-` when the core cannot be reached. GPU utilization and Wi-Fi name and
 signal are not shown: Windows offers GPU load only through costly counters or vendor libraries,
 and the Wi-Fi values need the WLAN API for little benefit. `system_sample(includeDisks)` returns
-the rows; the front end passes `includeDisks` on its 60 second beat.
+the rows; the front end passes `includeDisks` on its 60 second beat while the Disk row shows.
+`dashboard.systemRows` (section 8) hides any of the four rows, applying live. Right-clicking the
+section opens its own menu: CPU, Memory, Network, and Disk, each checked while shown, then Hide
+system, each saving its setting.
 
 A drive is a drive letter on Windows; on macOS, `/` and each external drive under `/Volumes/`
 (the APFS system volumes share the root's container and would count its space again). On Linux

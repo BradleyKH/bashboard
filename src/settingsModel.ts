@@ -3,7 +3,6 @@ import { IMAGE_FITS } from './backdrop/image/imageFit';
 import { WAVE_COLOR_MODES, waveSwatch } from './backdrop/wave/waveColor';
 import { MATRIX_COLOR_MODES, matrixRainColor } from './backdrop/matrix/rainColor';
 import { UI_SCALE_MAX, UI_SCALE_MIN } from './uiScale';
-import { CLOCK_STYLE_OPTIONS } from './clockModel';
 import { resolveScheme, SCHEMES } from './code/schemes';
 import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { ELEMENT_FEATURES, ELEMENT_HINTS, ELEMENT_LABELS, SECTION_GROUPS, type ShowableSection } from './dashboardSections';
@@ -186,17 +185,6 @@ const DASHBOARD_ELEMENT_FIELDS: Partial<Record<ShowableSection, Omit<SettingsFie
       inline: true,
       shownWhen: { path: ['dashboard', 'sections', 'media'], value: true },
       feature: 'media',
-    },
-  ],
-  clock: [
-    {
-      path: ['dashboard', 'clockStyle'],
-      label: 'Clock style',
-      kind: 'select',
-      options: [...CLOCK_STYLE_OPTIONS],
-      applies: 'live',
-      inline: true,
-      shownWhen: { path: ['dashboard', 'sections', 'clock'], value: true },
     },
   ],
 };

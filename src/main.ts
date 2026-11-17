@@ -311,6 +311,10 @@ const panel = new DashboardPanel(document.getElementById('dashboard') as HTMLEle
     saveSetting(['dashboard', MEDIA_PART_SETTINGS[part]], shown).catch((err: unknown) =>
       showToast(`Could not save the setting: ${String(err)}`),
     ),
+  onSetSystemRowShown: (row, shown) =>
+    saveSetting(['dashboard', 'systemRows', row], shown).catch((err: unknown) =>
+      showToast(`Could not save the setting: ${String(err)}`),
+    ),
   onOpenContainers: (keys) => workspace.openContainers(keys),
   onOpenShip: (target, tab) => workspace.openShip(target, tab),
   onOpenGit: (root) => workspace.showGit(root),

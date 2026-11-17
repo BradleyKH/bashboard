@@ -302,7 +302,7 @@ the focused pane's folder.
   // dashboard element, and Pins (4.6). An older file's containers.enabled is still read when
   // sections.containers is absent. clockStyle is both, time, or binary; an unknown value falls
   // back to both. mediaArt, mediaTitle, and mediaArtist show the Media section's album art, title
-  // line, and artist line. portRows (1 to 50) is how many ports the Ports section lists before counting
+  // line, and artist line. systemRows shows or hides each System row. portRows (1 to 50) is how many ports the Ports section lists before counting
   // the rest; anything else falls back to 10.
   "dashboard": {
     "visibleOnStart": true,
@@ -330,6 +330,7 @@ the focused pane's folder.
     "mediaArt": true,
     "mediaTitle": true,
     "mediaArtist": true,
+    "systemRows": { "cpu": true, "memory": true, "network": true, "disk": true },
     "portRows": 10
   },
   // walkAll makes the next-attention walk visit Ship and usage rows of the Needs you list as well

@@ -121,6 +121,7 @@ pub struct Dashboard {
     pub media_title: bool,
     /// Whether the Media section shows the artist line.
     pub media_artist: bool,
+    pub system_rows: SystemRows,
     /// Ports the dashboard lists before counting the rest; `PORT_ROWS_RANGE`.
     pub port_rows: u32,
 }
@@ -183,6 +184,16 @@ pub struct DashboardSections {
     pub media: bool,
     pub wave: bool,
     pub clock: bool,
+}
+
+/// Which of the dashboard's System rows show (docs/design/dashboard.md section 4.6).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemRows {
+    pub cpu: bool,
+    pub memory: bool,
+    pub network: bool,
+    pub disk: bool,
 }
 
 /// Bounds of `needsYou.usagePercent` (docs/design/dashboard.md section 4.28).
@@ -498,6 +509,7 @@ impl Default for Settings {
                 media_art: true,
                 media_title: true,
                 media_artist: true,
+                system_rows: SystemRows { cpu: true, memory: true, network: true, disk: true },
                 port_rows: 10,
             },
             needs_you: NeedsYou { walk_all: true, usage_percent: 80, stuck_agent_minutes: 15 },

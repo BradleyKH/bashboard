@@ -634,6 +634,16 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
         media_art: pick(&root, &["dashboard", "mediaArt"], &mut w, boolean, d.dashboard.media_art),
         media_title: pick(&root, &["dashboard", "mediaTitle"], &mut w, boolean, d.dashboard.media_title),
         media_artist: pick(&root, &["dashboard", "mediaArtist"], &mut w, boolean, d.dashboard.media_artist),
+        system_rows: {
+            let mut row = |name: &str, default: bool| pick(&root, &["dashboard", "systemRows", name], &mut w, boolean, default);
+            let r = &d.dashboard.system_rows;
+            SystemRows {
+                cpu: row("cpu", r.cpu),
+                memory: row("memory", r.memory),
+                network: row("network", r.network),
+                disk: row("disk", r.disk),
+            }
+        },
         port_rows: pick(
             &root,
             &["dashboard", "portRows"],
@@ -1281,6 +1291,19 @@ mod tests {
         let (s, w) = parse_settings(r#"{ "dashboard": { "mediaArt": "no" } }"#);
         assert!(s.dashboard.media_art);
         assert!(w.iter().any(|m| m.starts_with("dashboard.mediaArt")), "missing warning: {w:?}");
+    }
+
+    #[test]
+    fn dashboard_system_rows_parse() {
+        let r = Settings::default().dashboard.system_rows;
+        assert!(r.cpu && r.memory && r.network && r.disk);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "systemRows": { "network": false, "disk": false } } }"#);
+        assert!(w.is_empty(), "{w:?}");
+        let r = s.dashboard.system_rows;
+        assert!(r.cpu && r.memory && !r.network && !r.disk);
+        let (s, w) = parse_settings(r#"{ "dashboard": { "systemRows": { "cpu": "off" } } }"#);
+        assert!(s.dashboard.system_rows.cpu);
+        assert!(w.iter().any(|m| m.starts_with("dashboard.systemRows.cpu")), "missing warning: {w:?}");
     }
 
     #[test]

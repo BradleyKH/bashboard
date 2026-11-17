@@ -22,9 +22,12 @@ describe('SETTINGS_SECTIONS', () => {
     // Pins are edited from the Ship pane and bookmarks from the Local Browser pane, so neither
     // list has a Settings tab field; the CDN host list is edited in the file. The Linux renderer
     // switch is a launch-time workaround that means nothing on the other OSes, and the Linux
-    // credentials file switch is set by the Accounts tab when it asks.
+    // credentials file switch is set by the Accounts tab when it asks. The clock style and the
+    // System rows are set from those elements' own right-click menus.
     const withoutFields = [
       'ship.pinnedRepos',
+      'dashboard.clockStyle',
+      ...['cpu', 'memory', 'network', 'disk'].map((r) => `dashboard.systemRows.${r}`),
       'localBrowser.bookmarks',
       'localBrowser.cdnHosts',
       'linux.disableDmabufRenderer',
@@ -59,7 +62,7 @@ describe('Dashboard section', () => {
         const extras: Record<string, string[]> = {
           Sessions: ['needsYou.walkAll', 'needsYou.usagePercent', 'needsYou.stuckAgentMinutes'],
           'Local services': ['dashboard.portRows'],
-          Ambient: ['dashboard.mediaArt', 'dashboard.mediaTitle', 'dashboard.mediaArtist', 'dashboard.clockStyle'],
+          Ambient: ['dashboard.mediaArt', 'dashboard.mediaTitle', 'dashboard.mediaArtist'],
         };
         return [
           ...g.sections.map((id) => [g.title, `dashboard.sections.${id}`]),
@@ -77,11 +80,6 @@ describe('Dashboard section', () => {
     for (const bad of ['0', '51', '2.5', 'x']) expect(parseInput(rows, bad).ok).toBe(false);
   });
 
-  it('accepts the three clock styles and rejects anything else', () => {
-    const style = byPath('dashboard.clockStyle');
-    for (const v of ['both', 'time', 'binary']) expect(parseInput(style, v)).toEqual({ ok: true, value: v });
-    expect(parseInput(style, 'analog').ok).toBe(false);
-  });
 });
 
 describe('Local Browser section', () => {
@@ -116,7 +114,7 @@ describe('isShown', () => {
       .fields.filter((f) => isShown(f, reader(settingsWith(animate, true, style))))
       .map((f) => f.path.join('.'));
 
-  it('hides the loop-only backdrop fields while the backdrop is frozen, and the clock style while the clock is off', () => {
+  it('hides the loop-only backdrop fields while the backdrop is frozen', () => {
     const hidden = fields.filter((f) => !isShown(f, withAnimate(false))).map((f) => f.path.join('.'));
     expect(hidden.sort()).toEqual(
       [
@@ -127,7 +125,6 @@ describe('isShown', () => {
         'backdrop.matrix.density',
         ...['color', 'size', 'speed', 'lineWidth', 'echoes'].map((k) => `backdrop.wave.${k}`),
         ...['file', 'folder', 'fit', 'intervalSeconds', 'crossfadeSeconds', 'shuffle', 'includeSubfolders'].map((k) => `backdrop.image.${k}`),
-        'dashboard.clockStyle',
         'borderLightsSpeed',
         'borderLightsDensity',
         'cloud.productionPattern',

@@ -301,8 +301,11 @@ Ambient (System, Media, Clock, Wave). The panel's right-click menu lists them un
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
 the time, `"time"` for the time only, or `"binary"` for the dots only. An unknown value falls back
-to `both` with a notice. It applies on save and is the Clock style select under Ambient, shown
-while the clock is on; right-clicking the clock sets it too.
+to `both` with a notice. It applies on save; right-clicking the clock sets it.
+
+`dashboard.systemRows` turns the System section's rows on or off: `cpu`, `memory`, `network`,
+and `disk`, each default `true`. Disk space is not sampled while `disk` is off. They apply on save;
+right-clicking the System section sets them.
 
 `dashboard.mediaArt` (default `true`) shows the album art in the Media section; off, the title and
 artist take its place. `dashboard.mediaTitle` and `dashboard.mediaArtist` (both default `true`)
@@ -341,6 +344,7 @@ while the Ports section is on.
   "mediaArt": true,
   "mediaTitle": true,
   "mediaArtist": true,
+  "systemRows": { "cpu": true, "memory": true, "network": true, "disk": true },
   "portRows": 10
 }
 ```

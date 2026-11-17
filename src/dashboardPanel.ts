@@ -15,6 +15,7 @@ import type { DashboardColumn } from './dashboardColumns';
 import { DashboardColumnsView } from './dashboardColumnsView';
 import { dashboardMenuItems } from './dashboardMenu';
 import { mediaMenuItems, type MediaPart, type MediaPartsShown } from './mediaMenu';
+import { systemMenuItems, type SystemRow, type SystemRowsShown } from './systemMenu';
 import { agentCards, externalSessions, groupCardsByTab, otherPanesLabel, paneCards } from './dashboardModel';
 import type { PaneCard, PaneCardInput } from './dashboardModel';
 import { sparkleIcon } from './sparkleIcon';
@@ -110,6 +111,8 @@ export interface DashboardCallbacks
   onSetClockStyle?: (style: ClockStyle) => void;
   /** The Media section's menu turned the album art, title, or artist on or off; the setting's reload applies it. */
   onSetMediaShown?: (part: MediaPart, shown: boolean) => void;
+  /** The System section's menu turned a row on or off; the setting's reload applies it. */
+  onSetSystemRowShown?: (row: SystemRow, shown: boolean) => void;
   /** Open menu on a folder row. */
   onOpenIn?: OpenInHandler;
   /** A Launch button: opens `kind` at the focused pane's repo root. */
@@ -181,6 +184,7 @@ export class DashboardPanel {
   private readonly clock = new DashboardClock();
   private clockStyle: ClockStyle = 'both';
   private mediaShown: MediaPartsShown = { art: true, title: true, artist: true };
+  private systemRows: SystemRowsShown = { cpu: true, memory: true, network: true, disk: true };
   private readonly system = new DashboardSystem();
   private readonly media = new MediaSection();
   private readonly wave = new DashboardWave();
@@ -409,6 +413,13 @@ export class DashboardPanel {
     this.addSection('localModels', this.localModelsSection.el, this.localModelsSection.head);
     this.sessionList = this.section('external', 'External sessions');
     this.addSection('system', this.system.el, this.system.head);
+    attachContextMenu(this.system.el, () => ({
+      entries: systemMenuItems(
+        this.systemRows,
+        (row, shown) => this.callbacks.onSetSystemRowShown?.(row, shown),
+        () => this.callbacks.onSetElementShown?.('system', false),
+      ),
+    }));
     this.addSection('media', this.media.el, this.media.head);
     attachContextMenu(this.media.el, () => ({
       entries: mediaMenuItems(
@@ -545,7 +556,7 @@ export class DashboardPanel {
 
   /**
    * Applies `dashboard.side`, `dashboard.sections`, `dashboard.clockStyle`, `dashboard.mediaArt`,
-   * `dashboard.mediaTitle`, `dashboard.mediaArtist`, and `dashboard.portRows` (docs/design/dashboard.md section 4.6).
+   * `dashboard.mediaTitle`, `dashboard.mediaArtist`, `dashboard.systemRows`, and `dashboard.portRows` (docs/design/dashboard.md section 4.6).
    */
   applyDashboardSettings(d: Settings['dashboard'], minContext: number): void {
     this.shown = { ...d.sections };
@@ -556,6 +567,8 @@ export class DashboardPanel {
     this.clock.setStyle(d.clockStyle);
     this.mediaShown = { art: d.mediaArt, title: d.mediaTitle, artist: d.mediaArtist };
     this.media.setShown(this.mediaShown);
+    this.systemRows = { ...d.systemRows };
+    this.system.setRowsShown(this.systemRows);
     this.portsSection.setMaxRows(d.portRows);
     this.renderPorts();
     this.setSide(d.side);

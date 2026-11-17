@@ -7,6 +7,7 @@ import { DEFAULT_CODE_SCHEME, type CodeScheme } from './code/schemes';
 import { DEFAULT_CONTENT_TEXT_MODE, type ContentTextMode } from './contentText';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { ClockStyle } from './clockModel';
+import type { SystemRowsShown } from './systemMenu';
 import type { DashboardSide } from './dashboardResize';
 import { ELEMENT_SHOWN_BY_DEFAULT, type ShowableSection } from './dashboardSections';
 import { DEFAULT_KEYBINDINGS, type Direction, type KeybindingEntry } from './keymap';
@@ -69,6 +70,8 @@ export interface Settings {
     mediaTitle: boolean;
     /** Whether the Media section shows the artist line (the app's name without one). */
     mediaArtist: boolean;
+    /** Which of the System section's rows show. */
+    systemRows: SystemRowsShown;
     /** Ports the Ports section lists before counting the rest, 1 to 50. */
     portRows: number;
   };
@@ -159,7 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   scrollback: 10000,
   terminal: { doneAfterSeconds: 30, notifyWhenWaiting: true },
-  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both', mediaArt: true, mediaTitle: true, mediaArtist: true, portRows: 10 },
+  dashboard: { visibleOnStart: true, peekOnWaiting: true, side: 'right', sections: { ...ELEMENT_SHOWN_BY_DEFAULT }, clockStyle: 'both', mediaArt: true, mediaTitle: true, mediaArtist: true, systemRows: { cpu: true, memory: true, network: true, disk: true }, portRows: 10 },
   needsYou: { walkAll: true, usagePercent: 80, stuckAgentMinutes: 15 },
   restore: { enabled: true, resumeSessions: true, scrollback: true },
   editor: { preferred: 'default', command: '' },
