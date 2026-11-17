@@ -155,7 +155,7 @@ switching back attaches one again if the budget allows. If the browser drops a W
 shell's working directory, any buttons of the pane's own kind (`PaneView.stripActions`; the
 Files pane's, 4.12; a terminal's cloud chips, 4.25, then its pin button, a pin icon that drops
 a picker like the top bar's favorites and layouts menus: the command pins of the repo of its
-working directory, then the global pins, each run in that directory as a Pins row runs it, and a
+working directory, then below a divider the global pins, each run in that directory as a Pins row runs it, and a
 "+ Add" button that opens the new pin popup for a command pin there, 4.6), then a collapse button, a zoom button (with two or more expanded
 panes in the tab, 4.2), and a close button that acts as Ctrl+W (`requestClosePane`); the rest of
 the strip is the drag handle for docking. The pane's own buttons (not the cloud chips) are hidden

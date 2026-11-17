@@ -59,7 +59,7 @@ Pins heading's globe leaves global pins out of the section: it drops a menu of t
 sorted by name without regard to case, and choosing one types its command as clicking its row does
 ("No global pins" stands alone, disabled, when there are none). While the Pins section is
 hidden, the same button drops a picker like the favorites one instead: the focused repo's pins
-in their order (commands, files, and folders), then the global pins by name, each marked Repo,
+in their order (commands, files, and folders), then below a divider the global pins by name, each marked Repo,
 File, Folder, or Global, with "+ Add" opening the new pin popup. Choosing one acts as clicking its
 row would. After them come icon buttons
 for Settings (⚙, also bound to Ctrl+,) and Help (?, also bound to F1), which open the app dialog

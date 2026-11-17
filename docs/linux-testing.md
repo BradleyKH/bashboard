@@ -176,7 +176,7 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 26. Run `python3 -m http.server 8765` in a pane. The Ports pane and the dashboard show port 8765
     tied to that pane, and Stop ends the server.
-27. In the Ports pane, untick Started from a pane. Ports from system daemons appear only with
+27. In the Ports pane, ports from system daemons appear only with
     Linux services ticked, dimmed, and the dashboard's port list does not count them.
 28. Run `(sleep 120 &)` in a pane. The pane's status stays working until the `sleep` exits, even
     though its parent is gone. Run `(python3 -m http.server 8766 &)` too; the Ports pane still

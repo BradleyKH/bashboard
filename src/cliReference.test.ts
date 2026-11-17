@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { CLI_COMMANDS, CLI_OPTIONS, entryFor } from './cliReference';
+import { CLI_COMMANDS, CLI_OPTIONS, CLI_SECTIONS, entryFor } from './cliReference';
 
 describe('the bb reference', () => {
   it('covers every command the core dispatches, plus help', () => {
     expect(CLI_COMMANDS.map((c) => c.name)).toEqual(['open', 'edit', 'git', 'search', 'scratch', 'term', 'ship', 'ports', 'containers', 'media', 'browse', 'auth', 'auth', 'ci', 'ci wait', 'ci log', 'ci rerun', 'ci cancel', 'pr size', 'worktree new', 'skill install', 'help']);
     expect(CLI_OPTIONS.map((o) => o.name)).toEqual(['--collapsed', '--tab', '--']);
+  });
+
+  it('puts every command in a CLI tab section, and leaves no section empty', () => {
+    const sections: readonly string[] = CLI_SECTIONS;
+    for (const c of CLI_COMMANDS) expect(sections).toContain(c.section);
+    for (const s of CLI_SECTIONS) expect(CLI_COMMANDS.some((c) => c.section === s)).toBe(true);
   });
 
   it('gives each entry a usage line and examples that use it', () => {

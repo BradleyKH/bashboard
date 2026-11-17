@@ -103,7 +103,7 @@ For each check, report pass or fail, plus what you saw if it failed.
 **System ports**
 
 26. Turn on AirPlay Receiver (System Settings, General, AirDrop & Handoff). In a Ports pane,
-    untick Started from a pane. Ports 5000 and 7000 appear only with macOS services ticked,
+    ports 5000 and 7000 appear only with macOS services ticked,
     dimmed, and the dashboard's port list does not count them.
 
 **Crash recovery**

@@ -557,7 +557,9 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
   with one card per host (4.20).
 - **Shortcuts** is the shortcut guide and keybinding editor (4.5).
 - **CLI** (`cliTab.ts`) lists each `bb` command and option from `cli-commands.json` (3.13) with
-  its usage, what it does, and examples, each with a Copy button.
+  its usage, what it does, and examples, each with a Copy button. Commands sit in sections (Panes,
+  CI, Branches, Accounts, Other, from each command's `section` field), then Options, laid out like
+  the Settings tab's: titles in a left column and a rule across the tab above each section.
 - **About** (`aboutTab.ts`) shows the version, Check for updates (3.16), and links to this
   version's release notes on GitHub, the documentation, and the source.
 

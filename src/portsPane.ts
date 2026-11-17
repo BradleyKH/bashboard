@@ -92,7 +92,6 @@ export class PortsPane implements PaneView {
     this.filterInput.spellcheck = false;
     this.paneOnlyBox = document.createElement('input');
     const paneOnly = this.checkbox(this.paneOnlyBox, 'Started from a pane', 'List only ports started from a Bashboard pane');
-    this.paneOnlyBox.checked = true;
     this.servicesBox = document.createElement('input');
     const services = this.checkbox(this.servicesBox, `${osName()} services`, `Also list ports held by ${osName()}'s own services`);
     this.commandsBox = document.createElement('input');
@@ -127,7 +126,7 @@ export class PortsPane implements PaneView {
   highlight(key: string): void {
     this.selected = key;
     const target = this.opts.store.current().find((l) => listenerKey(l) === key);
-    // A row no pane started is filtered out by default; show it rather than select nothing.
+    // With Started from a pane ticked, a row no pane started is hidden; show it rather than select nothing.
     if (target && this.owner(target) === null) this.paneOnlyBox.checked = false;
     this.render();
     this.list.querySelector<HTMLElement>('.ports-row.selected')?.scrollIntoView({ block: 'nearest' });

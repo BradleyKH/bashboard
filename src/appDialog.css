@@ -280,48 +280,76 @@
   display: none;
 }
 
-/* CLI */
+/* CLI. The sections share the Settings tab's layout, rules, and sticky titles (styles.css). */
 
+/* Room for the entry hover band's bleed, which the scroll container would otherwise clip. */
+.cli-tab {
+  margin-left: -6px;
+  padding-left: 6px;
+}
+
+.cli-tab-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* The negative margin keeps the text aligned with the section titles while the hover band bleeds past them. */
 .cli-tab-entry {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 6px 0;
+  margin: 0 -6px;
+  padding: 6px;
+  border-radius: 4px;
 }
 
-.cli-tab-entry + .cli-tab-entry {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+.cli-tab-entry:hover,
+.cli-tab-entry:focus-within {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .app-dialog .cli-tab-usage {
+  color: #eef3f5;
   font-size: 12px;
   font-weight: 600;
 }
 
+.cli-tab-summary {
+  color: #d6dde2;
+}
+
+.cli-tab-details {
+  color: #7f8c94;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .cli-tab-examples {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 3px;
 }
 
 .cli-tab-example {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 6px;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .cli-tab-example code {
-  flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .cli-tab-copy {
-  padding: 1px 8px;
+  padding: 1px 6px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 3px;
   background: transparent;

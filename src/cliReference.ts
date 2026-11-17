@@ -10,9 +10,17 @@ export interface CliEntry {
   examples: string[];
 }
 
+/** A command, which also names the CLI tab section it sits in. `bb help` ignores the section. */
+export interface CliCommand extends CliEntry {
+  section: string;
+}
+
 export const CLI_INTRO: string = reference.intro;
-export const CLI_COMMANDS: CliEntry[] = reference.commands;
+export const CLI_COMMANDS: CliCommand[] = reference.commands;
 export const CLI_OPTIONS: CliEntry[] = reference.options;
+
+/** The CLI tab's command sections, in display order; the options follow as a section of their own. */
+export const CLI_SECTIONS = ['Panes', 'CI', 'Branches', 'Accounts', 'Other'] as const;
 
 /**
  * An entry as the running OS shows it. Without the Local Browser, `bb browse` hands the address

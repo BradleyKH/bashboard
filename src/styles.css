@@ -1560,6 +1560,13 @@ body.dashboard-resizing {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.picker-divider {
+  flex: none;
+  height: 1px;
+  margin: 3px 2px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .picker-row.selected {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--accent);
@@ -2080,7 +2087,8 @@ body.dashboard-resizing {
   padding-left: 6px;
 }
 
-.settings-tab-body > section {
+.settings-tab-body > section,
+.cli-tab > section {
   position: relative;
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
@@ -2090,7 +2098,8 @@ body.dashboard-resizing {
 }
 
 /* Sticky so a long section's title stays beside its rows while they scroll. */
-.settings-tab-body > section > h3 {
+.settings-tab-body > section > h3,
+.cli-tab > section > h3 {
   position: sticky;
   top: 0;
   margin: 0;
@@ -2101,7 +2110,8 @@ body.dashboard-resizing {
 }
 
 /* A pseudo-element rather than border-top so the rule also spans the body's right padding. */
-.settings-tab-body > section::before {
+.settings-tab-body > section::before,
+.cli-tab > section::before {
   content: '';
   position: absolute;
   top: 0;

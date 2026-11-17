@@ -3,6 +3,7 @@
   "commands": [
     {
       "name": "open",
+      "section": "Panes",
       "usage": "bb open <path>",
       "summary": "Show a folder in the Files pane, or a file's folder with it selected",
       "details": "The path must exist. Relative paths resolve against the folder bb runs in.",
@@ -10,6 +11,7 @@
     },
     {
       "name": "edit",
+      "section": "Panes",
       "usage": "bb edit <path>[:<line>]",
       "summary": "Open the file in the preferred editor",
       "details": "A trailing :<digits> is the line to open at, 1 or more. Folders open too.",
@@ -17,6 +19,7 @@
     },
     {
       "name": "git",
+      "section": "Panes",
       "usage": "bb git",
       "summary": "Open the Git pane for this folder's repo",
       "details": "Outside a repo it reports \"not a git repository\".",
@@ -24,6 +27,7 @@
     },
     {
       "name": "search",
+      "section": "Panes",
       "usage": "bb search [<query>]",
       "summary": "Open a Search pane for this folder's repo",
       "details": "The query is filled in when given. Outside a repo it searches the current folder.",
@@ -31,6 +35,7 @@
     },
     {
       "name": "scratch",
+      "section": "Panes",
       "usage": "bb scratch [<text>]",
       "summary": "Open a scratch pad holding the text, or piped standard input",
       "details": "Without arguments it reads standard input, up to 1 MiB.",
@@ -38,6 +43,7 @@
     },
     {
       "name": "term",
+      "section": "Panes",
       "usage": "bb term [<folder>] [-- <command>]",
       "summary": "Open a terminal in this folder or another, optionally running a command",
       "details": "The terminal uses the default shell profile. The words after -- are typed into it as one line, followed by Enter, so they follow that shell's syntax.",
@@ -45,6 +51,7 @@
     },
     {
       "name": "ship",
+      "section": "Panes",
       "usage": "bb ship",
       "summary": "Show this folder's repo in the Ship pane",
       "details": "Outside a repo it shows the Overview. Like ports and containers, it shows the existing pane wherever it is or opens a tab of its own, so --collapsed does not apply.",
@@ -52,6 +59,7 @@
     },
     {
       "name": "ports",
+      "section": "Panes",
       "usage": "bb ports",
       "summary": "Show the Ports pane",
       "details": "Shows the existing Ports pane, or opens a Ports tab.",
@@ -59,6 +67,7 @@
     },
     {
       "name": "containers",
+      "section": "Panes",
       "usage": "bb containers",
       "summary": "Show the Containers pane",
       "details": "Shows the existing Containers pane, or opens a Containers tab.",
@@ -66,6 +75,7 @@
     },
     {
       "name": "media",
+      "section": "Other",
       "usage": "bb media <play-pause|next|previous>",
       "summary": "Play or pause media, or skip a track",
       "details": "Sends play-pause, next, or previous to the app playing media, such as Spotify, as the dashboard's Media section does. Windows and Linux.",
@@ -73,6 +83,7 @@
     },
     {
       "name": "browse",
+      "section": "Panes",
       "usage": "bb browse [<url or .html file>]",
       "summary": "Open a Local Browser pane on a localhost address",
       "details": "Accepts a bare port (5173 or :5173), host:port/path, or a full http URL; a missing scheme means http. Only localhost and 127.0.0.1 are allowed, plus, on Windows, a path to a local .html or .htm file. Without a URL it opens the start page. Off Windows there is no Local Browser pane, so the address opens in the system browser.",
@@ -80,6 +91,7 @@
     },
     {
       "name": "auth",
+      "section": "Accounts",
       "usage": "bb auth bitbucket [--clear]",
       "summary": "Store a Bitbucket API token for the Ship pane",
       "details": "Prompts for the token with echo off, or reads it from standard input, and saves it in Windows Credential Manager, the macOS Keychain, or the Linux keyring (with no keyring running, the credentials file once the Accounts tab allowed it). --clear removes it. Works outside Bashboard too.",
@@ -87,6 +99,7 @@
     },
     {
       "name": "auth",
+      "section": "Accounts",
       "usage": "bb auth azure-devops <org> [--clear]",
       "summary": "Store an Azure DevOps PAT for one organization",
       "details": "Prompts for the PAT with echo off, or reads it from standard input, and saves it in Windows Credential Manager, the macOS Keychain, or the Linux keyring (with no keyring running, the credentials file once the Accounts tab allowed it) under that organization, so each organization needs its own. --clear removes it. Works outside Bashboard too.",
@@ -94,6 +107,7 @@
     },
     {
       "name": "ci",
+      "section": "CI",
       "usage": "bb ci [status] [--branch B] [--json]",
       "summary": "Show CI runs on this branch's head commit, and its pull request",
       "details": "Works on GitHub, GitLab, Bitbucket, and Azure DevOps, for the repo of the current folder. Prints the repo, branch, short SHA, one line per run (status, name, duration, link), and the pull request. --branch reads another branch (its newest run per workflow, since the head commit is known only for the checked-out branch). Run and job IDs are not printed; --json shows each run's id. --json prints the raw answer, and goes with every bb ci command. Exits 1 only when the request fails.",
@@ -101,6 +115,7 @@
     },
     {
       "name": "ci wait",
+      "section": "CI",
       "usage": "bb ci wait [--timeout DUR] [--json]",
       "summary": "Wait for CI on the head commit and exit with its outcome",
       "details": "Polls every --interval seconds (default 30, at least 10) and prints one line when anything changes. Exits 0 when every run is final and none failed, or the pull request merged; 1 when a run failed or was cancelled; 2 when it gives up: --timeout passed (default 30m; accepts 90s, 30m, 1h), no run appeared on the head commit within 5 minutes (the clock restarts when the head commit changes), 8 reads in a row failed, the pull request was closed without merging, or the request itself was refused, including bad arguments and running outside a pane. A run waiting on a person keeps it waiting. Also takes --branch.",
@@ -108,6 +123,7 @@
     },
     {
       "name": "ci log",
+      "section": "CI",
       "usage": "bb ci log [--run ID] [--job ID]",
       "summary": "Print why the newest failed run failed, or a job's full log",
       "details": "Without --job, prints a failure report for --run, or for the newest failed run on the branch: up to 5 failed jobs, each with its failed steps, link, and a log excerpt that starts near the first real error. With --job (which needs --run), prints that job's whole log, up to its last 1 MiB. With no failed run on the branch, prints \"No failed run on <branch>.\" and exits 1. Also takes --branch.",
@@ -115,6 +131,7 @@
     },
     {
       "name": "ci rerun",
+      "section": "CI",
       "usage": "bb ci rerun [--failed] [--run ID]",
       "summary": "Re-run a run, or only its failed jobs",
       "details": "Acts on --run, or the newest run on the branch. Pipelines often deploy, so this is refused unless the ship.cliWrites setting is true. Bitbucket cannot re-run only the failed jobs, so --failed fails there rather than re-running everything; Azure DevOps re-runs only failed jobs, so it needs --failed.",
@@ -122,6 +139,7 @@
     },
     {
       "name": "ci cancel",
+      "section": "CI",
       "usage": "bb ci cancel [--run ID]",
       "summary": "Cancel a run",
       "details": "Acts on --run, or the newest run on the branch. Refused unless the ship.cliWrites setting is true.",
@@ -129,6 +147,7 @@
     },
     {
       "name": "pr size",
+      "section": "Branches",
       "usage": "bb pr size [--json]",
       "summary": "Measure this branch against the git.branchSizeThreshold setting",
       "details": "Counts the lines and files this worktree changes against the merge base with its comparison ref, including uncommitted and untracked work, and leaves out tests, lockfiles, and generated files, the same count as the branch size badge. Prints one line with the count, the comparison ref, the threshold, and what was excluded; --json prints the raw answer. Exits 0 at or under the threshold (or when the threshold is 0, which turns it off, or there is no comparison ref), 1 over it, and 2 on any error, including running outside a pane or a git repo.",
@@ -136,6 +155,7 @@
     },
     {
       "name": "worktree new",
+      "section": "Branches",
       "usage": "bb worktree new <branch> [options]",
       "summary": "Create a git worktree on a new branch and open a pane in it",
       "details": "Fetches the remote, then adds a sibling folder of the main worktree named <repo>-<branch> on a new branch cut from the repo's comparison ref (the one the Git pane compares with), or from --from <ref>; --from HEAD branches from this folder's current commit. It prints the base and its short sha before changing anything, copies the files listed in .worktreeinclude from the main worktree, and opens a terminal in the new folder. If .bashboard/setup.sh exists there it runs visibly in that pane once you approve it in Bashboard (the approval is remembered until the script changes), and --agent <id> then starts that agent, with --prompt as its first message, only if setup succeeded. It fails if the branch or the folder already exists.",
@@ -143,6 +163,7 @@
     },
     {
       "name": "skill install",
+      "section": "Other",
       "usage": "bb skill install",
       "summary": "Teach Claude Code the bb commands",
       "details": "Writes the Bashboard skill to ~/.claude/skills/bashboard/SKILL.md, replacing an earlier copy but never a file of the same name that Bashboard did not write. Works outside Bashboard too.",
@@ -150,6 +171,7 @@
     },
     {
       "name": "help",
+      "section": "Other",
       "usage": "bb help",
       "summary": "List the commands",
       "details": "bb, bb -h, and bb --help do the same, and work outside Bashboard too.",

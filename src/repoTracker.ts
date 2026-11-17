@@ -432,8 +432,9 @@ export class RepoTracker {
       detail: pin.command,
       value: `global:${index}`,
       category: 'Global',
+      group: 'global',
     }));
-    return [...repoItems, ...globalItems];
+    return [...repoItems.map((it) => ({ ...it, group: 'repo' })), ...globalItems];
   }
 
   /** A file or folder pin's picker row, or none while its path is missing or not yet looked up. */

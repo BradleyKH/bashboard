@@ -223,7 +223,7 @@ for. A Ports pane is also in the kind menu (4.11).
 
 **Ports pane.** A bar holds a filter field (matching the port, program, command line, folder, or
 owning pane's title; Escape clears it), a count of the rows shown and hidden, a Started from a
-pane checkbox, checked when the pane opens, that keeps only rows whose owning pane is still open
+pane checkbox, unchecked when the pane opens, that keeps only rows whose owning pane is still open
 (Show in Ports on a row no pane started, and the "+ N other programs" row, clear it so the rows
 they point at show), a Windows services (macOS services, Linux services)
 checkbox that also lists `system` rows, dimmed, and a Command lines checkbox, unchecked when the

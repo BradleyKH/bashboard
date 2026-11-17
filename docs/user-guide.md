@@ -316,7 +316,7 @@ the **+** at the right of the Pins heading, **+ Add** in the menu of the pin but
 of a terminal's title strip, or New pin in the title strip's right-click menu; each opens a popup
 with Name and Command fields, in the focused pane's or that terminal's folder (the title strip's
 ways fill Command with any selected text). The pin button's menu also lists the repo's command
-pins, then the global ones, so you can run one in that terminal's folder without opening the
+pins, then below a line the global ones, so you can run one in that terminal's folder without opening the
 dashboard.
 Clicking the pin types the command into the focused terminal when it is idle and in that folder,
 or into a new terminal opened there, without pressing Enter, so you choose when to run it. A new
@@ -1033,12 +1033,11 @@ otherwise; tick **Command lines** to show each full command line under its folde
 beside the Ports pane, and a right-click gives a menu like the dashboard's, with **Open in Local Browser** and **Open in system browser**.
 
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
-clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
-started; untick it to see everything else, and tick **Windows services** (**macOS services** on a
+clears it). Tick **Started from a pane** to list only ports your panes started, and tick **Windows services** (**macOS services** on a
 Mac, **Linux services** on Linux) to include the system's own ports, dimmed. On a Mac those are
 the services macOS runs for you, such as AirPlay Receiver on ports 5000 and 7000; on Linux they
-are the daemons owned by root or another system account. Opening the pane from the dashboard on a port no pane started unticks it for
-you. Any pane can also become a Ports pane from its kind menu.
+are the daemons owned by root or another system account. Opening the pane from the dashboard on a port no pane started unticks **Started from a
+pane** for you. Any pane can also become a Ports pane from its kind menu.
 
 ## Local Browser
 

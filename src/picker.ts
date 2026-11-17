@@ -12,6 +12,8 @@ export interface PickerItem {
   hint?: string;
   /** Group name shown at the right edge of the row. */
   category?: string;
+  /** A divider separates a shown row from the one above it when their groups differ. */
+  group?: string;
 }
 
 export interface PickerCallbacks {
@@ -445,60 +447,66 @@ export class Picker {
       return;
     }
     this.list.replaceChildren(
-      ...this.shown.map((it, i) => {
-        const row = document.createElement('div');
-        row.className = 'picker-row';
-        row.classList.toggle('selected', i === this.selected);
-        if (it.detail) row.title = it.detail;
-        const editing = this.editing?.value === it.value ? this.editing.mode : null;
-        if (editing === 'rename') {
-          row.append(pickerRenameInput(it.label, (name) => this.finishRename(it, name)));
-        } else {
-          const label = document.createElement('span');
-          label.className = 'picker-label';
-          label.textContent = it.label;
-          row.append(label);
-        }
-        if (it.detail) {
-          const detail = document.createElement('span');
-          detail.className = 'picker-detail';
-          detail.textContent = it.detail;
-          row.append(detail);
-        }
-        if (editing === 'confirm') {
-          row.append(
-            pickerConfirmControls(
-              () => this.confirmRemove(),
-              () => {
-                this.editing = null;
-                this.renderList(false);
-              },
-            ),
-          );
-          return this.wireRow(row, i);
-        }
-        if (it.hint) {
-          const hint = document.createElement('span');
-          hint.className = 'picker-hint';
-          hint.textContent = it.hint;
-          row.append(hint);
-        }
-        if (it.category) {
-          const category = document.createElement('span');
-          category.className = 'picker-category';
-          category.textContent = it.category;
-          row.append(category);
-        }
-        if (this.manage && editing !== 'rename') {
-          row.append(
-            pickerRenameButton(`Rename ${this.manage.noun} (F2)`, () => this.startRename(i)),
-            pickerRemoveButton(`Remove ${this.manage.noun} (Delete)`, () => this.requestRemove(i)),
-          );
-        }
-        return this.wireRow(row, i);
+      ...this.shown.flatMap((it, i) => {
+        const prev = this.shown[i - 1];
+        const divider = prev && prev.group !== it.group ? [pickerDivider()] : [];
+        return [...divider, this.buildRow(it, i)];
       }),
     );
     this.list.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private buildRow(it: PickerItem, i: number): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'picker-row';
+    row.classList.toggle('selected', i === this.selected);
+    if (it.detail) row.title = it.detail;
+    const editing = this.editing?.value === it.value ? this.editing.mode : null;
+    if (editing === 'rename') {
+      row.append(pickerRenameInput(it.label, (name) => this.finishRename(it, name)));
+    } else {
+      const label = document.createElement('span');
+      label.className = 'picker-label';
+      label.textContent = it.label;
+      row.append(label);
+    }
+    if (it.detail) {
+      const detail = document.createElement('span');
+      detail.className = 'picker-detail';
+      detail.textContent = it.detail;
+      row.append(detail);
+    }
+    if (editing === 'confirm') {
+      row.append(
+        pickerConfirmControls(
+          () => this.confirmRemove(),
+          () => {
+            this.editing = null;
+            this.renderList(false);
+          },
+        ),
+      );
+      return this.wireRow(row, i);
+    }
+    if (it.hint) {
+      const hint = document.createElement('span');
+      hint.className = 'picker-hint';
+      hint.textContent = it.hint;
+      row.append(hint);
+    }
+    if (it.category) {
+      const category = document.createElement('span');
+      category.className = 'picker-category';
+      category.textContent = it.category;
+      row.append(category);
+    }
+    if (this.manage && editing !== 'rename') {
+      row.append(
+        pickerRenameButton(`Rename ${this.manage.noun} (F2)`, () => this.startRename(i)),
+        pickerRemoveButton(`Remove ${this.manage.noun} (Delete)`, () => this.requestRemove(i)),
+      );
+    }
+    return this.wireRow(row, i);
   }
 
   private wireRow(row: HTMLElement, index: number): HTMLElement {
@@ -510,4 +518,11 @@ export class Picker {
     if (this.manage) row.addEventListener('contextmenu', (e) => this.openRowMenu(e, index, row));
     return row;
   }
+}
+
+function pickerDivider(): HTMLElement {
+  const divider = document.createElement('div');
+  divider.className = 'picker-divider';
+  divider.setAttribute('aria-hidden', 'true');
+  return divider;
 }
