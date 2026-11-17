@@ -689,8 +689,8 @@ A dashboard element (4.6) for the session 3.29 reports, hidden while there is no
 (a note glyph without one) sits beside the title, with the album in its tooltip, and the artist,
 else the app's name, below it. Under them, one row holds the transport, shuffle, previous, a
 single play/pause button in the accent color whose icon follows the playback state, next, and
-repeat (its icon marks repeat one), with a mute button and volume slider at the right; where the
-row is too narrow for a usable slider (a container query at 300 px), only the mute button shows. Shuffle and
+repeat (its icon marks repeat one), centered. The mute button and volume slider sit at the right of
+the section header, in a zero-height box so the header stays as tall as its title. Shuffle and
 repeat show in the accent color while on and are absent when the app does not offer them; a
 button the app does not allow is dimmed. Scrolling over the volume slider steps it by 5%. Below
 them, the elapsed time, a position slider, and the track length show while the track has a known
@@ -703,7 +703,7 @@ on, then Hide media, each saving its setting.
 Apps report the position only when it changes, so the section counts forward from the last report
 while playing, held within the track, ticking each second only while the element is enabled,
 expanded, on screen, and the window is shown. Collapsed, its header shows the title and a small
-play/pause button. The sliders are drawn from pointer events rather than range inputs, because
+play/pause button in place of the volume. The sliders are drawn from pointer events rather than range inputs, because
 the panel cancels mousedown to keep focus in the terminal. The buttons are keyboard rows (F6).
 The `mediaPlayPause`, `mediaNext`, and `mediaPrevious` actions (4.5) and `bb media` (3.13) send
 the same commands with or without the section.

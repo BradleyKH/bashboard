@@ -12,7 +12,7 @@ export function attachBodyDrag(
   row.addEventListener('pointerdown', (e) => {
     dragged = false;
     if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('button, input, .favorite-handle')) return;
+    if ((e.target as HTMLElement).closest('button, input, [role="slider"], .favorite-handle')) return;
     const startX = e.clientX;
     const startY = e.clientY;
     const stop = (): void => {

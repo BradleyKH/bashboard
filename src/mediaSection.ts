@@ -105,10 +105,11 @@ export class MediaSection {
     const volume = document.createElement('div');
     volume.className = 'media-volume-row';
     volume.append(this.mute, this.volume.el);
+    this.head.append(volume);
 
     const controls = document.createElement('div');
     controls.className = 'media-controls';
-    controls.append(transport, volume);
+    controls.append(transport);
 
     this.elapsed = document.createElement('span');
     this.total = document.createElement('span');

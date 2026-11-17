@@ -13,7 +13,7 @@ export function makeCollapsible(
     // the target detached by the time the click bubbles here, so closest() would miss the button.
     const fromControl = e
       .composedPath()
-      .some((n) => n instanceof Element && n.matches('button, input'));
+      .some((n) => n instanceof Element && n.matches('button, input, [role="slider"]'));
     if (fromControl) return;
     onToggle();
   });

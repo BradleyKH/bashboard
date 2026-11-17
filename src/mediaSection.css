@@ -72,11 +72,9 @@
 }
 
 .media-controls {
-  container-type: inline-size;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: center;
 }
 
 .media-transport,
@@ -86,22 +84,24 @@
   gap: 2px;
 }
 
+/* In the section header. Zero height, its controls overflowing evenly above and below, so the
+   header stays as tall as the title. */
 .media-volume-row {
   flex: 0 1 104px;
   min-width: 0;
+  height: 0;
+  margin-left: 8px;
   gap: 4px;
 }
 
-/* Narrower than this, the slider beside the full transport is too short to set a level with, so
-   only the mute button stays. */
-@container (max-width: 300px) {
-  .media-volume-row {
-    flex: none;
-  }
+#dashboard .media-control.media-mute {
+  width: 22px;
+  height: 22px;
+}
 
-  .media-volume-row .media-slider {
-    display: none;
-  }
+#dashboard .media-control.media-mute svg {
+  width: 13px;
+  height: 13px;
 }
 
 #dashboard .media-control {
@@ -169,7 +169,8 @@
 }
 
 #dashboard .media-section:not(.collapsed) .media-head-title,
-#dashboard .media-section:not(.collapsed) .media-head-play {
+#dashboard .media-section:not(.collapsed) .media-head-play,
+#dashboard .media-section.collapsed .media-volume-row {
   display: none;
 }
 
