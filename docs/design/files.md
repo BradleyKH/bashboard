@@ -31,7 +31,7 @@ that flag says move, and `clipboard_clear()` empties the clipboard after a cut i
 
 Paths must be absolute and are normalized before use, so `..` segments cannot step outside the
 folder they name. `fs_write_text`, `fs_move`, `fs_rename`, `fs_paste`, and `fs_trash` work on any
-existing entry. Nothing deletes a file permanently except the scratch commands above and a finished
+existing entry. Nothing deletes a file permanently except the scratch commands (3.7) and a finished
 cross-drive move, which removes its source.
 
 ## 3.11 Code search (`src-tauri/src/search.rs`)
@@ -129,19 +129,13 @@ On Linux each editor is looked for in four places, first match winning:
    script run directly.
 3. A Flatpak's exported launcher, in `/var/lib/flatpak/exports/bin` and then
    `$XDG_DATA_HOME/flatpak/exports/bin` (default `~/.local/share`), which forwards its arguments
-   to `flatpak run`. The app ids are `com.visualstudio.code`, `com.vscodium.codium`,
-   `com.sublimetext.three`, `dev.zed.Zed`, `com.jetbrains.IntelliJ-IDEA-Community` and
-   `-Ultimate`, `com.jetbrains.PyCharm-Community` and `-Professional`, `com.jetbrains.Rider`,
-   `com.jetbrains.WebStorm`, `com.jetbrains.GoLand`, `com.jetbrains.CLion`,
-   `com.jetbrains.PhpStorm`, and `com.jetbrains.RustRover`. Cursor, Windsurf, and VS Code
+   to `flatpak run`, by the app ids in `flatpak_app_ids`. Cursor, Windsurf, and VS Code
    Insiders have none.
 4. The `Exec=` program of the editor's `.desktop` file, which finds an AppImage or tarball
    install that put nothing on `PATH`. The folders are the XDG application folders plus Flatpak's
-   and Snap's exported ones. The file is `code.desktop`, `code-insiders.desktop`,
-   `codium.desktop`, `cursor.desktop`, `windsurf.desktop`, `sublime_text.desktop`, `zed.desktop`,
-   or `dev.zed.Zed.desktop`; for a JetBrains IDE it is any `jetbrains-<product>.desktop` or
-   `jetbrains-<product>-<suffix>.desktop` (`idea`, `pycharm`, `rider`, `webstorm`, `rustrover`,
-   `goland`, `clion`, `phpstorm`), which covers the Toolbox App's hashed names. The program counts
+   and Snap's exported ones. The file names are in `desktop_ids`; for a JetBrains IDE it is any
+   `jetbrains-<product>.desktop` or `jetbrains-<product>-<suffix>.desktop`, which covers the
+   Toolbox App's hashed names. The program counts
    only when it is the first argument of `Exec=`, an absolute path to an existing file, and not
    `flatpak`, `env`, `sh`, `bash`, or `snap`, since those wrappers are the Flatpak and Snap cases
    above; a bare name is left to `PATH`, and a `Terminal=true` entry is skipped. The program is
@@ -172,13 +166,12 @@ or one Windows hands to a script host, installer, or shortcut (`.lnk`, `.url`, `
 double-clicking a file from a cloned repo never executes it. On macOS the list is `RUNNABLE_MAC`
 (`.app`, `.command`, `.tool`, `.pkg`, `.mpkg`, `.terminal`, `.workflow`, `.action`, `.scpt`,
 `.applescript`), plus any file with an execute bit, since `open` runs an executable in Terminal
-whatever its name; the bit is ignored on `msdos`, `exfat`, and `ntfs` volumes, which mark every
-file executable. Such a file opens as text through `/usr/bin/open -t`. An application bundle
+whatever its name; the bit is ignored on FAT, exFAT, and NTFS volumes (`EXEC_BIT_MEANINGLESS`),
+which mark every file executable. Such a file opens as text through `/usr/bin/open -t`. An application bundle
 is a folder, so `open_in_editor` refuses one with an error rather than launching it. On Linux the
 list is `RUNNABLE_LINUX` (`.desktop`, `.appimage`, `.jar`, the Windows programs Wine runs, and
 `.deb`, `.rpm`, `.snap`, and Flatpak files a software center installs), plus any file with an
-execute bit, which is ignored on `vfat`, `exfat`, `ntfs3`, and `fuseblk` volumes (read from
-`/proc/self/mountinfo`). Such a file opens with the default `text/plain` app: `xdg-mime query
+execute bit, under the same volume rule (the type read from `/proc/self/mountinfo`). Such a file opens with the default `text/plain` app: `xdg-mime query
 default text/plain` names its `.desktop` file, found in the XDG application folders, and its
 `Exec=` line runs with the file as the argument (`desktop_entry.rs`). `xdg-open` cannot do this,
 since it goes by the file's own type and would launch it. When there is no such app, or it needs
@@ -682,7 +675,7 @@ in the same colors as the Custom Highlight ranges, the current match scrolls int
 language. After `DOMPurify`, `colorFences` (`fenceColors.ts`) tokenizes every tagged block and
 then rewrites each as one span per line joined by newline text nodes, built from text nodes and
 run once the languages have loaded, so a block's `textContent` is unchanged and copy keeps its
-text. A pass that lands after the body re-rendered, after the toggle went to Plain, or while the
+text. A pass that lands after the body re-rendered, after the setting went to Plain, or while the
 Edit toggle shows the editor writes nothing. An open find bar re-runs after the pass, since the
 spans split the text nodes its ranges pointed into.
 
@@ -701,5 +694,4 @@ The diff's rows render plain first, and coloring then runs file by file, yieldin
 and every few hundred rows, so a large diff appears at once and fills in. A row's `+`, `-`, or
 space prefix, any text no token covers, and its added or removed tint stay as they are; only
 tokens take role colors. Header lines, hunk lines (`@@`), and `\ No newline` markers stay
-uncolored. The toggle is disabled while no file in the diff has a language, and changing it
-repaints the diff where it was scrolled.
+uncolored. Changing the Code colors setting repaints the diff where it was scrolled.

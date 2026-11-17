@@ -8,7 +8,8 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 A collapsible panel docked on the side `dashboard.side` names (`right` by default, or `left`;
 an unknown value falls back to `right` with a warning), open on start by default, toggled with
 Ctrl+Shift+D, hidden by the × button at the right end of its top bar (which also ends a peek),
-and peeking open briefly while hidden when a terminal starts waiting. The first time it is hidden
+and, while `dashboard.peekOnWaiting` is on, peeking open briefly while hidden when a terminal
+starts waiting. The first time it is hidden
 with ×, a toast names the toggle's current keys and the edge handle; `dashboardHideNoticeShown`
 in the saved workspace (section 8) keeps it from repeating. While the panel is neither open nor
 peeking, the edge handle, a pill in the 8 px gutter on the panel's side at mid-height that widens
@@ -232,12 +233,12 @@ a git repo; "Explorer" is Open in File Explorer.
 | Global pin | Type in terminal, Edit, Copy command, Remove pin |
 | Tab group header | Rename (an empty name follows the focused pane's title, as in the tab strip) |
 | Containers | Start when any container in the group is stopped, Stop when any runs, Open Containers |
-| Ports | Open localhost:&lt;port&gt;, Go to pane (when a pane started it), Show in Ports, Copy URL, Copy command line, Copy folder, Copy PID, Stop &lt;program&gt;... |
-| Claude | Focus, Copy path |
+| Ports | Open localhost:&lt;port&gt; (or Open in Local Browser and Open in system browser where a Local Browser pane can open, 4.21), Go to pane (when a pane started it), Show in Ports, Copy URL, Copy command line, Copy folder, Copy PID, Stop &lt;program&gt;... |
 
 A pin whose path is missing is dimmed, and its menu disables everything but Remove pin. A Containers row that only reports an engine not running has no menu.
-Section headers, the clock, Wave, the System section, the footer, gaps between
-panes, and the backdrop have no menu.
+Section headers, Wave, the footer, and the panel's background open the panel's own menu
+(Elements, above); the clock, the System section, and the Media section (4.31) have menus of their
+own.
 
 The Open menu button on those rows, and the Files row's menu button (4.12), open the same shared
 menu below the button, toggling on a second press. The Git entry waits for the git probe, and the
@@ -523,13 +524,16 @@ program are out of date. With every detected
 agent's hooks in, the footer takes no space.
 
 The app dialog's Settings tab (`settingsTab.ts`, 4.18) edits every user-facing setting, in the
-sections Terminal, Dashboard, Appearance, Background, Editor, Git, Ship, Local AI models, and Restore. A filter field above them
+sections Terminal, Dashboard, Appearance, Background, Editor, Git, Ship, Local Browser (Windows
+only, 4.21), Local AI models, and Restore. A filter field above them
 shows only the fields whose label, hint, group, or section holds every word typed, and hides
-sections left empty. Dashboard holds the side choice, Left or Right, and a
+sections left empty. Dashboard holds Show the dashboard at launch, Peek when a terminal is waiting
+(`dashboard.peekOnWaiting`), the side choice, Left or Right, and a
 checkbox per element under five group subheadings (Start work, Sessions, Git & CI, Local services,
 Ambient). Each group's checkboxes come first, then the fields tuning its elements, each shown
 while its element is on: the Needs you options under Sessions, Ports listed under Local
-services, and Album art and Clock style under Ambient. Terminal includes a Default shell
+services, and Album art, Media title, and Media artist under Ambient (the clock's style and the System
+rows are set from those elements' own menus). Terminal includes a Default shell
 select listing the available profiles. Editor selects the preferred editor from those found (3.12),
 plus a custom command field. Ship holds the Overview refresh interval (4.20). Appearance's Font family field suggests installed fonts as you type
 (3.17), monospace first, with the bundled JetBrainsMono Nerd Font Mono (3.16) leading. It stays a
@@ -662,7 +666,8 @@ any player that exports MPRIS is followed. The section follows a playing player 
 current one while that one plays or while nothing plays, and otherwise takes the most recently
 changed. The app name is the player's `Identity`. Volume and mute act on the player's own MPRIS
 `Volume`, not the system volume; mute sets that volume to zero and restores the previous level.
-Seek calls `SetPosition` with the track id. Album art comes from `mpris:artUrl`, a file or an
+Seek calls `SetPosition` with the track id, or a relative `Seek` when the player gives no usable
+track id. Album art comes from `mpris:artUrl`, a file or an
 http(s) URL, scaled down to the same size and re-encoded the same way. With no session bus or no
 players, the section shows nothing playing.
 

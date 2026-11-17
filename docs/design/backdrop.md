@@ -40,8 +40,9 @@ The backdrop code lives in `src/backdrop/`.
 ## 6.2 Backdrop API
 
 The rest of the app talks only to `BackdropHost` (`src/backdrop/backdropHost.ts`). It owns the
-`#backdrop` canvas and the mounted style, and exposes `apply(settings.backdrop)`,
-`setVisible(visible)`, `setAnimated(animated)`, and the requested `style`. `apply` mounts the style when it differs from the one requested before, and otherwise
+`#backdrop` canvas and the mounted style, and exposes `apply(settings.backdrop, accent)` (the
+accent color feeds Matrix's and Wave's accent modes), `setVisible(visible)`,
+`setAnimated(animated)`, and the requested `style`. `apply` mounts the style when it differs from the one requested before, and otherwise
 only pushes the new options to the mounted style; it rejects only when the latest requested style
 fails to mount, which shows a "Could not start the background animation" toast.
 

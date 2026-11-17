@@ -19,7 +19,8 @@ testing only. This page lists what to check and what to send back.
 
 ## Not expected to work yet
 
-- The Local Browser pane is hidden.
+- The Local Browser pane is hidden; `bb browse` opens the system browser instead.
+- The dashboard's Media section is hidden.
 
 ## Checks
 

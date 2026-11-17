@@ -298,7 +298,9 @@ folder another pane was opened for. A pane's repo is the repo (3.8) of its folde
 - **Common behavior.** Every kind has the title strip, focus border, docking, collapsing,
   and closing that terminals have. Status, attention, and the WebGL budget apply to terminals
   only. A tab's status dot comes from its terminals; its name follows the focused pane's title,
-  which for other kinds is the folder's name, a scratch pad's first line, "Containers", or "Ports".
+  which for other kinds is the folder's name, a scratch pad's first line, "Containers", or "Ports";
+  a Ship pane shows its repo's folder name ("Ship" on the Overview), and a Local Browser pane its
+  page title, else the URL's host, else "Local Browser".
 - **Restore.** Each kind saves its state with the workspace (section 7): a Files pane's folder,
   selected file, sort, and whether its preview is expanded (4.12), a Git pane's repo and tab, a Ship pane's repo and tab (or the Overview), a Search pane's
   repo, query, and options (rerun on restore), and a scratch pad's text. A pane whose folder no

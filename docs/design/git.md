@@ -3,7 +3,7 @@
 Section numbers are ids shared across every file in `docs/design/`, so a citation such as
 "section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
 
-## 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`)
+## 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`, `src-tauri/src/git_watch.rs`)
 
 Runs `git` (from `PATH`, else beside Git Bash's `bash.exe`) as `git -C <root> ...` with an
 argument list, never through a shell, and with paths after `--`. Reads set
@@ -15,6 +15,7 @@ own git commands.
 | `git_status(root)` | `status --porcelain=v2 --branch -z`: branch, upstream, ahead and behind, staged, unstaged, and untracked entries, plus the repo's remote names from `remote`, as `remotes` |
 | `git_stage(root, paths)` | `add --` |
 | `git_unstage(root, paths)` | `restore --staged --`, or `rm --cached --` in a repo with no commits |
+| `git_discard(root, tracked, untracked)` | `restore --worktree --` for the tracked paths and `clean -f --` for the untracked ones |
 | `git_diff(root, path, staged)` | One file's diff, capped at 1 MiB; an untracked file diffs against nothing |
 | `git_log(root, count)` | The last commits: hash, subject, author, time, and whether any remote-tracking branch contains each |
 | `git_show(root, hash)` | One commit's diff, capped at 1 MiB |

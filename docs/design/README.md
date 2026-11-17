@@ -1,7 +1,7 @@
 # Bashboard: design spec
 
-A Windows desktop terminal dashboard, built with Tauri, that opens, collapses, and arranges Git
-Bash terminals over a live colony-simulation backdrop, launches them from favorite folders, and shows
+A desktop terminal dashboard for Windows, with macOS and Linux previews, built with Tauri, that
+opens, collapses, and arranges terminals (Git Bash by default on Windows) over a live backdrop, launches them from favorite folders, and shows
 every local coding agent session (Claude Code, and as a preview Codex and Copilot) at a glance. The repo and binary are `bashboard`; the window
 title is "Bashboard".
 
@@ -22,7 +22,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.6 Settings (`src-tauri/src/settings/`) | [data.md](data.md) |
 | 3.7 Workspace and favorites (`src-tauri/src/workspace.rs`) | [data.md](data.md) |
 | 3.8 Repo files (`src-tauri/src/files.rs`) | [files.md](files.md) |
-| 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`) | [git.md](git.md) |
+| 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`, `src-tauri/src/git_watch.rs`) | [git.md](git.md) |
 | 3.10 Containers (`src-tauri/src/containers.rs`) | [containers.md](containers.md) |
 | 3.11 Code search (`src-tauri/src/search.rs`) | [files.md](files.md) |
 | 3.12 Editors (`src-tauri/src/editors.rs`) | [files.md](files.md) |
@@ -40,8 +40,8 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.24 Agent table (`src/agents.json`) | [sessions.md](sessions.md) |
 | 3.25 Branch size (`src-tauri/src/git_branch_size.rs`, `src-tauri/src/size_route.rs`) | [git.md](git.md) |
 | 3.27 New worktree (`src-tauri/src/worktree_new.rs`, `src-tauri/src/worktree_trust.rs`, `src-tauri/src/worktree_route.rs`) | [git.md](git.md) |
-| 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`) | [sessions.md](sessions.md) |
-| 3.29 Media sessions (`src-tauri/src/media.rs`) | [dashboard.md](dashboard.md) |
+| 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`, `src/usageModel.ts`) | [sessions.md](sessions.md) |
+| 3.29 Media sessions (`src-tauri/src/media.rs`, `media_linux.rs`, `media_mpris.rs`) | [dashboard.md](dashboard.md) |
 | 3.30 Background waits (`src-tauri/src/hooks.rs`, `src-tauri/src/background_agents.rs`) | [sessions.md](sessions.md) |
 | 3.31 WebKitGTK environment (`src-tauri/src/webkit_env.rs`) | [app.md](app.md) |
 | 3.32 AppImage menu entry (`src-tauri/src/appimage_entry.rs`, `src/appImageOffer.ts`) | [app.md](app.md) |
@@ -65,16 +65,16 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.18 App dialog | [app.md](app.md) |
 | 4.19 Ports | [containers.md](containers.md) |
 | 4.20 Ship pane | [ship.md](ship.md) |
-| 4.21 Local Browser (`src/localBrowserPane.ts`, `src-tauri/src/browser.rs`) | [browser.md](browser.md) |
+| 4.21 Local Browser | [browser.md](browser.md) |
 | 4.22 Code colors (`src/code/`) | [files.md](files.md) |
 | 4.23 Agent glow and border lights (`src/paneLights.ts`) | [sessions.md](sessions.md) |
-| 4.24 Program status (OSC 7501) (`src/programStatus.ts`) | [sessions.md](sessions.md) |
-| 4.25 Cloud context chip (OSC 7502) (`src/cloudContextModel.ts`) | [terminal.md](terminal.md) |
+| 4.24 Program status (OSC 7501) | [sessions.md](sessions.md) |
+| 4.25 Cloud context chip (`src/cloudContextModel.ts`) | [terminal.md](terminal.md) |
 | 4.26 Runs bound to panes (`src/paneRunModel.ts`, `src/paneRunTracker.ts`) | [ship.md](ship.md) |
-| 4.27 New worktree flow (`src/worktreeNewModel.ts`, `src/worktreeNewFlow.ts`) | [git.md](git.md) |
+| 4.27 New worktree flow (`src/worktreeNewModel.ts`, `src/worktreeNewFlow.ts`, `src/worktreeTrustDialog.ts`, `src/worktreeNewDialog.ts`) | [git.md](git.md) |
 | 4.28 Needs you (`src/needsYouModel.ts`, `src/needsYouStore.ts`, `src/needsYouSection.ts`) | [dashboard.md](dashboard.md) |
-| 4.29 Tour (`src/tourModel.ts`, `src/tourController.ts`) | [app.md](app.md) |
-| 4.30 Tab transition and background tabs (`src/tabTransitionModel.ts`, `src/tabTransition.ts`, `src/backgroundTabsModel.ts`, `src/backgroundTabsLayer.ts`) | [workspace.md](workspace.md) |
+| 4.29 Tour (`src/tourModel.ts`, `src/tourController.ts`, `src/tourCard.ts`) | [app.md](app.md) |
+| 4.30 Tab transition and background tabs | [workspace.md](workspace.md) |
 | 4.31 Media section (`src/mediaModel.ts`, `src/mediaSection.ts`, `src/mediaSlider.ts`) | [dashboard.md](dashboard.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
@@ -109,8 +109,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 - **Picks up where it left off.** On restart the app reopens the same terminals in the same
   folders and layout, and resumes the agent sessions that were running in them.
 - **Session awareness.** A roster of all local agent sessions (Claude Code, Codex, and Copilot, in
-  this app and elsewhere), their status, and which ones need attention, also expressed as organisms
-  in the simulation. Claude Code is the tested path; Codex, Copilot, and the Local AI models section
+  this app and elsewhere), their status, and which ones need attention. Claude Code is the tested path; Codex, Copilot, and the Local AI models section
   are a preview.
 - **Repo companions.** What usually stays open beside Claude Code (a folder of plans, a to-do
   file, git status, a code search, a scratch pad, Docker and Podman containers) opens as panes next to the
@@ -118,8 +117,9 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 
 ### Non-goals
 
-- Platforms other than Windows 11 and macOS. Windows with WebView2 is the primary target; macOS
-  ships as ad-hoc signed preview builds (`docs/macos-testing.md`).
+- Platforms other than Windows 11, macOS, and Linux. Windows with WebView2 is the primary
+  target; macOS ships as ad-hoc signed preview builds (`docs/macos-testing.md`) and Linux as early
+  `.deb`, `.rpm`, and AppImage builds (`docs/linux-testing.md`).
 - Replacing Claude Code's interface. Claude runs unmodified inside a pane.
 - Shells other than Git Bash, PowerShell 7, Windows PowerShell, and Command Prompt on Windows,
   and zsh, bash, and fish on macOS and Linux.
@@ -151,33 +151,33 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 The Rust core owns everything that touches the OS: ptys, the clipboard, file watching, the
 hook endpoint, process inspection, repo files, git, containers, code search, and code host APIs. The front end owns layout, rendering, and input
 mapping. They talk through Tauri commands (request/response) and Tauri channels and events
-(streams).
+(streams). The diagram shows Windows; on macOS the page runs in WKWebView and on Linux in
+WebKitGTK, and `portable-pty` opens a Unix pty there instead of a ConPTY.
 
 ### Stack
 
 | Layer | Choice |
 | --- | --- |
-| Shell | Tauri 2 on WebView2 (Chromium) |
-| Pty | `portable-pty` (ConPTY) |
-| Clipboard | `arboard` (text only) |
+| Shell | Tauri 2 on WebView2 (Chromium) on Windows, WKWebView on macOS, WebKitGTK on Linux |
+| Pty | `portable-pty` (ConPTY on Windows, a Unix pty elsewhere) |
+| Clipboard | `arboard` for text and file lists, with `clipboard-win` for File Explorer's file formats on Windows |
 | File watching | `notify` |
 | Process inspection | `sysinfo` |
 | Hook endpoint | `tiny_http` on a background thread |
-| Terminal | `@xterm/xterm` 6 with fit, WebGL, Unicode 11, and search addons |
-| Backdrop | Colony simulation and renderer (three.js), a Canvas 2D digital-rain style, or nothing, chosen by `backdrop.style`, in `src/backdrop/` (section 6) |
+| Terminal | `@xterm/xterm` 6 with fit, WebGL, Unicode 11, search, serialize, and web-links addons |
+| Backdrop | Three.js for Swirling Lights (the colony simulation) and Galaxy, Canvas 2D for Matrix, Wave, Image, and Slideshow, or nothing, chosen by `backdrop.style`, in `src/backdrop/` (section 6) |
 | Front end | TypeScript, Vite, no framework |
 | Markdown | `markdown-it`, sanitized with `DOMPurify` |
 | Text editor, code colors | CodeMirror 6 and its Lezer language parsers (4.22) |
 | Code search | `ignore`, `grep-searcher`, and `grep-regex` (ripgrep's libraries) |
 | Git, containers | The `git`, `docker`, and `podman` command-line tools, run as child processes |
-| Pane CLI | `bb.exe`, a second binary in the Tauri crate, installed beside the app (3.13) |
+| Code host APIs | `ureq` over `rustls` with the platform certificate verifier (3.20) |
+| Pane CLI | `bb` (`bb.exe` on Windows), a second binary in the Tauri crate, installed beside the app (3.13) |
 | Updates | `tauri-plugin-updater` against GitHub releases (3.16) |
 | Font list | DirectWrite through the `windows` crate on Windows, Core Text through `objc2-core-text` on macOS, `fc-list` on Linux (3.17) |
 
-The chrome is a pane tree, the dashboard panel, and a few overlays, so plain TypeScript with
-one class per file is enough to start. If the dashboard panel grows into real UI (richer drag
-and drop, filtering, editing favorites in place), React with shadcn/ui can be introduced for
-the chrome alone without touching terminals or the backdrop.
+The chrome is a pane tree, the dashboard panel, the app dialog, and overlays, built in plain
+TypeScript with one class or module per file and pure `*Model.ts` modules beside the DOM code.
 
 ## 5. Readability
 
@@ -190,7 +190,8 @@ of 0 leaves the backdrop undimmed. The None style has no canvas, so nothing is d
 `scrim.blurPx` (default 1) blurs the whole backdrop in the same filter, under every drawn style
 and at every scrim opacity. The canvas is oversized by twice the blur on each side, since a blur darkens a band
 at the canvas edges as wide as itself, and the oversize pushes that band off screen. Blur over a
-constantly redrawing canvas is the most expensive effect here, hence the default of 0.
+constantly redrawing canvas is the most expensive effect here, so the default is a light 1 px
+and 0 turns it off.
 
 `uiScale` (default 1.25, from 1 to 2; the Settings tab calls it Interface size) sizes the chrome
 for people who want larger or smaller targets and text. It sets `--ui-scale` on `:root` (`src/uiScale.ts`), and one rule
@@ -220,11 +221,14 @@ rename box out.
   lives only in pane environments and in memory. Its `/cli` path (3.13) carries out only
   actions the UI already offers, with the same path checks. Its `/ci` path (3.23) reads what Ship
   already shows and writes (re-run, cancel) only when `ship.cliWrites` is on. Its `/size` path
-  (3.25) only counts the changed lines of the caller's own repo.
-- Tauri capabilities stay minimal: the app's own commands plus `core:default` and
-  `core:window:allow-destroy` (closing the window after the workspace is saved) and
-  `core:window:allow-request-user-attention` (the taskbar flash). No shell, fs,
-  or http plugins are exposed to the page.
+  (3.25) only counts the changed lines of the caller's own repo, its `/worktree` path (3.27)
+  creates a worktree only of the caller's own repo and runs a setup script only after the user
+  approves it, and its `/usage` path (3.28) only records an agent's usage report.
+- Tauri capabilities stay minimal: the app's own commands plus `core:default`,
+  `core:window:allow-destroy` (closing the window after the workspace is saved),
+  `core:window:allow-request-user-attention` (the taskbar flash), `core:window:allow-set-focus`,
+  `core:window:allow-set-fullscreen`, `updater:default`, and `process:allow-restart` (installing
+  an update, 3.16). No shell, fs, or http plugins are exposed to the page.
 - A strict CSP in release builds (`default-src 'self'`; scripts, fonts, and styles
   self-hosted, with inline `<style>` elements allowed because xterm.js injects them), so a
   malicious escape sequence that somehow injected markup could not load remote code.
@@ -291,7 +295,10 @@ requests; it needs `BASHBOARD_ADO_LIVE=<org>/<project>/<repo>` and `AZURE_DEVOPS
 CI: a GitHub Actions workflow (`.github/workflows/ci.yml`) on `windows-latest` runs the type
 check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS installer as the
 `bashboard-installer` artifact. A second job on `macos-latest` runs the same checks and builds
-an ad-hoc signed universal `.app`, failing unless `bb` ships inside it for both architectures.
+an ad-hoc signed universal `.app`, failing unless `bb` ships inside it for both architectures. A
+third job on `ubuntu-22.04` runs the same checks, builds the `.deb`, `.rpm`, and AppImage,
+lays the packages out so `bb` stays off the system `PATH` (3.13), and uploads them as
+`bashboard-linux`.
 
 ## 11. Risks
 

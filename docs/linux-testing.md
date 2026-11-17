@@ -271,8 +271,9 @@ screen), and say which GPU drove the display.
 
 **Frame time.** In Bashboard's Settings, set `backdrop.maxFps` to `0` (no cap). Run the snippet
 with one pane (the backdrop alone), then again with eight terminal panes in one tab, which is
-the most that use WebGL. Then run it with the scrim off (Ctrl+Shift+B toggles it) and on, to show
-what the scrim's blur costs. Set `backdrop.maxFps` back to `20` when you're done.
+the most that use WebGL. Then run it with `scrim.blurPx` at `0` and at `20`, to show what the
+scrim's blur costs. Set `backdrop.maxFps` back to `20` and `scrim.blurPx` back to where it was when
+you're done.
 
 ```js
 (() => {

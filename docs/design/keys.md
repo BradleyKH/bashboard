@@ -68,7 +68,7 @@ open the app dialog on its Accounts, Shortcuts, CLI, and About tabs, `toggleBack
 shows or hides the other tabs in the background (4.30, saved to `showBackgroundTabs`),
 `toggleFilesView` switches the focused Files pane between its Folder and Tree views (4.12), and
 `mediaPlayPause`, `mediaNext`, and `mediaPrevious` drive the app playing media (3.29; Windows
-only), as the Media section's buttons do.
+and Linux), as the Media section's buttons do.
 
 These are built-in defaults. Entries in the settings file (section 8) layer on top, as in
 Windows Terminal: an entry for a chord that has a default replaces it, a new chord adds a
@@ -164,11 +164,12 @@ favorite opens as a split, a layout opens as a new tab, a pin opens as clicking 
 section does, a worktree opens a terminal there as a split, and an action runs as its key would.
 Ctrl+Enter opens a favorite or worktree collapsed. Pins whose path is missing are left out.
 
-Actions left out are `copy`, `paste`, `sendInput` (Claude Code's newline), `switchToTab` (tabs are
-items instead), and `openPalette` itself. Labels come from `helpModel.ts`, so the palette and the
+Actions left out are `copy`, `paste`, `sendInput` (Claude Code's newline), `goToLine` (it needs
+a line number), `switchToTab` (tabs are items instead), and `openPalette` itself. Labels come from `helpModel.ts`, so the palette and the
 Shortcuts tab agree, and each action's hint lists its chords from the live keymap, so overrides show.
 `moveFocus` and `resizePane` get one row per direction. Open the Containers tab (4.16), Open the
-Ports tab (4.19), Open the Ship tab (4.20), and Check for updates (3.16) are action rows with no
+Ports tab (4.19), Open the Ship tab (4.20), New worktree (4.27), and Check for updates (3.16) are
+action rows with no
 keymap action behind them (`PALETTE_COMMANDS` in `paletteModel.ts`), so they never appear in the
 Shortcuts tab or take a key. Open the Ship tab shows the first Ship pane in tab order, backed out
 to its Overview (4.20) when it is drilled into a repo, and adds a Ship tab on the Overview when

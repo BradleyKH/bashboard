@@ -2,11 +2,13 @@
 
 ## Setting up a new machine
 
-These steps set up a machine to build Bashboard from source. To just use it, see
-[Installing](../README.md#installing).
+These steps set up a Windows machine to build Bashboard from source. To just use it, see
+[Installing](../README.md#installing). On macOS or Linux, install Node.js, pnpm, Rust, and
+Tauri's system packages for that OS (the `macos` and `linux` jobs in `.github/workflows/ci.yml`
+list what CI installs), then follow steps 6 and 8.
 
-Bashboard targets Windows 11, which already includes the WebView2 runtime. Everything else
-installs with `winget` from a terminal; admin rights are needed for the Visual Studio build
+Windows 11 already includes the WebView2 runtime. Everything else installs with `winget` from a
+terminal; admin rights are needed for the Visual Studio build
 tools and for machine-wide installs of the rest.
 
 1. **Git for Windows**, which provides Git Bash, the default shell:
@@ -219,7 +221,7 @@ On macOS, run this list as well:
 
 ## Logs and crashes
 
-The installed app writes the core's diagnostics to `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`
+On Windows, the installed app writes the core's diagnostics to `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`
 (the previous file, once it passes 1 MB, is `bashboard.old.log`); a debug build prints them to
 the terminal that ran it instead. A WebView2 crash also leaves a minidump under
 `%LOCALAPPDATA%\dev.bashboard\EBWebView\Crashpad\reports` (`dev\EBWebView` for a debug build),

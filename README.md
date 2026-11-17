@@ -4,7 +4,8 @@ Bashboard
 **A terminal workspace for developers running AI coding agents.** Bashboard puts your shells, a
 live board of every AI agent session, and the Git, file, search, CI, port, and container views in one window, so you stop juggling apps while your
 agents work. It tracks Claude Code sessions in full, with previews for OpenAI Codex and GitHub
-Copilot CLI, and it works with any stack. It runs on Windows, with an early macOS preview.
+Copilot CLI, and it works with any stack. It runs on Windows, with early macOS and Linux builds
+for testing.
 
 ![Bashboard with Claude Code, Files, Git, CI pipelines, and the session dashboard](assets/bashboard-screenshot.png)
 
@@ -12,7 +13,8 @@ Copilot CLI, and it works with any stack. It runs on Windows, with an early macO
 
 - **See every session at a glance.** The dashboard lists each pane with its status (working,
   waiting, done, failed), folder, model, and context size. Sessions running in Windows Terminal
-  or VS Code show up too.
+  or VS Code show up too, and a Needs you list gathers what waits on you, from prompts to pull
+  requests to agent usage limits.
 - **Never miss a prompt.** A session that needs permission or finishes its turn pulses its pane
   and tab, flashes the taskbar, and says why. Ctrl+Shift+N jumps to the next one, across tabs.
   Long shell commands get the same done and failed marks.
@@ -38,6 +40,7 @@ Copilot CLI, and it works with any stack. It runs on Windows, with an early macO
   agent check before it commits.
 - **The `bb` CLI and scratch pads:** open panes from any prompt, wait for CI and read why it
   failed (`bb ci`), and draft longer prompts before sending them.
+- **Dashboard extras:** a clock, system load and disks, and controls for the media playing.
 - **Backdrops and effects:** a live colony simulation, Galaxy, Matrix, a load-driven wave, or
   your own image, dimmed to taste, plus an optional glow on working agents and lights around
   pane borders.

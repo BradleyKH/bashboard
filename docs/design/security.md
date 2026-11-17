@@ -4,7 +4,8 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 "section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
 
 The app-wide measures are in [section 9 of the README](README.md#9-security). This file covers
-the Local Browser pane (4.21), the one pane that runs code the app did not write.
+the Local Browser pane (4.21), the one pane that runs code the app did not write. The pane exists
+only on Windows, so everything here assumes WebView2.
 
 ## 9.1 Local Browser
 

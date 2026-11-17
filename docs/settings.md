@@ -1,6 +1,8 @@
 # Settings
 
-Settings live at `%APPDATA%\dev.bashboard\settings.json`. The file is created with defaults
+Settings live at `%APPDATA%\dev.bashboard\settings.json` on Windows,
+`~/Library/Application Support/dev.bashboard/settings.json` on macOS, and
+`~/.config/dev.bashboard/settings.json` (under `$XDG_CONFIG_HOME` when that is set) on Linux. The file is created with defaults
 on first run, accepts `//` comments, and reloads when you save it. An invalid value falls back
 to its default and shows a notice naming the field. If a save leaves the file as invalid JSON,
 the running settings stay in effect and a notice appears until the file is fixed.
@@ -30,8 +32,9 @@ program name must include its extension when it is a shim such as `code.cmd`. `{
 path), and `{line}` is 1 when no line applies. The Editor section of the Settings tab sets both
 fields and lists only the editors it found.
 
-The Font family field in the Appearance section of the Settings tab suggests installed fonts as
-you type, and still accepts any name or a comma-separated fallback list.
+`font.family` (default `JetBrainsMono Nerd Font Mono, Cascadia Mono`) is the Font family field in
+the Appearance section of the Settings tab, which suggests installed fonts as you type and still
+accepts any name or a comma-separated fallback list.
 
 `font.size` (default 14, from 6 to 48 px) is the Text size field in the Appearance section, also
 stepped by Ctrl+= and Ctrl+-. It sizes terminal text and the text you read in other panes: code
@@ -164,8 +167,8 @@ every style but None. Blur softens the whole background, including the gaps betw
 stays on when Ctrl+Shift+B turns the scrim off; it costs some GPU time while the background
 animates.
 
-**Swirling Lights** runs at up to 20 frames per second; raise or lower that with `backdrop.maxFps`
-(0 for the display's refresh rate). The simulation runs at 12 generations per second under a slow
+**Swirling Lights** runs at up to 20 frames per second; raise that with `backdrop.maxFps` (20 to
+240, or 0 for the display's refresh rate). The simulation runs at 12 generations per second under a slow
 camera orbit, held still while Windows animation effects are off. It is tuned with `capacity` (the
 population it sustains, 300 to 5000; Density in the Settings tab), `mutationRate` (how far
 offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
@@ -265,8 +268,9 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
 in the order Git Bash, PowerShell 7, Windows PowerShell, Command Prompt, with a notice the first
 time each missing shell is asked for. On macOS and Linux the ids are `loginShell` (the default,
 the shell in `$SHELL`), `zsh`, `bash`, and `fish`, each offered when installed and not already
-the login shell. `shell.path` and `shell.args` configure Git Bash, so they apply, and show in the
-Settings tab, on Windows only. The
+the login shell. `shell.path` (default `C:\Program Files\Git\bin\bash.exe`) and `shell.args`
+(default `["--login", "-i"]`) configure Git Bash, so they apply, and show in the Settings tab, on
+Windows only. The
 Default shell select in the Terminal section of the Settings tab sets it too (see
 [PowerShell, Windows PowerShell, and Command Prompt](setup.md#powershell-windows-powershell-and-command-prompt)):
 
@@ -283,6 +287,11 @@ the scrollback already saved, at the next close:
 ```jsonc
 "restore": { "enabled": true, "resumeSessions": true, "scrollback": true }
 ```
+
+`dashboard.visibleOnStart` (default `true`) opens the dashboard at launch; it applies at the next
+launch. `dashboard.peekOnWaiting` (default `true`) peeks the hidden dashboard open for a few seconds
+when a terminal starts waiting. They are the "Show the dashboard at launch" and "Peek when a
+terminal is waiting" toggles in the Dashboard section of the Settings tab.
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
 window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
@@ -321,6 +330,8 @@ while the Ports section is on.
 
 ```jsonc
 "dashboard": {
+  "visibleOnStart": true,
+  "peekOnWaiting": true,
   "side": "right",
   "sections": {
     "launch": true,
@@ -364,7 +375,7 @@ save and is the "Flag a background agent as stuck after" field there.
 "needsYou": { "walkAll": true, "usagePercent": 80, "stuckAgentMinutes": 15 }
 ```
 
-`terminal.doneAfterSeconds` (default 30) is the shortest shell command that marks its terminal
+`terminal.doneAfterSeconds` (default 30, 0 to 86400) is the shortest shell command that marks its terminal
 `done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
 the `~/.bashrc` lines only (on macOS and Linux, the shell integration lines, which the Settings
 tab's hint for this field says it needs).

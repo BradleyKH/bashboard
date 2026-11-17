@@ -33,9 +33,15 @@ Behavior:
 
   A customized `shell.path` that is missing makes Git Bash unavailable.
 
+  On macOS and Linux the first profile is `loginShell`, the login shell from `$SHELL` (else the
+  first of `/bin/zsh`, `/bin/bash`, and `/bin/sh` that exists), followed by `zsh`, `bash`, and
+  `fish` when one is found and is not the login shell. Each starts with `-l`, so it reads the
+  user's profile files and builds its own `PATH`. The login shell is the default and always
+  offered.
+
   `pty_spawn` starts the requested profile if it is available, else `shell.defaultProfile` if
   that is available, else the first available profile in the order Git Bash, PowerShell 7,
-  Windows PowerShell, Command Prompt, and returns the id it started so the front end records what
+  Windows PowerShell, Command Prompt (the order of the list on macOS and Linux), and returns the id it started so the front end records what
   actually runs. When that differs from the profile asked for (the requested one, else the
   default), it also returns `fallbackFrom`, and the front end shows a notice once per session for
   each missing shell.
@@ -57,9 +63,8 @@ Behavior:
 - **Output** streams over a per-pane `Channel` as raw bytes (`InvokeResponseBody::Raw`), which
   arrive in JS as an `ArrayBuffer` and go straight to `term.write(Uint8Array)`. xterm.js
   handles UTF-8 sequences split across chunks.
-- **Coalescing.** The reader thread reads up to 16 KB at a time. If profiling shows IPC
-  overhead during heavy redraws, add a 4 ms coalescing window before sending; until then, send
-  each read immediately for the lowest latency.
+- **Reads.** The reader thread reads up to 16 KB at a time and sends each read immediately, for
+  the lowest latency.
 - **Exit detection.** ConPTY keeps the reader blocked after the shell exits until the master is
   dropped, so a waiter thread blocks on `child.wait()`, removes the pane (dropping the master),
   and sends the exit code on `onExit`.
@@ -98,19 +103,19 @@ Behavior:
 
 ## 3.5 Platform glue
 
-- **Browser accelerators.** WebView2's `AreBrowserAcceleratorKeysEnabled` is set to false at
-  window creation (`lib.rs`), so Ctrl+F, Ctrl+R, Ctrl+P, F5, and zoom keys reach the page.
-  Verified in the keyboard test.
-- **Clipboard.** `clipboard_read_text` reads through `arboard` because WebView2 puts
-  `navigator.clipboard.readText` behind a permission prompt. Writes use
+- **Browser accelerators.** On Windows, WebView2's `AreBrowserAcceleratorKeysEnabled` is set
+  to false at window creation (`lib.rs`), so Ctrl+F, Ctrl+R, Ctrl+P, F5, and zoom keys reach
+  the page. Verified in the keyboard test.
+- **Clipboard.** `clipboard_read_text` reads through `arboard` on every platform because
+  WebView2 puts `navigator.clipboard.readText` behind a permission prompt. Writes use
   `navigator.clipboard.writeText`, which needs no prompt.
 - **Links.** `open_url` (`src-tauri/src/links.rs`) opens a URL in the system browser through
   `tauri-plugin-opener`, called from Rust. It accepts only `http` and `https` and returns an
   error for anything else. An `http` loopback URL on a port that speaks TLS opens as `https`
   (`prefer_tls`, 4.21). The page gets no opener permission, so it cannot launch other
   programs or schemes directly.
-- **Attention.** `window.request_user_attention` flashes the taskbar button when a session in
-  an unfocused window starts waiting.
+- **Attention.** `requestUserAttention` flashes the taskbar button (bounces the Dock icon on
+  macOS) when a session in an unfocused window starts waiting.
 
 ## 3.17 Fonts (`src-tauri/src/fonts.rs`)
 
@@ -140,7 +145,7 @@ addons, bound to one pty. Font defaults to the bundled `JetBrainsMono Nerd Font 
 with `Cascadia Mono` as the fallback, 14 px.
 
 **WebGL context budget.** Chromium allows roughly 16 live WebGL contexts per page, and the backdrop uses
-one while the Swirling Lights or Galaxy style is mounted (none under Matrix or None). Only expanded terminals in the active tab count: each uses the WebGL renderer until 8 are
+one while the Swirling Lights or Galaxy style is mounted (none under the 2D styles or None). Only expanded terminals in the active tab count: each uses the WebGL renderer until 8 are
 on screen, and past that, newly shown ones use the DOM renderer. Collapsing a terminal, or
 switching away from its tab, disposes the WebGL addon, freeing its context; expanding it or
 switching back attaches one again if the budget allows. If the browser drops a WebGL context

@@ -29,16 +29,14 @@ PROMPT_COMMAND="__bashboard_prompt${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 
 They add to `PS0` and `PROMPT_COMMAND` instead of replacing them, and hand the last command's
 exit status on, so a prompt such as Starship keeps its own hooks and its error indicator.
-Without them, new panes start in the home directory. Any shell that emits OSC 7 works too.
-The lines report the working directory as OSC 7, which needs no command, for any folder on a
-drive (`/c/...`); only Git Bash's own folders such as `/tmp` or `/usr` go through `cygpath`,
-whose process start costs a noticeable fraction of a second in Git Bash. They also report the
-shell's `AWS_PROFILE` and region (`AWS_REGION`, else `AWS_DEFAULT_REGION`) for the cloud badge on
-every prompt, with shell builtins only, so the badge is right again as soon as a nested shell
-exits.
+Without them, a pane knows only the folder it started in. Any shell that emits OSC 7 works too.
+The lines report the working directory as OSC 7 for any folder on a drive (`/c/...`); only Git
+Bash's own folders such as `/tmp` or `/usr` go through `cygpath`, whose process start is slow in
+Git Bash. They also report `AWS_PROFILE` and the region (`AWS_REGION`, else `AWS_DEFAULT_REGION`)
+for the cloud badge at every prompt, so the badge is right again as soon as a nested shell exits.
 The OSC 133 markers (`PS0` and the first `printf`) tell the app exactly when a command starts
-and finishes, which drives each terminal's working or idle status. In a pane without them, status follows a
-check of the shell's processes every 2 seconds, so it can lag by up to that long.
+and finishes, which drives each terminal's working or idle status. In a pane without them, status
+follows a check of the shell's processes every 2 seconds, so it can lag by up to that long.
 
 ### zsh on macOS and Linux
 
@@ -131,7 +129,7 @@ OSC 7 and the AWS context from the lines.
 
 ## PowerShell, Windows PowerShell, and Command Prompt
 
-Besides Git Bash, a pane can run PowerShell 7, Windows PowerShell, and Command Prompt. Each
+On Windows, besides Git Bash, a pane can run PowerShell 7, Windows PowerShell, and Command Prompt. Each
 is offered only when its program is installed, and Command Prompt is always available. PowerShell
 7 (`pwsh.exe -NoLogo`) is found on `PATH` or at `%ProgramFiles%\PowerShell\7\pwsh.exe`. Windows
 PowerShell (`powershell.exe -NoLogo`) is found at
@@ -149,7 +147,7 @@ processes every 2 seconds.
 PowerShell 7 and Windows PowerShell report their folder the same way, with nothing to set up:
 Bashboard starts them with `-NoExit -EncodedCommand`, running a few lines after your profile that
 wrap whatever `prompt` it left you with (a Starship or oh-my-posh prompt included) and emit the
-working directory (OSC 9;9) ahead of it, following Microsoft's
+working directory (OSC 9;9) and the AWS context for the cloud badge ahead of it, following Microsoft's
 [Windows Terminal shell integration](https://learn.microsoft.com/en-us/windows/terminal/tutorials/shell-integration)
 guidance. Your profile is never changed, and since execution policy applies to script files
 rather than to a command on the command line, it works even where the policy keeps the profile
@@ -182,7 +180,7 @@ happen. They map to status like this:
 | `Notification` | `waiting` (permission prompt or idle prompt) |
 | `Stop` | `idle`, shown as `done` until you focus that pane; still `busy` while background agents it started are running |
 | `SubagentStop` | `busy` again when a background agent finishes, since Claude picks back up on its own |
-| `SubagentStart` | Nothing yet |
+| `SubagentStart` | No status change |
 | `SessionEnd` | Unbinds the session |
 
 Without hooks, a terminal can still show working, waiting, and done when the program reports its
@@ -200,7 +198,8 @@ not a shell script.
 Open the dashboard and click **Install Claude Code hooks**, use the Coding agents step of the
 setup wizard, or click Install beside Claude Code hooks in the Setup list of the Help tab (F1). The
 install shows the JSON it will add and writes only after you confirm. It copies `bb.exe` from the
-install folder to `~/.claude/hooks/bashboard-hook.exe` and appends one group per event to
+install folder to `~/.claude/hooks/bashboard-hook.exe` (on macOS and Linux, `bb` to
+`~/.claude/hooks/bashboard-hook`) and appends one group per event to
 `~/.claude/settings.json`; your existing hooks are left untouched, and an event that already has
 the Bashboard hook is skipped (a Bashboard hook with a different command is rewritten in place).
 It also deletes a leftover `~/.claude/hooks/bashboard-hook.sh`. If `settings.json` has comments or other
@@ -212,14 +211,12 @@ The hook program carries a version. When the hooks are registered but the instal
 older than the app's (or has no version), or the registered entries run an older command, the
 button reads **Update Claude Code hooks** and the Setup list shows that the hooks are out of date.
 The confirmation lists the entries it rewrites apart from any it adds, and updating changes only
-what is out of date. A program
-from a newer Bashboard counts as installed and is never replaced by an older one, and a copy at
-the app's version is left alone. The same applies to the Codex and Copilot hooks below. An
-older installed copy of Bashboard recognizes only the old `bashboard-hook.sh` entries, so
-update every installed copy.
+what is out of date. A program from a newer Bashboard counts as installed and is never replaced
+by an older one. The same applies to the Codex and Copilot hooks below.
 
 To add them by hand, copy `bb.exe` from the install folder to
-`~/.claude/hooks/bashboard-hook.exe` and add this group to the `SessionStart`,
+`~/.claude/hooks/bashboard-hook.exe` (on macOS and Linux, `bb` to `bashboard-hook`, and drop
+`.exe` from the command below) and add this group to the `SessionStart`,
 `UserPromptSubmit`, `Notification`, `Stop`, `SubagentStart`, `SubagentStop`, and `SessionEnd` arrays under `hooks` in
 `~/.claude/settings.json`:
 
@@ -291,8 +288,8 @@ unset.
 ## Agent hooks
 
 Claude Code's hooks are described [above](#claude-code-hooks). Codex and Copilot use the same
-hook program, `bb hook <agent>`, installed as `bashboard-hook.exe` in each agent's `hooks/`
-folder; it does nothing outside a Bashboard pane. Each install shows what it will write, and
+hook program, `bb hook <agent>`, installed as `bashboard-hook.exe` (`bashboard-hook` on macOS and
+Linux) in each agent's `hooks/` folder; it does nothing outside a Bashboard pane. Each install shows what it will write, and
 writes only after you confirm. An agent's button appears only when its home
 folder exists when Bashboard starts (for Copilot, once the CLI has run a session and created
 `~/.copilot/session-state`), and is hidden once everything is installed.
@@ -347,8 +344,8 @@ same from a terminal.
 Bashboard reads GitHub through the GitHub CLI, then falls back to Git Credential Manager's token.
 
 1. Install the GitHub CLI. In the Accounts tab, the GitHub card's **Install GitHub CLI** runs
-   `winget install --id GitHub.cli -e` in a terminal pane (`brew install gh` on macOS, when
-   Homebrew is installed). You can run that command yourself, or use the installer from
+   `winget install --id GitHub.cli -e` in a terminal pane (`brew install gh` on macOS and Linux,
+   when Homebrew is installed). You can run that command yourself, or use the installer from
    [cli.github.com](https://cli.github.com). Restart any terminals that were
    open, so they see it.
 2. Sign in. In the Accounts tab, choose **Sign in** on the GitHub card; it closes the dialog and
@@ -454,7 +451,8 @@ token. It serves gitlab.com and self-managed GitLab hosts, and its pane says "me
 GitHub says "pull request".
 
 1. Install the GitLab CLI. In the Accounts tab, the GitLab card's **Install GitLab CLI** runs
-   `winget install --id GLab.GLab -e` in a terminal pane (`brew install glab` on macOS). Restart any terminals that were open, so
+   `winget install --id GLab.GLab -e` in a terminal pane (`brew install glab` on macOS and Linux,
+   when Homebrew is installed). Restart any terminals that were open, so
    they see it.
 2. Sign in. In the Accounts tab, choose **Sign in** on the GitLab card; it closes the dialog and
    runs `glab auth login --hostname gitlab.com` in a terminal pane, where you follow the prompts.

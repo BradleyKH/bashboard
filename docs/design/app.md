@@ -43,12 +43,15 @@ which is on no `PATH` outside it.
 | `bb ci rerun [--failed] [--run ID]` | Re-runs a run, or its failed jobs only with `--failed`; needs `ship.cliWrites` |
 | `bb ci cancel [--run ID]` | Cancels a run; needs `ship.cliWrites` |
 | `bb pr size [--json]` | The branch size meter (3.25): one line with the lines and files this worktree changes against its comparison ref, the `git.branchSizeThreshold` setting, and what the test, lockfile, and generated file exclusions left out; exits 0 at or under the threshold, 1 over it, 2 on any error |
+| `bb worktree new <branch> [--from <ref>] [--agent <id>] [--prompt <text>]` | Creates a worktree on a new branch and opens a terminal in it (3.27, 4.27), printing the plan line first |
 | `bb skill install` | Writes the Claude Code skill that teaches `bb` to `~/.claude/skills/bashboard/SKILL.md` |
 | `bb help` | Lists the commands |
 
 `src-tauri/cli-commands.json` holds each command's usage, summary, details, and examples. `bb help`
 prints the usage and summary lines from it (embedded at build time), and the app dialog's CLI tab
-(4.18) shows all of it, so the two cannot drift.
+(4.18) shows all of it, so the two cannot drift. `bb hook` and `bb statusline`, the entry points
+agents' hooks and status lines call (3.3, 3.28), are left out of both, and outside a pane they
+exit 0 quietly so an agent never sees them fail.
 
 New panes open as a split of the calling pane, as a favorite does (4.6), in the calling pane's
 tab, and focus moves to them. `--collapsed` opens a pane collapsed instead, and `--tab` (`-t`)
@@ -62,7 +65,7 @@ from the command; for the other commands the words after it are ordinary argumen
 - **Transport.** `bb` reads `BASHBOARD_HOOK_URL`, `BASHBOARD_HOOK_TOKEN`, and
   `BASHBOARD_PANE_ID`, and posts `{ command, args, cwd, stdin? }` to `/cli` on the hook receiver
   (3.3) with the same token and pane headers. `cwd` is the process's working directory as a
-  Windows path; relative paths in `args` are resolved against it in the core.
+  native path (a Windows path on Windows); relative paths in `args` are resolved against it in the core.
 - **Answers (`/cli`).** 204 on success, 403 for a bad token, 404 for an unknown pane, 413 for a body over
   1 MiB, and 400 with a JSON `{ error }` for an unknown command, bad arguments, or a path that
   does not exist. `bb` prints the error to stderr and exits 1; on success it prints nothing and
@@ -96,6 +99,9 @@ from the command; for the other commands the words after it are ordinary argumen
   2, not 1: bad arguments, running outside a pane, a folder outside a git repo, Bashboard
   unreachable, or a bad token, because 1 is reserved for "over", and 2 means "unknown", not "too
   big".
+- **`bb worktree new`** posts to `/worktree` (3.27) twice with the same token and pane headers:
+  first with `dryRun` (waiting up to 30 s), printing the plan line, then for real (waiting up to 5
+  minutes, since it fetches and copies files), printing what it created. Any error exits 1.
 - **`bb ci wait`** is a client loop over `status`, one request per `--interval` (default 30 s;
   a value below 10 s is raised to 10 s, not rejected), and prints one line each time the head
   commit, a run's status, or the pull request changes (with `--json`, the answer itself, and the
@@ -287,10 +293,17 @@ generate`. The public key is committed in `tauri.conf.json`; the private key and
 are never committed. The release workflow reads them from the repository secrets
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the maintainer keeps
 the key file (`~/.tauri/bashboard.key`) and its password outside the repo. Losing the private key
-means installed apps cannot verify later updates, so the key is backed up. The installer itself
-is not Authenticode-signed, so SmartScreen warns on first run. Local builds and the CI workflow
-need no key: only the release workflow turns on `bundle.createUpdaterArtifacts`, through
-`--config`.
+means installed apps cannot verify later updates, so the key is backed up. Local builds and the
+CI workflow need no key: only the release workflow turns on `bundle.createUpdaterArtifacts`,
+through `--config`.
+
+**Authenticode.** When the `AZURE_CLIENT_ID` secret is set, the release workflow also sets
+`bundle.windows.signCommand` to Azure Artifact Signing's `artifact-signing-cli` (from the
+`AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, and `AZURE_SIGNING_PROFILE` repository
+variables), so `bashboard.exe`, `bb.exe`, and the installer are signed, and a later step fails
+the release unless each signature is valid. Without the secret the release ships unsigned. The
+command is built in the workflow rather than kept in `tauri.conf.json` so a local build does not
+try to sign.
 
 **Release workflow** (`.github/workflows/release.yml`). `pnpm version:set <version>`
 (`scripts/bump-version.ts`) sets the version in `package.json`, `src-tauri/Cargo.toml`, and
@@ -300,7 +313,8 @@ check, the front end tests, and the Rust tests, then builds with `tauri-action` 
 release named "Bashboard v<version> (beta)", not marked as a prerelease, with the NSIS
 installer, its `.sig`, and `latest.json`. The release body, which also becomes the `notes` in
 `latest.json`, is the annotated tag's message (if any) followed by the standard beta
-SmartScreen text; a lightweight tag gets the standard text alone. A step then checks that `bb.exe` was built and is
+SmartScreen text, which says the installer is unsigned or, when it is signed, that SmartScreen
+may still warn until it builds reputation; a lightweight tag gets the standard text alone. A step then checks that `bb.exe` was built and is
 listed in the installer script (3.13), and only after that is the release published, so a
 broken build never becomes the release the updater reads.
 
@@ -318,7 +332,8 @@ workspace, since xterm.js measures its character cell when a terminal opens.
 ## 3.18 Single instance (`src-tauri/src/second_instance.rs`)
 
 Release builds register `tauri-plugin-single-instance` before every other plugin. A second
-launch finds the running app through a named mutex keyed on the app identifier, hands it its
+launch finds the running app through the plugin (on Windows, a named mutex keyed on the app
+identifier), hands it its
 arguments and working directory, and exits. The running app unminimizes, shows, and focuses the
 main window, then emits `instance://launched` with the folder for a new tab, or `null`. The
 folder is the first argument that names an existing folder; without one, it is the working
@@ -359,6 +374,9 @@ behind a dead window. On Windows the main window's `ProcessFailed` event drives 
   restores the saved workspace, reattaching each terminal to its still-running shell (3.1, 4.9).
   If the window cannot be rebuilt, the app exits rather than run with no window.
 - **Page renderer exited.** The WebView reloads the page.
+- **Page renderer unresponsive**, and every other kind (GPU, utility, a Local Browser frame's
+  renderer): logged only. An unresponsive page can recover on its own; the watchdog below and
+  the close fallback are the ways out when it does not.
 
 On macOS, WKWebView has no browser process to lose; its one failure event is the page's web
 content process ending, from a crash or because macOS reclaimed it under memory pressure. Tauri
@@ -368,9 +386,6 @@ reload fails. On Linux, WebKitGTK's web process can end the same way, from a cra
 OOM killer, or WebKit's memory limit, and Tauri forwards nothing for it, so `crash_recovery::watch`
 connects the WebView's `web-process-terminated` signal (through the `webkit2gtk` crate) and
 reloads the page, which starts a new web process.
-- **Page renderer unresponsive**, and every other kind (GPU, utility, a Local Browser frame's
-  renderer): logged only. An unresponsive page can recover on its own; the watchdog below and
-  the close fallback are the ways out when it does not.
 
 Either recovery also clears the Local Browser registry (4.21), whose bindings name CDP sessions
 of the old page.

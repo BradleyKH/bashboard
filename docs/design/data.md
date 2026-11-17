@@ -5,9 +5,10 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 
 ## 3.6 Settings (`src-tauri/src/settings/`)
 
-Stored at `%APPDATA%\dev.bashboard\settings.json`, watched and hot-reloaded. Schema in
-section 8. Debug builds use the `dev` subfolder for this file and for workspace.json,
-favorites.json, and layouts.json (`config_dir.rs`), seeding settings.json from the installed app's
+Stored as `settings.json` in Tauri's app config folder (`%APPDATA%\dev.bashboard` on Windows,
+`~/Library/Application Support/dev.bashboard` on macOS, `$XDG_CONFIG_HOME/dev.bashboard` or
+`~/.config/dev.bashboard` on Linux), watched and hot-reloaded. Schema in section 8. Debug builds
+use the `dev` subfolder for this file and for the app-owned files below (`config_dir.rs`), seeding settings.json from the installed app's
 copy on first run.
 
 The app never rewrites the file whole. `settings_set(path, value)` changes one value in place

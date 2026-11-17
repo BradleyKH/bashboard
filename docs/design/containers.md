@@ -65,7 +65,7 @@ it follows events at once instead of at its next probe; a stop ends the events c
 watcher notices as usual.
 
 Container shells open through `pty_spawn` with the command
-`<engine>.exe exec -it <id> sh -c "command -v bash >/dev/null && exec bash || exec sh"`.
+`<engine>.exe exec -it -- <id> sh -c "command -v bash >/dev/null && exec bash || exec sh"`.
 
 ## 3.19 Local model servers (`src-tauri/src/model_servers.rs`)
 
@@ -120,7 +120,8 @@ command. Stop asks first, saying how many running containers will stop and that 
 down for every app that uses it. The buttons are disabled while a start or stop runs. Under each,
 groups expand to their containers. Each container row shows its state dot,
 service or container name, image, status text ("Up 3 hours"), published ports as links to
-`http://localhost:<port>` (through `open_url`), and CPU and memory, refreshed every 5 seconds
+`http://localhost:<port>` (in a Local Browser pane where one can open, 4.21, else through
+`open_url`), and CPU and memory, refreshed every 5 seconds
 while the pane is on screen. Groups and containers have Start, Stop, and Restart; containers also
 have Logs and Shell. The buttons are always shown at the row's right edge, disabled while the
 state rules one out (Start on a running container, Shell on a stopped one, Start, Stop, and
@@ -146,7 +147,8 @@ container row has Logs and Shell, so its three buttons sit over its containers' 
 
 A right-click on a group heading offers Start, Stop, and Restart, enabled as the heading's
 buttons are. A right-click on a container row offers Start, Stop, Restart, Logs, and Shell
-(enabled only while running); then one Open `localhost:<port>` per distinct published TCP port;
+(enabled only while running); then one Open `localhost:<port>` per distinct published TCP port (a pair, in Local Browser and in
+the system browser, where a Local Browser pane can open, 4.21);
 then Copy name. A dashboard Containers row has its own menu (4.6).
 
 ## 4.19 Ports
@@ -238,6 +240,7 @@ no tooltip, since every detail is in a column; the dot's tooltip reads "Local on
 from other machines". Rows sort by port until a header is clicked; Port, Program, Pane, Address, PID, and Up are
 buttons that sort on that column ascending (Up shortest first), a second click descending, with
 an arrow on the active one. Ties fall back to port, then pid, and rows with no owning pane stay
-last when sorting by Pane in either direction. The sort is not saved. A click selects a row, a double-click outside the buttons opens
-`http://localhost:<port>`, and the context menu is the dashboard's, less Show in Ports. When nothing on screen changed but the uptimes, a poll updates them in place rather than
+last when sorting by Pane in either direction. The sort is not saved. A click selects a row, a double-click outside the buttons does what Open does (opens
+`http://localhost:<port>` in a Local Browser pane where one can open, 4.21, else in the system
+browser), and the context menu is the dashboard's, less Show in Ports. When nothing on screen changed but the uptimes, a poll updates them in place rather than
 rebuilding the list. The pane saves no state.

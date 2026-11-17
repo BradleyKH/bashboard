@@ -1,6 +1,8 @@
 # User guide
 
 - [Tabs](#tabs)
+- [Panes](#panes)
+- [Relaunch and recovery](#relaunch-and-recovery)
 - [Scratch pads](#scratch-pads)
 - [Files panes](#files-panes)
   - [Dragging paths onto terminals](#dragging-paths-onto-terminals)
@@ -11,6 +13,7 @@
 - [Ship pane](#ship-pane)
   - [Overview](#overview)
   - [A repo's view](#a-repos-view)
+  - [Runs on a terminal's branch](#runs-on-a-terminals-branch)
 - [Code search](#code-search)
 - [Dashboard](#dashboard)
   - [Layouts](#layouts)
@@ -24,15 +27,16 @@
 - [Command palette](#command-palette)
 - [Find and links](#find-and-links)
 - [Text size](#text-size)
-- [Agent glow and border lights](#agent-glow-and-border-lights)
+- [Background and effects](#background-and-effects)
 - [Help, settings, and shortcuts](#help-settings-and-shortcuts)
 - [Pane CLI](#pane-cli)
 - [Keys on macOS](#keys-on-macos)
 
-This guide names the Windows keys. On macOS the app's keys move onto Cmd and every Ctrl and
-Option chord goes to the shell; see [Keys on macOS](#keys-on-macos). The Shortcuts tab (F1, then
-Shortcuts) always shows the keys for the machine you are on. Menus name the Mac's own places
-too: Open in File Explorer reads Open in Finder, and Delete sends files to the Trash.
+This guide names the Windows keys, which Linux shares. On macOS the app's keys move onto Cmd and
+every Ctrl and Option chord goes to the shell; see [Keys on macOS](#keys-on-macos). The Shortcuts
+tab (F1, then Shortcuts) always shows the keys for the machine you are on. Menus name each
+system's own places too: Open in File Explorer reads Open in Finder on macOS and Open in File
+Manager on Linux, and Delete sends files to the Trash there.
 
 ## Tabs
 
@@ -71,13 +75,81 @@ The installer also adds **Open in Bashboard** to Explorer's right-click menu, on
 drive, or the empty space inside a folder. It opens a new tab in that folder, starting Bashboard
 first if it isn't running. On Windows 11 it is under **Show more options** (or Shift+F10).
 
+## Panes
+
+Ctrl+Shift+Right, Down, Left, and Up split the focused pane on that side with a new terminal in
+the same folder, and Alt+Shift+D splits it along its longer side. A plain split runs your default
+shell; Alt+Shift+T asks which shell to split with (see
+[PowerShell, Windows PowerShell, and Command Prompt](setup.md#powershell-windows-powershell-and-command-prompt)).
+A pane too small to split shows a toast instead. Alt+Arrow moves focus to the neighboring pane,
+Alt+Shift+Arrow moves the focused pane's border, and Ctrl+W closes it. Closing a tab's last pane
+closes the tab, and closing the window's last pane closes the window. F11 toggles full screen.
+
+In a terminal, Ctrl+C copies the selection, and with nothing selected it goes to the shell as an
+interrupt. Ctrl+V pastes text, and with no text on the clipboard it goes to the shell, so Claude
+Code can paste an image. Ctrl+Shift+C and Ctrl+Shift+V do the same. Shift+Enter sends a newline
+without submitting, for multi-line prompts in Claude Code.
+
+Each title strip starts with the kind menu, which turns the pane into another kind in place
+(asking first when a scratch pad has text or a terminal is running a command), and ends with
+collapse, zoom, and close buttons, in that order. The close button closes the pane as Ctrl+W
+does. Right-click a title strip for the same actions, plus **Move to new tab** (see
+[Tabs](#tabs)) and, on a terminal, **New pin** (see [Pins](#pins)).
+
+Ctrl+Shift+M, or the collapse button on a pane's title strip, collapses a pane into its card; the
+terminal keeps running. Click a collapsed card to expand it. With a single pane the title strip
+stays out of the way and appears when you hover the top edge of the terminal.
+
+Ctrl+Shift+Z, or the zoom button on a pane's title strip, fills the tab's pane area with the
+focused pane, whatever its kind, and the same again restores the layout. The zoom button
+appears when the tab has two or more expanded panes, and it pulses while a hidden pane in the
+zoomed tab needs attention. Hidden panes keep their state, and terminals release their WebGL
+contexts until the zoom ends. Zoom is per tab and is not saved. Splitting, closing, collapsing,
+docking, expanding, or moving focus ends the zoom; moving focus ends it and then moves focus as
+usual. Resizing does nothing while zoomed, and a tab with one pane cannot zoom.
+
+Drag a title strip, a card, or a favorite or recent folder over a pane to dock it: each edge
+splits that pane on that side, and the center swaps two terminals (a favorite or recent folder
+docks by edges only). A collapsed card dropped on a center takes that pane's place and collapses
+it.
+
+To move a pane to another tab without leaving the one you're in, drag its title strip or card onto
+that tab's group in the dashboard's Panes section. An expanded pane splits that tab's focused pane
+(or lands collapsed when there's no room), and a collapsed one stays collapsed.
+
+Dropping on the 24 px band along an edge of the pane area docks the dragged pane along the whole
+edge of the window, taking a third of the space (more when a third would be under the minimum
+size). A drop that would leave a pane below the minimum size is refused with a toast. A folder
+dropped on a band opens a terminal docked on that edge.
+
+## Relaunch and recovery
+
+On relaunch, Bashboard reopens your tabs and the active tab, with the terminals you had in the same
+folders, layout, and collapsed state, and types the agent's resume command into each one that was running a coding agent session:
+`claude --resume <session id>` for Claude Code, `codex resume <session id>` for Codex, and
+`copilot --resume <session id> --model <model>` for Copilot, which otherwise falls back to its default model.
+Turn off **Resume agent sessions** in Settings (`restore.resumeSessions`) to restore terminals without resuming.
+A session that was in a permission mode other than the default, such as bypass permissions,
+resumes in that mode. The mode saved is the one Claude Code last reported through its hooks, so a
+Shift+Tab change made just before closing, with no prompt after it, may not be saved.
+
+Each terminal's scrollback comes back too, above a gray "restored scrollback" line, with the new
+prompt below it. It is saved when you close the window and about once a minute while terminals
+have new output, so if the app itself crashes you lose at most the last minute or so. Container shells and terminals opened from a layout start empty. Turn
+off **Restore terminal scrollback** in Settings (`restore.scrollback`) to stop saving it.
+
+If the window's web view crashes, Bashboard rebuilds the window and reconnects each terminal to
+its shell, which kept running, so commands and agent sessions carry on and the screen redraws
+with recent output. If the window stops responding for 30 seconds, Bashboard asks whether to
+reload it; your shells keep running through the reload. The close button also still closes a
+window that stopped responding, after a few seconds. If a saved pane cannot be restored, a
+terminal opens in its place and a message says so. On Windows, either event is recorded in `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`.
+
 ## Scratch pads
 
 A scratch pad is a plain text pane for drafting a prompt or keeping notes beside your terminals.
-Ctrl+Shift+S (the `newScratch` action) opens one as a split of the focused pane. The kind menu,
-the first control on every title strip, turns a pane into another kind in place; it asks first
-when the pad has text or the terminal is running a command. A pad's title is its first non-empty
-line.
+Ctrl+Shift+S (the `newScratch` action) opens one as a split of the focused pane, and the kind menu
+turns any pane into one. A pad's title is its first non-empty line.
 
 A pad saves itself about half a second after you stop typing and comes back with the workspace
 on relaunch. Its toolbar has four buttons, then a − and + pair at the right that zooms the text:
@@ -572,7 +644,7 @@ state, with merged and closed ones marked. The pane remembers these choices acro
   and two lines of context above it, and **Jump to end** scrolls to the last line; otherwise it
   opens at the end. The buttons at the right of each run open it in the browser,
   **Re-run** it, **Re-run failed** jobs (GitHub, GitLab, and Azure DevOps), **Cancel** it, or **Copy link**; one that
-  does not apply to the run right now is greyed. Right-click a run for the same actions, and for
+  does not apply to the run right now is grayed out. Right-click a run for the same actions, and for
   **Fix with agent** on a failed run (see below).
   In a narrow pane the buttons are hidden and the right-click menu has them all. Cancel asks first, with a
   button that reads "Cancel workflow run", "Cancel pipeline", or "Cancel build"; Re-run does not ask. A Bitbucket
@@ -702,7 +774,7 @@ F2 renames the focused favorite, layout, pin, or tab group header, and F6 or Esc
 edge to make it wider or narrower; the width is saved with the workspace. Drag it past 600 px
 and the panel splits into two columns, each with its own top slot and list and each scrolling on
 its own (a column's scrollbar appears while the pointer or focus is in it); narrower than that,
-the two stack back into one. The first split puts the clock, Wave, System, Local AI models,
+the two stack back into one. The first split puts the clock, Wave, Media, System, Local AI models,
 Containers, and Ports on the right, and the rest on the left. **Panes** has a card for every pane in the order
 they were opened (with two or more tabs, grouped under a header for each tab showing its name,
 pane count, and status; click a header to switch to that tab, or right-click it to rename the tab). A terminal's card shows its status (a green check mark when it is done),
@@ -861,6 +933,10 @@ section's "+" adds the focused folder. Below them, **Recent** lists up to five f
 sessions that are not already favorites, each with a star to promote it. While the section is
 shown, the top bar's heart button is not.
 
+When a terminal starts waiting while the panel is hidden, the panel peeks open from its side
+over the panes for a few seconds and stays while the pointer is over it; `dashboard.peekOnWaiting`
+turns this off (see [Settings](settings.md#settings)).
+
 ### Layouts
 
 **Layouts** save the active tab's arrangement of panes under a name: each pane's kind, its folder
@@ -884,82 +960,10 @@ store Claude sessions, so opening one does not resume Claude. Layouts are kept i
 next to `settings.json`; it is plain JSON you can edit by hand, and the panel updates when you
 save it.
 
-Each title strip ends with collapse, zoom, and close buttons, in that order. The close button
-closes the pane as Ctrl+W does.
-
-Ctrl+Shift+M, or the collapse button on a pane's title strip, collapses a pane into its card; the
-terminal keeps running. Click a collapsed card to expand it. With a single pane the title strip
-stays out of the way and appears when you hover the top edge of the terminal.
-
-Ctrl+Shift+Z, or the zoom button on a pane's title strip, fills the tab's pane area with the
-focused pane, whatever its kind, and the same again restores the layout. The zoom button
-appears when the tab has two or more expanded panes, and it pulses while a hidden pane in the
-zoomed tab needs attention. Hidden panes keep their state, and terminals release their WebGL
-contexts until the zoom ends. Zoom is per tab and is not saved. Splitting, closing, collapsing,
-docking, expanding, or moving focus ends the zoom; moving focus ends it and then moves focus as
-usual. Resizing does nothing while zoomed, and a tab with one pane cannot zoom.
-
-Drag a title strip, a card, or a favorite or recent folder over a pane to dock it: each edge
-splits that pane on that side, and the center swaps two terminals (a favorite or recent folder
-docks by edges only). A collapsed card dropped on a center takes that pane's place and collapses
-it.
-
-To move a pane to another tab without leaving the one you're in, drag its title strip or card onto
-that tab's group in the dashboard's Panes section. An expanded pane splits that tab's focused pane
-(or lands collapsed when there's no room), and a collapsed one stays collapsed.
-
-Dropping on the 24 px band along an edge of the pane area docks the dragged pane along the whole
-edge of the window, taking a third of the space (more when a third would be under the minimum
-size). A drop that would leave a pane below the minimum size is refused with a toast. A folder
-dropped on a band opens a terminal docked on that edge.
-
-On relaunch, Bashboard reopens your tabs and the active tab, with the terminals you had in the same
-folders, layout, and collapsed state, and types the agent's resume command into each one that was running a coding agent session:
-`claude --resume <session id>` for Claude Code, `codex resume <session id>` for Codex, and
-`copilot --resume <session id> --model <model>` for Copilot, which otherwise falls back to its default model.
-Turn off **Resume agent sessions** in Settings (`restore.resumeSessions`) to restore terminals without resuming.
-A session that was in a permission mode other than the default, such as bypass permissions,
-resumes in that mode. The mode saved is the one Claude Code last reported through its hooks, so a
-Shift+Tab change made just before closing, with no prompt after it, may not be saved.
-
-Each terminal's scrollback comes back too, above a gray "restored scrollback" line, with the new
-prompt below it. It is saved when you close the window and about once a minute while terminals
-have new output, so if the app itself crashes you lose at most the last minute or so. Container shells and terminals opened from a layout start empty. Turn
-off **Restore terminal scrollback** in Settings (`restore.scrollback`) to stop saving it.
-
-If the window's web view crashes, Bashboard rebuilds the window and reconnects each terminal to
-its shell, which kept running, so commands and agent sessions carry on and the screen redraws
-with recent output. If the window stops responding for 30 seconds, Bashboard asks whether to
-reload it; your shells keep running through the reload. The close button also still closes a
-window that stopped responding, after a few seconds. If a saved pane cannot be restored, a
-terminal opens in its place and a message says so. Either event is recorded in `%LOCALAPPDATA%\dev.bashboard\logs\bashboard.log`.
-
-When a terminal starts waiting while the panel is hidden, the panel peeks open over the panes for
-a few seconds and stays while the pointer is over it. Set `dashboard.peekOnWaiting` to `false`
-to turn the peek off. It comes in from the dashboard's side:
-
-```jsonc
-"dashboard": { "peekOnWaiting": true }
-```
-
-Sessions come from the files Claude Code keeps in `~/.claude/sessions`. A session belongs to a
-pane when its process descends from that pane's shell, so running `claude` in a pane names the
-card after the session and shows when it is working, usually within about 10 seconds. Codex and
-Copilot keep no such file, so their sessions come from their hooks and appear in the pane where
-the agent sent its first hook.
-
-The Background choice in the Settings tab picks what draws behind the panes (see
-[Settings](settings.md#settings)): Swirling Lights, a drifting colony simulation; Galaxy, a
-slowly turning swirl of stars; Matrix; Wave, a large version of the dashboard's Wave that
-follows your machine's load; Image and Slideshow, which show your own pictures; or None.
-Ctrl+Shift+A pauses or resumes Swirling Lights, Galaxy, Matrix, or Wave. Ctrl+Shift+B cycles
-the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
-Brightness in the Settings tab; the blur stays as set there.
-
 ### Containers
 
 The **Containers** section of the dashboard lists Docker and Podman containers, grouped by Compose
-project; a container with no project is its own row. Bashboard finds `docker.exe` and `podman.exe`
+project; a container with no project is its own row. Bashboard finds the `docker` and `podman` CLIs
 on `PATH` at startup, so Docker Desktop or Podman has to be installed. An engine whose CLI is
 missing is left out. One that is installed but not running shows as "Docker is not running" or
 "Podman is not running", with a Start button at the right when Bashboard can start it, and
@@ -987,7 +991,7 @@ shows `sudo systemctl start docker` with a Copy button for you to run yourself; 
 runs it. Other setups, such as Docker Engine inside WSL, get no buttons. A container row shows its service or container name,
 image, status text, and published ports, which open `http://localhost:<port>` when clicked, and its
 CPU and memory, refreshed every 5 seconds while the pane is on screen. Start, Stop, and Restart act
-on a container or on a whole project; every row shows its buttons, greyed when they do not apply,
+on a container or on a whole project; every row shows its buttons, grayed out when they do not apply,
 such as Start on a running container. Logs opens a panel beside the list that follows the output,
 starting with the last 500 lines and keeping the most recent 5000; scrolling up pauses following
 until you scroll back to the end. The − and + buttons in its header, or Ctrl+wheel over it, zoom
@@ -1027,7 +1031,6 @@ port's folder gets its own column when the pane is wide enough, and sits beneath
 otherwise; tick **Command lines** to show each full command line under its folder. Each row has
 **Open**, **Go to pane**, and **Stop** buttons, a double-click opens it in a [Local Browser](#local-browser) pane
 beside the Ports pane, and a right-click gives a menu like the dashboard's, with **Open in Local Browser** and **Open in system browser**.
-On macOS and Linux there is no Local Browser, so Open and a double-click use your system browser and the menu offers only **Open in system browser**.
 
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
 clears it). The pane opens with **Started from a pane** ticked, listing only ports your panes
@@ -1051,7 +1054,7 @@ system browser instead.
 
 The Local Browser is Windows only. On macOS and Linux it has no entry in the kind menu or the
 Launch menu, the Files pane has no **Open in Local Browser**, the port and container menus offer
-only **Open in system browser**, Ctrl+clicking a `localhost` link opens your system browser,
+only **Open in system browser**, a Ports pane row's Open and double-click use your system browser, Ctrl+clicking a `localhost` link opens your system browser,
 `bb browse` opens a `localhost` address in your system browser and refuses an `.html` file with a
 notice, and a saved workspace or layout that holds a Local Browser pane opens without it.
 
@@ -1185,6 +1188,12 @@ Windows the reply does not reach the program, so status comes from hooks. The da
 (model, context, and resume) still need hooks. A bound session's hooks take precedence, unless
 they have been silent for over 2 minutes while the program reports it is working or waiting.
 
+Sessions come from the files Claude Code keeps in `~/.claude/sessions`. A session belongs to a
+pane when its process descends from that pane's shell, so running `claude` in a pane names the
+card after the session and shows when it is working, usually within about 10 seconds. Codex and
+Copilot keep no such file, so their sessions come from their hooks and appear in the pane where
+the agent sent its first hook.
+
 Ctrl+Shift+N jumps to the next thing that needs you, across all tabs, in the order of the
 dashboard's Needs you list: waiting terminals first, oldest first, then failed terminals and
 broken branches and pull requests, then finished terminals, approved pull requests, review
@@ -1208,12 +1217,12 @@ reports commands, and a bound agent session's own status takes precedence.
 
 A CI run that starts on a terminal's branch, typically after that terminal pushes, shows as a chip
 on the terminal's card (such as `build #42 running`), and marks the terminal `done` or `failed` when
-the run passes or fails while you are not looking at it. Cancelled and skipped runs mark nothing.
+the run passes or fails while you are not looking at it. Canceled and skipped runs mark nothing.
 See [Runs on a terminal's branch](#runs-on-a-terminals-branch).
 
 ## Cloud context chip
 
-With `cloud.badge` on (it is off by default), a terminal's title strip shows a small chip, just left
+With **Cloud context chips** on (in the Terminal section of Settings; off by default), a terminal's title strip shows a small chip, just left
 of its pin button, naming the AWS profile and region the shell is using, such as
 `aws prod-admin · us-east-1`. The terminal's card in the dashboard shows the same chip. The profile
 and region come from the shell's `AWS_PROFILE` and `AWS_REGION` (or `AWS_DEFAULT_REGION`), so each
@@ -1225,9 +1234,8 @@ default, matched ignoring case). Hover it for the provider, profile, and region.
 
 The chip needs the `~/.bashrc` lines from
 [New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash; PowerShell
-panes report without setup, and Command Prompt panes show none. Turn the chip on with **Cloud
-context chips** in the Terminal section of the Settings tab (`cloud.badge`), and change what counts
-as production with `cloud.productionPattern` (see [Settings](settings.md#settings)).
+panes report without setup, and Command Prompt panes show none. `cloud.badge` and
+`cloud.productionPattern` are in [Settings](settings.md#settings).
 
 ## Command palette
 
@@ -1259,7 +1267,15 @@ terminal and to the text in other panes (file lists, previews, diffs, scratch pa
 code lines, and container logs); each pane's own zoom buttons adjust from there. The app's buttons,
 bars, and titles follow Interface size in Settings instead.
 
-## Agent glow and border lights
+## Background and effects
+
+The Background choice in the Settings tab picks what draws behind the panes (see
+[Settings](settings.md#settings)): Swirling Lights, a drifting colony simulation; Galaxy, a
+slowly turning swirl of stars; Matrix; Wave, a large version of the dashboard's Wave that
+follows your machine's load; Image and Slideshow, which show your own pictures; or None.
+Ctrl+Shift+A pauses or resumes Swirling Lights, Galaxy, Matrix, or Wave. Ctrl+Shift+B cycles
+the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
+Brightness in the Settings tab; the blur stays as set there.
 
 Two optional effects, both off until you turn them on under Appearance in Settings. **Agent
 glow** makes a terminal glow softly while an AI agent is working in it. **Border lights** send
@@ -1294,8 +1310,8 @@ those keys themselves.
   toggle, which reveals them dimmed. A card shows status only, never a token. A GitHub card says whether the GitHub CLI is installed
   and lists its signed-in accounts, with the active one marked. **Sign in** (or **Sign in another
   account**) runs `gh auth login` in a new terminal pane and closes the dialog so you can see it,
-  **Install GitHub CLI** runs `winget` the same way (Homebrew on macOS, or opens cli.github.com
-  when neither is installed), **Make active** switches accounts, and
+  **Install GitHub CLI** runs `winget` the same way (Homebrew on macOS and Linux, or opens cli.github.com
+  when Homebrew is not installed), **Make active** switches accounts, and
   **Sign out** asks first and then signs that account out of the GitHub CLI for every app that
   uses it. The GitLab card says whether the GitLab CLI is installed and who is signed in;
   **Sign in** runs `glab auth login` in a new terminal pane the same way, **Install GitLab CLI**
@@ -1387,7 +1403,7 @@ on every `bb ci` command, and `--flag=value` works too. `bb ci wait` checks ever
 (`--interval`; a value below 10 is raised to 10), prints a line each time something changes, and
 gives up after 30 minutes (`--timeout`: seconds, or amounts such as `90s`, `10m`, `1h`, or
 `1h30m`). It exits 0 when every run on the latest commit has finished without failing or the
-pull request merged, 1 when a run failed or was cancelled, and 2 when it could not tell: the
+pull request merged, 1 when a run failed or was canceled, and 2 when it could not tell: the
 timeout passed, no run appeared within 5 minutes of the latest commit, eight reads in a row
 failed, or the pull request was closed unmerged. It also exits 2 when the request itself is
 refused or invalid (bad arguments, a command run outside a pane, a rejected token), so that 1
@@ -1460,6 +1476,7 @@ The splits and pane keys follow iTerm2.
 | --- | --- | --- |
 | Copy, paste | Ctrl+C, Ctrl+V | Cmd+C, Cmd+V |
 | Split right, split down | Ctrl+Shift+Right, Ctrl+Shift+Down | Cmd+D, Cmd+Shift+D |
+| Split left, split up | Ctrl+Shift+Left, Ctrl+Shift+Up | None by default; bind them in Shortcuts |
 | Split auto, split with a chosen shell | Alt+Shift+D, Alt+Shift+T | Cmd+Option+D, Cmd+Option+T |
 | Close pane | Ctrl+W | Cmd+W |
 | Move focus | Alt+Arrow | Cmd+Option+Arrow |

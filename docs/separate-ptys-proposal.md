@@ -146,8 +146,8 @@ process running from the install folder, which covers an orphaned host.
 
 The same design on a Unix domain socket in the user's runtime directory with mode `0600`.
 `portable-pty` already provides the pty side. The host-side code that differs (pipe versus
-socket, detaching the child) sits under `cfg(windows)` and `cfg(not(windows))`, keeping the POSIX
-side ready for Linux.
+socket, detaching the child) sits under `cfg(windows)` and `cfg(not(windows))`, so one POSIX
+side serves both.
 
 ## Performance
 
@@ -201,7 +201,7 @@ Each step ships on its own and leaves the app working.
 6. **Updater and installer.** Shut the host down before an update; verify the uninstaller ends it.
 7. **Default on.** After a release with the setting available, turn it on by default and keep
    the in-process backend for tests.
-8. **macOS.** The Unix socket transport.
+8. **macOS and Linux.** The Unix socket transport.
 
 Rough size: steps 1 to 3 are the bulk of the work, about a week of focused effort; 4 to 6
 another few days; 8 a couple of days given the cfg split already in place.

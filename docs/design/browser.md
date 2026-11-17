@@ -398,8 +398,10 @@ The commands are `browser_attach(paneId, onEvent)`, `browser_detach(paneId)`,
 `browser_history(paneId, delta)`, `browser_reload(paneId, ignoreCache)`,
 `browser_replace(paneId, from, to)`,
 `browser_response_body(paneId, requestId)` (returning the body and whether it is base64),
-`browser_focus(paneId | null)`, and `browser_chords(keys)` (see App chords), wrapped by
-`src/browserApi.ts`. A frame target has no navigation
+`browser_focus(paneId | null)`, `browser_chords(keys)` (see App chords),
+`browser_serve_file(paneId, fileUrl) -> { url, base, folder, trust }` and
+`browser_unwatch_file(paneId)` (3.21), and `browser_prefer_tls(url)` and `browser_probe_tls(url)`
+(Scheme, https failures), wrapped by `src/browserApi.ts`. A frame target has no navigation
 history to query, so Back, Forward, and Reload run `history.go(delta)` and `location.reload()` in
 the frame's session; a hard reload also turns the cache off for that session. `browser_replace`
 runs `location.replace(to)` there, only while the frame still shows `from` (File pages).
@@ -416,11 +418,10 @@ file: Windows (`C:\notes\a.html`, `C:/notes/a.html`), Git Bash (`/c/notes/a.html
 Anything else shows a message by the field saying that only loopback addresses and local HTML
 files open.
 
-On a file page the toolbar shows a trust badge (Trusted, Local, or Downloaded, 3.21), and a bar
-under the toolbar lists the hosts the page tried to reach and was refused, each with its count of
-refused requests and an Allow button, or on a Downloaded page, for a loopback host, the note
-"Downloaded pages can't reach local services" (Trust levels). The pane decides which with
-`isLoopbackHost` (`src/browserEgressModel.ts`), which mirrors the core's check case for case.
+On a file page the toolbar shows a trust badge (Trusted, Local, or Downloaded, 3.21), and the bar
+of refused hosts (3.21, Refused requests) gives each its count of refused requests. The pane picks
+Allow or the loopback note with `isLoopbackHost` (`src/browserEgressModel.ts`), which mirrors the
+core's check case for case.
 Suggestions come from bookmarks, listening ports (the Ports pane's list, 4.19), and recently visited
 addresses (kept for the session, at most 50); arrows move through them, Enter opens one, and Escape
 reverts the field. When the pane is 600 px wide or less (a container query on the pane body), the
@@ -500,7 +501,7 @@ Browser**. The Ports pane's Open button and a row's
 double-click open the port in Local Browser, and the port and container menus offer **Open in
 Local Browser** and **Open in system browser**. In a terminal, Ctrl+click on a loopback
 link opens Local Browser beside the terminal, and Ctrl+Shift+click opens the system browser;
-other links open the system browser as before (9).
+other links open the system browser (9).
 
 ### Limits
 

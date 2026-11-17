@@ -77,7 +77,7 @@ compiles both.
   --hostname <host>` (with `--user <account>` when an account is chosen), found on `PATH` or in
   GitHub CLI's install folders, since a `gh` installed while Bashboard runs is not on the `PATH` it
   inherited; then `git credential fill`, which reaches Git Credential Manager. Bitbucket: the
-  generic Windows credential `bashboard:bitbucket.org`, which the Accounts tab and `bb auth
+  stored credential `bashboard:bitbucket.org`, which the Accounts tab and `bb auth
   bitbucket` write (3.13); then Git Credential Manager as a fallback. GitLab: `glab auth status
   --hostname <host> --show-token` (glab has no `auth token` command), read from its labeled token
   line, with a masked value counting as none, found on `PATH` or in glab's install folders and
@@ -157,7 +157,7 @@ compiles both.
   organization, which `org` names; with no `org` it answers `ok: false`, asking for an Azure DevOps repo
   to be opened first, and a reply that names nobody fails the test. It returns an `AuthCheck` (`ok`, `login`, `scopes`, `message`), and an error comes
   back as `ok: false` with its message, so a Bitbucket 403 names the missing scope.
-  `forge_set_token(provider, org, token)` stores a token in the OS credential store and
+- **Stored tokens.** `forge_set_token(provider, org, token)` stores a token in the OS credential store and
   `forge_clear_token(provider, org)` deletes it (false when none was stored). Bitbucket's is the
   target `bashboard:bitbucket.org` with the user name `x-bitbucket-api-token-auth`, and ignores
   `org`; an Azure DevOps organization's is `bashboard:dev.azure.com/<org>` with the user name
@@ -193,25 +193,25 @@ compiles both.
   keyring now answers; `forge_move_tokens_to_keyring()` writes every file token to the keyring
   (replacing an older item for the same target),
   removes each from the file once the keyring holds it, and returns how many moved. An emptied
-  file stays, since `bb` treats its presence as the permission (docs/design/app.md section 3.13).
+  file stays, since `bb` treats its presence as the permission (3.13).
   The organization is trimmed and lowercased, and an empty name, or
   one holding a slash, whitespace, or a control character, is refused. Any other provider is
-  refused. `forge_gh_switch(host, user)` and
-  `forge_gh_logout(host, user)` run `gh auth switch` and `gh auth logout` with `--hostname` and
+  refused.
+- **CLI account changes.** `forge_gh_switch(host, user)` and `forge_gh_logout(host, user)` run `gh auth switch` and `gh auth logout` with `--hostname` and
   `--user`; they refuse a user who is not among that host's `hosts.yml` accounts, run with a hidden
   console, `GH_PROMPT_DISABLED=1`, and no standard input, so `gh` never prompts, and report its
   standard error on failure. Both remove `GH_TOKEN`, `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN`, and
   `GITHUB_ENTERPRISE_TOKEN` from `gh`'s environment, since `gh` refuses to switch or log out while
   one applies to the host. `forge_glab_logout(host)` runs `glab auth logout --hostname <host>` the
-  same way; glab holds one account per host, so it names none. Every successful change drops the host's cached tokens and resolved
-  repos and emits `forge://auth-changed` with `{ provider, host }`; Ship panes (`ShipStore`),
-  the Overview store, and an open Accounts tab refresh on it. A sign-in finished in a terminal
-  pane changes `hosts.yml` without passing through the core, so the tab also reloads when it is
-  shown and when the window regains focus.
+  same way; glab holds one account per host, so it names none.
+- **Auth changes.** Every successful switch, sign-out, token save, or removal drops the host's
+  cached tokens and resolved repos and emits `forge://auth-changed` with `{ provider, host }`; Ship panes (`ShipStore`),
+  the Overview store, and an open Accounts tab refresh on it.
 - **Token handling.** A Bitbucket token or an Azure DevOps PAT enters the core only from the
   Accounts tab's password field, as an argument of `forge_set_token`, or from `bb auth` in a
   separate process. It is never sent from the core to the page, never logged, never put in an
-  error message, and never written anywhere but the OS credential store. The core overwrites
+  error message, and never written anywhere but the OS credential store or, with permission, the
+  Linux credentials file above. The core overwrites
   its copies after the write; that is best effort, since the buffers the IPC layer fills while
   deserializing the argument are outside the app's control, so the app does not claim the token is
   wiped from memory.
@@ -351,13 +351,12 @@ compiles both.
   failed-only re-run, no accounts; nouns "pull request" and "pipeline"; minimum poll 30 s. GitLab:
   re-run, re-run failed, cancel, logs, drafts, no accounts; nouns "merge request" and "pipeline";
   minimum poll 10 s. Azure DevOps: re-run failed (and no plain re-run), cancel, logs, drafts, no
-  accounts; nouns "pull request" and "build"; minimum poll 20 s. Neither GitLab nor Azure DevOps
-  has an Overview request budget; Bitbucket's alone is described in 4.20.
+  accounts; nouns "pull request" and "build"; minimum poll 20 s. Only Bitbucket has an Overview request
+  budget (4.20).
 - **Caching.** The resolved repo (remote, branch, and account) is cached per root for 15 s. Tokens
   are cached as above, and the ETag, viewer, and checks caches live as long as the app, as do
   GitLab's pipeline details and commit titles and Azure DevOps's repo ids; a cache that grows
-  past 2,000 entries starts over. A change
-  made through an Accounts command drops that host's cached tokens and resolved repos at once.
+  past 2,000 entries starts over.
 
 ## 3.23 CI for agents (`src-tauri/src/ci.rs`, `src-tauri/src/forge/failure.rs`, `src-tauri/src/forge/diagnostic.rs`)
 
@@ -705,10 +704,9 @@ comes from `AZURE_DEVOPS_SCOPE_INFO`, `Code (Read)` and `Build (Read & execute)`
 `forgeTokenForm.ts`, and the pure `forgeAccountsModel.ts`) has one card per code host, from
 `forge_auth_status` (3.20), which the tab asks with what it knows: the hosts of pins and open Ship
 panes, and the folders of open terminal panes. The cards the core marks detected come first, in its
-order: GitHub hosts (`github.com` first), GitLab hosts, `bitbucket.org`, then `dev.azure.com`. Every
-other card folds under a **More hosts (N)** toggle, absent at zero, that reveals them dimmed, each
-marked "Not detected on this machine". `github.com`, `gitlab.com`, `bitbucket.org`, and
-`dev.azure.com` always have a card, so a host can be set up before it is used. A detected card's
+order. Every other card folds under a **More hosts (N)** toggle, absent at zero, that reveals them
+dimmed, each marked "Not detected on this machine"; the four well-known hosts always have a card,
+so a host can be set up before it is used. A detected card's
 tooltip lists why: GitHub CLI is signed in, GitLab CLI's config names it, the `ship.hosts` setting, a
 pinned repo or open Ship pane, a terminal pane's repo, a stored API token or personal access
 token, `AZURE_DEVOPS_EXT_PAT` is set, or Azure CLI is installed. A card shows
@@ -769,8 +767,7 @@ status and never a token. The tab loads when it is shown, when the window regain
   switching to it. On Azure DevOps the credential is per organization: the card's Test checks
   each organization with a stored PAT and then each one a pin or open Ship pane names, one line
   each ("<org>: Signed in as <display name>."), a row's Test checks only its own organization,
-  and with no organization to check it says to open an Azure DevOps repo first. A test bypasses
-  the response cache, so it reaches the host every time.
+  and with no organization to check it says to open an Azure DevOps repo first.
 - **Token form.** A password field (`type="password"`, `autocomplete="off"`) with **Save** and
   **Cancel**, and a hint that `bb auth bitbucket` (or `bb auth azure-devops <org>`) stores one from
   a terminal. For Azure DevOps a required Organization field, with a `dev.azure.com/` prefix, sits
@@ -785,10 +782,6 @@ status and never a token. The tab loads when it is shown, when the window regain
   **Allow**: Allow sets `linux.allowFileCredentials` to true through `settings_set` and saves
   again with `allowFile`; Cancel stores nothing and says so in the form. With the setting on,
   later saves go to the file without asking.
-- **Changes.** A successful switch, sign-out, save, or removal drops the host's cached credentials
-  in the core and emits `forge://auth-changed` (3.20); open Ship panes, the Overview, and the tab
-  itself refresh on it. The account chip's per-repo `credential.username` behavior is separate and
-  is unchanged.
 - **Entry points.** **Accounts** in a drilled Ship bar and in the Overview bar; **Manage
   accounts** in the account chip's menu (the chip shows only with two or more accounts, and not on
   a remote pin); the notice buttons **Manage accounts** (GitHub and GitLab `signedOut` and

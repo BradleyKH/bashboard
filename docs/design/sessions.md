@@ -9,7 +9,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 table, `src/agents.json` (3.24), which carries its display name, home folder, the executables
 that identify its process, and the rest of what the roster, hook installer, and front end share.
 `src-tauri/src/agents.rs` parses it into an `Agent` per `AgentId` (serialized in lowercase and
-parsed by `AgentId::parse`), and the user profile comes from `USERPROFILE`. An agent counts as
+parsed by `AgentId::parse`), and the home folders sit under the user's home (`USERPROFILE`, else `HOME`, on Windows; `HOME` elsewhere). An agent counts as
 detected when its home folder exists (for Copilot, with a `session-state` folder inside, since
 VS Code's Copilot extension creates `~/.copilot` on its own), which is what `agents_detected()`
 reports; detection never consults `PATH`, since VS Code installs a `copilot-shim\copilot.exe`
@@ -151,7 +151,7 @@ exact transitions as they happen.
   | `UserPromptSubmit` | `busy` |
   | `Notification` | `waiting` when its `notification_type` needs input (a permission prompt, an elicitation dialog, or an agent needing input; or no type, from older Claude Code); other notices, including the idle prompt, change nothing; carries `message` |
   | `Stop` | `idle`, shown as `done` until the pane is looked at (4.8); `background` instead when its `background_tasks` lists running work other than shells and monitors (3.30) |
-  | `SubagentStart` | Nothing yet |
+  | `SubagentStart` | Nothing |
   | `SubagentStop` | `busy` when it names a task the session's `background` wait lists, since the session wakes on its own (3.30); otherwise nothing |
   | `SessionEnd` | Session unbound from its pane |
 
@@ -181,7 +181,7 @@ exact transitions as they happen.
   already in place and only the hook program will be written or updated, with no JSON. Copilot's
   `hooks/bashboard.json` is written whole, so a file that exists but differs is listed as updated
   and a missing one as added. The install copies the program to
-  `~/.claude/hooks/bashboard-hook.exe` (home is `USERPROFILE`, else `HOME`) when it is missing or
+  `~/.claude/hooks/bashboard-hook.exe` when it is missing or
   outdated, then re-reads
   `settings.json` and merges the groups, through a temporary file and a rename. A missing
   `settings.json` is created. A `settings.json` that is not plain JSON (comments, trailing
@@ -230,7 +230,8 @@ exact transitions as they happen.
   JSON it will add, whether the hooks are already in, whether the agent is detected, and for
   Codex the trust state; `hooks_install(agent)` writes it. An absent agent means Claude Code.
 - The receiver accepts `POST /hook`, `POST /cli` (3.13), `POST /ci` (3.23), `POST /size`
-  (3.25), and `POST /usage` (3.28). A `/ci` or `/size` request, which can wait seconds on a code host or a large diff, is
+  (3.25), `POST /worktree` (3.27), and `POST /usage` (3.28). A `/ci`, `/size`, or `/worktree`
+  request, which can wait seconds on a code host, a large diff, or a checkout, is
   handed to its own thread and answered from there, so the loop that carries hook events never
   waits on it. For `/hook` it answers with these
   codes, checked in this order:
@@ -549,7 +550,7 @@ composites without repainting the terminal under it.
 
 **Border lights.** While `borderLights` is on, comets of accent light run clockwise around
 each pane of the active tab, along the middle of the gutter, at `borderLightsSpeed` px per
-second (default 120). Each comet is a small 4 px head with a 60 px trail on both sides, ahead of
+second (default 120). Each comet is a small 2 px head with a 60 px trail on both sides, ahead of
 the head as well as behind it, fading out toward each end. A pane runs `borderLightsDensity`
 comets per 1000 px of loop (default 1), rounded, and at least one, so larger panes carry more. A pane's first comet starts at a random point on its loop, so neighbors don't run in step;
 the rest spread out from it. When a pane or window resize changes the count, a new comet fades in
@@ -564,7 +565,7 @@ The comets draw on one Canvas2D layer, `#pane-lights`, fixed over the window bet
 backdrop and `#panes`. It sits outside the scrim's filter (4.1), so the scrim does not dim it,
 and it uses no WebGL context, so it costs nothing from the terminal budget (4.4). It reads the
 pane rects each frame, so splits, drags, zoom, and the dashboard's width need no extra wiring. It
-draws at up to 30 fps and stops while the window is hidden or minimized.
+draws at up to 20 fps and stops while the window is hidden or minimized.
 
 ## 4.24 Program status (OSC 7501)
 
