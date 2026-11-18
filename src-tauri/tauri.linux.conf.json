@@ -8,11 +8,19 @@
     "longDescription": "Bashboard runs shell panes (bash, zsh, fish) in xterm.js over a live colony-simulation backdrop, with tabs, a dashboard, file, git, search, container, and port panes, and the bb command for driving panes from a shell. It is built for running Claude Code and other AI coding agents side by side.",
     "linux": {
       "deb": {
-        "desktopTemplate": "linux/bashboard.desktop"
+        "desktopTemplate": "linux/bashboard.desktop",
+        "files": {
+          "/usr/share/kio/servicemenus/bashboard.desktop": "linux/kio-servicemenu.desktop",
+          "/usr/share/nemo/actions/bashboard.nemo_action": "linux/bashboard.nemo_action"
+        }
       },
       "rpm": {
         "depends": ["webkit2gtk4.1", "gtk3"],
-        "desktopTemplate": "linux/bashboard.desktop"
+        "desktopTemplate": "linux/bashboard.desktop",
+        "files": {
+          "/usr/share/kio/servicemenus/bashboard.desktop": "linux/kio-servicemenu.desktop",
+          "/usr/share/nemo/actions/bashboard.nemo_action": "linux/bashboard.nemo_action"
+        }
       }
     }
   }

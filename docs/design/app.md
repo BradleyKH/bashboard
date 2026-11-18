@@ -354,6 +354,17 @@ per-user verbs under `HKCU\Software\Classes` for `Directory\Background`, `Direct
 these verbs sit in the classic menu ("Show more options"), since the top-level menu takes only
 shell extensions registered by a signed package.
 
+Linux has no shared context menu, so the `.deb` and `.rpm` add the same action per file manager:
+a KDE service menu (`/usr/share/kio/servicemenus/bashboard.desktop`, from
+`src-tauri/linux/kio-servicemenu.desktop`) puts "Open in Bashboard" in Dolphin's menu on a
+folder, and a Nemo action (`/usr/share/nemo/actions/bashboard.nemo_action`) does it in Cinnamon's
+Nemo; both run `bashboard %F`. The application's own desktop file declares no `MimeType`: listing
+`inode/directory` there would make Bashboard a candidate default for opening folders, and where no
+default is set (KDE sets none for GIO) GIO apps such as a browser's Show in folder would open
+Bashboard instead of the file manager. Nautilus (GNOME), Thunar (Xfce), and Caja (MATE) take no
+action file a package can ship, so there Bashboard opens a folder only from a shell or from the
+file manager's Open With Other Application.
+
 ## 3.22 Crash recovery and log (`src-tauri/src/crash_recovery.rs`, `src-tauri/src/app_log.rs`)
 
 **Panics.** Release builds unwind rather than abort, so a panic ends only the thread it happens
@@ -445,13 +456,17 @@ does not bring the offer back.
 The install writes the desktop file with the keys of the package's template, except that `Exec`
 and `TryExec` name the AppImage: `Exec="<path>" %F` (quoted per the Desktop Entry Specification
 when the path has spaces or other reserved characters, with `%` doubled), `Icon=bashboard`,
-`MimeType=inode/directory;` (a folder argument opens a tab, 3.18), the same `Categories` and
-`Keywords`, and `StartupWMClass=bashboard`. It copies `bashboard.png` from each
+no `MimeType` (3.18 says why), the same `Categories` and `Keywords`, and `StartupWMClass=bashboard`.
+Beside it go the two file manager actions of 3.18, each running the AppImage: the KDE service
+menu at `$XDG_DATA_HOME/kio/servicemenus/bashboard.desktop`, made executable since KDE runs a
+service menu from the user's folder only then, and the Nemo action at
+`$XDG_DATA_HOME/nemo/actions/bashboard.nemo_action`, whose `Exec` is quoted for a shell, the way
+Nemo splits it. It copies `bashboard.png` from each
 `usr/share/icons/hicolor/<W>x<H>/apps/` folder of the AppImage's mount (`APPDIR`) to the same
 place under `$XDG_DATA_HOME/icons`, skipping a folder whose name is not a plain size. A mount with
 none falls back to the top-level `bashboard.png`, then `.DirIcon`, filed under the size its PNG
-header declares. Icons are written before the desktop file, so a failure never leaves an entry
-without its icon, and the desktop file is replaced atomically. Last, `update-desktop-database`
+header declares. Icons and actions are written before the desktop file, so a failure never leaves
+an entry without them, and each file is replaced atomically. Last, `update-desktop-database`
 runs on the applications folder when it exists; its failure is ignored. The entry points at the
 AppImage's current path, so moving the file leaves the entry stale until it is edited.
 

@@ -177,8 +177,8 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 26. Run `python3 -m http.server 8765` in a pane. The Ports pane and the dashboard show port 8765
     tied to that pane, and Stop ends the server.
-27. In the Ports pane, ports from system daemons appear only with
-    Linux services ticked, dimmed, and the dashboard's port list does not count them.
+27. The Ports pane has no services checkbox on Linux, and ports held by system daemons (CUPS on
+    631, systemd-resolved on 53) do not appear.
 28. Run `(python3 -m http.server 8766 &)` in a pane. Its parent is gone, and the Ports pane still
     ties port 8766 to that pane. In a shell without Bashboard's integration lines (which report
     each command themselves, so a background job leaves the pane idle there), `(sleep 120 &)`
@@ -194,8 +194,11 @@ For each check, report pass or fail, plus what you saw if it failed.
 **Desktop integration** (the `.deb`, the `.rpm`, or an AppImage after accepting the menu offer)
 
 31. Bashboard is in the applications menu with its icon, under Development or System.
-32. In Dolphin or Nautilus, right-click a folder: Open with Bashboard opens a pane in that
-    folder (a new window, or a new pane when Bashboard is already running).
+32. In Dolphin (KDE) or Nemo (Cinnamon), right-click a folder: **Open in Bashboard** opens it
+    (a new window, or a new tab when Bashboard is already running). Then check that Bashboard
+    did not become the folder handler: `gio mime inode/directory` and `xdg-mime query default
+    inode/directory` still name the file manager, and a browser's Show in folder opens the file
+    manager, not Bashboard.
 33. The running window groups under the Bashboard icon in the panel or dock, with that icon and
     name, not a generic one, and pinning it keeps working after a restart.
 

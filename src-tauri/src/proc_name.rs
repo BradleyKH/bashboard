@@ -6,12 +6,13 @@
 use sysinfo::{Process, ProcessRefreshKind, UpdateKind};
 
 /// The refresh a process list needs before `name` can see past `comm`. A command line is read
-/// once per process, since sysinfo keeps it.
+/// once per process, since sysinfo keeps it. Threads are left out: on Linux sysinfo otherwise
+/// lists every thread as a process of its own (elsewhere this changes nothing).
 pub fn refresh_kind() -> ProcessRefreshKind {
     if cfg!(target_os = "linux") {
-        ProcessRefreshKind::nothing().with_cmd(UpdateKind::OnlyIfNotSet)
+        ProcessRefreshKind::nothing().without_tasks().with_cmd(UpdateKind::OnlyIfNotSet)
     } else {
-        ProcessRefreshKind::nothing()
+        ProcessRefreshKind::nothing().without_tasks()
     }
 }
 

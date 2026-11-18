@@ -13,15 +13,18 @@ describe('supports', () => {
   it('keeps every feature on Windows', () => {
     expect(supports('localBrowser', 'windows')).toBe(true);
     expect(supports('media', 'windows')).toBe(true);
+    expect(supports('systemPorts', 'windows')).toBe(true);
   });
 
   it('hides the WebView2 Local Browser and Media on macOS', () => {
     expect(supports('localBrowser', 'macos')).toBe(false);
     expect(supports('media', 'macos')).toBe(false);
+    expect(supports('systemPorts', 'macos')).toBe(true);
   });
 
-  it('hides only the WebView2 Local Browser on Linux, which has Media over MPRIS', () => {
+  it('hides the WebView2 Local Browser and the services filter on Linux, which has Media over MPRIS', () => {
     expect(supports('localBrowser', 'linux')).toBe(false);
+    expect(supports('systemPorts', 'linux')).toBe(false);
     expect(supports('media', 'linux')).toBe(true);
   });
 

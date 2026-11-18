@@ -75,6 +75,12 @@ The installer also adds **Open in Bashboard** to Explorer's right-click menu, on
 drive, or the empty space inside a folder. It opens a new tab in that folder, starting Bashboard
 first if it isn't running. On Windows 11 it is under **Show more options** (or Shift+F10).
 
+On Linux, the packages (and the AppImage, once you accept its menu entry) add **Open in
+Bashboard** to the right-click menu on a folder in Dolphin (KDE) and Nemo (Cinnamon). Nautilus,
+Thunar, and Caja have no such menu a package can add to; there, open a folder with `bashboard
+<folder>` from a shell, or choose Bashboard under the file manager's open-with-another-app list.
+Bashboard never makes itself the default app for opening folders.
+
 ## Panes
 
 Ctrl+Shift+Right, Down, Left, and Up split the focused pane on that side with a new terminal in
@@ -1034,9 +1040,10 @@ beside the Ports pane, and a right-click gives a menu like the dashboard's, with
 
 Type in the filter to narrow the list by port, program, command, folder, or pane name (Escape
 clears it). Tick **Started from a pane** to list only ports your panes started, and tick **Windows services** (**macOS services** on a
-Mac, **Linux services** on Linux) to include the system's own ports, dimmed. On a Mac those are
-the services macOS runs for you, such as AirPlay Receiver on ports 5000 and 7000; on Linux they
-are the daemons owned by root or another system account. Opening the pane from the dashboard on a port no pane started unticks **Started from a
+Mac) to include the system's own ports, dimmed. On a Mac those are the services macOS runs for
+you, such as AirPlay Receiver on ports 5000 and 7000. Linux has no such checkbox: the daemons
+owned by root or another system account keep their sockets out of an ordinary user's sight, so
+the list holds your own programs only. Opening the pane from the dashboard on a port no pane started unticks **Started from a
 pane** for you. Any pane can also become a Ports pane from its kind menu.
 
 ## Local Browser

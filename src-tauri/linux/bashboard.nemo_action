@@ -1,0 +1,8 @@
+[Nemo Action]
+Name=Open in Bashboard
+Comment=Open this folder in Bashboard
+Exec=bashboard %F
+Icon-Name=bashboard
+Selection=NotNone
+Extensions=dir;
+Quote=double

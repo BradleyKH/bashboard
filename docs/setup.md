@@ -572,8 +572,9 @@ into it and removes them from the file.
 
 An AppImage has no applications-menu entry of its own. The first time Bashboard runs from one
 (and no `~/.local/share/applications/bashboard.desktop` exists), a toast offers to add it:
-**Add** writes that file, with Open with Bashboard for folders in file managers, and copies the
-icon to `~/.local/share/icons` (`$XDG_DATA_HOME` replaces `~/.local/share` when it is set). The
+**Add** writes that file, adds **Open in Bashboard** to the right-click menu on folders in Dolphin
+(KDE) and Nemo (Cinnamon), and copies the icon to `~/.local/share/icons` (`$XDG_DATA_HOME`
+replaces `~/.local/share` when it is set). The
 offer appears once, and ignoring the toast declines it. To add the entry later, write that
 desktop file yourself with `Exec` naming the AppImage; the `.deb` and `.rpm` packages install
 their own.

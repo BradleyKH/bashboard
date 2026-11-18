@@ -1,6 +1,8 @@
 /// Clipboard text, or None when the clipboard holds no text (an image, or nothing).
 /// Read natively because WebView2 gates navigator.clipboard.readText behind a permission prompt.
-#[tauri::command]
+/// Reads run off the main thread (`async`): on X11 the text Bashboard itself copied is served by
+/// WebKitGTK on the main thread, so a read there would wait on itself until arboard times out.
+#[tauri::command(async)]
 pub fn clipboard_read_text() -> Option<String> {
     arboard::Clipboard::new().ok()?.get_text().ok()
 }
@@ -21,8 +23,8 @@ pub fn clipboard_write_files(paths: Vec<String>, cut: bool) -> Result<(), String
 }
 
 /// The clipboard's file list, from this app or another (File Explorer's Copy or Cut); None when
-/// it holds no files.
-#[tauri::command]
+/// it holds no files. Off the main thread, as `clipboard_read_text` explains.
+#[tauri::command(async)]
 pub fn clipboard_read_files() -> Option<ClipboardFiles> {
     read_files().filter(|f| !f.paths.is_empty())
 }
@@ -75,9 +77,23 @@ fn read_files() -> Option<ClipboardFiles> {
     Some(ClipboardFiles { paths, cut })
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 fn write_files(paths: &[String], _cut: bool) -> Result<(), String> {
     let mut c = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+    c.set().file_list(paths).map_err(|e| e.to_string())
+}
+
+/// On X11 arboard serves the selection only while a `Clipboard` lives, so a dropped one hands the
+/// clipboard to the desktop's clipboard manager, which keeps text only (Klipper puts its last text
+/// back) and the file list is lost. One `Clipboard` lives for the app instead.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn write_files(paths: &[String], _cut: bool) -> Result<(), String> {
+    static OWNER: std::sync::Mutex<Option<arboard::Clipboard>> = std::sync::Mutex::new(None);
+    let mut owner = OWNER.lock().map_err(|e| e.to_string())?;
+    if owner.is_none() {
+        *owner = Some(arboard::Clipboard::new().map_err(|e| e.to_string())?);
+    }
+    let c = owner.as_mut().ok_or("no clipboard")?;
     c.set().file_list(paths).map_err(|e| e.to_string())
 }
 

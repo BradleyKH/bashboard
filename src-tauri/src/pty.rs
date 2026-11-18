@@ -372,7 +372,8 @@ pub fn shell_busy(pty_pid: u32, procs: &ProcNames) -> bool {
 }
 
 fn proc_names(sys: &mut System) -> ProcNames {
-    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+    // Threads are not jobs; on Linux sysinfo would otherwise list each as a process.
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().without_tasks());
     sys.processes()
         .iter()
         .map(|(pid, p)| {

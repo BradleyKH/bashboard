@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=KonqPopupMenu/Plugin
+MimeType=inode/directory;
+Actions=openInBashboard;
+X-KDE-Priority=TopLevel
+
+[Desktop Action openInBashboard]
+Name=Open in Bashboard
+Icon=bashboard
+Exec=bashboard %F

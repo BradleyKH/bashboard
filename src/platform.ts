@@ -9,12 +9,15 @@ export type Os = string;
  * - localBrowser: drives its frames through the WebView2 DevTools Protocol.
  * - media: the dashboard's Media section reads system media sessions (Windows) or MPRIS players
  *   (Linux); macOS has no backend.
+ * - systemPorts: the Ports pane's OS services filter. Linux ties a socket to its process through
+ *   `/proc/<pid>/fd`, which a user cannot read for root's or a system account's processes, so
+ *   their ports never reach the list and the filter would always be empty.
  */
-export type Feature = 'localBrowser' | 'media';
+export type Feature = 'localBrowser' | 'media' | 'systemPorts';
 
 const UNSUPPORTED: Readonly<Record<Os, readonly Feature[]>> = {
   macos: ['localBrowser', 'media'],
-  linux: ['localBrowser'],
+  linux: ['localBrowser', 'systemPorts'],
 };
 
 // Browser-only runs have no core to ask; they keep the Windows feature set.

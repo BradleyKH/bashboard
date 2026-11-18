@@ -8,7 +8,7 @@ import { lookup, type Action, type Keymap } from './keymap';
 import type { CellSize } from './layout';
 import { toFontFamily } from './pane';
 import type { PaneView } from './paneView';
-import { osName } from './platform';
+import { osName, supports } from './platform';
 import { isLoopbackUrl } from './localBrowserModel';
 import { portMenuItems } from './portMenus';
 import type { Listener } from './ports';
@@ -99,7 +99,9 @@ export class PortsPane implements PaneView {
     this.count = document.createElement('span');
     this.count.className = 'ports-count';
     // Left of the checkboxes, so the count's changing width never moves them.
-    bar.append(this.filterInput, this.count, paneOnly, services, commands);
+    bar.append(this.filterInput, this.count, paneOnly);
+    if (supports('systemPorts')) bar.append(services);
+    bar.append(commands);
 
     this.list = document.createElement('div');
     this.list.className = 'ports-list hide-commands';

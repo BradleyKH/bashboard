@@ -186,7 +186,9 @@ wildcard reads `0.0.0.0` or `::`. When there is at least one such row, a single 
 `/proc/<pid>/fd/*` matches each `socket:[inode]` link to the processes holding it. A process whose
 fd folder cannot be read, such as another user's, is skipped and its listeners are dropped, so
 like macOS the list is the user's own processes. A row whose process is owned by a uid below 1000
-(root and the system accounts) is marked `system` and the checkbox reads Linux services. Stop works
+(root and the system accounts) is still marked `system`, but such a process is readable only when
+Bashboard runs as root, so the services checkbox would always be empty and is hidden on Linux
+(`systemPorts` in `src/platform.ts`), and `system` rows stay out of the list. Stop works
 as on macOS, and `ptyId` attribution is as on macOS (the pane's session id stands in for the
 console host).
 
@@ -225,7 +227,7 @@ for. A Ports pane is also in the kind menu (4.11).
 owning pane's title; Escape clears it), a count of the rows shown and hidden, a Started from a
 pane checkbox, unchecked when the pane opens, that keeps only rows whose owning pane is still open
 (Show in Ports on a row no pane started, and the "+ N other programs" row, clear it so the rows
-they point at show), a Windows services (macOS services, Linux services)
+they point at show), a Windows services (macOS services; none on Linux)
 checkbox that also lists `system` rows, dimmed, and a Command lines checkbox, unchecked when the
 pane opens, that shows each row's command line. The count sits left of the checkboxes so its
 changing width never moves them. The list is a grid under a sticky header, with the columns

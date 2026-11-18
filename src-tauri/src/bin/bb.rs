@@ -1201,7 +1201,42 @@ mod console {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(unix)]
+mod console {
+    /// Turns terminal echo off for standard input and restores the old settings on drop, so an
+    /// early return never leaves the terminal silent.
+    pub struct EchoOff(Option<libc::termios>);
+
+    impl EchoOff {
+        pub fn new() -> Self {
+            // SAFETY: tcgetattr fills the zeroed struct for the process's own standard input, and
+            // tcsetattr applies a copy of it with only ECHO cleared.
+            unsafe {
+                let mut old: libc::termios = std::mem::zeroed();
+                if libc::tcgetattr(libc::STDIN_FILENO, &mut old) != 0 {
+                    return Self(None);
+                }
+                let mut quiet = old;
+                quiet.c_lflag &= !libc::ECHO;
+                let changed = libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &quiet) == 0;
+                Self(changed.then_some(old))
+            }
+        }
+    }
+
+    impl Drop for EchoOff {
+        fn drop(&mut self) {
+            if let Some(old) = self.0 {
+                // SAFETY: restores the settings read in `new` on the same descriptor.
+                unsafe {
+                    libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &old);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(any(windows, unix)))]
 mod console {
     pub struct EchoOff;
 

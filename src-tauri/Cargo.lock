@@ -271,6 +271,7 @@ dependencies = [
  "grep-matcher",
  "grep-regex",
  "grep-searcher",
+ "gtk",
  "ignore",
  "json_comments",
  "jsonc-parser",

@@ -1,8 +1,9 @@
 //! Adds Bashboard to the applications menu from a running AppImage (docs/design/app.md section
 //! 3.32). An AppImage is a single file nothing registers, so it has no menu entry, no icon, and no
-//! Open with Bashboard for folders until it writes them itself. The front end offers once; this
-//! module decides whether the offer applies and, on acceptance, writes the `.desktop` file and
-//! copies the icon out of the AppImage's mount into the user's XDG data folder.
+//! Open in Bashboard on folders until it writes them itself. The front end offers once; this
+//! module decides whether the offer applies and, on acceptance, writes the `.desktop` file, the
+//! file manager actions (a KDE service menu for Dolphin, a Nemo action for Cinnamon), and copies
+//! the icon out of the AppImage's mount into the user's XDG data folder.
 //!
 //! The text, the quoting, the decision, and the file writes take their inputs as parameters, so
 //! tests run on every OS against temporary folders; only the two commands read the environment,
@@ -14,6 +15,9 @@ use std::path::{Path, PathBuf};
 /// The icon name the packages and the desktop file share.
 const ICON_NAME: &str = "bashboard";
 const DESKTOP_FILE: &str = "bashboard.desktop";
+/// Under the data folder, beside the packages' copies in /usr/share (3.18).
+const SERVICE_MENU: &str = "kio/servicemenus/bashboard.desktop";
+const NEMO_ACTION: &str = "nemo/actions/bashboard.nemo_action";
 /// Where a bare `.DirIcon` or top-level icon with no recognizable size is filed.
 const FALLBACK_SIZE: &str = "256x256";
 
@@ -42,8 +46,20 @@ fn exec_arg(arg: &str) -> String {
     out
 }
 
+/// An argument quoted for a shell-style parser (Nemo splits `Exec` with g_shell_parse_argv): bare
+/// when it holds only safe characters, else in single quotes.
+fn shell_arg(arg: &str) -> String {
+    if !arg.is_empty() && arg.chars().all(|c| c.is_ascii_alphanumeric() || "/._-+,:@".contains(c)) {
+        return arg.to_string();
+    }
+    format!("'{}'", arg.replace('\'', "'\\''"))
+}
+
 /// The `.desktop` file for an AppImage at `appimage_path`: the same keys the packages' file has,
-/// except that `Exec` and `TryExec` name the AppImage instead of a binary on the path.
+/// except that `Exec` and `TryExec` name the AppImage instead of a binary on the path. It declares
+/// no MimeType: an application that lists `inode/directory` becomes a candidate default for
+/// opening folders, and with no default set (KDE sets none for GIO) GIO picks Bashboard over the
+/// file manager. Folders reach Bashboard through the file manager actions instead.
 pub fn desktop_entry(appimage_path: &str) -> String {
     format!(
         "[Desktop Entry]\n\
@@ -56,10 +72,44 @@ pub fn desktop_entry(appimage_path: &str) -> String {
          Terminal=false\n\
          Categories=Development;System;TerminalEmulator;\n\
          Keywords=terminal;claude;agent;\n\
-         MimeType=inode/directory;\n\
          StartupWMClass=bashboard\n",
         exec_arg(appimage_path),
         appimage_path.replace('\n', " "),
+    )
+}
+
+/// Dolphin's "Open in Bashboard" on folders: a KDE service menu, which adds a context menu action
+/// without making Bashboard a folder handler.
+pub fn service_menu(appimage_path: &str) -> String {
+    format!(
+        "[Desktop Entry]\n\
+         Type=Service\n\
+         ServiceTypes=KonqPopupMenu/Plugin\n\
+         MimeType=inode/directory;\n\
+         Actions=openInBashboard;\n\
+         X-KDE-Priority=TopLevel\n\
+         \n\
+         [Desktop Action openInBashboard]\n\
+         Name=Open in Bashboard\n\
+         Icon={ICON_NAME}\n\
+         Exec={} %F\n",
+        exec_arg(appimage_path),
+    )
+}
+
+/// Nemo's (Cinnamon's) "Open in Bashboard" on folders. `Quote=double` makes Nemo quote each path
+/// it puts in `%F`, so a folder with spaces arrives whole.
+pub fn nemo_action(appimage_path: &str) -> String {
+    format!(
+        "[Nemo Action]\n\
+         Name=Open in Bashboard\n\
+         Comment=Open this folder in Bashboard\n\
+         Exec={} %F\n\
+         Icon-Name={ICON_NAME}\n\
+         Selection=NotNone\n\
+         Extensions=dir;\n\
+         Quote=double\n",
+        shell_arg(&appimage_path.replace('\n', " ")),
     )
 }
 
@@ -125,9 +175,27 @@ fn icons_in(appdir: &Path) -> Vec<(String, PathBuf)> {
     found
 }
 
-/// Writes the desktop file and copies the icons under `data_home`; returns the files written,
-/// desktop file first. The icons go first, so a failure on the way never leaves a menu entry
-/// whose icon is missing.
+/// Writes `text` to `path`, creating its folder; `executable` sets mode 0755, which KDE requires of
+/// a service menu in the user's folder before it runs one.
+fn write_file(path: &Path, text: String, executable: bool) -> Result<(), String> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+    }
+    crate::atomic_file::write_atomic(path, text).map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    #[cfg(unix)]
+    if executable {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("could not make {} executable: {e}", path.display()))?;
+    }
+    #[cfg(not(unix))]
+    let _ = executable;
+    Ok(())
+}
+
+/// Writes the desktop file and the file manager actions and copies the icons under `data_home`;
+/// returns the files written, desktop file first. The icons and actions go first, so a failure on
+/// the way never leaves a menu entry (whose existence ends the offer) without them.
 pub fn install(appimage: &str, appdir: Option<&Path>, data_home: &Path) -> Result<Vec<PathBuf>, String> {
     let mut written = Vec::new();
     for (size, from) in appdir.map(icons_in).unwrap_or_default() {
@@ -138,9 +206,13 @@ pub fn install(appimage: &str, appdir: Option<&Path>, data_home: &Path) -> Resul
         std::fs::copy(&from, &to).map_err(|e| format!("could not copy the icon to {}: {e}", to.display()))?;
         written.push(to);
     }
+    for (rel, text, executable) in [(SERVICE_MENU, service_menu(appimage), true), (NEMO_ACTION, nemo_action(appimage), false)] {
+        let path = data_home.join(rel);
+        write_file(&path, text, executable)?;
+        written.push(path);
+    }
     let entry = entry_path(data_home);
-    crate::atomic_file::write_atomic(&entry, desktop_entry(appimage))
-        .map_err(|e| format!("could not write {}: {e}", entry.display()))?;
+    write_file(&entry, desktop_entry(appimage), false)?;
     written.insert(0, entry);
     Ok(written)
 }
@@ -165,8 +237,8 @@ pub fn appimage_entry_status() -> bool {
     }
 }
 
-/// Writes the menu entry and its icons, then refreshes the desktop database when the tool is
-/// there (a menu that does not watch the folder needs it for the folder association; a failure
+/// Writes the menu entry, its icons, and the file manager actions, then refreshes the desktop
+/// database when the tool is there (a menu that does not watch the folder may need it; a failure
 /// only delays that).
 #[tauri::command]
 pub fn appimage_entry_install() -> Result<(), String> {
@@ -221,13 +293,32 @@ mod tests {
             "Exec=/home/me/Bashboard.AppImage %F",
             "TryExec=/home/me/Bashboard.AppImage",
             "Icon=bashboard",
-            "MimeType=inode/directory;",
             "Categories=Development;System;TerminalEmulator;",
             "Keywords=terminal;claude;agent;",
             "StartupWMClass=bashboard",
         ] {
             assert!(text.lines().any(|l| l == line), "missing {line}");
         }
+        assert!(!text.contains("MimeType"), "a folder MimeType would make Bashboard GIO's default folder handler");
+    }
+
+    #[test]
+    fn the_file_manager_actions_open_folders_with_the_appimage() {
+        let menu = service_menu("/home/me/My Apps/Bashboard.AppImage");
+        for line in ["Type=Service", "MimeType=inode/directory;", "Actions=openInBashboard;", "[Desktop Action openInBashboard]", "Name=Open in Bashboard", "Exec=\"/home/me/My Apps/Bashboard.AppImage\" %F"] {
+            assert!(menu.lines().any(|l| l == line), "service menu lacks {line}");
+        }
+        let nemo = nemo_action("/home/me/My Apps/Bashboard.AppImage");
+        for line in ["[Nemo Action]", "Exec='/home/me/My Apps/Bashboard.AppImage' %F", "Extensions=dir;", "Selection=NotNone", "Quote=double"] {
+            assert!(nemo.lines().any(|l| l == line), "Nemo action lacks {line}");
+        }
+    }
+
+    #[test]
+    fn shell_quoting_keeps_a_path_whole() {
+        assert_eq!(shell_arg("/opt/Bashboard.AppImage"), "/opt/Bashboard.AppImage");
+        assert_eq!(shell_arg("/opt/My Apps/B.AppImage"), "'/opt/My Apps/B.AppImage'");
+        assert_eq!(shell_arg("/o/it's/$x"), "'/o/it'\\''s/$x'");
     }
 
     #[test]
@@ -289,7 +380,15 @@ mod tests {
             assert_eq!(std::fs::read_to_string(icon).unwrap(), size);
         }
         assert!(!data.join("icons/hicolor/256x256@2").exists());
-        assert_eq!(written.len(), 3);
+        let menu = data.join("kio/servicemenus/bashboard.desktop");
+        assert!(std::fs::read_to_string(&menu).unwrap().contains("Exec=\"/opt/My Apps/Bashboard.AppImage\" %F"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&menu).unwrap().permissions().mode() & 0o777, 0o755);
+        }
+        assert!(data.join("nemo/actions/bashboard.nemo_action").is_file());
+        assert_eq!(written.len(), 5);
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -313,7 +412,14 @@ mod tests {
     fn install_without_a_mount_still_writes_the_entry() {
         let root = temp("nomount");
         let written = install("/opt/Bashboard.AppImage", None, &root).unwrap();
-        assert_eq!(written, vec![root.join("applications/bashboard.desktop")]);
+        assert_eq!(
+            written,
+            vec![
+                root.join("applications/bashboard.desktop"),
+                root.join("kio/servicemenus/bashboard.desktop"),
+                root.join("nemo/actions/bashboard.nemo_action"),
+            ]
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }

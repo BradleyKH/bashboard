@@ -3,8 +3,9 @@
 # /usr/bin/bashboard a symlink and no /usr/bin/bb (where it would collide with Babashka), and the
 # AppImage carries bb beside bashboard. pty.rs puts bb's folder on the pane PATH and
 # hook_install.rs copies the hook from it (docs/design/app.md section 3.13). It also checks the
-# desktop integration: the webkit and gtk dependencies, a desktop file that opens folders, and
-# a valid hicolor icon set. Run from the repo root after scripts/linux/relayout-packages.sh.
+# desktop integration: the webkit and gtk dependencies, a desktop file that takes folders without
+# claiming them (no MimeType, which would make it a default folder handler), the Dolphin service
+# menu and Nemo action that open folders (section 3.18), and a valid hicolor icon set. Run from the repo root after scripts/linux/relayout-packages.sh.
 set -euo pipefail
 
 bundle=src-tauri/target/release/bundle
@@ -34,12 +35,19 @@ check_layout() {
     echo "$listing"
     exit 1
   fi
+  for want in usr/share/kio/servicemenus/bashboard.desktop usr/share/nemo/actions/bashboard.nemo_action; do
+    if ! grep -qx "$want" <<<"$listing"; then
+      echo "::error::$1 does not ship $want"
+      echo "$listing"
+      exit 1
+    fi
+  done
   if grep -q 'hicolor/[^/]*@' <<<"$listing"; then
     echo "::error::$1 ships an invalid hicolor size folder (the @2 kind)"
     grep 'hicolor/[^/]*@' <<<"$listing"
     exit 1
   fi
-  echo "$1 ships usr/lib/bashboard/{bashboard,bb} and a valid icon set"
+  echo "$1 ships usr/lib/bashboard/{bashboard,bb}, the folder actions, and a valid icon set"
 }
 
 # $1 names the package; stdin is its dependency list, one per line.
@@ -60,19 +68,24 @@ check_depends() {
 check_desktop() {
   local desktop
   desktop=$(cat)
-  for want in 'Exec=bashboard %F' 'MimeType=inode/directory;' 'Icon=bashboard' 'StartupWMClass=bashboard'; do
+  for want in 'Exec=bashboard %F' 'Icon=bashboard' 'StartupWMClass=bashboard'; do
     if ! grep -qxF "$want" <<<"$desktop"; then
       echo "::error::$1 desktop file lacks $want"
       echo "$desktop"
       exit 1
     fi
   done
+  if grep -q '^MimeType=.*inode/directory' <<<"$desktop"; then
+    echo "::error::$1 desktop file claims inode/directory, which makes it a default folder handler"
+    echo "$desktop"
+    exit 1
+  fi
   if ! grep -qE '^Categories=.+;$' <<<"$desktop"; then
     echo "::error::$1 desktop file has an empty Categories"
     echo "$desktop"
     exit 1
   fi
-  echo "$1 desktop file opens folders (Exec=bashboard %F, MimeType=inode/directory;)"
+  echo "$1 desktop file takes folders (Exec=bashboard %F) without claiming inode/directory"
 }
 
 deb=$(find "$bundle/deb" -maxdepth 1 -name '*.deb' | head -n 1)
