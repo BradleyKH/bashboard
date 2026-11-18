@@ -85,7 +85,8 @@ For each check, report pass or fail, plus what you saw if it failed.
    what checks that the app picks up your login shell's `PATH`. The window opens, and the
    background animation runs behind the panes.
 2. The first pane is your login shell, and its prompt looks the same as in your terminal app.
-   `echo $0` prints the shell's name with a leading dash, such as `-bash`.
+   It runs as a login shell: in bash, `shopt login_shell` prints `on` (zsh:
+   `[[ -o login ]] && echo login`; fish: `status is-login && echo login`).
 3. Alt+Shift+T opens the shell picker. It lists your login shell, and also zsh, bash, and fish
    when installed and not already your login shell.
 4. Quit, then start it from a terminal (`bashboard` for the packages, the file itself for the
@@ -178,9 +179,10 @@ For each check, report pass or fail, plus what you saw if it failed.
     tied to that pane, and Stop ends the server.
 27. In the Ports pane, ports from system daemons appear only with
     Linux services ticked, dimmed, and the dashboard's port list does not count them.
-28. Run `(sleep 120 &)` in a pane. The pane's status stays working until the `sleep` exits, even
-    though its parent is gone. Run `(python3 -m http.server 8766 &)` too; the Ports pane still
-    ties port 8766 to that pane.
+28. Run `(python3 -m http.server 8766 &)` in a pane. Its parent is gone, and the Ports pane still
+    ties port 8766 to that pane. In a shell without Bashboard's integration lines (which report
+    each command themselves, so a background job leaves the pane idle there), `(sleep 120 &)`
+    keeps the pane's status working until the `sleep` exits.
 
 **Disks and fonts**
 

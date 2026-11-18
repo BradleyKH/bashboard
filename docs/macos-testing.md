@@ -30,7 +30,8 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 1. The window opens, and the background animation runs behind the panes.
 2. The first pane is your login shell (usually zsh), and its prompt looks the same as in
-   Terminal. `echo $0` prints `-zsh`, or your shell's name with a leading dash.
+   Terminal. It runs as a login shell: in zsh, `[[ -o login ]] && echo login` prints `login`
+   (bash: `shopt login_shell` prints `on`).
 3. `command -v bb` prints a path inside `Bashboard.app`.
 4. Alt+Shift+T opens the shell picker. It lists your login shell, and also zsh or bash when
    that shell isn't already your login shell.
