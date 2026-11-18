@@ -30,6 +30,7 @@ mod git_fetch;
 mod git_install;
 mod git_watch;
 mod git_worktrees;
+mod history;
 mod hook_install;
 mod hooks;
 // The hook itself runs in `bb`; the app uses only the version marker and binary name.
@@ -202,6 +203,7 @@ pub fn run() {
         .manage(settings::SettingsState::default())
         .manage(hooks::Hooks::default())
         .manage(roster::Roster::default())
+        .manage(history::index::History::default())
         .manage(workspace::WorkspaceState::default())
         .manage(files::FilesState::default())
         .manage(git_watch::GitWatches::default())
@@ -226,6 +228,7 @@ pub fn run() {
             hooks::init(app.handle());
             page_watchdog::start(app.handle());
             roster::init(app.handle());
+            history::index::init(app.handle());
             workspace::init(app.handle());
             pty::init_activity(app.handle());
             containers::init(app.handle());
@@ -279,6 +282,8 @@ pub fn run() {
             settings::settings_keybindings_edit,
             settings::settings_open_file,
             roster::sessions_get,
+            history::index::session_history_list,
+            history::index::session_history_repo_root,
             hook_install::hooks_install_preview,
             hook_install::hooks_install,
             workspace::workspace_load,

@@ -31,8 +31,8 @@ use crate::hooks::HookOverlay;
 use crate::roster::Session;
 use crate::usage::{self, UsageWindow};
 
-mod codex;
-mod copilot;
+pub(crate) mod codex;
+pub(crate) mod copilot;
 
 /// What a session file says about its newest state; every field is optional because the formats
 /// are internal to each tool.

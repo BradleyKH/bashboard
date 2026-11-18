@@ -64,6 +64,8 @@ import { LaunchController } from './launchController';
 import { HookOffer } from './hookOffer';
 import { offerAppImageEntry } from './appImageOffer';
 import { PaletteController } from './paletteController';
+import { SessionsDialog } from './sessionsDialog';
+import { sessionRepoRoot } from './sessionHistoryApi';
 import { TourController } from './tourController';
 import { AppDialogs } from './appDialogs';
 import { listenAppEvents, listenSettingsChanges } from './appEvents';
@@ -391,6 +393,17 @@ void hooks.refresh();
 const confirmDialog = new ConfirmDialog();
 const checkForUpdatesNow = (): void => void checkForUpdate({ manual: true, confirm: (o) => confirmDialog.open(o) });
 const palette = new PaletteController({ ...controllerDeps, repo, favorites, focusCard, checkForUpdatesNow });
+const sessionsDialog = new SessionsDialog({
+  focusPty: (ptyId) => workspace.revealPty(ptyId),
+  runInTerminal: (ptyId, command) => workspace.runInPty(ptyId, command),
+  openTerminalWithCommand: (cwd, command) => void workspace.openTerminalWithCommand(cwd, command),
+  liveSessions: () => state.sessions,
+});
+const openSessions = async (paneId: string | null): Promise<void> => {
+  const origin = workspace.sessionsOrigin(paneId);
+  const repoRoot = origin ? await sessionRepoRoot(origin.cwd).catch(() => null) : null;
+  sessionsDialog.open(origin && { ...origin, repoRoot });
+};
 const dialogs = new AppDialogs({
   ...controllerDeps,
   confirmDialog,
@@ -425,6 +438,7 @@ const workspace = new Workspace(document.getElementById('panes') as HTMLElement,
   onOpenLayoutPicker: () => favorites.openLayoutPicker(),
   onOpenLaunchMenu: () => void launch.openMenu(),
   onOpenPalette: () => palette.open(),
+  onOpenSessions: (paneId) => void openSessions(paneId),
   onOpenDialog: (tab) => void dialogs.open(tab),
   onOpenAccounts: (host, opts) => dialogs.openAccounts(host, opts),
   onToggleBackdrop: toggleBackdrop,

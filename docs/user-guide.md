@@ -1246,6 +1246,36 @@ shows only actions. Enter focuses a pane, switches to a tab, opens a favorite, l
 worktree, or runs an action; a favorite or worktree opens as a split, or collapsed with Ctrl+Enter.
 With an empty box, your recent picks come first.
 
+## Sessions
+
+The Sessions dialog lists your Claude Code, Codex, and Copilot sessions, past and running, and
+resumes one with a click. Open it with the clock button on a terminal's title strip (shown when
+the pane is focused or under the pointer), or with **Resume session** in the command palette. It
+has no default key; bind the `openSessions` action in the Shortcuts tab to give it one.
+
+Opened from a terminal, or from the palette while a terminal is focused, the **Only <repo>** box
+at the top is checked, so the list shows only that repo's sessions, including those from its
+worktrees and subfolders. Outside a git repo it reads **Only this folder**. Uncheck it to see every
+session. With another kind of pane focused, the box is unchecked and disabled.
+
+Sessions are grouped by when they were last active, newest first. Each row shows the title, the
+agent (CC, CX, or CP) when more than one agent has sessions, the folder, the branch, and how long ago it ran, with a dot when it is
+running now. Type to filter by title, first or last prompt, or folder; every word has to match.
+When more than one agent has sessions, chips under the search box filter by agent, and when sessions used more than one
+model, a model menu beside them narrows the list to one. Up and Down
+move the selection, Enter resumes, and Escape closes.
+
+Clicking a running session focuses its pane. Clicking a past session runs its resume command
+(such as `claude --resume <session id>`) in the terminal you opened the dialog from when that
+terminal is idle at its prompt in the session's folder, and otherwise in a new terminal opened in
+that folder. Claude Code finds a session by the folder it ran in, so if that folder is gone (a
+deleted worktree, say) the row says so, and resuming opens in the repo's main folder with a
+warning that Claude Code may not find it there. Right-click a row to resume it, copy its session
+id or resume command, or open its folder in File Explorer.
+
+Claude Code deletes transcripts older than its `cleanupPeriodDays` setting, 30 days by default,
+so the list reaches back only that far for Claude Code sessions.
+
 ## Find and links
 
 Ctrl+Shift+F opens a find bar over the top-right of the focused pane. Matching is

@@ -32,6 +32,7 @@ export type Action =
   | { type: 'openLayout' }
   | { type: 'openLaunch' }
   | { type: 'openPalette' }
+  | { type: 'openSessions' }
   | { type: 'nextAttention' }
   | { type: 'splitWithProfile' }
   | { type: 'showHelp' }

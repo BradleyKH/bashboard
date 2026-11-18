@@ -63,8 +63,9 @@ Cmd+Shift+Z, Cmd+X, Cmd+A, Cmd+Q, Cmd+H, Cmd+M), which is why zoom is Cmd+Shift+
 | Ctrl+, | Cmd+, | Open the app dialog on its Settings tab | `openSettings` |
 | F11 | Cmd+Ctrl+F | Toggle full screen | `toggleFullscreen` |
 
-Nine more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
-open the app dialog on its Accounts, Shortcuts, CLI, and About tabs, `toggleBackgroundTabs`
+Ten more actions have no default key: `showAccounts`, `showShortcuts`, `showCli`, and `showAbout`
+open the app dialog on its Accounts, Shortcuts, CLI, and About tabs, `openSessions` opens the
+Sessions dialog with the focused terminal as its folder context (4.32), `toggleBackgroundTabs`
 shows or hides the other tabs in the background (4.30, saved to `showBackgroundTabs`),
 `toggleFilesView` switches the focused Files pane between its Folder and Tree views (4.12), and
 `mediaPlayPause`, `mediaNext`, and `mediaPrevious` drive the app playing media (3.29; Windows

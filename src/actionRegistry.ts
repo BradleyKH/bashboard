@@ -83,6 +83,7 @@ export const ACTION_REGISTRY = [
   { name: 'resetFontSize', arg: 'none', label: 'Reset text size', section: 'Terminal' },
 
   { name: 'openPalette', arg: 'none', label: 'Command palette', section: 'Workspace' },
+  { name: 'openSessions', arg: 'none', label: 'Resume session', section: 'Workspace' },
   { name: 'nextAttention', arg: 'none', label: 'Jump to the next thing that needs you', section: 'Workspace' },
   { name: 'toggleDashboard', arg: 'none', label: 'Toggle dashboard', section: 'Workspace' },
   { name: 'focusDashboard', arg: 'none', label: 'Move focus to the dashboard and back', section: 'Workspace' },

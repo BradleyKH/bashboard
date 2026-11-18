@@ -481,6 +481,69 @@ transcripts the longest silence was under 3 minutes in 95 percent of them, and n
 silence past 10 minutes was an agent waiting on agents of its own, which the descendant rule
 covers.
 
+## 3.33 Session history (`src-tauri/src/history/`)
+
+The Sessions dialog (4.32) lists past sessions for every agent in `src/agents.json` (3.24): Claude
+Code, Codex, and Copilot. The history index builds that list from each agent's transcripts, caches
+it on disk, and keeps it current as transcripts change.
+
+**Commands and events.** `session_history_list()` returns the cached list, sorted by `updatedAt`
+descending. The first call builds the index on a worker thread, so the command never blocks the
+main thread. `history://changed` carries the full list whenever the index changes.
+
+**Entry.** `PastSession` is serialized camelCase, with these fields:
+
+- `agent` and `sessionId`.
+- `cwd`, read from the transcript's contents and never decoded from a folder name. `cwdExists`
+  says whether that folder is still on disk.
+- `repoRoot`, the main repo root. A worktree resolves to its main repo, and the field is null
+  outside git.
+- `branch`.
+- `title`, which is never empty.
+- `firstPrompt` and `lastPrompt`, trimmed to 200 characters.
+- `startedAt` and `updatedAt`, in milliseconds since the epoch. `updatedAt` is the newest record's
+  time, else the file's modified time.
+- `permissionMode`, the last permission-mode record in a Claude Code transcript.
+- `model`, the newest model, which Copilot's resume command needs.
+
+Only these fields are read or forwarded.
+
+**Sources.** The agents' transcript formats are internal and undocumented, so every field is
+optional on parse and an unparseable line is skipped. A transcript with no user prompt is not
+listed.
+
+- Claude Code: `~/.claude/projects/<slug>/<id>.jsonl`. The session id is the file stem. `cwd`,
+  `gitBranch`, and `timestamp` come from user and assistant records. The title is the last
+  `custom-title` record (written by `/rename`), else the last `ai-title`, else the last `summary`,
+  else the first user prompt. `lastPrompt` is the last `last-prompt` record's value, else the last
+  user text. The first prompt skips `isMeta` records, command wrappers, and tool results.
+  Subagent and sidechain transcripts are skipped: files under a `subagents` folder, files whose
+  names start with `agent-`, and files whose user records are all `isSidechain`.
+- Codex: `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. Files ending in `.zst` are skipped. The
+  first line is a `session_meta` record with the id, timestamp, cwd, and git branch. The title is
+  the `thread_name` for that id in `~/.codex/session_index.jsonl` (the last matching line wins),
+  else the first user message. `model` comes from `turn_context` records.
+- Copilot: `~/.copilot/session-state/<id>/`. `workspace.yaml` is read leniently, line by line, for
+  `cwd`, `git_root`, `branch`, `summary`, and the timestamps. `events.jsonl` supplies the first
+  user message and the model. The title is the summary, else the first prompt.
+
+**Repo root.** The main repo root is found by walking up from the cwd for a `.git` entry. A `.git`
+folder is the main repo. A `.git` file marks a worktree: its `gitdir:` line names the worktree's
+git folder, whose `commondir` file names the main repo's `.git`, and the main repo is that
+folder's parent. Nothing shells out to git. The lookup, along with whether the cwd exists, is
+memoized per cwd during a build.
+
+**Reads.** Only the first 8 KB and the last 64 KB of each transcript are read. Readers tolerate a
+partial first or last line, since a window can start or end mid-record.
+
+**Cache.** `history-cache.json` in the app's config folder maps each path to its `(size, mtime,
+PastSession)`, written atomically. A build re-reads only files that were added or whose size or
+modified time changed, and drops entries whose files are gone.
+
+**Watcher.** Each agent's transcript root is watched recursively with `notify`, debounced by one
+second. Each change triggers an incremental rebuild on a worker thread, and `history://changed`
+fires only when the rebuilt list differs from the last one sent.
+
 ## 4.7 Attention
 
 When a terminal enters `waiting`, or rings the bell (`term.onBell`, which also catches the
@@ -624,3 +687,50 @@ reply never reaches the program and Claude Code does not start reporting in a pa
 is complete and reacts to any report that arrives, as a manual report from the shell shows;
 hookless status works where the pty passes the reply through (macOS and Linux), and Windows
 status comes from hooks.
+
+## 4.32 Sessions dialog (`src/sessionsDialog.ts`, `src/sessionHistoryModel.ts`)
+
+The Sessions dialog lists live and past agent sessions and resumes one. It is about the size of the
+Settings dialog (4.18). It opens from the command palette action "Resume session" (`openSessions`,
+with no default chord), or from a history button (a clock with an arrow) in a terminal's title
+strip, beside the pin button. The history button shows on focus or hover, as the pin button does,
+and is absent on container shells.
+
+**Scope.** A checkbox at the top reads "Only <repo name>", or "Only this folder" outside a git
+repo. Repo matching compares main repo roots (3.33), so a worktree's sessions count as its repo's,
+and a session started in a subfolder counts too. The box is checked when the dialog opens with a
+folder context: from a terminal's history button, or from the palette while a terminal pane is
+focused and its cwd is known. Without a folder context the box is unchecked and disabled. The
+choice is not persisted; each open picks its default.
+
+**List.** Sessions are grouped Today, Yesterday, Previous 7 days, Previous 30 days, and Older, by
+`updatedAt` on local calendar days, newest first, with a sticky header per group. Each row shows the
+title, an agent badge (CC, CX, or CP) when more than one agent has sessions, the folder
+(`displayPath`), the branch when known, the relative time, a live dot when the session is running now, and a muted "folder missing" note when
+its cwd is gone. Live sessions from the roster are merged in, and a live session missing from
+history is added from its roster fields.
+
+**Search and filters.** The search field is focused on open. It filters by title, first prompt,
+last prompt, and folder, case-insensitively, and every word must match. Agent filter chips appear
+only when more than one agent has sessions, and a model select (`modelOptions`, skipping Claude
+Code's placeholder ids such as `<synthetic>`) only when sessions span more than one model.
+
+**Keys.** Up and Down move the selection, Enter resumes, and Escape or a click on the backdrop
+closes the dialog. Keys never reach the terminal, and focus returns to where it came from. A
+loading note shows until the first list arrives, and the empty state names the active scope. While
+the dialog is open it updates from `history://changed`.
+
+**Resume.** A live session focuses its pane when it is bound to one, and the dialog closes. A past
+session is resumed in a terminal. If the dialog came from a terminal that is idle at its shell (no
+agent bound, not busy) and already sits in the session's cwd, the resume command runs there;
+otherwise a new terminal opens in the session's cwd and runs it. The command comes from
+`resumeCommandFor` in `src/agentTable.ts`, given the session's last permission mode (Claude Code)
+and model (Copilot). Claude Code's `--resume` looks a session up by its cwd, so it must run in the
+original folder. If that folder is gone (a deleted worktree, for example), the resume
+opens in the main repo root instead, with a toast.
+
+**Row menu.** Right-clicking a row (`src/contextMenu.ts`) offers Resume, Copy session id, Copy
+resume command, and Open folder in File Explorer.
+
+**Modules.** The pure logic (scope, query matching, grouping, the live merge, and the resume plan)
+lives in `src/sessionHistoryModel.ts`, with no DOM. The rows render in `src/sessionHistoryRow.ts`.

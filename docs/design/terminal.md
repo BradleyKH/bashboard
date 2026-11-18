@@ -153,7 +153,9 @@ switching back attaches one again if the budget allows. If the browser drops a W
 
 **Title strip:** the kind menu (4.11), the status dot (4.8), the bound session's name or the
 shell's working directory, any buttons of the pane's own kind (`PaneView.stripActions`; the
-Files pane's, 4.12; a terminal's cloud chips, 4.25, then its pin button, a pin icon that drops
+Files pane's, 4.12; a terminal's cloud chips, 4.25, then its Sessions button, a clock with an
+arrow that opens the Sessions dialog scoped to its folder (4.32; not on container shells), then
+its pin button, a pin icon that drops
 a picker like the top bar's favorites and layouts menus: the command pins of the repo of its
 working directory, then below a divider the global pins, each run in that directory as a Pins row runs it, and a
 "+ Add" button that opens the new pin popup for a command pin there, 4.6), then a collapse button, a zoom button (with two or more expanded

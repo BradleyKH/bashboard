@@ -49,12 +49,12 @@ pub struct GitWatches {
 /// Where a repo's metadata lives. A linked worktree keeps `HEAD` and `index` in its own git dir
 /// and shares refs through the common dir.
 #[derive(Debug, PartialEq)]
-struct GitDirs {
-    git_dir: PathBuf,
-    common_dir: PathBuf,
+pub(crate) struct GitDirs {
+    pub(crate) git_dir: PathBuf,
+    pub(crate) common_dir: PathBuf,
 }
 
-fn resolve_dirs(root: &Path) -> Result<GitDirs, String> {
+pub(crate) fn resolve_dirs(root: &Path) -> Result<GitDirs, String> {
     let git = git_dir(&root.join(".git"))
         .filter(|g| g.is_dir())
         .ok_or_else(|| format!("not a git repo: {}", display(root)))?;

@@ -15,6 +15,7 @@ import type { PaneKind } from './paneKinds';
 import type { PaneView } from './paneView';
 import type { PathDrag } from './pathDragLayer';
 import { scratchSave, scratchSaveAs } from './persistence';
+import { historyStripButton } from './historyIcon';
 import { pinStripButton } from './pinIcon';
 import { PortsPane } from './portsPane';
 import { PortsStore } from './portsStore';
@@ -103,8 +104,9 @@ export class PaneFactory {
   buildPane(id: string, host: HTMLElement, spec: PaneSpec, expanded: boolean, onReady?: () => void): PaneView {
     const { pane, strip } = this.build(id, host, spec, expanded, onReady);
     this.ctx.paneViews.set(id, pane);
-    const pinPicker = this.pinPickerHandler(id, spec);
-    strip.setActions(pane.stripActions ?? (pinPicker ? pinActions(pinPicker) : null));
+    strip.setActions(
+      pane.stripActions ?? terminalActions(this.pinPickerHandler(id, spec), this.sessionsHandler(id, spec)),
+    );
     this.ctx.paneStatus().register(id, strip);
     this.ctx.paneStatus().refresh(id);
     return pane;
@@ -172,6 +174,20 @@ export class PaneFactory {
       ctx.focusPane(id);
       const term = ctx.terminal(id);
       hook(anchor, term?.cwd ?? null, term?.selection() ?? '');
+    };
+  }
+
+  /**
+   * A terminal's Sessions button (docs/design/terminal.md section 4.4): the Sessions dialog scoped
+   * to its folder. A container shell's folder is inside the container, so it has none.
+   */
+  private sessionsHandler(id: string, spec: PaneSpec): (() => void) | undefined {
+    const { ctx } = this;
+    const hook = ctx.hooks.onOpenSessions;
+    if (spec.kind !== 'terminal' || spec.container || !hook) return undefined;
+    return () => {
+      ctx.focusPane(id);
+      hook(id);
     };
   }
 
@@ -536,8 +552,13 @@ export class PaneFactory {
   }
 }
 
-function pinActions(onClick: (anchor: HTMLElement) => void): HTMLElement {
+function terminalActions(
+  onPins: ((anchor: HTMLElement) => void) | undefined,
+  onSessions: (() => void) | undefined,
+): HTMLElement | null {
+  if (!onPins && !onSessions) return null;
   const el = document.createElement('div');
-  el.append(pinStripButton('Pins: run a pin in this folder, or add one', onClick));
+  if (onSessions) el.append(historyStripButton('Sessions: resume a past session in this folder', onSessions));
+  if (onPins) el.append(pinStripButton('Pins: run a pin in this folder, or add one', onPins));
   return el;
 }

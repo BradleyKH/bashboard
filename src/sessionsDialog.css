@@ -1,0 +1,229 @@
+/* Chrome comes from appDialog.css; this is only what the session list adds. */
+
+/* The title sits where an active tab would, scaled like the tab buttons beside the close button. */
+.sessions-heading {
+  margin-bottom: -1px;
+  padding: 5px 12px 5px 4px;
+  border-bottom: 2px solid var(--accent);
+  color: #eef3f5;
+  font: 600 12px system-ui, sans-serif;
+  zoom: var(--ui-scale);
+}
+
+.sessions-body {
+  gap: 8px;
+}
+
+.sessions-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.sessions-search {
+  flex: 1 1 220px;
+  width: auto;
+  min-width: 0;
+  padding: 3px 8px;
+}
+
+.sessions-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #d6dde2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sessions-scope span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessions-scope input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.sessions-scope.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sessions-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sessions-chips[hidden],
+.sessions-model[hidden] {
+  display: none;
+}
+
+.sessions-model {
+  max-width: 220px;
+}
+
+.sessions-chip {
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: transparent;
+  color: #9aa6ad;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sessions-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef3f5;
+}
+
+.sessions-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: #eef3f5;
+}
+
+.sessions-chip:focus-visible,
+.sessions-scope input:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
+.sessions-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Opaque enough that rows scrolling underneath do not show through. */
+.sessions-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgb(8, 14, 20);
+}
+
+.sessions-group-count {
+  color: #7f8c94;
+  font-weight: 400;
+}
+
+/* Rows far off screen skip layout and paint, which keeps a few hundred of them scrolling smoothly. */
+.sessions-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 46px;
+  /* Keeps a keyboard-selected row clear of the sticky group header. */
+  scroll-margin-top: 28px;
+  cursor: pointer;
+}
+
+.sessions-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sessions-row.selected {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sessions-row-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sessions-row-top,
+.sessions-row-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sessions-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #eef3f5;
+}
+
+.sessions-time {
+  flex: none;
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.sessions-live {
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6fcf8f;
+}
+
+.sessions-row-meta {
+  color: #7f8c94;
+  font-size: 11px;
+}
+
+.sessions-badge {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  color: #9aa6ad;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.sessions-folder,
+.sessions-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessions-folder {
+  flex: 0 1 auto;
+}
+
+.sessions-branch {
+  flex: 0 100 auto;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #9aa6ad;
+}
+
+.sessions-missing {
+  flex: none;
+  color: #e0b050;
+  font-style: italic;
+}
+
+.sessions-note {
+  padding: 24px 8px;
+  color: #7f8c94;
+  line-height: 1.5;
+}

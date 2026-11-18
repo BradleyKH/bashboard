@@ -124,6 +124,9 @@ export function dispatchAction(ctx: DispatchContext, action: Action): boolean {
     case 'openPalette':
       ctx.hooks.onOpenPalette?.();
       return true;
+    case 'openSessions':
+      ctx.hooks.onOpenSessions?.(ctx.store.focusedId || null);
+      return true;
     case 'splitWithProfile':
       ctx.hooks.onOpenProfilePicker?.();
       return true;

@@ -67,6 +67,11 @@ export interface WorkspaceHooks {
   /** Design 4.6 Launch: the launch menu at the focused pane. */
   onOpenLaunchMenu?: () => void;
   onOpenPalette?: () => void;
+  /**
+   * Opens the Sessions dialog (docs/design/sessions.md section 4.32) with pane `paneId` as its
+   * folder context; null, or a pane that is not a terminal, gives it none.
+   */
+  onOpenSessions?: (paneId: string | null) => void;
   onOpenProfilePicker?: () => void;
   /** Opens the Help, Settings, Accounts, Shortcuts, CLI, and About dialog on the given tab. */
   onOpenDialog?: (tab: DialogTab) => void;

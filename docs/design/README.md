@@ -45,6 +45,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.30 Background waits (`src-tauri/src/hooks.rs`, `src-tauri/src/background_agents.rs`) | [sessions.md](sessions.md) |
 | 3.31 WebKitGTK environment (`src-tauri/src/webkit_env.rs`) | [app.md](app.md) |
 | 3.32 AppImage menu entry (`src-tauri/src/appimage_entry.rs`, `src/appImageOffer.ts`) | [app.md](app.md) |
+| 3.33 Session history (`src-tauri/src/history/`) | [sessions.md](sessions.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |
@@ -76,6 +77,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 4.29 Tour (`src/tourModel.ts`, `src/tourController.ts`, `src/tourCard.ts`) | [app.md](app.md) |
 | 4.30 Tab transition and background tabs | [workspace.md](workspace.md) |
 | 4.31 Media section (`src/mediaModel.ts`, `src/mediaSection.ts`, `src/mediaSlider.ts`) | [dashboard.md](dashboard.md) |
+| 4.32 Sessions dialog (`src/sessionsDialog.ts`, `src/sessionHistoryModel.ts`) | [sessions.md](sessions.md) |
 | 5 Readability | [README.md](README.md) |
 | 6 Backdrop | [backdrop.md](backdrop.md) |
 | 6.1 Modules | [backdrop.md](backdrop.md) |

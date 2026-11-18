@@ -43,6 +43,7 @@ import { SearchPane } from './searchPane';
 import { ScratchPane } from './scratchPane';
 import { applyScrim, nextScrim, scrimFromSettings, type ScrimState } from './scrim';
 import type { HookEvent, Session } from './sessions';
+import type { SessionsOrigin } from './sessionHistoryModel';
 import { saveSetting, type Settings, type SettingsPayload } from './settings';
 import { PaneStatus, type PaneStatusContext } from './paneStatus';
 import { TabStore } from './tabStore';
@@ -722,6 +723,37 @@ export class Workspace {
   revealPty(ptyId: number): void {
     const id = this.terminalForPty(ptyId);
     if (id !== null) this.revealPane(id);
+  }
+
+  /**
+   * Types `command` and Enter into the terminal running pty `ptyId` and brings it forward. It is
+   * written as keystrokes, not pasted, since bash's bracketed paste would hold back the Enter.
+   */
+  runInPty(ptyId: number, command: string): void {
+    const id = this.terminalForPty(ptyId);
+    if (id === null) return;
+    this.revealPane(id);
+    this.terminal(id)?.typeText(`${command}\r`);
+  }
+
+  /**
+   * The Sessions dialog's folder context for pane `paneId` (docs/design/sessions.md section 4.32): null unless
+   * it is a terminal, outside a container, with a running pty and a known folder. `repoRoot` is
+   * left for the caller to resolve.
+   */
+  sessionsOrigin(paneId: string | null): SessionsOrigin | null {
+    if (paneId === null || this.containerShells.has(paneId)) return null;
+    const term = this.terminal(paneId);
+    const ptyId = term?.ptyId ?? null;
+    const cwd = term?.cwd ?? null;
+    if (ptyId === null || cwd === null) return null;
+    return {
+      paneId: ptyId,
+      cwd,
+      idle: !this.busyPanes().some((p) => p.paneId === paneId),
+      agentBound: this.sessions.bound(ptyId) !== null,
+      repoRoot: null,
+    };
   }
 
   /**
