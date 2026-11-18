@@ -2098,6 +2098,11 @@ body.dashboard-resizing {
 }
 
 /* Sticky so a long section's title stays beside its rows while they scroll. */
+/* The grid above would otherwise override `hidden` on a section left with no shown field. */
+.settings-tab-body > section[hidden] {
+  display: none;
+}
+
 .settings-tab-body > section > h3,
 .cli-tab > section > h3 {
   position: sticky;

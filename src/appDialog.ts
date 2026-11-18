@@ -34,6 +34,17 @@ export class AppDialog {
   private box: HTMLElement | null = null;
   private slots = new Map<DialogTab, Slot>();
   private current: DialogTab | null = null;
+  /**
+   * A tab that re-renders can remove the focused button (a Setup row's Install), dropping focus to
+   * the page, where the workspace hands keys to the focused pane behind the dialog. While the
+   * dialog is the top modal, it takes those keys back.
+   */
+  private readonly onStrayKey = (e: KeyboardEvent): void => {
+    if (!this.box || e.target !== document.body) return;
+    if (document.querySelectorAll('[aria-modal="true"]').length > 1) return;
+    this.box.focus();
+    this.onKey(e);
+  };
 
   constructor(
     private readonly views: Record<DialogTab, DialogTabView>,
@@ -60,6 +71,7 @@ export class AppDialog {
     this.slots.clear();
     this.current = null;
     this.backdrop.remove();
+    window.removeEventListener('keydown', this.onStrayKey, true);
     this.backdrop = null;
     this.box = null;
   }
@@ -120,6 +132,7 @@ export class AppDialog {
     box.append(header, panel);
     backdrop.append(box);
     document.body.append(backdrop);
+    window.addEventListener('keydown', this.onStrayKey, true);
     this.backdrop = backdrop;
     this.box = box;
   }
