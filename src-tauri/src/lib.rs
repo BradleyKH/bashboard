@@ -50,6 +50,7 @@ mod model_servers;
 mod mount_info;
 mod page_watchdog;
 mod platform;
+mod proc_name;
 mod ports;
 mod powershell_prompt;
 mod profiles;

@@ -13,7 +13,7 @@ use std::{
 
 use serde::Serialize;
 use sysinfo::{
-    Disks, Networks, Pid, ProcessRefreshKind, ProcessesToUpdate, System,
+    Disks, Networks, Pid, ProcessesToUpdate, System,
     MINIMUM_CPU_UPDATE_INTERVAL,
 };
 use tauri::State;
@@ -236,7 +236,7 @@ impl SystemSampler {
     /// Process CPU is a delta like the machine's: without a fresh previous refresh, this takes
     /// two refreshes a moment apart so the first call after a pause still reports CPU.
     pub fn top_processes(&mut self, limit: usize) -> TopProcesses {
-        let kind = ProcessRefreshKind::nothing().with_cpu().with_memory();
+        let kind = crate::proc_name::refresh_kind().with_cpu().with_memory();
         if fresh(self.last_processes, Instant::now()).is_none() {
             self.sys
                 .refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
@@ -256,7 +256,7 @@ impl SystemSampler {
             .filter(|(pid, _)| **pid != Pid::from(0))
             .map(|(_, p)| {
                 (
-                    p.name().to_string_lossy().into_owned(),
+                    crate::proc_name::name(p),
                     p.cpu_usage(),
                     p.memory(),
                 )

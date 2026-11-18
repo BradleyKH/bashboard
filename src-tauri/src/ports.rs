@@ -190,7 +190,7 @@ impl PortsProbe {
         if rows.is_empty() {
             return Vec::new();
         }
-        self.sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+        self.sys.refresh_processes_specifics(ProcessesToUpdate::All, true, crate::proc_name::refresh_kind());
         let pids: Vec<Pid> = rows.iter().map(|r| Pid::from_u32(r.1)).collect::<HashSet<_>>().into_iter().collect();
         self.sys.refresh_processes_specifics(
             ProcessesToUpdate::Some(&pids),
@@ -207,7 +207,7 @@ impl PortsProbe {
             .sys
             .processes()
             .iter()
-            .filter(|(_, p)| is_shell(&p.name().to_string_lossy()))
+            .filter(|(_, p)| is_shell(&crate::proc_name::name(p)))
             .map(|(pid, _)| pid.as_u32())
             .collect();
         let live: HashSet<(u32, u64)> = procs.iter().map(|(&pid, p)| (pid, p.start)).collect();
@@ -224,7 +224,7 @@ impl PortsProbe {
                 addresses,
                 pid,
                 started_at: start,
-                name: process.map(|p| p.name().to_string_lossy().into_owned()).unwrap_or_default(),
+                name: process.map(crate::proc_name::name).unwrap_or_default(),
                 command: process.map(|p| join_command(p.cmd())).unwrap_or_default(),
                 cwd: process.and_then(|p| p.cwd()).map(|c| c.to_string_lossy().into_owned()).filter(|c| !c.is_empty()),
                 from_shell: pty_id.is_some() || ancestor(pid, &procs, |p| terminals.contains(&p)).is_some(),

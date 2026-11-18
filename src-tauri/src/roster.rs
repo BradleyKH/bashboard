@@ -173,14 +173,14 @@ fn walk_to_pane(pid: u32, shells: &HashMap<u32, u32>, procs: &ProcTable) -> Opti
 }
 
 fn proc_table(sys: &mut System) -> ProcTable {
-    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, crate::proc_name::refresh_kind());
     sys.processes()
         .iter()
         .map(|(pid, p)| {
             let info = ProcInfo {
                 parent: p.parent().map(|pp| pp.as_u32()),
                 start: p.start_time(),
-                name: p.name().to_string_lossy().into_owned(),
+                name: crate::proc_name::name(p),
                 cmd: cmd_line(p),
             };
             (pid.as_u32(), info)
@@ -189,7 +189,7 @@ fn proc_table(sys: &mut System) -> ProcTable {
 }
 
 /// sysinfo keeps a command line read by an earlier pass, so this is set for any process
-/// `fill_cmds` has seen.
+/// `fill_cmds` has seen, and on Linux for every process (`proc_name::refresh_kind`).
 fn cmd_line(p: &sysinfo::Process) -> Option<String> {
     let parts = p.cmd();
     (!parts.is_empty())
