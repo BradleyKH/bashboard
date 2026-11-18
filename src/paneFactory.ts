@@ -558,7 +558,7 @@ function terminalActions(
 ): HTMLElement | null {
   if (!onPins && !onSessions) return null;
   const el = document.createElement('div');
-  if (onSessions) el.append(historyStripButton('Sessions: resume a past session in this folder', onSessions));
+  if (onSessions) el.append(historyStripButton('Sessions: resume a past session', onSessions));
   if (onPins) el.append(pinStripButton('Pins: run a pin in this folder, or add one', onPins));
   return el;
 }
