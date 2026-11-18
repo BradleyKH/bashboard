@@ -100,7 +100,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
   the shell; copy, paste, resizing, colors, and box drawing behave as they do in Windows Terminal.
 - **A live simulation as the backdrop.** The real simulation, not a video or shader approximation, renders
   behind transparent terminals at full frame rate. One instance fills the window behind every
-  terminal. Swirling Lights is the default backdrop style; Galaxy, Matrix, Wave,
+  terminal. Galaxy is the default backdrop style; Swirling Lights, Matrix, Wave,
   Image, Slideshow, and None are alternatives (section 6).
 - **A terminal dashboard.** Open, collapse, and arrange terminals in tabs. Within a tab,
   expanded terminals tile the window as Windows Terminal style panes, with the same keybindings

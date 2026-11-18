@@ -152,11 +152,11 @@ Command and `option` for Option (`win` and `alt` still work); the macOS defaults
 so there the first example above is `{ "keys": "cmd+w", "action": "unbound" }`.
 
 The background (the backdrop) has seven styles, chosen with `backdrop.style` or the Background
-select in the Background section of the Settings tab: `lights` (Swirling Lights, the
-default, a living colony simulation), `galaxy` (Galaxy, a slowly turning spiral galaxy), `matrix` (Matrix, falling glyph rain), `wave` (Wave, a large version of the
+select in the Background section of the Settings tab: `lights` (Swirling Lights, a
+living colony simulation), `galaxy` (Galaxy, the default, a slowly turning spiral galaxy), `matrix` (Matrix, falling glyph rain), `wave` (Wave, a large version of the
 dashboard's Wave), `image` (Image, a
 picture from your disk), `slideshow` (Slideshow, the pictures in a folder in turn), and `none`
-(nothing is drawn behind the panes). A missing or invalid value falls back to `lights` with a
+(nothing is drawn behind the panes). A missing or invalid value falls back to `galaxy` with a
 notice. The choice applies live. `backdrop.animate` applies to Swirling Lights, Galaxy, Matrix, and Wave and starts
 `false`, a frozen still frame; set it to `true` to run the background. Ctrl+Shift+A pauses or
 resumes any of them and saves the choice to `backdrop.animate`; it does nothing under Image,
@@ -249,7 +249,7 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
 
 ```jsonc
 "backdrop": {
-  "style": "lights",
+  "style": "galaxy",
   "animate": false,
   "maxFps": 20,
   "capacity": 1000,

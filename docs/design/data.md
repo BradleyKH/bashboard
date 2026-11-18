@@ -269,7 +269,7 @@ the focused pane's folder.
   "showBackgroundTabs": false,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
   // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
-  // slideshow; a missing or invalid value falls back to lights. animate false freezes lights,
+  // slideshow; a missing or invalid value falls back to galaxy. animate false freezes lights,
   // galaxy, matrix, and wave on a still frame (6.4); the other styles ignore it.
   // maxFps applies to lights, galaxy, and wave, and 0 renders at the display's refresh rate.
   // capacity, mutationRate, and zoom apply to lights and galaxy only: the simulation and camera
@@ -287,7 +287,7 @@ the focused pane's folder.
   // tile; intervalSeconds is a whole number from 5 to 86400; crossfadeSeconds is 0 to 10. Out-of-range or invalid values fall
   // back to their defaults.
   "backdrop": {
-    "style": "lights",
+    "style": "galaxy",
     "animate": false,
     "maxFps": 20,
     "capacity": 1000,

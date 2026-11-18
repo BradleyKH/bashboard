@@ -150,7 +150,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showBackgroundTabs: false,
   scrim: { opacity: 0.5, blurPx: 1 },
   backdrop: {
-    style: 'lights',
+    style: 'galaxy',
     animate: false,
     maxFps: 20,
     capacity: 1000,

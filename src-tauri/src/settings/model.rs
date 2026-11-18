@@ -463,7 +463,7 @@ impl Default for Settings {
             show_background_tabs: false,
             scrim: Scrim { opacity: 0.5, blur_px: 1.0 },
             backdrop: Backdrop {
-                style: "lights".into(),
+                style: "galaxy".into(),
                 animate: false,
                 max_fps: 20,
                 capacity: 1000,

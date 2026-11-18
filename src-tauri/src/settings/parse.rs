@@ -1027,7 +1027,7 @@ mod tests {
     fn backdrop_style_and_matrix_values_parse_and_invalid_ones_fall_back() {
         let d = Settings::default().backdrop;
         let (s, w) = parse_settings(r#"{ "backdrop": { "animate": true } }"#);
-        assert_eq!(s.backdrop.style, "lights");
+        assert_eq!(s.backdrop.style, "galaxy");
         assert!(w.is_empty(), "{w:?}");
 
         let (s, w) = parse_settings(r#"{ "backdrop": { "style": "galaxy" } }"#);

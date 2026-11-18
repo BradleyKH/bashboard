@@ -1,7 +1,7 @@
 # Backdrop
 
-The backdrop has seven styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights, the
-default), `galaxy` (Galaxy), `matrix` (Matrix), `wave` (Wave), `image` (Image),
+The backdrop has seven styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights),
+`galaxy` (Galaxy, the default), `matrix` (Matrix), `wave` (Wave), `image` (Image),
 `slideshow` (Slideshow), and `none`. Swirling Lights is the colony simulation drawn by Three.js. Galaxy is a fixed swirling
 starfield on the same Three.js viewport and settings (6.6).
 Matrix is falling glyph rain drawn with Canvas 2D. Wave is the dashboard's Wave drawn across
@@ -57,7 +57,7 @@ fails to mount, which shows a "Could not start the background animation" toast.
 - **When it mounts.** Loading settings starts before the rest of startup, and the backdrop mounts
   as soon as they arrive, overlapping the font and stale-terminal work that follows. The saved
   style is therefore the first one shown, never a different one that is swapped out. If settings
-  fail to load, the defaults apply, which is Swirling Lights.
+  fail to load, the defaults apply, which is Galaxy.
 
 Every style implements this interface, and each adds its own options:
 
