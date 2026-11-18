@@ -267,6 +267,7 @@ dependencies = [
  "block2",
  "clipboard-win",
  "gdk-pixbuf",
+ "gdkx11",
  "getrandom 0.3.4",
  "grep-matcher",
  "grep-regex",
@@ -305,6 +306,7 @@ dependencies = [
  "webview2-com",
  "windows",
  "windows-core",
+ "x11rb",
  "zbus",
 ]
 

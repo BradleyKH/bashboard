@@ -36,6 +36,10 @@ pub fn on_second_launch(app: &AppHandle, args: Vec<String>, cwd: String) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        // The launch brings no token to raise with, so KWin would keep the window behind the file
+        // manager; ask the window manager as a taskbar would (GTK calls stay on the main thread).
+        #[cfg(target_os = "linux")]
+        let _ = app.run_on_main_thread(move || crate::window_raise::activate(&window));
     }
     let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf));
     let windows_dir = std::env::var_os("SystemRoot").map(PathBuf::from);

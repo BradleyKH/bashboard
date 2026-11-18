@@ -358,7 +358,13 @@ Linux has no shared context menu, so the `.deb` and `.rpm` add the same action p
 a KDE service menu (`/usr/share/kio/servicemenus/bashboard.desktop`, from
 `src-tauri/linux/kio-servicemenu.desktop`) puts "Open in Bashboard" in Dolphin's menu on a
 folder, and a Nemo action (`/usr/share/nemo/actions/bashboard.nemo_action`) does it in Cinnamon's
-Nemo; both run `bashboard %F`. The application's own desktop file declares no `MimeType`: listing
+Nemo; both run `bashboard %F`. Such a launch carries no startup token (Dolphin sets neither
+`DESKTOP_STARTUP_ID` nor `XDG_ACTIVATION_TOKEN`), so the running instance's own raise would be
+refused by focus-stealing prevention and the new tab would open behind the file manager. On X11
+`src-tauri/src/window_raise.rs` therefore also sends the root window `_NET_ACTIVE_WINDOW` with a
+pager's source indication, which window managers honor as the user's request, as a taskbar click
+is; the request is checked, since one that is only flushed can be lost when its connection closes
+at once. Wayland has no equivalent without a token, so there the window may only flash. The application's own desktop file declares no `MimeType`: listing
 `inode/directory` there would make Bashboard a candidate default for opening folders, and where no
 default is set (KDE sets none for GIO) GIO apps such as a browser's Show in folder would open
 Bashboard instead of the file manager. Nautilus (GNOME), Thunar (Xfce), and Caja (MATE) take no

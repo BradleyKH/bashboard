@@ -73,6 +73,8 @@ mod toast_mac;
 mod transcript;
 mod usage;
 mod webkit_env;
+#[cfg(target_os = "linux")]
+mod window_raise;
 mod workspace;
 mod worktree_new;
 mod worktree_route;
