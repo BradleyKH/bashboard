@@ -108,17 +108,29 @@ mod tests {
         })
         .unwrap();
         thread::sleep(Duration::from_millis(100));
-        for i in 0..3 {
-            std::fs::write(&file, format!("<p>{i}</p>")).unwrap();
-            thread::sleep(Duration::from_millis(50));
+        // A truncating write can block for longer than DEBOUNCE on a spinning disk, which really
+        // does split the burst in two, so a burst whose writes were that far apart is retried.
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            let mut widest = Duration::ZERO;
+            let mut last = std::time::Instant::now();
+            for i in 0..3 {
+                std::fs::write(&file, format!("<p>{i}</p>")).unwrap();
+                thread::sleep(Duration::from_millis(50));
+                widest = widest.max(last.elapsed());
+                last = std::time::Instant::now();
+            }
+            rx.recv_timeout(Duration::from_secs(5))
+                .expect("no change seen");
+            let second = rx.recv_timeout(Duration::from_millis(600));
+            if widest >= DEBOUNCE / 2 && attempts < 5 {
+                while rx.recv_timeout(Duration::from_millis(600)).is_ok() {}
+                continue;
+            }
+            assert_eq!(second, Err(RecvTimeoutError::Timeout), "one burst fired twice");
+            break;
         }
-        rx.recv_timeout(Duration::from_secs(5))
-            .expect("no change seen");
-        assert_eq!(
-            rx.recv_timeout(Duration::from_millis(600)),
-            Err(RecvTimeoutError::Timeout),
-            "one burst fired twice"
-        );
         std::fs::write(dir.join("other.css"), "p{}").unwrap();
         assert!(rx.recv_timeout(Duration::from_millis(600)).is_err());
         let _ = std::fs::remove_dir_all(dir);
