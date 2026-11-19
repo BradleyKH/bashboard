@@ -22,6 +22,12 @@
   scrollbar-color: transparent transparent;
 }
 
+/* WebKitGTK's scrollbars overlay the content instead of taking space beside it, so the column
+   keeps that space itself; without it the thumb covered the section headers' buttons. */
+:root[data-os='linux'] #dashboard .dashboard-column {
+  padding-right: 14px;
+}
+
 #dashboard .dashboard-column:is(:hover, :focus-within) {
   scrollbar-color: color-mix(in srgb, var(--accent) 75%, transparent) transparent;
 }

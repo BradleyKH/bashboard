@@ -193,7 +193,9 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 14px;
+  /* Odd, so the 3px bar and the 9px knob both land on whole pixels; at half pixels WebKitGTK
+     missed the knob's bottom row when repainting it away, leaving a dash under the bar. */
+  height: 15px;
   cursor: pointer;
   touch-action: none;
 }
@@ -226,19 +228,20 @@
 .media-slider-fill::after {
   content: '';
   position: absolute;
-  right: -5px;
+  right: -4.5px;
   top: 50%;
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: #eef3f5;
-  transform: translateY(-50%) scale(0);
-  transition: transform 100ms ease;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 100ms ease;
 }
 
 .media-slider:hover .media-slider-fill::after,
 .media-slider.dragging .media-slider-fill::after {
-  transform: translateY(-50%) scale(1);
+  opacity: 1;
 }
 
 .media-slider.muted .media-slider-fill {

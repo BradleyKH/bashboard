@@ -18,7 +18,7 @@ import { stopListener } from './portStop';
 import { PortsStore } from './portsStore';
 import { LocalModelsStore } from './localModelsStore';
 import { setKindMenuFilter } from './kindMenu';
-import { loadPlatform, supports } from './platform';
+import { loadPlatform, platformOs, supports } from './platform';
 import { DashboardPanel } from './dashboardPanel';
 import { MEDIA_PART_SETTINGS } from './mediaMenu';
 import { paneCards, type PaneCardInput } from './dashboardModel';
@@ -149,6 +149,8 @@ const livePtys = await invoke<PtyRef[]>('pty_list').catch((): PtyRef[] => []);
 
 setHomeDir(await homeDir().catch(() => null));
 await loadPlatform();
+// For styles that differ by OS, such as room for WebKitGTK's overlay scrollbars.
+document.documentElement.dataset.os = platformOs();
 
 const payload = await settingsLoaded;
 const state: AppState = {
