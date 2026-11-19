@@ -1,9 +1,20 @@
+import { invoke } from '@tauri-apps/api/core';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import type { ConfirmOptions } from './confirmDialog';
+import { platformOs } from './platform';
+import { describeUpdateError, LATEST_RELEASE_URL } from './updateErrorModel';
 import './updateNotice.css';
 
 export type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
+
+interface RenderOptions {
+  isError?: boolean;
+  /** Label of the button that installs the update; no button when absent. */
+  install?: string;
+  /** Show a button that opens the latest release for a manual download. */
+  download?: boolean;
+}
 
 /** Bottom-right banner offering an available update (docs/design/app.md section 3.16). */
 export class UpdateNotice {
@@ -22,7 +33,7 @@ export class UpdateNotice {
     root.className = 'update-notice';
     root.setAttribute('role', 'status');
     this.root = root;
-    this.render(`Bashboard ${this.update.version} is available`, true);
+    this.render(`Bashboard ${this.update.version} is available`, { install: 'Install and restart' });
     document.body.append(root);
   }
 
@@ -32,27 +43,35 @@ export class UpdateNotice {
     this.onDismiss();
   }
 
-  private render(message: string, withButtons: boolean, isError = false): void {
+  private render(message: string, opts: RenderOptions = {}): void {
     const root = this.root;
     if (!root) return;
     const text = document.createElement('div');
     text.textContent = message;
-    if (isError) text.className = 'update-notice-error';
+    if (opts.isError) text.className = 'update-notice-error';
     root.replaceChildren(text);
-    if (!withButtons) return;
+    if (!opts.install && !opts.download) return;
 
-    const install = document.createElement('button');
-    install.type = 'button';
-    install.textContent = 'Install and restart';
-    install.addEventListener('click', () => void this.install());
-    const later = document.createElement('button');
-    later.type = 'button';
-    later.textContent = 'Later';
-    later.addEventListener('click', () => this.close());
     const buttons = document.createElement('div');
     buttons.className = 'update-notice-buttons';
-    buttons.append(later, install);
+    buttons.append(this.button('Later', () => this.close()));
+    if (opts.download) {
+      buttons.append(
+        this.button('Download', () =>
+          void invoke('open_url', { url: LATEST_RELEASE_URL }).catch((e: unknown) => console.warn('open_url failed', e)),
+        ),
+      );
+    }
+    if (opts.install) buttons.append(this.button(opts.install, () => void this.install()));
     root.append(buttons);
+  }
+
+  private button(label: string, onClick: () => void): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
   }
 
   private async install(): Promise<void> {
@@ -72,18 +91,34 @@ export class UpdateNotice {
 
       let total = 0;
       let received = 0;
-      this.render('Downloading update...', false);
-      await this.update.downloadAndInstall((event) => {
-        if (event.event === 'Started') total = event.data.contentLength ?? 0;
-        else if (event.event === 'Progress') received += event.data.chunkLength;
-        else return;
-        const pct = total > 0 ? ` ${Math.min(100, Math.round((received / total) * 100))}%` : '';
-        this.render(`Downloading update...${pct}`, false);
-      });
-      this.render('Restarting...', false);
-      await relaunch();
-    } catch (err) {
-      this.render(`Update failed: ${String(err)}`, true, true);
+      this.render('Downloading update...');
+      try {
+        await this.update.downloadAndInstall((event) => {
+          if (event.event === 'Started') total = event.data.contentLength ?? 0;
+          else if (event.event === 'Progress') received += event.data.chunkLength;
+          else if (event.event === 'Finished') {
+            // On Linux the package manager runs next, behind a password prompt.
+            this.render(platformOs() === 'linux' ? 'Installing update...' : 'Downloading update... 100%');
+            return;
+          } else return;
+          const pct = total > 0 ? ` ${Math.min(100, Math.round((received / total) * 100))}%` : '';
+          this.render(`Downloading update...${pct}`);
+        });
+      } catch (err) {
+        const view = describeUpdateError(err, 'install', platformOs());
+        this.render(view.message, { isError: true, install: 'Try again', download: view.offerDownload });
+        return;
+      }
+      this.render('Restarting...');
+      try {
+        await relaunch();
+      } catch (err) {
+        // The new version is on disk; only the restart failed, so a manual one finishes the job.
+        console.warn('relaunch after update failed:', err);
+        this.render(`Bashboard ${this.update.version} is installed. Quit and reopen Bashboard to use it.`, {
+          isError: true,
+        });
+      }
     } finally {
       this.busy = false;
     }

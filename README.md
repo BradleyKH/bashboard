@@ -4,8 +4,8 @@ Bashboard
 **A terminal workspace for developers running AI coding agents.** Bashboard puts your shells, a
 live board of every AI agent session, and the Git, file, search, CI, port, and container views in one window, so you stop juggling apps while your
 agents work. It tracks Claude Code sessions in full, with previews for OpenAI Codex and GitHub
-Copilot CLI, and it works with any stack. It runs on Windows, with early macOS and Linux builds
-for testing.
+Copilot CLI, and it works with any stack. It runs on Windows and, as an early build, on Debian
+and Ubuntu Linux, with macOS and other Linux packages available for testing.
 
 ![Bashboard with Claude Code, Files, Git, CI pipelines, and the session dashboard](assets/bashboard-screenshot.png)
 
@@ -51,6 +51,8 @@ The [user guide](docs/user-guide.md) covers each in detail.
 
 ## Installing
 
+### Windows
+
 Download `Bashboard_<version>_x64-setup.exe` from the
 [latest release](https://github.com/BradleyKH/bashboard/releases/latest) and run it. It installs
 for the current user without admin rights and includes everything Bashboard needs: the app, the
@@ -85,8 +87,35 @@ saves as you make it, and **Run setup** in the Help tab (F1) brings the wizard b
 skippable tour of the main keys follows; **Take the tour** in the Help tab replays it.
 
 WebView2 comes with Windows 11; on a machine without it, the installer downloads it. Uninstall
-from **Settings > Apps > Installed apps**. To build from source, see
-[Development](docs/development.md).
+from **Settings > Apps > Installed apps**.
+
+### Linux
+
+Linux support is early. The `.deb` is tested on Kubuntu with KDE Plasma, under X11 and Wayland;
+GNOME and other desktops are not tested yet, and the Local Browser pane is Windows only. Download
+`bashboard_<version>_amd64.deb` from the
+[latest release](https://github.com/BradleyKH/bashboard/releases/latest) and install it on
+Ubuntu 22.04 or newer, Debian 12 or newer, or a distro based on them:
+
+```sh
+sudo apt install ./bashboard_*_amd64.deb
+```
+
+It pulls in WebKitGTK and GTK, puts `bashboard` on your `PATH`, and adds **Open in Bashboard** to
+Dolphin's and Nemo's right-click menus. Bashboard checks for new releases at launch and updates
+the package itself, asking for your password to install it. Panes open in your login shell (bash,
+zsh, or fish), and the setup wizard offers the same shell lines and agent hooks as on Windows.
+Uninstall with `sudo apt remove bashboard`.
+
+An AppImage and an `.rpm` are built for testing but not released yet, and neither updates itself;
+[Testing a Linux build](docs/linux-testing.md) says where to get them.
+
+### macOS
+
+macOS builds are an early preview for testing; see
+[Testing a macOS preview build](docs/macos-testing.md).
+
+To build from source on any of them, see [Development](docs/development.md).
 
 ## Documentation
 
@@ -100,8 +129,8 @@ from **Settings > Apps > Installed apps**. To build from source, see
 - [Development](docs/development.md): building from source, releasing, and debugging input.
 - [Testing a macOS preview build](docs/macos-testing.md): installing an early macOS build and
   what to check.
-- [Testing a Linux build](docs/linux-testing.md): installing a Linux build and what to check on
-  a real machine.
+- [Testing a Linux build](docs/linux-testing.md): installing a Linux package (the released
+  `.deb`, or the AppImage and `.rpm` from CI) and what to check on a real machine.
 - [Design](docs/design/README.md): the spec, for anyone changing Bashboard itself.
 
 ## License

@@ -137,13 +137,18 @@ To publish a release:
    the release carries only the standard beta text. `--cleanup=whitespace` keeps markdown `#`
    headings, which git otherwise strips as comments.
 
-The `.github/workflows/release.yml` workflow runs on the tag. It checks that the tag matches
-`package.json`, runs the checks, builds a draft GitHub release named
+The `.github/workflows/release.yml` workflow runs on the tag. Its Windows job checks that the tag
+matches `package.json`, runs the checks, builds a draft GitHub release named
 "Bashboard v<version> (beta)" holding the installer, its `.sig` signature, and `latest.json`
-(the file installed apps read to find updates), checks that the installer ships `bb.exe`, and
-then publishes the release. The workflow needs two repository secrets,
+(the file installed apps read to find updates), and checks that the installer ships `bb.exe`.
+Its Linux job, on Ubuntu 22.04 alongside it, runs the Rust tests, builds the Linux packages,
+moves `bb` off the system `PATH`, checks the packages, and signs the `.deb` for the updater.
+Once both pass, a last job attaches the `.deb` to the draft, adds it to `latest.json`, and
+publishes the release. If either build fails, the release stays a draft. Only the `.deb` is
+released; the AppImage and `.rpm` come from CI for testing. The workflow needs two repository secrets,
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, holding the updater
-signing key. Local builds and CI runs need no key; only the release workflow signs.
+signing key, which both the Windows and Linux jobs use. Local builds and CI runs need no key;
+only the release workflow signs.
 
 The release workflow also Authenticode-signs the app, `bb.exe`, and the installer through Azure
 Artifact Signing when the `AZURE_CLIENT_ID` secret is set, and then fails the release if any of

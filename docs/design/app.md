@@ -278,6 +278,14 @@ Installed apps update themselves through Tauri's updater plugin. `plugins.update
 the newest non-prerelease release. The Windows install mode is `passive`: the NSIS installer
 shows its progress without prompts.
 
+`latest.json` holds one entry per package that updates itself: the NSIS installer and the Linux
+`.deb` (`linux-x86_64-deb`). The plugin looks up `<os>-<arch>-<package type>` and then
+`<os>-<arch>`, reading the package type the bundler patched into the binary (3.13). On a `.deb`
+install it downloads the package and runs `dpkg -i` through `pkexec`, then a zenity or kdialog
+password prompt, then a terminal `sudo`. An AppImage, `.rpm`, or macOS build finds no entry, and
+there is deliberately no bare `linux-x86_64` entry: the plugin would hand the `.deb` to an
+AppImage or `.rpm` install, which cannot install it.
+
 `src/updater.ts` exports `checkForUpdate({ manual, confirm })`. It runs once at launch after the
 workspace is up, quietly, and again from the app dialog's About tab (4.18) or the
 command palette's Check for updates entry (4.5), both of which also report "up to date" and
@@ -286,7 +294,18 @@ check there says so in a toast. An available update shows as a banner (`updateNo
 Install and restart and Later. Installing first asks for confirmation through the shared confirm dialog,
 because restarting ends every running shell and any command or Claude session in it; the
 confirmation notes that the layout reopens on the next launch when `restore.enabled` is on. The
-update then downloads with progress shown in the banner, installs, and relaunches the app.
+update then downloads with progress shown in the banner (on Linux, "Installing update..." while
+the password prompt and `dpkg` run), installs, and relaunches the app.
+
+**Failures.** `updateErrorModel.ts` turns the plugin's error text into a sentence, and says
+whether to offer a Download button that opens the latest release page. A manual check that fails
+shows it in a toast; one with no entry for the install (an AppImage or `.rpm`) says the install
+cannot update itself and offers Download. A failed install leaves the running app as it was and
+turns the banner red with Later, Download when offered, and Try again. On Linux, a cancelled
+password prompt usually surfaces as the package error (the terminal `sudo` fallback fails with
+no terminal), so both say the update was not installed and suggest trying again or installing
+the downloaded `.deb` with apt. If the install succeeds but the relaunch fails, the banner says
+the new version is installed and to reopen Bashboard.
 
 **Signing.** Update packages are signed with a minisign key pair made by `tauri signer
 generate`. The public key is committed in `tauri.conf.json`; the private key and its password
@@ -308,7 +327,7 @@ try to sign.
 **Release workflow** (`.github/workflows/release.yml`). `pnpm version:set <version>`
 (`scripts/bump-version.ts`) sets the version in `package.json`, `src-tauri/Cargo.toml`, and
 `src-tauri/Cargo.lock`; `tauri.conf.json` reads `package.json`. Pushing a `v<version>` tag runs
-the workflow on a Windows runner: it checks that the tag matches `package.json`, runs the type
+the workflow. Its `windows` job checks that the tag matches `package.json`, runs the type
 check, the front end tests, and the Rust tests, then builds with `tauri-action` into a draft
 release named "Bashboard v<version> (beta)", not marked as a prerelease, with the NSIS
 installer, its `.sig`, and `latest.json`. The release body, which also becomes the `notes` in
@@ -317,6 +336,15 @@ SmartScreen text, which says the installer is unsigned or, when it is signed, th
 may still warn until it builds reputation; a lightweight tag gets the standard text alone. A step then checks that `bb.exe` was built and is
 listed in the installer script (3.13), and only after that is the release published, so a
 broken build never becomes the release the updater reads.
+
+A `linux` job runs alongside on Ubuntu 22.04, the glibc floor every Linux package targets. It
+runs the Rust tests, builds the `.deb`, `.rpm`, and AppImage (the relayout and assert scripts,
+3.13, take all three), and signs the relaid-out `.deb` with `tauri signer sign --app-version`.
+The signature has to be made after `relayout-packages.sh` rebuilds the package, so the bundler's
+own updater artifacts stay off on Linux. A `publish` job that needs both attaches the `.deb` to
+the draft, adds its `linux-x86_64-deb` entry to `latest.json`, checks the result still lists
+Windows, and only then publishes. The release body's standard text gains a line saying Linux is
+early, the `.deb` is tested on KDE Plasma, and how to install it with apt.
 
 **Installer.** The NSIS installer installs per user, shows the license page, carries the
 Bashboard header and sidebar images (`src-tauri/installer/`), sets the publisher, and offers a

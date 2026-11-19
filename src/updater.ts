@@ -1,5 +1,8 @@
+import { invoke } from '@tauri-apps/api/core';
 import { check } from '@tauri-apps/plugin-updater';
+import { platformOs } from './platform';
 import { showToast } from './toast';
+import { describeUpdateError, LATEST_RELEASE_URL } from './updateErrorModel';
 import { UpdateNotice, type ConfirmFn } from './updateNotice';
 
 export interface CheckForUpdateOptions {
@@ -31,7 +34,15 @@ export async function checkForUpdate(opts: CheckForUpdateOptions): Promise<void>
     });
     notice.show();
   } catch (err) {
-    if (opts.manual) showToast(`Could not check for updates: ${String(err)}`);
-    else console.warn('update check failed:', err);
+    if (!opts.manual) {
+      console.warn('update check failed:', err);
+      return;
+    }
+    const view = describeUpdateError(err, 'check', platformOs());
+    const download = {
+      label: 'Download',
+      run: () => void invoke('open_url', { url: LATEST_RELEASE_URL }).catch((e: unknown) => console.warn('open_url failed', e)),
+    };
+    showToast(view.message, 10000, view.offerDownload ? download : undefined);
   }
 }

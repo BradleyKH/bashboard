@@ -23,10 +23,12 @@ Fill this in first, and put it at the top of what you send back.
 
 ## Builds
 
-Until releases carry Linux builds, take them from CI: open the latest run of the CI workflow on
-`main` on GitHub, and download the `bashboard-linux` artifact from the run's Artifacts list. The
-`linux` job builds it on Ubuntu 22.04, so the packages run on anything with that glibc or newer.
-It holds three files:
+Each release carries the `.deb`, beside the Windows installer, on the
+[latest release](https://github.com/BradleyKH/bashboard/releases/latest). The AppImage and `.rpm`
+come from CI only: open the latest run of the CI workflow on `main` on GitHub, and download the
+`bashboard-linux` artifact from the run's Artifacts list. That artifact also holds a `.deb` of
+the unreleased code. Both workflows build on Ubuntu 22.04, so the packages run on anything with
+that glibc or newer. The artifact holds three files:
 
 - `bashboard_<version>_amd64.AppImage`
 - `bashboard_<version>_amd64.deb`
@@ -257,6 +259,21 @@ For each check, report pass or fail, plus what you saw if it failed.
 42. Open a few panes. Find the `WebKitWebProcess` that belongs to Bashboard (`pgrep -a
     WebKitWebProcess`, or the process list in System Monitor) and end it (`kill <pid>`). The
     window reloads, and every pane comes back with its shell still running.
+
+**Updates**
+
+43. `.deb` only. Install a `.deb` older than the latest release (an earlier release's, or the
+    CI artifact from a commit before the latest release's version bump). At launch, or from
+    **Check for updates** in the About tab, a banner offers the latest version. **Install and
+    restart** downloads it, asks for your password (polkit, or a zenity or kdialog prompt),
+    installs it, and restarts on the new version: the About tab shows it, and
+    `dpkg -s bashboard | grep Version` agrees.
+44. `.deb` only, same setup, launched from the applications menu: dismiss each password prompt.
+    The banner says the update was not installed and offers **Try again** and **Download**, and
+    the old version keeps running. (Launched from a terminal, the last fallback asks for your
+    sudo password in that terminal instead.)
+45. AppImage and `.rpm`: **Check for updates** says this install cannot update itself and offers
+    **Download**, which opens the latest release.
 
 ## Measurements
 

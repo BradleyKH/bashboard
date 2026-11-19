@@ -1378,6 +1378,10 @@ those keys themselves.
 - **Shortcuts** lists every key and is where keys are changed (see [Settings](settings.md)).
 - **CLI** lists the `bb` commands below, with examples to copy.
 - **About** shows the version, **Check for updates**, and links to the release notes and docs.
+  On Linux the `.deb` updates itself, asking for your password to install the new package; an
+  AppImage or `.rpm` install cannot, so the check offers **Download** to open the latest release.
+  If an update fails to install, the banner says why, the running version stays as it was, and
+  **Try again** or **Download** finishes the job.
 
 ## Pane CLI
 

@@ -7,8 +7,11 @@ on:
 permissions:
   contents: write
 
+# The windows job builds the installer into a draft release with latest.json; the linux job builds
+# the .deb beside it; publish attaches the .deb, adds it to latest.json, and only then publishes,
+# so a release missing either build never becomes the one the updater reads.
 jobs:
-  release:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -85,6 +88,11 @@ jobs:
             standard='Beta release. The installer is unsigned, so Windows SmartScreen may warn on first run:
           choose "More info", then "Run anyway".'
           fi
+          standard="$standard
+
+          Linux support is early. The .deb (Ubuntu 22.04 or newer, Debian 12 or newer) is tested on KDE
+          Plasma under X11 and Wayland; other desktops are not yet. Install it with
+          \`sudo apt install ./bashboard_${GITHUB_REF_NAME#v}_amd64.deb\`."
           delim="NOTES_$(date +%s%N)"
           {
             echo "body<<$delim"
@@ -170,9 +178,105 @@ jobs:
           }
           if ($failed) { exit 1 }
 
+  # Ubuntu 22.04 sets the glibc floor, as in CI. The relayout and assert scripts expect all three
+  # package formats, so all three are built, though only the .deb is released.
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check tag matches package.json version
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version ($expected)"
+            exit 1
+          fi
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libssl-dev libxdo-dev patchelf file rpm
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The windows job runs the platform-independent checks; these cover the Linux-only Rust.
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Build packages
+        run: pnpm tauri build --bundles deb,rpm,appimage
+
+      - name: Move bb off the system PATH
+        run: bash scripts/linux/relayout-packages.sh
+
+      - name: Assert the packages ship bb
+        run: bash scripts/linux/assert-bundle.sh
+
+      # The relayout rebuilds the .deb, so a signature the bundler made would no longer match;
+      # the updater signature is made here, over the final file.
+      - name: Sign the .deb for the updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          deb=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' | head -n 1)
+          pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "$deb"
+          test -s "$deb.sig"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bashboard-deb
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.deb.sig
+          if-no-files-found: error
+
+  publish:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: bashboard-deb
+          path: deb
+
+      # linux-x86_64-deb is the updater's first lookup on a .deb install; an AppImage or .rpm
+      # install looks up its own key, finds none, and the app points it at the release page.
+      - name: Attach the .deb and add it to latest.json
+        run: |
+          deb=$(find deb -maxdepth 1 -name '*.deb' | head -n 1)
+          name=$(basename "$deb")
+          gh release upload "$GITHUB_REF_NAME" "$deb" --clobber
+          gh release download "$GITHUB_REF_NAME" -p latest.json -D manifest
+          url="https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME/$name"
+          jq --arg url "$url" --rawfile sig "$deb.sig" \
+            '.platforms["linux-x86_64-deb"] = {signature: ($sig | rtrimstr("\n")), url: $url}' \
+            manifest/latest.json > latest.json
+          jq -e '.platforms["linux-x86_64-deb"].url and (.platforms | keys | any(startswith("windows-")))' latest.json
+          gh release upload "$GITHUB_REF_NAME" latest.json --clobber
+
       # Publishing last keeps a broken build off releases/latest, which the updater reads.
       - name: Publish release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
