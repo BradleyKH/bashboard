@@ -12,9 +12,9 @@ export interface PaneKindInfo {
 }
 
 /**
- * The Ship kind's icon. Shown as an SVG rocket by `setGlyphIcon` (`glyphIcon.ts`), since the
- * only rocket glyph on Linux and macOS is a color emoji; U+FE0E keeps it text where it is
- * printed as text.
+ * The Ship kind's icon. `setGlyphIcon` (`glyphIcon.ts`) shows it as an SVG rocket on Linux and
+ * macOS, where the only rocket glyph is a color emoji; U+FE0E keeps it text on Windows and
+ * wherever it is printed as text.
  */
 export const SHIP_ICON = '\u{1F680}\u{FE0E}';
 

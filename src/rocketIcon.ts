@@ -1,8 +1,8 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /**
- * A line rocket, the Ship pane's mark. An SVG rather than U+1F680: on Linux and macOS the only
- * font with that character is a color emoji font, which ignores the U+FE0E text request.
+ * A line rocket, the Ship pane's mark on Linux and macOS. An SVG rather than U+1F680: there the
+ * only font with that character is a color emoji font, which ignores the U+FE0E text request.
  */
 export function rocketIcon(): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, 'svg');
