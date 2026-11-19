@@ -148,7 +148,7 @@ pub fn init(app: &AppHandle) {
         };
         let spawned = std::thread::Builder::new()
             .name("media".into())
-            .spawn(move || crate::media_linux::run(emit, tx, rx));
+            .spawn(move || crate::media_linux::run(emit, tx, rx, crate::system_volume::find()));
         if let Err(e) = spawned {
             eprintln!("media: could not start the worker: {e}");
         }

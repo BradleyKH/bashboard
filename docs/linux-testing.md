@@ -145,8 +145,9 @@ For each check, report pass or fail, plus what you saw if it failed.
 17. Play something in Spotify (from a `.deb`, Flatpak, or Snap) or in Firefox, then look at the
     dashboard. The Media section shows the title, the artist, and the album art, and the
     play/pause, previous, and next buttons control the player. Dragging the position bar seeks.
-18. The volume bar and the mute button change the player's own volume, not the system volume.
-    Mute sets it to zero, and a second press restores the earlier level.
+18. The volume bar and the mute button change the system volume (the panel's volume icon
+    follows them), for a browser too. A volume key or the panel's slider moves the bar within a
+    second.
 19. Start a second player and pause the first. The section follows the one that is playing.
     `bb media play-pause` in a pane toggles it. Close every player; the section goes away.
 

@@ -12,6 +12,8 @@ mod ci;
 mod cli;
 mod child_process;
 mod clipboard;
+#[cfg(target_os = "linux")]
+mod clipboard_linux;
 mod config_dir;
 mod containers;
 mod crash_recovery;
@@ -65,6 +67,8 @@ mod setup;
 mod shell_integration;
 mod size_route;
 mod system;
+#[cfg(target_os = "linux")]
+mod system_volume;
 mod toast;
 #[cfg(target_os = "linux")]
 mod toast_linux;
@@ -75,6 +79,7 @@ mod usage;
 mod webkit_env;
 #[cfg(target_os = "linux")]
 mod window_raise;
+mod window_fit;
 mod workspace;
 mod worktree_new;
 mod worktree_route;
@@ -147,9 +152,10 @@ fn close_window(window: tauri::WebviewWindow) -> Result<(), String> {
 }
 
 /// The main window, from its `tauri.conf.json` entry (which has `create: false` so it is built
-/// here). Debug builds give WebView2 its own data folder: the installed app shares the
-/// identifier, and WebView2 refuses a second process on one folder with different browser
-/// arguments, which is what `pnpm tauri:debug`'s remote debugging port adds.
+/// here), shrunk to fit a small screen (`window_fit`, docs/design/app.md section 3.34). Debug
+/// builds give WebView2 its own data folder: the installed app shares the identifier, and
+/// WebView2 refuses a second process on one folder with different browser arguments, which is
+/// what `pnpm tauri:debug`'s remote debugging port adds.
 fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let config = app
         .config()
@@ -160,6 +166,13 @@ fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWin
         .cloned()
         .unwrap_or_default();
     let builder = tauri::WebviewWindowBuilder::from_config(app, &config)?;
+    let builder = match window_fit::work_area(app) {
+        Some(area) => match window_fit::fit((config.width, config.height), area, (640.0, 400.0)) {
+            window_fit::Fit::Size(w, h) => builder.inner_size(w, h),
+            window_fit::Fit::Maximized => builder.maximized(true),
+        },
+        None => builder,
+    };
     #[cfg(debug_assertions)]
     let builder = match tauri::Manager::path(app).app_local_data_dir() {
         Ok(dir) => builder.data_directory(dir.join("dev")),

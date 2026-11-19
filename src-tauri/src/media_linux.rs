@@ -8,11 +8,17 @@
 //! player, so a player that starts playing takes over). Remote album art loads on a short-lived
 //! thread per URL that reports back as `Msg::ArtLoaded`. Without a session bus the worker still
 //! answers, with no session.
+//!
+//! Volume and mute act on the default output device through `system_volume`, as on Windows,
+//! since browsers ignore MPRIS volume writes. With that tool the worker also wakes each second
+//! while a player shows, to follow a volume key or the system mixer. Without `wpctl` or `pactl`
+//! they fall back to the player's own MPRIS `Volume`.
 
 use crate::media::{ART_PX, MediaCommand, MediaSnapshot, Msg, next_repeat};
 use crate::media_mpris::{self as mpris, ArtLoad, ArtState, PlayerProps, TrackMeta};
+use crate::system_volume::Tool;
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zbus::MatchRule;
 use zbus::blocking::fdo;
@@ -30,6 +36,8 @@ const NO_TRACK: &str = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
 const CALL_TIMEOUT: Duration = Duration::from_secs(2);
 const ART_TIMEOUT: Duration = Duration::from_secs(5);
 const ART_MAX_BYTES: u64 = 5 * 1024 * 1024;
+/// How often the system volume is reread while a player shows.
+const VOLUME_POLL: Duration = Duration::from_secs(1);
 
 type Props = HashMap<String, OwnedValue>;
 
@@ -49,12 +57,21 @@ struct Worker<E> {
     snapshot: Option<MediaSnapshot>,
     seen: HashMap<String, Seen>,
     art: ArtState,
-    /// The followed player's bus name and its volume before `ToggleMute` set it to zero.
+    /// The followed player's bus name and its volume before `ToggleMute` set it to zero; only
+    /// without a system volume tool.
     unmuted: Option<(String, f64)>,
+    /// What sets the system volume; None falls back to the player's MPRIS `Volume`.
+    volume_tool: Option<Tool>,
 }
 
-/// Runs the worker until every sender is gone. `emit` receives each changed snapshot.
-pub(crate) fn run(emit: impl FnMut(&Option<MediaSnapshot>), tx: Sender<Msg>, rx: Receiver<Msg>) {
+/// Runs the worker until every sender is gone. `emit` receives each changed snapshot, and
+/// `volume_tool` (`system_volume::find`) is what the volume controls act on.
+pub(crate) fn run(
+    emit: impl FnMut(&Option<MediaSnapshot>),
+    tx: Sender<Msg>,
+    rx: Receiver<Msg>,
+    volume_tool: Option<Tool>,
+) {
     let conn = match connect() {
         Ok(c) => Some(c),
         Err(e) => {
@@ -75,9 +92,26 @@ pub(crate) fn run(emit: impl FnMut(&Option<MediaSnapshot>), tx: Sender<Msg>, rx:
         seen: HashMap::new(),
         art: ArtState::default(),
         unmuted: None,
+        volume_tool,
     };
     w.refresh();
-    while let Ok(first) = rx.recv() {
+    loop {
+        let polling = w.volume_tool.is_some() && w.snapshot.is_some();
+        let first = if polling {
+            match rx.recv_timeout(VOLUME_POLL) {
+                Ok(m) => m,
+                Err(RecvTimeoutError::Timeout) => {
+                    w.refresh_volume();
+                    continue;
+                }
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+        } else {
+            match rx.recv() {
+                Ok(m) => m,
+                Err(_) => break,
+            }
+        };
         // A burst of signals (a track change sends several) costs one refresh.
         let mut changed = false;
         let mut requests = Vec::new();
@@ -182,11 +216,37 @@ impl<E: FnMut(&Option<MediaSnapshot>)> Worker<E> {
             .and_then(|p| p.metadata.art_url.clone());
         self.update_art(art_url.as_deref().unwrap_or(""));
         let art_id = self.art.id();
+        let system = match (&self.volume_tool, &self.followed) {
+            (Some(tool), Some(_)) => tool.read(),
+            _ => None,
+        };
         let next = self.followed.as_ref().map(|p| {
             let mut s = mpris::snapshot(p, art_id, now);
             mpris::settle_position(self.snapshot.as_ref(), &mut s);
+            if let Some((volume, muted)) = system {
+                s.volume = volume;
+                s.muted = muted;
+            }
             s
         });
+        self.emit_if_changed(next);
+    }
+
+    /// Rereads the system volume alone, for a change no player signals.
+    fn refresh_volume(&mut self) {
+        let (Some(tool), Some(current)) = (&self.volume_tool, &self.snapshot) else {
+            return;
+        };
+        let Some((volume, muted)) = tool.read() else {
+            return;
+        };
+        let mut next = current.clone();
+        next.volume = volume;
+        next.muted = muted;
+        self.emit_if_changed(Some(next));
+    }
+
+    fn emit_if_changed(&mut self, next: Option<MediaSnapshot>) {
         if next != self.snapshot {
             self.snapshot = next;
             (self.emit)(&self.snapshot);
@@ -270,6 +330,17 @@ impl<E: FnMut(&Option<MediaSnapshot>)> Worker<E> {
         let (Some(conn), Some(p)) = (self.conn.clone(), self.followed.clone()) else {
             return Ok(());
         };
+        if let Some(tool) = &self.volume_tool {
+            let system = match cmd {
+                MediaCommand::SetVolume { level } => Some(tool.set(level)),
+                MediaCommand::ToggleMute => Some(tool.toggle_mute()),
+                _ => None,
+            };
+            if let Some(result) = system {
+                self.refresh();
+                return result;
+            }
+        }
         let name = p.bus_name.as_str();
         let result = match cmd {
             MediaCommand::PlayPause => call(&conn, name, "PlayPause", &()),
@@ -703,6 +774,7 @@ mod tests {
                 move |s: &Option<MediaSnapshot>| sink.lock().unwrap().push(s.clone()),
                 worker_tx,
                 rx,
+                None,
             )
         });
 

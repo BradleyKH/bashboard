@@ -666,8 +666,13 @@ app's, since a browser shares one audio session across all its tabs.
 On Linux, the worker reads MPRIS players on the D-Bus session bus (`org.mpris.MediaPlayer2.*`), so
 any player that exports MPRIS is followed. The section follows a playing player first: it keeps the
 current one while that one plays or while nothing plays, and otherwise takes the most recently
-changed. The app name is the player's `Identity`. Volume and mute act on the player's own MPRIS
-`Volume`, not the system volume; mute sets that volume to zero and restores the previous level.
+changed. The app name is the player's `Identity`. Volume and mute are the default output
+device's, as on Windows, and for the same reason; Chromium and Firefox also report a fixed MPRIS
+`Volume` and ignore writes to it. `system_volume.rs` runs `wpctl` on `@DEFAULT_AUDIO_SINK@`
+(PipeWire, with WirePlumber) or else `pactl` on `@DEFAULT_SINK@` (PulseAudio), rather than linking
+either, and the worker rereads it each second while a player shows, since neither tool has a
+change feed both share. Without either tool, volume and mute fall back to the player's MPRIS
+`Volume`, mute setting it to zero and restoring the previous level.
 Seek calls `SetPosition` with the track id, or a relative `Seek` when the player gives no usable
 track id. Album art comes from `mpris:artUrl`, a file or an
 http(s) URL, scaled down to the same size and re-encoded the same way. With no session bus or no

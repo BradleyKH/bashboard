@@ -888,8 +888,10 @@ on, or to hide the section.
 The **Media** section shows what Spotify, a browser, or another media app is playing, on Windows
 and Linux: the album art, title, and artist, a play/pause button with previous and next beside it,
 shuffle and repeat when the app offers them, a position bar you can drag to seek, and the volume
-with a mute button at the right of the section's title (scroll over the volume bar to nudge it). On Windows the volume is the system's.
-On Linux it is the player's own volume, and mute sets it to zero and restores the previous level.
+with a mute button at the right of the section's title (scroll over the volume bar to nudge it).
+The volume and mute are the system's, for the default output device, since a browser plays every
+tab through one stream. On Linux they need `wpctl` (PipeWire) or `pactl` (PulseAudio); without
+either, they fall back to the player's own volume, which browsers ignore.
 On Linux the section follows the player that is playing; while none plays, it keeps the one it had,
 and it shows nothing playing when no player is running on the session bus. It appears only while
 something has a media session, and collapsed, its header keeps the title and a play/pause button.

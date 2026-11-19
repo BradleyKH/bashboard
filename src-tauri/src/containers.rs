@@ -565,9 +565,19 @@ fn docker_desktop_exe_for(cli: &Path) -> Option<PathBuf> {
     Some(install.join("Docker Desktop.exe"))
 }
 
-/// Whether `docker desktop` exists: without the plugin, docker rejects the command.
+/// Whether `docker desktop` exists, from `docker desktop --help`.
 fn has_docker_desktop_cli(cli: &Path) -> bool {
-    capture(command(cli, &["desktop", "--help"]), PROBE_TIMEOUT).is_some_and(|(success, out)| success && out.contains("start"))
+    capture(command(cli, &["desktop", "--help"]), PROBE_TIMEOUT)
+        .is_some_and(|(success, out)| success && is_desktop_help(&out))
+}
+
+/// Whether `docker desktop --help` printed the Desktop plugin's own help. Without the plugin,
+/// docker 29 prints its general help for the unknown command and exits 0, and that help lists
+/// `start` too, so only the usage line tells them apart.
+fn is_desktop_help(out: &str) -> bool {
+    out.lines()
+        .find_map(|line| line.trim_start().strip_prefix("Usage:"))
+        .is_some_and(|usage| usage.trim_start().starts_with("docker desktop"))
 }
 
 /// Docker's user units in the order they are preferred: Docker Desktop for Linux, then rootless
@@ -1808,6 +1818,15 @@ mod tests {
 
     fn user(unit: &str) -> Control {
         Control::SystemdUser(unit.to_string())
+    }
+
+    #[test]
+    fn desktop_help_is_told_from_dockers_general_help() {
+        let desktop = "\nUsage:  docker desktop COMMAND\n\nDocker Desktop\n\nCommands:\n  start       Start Docker Desktop\n";
+        let general = "\nUsage:  docker [OPTIONS] COMMAND\n\nA self-sufficient runtime for containers\n\nCommands:\n  start       Start one or more stopped containers\n";
+        assert!(is_desktop_help(desktop));
+        assert!(!is_desktop_help(general));
+        assert!(!is_desktop_help(""));
     }
 
     #[test]

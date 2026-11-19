@@ -41,11 +41,12 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.25 Branch size (`src-tauri/src/git_branch_size.rs`, `src-tauri/src/size_route.rs`) | [git.md](git.md) |
 | 3.27 New worktree (`src-tauri/src/worktree_new.rs`, `src-tauri/src/worktree_trust.rs`, `src-tauri/src/worktree_route.rs`) | [git.md](git.md) |
 | 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`, `src/usageModel.ts`) | [sessions.md](sessions.md) |
-| 3.29 Media sessions (`src-tauri/src/media.rs`, `media_linux.rs`, `media_mpris.rs`) | [dashboard.md](dashboard.md) |
+| 3.29 Media sessions (`src-tauri/src/media.rs`, `media_linux.rs`, `media_mpris.rs`, `system_volume.rs`) | [dashboard.md](dashboard.md) |
 | 3.30 Background waits (`src-tauri/src/hooks.rs`, `src-tauri/src/background_agents.rs`) | [sessions.md](sessions.md) |
 | 3.31 WebKitGTK environment (`src-tauri/src/webkit_env.rs`) | [app.md](app.md) |
 | 3.32 AppImage menu entry (`src-tauri/src/appimage_entry.rs`, `src/appImageOffer.ts`) | [app.md](app.md) |
 | 3.33 Session history (`src-tauri/src/history/`) | [sessions.md](sessions.md) |
+| 3.34 Window size (`src-tauri/src/window_fit.rs`) | [app.md](app.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |

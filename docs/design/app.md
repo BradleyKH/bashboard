@@ -359,12 +359,19 @@ a KDE service menu (`/usr/share/kio/servicemenus/bashboard.desktop`, from
 `src-tauri/linux/kio-servicemenu.desktop`) puts "Open in Bashboard" in Dolphin's menu on a
 folder, and a Nemo action (`/usr/share/nemo/actions/bashboard.nemo_action`) does it in Cinnamon's
 Nemo; both run `bashboard %F`. Such a launch carries no startup token (Dolphin sets neither
-`DESKTOP_STARTUP_ID` nor `XDG_ACTIVATION_TOKEN`), so the running instance's own raise would be
+`DESKTOP_STARTUP_ID` nor `XDG_ACTIVATION_TOKEN`, on X11 or on Plasma 5.27 Wayland), so the running instance's own raise would be
 refused by focus-stealing prevention and the new tab would open behind the file manager. On X11
 `src-tauri/src/window_raise.rs` therefore also sends the root window `_NET_ACTIVE_WINDOW` with a
 pager's source indication, which window managers honor as the user's request, as a taskbar click
 is; the request is checked, since one that is only flushed can be lost when its connection closes
-at once. Wayland has no equivalent without a token, so there the window may only flash. The application's own desktop file declares no `MimeType`: listing
+at once. Wayland has no such request, so there the window asks KWin through its scripting
+interface on the session bus: it writes a script that makes its own process's normal window
+active to `$XDG_RUNTIME_DIR`, loads it with `/Scripting` `loadScript`, runs it, and unloads it.
+The script runs inside the compositor, which focus-stealing prevention does not apply to, and it
+uses Plasma 6's `windowList` and `activeWindow` where they exist and Plasma 5's `clientList` and
+`activeClient` otherwise. Other Wayland compositors (Mutter) offer nothing comparable, so there
+the new tab opens behind the file manager. The application's own desktop file declares no
+`MimeType`: listing
 `inode/directory` there would make Bashboard a candidate default for opening folders, and where no
 default is set (KDE sets none for GIO) GIO apps such as a browser's Show in folder would open
 Bashboard instead of the file manager. Nautilus (GNOME), Thunar (Xfce), and Caja (MATE) take no
@@ -612,3 +619,17 @@ strand the user. A finished step shows a check mark briefly before the next one.
 The last card offers to close the panes opened while the tour ran, in any tab, or keep them. When
 every open pane is one of those, it keeps one, since closing a window's last pane closes the
 window. Closing goes through `requestClosePane`, so a scratch pad with text still asks first.
+
+## 3.34 Window size (`src-tauri/src/window_fit.rs`)
+
+The main window asks for 1200 by 800 logical pixels (`tauri.conf.json`). Windows and an X11
+window manager shrink a window that would not fit the screen, but a Wayland compositor maps it at
+the size asked for, so on a 1366 by 768 laptop the bottom edge sits off screen where no resize
+can reach it. Before building the window, `create_main_window` clamps each side of its content
+to 85 percent of the work area of the primary monitor (the first one when the platform names
+none, as GDK on Wayland does), never above the configured size. When that leaves less than 640
+by 400, the smallest size the window is usable at (1366 by 768 at 200 percent is 683 by 384
+logical pixels), the window opens maximized instead, since one sized to the whole screen would
+put its title bar out of reach. The margin covers the title bar, which the size leaves out,
+and GDK on Wayland reporting the whole monitor as its work area, panels included. The same size
+applies to a window rebuilt by crash recovery (3.22).

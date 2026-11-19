@@ -87,7 +87,8 @@ zbus = { version = "5.19", default-features = false, features = ["async-io", "bl
 # Album art for the Media section: decode any format, scale, and encode JPEG. GTK already builds it.
 gdk-pixbuf = "0.18"
 # The window's startup id, so a notification click raises it with the daemon's activation token
-# (toast_linux.rs). Tauri already builds it.
+# (toast_linux.rs), and the clipboard on the window's own display connection (clipboard_linux.rs).
+# Tauri already builds it.
 gtk = "0.18"
 # A second launch raises the window through _NET_ACTIVE_WINDOW on X11 (window_raise.rs): gdkx11
 # for the window's id, x11rb (core protocol only) for the request. Tauri and arboard build both.
