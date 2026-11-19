@@ -266,6 +266,15 @@ not opened in the system browser a second time. Back is skipped while the frame 
 of its own, since going back from its first entry would leave its history; the error page stays,
 with the notice.
 
+A link with `target="_blank"`, or `window.open`, asks for a new window, which the sandbox refuses
+without any navigation. Chromium still raises `Page.windowOpen` on the pane's frame, and the core
+sends a `popup` event for an address policy would allow or open externally (others, such as
+`about:blank`, are dropped). The pane opens a clicked external link in the system browser with
+"Opened example.com in your browser.", as for a same-tab link. Anything else, a loopback address,
+a script's own `window.open`, or any popup from a file page, gets a notice with an Open button:
+Open here loads a loopback address in the pane, and Open hands an external one to the system
+browser.
+
 **File pages.** A page served from a local file (3.21) follows the same classes, with one
 difference: an external navigation it makes is never opened in the system browser on its own. A
 script can navigate with data in the query string, and opening that address automatically would
@@ -376,6 +385,7 @@ The core sends the pane `BrowserEvent` values (`kind` in camelCase) on a Tauri `
 | `navigatedInPage` | `url` (a hash or `history.pushState` change) |
 | `title` | `title` (can arrive twice for one navigation; the pane de-duplicates) |
 | `blocked` | `url`, `external`, `downloaded?` (a Downloaded page asked for a loopback service) |
+| `popup` | `url`, `external`, `userGesture` (the page asked for a new window, 4.21) |
 | `console` | `level`, `text`, `source?`, `url?`, `line?`, `timestamp` |
 | `exception` | `text`, `url?`, `line?`, `timestamp` |
 | `request` | `requestId`, `url`, `method`, `resourceType`, `headers`, `timestamp` |
@@ -512,5 +522,6 @@ other links open the system browser (9).
 - Frames nested in the page load only what the pane's own frame may (see Nested frames).
 - No popups: the sandbox is `allow-scripts allow-forms allow-same-origin allow-modals`, with no
   `allow-popups` and no `allow-top-navigation`, and the frame's referrer policy is `no-referrer`.
+  A refused popup is reported instead (`popup` event).
 - No downloads, extensions, or full DevTools window.
 - In a debug build, `localhost` frames send no events (see Design).

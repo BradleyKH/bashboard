@@ -1131,8 +1131,10 @@ On a loopback page, a link to another site opens in your system browser and the 
 was; so does a page that redirects to one. Frames inside a loopback page load only local addresses
 too, and the Console notes each one it stopped. Frames inside a file page load what its trust level
 allows (see Local HTML files above). Pages that forbid framing (`X-Frame-Options` or
-`frame-ancestors`) still show, since Bashboard lifts that restriction for local pages only. Popups
-and downloads are not supported. Bashboard's own keys keep working while the page has focus,
+`frame-ancestors`) still show, since Bashboard lifts that restriction for local pages only. Pages
+can't open new windows: a clicked link meant for a new tab opens in your system browser when it
+leads to another site, and otherwise the pane offers an **Open** button (**Open here** for a local
+address). Downloads are not supported. Bashboard's own keys keep working while the page has focus,
 except the terminal's copy and paste, which the page keeps. A page keeps its state (what you typed,
 where you scrolled) while its tab is hidden, the pane is collapsed, or another pane is zoomed. The
 page, drawer, and device size are restored on relaunch; a pane closed on its start page reopens on

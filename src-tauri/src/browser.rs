@@ -106,6 +106,13 @@ pub enum BrowserEvent {
     LoadState {
         loading: bool,
     },
+    /// The page asked for a new window, which the frame's sandbox refused. `external` is a
+    /// non-loopback address; `user_gesture` is a click rather than a script's own `window.open`.
+    Popup {
+        url: String,
+        external: bool,
+        user_gesture: bool,
+    },
     /// The file a file page was served from changed on disk (docs/design/browser.md section 3.21).
     FileChanged,
     /// A file page's request that its CSP refused, from the page's CSP report.
@@ -518,6 +525,22 @@ fn headers_object(v: &Value) -> Value {
     }
 }
 
+/// A `Page.windowOpen`, which Chromium raises even when the sandbox blocks the window. Only an
+/// address the pane could load or hand to the system browser is reported.
+fn popup(p: &Value, app_origin: Option<&str>) -> Option<BrowserEvent> {
+    let url = str_of(&p["url"]);
+    let external = match browser_policy::classify(&url, app_origin) {
+        UrlClass::Allowed => false,
+        UrlClass::External => true,
+        UrlClass::Refused => return None,
+    };
+    Some(BrowserEvent::Popup {
+        url,
+        external,
+        user_gesture: p["userGesture"].as_bool().unwrap_or(false),
+    })
+}
+
 /// Translates one child-session CDP event into the events the pane sees. Page events count only
 /// for the session's root frame, not frames nested inside the framed page.
 fn translate(method: &str, p: &Value, binding: &mut Binding) -> Vec<BrowserEvent> {
@@ -884,6 +907,7 @@ mod win {
             "Page.navigatedWithinDocument",
             "Page.frameStartedLoading",
             "Page.frameStoppedLoading",
+            "Page.windowOpen",
             "Runtime.consoleAPICalled",
             "Runtime.exceptionThrown",
             "Network.requestWillBeSent",
@@ -1233,6 +1257,8 @@ mod win {
             );
             let events = if matches!(step, Police::Restore { .. }) {
                 Vec::new()
+            } else if method == "Page.windowOpen" {
+                popup(p, ctx.app_origin.as_deref()).into_iter().collect()
             } else {
                 translate(method, p, binding)
             };
@@ -1944,6 +1970,31 @@ mod tests {
             Police::Restore { back: true, .. }
         ));
         assert!(b.pane_traversal.is_some());
+    }
+
+    #[test]
+    fn popups_report_only_addresses_the_pane_can_open() {
+        let open = |url: &str, gesture: bool| {
+            popup(&json!({ "url": url, "userGesture": gesture }), None)
+        };
+        assert_eq!(
+            serde_json::to_value(open("https://example.com/a", true).unwrap()).unwrap(),
+            json!({ "kind": "popup", "url": "https://example.com/a", "external": true, "userGesture": true })
+        );
+        assert_eq!(
+            open("http://localhost:3000/", false),
+            Some(BrowserEvent::Popup {
+                url: "http://localhost:3000/".into(),
+                external: false,
+                user_gesture: false,
+            })
+        );
+        assert_eq!(open("about:blank", true), None);
+        assert_eq!(open("javascript:alert(1)", true), None);
+        assert_eq!(
+            popup(&json!({ "url": "http://localhost:1420/" }), Some("http://localhost:1420")),
+            None
+        );
     }
 
     #[test]

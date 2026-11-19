@@ -414,6 +414,19 @@ export class LocalBrowserPane implements PaneView {
         if (ev.external) this.opts.onOpenExternal(ev.url);
         this.showNotice(blockedNotice(ev.url, ev.external, this.appOrigin, ev.downloaded));
         return;
+      case 'popup': {
+        const target = ev.url;
+        // A clicked link to another site opens the way a same-tab one does; a script's own
+        // window.open, or any popup from a file page, waits for a click on the notice.
+        if (ev.external && ev.userGesture && !this.file) {
+          this.opts.onOpenExternal(target);
+          this.showNotice(blockedNotice(target, true, this.appOrigin));
+          return;
+        }
+        const open = ev.external ? () => this.opts.onOpenExternal(target) : () => this.navigate(target);
+        this.showActionNotice(`This page tried to open ${hostOnly(target)} in a new window`, ev.external ? 'Open' : 'Open here', open);
+        return;
+      }
       case 'fileChanged':
         if (!this.file) return;
         // Served again rather than only reloaded: a save can add or drop Mark of the Web, which

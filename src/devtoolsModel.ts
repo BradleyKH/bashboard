@@ -6,6 +6,7 @@ export type BrowserEvent =
   | { kind: 'navigatedInPage'; url: string }
   | { kind: 'title'; title: string }
   | { kind: 'blocked'; url: string; external: boolean; downloaded?: boolean }
+  | { kind: 'popup'; url: string; external: boolean; userGesture: boolean }
   | { kind: 'console'; level: string; text: string; source?: string; url?: string; line?: number; timestamp: number }
   | { kind: 'exception'; text: string; url?: string; line?: number; timestamp: number }
   | {
