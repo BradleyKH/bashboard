@@ -5,6 +5,7 @@ import { setHintedTitle } from './keyHints';
 import { kindMenu, kindMenuItems } from './kindMenu';
 import { paneKindInfo, type PaneKind } from './paneKinds';
 import type { TerminalStatus } from './terminalStatus';
+import { setGlyphIcon } from './glyphIcon';
 
 export interface TitleStripHooks {
   onCollapse(): void;
@@ -165,7 +166,7 @@ export class TitleStrip {
   setKind(kind: PaneKind): void {
     this.kind = kind;
     const info = paneKindInfo(kind);
-    this.kindButton.textContent = info.icon;
+    setGlyphIcon(this.kindButton, info.icon);
     this.kindButton.title = `${info.label}, change pane kind`;
   }
 

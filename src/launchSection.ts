@@ -1,6 +1,7 @@
 import './launchSection.css';
 import { setHintedTitle } from './keyHints';
 import { launchOptions, type LaunchKind } from './launchModel';
+import { setGlyphIcon } from './glyphIcon';
 
 export interface LaunchSectionCallbacks {
   onLaunch(kind: LaunchKind): void;
@@ -43,7 +44,7 @@ export class LaunchSection {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'launch-button';
-        b.textContent = o.icon;
+        setGlyphIcon(b, o.icon);
         b.setAttribute('aria-label', o.label);
         if (o.action) setHintedTitle(b, o.title, o.action);
         else b.title = o.title;

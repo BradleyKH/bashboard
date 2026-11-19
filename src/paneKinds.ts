@@ -11,6 +11,13 @@ export interface PaneKindInfo {
   hasFolder: boolean;
 }
 
+/**
+ * The Ship kind's icon. Shown as an SVG rocket by `setGlyphIcon` (`glyphIcon.ts`), since the
+ * only rocket glyph on Linux and macOS is a color emoji; U+FE0E keeps it text where it is
+ * printed as text.
+ */
+export const SHIP_ICON = '\u{1F680}\u{FE0E}';
+
 /** In kind menu order: Terminal, then the rest alphabetical by label. */
 export const PANE_KINDS: readonly PaneKindInfo[] = [
   { kind: 'terminal', label: 'Terminal', icon: '❯', hasFolder: true },
@@ -22,8 +29,7 @@ export const PANE_KINDS: readonly PaneKindInfo[] = [
   { kind: 'ports', label: 'Ports', icon: '⇄', hasFolder: false },
   { kind: 'scratch', label: 'Scratch', icon: '▤', hasFolder: false },
   { kind: 'search', label: 'Search', icon: '⌕', hasFolder: true },
-  // U+FE0E asks for the text glyph; without it WebView2 draws the color emoji rocket.
-  { kind: 'ship', label: 'Ship', icon: '\u{1F680}︎', hasFolder: true },
+  { kind: 'ship', label: 'Ship', icon: SHIP_ICON, hasFolder: true },
 ];
 
 export function paneKindInfo(kind: PaneKind): PaneKindInfo {

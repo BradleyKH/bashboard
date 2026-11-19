@@ -13,6 +13,7 @@ import {
   type ClusterDepth,
   type BackgroundTab,
 } from './backgroundTabsModel';
+import { setGlyphIcon } from './glyphIcon';
 
 export interface BackgroundTabInput extends BackgroundTab {
   depth: ClusterDepth;
@@ -235,7 +236,7 @@ export class BackgroundTabsLayer {
   private fillCard(el: HTMLElement, paneId: string): void {
     const { icon, title } = this.ctx.card(paneId);
     const [iconEl, titleEl] = el.children;
-    if (iconEl.textContent !== icon) iconEl.textContent = icon;
+    setGlyphIcon(iconEl, icon);
     if (titleEl.textContent !== title) titleEl.textContent = title;
   }
 

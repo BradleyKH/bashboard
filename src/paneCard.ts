@@ -9,6 +9,7 @@ import { paneKindInfo } from './paneKinds';
 import { profileBadge } from './profiles';
 import { runChip } from './paneRunModel';
 import { loadBand } from './systemModel';
+import { setGlyphIcon } from './glyphIcon';
 
 export interface PaneCardOptions {
   now: number;
@@ -147,7 +148,7 @@ export function renderPaneCard(card: PaneCard, opts: PaneCardOptions): HTMLEleme
     const info = paneKindInfo(card.kind);
     lead = document.createElement('span');
     lead.className = 'kind-icon';
-    lead.textContent = info.icon;
+    setGlyphIcon(lead, info.icon);
     lead.title = info.label;
   }
 

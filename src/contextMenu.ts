@@ -13,6 +13,7 @@ import {
   type Size,
   tidySeparators,
 } from './contextMenuModel';
+import { setGlyphIcon } from './glyphIcon';
 
 /** Where a menu opens: at a pointer, or below an element with its left or right edge aligned. */
 export type ContextMenuAt = { x: number; y: number } | { anchorEl: HTMLElement; align?: 'left' | 'right' };
@@ -247,7 +248,7 @@ function renderList(entries: MenuEntry[], className: string): MenuList {
 
     const icon = document.createElement('span');
     icon.className = 'context-menu-icon';
-    icon.textContent = entry.kind === 'item' ? (entry.icon ?? '') : '';
+    setGlyphIcon(icon, entry.kind === 'item' ? (entry.icon ?? '') : '');
     const label = document.createElement('span');
     label.className = 'context-menu-label';
     label.textContent = entry.label;

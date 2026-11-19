@@ -2478,3 +2478,10 @@ h2.collapsible-head::before {
     animation: none;
   }
 }
+
+/* An SVG standing in for a text glyph (glyphIcon.ts): one em square, on the text's baseline. */
+.glyph-icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+}
