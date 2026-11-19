@@ -7,10 +7,15 @@
 //! window managers honor as the user's own request, as when a taskbar entry is clicked.
 //!
 //! Wayland has no such request: a client raises itself only with an xdg-activation token, and
-//! Dolphin's service menu passes none on Plasma 5.27 Wayland either. KWin's scripting interface on
+//! Dolphin's service menu passes none on Plasma 5.27 or 6 Wayland either. KWin's scripting interface on
 //! the session bus is the way left: a one-line script that makes the window active runs inside the
 //! compositor, which focus-stealing prevention does not apply to (kdotool works the same way).
 //! Other Wayland compositors (Mutter) offer nothing comparable, so there the tab opens behind.
+//!
+//! KWin's scripting API changes between Plasma releases, so the script and the D-Bus calls probe
+//! for what exists rather than check a version, and the outcome is checked afterward: KWin
+//! accepts a script that then fails inside the compositor, so only the window's focus shows
+//! whether the raise worked. A failure is logged, never fatal; the tab still opens.
 
 use gtk::glib::Cast;
 use gtk::prelude::WidgetExt;
@@ -29,12 +34,23 @@ pub fn activate(window: &tauri::WebviewWindow) {
     let result = match gdk_window.downcast::<gdkx11::X11Window>() {
         Ok(x11_window) => send_active_window(x11_window.xid() as u32),
         Err(_) => {
+            let window = window.clone();
             let spawned = std::thread::Builder::new()
                 .name("kwin-raise".into())
-                .spawn(|| {
+                .spawn(move || {
                     if let Err(err) = kwin_activate(std::process::id()) {
                         let stamp = crate::app_log::stamp();
                         eprintln!("{stamp} could not ask KWin to raise the window: {err}");
+                        return;
+                    }
+                    // KWin runs the script asynchronously; give it a moment to take effect.
+                    std::thread::sleep(std::time::Duration::from_millis(750));
+                    if let Ok(false) = window.is_focused() {
+                        let stamp = crate::app_log::stamp();
+                        eprintln!(
+                            "{stamp} KWin ran the raise script but the window is not active; \
+                             see `journalctl --user | grep bashboard-raise` for the script's report"
+                        );
                     }
                 });
             spawned.map(drop).map_err(Into::into)
@@ -51,15 +67,23 @@ const SCRIPT_NAME: &str = "bashboard-raise";
 
 /// A KWin script that activates the normal windows of process `pid`. Plasma 6 names the list
 /// and the active window `windowList` and `activeWindow`, Plasma 5 `clientList` and
-/// `activeClient`.
+/// `activeClient`. It prints to KWin's log (the user journal) when it finds neither API or no
+/// window, so a later Plasma that renames them again shows up there.
 fn kwin_script(pid: u32) -> String {
-    const SCRIPT: &str = r#"const list = workspace.windowList
+    const SCRIPT: &str = r#"const list = typeof workspace.windowList === "function"
   ? workspace.windowList()
-  : workspace.clientList();
-for (const w of list) {
-  if (w.pid === PID && w.normalWindow) {
-    if ("activeWindow" in workspace) workspace.activeWindow = w; else workspace.activeClient = w;
+  : typeof workspace.clientList === "function" ? workspace.clientList() : null;
+if (list === null) {
+  print("bashboard-raise: KWin has neither windowList nor clientList");
+} else {
+  let found = false;
+  for (const w of list) {
+    if (w.pid === PID && w.normalWindow) {
+      found = true;
+      if ("activeWindow" in workspace) workspace.activeWindow = w; else workspace.activeClient = w;
+    }
   }
+  if (!found) print("bashboard-raise: no normal window of process PID");
 }
 "#;
     SCRIPT.replace("PID", &pid.to_string())
@@ -94,13 +118,24 @@ fn kwin_activate(pid: u32) -> Result<(), Box<dyn std::error::Error>> {
             if id < 0 {
                 return Err("KWin did not load the script".into());
             }
-            let object = format!("/{id}");
-            conn.call_method(Some(KWIN), object.as_str(), Some("org.kde.kwin.Script"), "run", &())?;
-            Ok(())
+            let mut last = None;
+            for object in script_objects(id) {
+                match conn.call_method(Some(KWIN), object.as_str(), Some("org.kde.kwin.Script"), "run", &()) {
+                    Ok(_) => return Ok(()),
+                    Err(err) => last = Some(err),
+                }
+            }
+            Err(last.map_or_else(|| "no script object".into(), Into::into))
         });
     let _ = unload();
     let _ = std::fs::remove_file(&file);
     ran
+}
+
+/// Where KWin puts a loaded script on the bus, newest layout first: Plasma 6 at
+/// `/Scripting/Script<id>`, Plasma 5 at `/<id>`.
+fn script_objects(id: i32) -> [String; 2] {
+    [format!("/Scripting/Script{id}"), format!("/{id}")]
 }
 
 fn send_active_window(xid: u32) -> Result<(), Box<dyn std::error::Error>> {
@@ -123,7 +158,13 @@ mod tests {
     fn the_kwin_script_names_the_process() {
         let script = super::kwin_script(4242);
         assert!(script.contains("w.pid === 4242 && w.normalWindow"));
+        assert!(script.contains("no normal window of process 4242"));
         assert!(!script.contains("PID"));
+    }
+
+    #[test]
+    fn script_objects_try_plasma_6_then_plasma_5() {
+        assert_eq!(super::script_objects(3), ["/Scripting/Script3", "/3"]);
     }
 
     /// Needs a KWin session, so it runs by hand: with another window active,

@@ -657,6 +657,19 @@ fn scaled_jpeg(bytes: &[u8]) -> Result<Vec<u8>, String> {
             .ok_or("could not scale the image")?,
         None => pixbuf,
     };
+    // JPEG has no alpha. Older gdk-pixbuf dropped it when saving; the glycin-backed one (Ubuntu
+    // 26.04) refuses an RGBA image, so flatten onto black first, which matches the old result
+    // for opaque art.
+    let pixbuf = if pixbuf.has_alpha() {
+        let (w, h) = (pixbuf.width(), pixbuf.height());
+        let opaque = gdk_pixbuf::Pixbuf::new(gdk_pixbuf::Colorspace::Rgb, false, 8, w, h)
+            .ok_or("could not allocate the image")?;
+        opaque.fill(0x0000_00ff);
+        pixbuf.composite(&opaque, 0, 0, w, h, 0.0, 0.0, 1.0, 1.0, gdk_pixbuf::InterpType::Nearest, 255);
+        opaque
+    } else {
+        pixbuf
+    };
     pixbuf
         .save_to_bufferv("jpeg", &[("quality", "90")])
         .map_err(|e| e.to_string())

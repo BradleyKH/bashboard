@@ -173,6 +173,9 @@ export function chordFromEvent(e: KeyboardEvent): Chord {
   else if (/^Key[A-Z]$/.test(code)) key = code.slice(3).toLowerCase();
   else if (MODIFIER_KEYS.has(e.key)) key = '';
   else if (EVENT_KEY_NAMES[e.key]) key = EVENT_KEY_NAMES[e.key];
+  // WebKitGTK on Wayland reports Shift+Tab (the ISO_Left_Tab keysym) as "Unidentified"; the
+  // physical key in `code` still names it, so a named key falls back to that.
+  else if (e.key === 'Unidentified' && EVENT_KEY_NAMES[code]) key = EVENT_KEY_NAMES[code];
   else if (/^F([1-9]|1[0-9]|2[0-4])$/.test(e.key)) key = e.key.toLowerCase();
   else key = e.key.length === 1 ? e.key.toLowerCase() : '';
   return { ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, meta: e.metaKey, key };

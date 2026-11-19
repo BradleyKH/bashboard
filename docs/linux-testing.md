@@ -5,6 +5,11 @@ desktop, since the parts that differ between distros (the keyring, notifications
 driver, scaling) are the ones a container can't show. This page lists what to check and what to
 send back.
 
+Run these again on each new major release of a desktop (a new Plasma or GNOME), not only on new
+Bashboard builds: notifications [16], window raise [32], keys [34], and the clipboard [37, 38]
+lean on desktop interfaces that change between releases. Plasma 6 moved where KWin puts a loaded
+script on the bus, for one, which broke the window raise until it was found this way.
+
 ## Report header
 
 Fill this in first, and put it at the top of what you send back.
@@ -23,9 +28,9 @@ Until releases carry Linux builds, take them from CI: open the latest run of the
 `linux` job builds it on Ubuntu 22.04, so the packages run on anything with that glibc or newer.
 It holds three files:
 
-- `Bashboard_<version>_amd64.AppImage`
-- `Bashboard_<version>_amd64.deb`
-- `Bashboard-<version>-1.x86_64.rpm`
+- `bashboard_<version>_amd64.AppImage`
+- `bashboard_<version>_amd64.deb`
+- `bashboard-<version>-1.x86_64.rpm`
 
 ## Install
 
@@ -36,8 +41,8 @@ Use the format that suits the distro, and say which one you used.
 1. Make it executable and run it:
 
    ```sh
-   chmod +x Bashboard_*_amd64.AppImage
-   ./Bashboard_*_amd64.AppImage
+   chmod +x bashboard_*_amd64.AppImage
+   ./bashboard_*_amd64.AppImage
    ```
 
 2. It needs no `libfuse2`. If the AppImage fails to start on a distro without it, that is a
@@ -49,13 +54,13 @@ Use the format that suits the distro, and say which one you used.
 **.deb** (Ubuntu, Kubuntu, Debian, Kali)
 
 ```sh
-sudo apt install ./Bashboard_*_amd64.deb
+sudo apt install ./bashboard_*_amd64.deb
 ```
 
 **.rpm** (Fedora, RHEL 10)
 
 ```sh
-sudo dnf install ./Bashboard-*.x86_64.rpm
+sudo dnf install ./bashboard-*.x86_64.rpm
 ```
 
 On RHEL 10, run `sudo dnf install epel-release` first; the WebKitGTK package Bashboard depends on
@@ -196,7 +201,10 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 31. Bashboard is in the applications menu with its icon, under Development or System.
 32. In Dolphin (KDE) or Nemo (Cinnamon), right-click a folder: **Open in Bashboard** opens it
-    (a new window, or a new tab when Bashboard is already running). Then check that Bashboard
+    (a new window, or a new tab when Bashboard is already running). With Bashboard running behind
+    the file manager, its window comes to the front; on KDE Wayland that goes through a KWin
+    script, so if it stays behind, include the output of `journalctl --user | grep
+    bashboard-raise`. Then check that Bashboard
     did not become the folder handler: `gio mime inode/directory` and `xdg-mime query default
     inode/directory` still name the file manager, and a browser's Show in folder opens the file
     manager, not Bashboard.

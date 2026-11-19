@@ -359,7 +359,7 @@ a KDE service menu (`/usr/share/kio/servicemenus/bashboard.desktop`, from
 `src-tauri/linux/kio-servicemenu.desktop`) puts "Open in Bashboard" in Dolphin's menu on a
 folder, and a Nemo action (`/usr/share/nemo/actions/bashboard.nemo_action`) does it in Cinnamon's
 Nemo; both run `bashboard %F`. Such a launch carries no startup token (Dolphin sets neither
-`DESKTOP_STARTUP_ID` nor `XDG_ACTIVATION_TOKEN`, on X11 or on Plasma 5.27 Wayland), so the running instance's own raise would be
+`DESKTOP_STARTUP_ID` nor `XDG_ACTIVATION_TOKEN`, on X11 or on Plasma 5.27 or 6 Wayland), so the running instance's own raise would be
 refused by focus-stealing prevention and the new tab would open behind the file manager. On X11
 `src-tauri/src/window_raise.rs` therefore also sends the root window `_NET_ACTIVE_WINDOW` with a
 pager's source indication, which window managers honor as the user's request, as a taskbar click
@@ -369,7 +369,12 @@ interface on the session bus: it writes a script that makes its own process's no
 active to `$XDG_RUNTIME_DIR`, loads it with `/Scripting` `loadScript`, runs it, and unloads it.
 The script runs inside the compositor, which focus-stealing prevention does not apply to, and it
 uses Plasma 6's `windowList` and `activeWindow` where they exist and Plasma 5's `clientList` and
-`activeClient` otherwise. Other Wayland compositors (Mutter) offer nothing comparable, so there
+`activeClient` otherwise. The script object to run sits at `/Scripting/Script<id>` on Plasma 6
+and at `/<id>` on Plasma 5; both are tried, newest first. Every step probes for what exists
+rather than checking a Plasma version, and since KWin accepts a script that then fails inside the
+compositor, the app checks its window's focus afterward and logs when the raise did not take,
+while the script prints why (no window API, or no window of the process) to the user journal
+under `bashboard-raise`. A failure only leaves the tab behind. Other Wayland compositors (Mutter) offer nothing comparable, so there
 the new tab opens behind the file manager. The application's own desktop file declares no
 `MimeType`: listing
 `inode/directory` there would make Bashboard a candidate default for opening folders, and where no
@@ -470,6 +475,12 @@ The install writes the desktop file with the keys of the package's template, exc
 and `TryExec` name the AppImage: `Exec="<path>" %F` (quoted per the Desktop Entry Specification
 when the path has spaces or other reserved characters, with `%` doubled), `Icon=bashboard`,
 no `MimeType` (3.18 says why), the same `Categories` and `Keywords`, and `StartupWMClass=bashboard`.
+Every Linux entry, the packages' included, is named `bashboard.desktop`: a Wayland compositor
+finds a window's icon by looking up a desktop file named after its app id (`bashboard`), case
+sensitively, so the packages' `Bashboard.desktop` showed the generic icon in KWin 6's title bar.
+The packager names the file after the product name, so `tauri.linux.conf.json` sets
+`productName` to `bashboard` (which also lowercases the package file names), and the template
+spells `Name=Bashboard` itself rather than taking the product name.
 Beside it go the two file manager actions of 3.18, each running the AppImage: the KDE service
 menu at `$XDG_DATA_HOME/kio/servicemenus/bashboard.desktop`, made executable since KDE runs a
 service menu from the user's folder only then, and the Nemo action at

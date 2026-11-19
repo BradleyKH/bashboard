@@ -45,6 +45,13 @@ describe('parseChord', () => {
 });
 
 describe('chordFromEvent', () => {
+  it('reads an unidentified Shift+Tab from its code, as WebKitGTK on Wayland sends it', () => {
+    const c = chordFromEvent(ev({ key: 'Unidentified', code: 'Tab', ctrlKey: true, shiftKey: true }));
+    expect(chordId(c)).toBe('cs:tab');
+    expect(chordFromEvent(ev({ key: 'Unidentified', code: 'KeyQ' })).key).toBe('q');
+    expect(chordFromEvent(ev({ key: 'Unidentified', code: 'IntlRo' })).key).toBe('');
+  });
+
   it('takes letters from key, ignoring shift', () => {
     const c = chordFromEvent(ev({ key: 'D', code: 'KeyD', altKey: true, shiftKey: true }));
     expect(c).toEqual({ ctrl: false, alt: true, shift: true, meta: false, key: 'd' });
