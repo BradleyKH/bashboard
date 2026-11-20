@@ -8,8 +8,8 @@ permissions:
   contents: write
 
 # The windows job builds the installer into a draft release with latest.json; the linux job builds
-# the .deb beside it; publish attaches the .deb, adds it to latest.json, and only then publishes,
-# so a release missing either build never becomes the one the updater reads.
+# the .deb and the Arch package beside it; publish attaches both, adds the .deb to latest.json, and
+# only then publishes, so a release missing either build never becomes the one the updater reads.
 jobs:
   windows:
     runs-on: windows-latest
@@ -91,8 +91,10 @@ jobs:
           standard="$standard
 
           Linux support is early. The .deb (Ubuntu 22.04 or newer, Debian 12 or newer) is tested on KDE
-          Plasma under X11 and Wayland; other desktops are not yet. Install it with
-          \`sudo apt install ./bashboard_${GITHUB_REF_NAME#v}_amd64.deb\`."
+          Plasma under X11 and Wayland; the Arch package is new, and GNOME is partly tested. Install
+          the .deb with \`sudo apt install ./bashboard_${GITHUB_REF_NAME#v}_amd64.deb\`, or the Arch
+          package with \`sudo pacman -U bashboard-${GITHUB_REF_NAME#v}-1-x86_64.pkg.tar.zst\`, which updates
+          through pacman rather than itself."
           delim="NOTES_$(date +%s%N)"
           {
             echo "body<<$delim"
@@ -179,7 +181,8 @@ jobs:
           if ($failed) { exit 1 }
 
   # Ubuntu 22.04 sets the glibc floor, as in CI. The relayout and assert scripts expect all three
-  # package formats, so all three are built, though only the .deb is released.
+  # package formats, so all three are built, though only the .deb and the Arch package (made from
+  # the .rpm) are released.
   linux:
     runs-on: ubuntu-22.04
     steps:
@@ -228,8 +231,13 @@ jobs:
       - name: Move bb off the system PATH
         run: bash scripts/linux/relayout-packages.sh
 
+      # Repackages the relaid-out .rpm in an archlinux:base-devel container, which also installs
+      # it with pacman and lints it with namcap.
+      - name: Build the Arch package
+        run: bash scripts/linux/build-arch-package.sh
+
       - name: Assert the packages ship bb
-        run: bash scripts/linux/assert-bundle.sh
+        run: bash scripts/linux/assert-bundle.sh --arch
 
       # The relayout rebuilds the .deb, so a signature the bundler made would no longer match;
       # the updater signature is made here, over the final file.
@@ -250,6 +258,12 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb.sig
           if-no-files-found: error
 
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bashboard-arch
+          path: src-tauri/target/release/bundle/arch/*.pkg.tar.zst
+          if-no-files-found: error
+
   publish:
     needs: [windows, linux]
     runs-on: ubuntu-latest
@@ -261,6 +275,16 @@ jobs:
         with:
           name: bashboard-deb
           path: deb
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: bashboard-arch
+          path: arch
+
+      # The Arch package gets no latest.json entry: its binary is the .rpm's, which looks up
+      # linux-x86_64-rpm, finds none, and says to update through the package manager.
+      - name: Attach the Arch package
+        run: gh release upload "$GITHUB_REF_NAME" "$(find arch -maxdepth 1 -name '*.pkg.tar.zst' | head -n 1)" --clobber
 
       # linux-x86_64-deb is the updater's first lookup on a .deb install; an AppImage or .rpm
       # install looks up its own key, finds none, and the app points it at the release page.

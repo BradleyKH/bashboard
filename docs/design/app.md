@@ -19,8 +19,12 @@ reads `/proc/self/exe`, which names the symlink's target, so the pane `PATH` gai
 so `scripts/linux/relayout-packages.sh` rewrites the `.deb` and `.rpm` it builds into that
 layout, each from its own payload: the bundler patches the binary with the package type the
 updater reads, so the two binaries differ. The `.rpm` keeps the bundler's soname requirements
-(`libwebkit2gtk-4.1.so.0`, `libgtk-3.so.0`). The AppImage keeps both in its own `usr/bin`,
-which is on no `PATH` outside it.
+(`libwebkit2gtk-4.1.so.0`, `libgtk-3.so.0`). The Arch package
+(`scripts/linux/build-arch-package.sh`, from `scripts/linux/arch/PKGBUILD`) repackages the
+relaid-out `.rpm`'s payload, so it has the same layout and the `.rpm`'s binary (3.16 says why
+that binary), adds the MIT license under `/usr/share/licenses`, and declares the Arch names of the
+libraries the binary links. The AppImage keeps both in its own `usr/bin`, which is on no `PATH`
+outside it.
 
 | Command | Does |
 | --- | --- |
@@ -284,7 +288,9 @@ shows its progress without prompts.
 install it downloads the package and runs `dpkg -i` through `pkexec`, then a zenity or kdialog
 password prompt, then a terminal `sudo`. An AppImage, `.rpm`, or macOS build finds no entry, and
 there is deliberately no bare `linux-x86_64` entry: the plugin would hand the `.deb` to an
-AppImage or `.rpm` install, which cannot install it.
+AppImage or `.rpm` install, which cannot install it. The Arch package carries the `.rpm`'s
+binary for the same reason: a `.deb` binary would find the `.deb` entry and try to install it on
+Arch, where the `rpm` one finds nothing and points to the package manager.
 
 `src/updater.ts` exports `checkForUpdate({ manual, confirm })`. It runs once at launch after the
 workspace is up, quietly, and again from the app dialog's About tab (4.18) or the
@@ -339,12 +345,14 @@ broken build never becomes the release the updater reads.
 
 A `linux` job runs alongside on Ubuntu 22.04, the glibc floor every Linux package targets. It
 runs the Rust tests, builds the `.deb`, `.rpm`, and AppImage (the relayout and assert scripts,
-3.13, take all three), and signs the relaid-out `.deb` with `tauri signer sign --app-version`.
+3.13, take all three), builds the Arch package from the `.rpm` in an `archlinux:base-devel`
+container that also installs it with pacman and lints it with namcap, and signs the relaid-out `.deb` with `tauri signer sign --app-version`.
 The signature has to be made after `relayout-packages.sh` rebuilds the package, so the bundler's
-own updater artifacts stay off on Linux. A `publish` job that needs both attaches the `.deb` to
-the draft, adds its `linux-x86_64-deb` entry to `latest.json`, checks the result still lists
+own updater artifacts stay off on Linux. A `publish` job that needs both attaches the `.deb` and
+the Arch package to the draft, adds the `.deb`'s `linux-x86_64-deb` entry to `latest.json`, checks the result still lists
 Windows, and only then publishes. The release body's standard text gains a line saying Linux is
-early, the `.deb` is tested on KDE Plasma, and how to install it with apt.
+early, where the packages are tested, and how to install the `.deb` with apt or the Arch package
+with pacman.
 
 **Installer.** The NSIS installer installs per user, shows the license page, carries the
 Bashboard header and sidebar images (`src-tauri/installer/`), sets the publisher, and offers a
@@ -382,8 +390,8 @@ per-user verbs under `HKCU\Software\Classes` for `Directory\Background`, `Direct
 these verbs sit in the classic menu ("Show more options"), since the top-level menu takes only
 shell extensions registered by a signed package.
 
-Linux has no shared context menu, so the `.deb` and `.rpm` add the same action per file manager:
-a KDE service menu (`/usr/share/kio/servicemenus/bashboard.desktop`, from
+Linux has no shared context menu, so the `.deb`, `.rpm`, and Arch package add the same action
+per file manager: a KDE service menu (`/usr/share/kio/servicemenus/bashboard.desktop`, from
 `src-tauri/linux/kio-servicemenu.desktop`) puts "Open in Bashboard" in Dolphin's menu on a
 folder, and a Nemo action (`/usr/share/nemo/actions/bashboard.nemo_action`) does it in Cinnamon's
 Nemo; both run `bashboard %F`. Such a launch carries no startup token (Dolphin sets neither

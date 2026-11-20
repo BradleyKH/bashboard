@@ -143,9 +143,10 @@ matches `package.json`, runs the checks, builds a draft GitHub release named
 "Bashboard v<version> (beta)" holding the installer, its `.sig` signature, and `latest.json`
 (the file installed apps read to find updates), and checks that the installer ships `bb.exe`.
 Its Linux job, on Ubuntu 22.04 alongside it, runs the Rust tests, builds the Linux packages,
-moves `bb` off the system `PATH`, checks the packages, and signs the `.deb` for the updater.
-Once both pass, a last job attaches the `.deb` to the draft, adds it to `latest.json`, and
-publishes the release. If either build fails, the release stays a draft. Only the `.deb` is
+moves `bb` off the system `PATH`, builds the Arch package from the `.rpm` in an Arch container,
+checks the packages, and signs the `.deb` for the updater. Once both pass, a last job attaches
+the `.deb` and the Arch package to the draft, adds the `.deb` to `latest.json`, and publishes the
+release. If either build fails, the release stays a draft. The `.deb` and the Arch package are
 released; the AppImage and `.rpm` come from CI for testing. The workflow needs two repository secrets,
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, holding the updater
 signing key, which both the Windows and Linux jobs use. Local builds and CI runs need no key;

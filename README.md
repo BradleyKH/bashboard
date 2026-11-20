@@ -92,7 +92,8 @@ from **Settings > Apps > Installed apps**.
 ### Linux
 
 Linux support is early. The `.deb` is tested on Kubuntu with KDE Plasma, under X11 and Wayland;
-GNOME and other desktops are not tested yet, and the Local Browser pane is Windows only. Download
+GNOME is partly tested (on CachyOS), other desktops are not yet, and the Local Browser pane is
+Windows only. Download
 `bashboard_<version>_amd64.deb` from the
 [latest release](https://github.com/BradleyKH/bashboard/releases/latest) and install it on
 Ubuntu 22.04 or newer, Debian 12 or newer, or a distro based on them:
@@ -106,6 +107,16 @@ Dolphin's and Nemo's right-click menus. Bashboard checks for new releases at lau
 the package itself, asking for your password to install it. Panes open in your login shell (bash,
 zsh, or fish), and the setup wizard offers the same shell lines and agent hooks as on Windows.
 Uninstall with `sudo apt remove bashboard`.
+
+On Arch, CachyOS, Manjaro, or EndeavourOS, download `bashboard-<version>-1-x86_64.pkg.tar.zst`
+from the same release and install it with pacman:
+
+```sh
+sudo pacman -U bashboard-*-x86_64.pkg.tar.zst
+```
+
+It has the same layout and file manager actions as the `.deb`, but does not update itself: install
+the next release's package the same way. Uninstall with `sudo pacman -R bashboard`.
 
 An AppImage and an `.rpm` are built for testing but not released yet, and neither updates itself;
 [Testing a Linux build](docs/linux-testing.md) says where to get them.
@@ -130,7 +141,7 @@ To build from source on any of them, see [Development](docs/development.md).
 - [Testing a macOS preview build](docs/macos-testing.md): installing an early macOS build and
   what to check.
 - [Testing a Linux build](docs/linux-testing.md): installing a Linux package (the released
-  `.deb`, or the AppImage and `.rpm` from CI) and what to check on a real machine.
+  `.deb` and Arch package, or the AppImage and `.rpm` from CI) and what to check on a real machine.
 - [Design](docs/design/README.md): the spec, for anyone changing Bashboard itself.
 
 ## License

@@ -23,11 +23,11 @@ Fill this in first, and put it at the top of what you send back.
 
 ## Builds
 
-Each release carries the `.deb`, beside the Windows installer, on the
-[latest release](https://github.com/BradleyKH/bashboard/releases/latest). The AppImage, `.rpm`, and
-Arch package come from CI only: open the latest run of the CI workflow on `main` on GitHub, and download the
-`bashboard-linux` artifact from the run's Artifacts list. That artifact also holds a `.deb` of
-the unreleased code. Both workflows build on Ubuntu 22.04, so the packages run on anything with
+Each release carries the `.deb` and the Arch package, beside the Windows installer, on the
+[latest release](https://github.com/BradleyKH/bashboard/releases/latest). The AppImage and `.rpm`
+come from CI only: open the latest run of the CI workflow on `main` on GitHub, and download the
+`bashboard-linux` artifact from the run's Artifacts list. That artifact also holds a `.deb` and an
+Arch package of the unreleased code. Both workflows build on Ubuntu 22.04, so the packages run on anything with
 that glibc or newer. The artifact holds four files:
 
 - `bashboard_<version>_amd64.AppImage`
