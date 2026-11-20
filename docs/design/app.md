@@ -348,11 +348,13 @@ runs the Rust tests, builds the `.deb`, `.rpm`, and AppImage (the relayout and a
 3.13, take all three), builds the Arch package from the `.rpm` in an `archlinux:base-devel`
 container that also installs it with pacman and lints it with namcap, and signs the relaid-out `.deb` with `tauri signer sign --app-version`.
 The signature has to be made after `relayout-packages.sh` rebuilds the package, so the bundler's
-own updater artifacts stay off on Linux. A `publish` job that needs both attaches the `.deb` and
-the Arch package to the draft, adds the `.deb`'s `linux-x86_64-deb` entry to `latest.json`, checks the result still lists
-Windows, and only then publishes. The release body's standard text gains a line saying Linux is
-early, where the packages are tested, and how to install the `.deb` with apt or the Arch package
-with pacman.
+own updater artifacts stay off on Linux. A `publish` job that needs both attaches the `.deb`,
+`.rpm`, AppImage, and Arch package to the draft, adds the `.deb`'s `linux-x86_64-deb` entry to
+`latest.json`, checks the result still lists Windows, and only then publishes. The other three get
+no entry; an `rpm` one would also reach the Arch package, which carries the `.rpm`'s binary. The
+release body's standard text gains a line saying Linux is early, where the packages are tested,
+how to install the `.deb` with apt, the Arch package with pacman, or the `.rpm` with dnf, and
+that only the `.deb` updates itself.
 
 **Installer.** The NSIS installer installs per user, shows the license page, carries the
 Bashboard header and sidebar images (`src-tauri/installer/`), sets the publisher, and offers a

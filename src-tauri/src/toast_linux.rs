@@ -3,11 +3,15 @@
 //! Windows toast: clicking one brings the window forward and emits `toast://activated` with the
 //! pane id. The daemon sends an activation token before the click, and the window comes forward
 //! with it, since KWin and Mutter refuse a raise without one (focus-stealing prevention).
+//!
+//! The notification is posted on the same connection that listens for the click: GNOME's daemon
+//! (a gjs proxy in front of the shell) sends `ActivationToken` and `ActionInvoked` only to the
+//! connection that called `Notify`, where Plasma's broadcasts them.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::JoinHandle;
 
-use notify_rust::Notification;
 use tauri::{AppHandle, Emitter, Manager};
 use zbus::blocking::{Connection, MessageIterator};
 use zbus::message::Type as MessageType;
@@ -90,6 +94,21 @@ fn subscribe() -> zbus::Result<(Connection, MessageIterator)> {
     Ok((conn, signals))
 }
 
+/// Posts the notification on `conn` and returns its id. "bashboard" is the icon name the packages
+/// install under hicolor; a build with no installed icon (AppImage, dev) falls back to the
+/// daemon's generic one. The "default" action is the one daemons trigger on a click of the body.
+fn notify(conn: &Connection, title: &str, body: &str) -> zbus::Result<u32> {
+    let hints: HashMap<&str, zbus::zvariant::Value> = HashMap::new();
+    let reply = conn.call_method(
+        Some("org.freedesktop.Notifications"),
+        "/org/freedesktop/Notifications",
+        Some("org.freedesktop.Notifications"),
+        "Notify",
+        &("Bashboard", 0u32, "bashboard", title, body, vec!["default", "Open"], hints, -1i32),
+    )?;
+    reply.body().deserialize::<u32>()
+}
+
 /// Sends a notification and returns at once; the send and the wait for a click both happen on a
 /// background thread, which `on_default` runs on, with the daemon's activation token, when the
 /// user clicks the notification body. No session bus or no notification daemon is logged once and
@@ -99,20 +118,14 @@ pub fn send(
     body: &str,
     on_default: impl FnOnce(Option<String>) + Send + 'static,
 ) -> std::io::Result<JoinHandle<()>> {
-    let mut notification = Notification::new();
-    // "bashboard" is the icon name the .deb installs under hicolor; a build with no installed
-    // icon (AppImage, dev) falls back to the daemon's generic one. The "default" action is the
-    // one daemons trigger on a click of the notification body.
-    notification
-        .appname("Bashboard")
-        .icon("bashboard")
-        .summary(title)
-        .body(body)
-        .action("default", "Open");
+    let (title, body) = (title.to_string(), body.to_string());
     std::thread::Builder::new().name("toast-linux".into()).spawn(move || {
-        let subscribed = subscribe();
-        let handle = match notification.show() {
-            Ok(handle) => handle,
+        let shown = subscribe().and_then(|(conn, signals)| {
+            let id = notify(&conn, &title, &body)?;
+            Ok((conn, signals, id))
+        });
+        let (_conn, signals, id) = match shown {
+            Ok(shown) => shown,
             Err(err) => {
                 if !WARNED_UNAVAILABLE.swap(true, Ordering::Relaxed) {
                     eprintln!("{} notifications not shown: {err}", stamp());
@@ -120,16 +133,9 @@ pub fn send(
                 return;
             }
         };
-        let (_conn, signals) = match subscribed {
-            Ok(s) => s,
-            Err(err) => {
-                eprintln!("{} notification clicks not watched: {err}", stamp());
-                return;
-            }
-        };
         let Some(_slot) = take_slot() else { return };
         let events = signals.filter_map(Result::ok).filter_map(|m| signal(&m));
-        if let Some(token) = click_outcome(handle.id(), events) {
+        if let Some(token) = click_outcome(id, events) {
             on_default(token);
         }
     })

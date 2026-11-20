@@ -118,8 +118,11 @@ sudo pacman -U bashboard-*-x86_64.pkg.tar.zst
 It has the same layout and file manager actions as the `.deb`, but does not update itself: install
 the next release's package the same way. Uninstall with `sudo pacman -R bashboard`.
 
-An AppImage and an `.rpm` are built for testing but not released yet, and neither updates itself;
-[Testing a Linux build](docs/linux-testing.md) says where to get them.
+On Fedora, download `bashboard-<version>-1.x86_64.rpm` and install it with
+`sudo dnf install ./bashboard-*.x86_64.rpm` (on RHEL 10, `sudo dnf install epel-release` first).
+On any other distro, download `bashboard_<version>_amd64.AppImage`, make it executable with
+`chmod +x`, and run it; on first launch it offers to add itself to your applications menu.
+Neither updates itself: install or download the next release's file the same way.
 
 ### macOS
 
@@ -140,8 +143,8 @@ To build from source on any of them, see [Development](docs/development.md).
 - [Development](docs/development.md): building from source, releasing, and debugging input.
 - [Testing a macOS preview build](docs/macos-testing.md): installing an early macOS build and
   what to check.
-- [Testing a Linux build](docs/linux-testing.md): installing a Linux package (the released
-  `.deb` and Arch package, or the AppImage and `.rpm` from CI) and what to check on a real machine.
+- [Testing a Linux build](docs/linux-testing.md): installing a Linux package (from a release,
+  or an unreleased build from CI) and what to check on a real machine.
 - [Design](docs/design/README.md): the spec, for anyone changing Bashboard itself.
 
 ## License

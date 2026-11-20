@@ -563,7 +563,9 @@ existing `printf '\a'` hook):
   registers. On macOS the first notification asks for permission, and a build without an app
   bundle (`pnpm tauri dev`) sends none. On Linux the notification goes over the session bus to
   the desktop's freedesktop notification daemon (GNOME Shell, KDE Plasma, dunst, and the like)
-  through `notify-rust`'s zbus backend, which links no libdbus. It carries the app name
+  through zbus, which links no libdbus. It is posted on the same connection that waits for the
+  click, since GNOME's daemon sends the click and its activation token only to the connection
+  that posted the notification (Plasma broadcasts them). It carries the app name
   "Bashboard", the icon name `bashboard`, and a `default` action, which daemons trigger when the
   notification body is clicked. The send and the wait for the click run on a background thread,
   so the command never blocks; the thread ends when the notification is clicked or the daemon

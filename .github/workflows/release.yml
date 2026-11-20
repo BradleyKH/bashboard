@@ -8,8 +8,9 @@ permissions:
   contents: write
 
 # The windows job builds the installer into a draft release with latest.json; the linux job builds
-# the .deb and the Arch package beside it; publish attaches both, adds the .deb to latest.json, and
-# only then publishes, so a release missing either build never becomes the one the updater reads.
+# the .deb, .rpm, AppImage, and Arch package beside it; publish attaches them, adds the .deb to
+# latest.json, and only then publishes, so a release missing either build never becomes the one
+# the updater reads.
 jobs:
   windows:
     runs-on: windows-latest
@@ -91,10 +92,12 @@ jobs:
           standard="$standard
 
           Linux support is early. The .deb (Ubuntu 22.04 or newer, Debian 12 or newer) is tested on KDE
-          Plasma under X11 and Wayland; the Arch package is new, and GNOME is partly tested. Install
-          the .deb with \`sudo apt install ./bashboard_${GITHUB_REF_NAME#v}_amd64.deb\`, or the Arch
-          package with \`sudo pacman -U bashboard-${GITHUB_REF_NAME#v}-1-x86_64.pkg.tar.zst\`, which updates
-          through pacman rather than itself."
+          Plasma under X11 and Wayland; the Arch package, .rpm (Fedora), and AppImage (any distro) are
+          new, and GNOME is partly tested. Install the .deb with
+          \`sudo apt install ./bashboard_${GITHUB_REF_NAME#v}_amd64.deb\`, the Arch package with
+          \`sudo pacman -U bashboard-${GITHUB_REF_NAME#v}-1-x86_64.pkg.tar.zst\`, or the .rpm with
+          \`sudo dnf install ./bashboard-${GITHUB_REF_NAME#v}-1.x86_64.rpm\`. Only the .deb updates itself;
+          for the others, download the next release's file."
           delim="NOTES_$(date +%s%N)"
           {
             echo "body<<$delim"
@@ -180,9 +183,7 @@ jobs:
           }
           if ($failed) { exit 1 }
 
-  # Ubuntu 22.04 sets the glibc floor, as in CI. The relayout and assert scripts expect all three
-  # package formats, so all three are built, though only the .deb and the Arch package (made from
-  # the .rpm) are released.
+  # Ubuntu 22.04 sets the glibc floor, as in CI.
   linux:
     runs-on: ubuntu-22.04
     steps:
@@ -260,8 +261,11 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: bashboard-arch
-          path: src-tauri/target/release/bundle/arch/*.pkg.tar.zst
+          name: bashboard-other
+          path: |
+            src-tauri/target/release/bundle/arch/*.pkg.tar.zst
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: error
 
   publish:
@@ -278,13 +282,25 @@ jobs:
 
       - uses: actions/download-artifact@v7
         with:
-          name: bashboard-arch
-          path: arch
+          name: bashboard-other
+          path: other
 
-      # The Arch package gets no latest.json entry: its binary is the .rpm's, which looks up
-      # linux-x86_64-rpm, finds none, and says to update through the package manager.
-      - name: Attach the Arch package
-        run: gh release upload "$GITHUB_REF_NAME" "$(find arch -maxdepth 1 -name '*.pkg.tar.zst' | head -n 1)" --clobber
+      # None of these gets a latest.json entry, so each finds none for its package type and the
+      # app points it at the release page. An rpm entry in particular is off limits: the Arch
+      # package carries the .rpm's binary, so Arch installs would try to install the .rpm.
+      # upload-artifact keeps the paths below the common bundle/ folder, hence the search by name.
+      - name: Attach the Arch package, .rpm, and AppImage
+        run: |
+          files=()
+          for pattern in '*.pkg.tar.zst' '*.rpm' '*.AppImage'; do
+            f=$(find other -name "$pattern" | head -n 1)
+            if [ -z "$f" ]; then
+              echo "::error::no $pattern in the bashboard-other artifact"
+              exit 1
+            fi
+            files+=("$f")
+          done
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
 
       # linux-x86_64-deb is the updater's first lookup on a .deb install; an AppImage or .rpm
       # install looks up its own key, finds none, and the app points it at the release page.
