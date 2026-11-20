@@ -42,7 +42,11 @@ export function profileName(id: string, profiles: ShellProfile[] = []): string {
   return Object.prototype.hasOwnProperty.call(PROFILE_NAMES, id) ? PROFILE_NAMES[id] : id;
 }
 
-const PROFILE_ID = /^[A-Za-z]{1,32}$/;
+/**
+ * A fixed id or a shell's file name from `/etc/shells` (`nu`, `fish-4`), lowercase as
+ * `profiles::is_profile_id` requires, so `PWSH` is refused here as the core would refuse it.
+ */
+const PROFILE_ID = /^(?:gitBash|loginShell|[a-z][a-z0-9_-]{0,31})$/;
 
 /** The id when `raw` is a well-formed profile id, else undefined. */
 export function parseProfileId(raw: unknown): string | undefined {

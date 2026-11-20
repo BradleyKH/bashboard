@@ -379,7 +379,7 @@ describe('parseInput', () => {
     expect(parseInput(byPath('shell.defaultProfile'), 'powershell')).toEqual({ ok: true, value: 'powershell' });
     expect(parseInput(byPath('shell.defaultProfile'), 'zsh').ok).toBe(true);
     expect(parseInput(byPath('shell.defaultProfile'), 'fish').ok).toBe(true);
-    expect(parseInput(byPath('shell.defaultProfile'), 'nu').ok).toBe(false);
+    expect(parseInput(byPath('shell.defaultProfile'), 'Nu').ok).toBe(false);
     expect(parseInput(byPath('shell.defaultProfile'), '').ok).toBe(false);
     expect(parseInput(byPath('font.family'), '').ok).toBe(false);
     expect(parseInput(byPath('shell.startingDirectory'), '')).toEqual({ ok: true, value: '' });
@@ -455,6 +455,19 @@ describe('appliesNote', () => {
   });
 });
 
+describe('parseInput for discovered shells and editors', () => {
+  it('accepts a shell file name and a discovered editor id', () => {
+    expect(parseInput(byPath('shell.defaultProfile'), 'nu')).toEqual({ ok: true, value: 'nu' });
+    expect(parseInput(byPath('editor.preferred'), 'desktop:org.gnome.TextEditor')).toEqual({ ok: true, value: 'desktop:org.gnome.TextEditor' });
+    expect(parseInput(byPath('editor.preferred'), 'app:com.apple.TextEdit').ok).toBe(true);
+  });
+
+  it('still refuses malformed values', () => {
+    for (const bad of ['two words', '../x']) expect(parseInput(byPath('shell.defaultProfile'), bad).ok).toBe(false);
+    for (const bad of ['emacs', 'desktop:a/b', 'desktop:..x', 'app:']) expect(parseInput(byPath('editor.preferred'), bad).ok).toBe(false);
+  });
+});
+
 describe('installedChoices', () => {
   const options = byPath('shell.defaultProfile').options!;
   const installed = [
@@ -471,6 +484,13 @@ describe('installedChoices', () => {
     });
   });
 
+  it('adds shells beyond the fixed options by their own names', () => {
+    const more = [...installed, { id: 'nu', name: 'Nushell' }];
+    expect(installedChoices(options, more, 'nu').options.map((o) => o.value)).toEqual(['pwsh', 'cmd', 'nu']);
+    const r = installedChoices(options, installed, 'nu');
+    expect(r.options[0]).toEqual({ value: 'nu', label: 'nu (not installed)' });
+  });
+
   it('keeps an uninstalled saved value selectable and names the shell new panes use', () => {
     const r = installedChoices(options, installed, 'gitBash');
     expect(r.options[0]).toEqual({ value: 'gitBash', label: 'Git Bash (not installed)' });
@@ -485,6 +505,20 @@ describe('installedChoices for editors', () => {
 
   it('lists only detected editors', () => {
     expect(installedChoices(field.options!, found, 'vscode', 'editors').options.map((o) => o.value)).toEqual(['vscode', 'default']);
+  });
+
+  it('adds discovered editors by name, ahead of the default app', () => {
+    const more = [...found, { id: 'desktop:org.gnome.TextEditor', name: 'Text Editor' }];
+    expect(installedChoices(field.options!, more, 'vscode', 'editors').options).toEqual([
+      { value: 'vscode', label: 'VS Code' },
+      { value: 'desktop:org.gnome.TextEditor', label: 'Text Editor' },
+      { value: 'default', label: "The file's default app" },
+    ]);
+  });
+
+  it('keeps a missing discovered editor selectable by its id', () => {
+    const r = installedChoices(field.options!, found, 'desktop:micro', 'editors');
+    expect(r.options[0]).toEqual({ value: 'desktop:micro', label: 'desktop:micro (not found)' });
   });
 
   it('keeps a missing saved editor selectable and says files open in the default app', () => {

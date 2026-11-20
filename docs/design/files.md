@@ -50,9 +50,10 @@ pane cancels the previous one.
 
 ## 3.12 Editors (`src-tauri/src/editors.rs`)
 
-`editors() -> { id, name }[]` lists the editors found on `PATH` or in their usual install folders;
-`name` is the display name from the table below. The front end labels a saved
-`editor.preferred` that is not in the list by its raw id.
+`editors() -> { id, name }[]` lists the editors found on `PATH` or in their usual install folders,
+with `name` the display name from the table below, then the editors the system itself lists
+(Discovered editors, below), then `default`. The front end labels a saved `editor.preferred` that
+is not in the list by its raw id.
 `open_in_editor(path, line?)` opens a file or folder in `editor.preferred` (section 8):
 
 | Id | Editor | Arguments |
@@ -155,6 +156,35 @@ the parent of a `cmd` or `bin` folder on `PATH` holding `git.exe`; for Neovim,
 `/opt/homebrew/bin`, `/usr/local/bin`, and `/usr/bin` are checked, and on Linux those plus
 `~/.local/bin` and `/snap/bin`. Emacs is reachable through
 `editor.command` (`emacsclientw -n +{line} {path}`).
+
+**Discovered editors.** Beyond the table, `editors()` lists what the system says is an editor,
+so one no table names (Kate, GNOME Text Editor, micro, Helix, TextEdit, BBEdit) is offered too.
+These open the file or folder only; no line number is passed, since nothing standard says how.
+An editor the table covers is skipped, so it keeps its jump-to-line arguments.
+
+- **Linux** (`editor_desktop.rs`): every `.desktop` file in the XDG application folders plus
+  Flatpak's and Snap's (the same folders as step 4 above), one subfolder deep, the first file for
+  each desktop id winning, as the spec resolves ids. An entry counts when its `Categories`
+  include `TextEditor` or `IDE`, or `Development` with `text/plain` among its `MimeType`s (the
+  plain-text handlers alone would bring in word processors), it is not `Hidden`, and its
+  `TryExec` and `Exec` programs exist (as a path, or by name on `PATH` and the folders of step
+  1). The id is `desktop:<desktop id>` without `.desktop` (`desktop:org.gnome.TextEditor`). It
+  runs with its `Exec=` line, the file filling the field code (`desktop_entry.rs`); a
+  `Terminal=true` entry (micro, Helix) opens in a pane, as Vim does. Skipped as the table's:
+  `desktop_ids`, the JetBrains names, `<flatpak app id>.desktop`, `<snap>_<app>.desktop` with a
+  table name on either side, and `vim.desktop` and `nvim.desktop`.
+- **macOS** (`editor_bundles.rs`): every `.app` bundle in `/Applications`, `~/Applications`, and
+  `/System/Applications`, one subfolder deep (`/Applications/Utilities`). A bundle counts when
+  its `Info.plist` (XML or binary) declares, in `CFBundleDocumentTypes`, the `Editor` role at any
+  rank but `None` for `public.plain-text`, `public.text`, `public.utf8-plain-text`,
+  `public.source-code`, `public.script`, or `public.shell-script`, or for the extension `txt`
+  (older apps). These are the declarations Launch Services builds its handler lists from. The id
+  is `app:<CFBundleIdentifier>`, and the file opens through `/usr/bin/open -a <bundle>`. Skipped
+  as the table's: a bundle whose file name is the first part of a `bundle_candidates` path.
+
+`settings/parse.rs` accepts any well-formed `desktop:` or `app:` id, so a settings file shared
+with a machine that has the editor keeps it; where the editor is missing, the file opens in its
+default app as for any missing editor.
 
 A non-empty `editor.command` replaces the table: it is split into arguments, with `{path}` and
 `{line}` filled in (an absent line fills `1`). When the preferred editor is not found, the file

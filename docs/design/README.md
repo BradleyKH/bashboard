@@ -125,7 +125,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
   `.deb`, `.rpm`, and AppImage builds (`docs/linux-testing.md`).
 - Replacing Claude Code's interface. Claude runs unmodified inside a pane.
 - Shells other than Git Bash, PowerShell 7, Windows PowerShell, and Command Prompt on Windows,
-  and zsh, bash, and fish on macOS and Linux.
+  and on macOS and Linux the login shell, zsh, bash, fish, and what `/etc/shells` lists.
 - Remote or SSH sessions.
 - Being a code editor. The file preview edits text and colors code by language (4.22), but
   completion, diagnostics, and refactoring stay in the preferred editor (3.12).

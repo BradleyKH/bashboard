@@ -28,6 +28,12 @@ const ACCENT_MIN_LUMINANCE: f64 = 0.2;
 const WHITE_CONTENT_TEXT: &str = "#e6e6e6";
 
 /// Accepts `#rrggbb` (any case) bright enough to read, returned lowercase.
+/// A fixed editor id, or one found from the system's own lists (docs/design/files.md section
+/// 3.12), which may name an editor installed on another machine sharing this file.
+fn is_editor_id(s: &str) -> bool {
+    EDITOR_IDS.contains(&s) || crate::editor_desktop::is_id(s) || crate::editor_bundles::is_id(s)
+}
+
 fn parse_accent(s: &str) -> Option<String> {
     parse_bright_hex(s, ACCENT_MIN_LUMINANCE)
 }
@@ -321,7 +327,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             &root,
             &["shell", "defaultProfile"],
             &mut w,
-            |v| v.as_str().filter(|s| crate::profiles::PROFILE_IDS.contains(s)).map(String::from),
+            |v| v.as_str().filter(|s| crate::profiles::is_profile_id(s)).map(String::from),
             d.shell.default_profile,
         ),
     };
@@ -669,7 +675,7 @@ pub(super) fn try_parse_settings(text: &str) -> Result<(Settings, Vec<String>), 
             &root,
             &["editor", "preferred"],
             &mut w,
-            |v| v.as_str().filter(|s| EDITOR_IDS.contains(s)).map(String::from),
+            |v| v.as_str().filter(|s| is_editor_id(s)).map(String::from),
             d.editor.preferred,
         ),
         command: pick(&root, &["editor", "command"], &mut w, string, d.editor.command),
@@ -1690,6 +1696,11 @@ mod tests {
             assert_eq!(s.editor.preferred, id);
             assert!(w.is_empty(), "{id}: {w:?}");
         }
+        for id in ["desktop:org.gnome.TextEditor", "app:com.apple.TextEdit"] {
+            let (s, w) = parse_settings(&format!(r#"{{ "editor": {{ "preferred": "{id}" }} }}"#));
+            assert_eq!(s.editor.preferred, id);
+            assert!(w.is_empty(), "{w:?}");
+        }
         let (s, w) = parse_settings(r#"{ "editor": { "command": "code -g \"{path}:{line}\"" } }"#);
         assert_eq!(s.editor.command, "code -g \"{path}:{line}\"");
         assert!(w.is_empty(), "{w:?}");
@@ -1708,12 +1719,12 @@ mod tests {
     fn default_profile_parses_and_unknown_one_falls_back() {
         let default = crate::profiles::DEFAULT_PROFILE;
         assert_eq!(Settings::default().shell.default_profile, default);
-        for good in ["pwsh", "zsh", "fish", "loginShell"] {
+        for good in ["pwsh", "zsh", "fish", "loginShell", "nu"] {
             let (s, w) = parse_settings(&format!(r#"{{ "shell": {{ "defaultProfile": "{good}" }} }}"#));
             assert_eq!(s.shell.default_profile, good);
             assert!(w.is_empty(), "{w:?}");
         }
-        for bad in ["\"nu\"", "\"PWSH\"", "1"] {
+        for bad in ["\"PWSH\"", "\"two words\"", "1"] {
             let (s, w) = parse_settings(&format!(r#"{{ "shell": {{ "defaultProfile": {bad} }} }}"#));
             assert_eq!(s.shell.default_profile, default, "{bad}");
             assert!(w.iter().any(|m| m.starts_with("shell.defaultProfile")), "{bad}: {w:?}");

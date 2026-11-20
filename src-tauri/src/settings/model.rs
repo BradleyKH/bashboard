@@ -355,7 +355,7 @@ pub struct Terminal {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Editor {
-    /// One of `EDITOR_IDS`.
+    /// One of `EDITOR_IDS`, or a discovered editor's `desktop:` or `app:` id.
     pub preferred: String,
     /// When non-empty, replaces the editor's built-in arguments; see docs/design/files.md
     /// section 3.12.

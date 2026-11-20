@@ -15,6 +15,14 @@ pub struct Entry {
     pub icon: String,
     /// `Terminal=true`: the program needs a terminal around it, so it cannot be started bare.
     pub terminal: bool,
+    /// `Categories=`, split on `;`.
+    pub categories: Vec<String>,
+    /// `MimeType=`, split on `;`.
+    pub mime_types: Vec<String>,
+    /// `TryExec=`: a program that must exist for the entry to count as installed.
+    pub try_exec: String,
+    /// `Hidden=true`: the entry is deleted, and hides any of the same id in later folders.
+    pub hidden: bool,
 }
 
 /// Reads the `[Desktop Entry]` group; `None` when it has no `Exec`. Localized keys
@@ -40,10 +48,18 @@ pub fn parse(text: &str) -> Option<Entry> {
             "Exec" => entry.exec = value,
             "Icon" => entry.icon = value,
             "Terminal" => entry.terminal = value == "true",
+            "Categories" => entry.categories = split_list(&value),
+            "MimeType" => entry.mime_types = split_list(&value),
+            "TryExec" => entry.try_exec = value,
+            "Hidden" => entry.hidden = value == "true",
             _ => {}
         }
     }
     (!entry.exec.is_empty()).then_some(entry)
+}
+
+fn split_list(value: &str) -> Vec<String> {
+    value.split(';').map(str::trim).filter(|v| !v.is_empty()).map(String::from).collect()
 }
 
 /// The general string escapes every value may use (`\s`, `\n`, `\t`, `\r`, `\\`).
@@ -145,6 +161,11 @@ pub fn command_for_file(entry: &Entry, file: &Path, entry_path: &Path) -> Option
     if entry.terminal {
         return None;
     }
+    argv_for_file(entry, file, entry_path)
+}
+
+/// `command_for_file` for a terminal program as well, for the caller to run inside a terminal.
+pub fn argv_for_file(entry: &Entry, file: &Path, entry_path: &Path) -> Option<Vec<String>> {
     let file = file.display().to_string();
     let mut used_file = false;
     let mut argv = Vec::new();
@@ -243,7 +264,7 @@ mod tests {
     use super::*;
 
     fn entry(exec: &str) -> Entry {
-        Entry { name: "Text Editor".into(), exec: exec.into(), icon: "editor".into(), terminal: false }
+        Entry { name: "Text Editor".into(), exec: exec.into(), icon: "editor".into(), ..Default::default() }
     }
 
     fn argv(exec: &str) -> Option<Vec<String>> {
@@ -252,6 +273,17 @@ mod tests {
 
     fn strs(v: &[&str]) -> Option<Vec<String>> {
         Some(v.iter().map(|s| s.to_string()).collect())
+    }
+
+    #[test]
+    fn reads_the_lists_and_flags_discovery_needs() {
+        let e = parse("[Desktop Entry]\nExec=micro %F\nTerminal=true\nCategories=Utility;TextEditor;\nMimeType=text/plain;text/x-csrc\nTryExec=micro\nHidden=false\n").unwrap();
+        assert_eq!(e.categories, ["Utility", "TextEditor"]);
+        assert_eq!(e.mime_types, ["text/plain", "text/x-csrc"]);
+        assert_eq!(e.try_exec, "micro");
+        assert!(e.terminal && !e.hidden);
+        assert_eq!(command_for_file(&e, Path::new("/a"), Path::new("/m.desktop")), None);
+        assert_eq!(argv_for_file(&e, Path::new("/a"), Path::new("/m.desktop")), strs(&["micro", "/a"]));
     }
 
     #[test]

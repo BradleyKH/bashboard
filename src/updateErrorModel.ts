@@ -20,11 +20,12 @@ export function describeUpdateError(err: unknown, phase: UpdatePhase, os: Os): U
   const text = String(err);
 
   // latest.json lists one entry per platform and package type: Windows NSIS and the Linux .deb.
-  // An AppImage, .rpm, or macOS build finds no entry of its own.
+  // An AppImage, .rpm, Arch package (built from the .rpm's binary), or macOS build finds no entry
+  // of its own.
   if (/fallback platforms|platform `[^`]*` was not found/i.test(text)) {
     const message =
       os === 'linux'
-        ? 'This install cannot update itself. Releases update the .deb package only; download the new version from the latest release.'
+        ? 'This install cannot update itself. Update it with the package manager it came from, or download the new version from the latest release.'
         : 'No update is published for this system. Download the new version from the latest release.';
     return { message, offerDownload: true };
   }

@@ -8,6 +8,7 @@ import { CONTENT_TEXT_MODES, contentTextColor } from './contentText';
 import { ELEMENT_FEATURES, ELEMENT_HINTS, ELEMENT_LABELS, SECTION_GROUPS, type ShowableSection } from './dashboardSections';
 import type { Settings } from './settings';
 import { platformOs, supports, type Feature, type Os } from './platform';
+import { parseProfileId } from './profiles';
 
 export type FieldKind = 'toggle' | 'number' | 'slider' | 'text' | 'list' | 'select';
 export type AppliesWhen = 'live' | 'nextLaunch' | 'newPanes';
@@ -652,7 +653,12 @@ export function parseInput(field: SettingsField, raw: string | boolean): ParseRe
     return { ok: true, value: raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '') };
   }
   if (field.kind === 'select') {
-    if (!field.options?.some((o) => o.value === raw)) return { ok: false, error: 'Choose one of the listed options' };
+    const listed = field.options?.some((o) => o.value === raw);
+    // The core adds discovered shells and editors to these selects beyond the fixed options.
+    const discovered =
+      (field.installedFrom === 'profiles' && parseProfileId(raw) !== undefined) ||
+      (field.installedFrom === 'editors' && DISCOVERED_EDITOR_ID.test(raw) && !raw.includes('..'));
+    if (!listed && !discovered) return { ok: false, error: 'Choose one of the listed options' };
     return { ok: true, value: field.numeric ? Number(raw) : raw };
   }
   if (field.kind === 'text') {
@@ -673,6 +679,9 @@ export function parseInput(field: SettingsField, raw: string | boolean): ParseRe
   return { ok: true, value: n };
 }
 
+/** A discovered editor's id, as `editor_desktop::is_id` and `editor_bundles::is_id` accept it. */
+const DISCOVERED_EDITOR_ID = /^(desktop|app):[A-Za-z0-9._-]{1,200}$/;
+
 export interface InstalledChoices {
   options: { value: string; label: string }[];
   /** Set when the saved value is not installed; names the shell new panes use instead. */
@@ -680,8 +689,10 @@ export interface InstalledChoices {
 }
 
 /**
- * Narrows a select's options to the installed profiles or detected editors. A saved value that is
- * not installed stays selectable, labeled as missing, so the dialog shows what the file says.
+ * Narrows a select's options to the installed profiles or detected editors, adding the ones the
+ * core found beyond the fixed options (shells from `/etc/shells`, editors from desktop entries or
+ * app bundles) by their own names, ahead of the default app. A saved value that is not installed
+ * stays selectable, labeled as missing, so the dialog shows what the file says.
  */
 export function installedChoices(
   options: { value: string; label: string }[],
@@ -690,19 +701,24 @@ export function installedChoices(
   source: 'profiles' | 'editors' = 'profiles',
 ): InstalledChoices {
   const ids = new Set(installed.map((p) => p.id));
+  const known = new Set(options.map((o) => o.value));
   const shown = options.filter((o) => ids.has(o.value));
-  const missing = options.find((o) => o.value === saved && !ids.has(o.value));
-  if (!missing) return { options: shown };
+  const extra = installed.filter((p) => !known.has(p.id)).map((p) => ({ value: p.id, label: p.name }));
+  const defaultAt = shown.findIndex((o) => o.value === 'default');
+  if (defaultAt >= 0) shown.splice(defaultAt, 0, ...extra);
+  else shown.push(...extra);
+  if (typeof saved !== 'string' || saved === '' || ids.has(saved)) return { options: shown };
+  const label = options.find((o) => o.value === saved)?.label ?? saved;
   if (source === 'editors') {
     return {
-      options: [{ value: missing.value, label: `${missing.label} (not found)` }, ...shown],
-      note: `${missing.label} was not found; files open in the default app`,
+      options: [{ value: saved, label: `${label} (not found)` }, ...shown],
+      note: `${label} was not found; files open in the default app`,
     };
   }
   const fallback = installed[0];
   return {
-    options: [{ value: missing.value, label: `${missing.label} (not installed)` }, ...shown],
-    note: fallback ? `${missing.label} is not installed; new panes use ${fallback.name}` : undefined,
+    options: [{ value: saved, label: `${label} (not installed)` }, ...shown],
+    note: fallback ? `${label} is not installed; new panes use ${fallback.name}` : undefined,
   };
 }
 

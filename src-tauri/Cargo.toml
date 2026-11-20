@@ -46,6 +46,8 @@ ureq = { version = "3", default-features = false, features = ["rustls", "platfor
 # The version ureq uses: its error variants, and a bare ClientHello to tell whether a port speaks TLS.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 trash = "5.3.0"
+# Reads app bundles' Info.plist (XML or binary) to find macOS editors (editor_bundles.rs).
+plist = "1.10.3"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

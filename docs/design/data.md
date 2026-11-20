@@ -224,8 +224,9 @@ the focused pane's folder.
     "path": "C:\\Program Files\\Git\\bin\\bash.exe",
     "args": ["--login", "-i"],
     "startingDirectory": "%USERPROFILE%",
-    // gitBash, pwsh, powershell, or cmd; off Windows loginShell (the default), zsh, bash, or
-    // fish. path and args configure Git Bash only. An unknown or
+    // gitBash, pwsh, powershell, or cmd; off Windows loginShell (the default), zsh, bash,
+    // fish, or a shell /etc/shells lists, by file name (nu). path and args configure Git Bash
+    // only. An unknown or
     // unavailable value falls back as described in 3.1.
     "defaultProfile": "gitBash"
   },
@@ -397,7 +398,8 @@ the focused pane's folder.
   "linux": { "disableDmabufRenderer": "auto", "allowFileCredentials": false },
   // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
   // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, vim, nvim,
-  // or default (the file's default app). vim and nvim open in a pane. A non-empty command
+  // default (the file's default app), or a discovered editor: desktop:<desktop id> on Linux,
+  // app:<bundle id> on macOS. vim and nvim open in a pane. A non-empty command
   // replaces it, with {path} and {line} filled in (3.12).
   "editor": { "preferred": "default", "command": "" },
   // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).

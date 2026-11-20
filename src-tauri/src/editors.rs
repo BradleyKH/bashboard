@@ -13,7 +13,9 @@
 //! JetBrains Toolbox script. On Linux the search adds `~/.local/bin` and `/snap/bin`, Flatpak's
 //! exported launchers, and last the `Exec=` program of an editor's `.desktop` file (an AppImage or
 //! tarball install). The tables are plain functions over `SearchEnv`, so they are tested on every
-//! platform. Files whose default app would run them open as text through
+//! platform. Beyond the table, `editors` adds the editors the system itself lists: Linux desktop
+//! entries (`editor_desktop`) and macOS app bundles (`editor_bundles`), each skipping what the
+//! table covers (`table_covers_desktop_id`, `table_covers_bundle`). Files whose default app would run them open as text through
 //! `/usr/bin/open -t` on macOS, and on Linux through the `Exec=` line of the default `text/plain`
 //! app's `.desktop` file, instead of Notepad.
 
@@ -843,19 +845,95 @@ fn normalize_existing(path: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
-/// The editors found on this machine, in the order of section 3.12's table; `default` is always
-/// last.
+/// Whether `desktop_id` is one of the table's editors, which `detect` finds by its own means: a
+/// fixed desktop id, a JetBrains Toolbox or tarball entry, a Flatpak's, or a Snap's
+/// (`<snap>_<app>.desktop`).
+fn table_covers_desktop_id(desktop_id: &str) -> bool {
+    let Some(stem) = desktop_id.strip_suffix(".desktop") else { return false };
+    let snap_parts: Vec<&str> = stem.splitn(2, '_').collect();
+    matches!(stem, "vim" | "nvim")
+        || NAMES.iter().any(|(id, _)| {
+            desktop_ids(id).contains(&desktop_id)
+                || jetbrains_desktop_prefix(id).is_some_and(|p| is_jetbrains_desktop_name(p, desktop_id))
+                || flatpak_app_ids(id).contains(&stem)
+                || (snap_parts.len() == 2
+                    && posix_path_names(id)
+                        .iter()
+                        .chain(snap_command_names(id))
+                        .any(|n| snap_parts.contains(n)))
+        })
+}
+
+/// Whether the macOS bundle with this file name is one of the table's editors.
+fn table_covers_bundle(file_name: &str) -> bool {
+    NAMES.iter().any(|(id, _)| {
+        bundle_candidates(id).iter().any(|c| c.split('/').next() == Some(file_name))
+    })
+}
+
+/// Where macOS editors are discovered: the Applications folders, and the system's own (TextEdit).
+fn mac_discovery_dirs(env: &SearchEnv) -> Vec<PathBuf> {
+    let mut dirs = env.applications.clone();
+    dirs.push(PathBuf::from("/System/Applications"));
+    dirs
+}
+
+/// The editors the system lists that the table does not cover.
+fn discovered(env: &SearchEnv) -> Vec<Editor> {
+    if cfg!(target_os = "linux") {
+        let path_dirs: Vec<PathBuf> = env.path.iter().chain(&env.bin_dirs).cloned().collect();
+        crate::editor_desktop::discover(&env.desktop_dirs, table_covers_desktop_id, |e| {
+            crate::editor_desktop::runnable(e, &path_dirs)
+        })
+        .into_iter()
+        .map(|f| Editor { id: f.id, name: f.name })
+        .collect()
+    } else if cfg!(target_os = "macos") {
+        crate::editor_bundles::discover(&mac_discovery_dirs(env), table_covers_bundle)
+            .into_iter()
+            .map(|f| Editor { id: f.id, name: f.name })
+            .collect()
+    } else {
+        vec![]
+    }
+}
+
+/// How to open `path` with a discovered editor: `Some(Ok(terminal))` once started (with a pane to
+/// open for a terminal program), `None` when `id` is not a discovered id or the editor is gone.
+fn open_discovered(id: &str, path: &Path, env: &SearchEnv) -> Option<Result<Option<TerminalLaunch>, String>> {
+    if crate::editor_desktop::is_id(id) {
+        let (entry, entry_path) = crate::editor_desktop::find(id, &env.desktop_dirs)?;
+        let argv = crate::desktop_entry::argv_for_file(&entry, path, &entry_path)?;
+        if entry.terminal {
+            return Some(Ok(Some(TerminalLaunch { argv, cwd: terminal_cwd(path) })));
+        }
+        return Some(launch(Path::new(&argv[0]), &argv[1..]).map(|()| None));
+    }
+    if crate::editor_bundles::is_id(id) {
+        let app = crate::editor_bundles::find(id, &mac_discovery_dirs(env))?;
+        let args = vec!["-a".to_string(), app.display().to_string(), path.display().to_string()];
+        return Some(launch(Path::new("/usr/bin/open"), &args).map(|()| None));
+    }
+    None
+}
+
+/// The editors found on this machine: the table's in section 3.12's order, then the ones the
+/// system lists by name; `default` is always last.
 #[tauri::command]
 pub fn editors() -> Vec<Editor> {
     let env = SearchEnv::from_process();
-    NAMES
+    let table = NAMES
         .iter()
-        .filter(|(id, _)| *id == "default" || detect(id, &env).is_some())
+        .filter(|(id, _)| *id != "default" && detect(id, &env).is_some())
         .map(|(id, name)| Editor {
             id: (*id).into(),
             name: (*name).into(),
-        })
-        .collect()
+        });
+    let default = NAMES.iter().filter(|(id, _)| *id == "default").map(|(id, name)| Editor {
+        id: (*id).into(),
+        name: (*name).into(),
+    });
+    table.chain(discovered(&env)).chain(default).collect()
 }
 
 /// Opens a file or folder in the preferred editor. Falls back to the default app, and says so,
@@ -874,6 +952,9 @@ pub fn open_in_editor(
         return Ok(Opened { fallback: false, terminal: None });
     }
     let line = line.filter(|_| path.is_file());
+    if let Some(Ok(terminal)) = open_discovered(&editor.preferred, &path, &SearchEnv::from_process()) {
+        return Ok(Opened { fallback: false, terminal });
+    }
     if editor.preferred != "default" {
         if let Some((exe, prefix)) = detect_with_args(&editor.preferred, &SearchEnv::from_process()) {
             if is_terminal_editor(&editor.preferred) {
@@ -1687,6 +1768,29 @@ mod tests {
 
     fn desktop(exec: &str) -> crate::desktop_entry::Entry {
         crate::desktop_entry::parse(&format!("[Desktop Entry]\nName=Ed\nExec={exec}\n")).unwrap()
+    }
+
+    #[test]
+    fn discovery_skips_the_editors_the_table_covers() {
+        for id in [
+            "code.desktop",
+            "dev.zed.Zed.desktop",
+            "jetbrains-idea-ce.desktop",
+            "com.visualstudio.code.desktop",
+            "code_code.desktop",
+            "sublime-text_subl.desktop",
+            "intellij-idea-community_intellij-idea-community.desktop",
+            "vim.desktop",
+            "nvim.desktop",
+        ] {
+            assert!(table_covers_desktop_id(id), "{id}");
+        }
+        for id in ["org.gnome.TextEditor.desktop", "org.kde.kate.desktop", "micro.desktop", "gvim.desktop", "code"] {
+            assert!(!table_covers_desktop_id(id), "{id}");
+        }
+        assert!(table_covers_bundle("Visual Studio Code.app"));
+        assert!(table_covers_bundle("PyCharm CE.app"));
+        assert!(!table_covers_bundle("TextEdit.app"));
     }
 
     #[test]

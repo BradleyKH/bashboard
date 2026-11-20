@@ -7,7 +7,7 @@ describe('describeUpdateError', () => {
 
   it('tells a Linux install with no manifest entry to download instead', () => {
     const view = describeUpdateError(missing, 'check', 'linux');
-    expect(view.message).toMatch(/update the \.deb package only/);
+    expect(view.message).toMatch(/package manager it came from/);
     expect(view.offerDownload).toBe(true);
   });
 

@@ -13,7 +13,12 @@ launch, and `shell.*` applies to panes opened after the change.
 `editor.preferred` picks the editor that Open in editor uses: `zed`, `vscode`, `cursor`,
 `visualStudio`, `notepadpp`, `sublime`, `rider`, `intellij`, `webstorm`, `pycharm`, `rustrover`,
 `goland`, `clion`, `phpstorm`, `windsurf`, `vscodeInsiders`, `vscodium`, `vim`, `nvim`, or
-`default` (the file's default app). JetBrains IDEs installed through the Toolbox App or the
+`default` (the file's default app). Other editors installed on the machine are listed too, by
+their own names, and open the file without jumping to a line: on Linux any app whose desktop
+entry calls it a text editor or IDE (Kate, GNOME Text Editor, micro, Helix; id
+`desktop:<desktop id>`, such as `desktop:org.gnome.TextEditor`), and on macOS any app that
+declares itself an editor of plain text or source code (TextEdit, BBEdit, Xcode; id
+`app:<bundle id>`, such as `app:com.apple.TextEdit`). JetBrains IDEs installed through the Toolbox App or the
 standalone installer are both found. On Linux, editors from Flatpak, Snap, `~/.local/bin`, or an
 AppImage or tarball install with a `.desktop` file are found too. Vim and Neovim open in a new pane
 beside the focused one, which closes when you quit the editor; the Vim that comes with Git for
@@ -267,7 +272,8 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
 in the order Git Bash, PowerShell 7, Windows PowerShell, Command Prompt, with a notice the first
 time each missing shell is asked for. On macOS and Linux the ids are `loginShell` (the default,
 the shell in `$SHELL`), `zsh`, `bash`, and `fish`, each offered when installed and not already
-the login shell. `shell.path` (default `C:\Program Files\Git\bin\bash.exe`) and `shell.args`
+the login shell, then any other shell listed in `/etc/shells` (nu, elvish, xonsh, pwsh, tcsh, and
+so on), whose id is its file name, such as `nu`. `shell.path` (default `C:\Program Files\Git\bin\bash.exe`) and `shell.args`
 (default `["--login", "-i"]`) configure Git Bash, so they apply, and show in the Settings tab, on
 Windows only. The
 Default shell select in the Terminal section of the Settings tab sets it too (see

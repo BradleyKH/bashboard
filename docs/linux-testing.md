@@ -95,7 +95,9 @@ For each check, report pass or fail, plus what you saw if it failed.
    It runs as a login shell: in bash, `shopt login_shell` prints `on` (zsh:
    `[[ -o login ]] && echo login`; fish: `status is-login && echo login`).
 3. Alt+Shift+T opens the shell picker. It lists your login shell, and also zsh, bash, and fish
-   when installed and not already your login shell.
+   when installed and not already your login shell, plus any other shell in `/etc/shells` (install
+   `nushell` and `nu` appears as Nushell). It does not list `sh`, `rbash`, `git-shell`, or
+   `tmux`. The Default shell select in Settings, Terminal lists the same shells.
 4. Quit, then start it from a terminal (`bashboard` for the packages, the file itself for the
    AppImage). It starts the same way.
 
@@ -163,7 +165,11 @@ For each check, report pass or fail, plus what you saw if it failed.
 20. With VS Code installed from Microsoft's `.deb`, the editor list in Settings, Editor shows
     it. Opening a search result opens the file at its line in VS Code.
 21. With a JetBrains IDE installed through the Toolbox App, the same list shows it. If you have
-    a Flatpak or Snap editor, check that too.
+    a Flatpak or Snap editor, check that too. The list also shows the desktop's own text editor
+    (GNOME Text Editor, Kate, or Xed) and any terminal editor with a desktop entry (micro,
+    Helix), each once, by its menu name; VS Code and a JetBrains IDE are not listed a second
+    time under their menu names. Choose the desktop's editor and open a file from a Files pane:
+    it opens there. Choose micro or Helix: the file opens in a new pane.
 
 **Containers**
 
@@ -272,8 +278,8 @@ For each check, report pass or fail, plus what you saw if it failed.
     The banner says the update was not installed and offers **Try again** and **Download**, and
     the old version keeps running. (Launched from a terminal, the last fallback asks for your
     sudo password in that terminal instead.)
-45. AppImage and `.rpm`: **Check for updates** says this install cannot update itself and offers
-    **Download**, which opens the latest release.
+45. AppImage, `.rpm`, and Arch package: **Check for updates** says this install cannot update
+    itself, pointing to the package manager or **Download**, which opens the latest release.
 
 ## Measurements
 

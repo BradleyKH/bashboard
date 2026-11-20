@@ -38,10 +38,15 @@ pub fn activate(window: &tauri::WebviewWindow) {
             let spawned = std::thread::Builder::new()
                 .name("kwin-raise".into())
                 .spawn(move || {
-                    if let Err(err) = kwin_activate(std::process::id()) {
-                        let stamp = crate::app_log::stamp();
-                        eprintln!("{stamp} could not ask KWin to raise the window: {err}");
-                        return;
+                    match kwin_activate(std::process::id()) {
+                        Ok(true) => {}
+                        // Not KWin (Mutter, for one): nothing else can raise it, so stay quiet.
+                        Ok(false) => return,
+                        Err(err) => {
+                            let stamp = crate::app_log::stamp();
+                            eprintln!("{stamp} could not ask KWin to raise the window: {err}");
+                            return;
+                        }
                     }
                     // KWin runs the script asynchronously; give it a moment to take effect.
                     std::thread::sleep(std::time::Duration::from_millis(750));
@@ -90,9 +95,13 @@ if (list === null) {
 }
 
 /// Loads, runs, and unloads `kwin_script`. KWin reads the script from a file, so it is written
-/// to the runtime folder first. Fails without KWin on the session bus.
-fn kwin_activate(pid: u32) -> Result<(), Box<dyn std::error::Error>> {
+/// to the runtime folder first. `Ok(false)` when KWin is not on the session bus.
+fn kwin_activate(pid: u32) -> Result<bool, Box<dyn std::error::Error>> {
     let conn = zbus::blocking::Connection::session()?;
+    let dbus = zbus::blocking::fdo::DBusProxy::new(&conn)?;
+    if !dbus.name_has_owner(KWIN.try_into()?)? {
+        return Ok(false);
+    }
     let scripting = Some("org.kde.kwin.Scripting");
     let unload = || {
         conn.call_method(Some(KWIN), "/Scripting", scripting, "unloadScript", &(SCRIPT_NAME,))
@@ -129,7 +138,7 @@ fn kwin_activate(pid: u32) -> Result<(), Box<dyn std::error::Error>> {
         });
     let _ = unload();
     let _ = std::fs::remove_file(&file);
-    ran
+    ran.map(|()| true)
 }
 
 /// Where KWin puts a loaded script on the bus, newest layout first: Plasma 6 at

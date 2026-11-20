@@ -1,7 +1,8 @@
 //! Shell profiles a pane can run. On Windows: Git Bash (configured by `shell.path` and
 //! `shell.args`), PowerShell 7 and Windows PowerShell when installed, and Command Prompt. On
 //! macOS and other Unix systems: the login shell from `$SHELL`, plus zsh, bash, and fish when
-//! they are not already it. Only profiles whose executable exists are offered, and the last resort (cmd,
+//! they are not already it, then any other shell `/etc/shells` lists (`etc_shells`), whose id is
+//! its file name (`nu`, `elvish`). Only profiles whose executable exists are offered, and the last resort (cmd,
 //! or the login shell falling back as far as `/bin/sh`) always is, so resolving a profile can
 //! never land on a shell that fails to start.
 
@@ -35,6 +36,20 @@ pub const PROFILE_IDS: &[&str] = &[
     BASH,
     FISH,
 ];
+/// Whether `id` can name a profile: a fixed id, or a shell's file name as `/etc/shells` profiles
+/// use, lowercase so a fixed id's other spellings (`PWSH`) stay invalid.
+pub fn is_profile_id(id: &str) -> bool {
+    PROFILE_IDS.contains(&id)
+        || (id.len() <= 32
+            && id.starts_with(|c: char| c.is_ascii_lowercase())
+            && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-'))
+}
+
+/// The paths `/etc/shells` lists; none when it cannot be read.
+fn etc_shells() -> Vec<String> {
+    std::fs::read_to_string("/etc/shells").map(|t| crate::etc_shells::listed(&t)).unwrap_or_default()
+}
+
 /// The `shell.defaultProfile` default.
 pub const DEFAULT_PROFILE: &str = if cfg!(windows) { GIT_BASH } else { LOGIN_SHELL };
 
@@ -82,7 +97,7 @@ pub fn is_fish(path: &str) -> bool {
 /// The Unix profile with this id, if listed. Unix profiles do not depend on settings.
 pub fn unix_profile(id: &str) -> Option<ShellProfile> {
     let login_shell = std::env::var("SHELL").ok();
-    unix_profiles(login_shell.as_deref(), Path::is_file, canonical)
+    unix_profiles(login_shell.as_deref(), Path::is_file, canonical, &etc_shells())
         .into_iter()
         .find(|p| p.id == id)
 }
@@ -242,11 +257,13 @@ const FISH_CANDIDATES: &[&str] = &[
 /// exists, else the first of `LOGIN_FALLBACKS`, so the list is never empty. Shells start with `-l` so they read the
 /// user's profile files and build their own `PATH`, as a terminal app's shells do. A shell is
 /// compared with the login shell through `canonical`, since on usr-merged Linux `$SHELL` may be
-/// `/usr/bin/zsh` while the candidate found is `/bin/zsh`, the same file.
+/// `/usr/bin/zsh` while the candidate found is `/bin/zsh`, the same file. The `listed` shells
+/// (`/etc/shells`) follow, skipping one whose id or file is already in the list.
 fn unix_profiles(
     login_shell: Option<&str>,
     exists: impl Fn(&Path) -> bool,
     canonical: impl Fn(&Path) -> PathBuf,
+    listed: &[String],
 ) -> Vec<ShellProfile> {
     let login = login_shell
         .filter(|s| !s.is_empty() && exists(Path::new(s)))
@@ -258,8 +275,9 @@ fn unix_profiles(
         .map(|n| format!("Login shell ({})", n.to_string_lossy()))
         .unwrap_or_else(|| "Login shell".into());
     let args = || vec!["-l".to_string()];
+    let login_file = Path::new(&login).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let login_canonical = canonical(Path::new(&login));
-    let mut list = vec![profile(LOGIN_SHELL, &login_name, login.clone(), args())];
+    let mut list = vec![profile(LOGIN_SHELL, &login_name, login.clone(), crate::etc_shells::login_args(&login_file))];
     for (id, candidates) in [
         (ZSH, ZSH_CANDIDATES),
         (BASH, BASH_CANDIDATES),
@@ -273,6 +291,24 @@ fn unix_profiles(
             list.push(profile(id, id, (*path).into(), args()));
         }
     }
+    let mut taken: Vec<PathBuf> = list.iter().map(|p| canonical(Path::new(&p.path))).collect();
+    for path in listed {
+        let Some(name) = Path::new(path).file_name().and_then(OsStr::to_str) else { continue };
+        if !crate::etc_shells::offered(name)
+            || !is_profile_id(name)
+            || list.iter().any(|p| p.id == name)
+            || !exists(Path::new(path))
+        {
+            continue;
+        }
+        let real = canonical(Path::new(path));
+        if taken.contains(&real) {
+            continue;
+        }
+        taken.push(real);
+        let display = crate::etc_shells::display_name(name);
+        list.push(profile(name, &display, path.clone(), crate::etc_shells::args(name)));
+    }
     list
 }
 
@@ -280,7 +316,7 @@ fn unix_profiles(
 pub fn available_profiles(shell: &Shell) -> Vec<ShellProfile> {
     if !cfg!(windows) {
         let login_shell = std::env::var("SHELL").ok();
-        return unix_profiles(login_shell.as_deref(), Path::is_file, canonical);
+        return unix_profiles(login_shell.as_deref(), Path::is_file, canonical, &etc_shells());
     }
     let is_default_path = shell.path == settings::DEFAULT_GIT_BASH_PATH;
     let path_var = std::env::var_os("PATH").unwrap_or_default();
@@ -629,7 +665,7 @@ mod tests {
     #[test]
     fn unix_list_starts_with_the_login_shell_and_skips_duplicates() {
         let all = |_: &Path| true;
-        let list = unix_profiles(Some("/bin/zsh"), all, same);
+        let list = unix_profiles(Some("/bin/zsh"), all, same, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH, FISH]);
         assert_eq!(list[0].name, "Login shell (zsh)");
         assert!(list[0].integration, "a zsh login shell takes the zsh lines");
@@ -642,15 +678,15 @@ mod tests {
             ("fish", "/usr/bin/fish")
         );
 
-        let list = unix_profiles(Some("/usr/bin/fish"), all, same);
+        let list = unix_profiles(Some("/usr/bin/fish"), all, same, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, BASH]);
         assert_eq!(list[0].name, "Login shell (fish)");
         assert!(list[0].integration);
 
-        let list = unix_profiles(Some("/opt/homebrew/bin/bash"), all, same);
+        let list = unix_profiles(Some("/opt/homebrew/bin/bash"), all, same, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, FISH]);
 
-        let list = unix_profiles(Some("/usr/local/bin/nu"), all, same);
+        let list = unix_profiles(Some("/usr/local/bin/nu"), all, same, &[]);
         assert!(!list[0].integration);
     }
 
@@ -673,22 +709,69 @@ mod tests {
             Ok(rest) => Path::new("/usr/bin").join(rest),
             Err(_) => p.to_path_buf(),
         };
-        let list = unix_profiles(Some("/usr/bin/zsh"), linux, merged);
+        let list = unix_profiles(Some("/usr/bin/zsh"), linux, merged, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH, FISH]);
         assert_eq!(list[1].path, "/bin/bash");
-        let list = unix_profiles(Some("/usr/bin/bash"), linux, merged);
+        let list = unix_profiles(Some("/usr/bin/bash"), linux, merged, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, FISH]);
-        let list = unix_profiles(Some("/bin/fish"), linux, merged);
+        let list = unix_profiles(Some("/bin/fish"), linux, merged, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, BASH]);
         // Without the link the two paths are different shells, and both are listed.
-        let list = unix_profiles(Some("/usr/bin/zsh"), linux, same);
+        let list = unix_profiles(Some("/usr/bin/zsh"), linux, same, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH, BASH, FISH]);
+    }
+
+    fn listed(paths: &[&str]) -> Vec<String> {
+        paths.iter().map(|p| p.to_string()).collect()
+    }
+
+    #[test]
+    fn unix_list_adds_etc_shells_after_the_known_ones() {
+        let all = |_: &Path| true;
+        let etc = listed(&[
+            "/bin/sh", "/bin/bash", "/usr/bin/bash", "/usr/bin/git-shell", "/usr/bin/fish",
+            "/usr/bin/nu", "/usr/bin/elvish", "/usr/bin/tmux", "/usr/bin/pwsh",
+        ]);
+        let list = unix_profiles(Some("/bin/zsh"), all, same, &etc);
+        assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH, FISH, "nu", "elvish", PWSH]);
+        let nu = &list[3];
+        assert_eq!((nu.name.as_str(), nu.path.as_str()), ("Nushell", "/usr/bin/nu"));
+        assert_eq!(nu.args, vec!["-l".to_string()]);
+        assert!(!nu.integration);
+        assert!(list[4].args.is_empty(), "elvish has no -l");
+        assert_eq!(list[5].name, "PowerShell 7");
+    }
+
+    #[test]
+    fn unix_etc_shells_skip_missing_files_and_the_login_shell() {
+        let some = |p: &Path| p != Path::new("/usr/bin/xonsh");
+        let etc = listed(&["/usr/bin/xonsh", "/usr/bin/nu", "/usr/local/bin/nu", "/opt/nu"]);
+        let list = unix_profiles(Some("/opt/nu"), some, same, &etc);
+        assert_eq!(list[0].path, "/opt/nu");
+        assert_eq!(list.iter().filter(|p| p.id == "nu").count(), 1);
+        assert_eq!(list.iter().find(|p| p.id == "nu").unwrap().path, "/usr/bin/nu");
+        // The same file through another path is the login shell, so it is not listed again.
+        let merged = |p: &Path| PathBuf::from(p.to_string_lossy().replace("/usr/local/bin", "/usr/bin"));
+        let etc = listed(&["/usr/bin/xonsh", "/usr/bin/nu", "/usr/local/bin/nu"]);
+        let list = unix_profiles(Some("/usr/bin/nu"), some, merged, &etc);
+        assert!(!list.iter().any(|p| p.id == "nu"));
+        assert!(!list.iter().any(|p| p.id == "xonsh"));
+    }
+
+    #[test]
+    fn profile_ids_accept_shell_file_names() {
+        for good in ["nu", "elvish", "gitBash", "loginShell", "osh", "fish-4"] {
+            assert!(is_profile_id(good), "{good}");
+        }
+        for bad in ["PWSH", "", "1sh", "a b", "../x", &"x".repeat(33)] {
+            assert!(!is_profile_id(bad), "{bad}");
+        }
     }
 
     #[test]
     fn unix_zsh_found_under_usr_bin_alone() {
         let only = |p: &Path| p == Path::new("/usr/bin/zsh") || p == Path::new("/bin/sh");
-        let list = unix_profiles(Some("/bin/sh"), only, same);
+        let list = unix_profiles(Some("/bin/sh"), only, same, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL, ZSH]);
         assert_eq!(list[1].path, "/usr/bin/zsh");
     }
@@ -696,7 +779,7 @@ mod tests {
     #[test]
     fn unix_login_shell_falls_back_to_sh_without_zsh_or_bash() {
         let only_sh = |p: &Path| p == Path::new("/bin/sh");
-        let list = unix_profiles(None, only_sh, same);
+        let list = unix_profiles(None, only_sh, same, &[]);
         assert_eq!(ids(&list), vec![LOGIN_SHELL]);
         assert_eq!(list[0].path, "/bin/sh");
         assert_eq!(list[0].name, "Login shell (sh)");
@@ -706,7 +789,7 @@ mod tests {
     fn unix_login_shell_falls_back_to_zsh() {
         let only_system = |p: &Path| p == Path::new("/bin/zsh") || p == Path::new("/bin/bash");
         for login in [None, Some(""), Some("/missing/shell")] {
-            let list = unix_profiles(login, only_system, same);
+            let list = unix_profiles(login, only_system, same, &[]);
             assert_eq!(ids(&list), vec![LOGIN_SHELL, BASH], "{login:?}");
             assert_eq!(list[0].path, "/bin/zsh");
             assert_eq!(list[1].path, "/bin/bash");

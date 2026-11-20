@@ -39,6 +39,18 @@ Behavior:
   user's profile files and builds its own `PATH`. The login shell is the default and always
   offered.
 
+  Any other shell `/etc/shells` lists follows (`etc_shells.rs`), so a shell no table names (nu,
+  elvish, xonsh, pwsh, tcsh, ksh) is offered once installed: every Linux distribution and macOS
+  keep that file, and package managers add a shell to it on install. Its id is its file name
+  (`nu`), lowercase letters, digits, `_`, and `-` (`profiles::is_profile_id`), named by that
+  name except `pwsh` (PowerShell 7) and `nu` (Nushell). Skipped: `sh`, restricted shells
+  (`rbash`), account locks and service shells (`nologin`, `git-shell`,
+  `systemd-home-fallback-shell`), multiplexers Debian registers (`tmux`, `screen`), a missing
+  file, an id already listed, and a file already listed under another path (usr-merge). It
+  starts with `-l` when it is known to take it (`TAKES_LOGIN_FLAG`), else with no arguments; the
+  login shell keeps `-l` unless it is known to refuse it (elvish). A shell installed outside
+  the package manager (cargo, Homebrew without `chsh`) is not in the file and is not found.
+
   `pty_spawn` starts the requested profile if it is available, else `shell.defaultProfile` if
   that is available, else the first available profile in the order Git Bash, PowerShell 7,
   Windows PowerShell, Command Prompt (the order of the list on macOS and Linux), and returns the id it started so the front end records what

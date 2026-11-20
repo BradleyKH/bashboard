@@ -13,13 +13,12 @@ describe('profileName', () => {
 });
 
 describe('parseProfileId', () => {
-  it('accepts short letter-only ids', () => {
-    expect(parseProfileId('pwsh')).toBe('pwsh');
-    expect(parseProfileId('gitBash')).toBe('gitBash');
+  it('accepts fixed ids and shell file names', () => {
+    for (const id of ['pwsh', 'gitBash', 'nu', 'fish-4', 'x1']) expect(parseProfileId(id)).toBe(id);
   });
 
   it('rejects everything else', () => {
-    for (const bad of ['', 'a b', 'a-b', 'x1', 'a'.repeat(33), 5, null, undefined]) {
+    for (const bad of ['', 'a b', '1x', '-a', '../x', 'PWSH', 'a'.repeat(33), 5, null, undefined]) {
       expect(parseProfileId(bad)).toBeUndefined();
     }
   });

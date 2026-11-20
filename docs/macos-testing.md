@@ -34,7 +34,8 @@ For each check, report pass or fail, plus what you saw if it failed.
    (bash: `shopt login_shell` prints `on`).
 3. `command -v bb` prints a path inside `Bashboard.app`.
 4. Alt+Shift+T opens the shell picker. It lists your login shell, and also zsh or bash when
-   that shell isn't already your login shell.
+   that shell isn't already your login shell, plus the other shells in `/etc/shells` (csh, dash,
+   ksh, and tcsh on a stock Mac), but not `sh`.
 
 **PATH and Claude Code**
 
@@ -91,7 +92,10 @@ For each check, report pass or fail, plus what you saw if it failed.
 **Editors**
 
 23. With VS Code or a JetBrains IDE installed in Applications, the editor setting lists it.
-    Opening a search result opens the file at its line in that editor.
+    Opening a search result opens the file at its line in that editor. The editor setting also
+    lists TextEdit and any other app that declares itself a text editor (BBEdit, CotEditor,
+    Xcode), each once and by its own name; VS Code and the JetBrains IDEs are not listed a
+    second time. Choose TextEdit and open a file from a Files pane: it opens in TextEdit.
 
 **Setup and code hosts**
 

@@ -68,7 +68,10 @@ struct Proc {
 
 /// Programs whose descendants count as started from a terminal: shells and Claude Code, by base
 /// name (Windows adds `.exe`, which `is_shell` drops).
-const SHELLS: &[&str] = &["bash", "sh", "zsh", "fish", "cmd", "pwsh", "powershell", "nu", "claude", "codex", "copilot"];
+const SHELLS: &[&str] = &[
+    "bash", "sh", "zsh", "fish", "cmd", "pwsh", "powershell", "nu", "elvish", "xonsh", "dash", "ksh",
+    "mksh", "tcsh", "csh", "osh", "ysh", "claude", "codex", "copilot",
+];
 
 fn is_shell(name: &str) -> bool {
     let base = match name.len().checked_sub(4).and_then(|i| name.get(i..)) {

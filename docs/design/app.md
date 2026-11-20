@@ -299,7 +299,7 @@ the password prompt and `dpkg` run), installs, and relaunches the app.
 
 **Failures.** `updateErrorModel.ts` turns the plugin's error text into a sentence, and says
 whether to offer a Download button that opens the latest release page. A manual check that fails
-shows it in a toast; one with no entry for the install (an AppImage or `.rpm`) says the install
+shows it in a toast; one with no entry for the install (an AppImage, `.rpm`, or Arch package) says the install
 cannot update itself and offers Download. A failed install leaves the running app as it was and
 turns the banner red with Later, Download when offered, and Try again. On Linux, a cancelled
 password prompt usually surfaces as the package error (the terminal `sudo` fallback fails with
