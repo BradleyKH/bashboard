@@ -19,26 +19,27 @@ Fill this in first, and put it at the top of what you send back.
 - Session type, Wayland or X11 (`echo $XDG_SESSION_TYPE`):
 - GPU and driver (`lspci -k | grep -A3 -E 'VGA|3D'`; for NVIDIA, proprietary or nouveau):
 - Display size and scale factor:
-- Install format used (AppImage, `.deb`, or `.rpm`) and its file name:
+- Install format used (AppImage, `.deb`, `.rpm`, or Arch package) and its file name:
 
 ## Builds
 
 Each release carries the `.deb`, beside the Windows installer, on the
-[latest release](https://github.com/BradleyKH/bashboard/releases/latest). The AppImage and `.rpm`
-come from CI only: open the latest run of the CI workflow on `main` on GitHub, and download the
+[latest release](https://github.com/BradleyKH/bashboard/releases/latest). The AppImage, `.rpm`, and
+Arch package come from CI only: open the latest run of the CI workflow on `main` on GitHub, and download the
 `bashboard-linux` artifact from the run's Artifacts list. That artifact also holds a `.deb` of
 the unreleased code. Both workflows build on Ubuntu 22.04, so the packages run on anything with
-that glibc or newer. The artifact holds three files:
+that glibc or newer. The artifact holds four files:
 
 - `bashboard_<version>_amd64.AppImage`
 - `bashboard_<version>_amd64.deb`
 - `bashboard-<version>-1.x86_64.rpm`
+- `bashboard-<version>-1-x86_64.pkg.tar.zst`
 
 ## Install
 
 Use the format that suits the distro, and say which one you used.
 
-**AppImage** (any distro; the one to use on CachyOS and other Arch-based systems)
+**AppImage** (any distro)
 
 1. Make it executable and run it:
 
@@ -68,8 +69,14 @@ sudo dnf install ./bashboard-*.x86_64.rpm
 On RHEL 10, run `sudo dnf install epel-release` first; the WebKitGTK package Bashboard depends on
 comes from EPEL.
 
-With the `.deb` or `.rpm`, the install pulls in WebKitGTK 4.1 and GTK 3 by itself. Check the
-layout once the package is in:
+**Arch package** (Arch, CachyOS, Manjaro, EndeavourOS)
+
+```sh
+sudo pacman -U bashboard-*-x86_64.pkg.tar.zst
+```
+
+With the `.deb`, `.rpm`, or Arch package, the install pulls in WebKitGTK 4.1 and GTK 3 by itself.
+Check the layout once the package is in:
 
 ```sh
 readlink /usr/bin/bashboard   # ../lib/bashboard/bashboard

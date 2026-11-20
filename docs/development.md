@@ -122,7 +122,8 @@ shares the installed app's lock and saved workspace.
 `bashboard-installer` artifact on the workflow run. Its `macos` job runs the same checks on a
 Mac runner and builds a universal `.app` (not uploaded); for a `.dmg` to hand to a tester, run
 the `macOS preview` workflow from the Actions tab. Its `linux` job builds the `.deb`, `.rpm`,
-and AppImage and uploads them as the `bashboard-linux` artifact; [Testing a Linux
+AppImage, and Arch package (from the `.rpm`, in an Arch container) and uploads them as the
+`bashboard-linux` artifact; [Testing a Linux
 build](linux-testing.md) lists what to check with them.
 
 To publish a release:

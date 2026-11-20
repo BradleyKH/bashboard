@@ -6,6 +6,7 @@
 # desktop integration: the webkit and gtk dependencies, a desktop file that takes folders without
 # claiming them (no MimeType, which would make it a default folder handler), the Dolphin service
 # menu and Nemo action that open folders (section 3.18), and a valid hicolor icon set. Run from the repo root after scripts/linux/relayout-packages.sh.
+# With --arch it also checks the Arch package scripts/linux/build-arch-package.sh made.
 set -euo pipefail
 
 bundle=src-tauri/target/release/bundle
@@ -128,3 +129,14 @@ if [ -z "$desktop" ]; then
   exit 1
 fi
 check_desktop "$image" <"$desktop"
+
+if [ "${1:-}" = --arch ]; then
+  pkg=$(find "$bundle/arch" -maxdepth 1 -name '*.pkg.tar.zst' 2>/dev/null | head -n 1)
+  if [ -z "$pkg" ]; then
+    echo "::error::no .pkg.tar.zst under $bundle/arch"
+    exit 1
+  fi
+  tar --zstd -tvf "$pkg" | awk '{ $1=$2=$3=$4=$5=""; sub(/^ +/, ""); print }' | check_layout "$pkg"
+  tar --zstd -xOf "$pkg" .PKGINFO | sed -n 's/^depend = //p' | check_depends "$pkg"
+  tar --zstd -xOf "$pkg" --wildcards 'usr/share/applications/*.desktop' | check_desktop "$pkg"
+fi

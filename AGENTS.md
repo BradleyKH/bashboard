@@ -40,7 +40,7 @@ Git Bash, cargo may need `export PATH="$HOME/.cargo/bin:$PATH"` first. The Rust 
 `cargo fmt` clean, so don't run `cargo fmt` repo-wide; format only what you touch. CI
 (`.github/workflows/ci.yml`) runs the type check, Vitest, `cargo test`, and an installer build
 on Windows; the same checks plus a universal `.app` build on macOS; and the same checks plus the
-`.deb`, `.rpm`, and AppImage builds on Linux.
+`.deb`, `.rpm`, AppImage, and Arch package builds on Linux.
 
 Debug builds keep settings and saved state in a `dev` subfolder of the app's config folder
 (`%APPDATA%\dev.bashboard\dev` on Windows), not the installed app's folder; the first debug run

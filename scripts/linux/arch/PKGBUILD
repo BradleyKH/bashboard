@@ -1,0 +1,29 @@
+# Maintainer: Bradley Harris
+# Repackages the relaid-out .rpm's payload (scripts/linux/build-arch-package.sh copies it here as
+# bashboard.rpm and sets pkgver). The .rpm's binary, not the .deb's, because the bundler stamps the
+# package type into the binary and the updater looks that type up in latest.json: an "rpm" binary
+# finds no entry and says to update through the package manager, where a "deb" one would try to
+# install a .deb on Arch.
+pkgname=bashboard
+pkgver=0.0.0
+pkgrel=1
+pkgdesc='A terminal workspace for developers running AI coding agents'
+arch=('x86_64')
+url='https://github.com/BradleyKH/bashboard'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libsoup3' 'dbus' 'cairo' 'gdk-pixbuf2' 'glib2' 'libgcc' 'glibc' 'hicolor-icon-theme')
+optdepends=(
+  'gnome-keyring: store code host tokens (GNOME)'
+  'kwallet: store code host tokens (KDE)'
+  'git: Git and Ship panes'
+)
+options=('!strip' '!debug')
+source=('bashboard.rpm' 'LICENSE')
+noextract=('bashboard.rpm')
+sha256sums=('SKIP' 'SKIP')
+
+package() {
+  bsdtar -xf "$srcdir/bashboard.rpm" -C "$pkgdir"
+  # The rpm carries no license file; Arch expects one for MIT.
+  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

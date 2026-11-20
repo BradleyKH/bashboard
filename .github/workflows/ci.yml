@@ -169,8 +169,13 @@ jobs:
       - name: Move bb off the system PATH
         run: bash scripts/linux/relayout-packages.sh
 
+      # Repackages the relaid-out .rpm in an archlinux:base-devel container, which also installs
+      # it with pacman and lints it with namcap.
+      - name: Build the Arch package
+        run: bash scripts/linux/build-arch-package.sh
+
       - name: Assert the packages ship bb
-        run: bash scripts/linux/assert-bundle.sh
+        run: bash scripts/linux/assert-bundle.sh --arch
 
       - uses: actions/upload-artifact@v7
         with:
@@ -179,4 +184,5 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/arch/*.pkg.tar.zst
           if-no-files-found: error
