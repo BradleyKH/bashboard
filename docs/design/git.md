@@ -1,7 +1,6 @@
 # Git
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.9 Git (`src-tauri/src/git.rs`, `src-tauri/src/git_fetch.rs`, `src-tauri/src/git_worktrees.rs`, `src-tauri/src/git_branches.rs`, `src-tauri/src/git_watch.rs`)
 
@@ -30,7 +29,7 @@ own git commands.
 | `git_restore_branch(root, name, hash)` | `branch <name> <hash>` |
 | `git_fetch(root, background)` | `fetch --prune` |
 | `git_pull(root)` | `pull --ff-only` |
-| `git_push(root)` | `push`, or `push -u <remote> <branch>` for a branch with no upstream |
+| `git_push(root, upTo)` | `push`, or `push -u <remote> <branch>` for a branch with no upstream; with `upTo` (a commit on the current branch, for Push up to here), `push <remote> <hash>:<upstream ref>`, refused with no upstream or one that is a local branch |
 | `git_last_fetch(root) -> {time, ok, message}` | The latest fetch attempt for the repo, or null when there has been none this session |
 | `git_fetch_roots(roots)` | Replaces the roots that have an open Git pane, for the background fetch |
 | `git_fetch_visible(visible)` | Tells the background fetch whether the window is on screen |

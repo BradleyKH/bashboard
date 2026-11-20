@@ -6,7 +6,9 @@ testing only. This page lists what to check and what to send back.
 ## Install
 
 1. Download `Bashboard_<version>_universal.dmg` (runs on every Mac) or `_aarch64.dmg` (Apple
-   silicon only) from the `macos-preview-<commit>` prerelease on the GitHub releases page.
+   silicon only). The `macOS preview` workflow uploads it as the `bashboard-macos-<target>`
+   artifact on its run; when the run's prerelease box was ticked, it is also on the
+   `macos-preview-<commit>` prerelease on the GitHub releases page.
 2. Open the `.dmg` and drag Bashboard to Applications.
 3. In Terminal, run this once, since the build is not notarized:
 
@@ -33,7 +35,7 @@ For each check, report pass or fail, plus what you saw if it failed.
    Terminal. It runs as a login shell: in zsh, `[[ -o login ]] && echo login` prints `login`
    (bash: `shopt login_shell` prints `on`).
 3. `command -v bb` prints a path inside `Bashboard.app`.
-4. Alt+Shift+T opens the shell picker. It lists your login shell, and also zsh or bash when
+4. Cmd+Option+T opens the shell picker. It lists your login shell, and also zsh or bash when
    that shell isn't already your login shell, plus the other shells in `/etc/shells` (csh, dash,
    ksh, and tcsh on a stock Mac), but not `sh`.
 
@@ -57,41 +59,45 @@ For each check, report pass or fail, plus what you saw if it failed.
     terminal.
 13. Cmd+click on a link in terminal output opens it in your browser.
 14. In Claude Code, Shift+Enter starts a new line and Esc interrupts.
-15. Cmd+Q quits.
+15. Cmd+Q saves the workspace and quits.
+16. Cmd+Ctrl+Arrow resizes the pane (the system does not take it), Cmd+Shift+Enter zooms it,
+    Cmd+B toggles the dashboard, and Cmd+Ctrl+F toggles full screen.
+17. In the text editor, Cmd+L opens the Line field and Cmd+S saves; in the Git pane,
+    Cmd+Enter commits.
 
 **Files and restore**
 
-16. Right-click the empty space in a Files pane. Copy path copies a path that uses `/`, and
+18. Right-click the empty space in a Files pane. Copy path copies a path that uses `/`, and
     Open in Finder opens the folder in Finder.
-17. Make a layout with two tabs and a split, quit, and start the app again. The layout comes
+19. Make a layout with two tabs and a split, quit, and start the app again. The layout comes
     back.
 
 **Notifications**
 
-18. Start `claude` in a pane, give it a prompt that needs a permission, and switch to another
+20. Start `claude` in a pane, give it a prompt that needs a permission, and switch to another
     app before it asks. A notification appears with the pane's title; macOS asks for permission
     the first time. Clicking it brings Bashboard forward with that pane focused.
 
 **Accounts**
 
-19. In Settings, Accounts, add a Bitbucket or Azure DevOps token. Quit and start Bashboard
+21. In Settings, Accounts, add a Bitbucket or Azure DevOps token. Quit and start Bashboard
     again; the card still shows that a token is stored.
-20. In a pane, run `bb auth bitbucket` and enter a token. macOS may ask whether to allow
+22. In a pane, run `bb auth bitbucket` and enter a token. macOS may ask whether to allow
     Bashboard to use the Keychain. Then `bb auth bitbucket --clear` removes the token.
 
 **Ports**
 
-21. Run `python3 -m http.server 8765` in a pane. The Ports pane and the dashboard show port
+23. Run `python3 -m http.server 8765` in a pane. The Ports pane and the dashboard show port
     8765 tied to that pane, and Stop ends the server.
 
 **Fonts**
 
-22. The Font family field in Settings, Appearance suggests installed fonts, with monospace
+24. The Font family field in Settings, Appearance suggests installed fonts, with monospace
     fonts such as Menlo and SF Mono listed first.
 
 **Editors**
 
-23. With VS Code or a JetBrains IDE installed in Applications, the editor setting lists it.
+25. With VS Code or a JetBrains IDE installed in Applications, the editor setting lists it.
     Opening a search result opens the file at its line in that editor. The editor setting also
     lists TextEdit and any other app that declares itself a text editor (BBEdit, CotEditor,
     Xcode), each once and by its own name; VS Code and the JetBrains IDEs are not listed a
@@ -99,21 +105,21 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 **Setup and code hosts**
 
-24. Press F1. The Setup list has a Git row reading Installed. On a Mac without Apple's Command
+26. Press F1. The Setup list has a Git row reading Installed. On a Mac without Apple's Command
     Line Tools, it offers Install, which opens Apple's installer.
-25. With the GitHub CLI installed through Homebrew, Settings, Accounts shows it as installed
+27. With the GitHub CLI installed through Homebrew, Settings, Accounts shows it as installed
     and lists your signed-in accounts. Without it, but with Homebrew, Install GitHub CLI runs
     `brew install gh` in a new pane.
 
 **System ports**
 
-26. Turn on AirPlay Receiver (System Settings, General, AirDrop & Handoff). In a Ports pane,
+28. Turn on AirPlay Receiver (System Settings, General, AirDrop & Handoff). In a Ports pane,
     ports 5000 and 7000 appear only with macOS services ticked,
     dimmed, and the dashboard's port list does not count them.
 
 **Crash recovery**
 
-27. Open a few panes. In Activity Monitor, choose View, All Processes, Hierarchically, find the
+29. Open a few panes. In Activity Monitor, choose View, All Processes, Hierarchically, find the
     `com.apple.WebKit.WebContent` process under Bashboard, and Force Quit it. The window
     reloads, and every pane comes back with its shell still running.
 
@@ -123,40 +129,15 @@ These need Safari's Web Inspector. In Safari, turn on Settings, Advanced, "Show 
 web developers". Then, with Bashboard running, choose Develop, then your Mac's name, then
 Bashboard. Paste each snippet into the Console tab.
 
-**Frame time.** In Bashboard's Settings, set `backdrop.maxFps` to `0` (no cap). Run the
-snippet with one pane, then again with six panes in one tab. Set `backdrop.maxFps` back to
-`20` when you're done.
+The snippets are the frame-time and WebGL context limit ones in
+[Testing a Linux build](linux-testing.md#measurements).
 
-```js
-(() => {
-  const gaps = [];
-  let last = performance.now();
-  const end = last + 5000;
-  const tick = (now) => {
-    gaps.push(now - last);
-    last = now;
-    if (now < end) return requestAnimationFrame(tick);
-    gaps.sort((a, b) => a - b);
-    const at = (q) => gaps[Math.floor(gaps.length * q)].toFixed(1);
-    console.log(`frames ${gaps.length}, median ${at(0.5)} ms, p95 ${at(0.95)} ms`);
-  };
-  requestAnimationFrame(tick);
-})();
-```
+**Frame time.** In Bashboard's Settings, set `backdrop.maxFps` to `0` (no cap). Run the
+snippet with one pane, then again with eight terminal panes in one tab, which is the most that
+use WebGL. Set `backdrop.maxFps` back to `20` when you're done.
 
 **WebGL context limit.** Run this last: it takes the GPU contexts away from the background
 and the panes, so quit and restart Bashboard afterward.
-
-```js
-(() => {
-  const contexts = [];
-  for (let i = 0; i < 64; i++) contexts.push(document.createElement('canvas').getContext('webgl2'));
-  setTimeout(() => {
-    const live = contexts.filter((gl) => gl && !gl.isContextLost()).length;
-    console.log(`live WebGL contexts: ${live} of 64`);
-  }, 1000);
-})();
-```
 
 ## What to send back
 

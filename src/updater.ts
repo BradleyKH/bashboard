@@ -23,13 +23,15 @@ export async function checkForUpdate(opts: CheckForUpdateOptions): Promise<void>
   }
   if (notice) return;
   try {
-    const update = await check();
+    // An Arch package install checks its own entry and installs with pacman (pacman_update.rs).
+    const target = await invoke<string | null>('update_target').catch(() => null);
+    const update = await check(target ? { target } : undefined);
     if (!update) {
       if (opts.manual) showToast('Bashboard is up to date');
       return;
     }
     if (notice) return;
-    notice = new UpdateNotice(update, opts.confirm, () => {
+    notice = new UpdateNotice(update, opts.confirm, target !== null, () => {
       notice = null;
     });
     notice.show();

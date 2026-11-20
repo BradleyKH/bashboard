@@ -8,9 +8,9 @@ permissions:
   contents: write
 
 # The windows job builds the installer into a draft release with latest.json; the linux job builds
-# the .deb, .rpm, AppImage, and Arch package beside it; publish attaches them, adds the .deb to
-# latest.json, and only then publishes, so a release missing either build never becomes the one
-# the updater reads.
+# and signs the .deb, .rpm, AppImage, and Arch package beside it; publish attaches them, adds each
+# to latest.json, and only then publishes, so a release missing either build never becomes the
+# one the updater reads.
 jobs:
   windows:
     runs-on: windows-latest
@@ -96,8 +96,8 @@ jobs:
           new, and GNOME is partly tested. Install the .deb with
           \`sudo apt install ./bashboard_${GITHUB_REF_NAME#v}_amd64.deb\`, the Arch package with
           \`sudo pacman -U bashboard-${GITHUB_REF_NAME#v}-1-x86_64.pkg.tar.zst\`, or the .rpm with
-          \`sudo dnf install ./bashboard-${GITHUB_REF_NAME#v}-1.x86_64.rpm\`. Only the .deb updates itself;
-          for the others, download the next release's file."
+          \`sudo dnf install ./bashboard-${GITHUB_REF_NAME#v}-1.x86_64.rpm\`. Each updates itself from
+          then on."
           delim="NOTES_$(date +%s%N)"
           {
             echo "body<<$delim"
@@ -240,32 +240,33 @@ jobs:
       - name: Assert the packages ship bb
         run: bash scripts/linux/assert-bundle.sh --arch
 
-      # The relayout rebuilds the .deb, so a signature the bundler made would no longer match;
-      # the updater signature is made here, over the final file.
-      - name: Sign the .deb for the updater
+      # The relayout rebuilds the .deb and .rpm, and the Arch package is made after it, so
+      # signatures the bundler made would no longer match; the updater signatures are made here,
+      # over the final files.
+      - name: Sign the packages for the updater
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          deb=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' | head -n 1)
-          pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "$deb"
-          test -s "$deb.sig"
+          bundle=src-tauri/target/release/bundle
+          for pattern in 'deb/*.deb' 'rpm/*.rpm' 'appimage/*.AppImage' 'arch/*.pkg.tar.zst'; do
+            f=$(find "$bundle/${pattern%%/*}" -maxdepth 1 -name "${pattern#*/}" | head -n 1)
+            if [ -z "$f" ]; then
+              echo "::error::no $pattern under $bundle"
+              exit 1
+            fi
+            pnpm tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "$f"
+            test -s "$f.sig"
+          done
 
       - uses: actions/upload-artifact@v7
         with:
-          name: bashboard-deb
+          name: bashboard-linux
           path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/deb/*.deb.sig
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: bashboard-other
-          path: |
-            src-tauri/target/release/bundle/arch/*.pkg.tar.zst
-            src-tauri/target/release/bundle/rpm/*.rpm
-            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb*
+            src-tauri/target/release/bundle/rpm/*.rpm*
+            src-tauri/target/release/bundle/appimage/*.AppImage*
+            src-tauri/target/release/bundle/arch/*.pkg.tar.zst*
           if-no-files-found: error
 
   publish:
@@ -277,44 +278,35 @@ jobs:
     steps:
       - uses: actions/download-artifact@v7
         with:
-          name: bashboard-deb
-          path: deb
+          name: bashboard-linux
+          path: linux
 
-      - uses: actions/download-artifact@v7
-        with:
-          name: bashboard-other
-          path: other
-
-      # None of these gets a latest.json entry, so each finds none for its package type and the
-      # app points it at the release page. An rpm entry in particular is off limits: the Arch
-      # package carries the .rpm's binary, so Arch installs would try to install the .rpm.
-      # upload-artifact keeps the paths below the common bundle/ folder, hence the search by name.
-      - name: Attach the Arch package, .rpm, and AppImage
+      # One entry per package type, keyed as the updater looks it up: the plugin reads deb, rpm,
+      # or appimage from the type the bundler stamped into the binary, and an Arch package install
+      # asks for linux-x86_64-arch itself (pacman_update.rs), since it carries the .rpm's binary.
+      # There is no bare linux-x86_64 entry, which every type would fall back to and could not
+      # install. upload-artifact keeps the paths below the common bundle/ folder, hence the search
+      # by name.
+      - name: Attach the Linux packages and add them to latest.json
         run: |
-          files=()
-          for pattern in '*.pkg.tar.zst' '*.rpm' '*.AppImage'; do
-            f=$(find other -name "$pattern" | head -n 1)
-            if [ -z "$f" ]; then
-              echo "::error::no $pattern in the bashboard-other artifact"
+          gh release download "$GITHUB_REF_NAME" -p latest.json -D manifest
+          cp manifest/latest.json latest.json
+          for entry in 'deb:*.deb' 'rpm:*.rpm' 'appimage:*.AppImage' 'arch:*.pkg.tar.zst'; do
+            key="linux-x86_64-${entry%%:*}"
+            f=$(find linux -name "${entry#*:}" | head -n 1)
+            if [ -z "$f" ] || [ ! -s "$f.sig" ]; then
+              echo "::error::no ${entry#*:} with its .sig in the bashboard-linux artifact"
               exit 1
             fi
-            files+=("$f")
+            gh release upload "$GITHUB_REF_NAME" "$f" --clobber
+            url="https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME/$(basename "$f")"
+            jq --arg key "$key" --arg url "$url" --rawfile sig "$f.sig" \
+              '.platforms[$key] = {signature: ($sig | rtrimstr("\n")), url: $url}' \
+              latest.json > latest.json.tmp
+            mv latest.json.tmp latest.json
           done
-          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
-
-      # linux-x86_64-deb is the updater's first lookup on a .deb install; an AppImage or .rpm
-      # install looks up its own key, finds none, and the app points it at the release page.
-      - name: Attach the .deb and add it to latest.json
-        run: |
-          deb=$(find deb -maxdepth 1 -name '*.deb' | head -n 1)
-          name=$(basename "$deb")
-          gh release upload "$GITHUB_REF_NAME" "$deb" --clobber
-          gh release download "$GITHUB_REF_NAME" -p latest.json -D manifest
-          url="https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME/$name"
-          jq --arg url "$url" --rawfile sig "$deb.sig" \
-            '.platforms["linux-x86_64-deb"] = {signature: ($sig | rtrimstr("\n")), url: $url}' \
-            manifest/latest.json > latest.json
-          jq -e '.platforms["linux-x86_64-deb"].url and (.platforms | keys | any(startswith("windows-")))' latest.json
+          jq -e '([.platforms["linux-x86_64-deb", "linux-x86_64-rpm", "linux-x86_64-appimage", "linux-x86_64-arch"].url] | all)
+            and (.platforms | keys | any(startswith("windows-")))' latest.json
           gh release upload "$GITHUB_REF_NAME" latest.json --clobber
 
       # Publishing last keeps a broken build off releases/latest, which the updater reads.

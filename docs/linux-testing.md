@@ -109,9 +109,9 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 **PATH, `bb`, and Claude Code**
 
-5. `command -v bb` in a pane prints `/usr/lib/bashboard/bb` for the `.deb` and `.rpm`, or a path
-   inside the AppImage's mount for the AppImage. In a terminal outside Bashboard, `command -v bb`
-   does not find it (or finds a different program, such as Babashka).
+5. `command -v bb` in a pane prints `/usr/lib/bashboard/bb` for the `.deb`, `.rpm`, and Arch
+   package, or a path inside the AppImage's mount for the AppImage. In a terminal outside
+   Bashboard, `command -v bb` does not find it (or finds a different program, such as Babashka).
 6. `claude` starts Claude Code in a pane, and the dashboard lists that session.
 7. Open the dashboard and choose **Install Claude Code hooks**. `~/.claude/settings.json` gains
    Bashboard's hook entries beside any you had. Give Claude a prompt that needs a permission:
@@ -211,7 +211,8 @@ For each check, report pass or fail, plus what you saw if it failed.
 30. The Font family field in Settings, Appearance suggests installed fonts, with monospace fonts
     such as DejaVu Sans Mono listed first.
 
-**Desktop integration** (the `.deb`, the `.rpm`, or an AppImage after accepting the menu offer)
+**Desktop integration** (the `.deb`, the `.rpm`, the Arch package, or an AppImage after accepting
+the menu offer)
 
 31. Bashboard is in the applications menu with its icon, under Development or System.
 32. In Dolphin (KDE) or Nemo (Cinnamon), right-click a folder: **Open in Bashboard** opens it
@@ -227,10 +228,10 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 **Keys**
 
-34. Run the keyboard checklist in [Development](development.md#releasing): its first list names the
-    chords, which are the same Ctrl chords on Linux. Do it on each desktop you have. Note any
-    chord the desktop takes before Bashboard sees it (for example Ctrl+Alt+digit or
-    Ctrl+Alt+Arrow, which desktops often use for workspaces).
+34. Run the [keyboard checklist](development.md#keyboard-checklist); the chords are the same on
+    Linux. Do it on each desktop you have. Note any chord the desktop takes before Bashboard
+    sees it (for example Ctrl+Alt+digit or Ctrl+Alt+Arrow, which desktops often use for
+    workspaces).
 35. With IBus running (the default on GNOME, and often on KDE), Ctrl+Shift+E opens a Files pane.
     It does not open IBus's emoji picker.
 36. For a chord that does nothing, set `BASHBOARD_KEYLOG` and start Bashboard from a terminal:
@@ -274,18 +275,25 @@ For each check, report pass or fail, plus what you saw if it failed.
 
 **Updates**
 
-43. `.deb` only. Install a `.deb` older than the latest release (an earlier release's, or the
-    CI artifact from a commit before the latest release's version bump). At launch, or from
-    **Check for updates** in the About tab, a banner offers the latest version. **Install and
-    restart** downloads it, asks for your password (polkit, or a zenity or kdialog prompt),
-    installs it, and restarts on the new version: the About tab shows it, and
-    `dpkg -s bashboard | grep Version` agrees.
-44. `.deb` only, same setup, launched from the applications menu: dismiss each password prompt.
-    The banner says the update was not installed and offers **Try again** and **Download**, and
-    the old version keeps running. (Launched from a terminal, the last fallback asks for your
-    sudo password in that terminal instead.)
-45. AppImage, `.rpm`, and Arch package: **Check for updates** says this install cannot update
-    itself, pointing to the package manager or **Download**, which opens the latest release.
+43. Install a package older than the latest release (an earlier release's, or the CI artifact
+    from a commit before the latest release's version bump). At launch, or from **Check for
+    updates** in the About tab, a banner offers the latest version. **Install and restart**
+    downloads it, installs it, and restarts on the new version, and the About tab shows it. Per
+    format:
+    - `.deb`: asks for your password (polkit, or a zenity or kdialog prompt);
+      `dpkg -s bashboard | grep Version` agrees.
+    - `.rpm`: asks for your password the same way; `rpm -q bashboard` agrees.
+    - Arch package: asks for your password through polkit; `pacman -Q bashboard` agrees.
+    - AppImage: asks for nothing, and the same file (same name and path) now holds the new
+      version and is still executable. Run once from a folder you cannot write to (for example
+      `/opt`, owned by root): the banner says the update failed and offers **Download**.
+44. `.deb`, `.rpm`, or Arch package, same setup, launched from the applications menu: dismiss each
+    password prompt. The banner says the update was not installed and offers **Try again** and
+    **Download**, and the old version keeps running. (For the `.deb` and `.rpm` launched from a
+    terminal, the last fallback asks for your sudo password in that terminal instead.)
+45. On Arch, with an `.rpm` tool installed (`rpm-tools`), the update still goes through pacman,
+    never `rpm`: after it, `pacman -Q bashboard` shows the new version and `rpm -qa` lists no
+    bashboard.
 
 ## Measurements
 
@@ -354,8 +362,8 @@ panes, so quit and restart Bashboard afterward.
 - The filled-in report header: distro and version, desktop, Wayland or X11, GPU and driver, and
   display scale. A report that runs on more than one desktop or session type names each.
 - Which install format you used.
-- Pass or fail for each check, with a screenshot of any failure.
-- The keyboard checklist result, with any chord a desktop took. A Linux run records that result
-  with the pre-release keyboard checklist in [Development](development.md#releasing).
+- Pass or fail for each check, with a screenshot of any failure. There is no log file on Linux;
+  for a failure, start Bashboard from a terminal and include what it prints there.
+- The keyboard checklist result, with any chord a desktop took.
 - The frame-time lines for the backdrop alone and with eight terminals, on Wayland and on X11,
   and the WebGL context count. If you could not open the inspector, say that.

@@ -1,7 +1,6 @@
 # Local Browser
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.21 Local file server (`src-tauri/src/browser_files/`)
 
@@ -177,7 +176,10 @@ URL entry, Back, Forward, Reload, Home, bookmarks, device sizes, and a drawer ho
 and a Network panel. It shows two kinds of page: loopback addresses (`http` or `https` on
 `localhost` or `127.0.0.1`, on any port), and local HTML files, which the core serves over
 loopback itself (3.21). The front end is `src/localBrowserPane.ts` (`LocalBrowserPane`) with its
-chrome in `src/browserToolbar.ts` and `src/browserDevtools.ts`; the core side is
+chrome in `src/browserToolbar.ts` and `src/browserDevtools.ts` (the drawer, holding
+`browserConsolePanel.ts` and `browserNetworkPanel.ts`), the egress bar in `browserEgressBar.ts`
+over the pure `browserEgressModel.ts`, and display and saved-state helpers in the pure
+`browserPaneModel.ts`; the core side is
 `src-tauri/src/browser.rs`, `src-tauri/src/browser/chords.rs`, `src-tauri/src/browser_policy.rs`,
 `src-tauri/src/browser_tls.rs`, and `src-tauri/src/browser_files/`. The pane's threat model and
 every measure that contains a framed page are collected in [security.md](security.md) (9.1).

@@ -47,6 +47,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 3.32 AppImage menu entry (`src-tauri/src/appimage_entry.rs`, `src/appImageOffer.ts`) | [app.md](app.md) |
 | 3.33 Session history (`src-tauri/src/history/`) | [sessions.md](sessions.md) |
 | 3.34 Window size (`src-tauri/src/window_fit.rs`) | [app.md](app.md) |
+| 3.35 Credential store (`src-tauri/src/credential_store.rs`, `src-tauri/src/credential_store_linux.rs`) | [ship.md](ship.md) |
 | 4.1 Layers | [workspace.md](workspace.md) |
 | 4.2 Pane layout | [workspace.md](workspace.md) |
 | 4.3 Collapsing | [workspace.md](workspace.md) |
@@ -88,6 +89,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 | 6.5 Image and Slideshow | [backdrop.md](backdrop.md) |
 | 6.6 Galaxy | [backdrop.md](backdrop.md) |
 | 6.7 Wave | [backdrop.md](backdrop.md) |
+| 6.8 Matrix | [backdrop.md](backdrop.md) |
 | 7 Data model | [data.md](data.md) |
 | 8 Settings | [data.md](data.md) |
 | 9 Security | [README.md](README.md) |
@@ -122,7 +124,7 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 
 - Platforms other than Windows 11, macOS, and Linux. Windows with WebView2 is the primary
   target; macOS ships as ad-hoc signed preview builds (`docs/macos-testing.md`) and Linux as early
-  `.deb`, `.rpm`, and AppImage builds (`docs/linux-testing.md`).
+  `.deb`, `.rpm`, Arch package, and AppImage builds (`docs/linux-testing.md`).
 - Replacing Claude Code's interface. Claude runs unmodified inside a pane.
 - Shells other than Git Bash, PowerShell 7, Windows PowerShell, and Command Prompt on Windows,
   and on macOS and Linux the login shell, zsh, bash, fish, and what `/etc/shells` lists.
@@ -197,26 +199,11 @@ constantly redrawing canvas is the most expensive effect here, so the default is
 and 0 turns it off.
 
 `uiScale` (default 1.25, from 1 to 2; the Settings tab calls it Interface size) sizes the chrome
-for people who want larger or smaller targets and text. It sets `--ui-scale` on `:root` (`src/uiScale.ts`), and one rule
-in `styles.css` gives every button, single-line text box, and dropdown `zoom` by it, so a control's
-glyph, padding, and border grow together, a toolbar row keeps one height, and every pane kind's
-toolbar follows without its own rule. Bars with a fixed px height (the pane title strip, the tab
-strip, and the offsets below them) multiply that height by the same property, and text you click or
-drag scales with them: pane titles and their status dots, tab titles and dots, the dashboard's
-section titles, and the find bar's match count. The app dialog zooms each tab's whole panel
-instead, so every tab's text, spacing, and fields scale together, and its controls reset their own
-zoom to 1 so the panel's applies once; the dialog widens by the same factor so lines keep their
-length. Content text stays put; it follows `font.size`, the Settings tab's Text size, through the
-`--text-scale` property (`font.size` over 14, set by `applyTextScale`), so surfaces designed at a
-fixed px size keep it at the default, and its pane's zoom multiplies on top. The top of the
-range puts the dashboard's buttons at the Launch section's size, and the Launch buttons themselves
-stay fixed. Buttons that read as text (dialog links, Ship repo rows, Ports column headers), rename
-boxes that stand in for a row's or tab's text, and the hidden dashboard's 8px edge handle are left
-out. The dashboard top bar's buttons keep their side padding unscaled, so both menus and the icons
-fit untruncated up to about 1.4 at the dashboard's minimum width; past that the menu labels
-ellipsize until the dashboard is widened. A control whose font an ancestor already scales would be
-scaled twice, so the tab strip, which scales its text, leaves its buttons' font explicit and its
-rename box out.
+for people who want larger or smaller targets and text: buttons, text boxes, dropdowns, title and
+tab strips, and the app dialog's panels. It sets `--ui-scale` on `:root`, and the CSS rules that
+apply it are described in `src/uiScale.ts`. Content text stays put; it follows `font.size`, the
+Settings tab's Text size, through the `--text-scale` property (`font.size` over 14, set by
+`applyTextScale`).
 
 ## 9. Security
 
@@ -252,22 +239,8 @@ rename box out.
   `DOMPurify`, with no remote images and links opened only through `open_url` (4.12).
 - The file commands (3.8) normalize every path, write only to existing files, and create or
   delete only the app's own scratch files.
-- Ship tokens (3.20) stay in the core's memory. They are read only from `gh auth token`, `glab
-  auth status --show-token`, `az account get-access-token`, the `AZURE_DEVOPS_EXT_PAT` variable,
-  Git Credential Manager (`git credential fill`, never `approve` or `reject`, never interactive),
-  or the credentials that the Accounts tab and `bb auth` write: `bashboard:bitbucket.org` and one
-  `bashboard:dev.azure.com/<org>` per Azure DevOps organization. They never
-  reach the page, a log, or an error message, and `Token`'s `Debug` output hides the value. The one
-  way a secret enters the core is the Accounts tab's password field, which sends a Bitbucket token
-  or an Azure DevOps personal access token to `forge_set_token` as a single argument; the core writes it to Windows Credential
-  Manager, on macOS to the Keychain as a generic password under the service `bashboard`, or on Linux to the Secret Service (or, only with the user's permission and no keyring running, to a `0600` file in a `0700` folder), and nowhere else, and overwrites its copies afterward on a best effort basis, since the
-  IPC layer's own buffers are outside the app's control. The field is emptied on save, cancel, and
-  when the dialog closes. A redirect to another
-  host drops the `Authorization` header, the Bitbucket provider refuses any host but
-  bitbucket.org before it sends anything, and the Azure DevOps provider calls only dev.azure.com,
-  so a self-hosted host's token is never sent to Bitbucket Cloud or Azure DevOps. `bb auth` hides
-  its input and never prints the token, and the Accounts tab's status and
-  test results carry no token.
+- Ship tokens stay in the core's memory and never reach the page or a log; how they are read,
+  stored, and sent is in 3.20 and 3.35.
 - `git`, `docker`, and `podman` run with argument lists, never through a shell, and paths come
   after `--` where the CLI accepts it. `open_in_editor` runs only a detected editor or the
   user's own `editor.command`.
@@ -278,30 +251,18 @@ Pure modules (no DOM) carry the logic worth testing and are covered by Vitest be
 module (`src/**/*.test.ts`); the Rust core's tests sit in each module and run against temp
 folders, temp repos, captured CLI output, and a spawned pty. Keys are the exception: what
 reaches the shell through WebView2 and xterm.js can only be checked by hand, with the keyboard
-checklist in [development.md](../development.md#releasing) before each release.
+checklist in [development.md](../development.md#keyboard-checklist) before each release.
 
-The Ship module's providers map captured JSON to the normalized shapes in pure functions, and
-build the requests that change a build or pipeline apart from sending them, so the GitHub,
-Bitbucket, GitLab, and Azure DevOps mappings, remote parsing and host classification, status-code
-mapping, the ETag cache, account choice, the Azure DevOps header scheme by token source, and
-token-source order are all tested without a network, and `bb auth`'s argument and token handling
-the same. The Accounts tab's host ordering and detection, source kinds, and signed-in check are
-Rust tests in `forge/accounts.rs`, and its cards, including the folding of undetected hosts, are a
-Vitest module (`forgeAccountsModel.test.ts`). The notices and menus, polling intervals, grouping,
-and log cleanup are Vitest cases in `shipModel.test.ts` and `shipMenus.test.ts`. Live checks
-against a real repo are `#[ignore]` tests, run by hand with `cargo test forge::github --
---ignored` (it uses `gh auth token`), `cargo test forge::bitbucket -- --ignored` (it uses the
-token stored by `bb auth bitbucket`), `cargo test forge::azure_devops -- --ignored` (read-only
-requests; it needs `BASHBOARD_ADO_LIVE=<org>/<project>/<repo>` and `AZURE_DEVOPS_EXT_PAT`), and
-`cargo test forge::http -- --ignored` (TLS through the Windows certificate store).
+The Ship providers' tests, including the live `#[ignore]` checks run by hand, are listed in
+[ship.md](ship.md).
 
 CI: a GitHub Actions workflow (`.github/workflows/ci.yml`) on `windows-latest` runs the type
 check, Vitest, `cargo test`, and `pnpm tauri build`, then uploads the NSIS installer as the
 `bashboard-installer` artifact. A second job on `macos-latest` runs the same checks and builds
 an ad-hoc signed universal `.app`, failing unless `bb` ships inside it for both architectures. A
 third job on `ubuntu-22.04` runs the same checks, builds the `.deb`, `.rpm`, and AppImage,
-lays the packages out so `bb` stays off the system `PATH` (3.13), and uploads them as
-`bashboard-linux`.
+lays the packages out so `bb` stays off the system `PATH` (3.13), repackages the `.rpm` as an
+Arch package in an `archlinux:base-devel` container, and uploads them all as `bashboard-linux`.
 
 ## 11. Risks
 

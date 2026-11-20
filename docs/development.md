@@ -50,9 +50,15 @@ tools and for machine-wide installs of the rest.
    git --version && node -v && pnpm -v && rustc -V && cargo -V
    ```
 
-6. **Get the code.** When copying the folder from another machine, leave out `node_modules/`,
-   `dist/`, and `src-tauri/target/`; they hold build output with machine-specific paths and are
-   recreated by the build.
+6. **Get the code:**
+
+   ```sh
+   git clone https://github.com/BradleyKH/bashboard && cd bashboard
+   ```
+
+   When copying the folder from another machine instead, leave out `node_modules/`, `dist/`, and
+   `src-tauri/target/`; they hold build output with machine-specific paths and are recreated by
+   the build.
 
 7. **Configure Git Bash** as described in
    [New panes in the current folder](setup.md#new-panes-in-the-current-folder).
@@ -76,7 +82,7 @@ the settings file (see [Settings](settings.md#settings)).
 
 ```sh
 pnpm tauri dev      # run the app with hot reload
-pnpm tauri:debug    # the same, with WebView2's remote debugging port open (9222, or pass one)
+pnpm tauri:debug    # the same, with WebView2's debugging port open (Windows only)
 pnpm test           # frontend unit tests (Vitest)
 pnpm tauri build    # release build and installer
 pnpm build:bb       # rebuild bb.exe after editing src-tauri/src/bin/bb.rs
@@ -101,7 +107,8 @@ attach to the window, read the console, and drive the real app with the real cor
 It works beside the installed app. Like `pnpm tauri dev`, it starts Vite on port 1420; when
 another server already holds that port, it exits without starting anything and prints the command
 to run instead: `src-tauri\target\debug\bashboard.exe` with the same variable set, which loads
-from whatever is serving port 1420.
+from whatever is serving port 1420. The variable only affects WebView2, so this is Windows only;
+on Linux, set `WEBKIT_INSPECTOR_SERVER` instead (see [Measurements](linux-testing.md#measurements)).
 
 A script driving the window should click with a trusted input event (CDP
 `Input.dispatchMouseEvent`) rather than `element.click()` from `Runtime.evaluate`. A scripted
@@ -112,6 +119,26 @@ Release builds allow one running instance; debug builds don't enforce it, so a d
 beside the installed app and several dev runs can start at once. Testing the second-launch
 handoff therefore needs a release build, and a release build run from `src-tauri\target\release`
 shares the installed app's lock and saved workspace.
+
+## Building packages on Linux and macOS
+
+`pnpm tauri build` alone is not what ships on either OS; build the way CI does
+(`.github/workflows/ci.yml`), from the repo root. On Linux:
+
+```sh
+pnpm tauri build --bundles deb,rpm,appimage
+bash scripts/linux/relayout-packages.sh    # moves bb off /usr/bin, where it collides with Babashka
+bash scripts/linux/build-arch-package.sh   # the Arch package, from the .rpm (needs Docker off Arch)
+bash scripts/linux/assert-bundle.sh --arch
+```
+
+On macOS, build the universal `bb` first, since a universal build merges only the main binary:
+
+```sh
+(cd src-tauri && bash ../scripts/macos/universal-bb.sh)
+pnpm tauri build --target universal-apple-darwin --bundles app --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'
+bash scripts/macos/assert-bundle.sh universal-apple-darwin
+```
 
 ## Releasing
 
@@ -131,12 +158,17 @@ To publish a release:
 1. Run `pnpm version:set <version>` (for example `0.2.0`). It sets the version in
    `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`; `tauri.conf.json` reads
    it from `package.json`.
-2. Commit the change, then create and push a `v<version>` tag: `git tag v<version>` and
-   `git push origin main v<version>`. To give the release notes, make it an annotated tag
-   instead: `git tag -a v<version> --cleanup=whitespace -F notes.md` (or `-m "..."`). The tag
-   message leads the release description and the update notes installed apps see; without one,
-   the release carries only the standard beta text. `--cleanup=whitespace` keeps markdown `#`
-   headings, which git otherwise strips as comments.
+2. Commit the change, write the release notes to `notes.md`, then tag and push:
+
+   ```sh
+   git tag -a v<version> --cleanup=whitespace -F notes.md
+   git push origin main v<version>
+   ```
+
+   The tag message leads the release description and the update notes installed apps see
+   (`latest.json`). `--cleanup=whitespace` keeps markdown `#` headings, which git otherwise
+   strips as comments. With no notes, a lightweight tag (`git tag v<version>`) works, and the
+   release carries only the standard beta text.
 
 The `.github/workflows/release.yml` workflow runs on the tag. Its Windows job checks that the tag
 matches `package.json`, runs the checks, builds a draft GitHub release named
@@ -144,25 +176,40 @@ matches `package.json`, runs the checks, builds a draft GitHub release named
 (the file installed apps read to find updates), and checks that the installer ships `bb.exe`.
 Its Linux job, on Ubuntu 22.04 alongside it, runs the Rust tests, builds the Linux packages,
 moves `bb` off the system `PATH`, builds the Arch package from the `.rpm` in an Arch container,
-checks the packages, and signs the `.deb` for the updater. Once both pass, a last job attaches
-the `.deb`, `.rpm`, AppImage, and Arch package to the draft, adds the `.deb` to `latest.json`
-(the only Linux package that updates itself), and publishes the release. If either build fails,
-the release stays a draft. The workflow needs two repository secrets,
-`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, holding the updater
-signing key, which both the Windows and Linux jobs use. Local builds and CI runs need no key;
-only the release workflow signs.
+checks the packages, and signs all four for the updater. Once both pass, a last job attaches
+the `.deb`, `.rpm`, AppImage, and Arch package to the draft, adds an entry for each to
+`latest.json` (`linux-x86_64-deb`, `-rpm`, `-appimage`, and `-arch`), checks that all four and
+Windows are listed, and publishes the release. If any job fails, the release stays a draft, so
+a broken build never becomes the release the updater reads. The standard text after the tag
+message covers SmartScreen and how to install each Linux package.
 
-The release workflow also Authenticode-signs the app, `bb.exe`, and the installer through Azure
-Artifact Signing when the `AZURE_CLIENT_ID` secret is set, and then fails the release if any of
-them lacks a valid signature. Signing needs three secrets for an Azure app registration
+**Updater signing.** Update packages are signed with a minisign key pair made by
+`tauri signer generate`. The public key is committed in `tauri.conf.json`; the private key file
+(`~/.tauri/bashboard.key`) and its password stay outside the repo, and are backed up, since
+losing the key means installed apps cannot verify later updates. The release workflow reads them
+from two repository secrets, `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, which both the Windows and Linux jobs use. Local builds
+and CI runs need no key: only the release workflow turns on `bundle.createUpdaterArtifacts`,
+through `--config`, for Windows. The Linux job signs with `tauri signer sign` instead, after the
+relayout rebuilds the `.deb` and `.rpm` and the Arch package is made, since signatures the
+bundler made would no longer match.
+
+**Authenticode.** The release workflow also signs the app, `bb.exe`, and the installer through
+Azure Artifact Signing when the `AZURE_CLIENT_ID` secret is set, and then fails the release if
+any of them lacks a valid signature. Signing needs three secrets for an Azure app registration
 (`AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`) holding the Artifact Signing
 Certificate Profile Signer role, plus three repository variables naming the signing account:
 `AZURE_SIGNING_ENDPOINT` (for example `https://eus.codesigning.azure.net`),
-`AZURE_SIGNING_ACCOUNT`, and `AZURE_SIGNING_PROFILE`. Without `AZURE_CLIENT_ID`, the release
-ships unsigned and the workflow logs a warning.
+`AZURE_SIGNING_ACCOUNT`, and `AZURE_SIGNING_PROFILE`. The workflow builds the sign command from
+them rather than keeping it in `tauri.conf.json`, so a local build does not try to sign. Without
+`AZURE_CLIENT_ID`, the release ships unsigned, the workflow logs a warning, and the release text
+says the installer is unsigned.
 
-Before each release, run through this keyboard checklist in a `pnpm tauri dev` session or the
-built app:
+Before each release, run the [keyboard checklist](#keyboard-checklist).
+
+## Keyboard checklist
+
+Run through this in a `pnpm tauri dev` session or the built app:
 
 - Ctrl+F, Ctrl+R, and Ctrl+P reach the shell
 - Alt+B and Alt+F, and Ctrl+Left and Ctrl+Right, move by word
@@ -209,22 +256,9 @@ built app:
 - with a Local Browser page focused, typing and Ctrl+A reach the page, and Ctrl+Tab, Ctrl+Shift+Tab,
   Ctrl+, and the pane focus chords still act on the app
 
-On Linux, run the first list on each desktop you have, with IBus active for Ctrl+Shift+E, and
-note any chord the desktop takes, and record the result with the other checks for the release.
-[Testing a Linux build](linux-testing.md) has the rest of what to check on a Linux machine.
-
-On macOS, run this list as well:
-
-- Ctrl+C, Ctrl+W, Ctrl+R, Ctrl+A, and Ctrl+E reach the shell, and Option+B and Option+F move by word
-- Cmd+C copies a selection and Cmd+V pastes once; in a text field Cmd+C, Cmd+V, Cmd+A, and Cmd+Z
-  work through the Edit menu
-- Cmd+W closes the pane, not the window, and Cmd+Q saves the workspace before quitting
-- Cmd+D, Cmd+Shift+D, Cmd+Option+Arrow, Cmd+Ctrl+Arrow, and Cmd+Shift+Enter split, move focus,
-  resize, and zoom; confirm the system does not take Cmd+Ctrl+Arrow
-- Cmd+T, Cmd+Shift+W, Cmd+Shift+] and Cmd+Shift+[, and Cmd+1 through 9 work on tabs
-- Cmd+Shift+P, Cmd+,, Cmd+F, Cmd+L in a code view, Cmd+B, and Cmd+Ctrl+F act on the app
-- Cmd+S saves in the text editor, Cmd+Enter commits in the Git pane, and Cmd+click opens a
-  terminal link
+On Linux, the chords are the same; [Testing a Linux build](linux-testing.md#checks) (Keys) adds
+what to check per desktop. On macOS, run the Keys checks in
+[Testing a macOS preview build](macos-testing.md#checks) instead.
 
 ## Logs and crashes
 
@@ -236,6 +270,10 @@ and the `watson_metadata` file beside `reports` names the process type and modul
 
 The log also holds core panics (`panic on thread ...`), the page's uncaught errors (`page: ...`),
 and the hung-page watchdog's actions.
+
+On macOS and Linux there is no log file. Start the app from a terminal (`bashboard`, the
+AppImage itself, or `/Applications/Bashboard.app/Contents/MacOS/bashboard`) to see the core's
+output there.
 
 To exercise crash recovery against a `pnpm tauri dev` run, end the `msedgewebview2.exe` that is
 a direct child of `target\debug\bashboard.exe` (the window rebuilds), or its `--type=renderer`

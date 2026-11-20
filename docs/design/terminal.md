@@ -1,7 +1,6 @@
 # Terminal panes
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.1 PtyManager (`src-tauri/src/pty.rs`)
 
@@ -12,7 +11,7 @@ a terminal's pane id to its pty id.
 
 | Command | Purpose |
 | --- | --- |
-| `pty_spawn(cols, rows, cwd?, profile?, command?, onData, onExit) -> { id, startedAt, profile }` | Start a shell; `profile` is the id actually started. `command`, an argument list, runs in place of the profile's interactive shell (container shells, 4.16) |
+| `pty_spawn(cols, rows, cwd?, profile?, command?, onData, onExit) -> { id, startedAt, profile, fallbackFrom?, cwd? }` | Start a shell; `profile` is the id actually started, and `fallbackFrom` the one asked for when it was not installed and `profile` replaced it. `cwd` is the folder the shell started in, so a shell that never reports its folder (3.14) still gives the pane one for Files and Git. `command`, an argument list, runs in place of the profile's interactive shell (container shells, 4.16) |
 | `pty_attach(id, startedAt, onData, onExit)` | Take over a running pty's output and exit from the page that spawned it (Reattach, below) |
 | `shell_profiles() -> ShellProfile[]` | The shells that can be started (section 7) |
 | `pty_write(id, data)` | Keystrokes and pastes |
@@ -22,7 +21,7 @@ a terminal's pane id to its pty id.
 
 Behavior:
 
-- **Profiles.** A terminal runs one of four shells, each with an id:
+- **Profiles.** On Windows a terminal runs one of four shells, each with an id:
 
   | Id | Name | Program | Offered |
   | --- | --- | --- | --- |
@@ -118,14 +117,24 @@ Behavior:
 - **Browser accelerators.** On Windows, WebView2's `AreBrowserAcceleratorKeysEnabled` is set
   to false at window creation (`lib.rs`), so Ctrl+F, Ctrl+R, Ctrl+P, F5, and zoom keys reach
   the page. Verified in the keyboard test.
-- **Clipboard.** `clipboard_read_text` reads through `arboard` on every platform because
-  WebView2 puts `navigator.clipboard.readText` behind a permission prompt. Writes use
+- **Clipboard.** `clipboard_read_text` reads in the core because WebView2 puts
+  `navigator.clipboard.readText` behind a permission prompt: through `arboard` on Windows and
+  macOS, and on Linux through GTK's clipboard (`clipboard_linux.rs`), since `arboard` speaks only
+  X11 and a paste on Wayland would see an empty or stale clipboard. Writes use
   `navigator.clipboard.writeText`, which needs no prompt.
 - **Links.** `open_url` (`src-tauri/src/links.rs`) opens a URL in the system browser through
   `tauri-plugin-opener`, called from Rust. It accepts only `http` and `https` and returns an
   error for anything else. An `http` loopback URL on a port that speaks TLS opens as `https`
   (`prefer_tls`, 4.21). The page gets no opener permission, so it cannot launch other
   programs or schemes directly.
+- **Login `PATH`.** Off Windows, `login_path.rs` adopts the login shell's `PATH` at startup, since
+  an app opened from Finder, the Dock, or a desktop menu inherits a bare system `PATH` and would
+  not find Homebrew, `~/.local/bin`, or version managers for git, docker, gh, and agent
+  detection. A launch from a shell keeps its own.
+- **Child processes.** `child_process.rs` prepares every program the app starts: no console
+  window on Windows, and on Linux none of an AppImage runtime's environment (`LD_LIBRARY_PATH`,
+  `PYTHONHOME`, and the like point into its mount), which the app itself keeps for WebKit's
+  helpers.
 - **Attention.** `requestUserAttention` flashes the taskbar button (bounces the Dock icon on
   macOS) when a session in an unfocused window starts waiting.
 
@@ -177,8 +186,7 @@ unless the pane is focused or under the pointer; their space stays reserved, so 
 its width. The status dot's tooltip shows the waiting reason
 (3.3) while the terminal is `waiting`; the strip's text is unchanged. Every pane kind
 has the same strip, with its own title and no status dot. The strip always sits in the layout
-above the pane's body, for every pane kind and even when the pane is alone in its tab; it is
-never a hover overlay, which would sit over the buttons and first row at the top of the pane. The title is cut short with an ellipsis
+above the pane's body, for every pane kind and even when the pane is alone in its tab. The title is cut short with an ellipsis
 before the pane's own buttons give up any room.
 
 **Title strip menu.** A right-click on a title strip of any pane kind opens Change kind (a
@@ -191,7 +199,7 @@ does.
 with it, in every profile, and no menu opens. `main.ts` registers one `contextmenu` listener on
 `window` in the capture phase, before anything else mounts, that cancels the default and never
 stops propagation, so xterm.js still sees the event (it moves its hidden textarea under the
-pointer, and passes the button to a program that turned on mouse reporting). The cancelled
+pointer, and passes the button to a program that turned on mouse reporting). The canceled
 default is WebView2's built-in menu, whose Refresh reloads the page. The app adds no terminal menu and no right-click handling of its own.
 
 **Context menus** (`contextMenu.ts`, `contextMenuModel.ts`). Right-clicking an element the app
@@ -308,8 +316,8 @@ reattach leave none.
 **Long commands.** A shell command that runs at least `terminal.doneAfterSeconds` (section 8;
 default 30, 0 turns it off) and finishes while its terminal is not being looked at (4.7) marks
 the terminal `done`, or
-`failed` when it exited nonzero. The duration is measured from OSC 133 `C` to `D`, so only Git
-Bash with the `~/.bashrc` lines (4.2) qualifies; PowerShell and Command Prompt terminals never
+`failed` when it exited nonzero. The duration is measured from OSC 133 `C` to `D`, so only a
+shell with the integration lines (3.14) qualifies; PowerShell and Command Prompt terminals never
 get a command mark, and the activity sweep is not used, since it counts background jobs and
 reports up to 2 seconds late. `D` with a nonzero exit code marks `failed`, except 130
 (interrupted with Ctrl+C), which marks nothing; `D` with no exit code marks `done`. While a
@@ -320,7 +328,7 @@ newer mark replaces the old. `failed` is a still cross in the error color, where
 still check mark.
 
 **Runs.** A CI run bound to the pane (4.26) marks the terminal when it finishes: `done` for
-success, `failed` for failure, nothing for cancelled or skipped. It is the `run` kind in
+success, `failed` for failure, nothing for canceled or skipped. It is the `run` kind in
 `DoneTracker`, set only while the terminal is not being looked at, and cleared and replaced the
 same way as a command mark.
 

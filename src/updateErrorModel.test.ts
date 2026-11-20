@@ -20,7 +20,7 @@ describe('describeUpdateError', () => {
   it('gives a cancelled prompt and a failed package install the same advice', () => {
     for (const err of ['Authentication failed or was cancelled', 'Failed to install package', 'Failed to install .deb package']) {
       const view = describeUpdateError(err, 'install', 'linux');
-      expect(view.message).toMatch(/cancelled the password prompt.*install it with apt/);
+      expect(view.message).toMatch(/cancelled the password prompt.*install it with your package manager/);
       expect(view.offerDownload).toBe(true);
     }
   });

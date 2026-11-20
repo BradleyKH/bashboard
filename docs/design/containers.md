@@ -1,12 +1,11 @@
 # Containers, ports, and model servers
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.10 Containers (`src-tauri/src/containers.rs`)
 
 Two engines, each through its own CLI: `docker` (Docker Desktop) and `podman` (Podman, with
-its machine on Windows). At startup each CLI (`docker.exe`, `podman.exe`) is searched for on
+its machine on Windows). At startup each CLI (`docker` and `podman`, with `.exe` on Windows) is searched for on
 `PATH`, and its `version --format json` probe decides whether that engine is running. An engine
 whose CLI is missing is left out everywhere, and with neither, nothing in the app mentions
 containers, except that a Containers pane restored from a saved workspace or layout says "No
@@ -65,7 +64,9 @@ it follows events at once instead of at its next probe; a stop ends the events c
 watcher notices as usual.
 
 Container shells open through `pty_spawn` with the command
-`<engine>.exe exec -it -- <id> sh -c "command -v bash >/dev/null && exec bash || exec sh"`.
+`<engine> exec -it -- <id> sh -c "command -v bash >/dev/null && exec bash || exec sh"`
+(`shellCommand` in `src/containers.ts`). On Windows the program is `<engine>.exe`, since Docker
+Desktop puts an extension-less shell script named `docker` beside `docker.exe`.
 
 ## 3.19 Local model servers (`src-tauri/src/model_servers.rs`)
 
@@ -163,8 +164,8 @@ addresses IPv4 first. Each row joins the process's name, start time, command lin
 folder from `sysinfo`; command lines and folders are read once per process. A process in session
 0 (a Windows service), one whose session Windows will not report (a protected service), or pid
 4 and below (the kernel) is marked `system`, and Bashboard's own process `own`. `fromShell` is
-set when a live ancestor, the process included, is a shell (bash, sh, zsh, fish, cmd, pwsh,
-powershell, nu) or Claude Code, walked the same way as the owning pane below.
+set when a live ancestor, the process included, is a shell or a coding agent (`SHELLS` in
+`ports.rs`), walked the same way as the owning pane below.
 
 **macOS.** The listener table comes from `/usr/sbin/lsof -nP -iTCP -sTCP:LISTEN -F ptn`, run by
 full path because an app launched from the Dock has a minimal `PATH`; `parse_lsof` folds its

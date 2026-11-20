@@ -1,7 +1,6 @@
 # Workspace, layout, and tabs
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 4.1 Layers
 
@@ -40,10 +39,9 @@ type Layout =
   and the center swaps the two. A pane dragged from elsewhere in the tree leaves its old spot
   first, the same way closing does but without closing it. A collapsed card dropped on
   a center takes the target's place and collapses the target. A card from another tab docks the
-  same way and moves its pane into the active tab; a tab left with no panes closes.
-  Dragging a favorite or recent
-  folder (4.6) shows the four edge targets only, since a folder has nothing to swap with; the
-  drop opens a new terminal there.
+  same way and moves its pane into the active tab; a tab left with no panes closes. Dragging a
+  favorite or recent folder (4.6) shows the four edge targets only, since a folder has nothing to
+  swap with; the drop opens a new terminal there.
 - **Window-edge docking.** While anything dockable is dragged and the tab has at least one
   expanded pane, a 24 px band along each edge of the pane area is a fifth kind of target, drawn
   over the pane targets beneath it. Dropping there splits the root of the tree, so the dragged
@@ -65,12 +63,15 @@ type Layout =
 
 **Duplicating the working directory.** A new pane or tab starts in the focused pane's current
 directory, read from OSC 9;9 (what Windows Terminal uses) or OSC 7 sequences that xterm.js
-handlers capture. Git Bash emits neither by default, so the `~/.bashrc` lines in
-[setup.md](../setup.md#new-panes-in-the-current-folder) (installed by 3.14) emit OSC 9;9 along with
-the OSC 133 command markers terminal status uses (4.8). Without them, new panes start in the home
-directory. Only a drive-letter path is taken from OSC 9;9, as OSC 7 already requires: any program's
-output can send one, and the folder is probed on disk as it arrives, so a UNC path would have
-Windows authenticate to that host over SMB. A pane in a network share keeps its last local folder.
+handlers capture. Git Bash, zsh, bash, and fish report neither by default, so the lines in
+[setup.md](../setup.md#new-panes-in-the-current-folder) (installed by 3.14) emit the folder as
+OSC 7 (Git Bash's own folders such as `/tmp` as OSC 9;9), along with the OSC 133 command markers
+terminal status uses (4.8); cmd and PowerShell report it from their prompts (3.1). Without them,
+new panes start in the folder the focused pane's shell started in. OSC 9;9, and on Windows OSC 7,
+are taken only for a drive-letter path: any program's output can send one, and the folder is
+probed on disk as it arrives, so a UNC path would have Windows authenticate to that host over
+SMB. A pane in a network share keeps its last local folder. Off Windows, OSC 7 takes any absolute
+path.
 
 ## 4.3 Collapsing
 
@@ -121,10 +122,8 @@ and again when the window closes. On launch:
   | Copilot | `copilot --resume <sessionId> --model <model>`, the `--model` part when a model is saved |
 
   Claude's mode is the one the session's newest hook event reported, so a change made with
-  Shift+Tab after that event is not saved. Copilot's id and model are space-separated because
-  `--resume=<id>` exits at once on Windows, and the model is passed back because a resumed
-  Copilot session otherwise falls back to the default model. The session id and model are held to
-  a safe character set, since they are typed into a shell.
+  Shift+Tab after that event is not saved. The session id and model are held to a safe character
+  set, since they are typed into a shell.
 - Each terminal's scrollback is saved as the window closes, and once a minute in between: xterm.js's serialize addon writes
   the normal buffer as escape sequences, leaving out terminal modes (so a replay cannot turn on
   mouse reporting or bracketed paste) and the alternate buffer. On launch the saved text is

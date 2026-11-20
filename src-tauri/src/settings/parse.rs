@@ -27,13 +27,13 @@ const ACCENT_MIN_LUMINANCE: f64 = 0.2;
 /// The White text color, the one `#rrggbb` that maps to the white mode.
 const WHITE_CONTENT_TEXT: &str = "#e6e6e6";
 
-/// Accepts `#rrggbb` (any case) bright enough to read, returned lowercase.
 /// A fixed editor id, or one found from the system's own lists (docs/design/files.md section
 /// 3.12), which may name an editor installed on another machine sharing this file.
 fn is_editor_id(s: &str) -> bool {
     EDITOR_IDS.contains(&s) || crate::editor_desktop::is_id(s) || crate::editor_bundles::is_id(s)
 }
 
+/// Accepts `#rrggbb` (any case) bright enough to read, returned lowercase.
 fn parse_accent(s: &str) -> Option<String> {
     parse_bright_hex(s, ACCENT_MIN_LUMINANCE)
 }

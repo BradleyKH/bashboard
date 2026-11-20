@@ -1,7 +1,6 @@
 # Settings, saved state, and the data model
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.6 Settings (`src-tauri/src/settings/`)
 
@@ -112,11 +111,14 @@ The TypeScript types are the shapes; this section holds the rules they do not sh
   is a `ship.pinnedRepos` entry (section 8): `repo`, and optionally `root` and `branches`.
 - `ForgeError`: `kind` (`notARepo`, `noRemote`, `unsupportedHost`, `notInstalled`, `signedOut`,
   `ssoRequired`, `forbidden`, `notFound`, `rateLimited`, `network`, `needsFilePermission` (a
-  Linux token save with no keyring and no permission for the file; 3.20), or `other`), `message` (plain
+  Linux token save with no keyring and no permission for the file; 3.35), or `other`), `message` (plain
   text, never a token or an `Authorization` header), `url` (a page to open), `signIn` (the argv to
-  run in a new terminal pane), and `retryAfterSecs`.
+  run in a new terminal pane), `retryAfterSecs`, and `azCli` (whether Azure CLI is installed, sent
+  only on Azure DevOps errors).
 - `HostAuth`: `provider` (a `ProviderKind`), `host`, `cliInstalled` (`gh`, `glab`, or `az` was
-  found; false for Bitbucket), `accounts` (the users the CLI holds for the host: several for GitHub
+  found; false for Bitbucket), `installArgv` (the command that installs the missing `gh` or `glab`,
+  from `auth::install_argv`: winget, or Homebrew by name or full path; set only while the CLI is
+  missing, and null when there is no installer or no CLI), `accounts` (the users the CLI holds for the host: several for GitHub
   CLI, at most one for GitLab CLI and Azure CLI; empty for Bitbucket), `activeAccount` (or null),
   `tokenSource` (a `TokenSourceKind`: `ghCli`, `glabCli`, `azCli`, `gitCredentialManager`,
   `bashboardCredential`, or `environment`; null when no source has a token), `storedTokens` (the
@@ -145,7 +147,8 @@ that finished, that the user has not looked at yet; `failed` is the same for a n
 are saved under keys, and layout leaves hold those keys. A tab's `name` is null while it follows
 its focused pane's title. A version 2 file's tabs hold `terminals`, which load as terminal panes;
 a version 1 file, which holds one tab's `terminals`, `layout`, and `focused` at the top level,
-loads as a single unnamed tab. Absent optional fields take these defaults:
+loads as a single unnamed tab. A tab with no panes is dropped on load, and `activeTab` follows its
+tab through the drops or is clamped into range. Absent optional fields take these defaults:
 
 - `dashboardWidth`: 300 px.
 - `dashboardSectionOrder`: the default order. Reading keeps known names once each, drops unknown
@@ -194,10 +197,15 @@ loads as a single unnamed tab. Absent optional fields take these defaults:
   shell. A Files pane's `root`: resolved from its
   `folder`. Its `expanded`: false. Its `view`: `folder`, the other being `tree`. Its
   `openFolders` (the tree's expanded folders, as paths below `folder` with forward slashes;
-  entries that are not strings, are empty, or hold `..` are dropped): none. A Ship pane's `root`: none, which opens on the Overview;
+  entries that are not strings, are empty, or hold `..` are dropped): none. Its `sort`: the
+  folder's entry in `filesSorts`, else Modified, newest first, which a malformed value also reads
+  as. A Git pane's `tab`: Changes; only `branches` is saved, and any other value reads as absent.
+  A Ship pane's `root`: none, which opens on the Overview;
   a drilled pane saves its local repo root or `remote:<host>/<path>`. Its `tab`: `pipelines`, the
   other being `pulls`; it is omitted from the file when it is `pipelines`. Its `thisBranch`, `thisBranchPulls`, and
-  `allPulls`: false, and each omitted when false; any value but `true` reads as false.
+  `allPulls`: false, and each omitted when false; any value but `true` reads as false. A Browser
+  pane's `url`: none, the start page, which an empty or non-string value also reads as. Its
+  `devtools`: closed, with the drawer's defaults. Its `device`: none.
 
 **layouts.json.** Names are unique without regard to case. A layout holds one tab whose
 terminals carry no session ids, permission modes, scrollback ids, or ptys and whose scratch pads have a null
@@ -218,75 +226,49 @@ the focused pane's folder.
 
 ## 8. Settings
 
+[docs/settings.md](../settings.md) owns each field's meaning, range, and Settings tab field. This
+section keeps the file's shape with its defaults, and the rules a user does not need.
+
 ```jsonc
 {
+  // Off Windows, startingDirectory is %HOME% and defaultProfile is loginShell. Any lowercase id
+  // up to 32 characters parses as a profile (a shell's file name from /etc/shells); one that is
+  // not installed falls back as described in 3.1. path and args configure Git Bash only.
   "shell": {
     "path": "C:\\Program Files\\Git\\bin\\bash.exe",
     "args": ["--login", "-i"],
     "startingDirectory": "%USERPROFILE%",
-    // gitBash, pwsh, powershell, or cmd; off Windows loginShell (the default), zsh, bash,
-    // fish, or a shell /etc/shells lists, by file name (nu). path and args configure Git Bash
-    // only. An unknown or
-    // unavailable value falls back as described in 3.1.
     "defaultProfile": "gitBash"
   },
   "font": { "family": "JetBrainsMono Nerd Font Mono, Cascadia Mono", "size": 14 },
-  // #rrggbb for focus borders, selections, highlights, and the --accent custom property. A value
-  // below WCAG relative luminance 0.2 falls back to the default, so it stays readable on the dark
-  // panes and behind find highlights' dark text. The dialog offers presets, and shows a hand-edited
-  // value as Custom.
+  // Read by CSS as --accent. A value below WCAG relative luminance 0.2 falls back to the
+  // default, so it keeps 4.5:1 contrast on the dark panes and behind find highlights' dark text.
   "accentColor": "#4fb3c8",
-  // accent or white: content text, read by CSS as --content-fg: scratch panes, the file preview, search
-  // results and preview, the Files list, the Git file, commit, and branch lists and diff, the
-  // Containers list and logs, the Ports list, and the dashboard's names, values, and clock. Secondary text in those
-  // places (line numbers, quotes, sizes, dates) takes dimmer shades of it; toolbars, buttons, and
-  // the dashboard's gray labels stay UI gray. Terminals take it only for pure white: the default
-  // foreground, bright white, and 256-color index 231 (plain white and truecolor white are
-  // untouched). accent is 35% of accentColor mixed into #ececec, with the accent's share lowered
-  // as needed to keep WCAG relative luminance at 0.5 or more, so it stays paler than the accent
-  // for links and highlights; white is #e6e6e6. A #rrggbb value loads as white when it is
-  // #e6e6e6 and as accent otherwise; any other value falls back to accent with a notice.
+  // Read by CSS as --content-fg. accent is 35% of accentColor mixed into #ececec, with the
+  // accent's share lowered as needed to keep WCAG relative luminance at 0.5 or more; white is
+  // #e6e6e6. Terminals take it for the default foreground, bright white, and 256-color index 231,
+  // never for truecolor white. A #rrggbb value loads as white when it is #e6e6e6 and as accent
+  // otherwise.
   "contentTextColor": "accent",
-  // "matchAccent" or one of nord, ayu, gruvbox, monokai, tokyoNight, oneDark, catppuccinMocha,
-  // dracula: the syntax color scheme of text previews. Match accent follows the accent preset
-  // (files.md section 4.22). Any other value falls back to matchAccent with a notice.
+  // Match accent's pairings are in files.md section 4.22.
   "codeColors": { "scheme": "matchAccent" },
-  // 1 to 2, the Settings tab's Interface size: zoom on controls, the bars that hold them, chrome
-  // titles, and the app dialog's tabs (section 5). Out of range falls back to 1.25.
+  // Scales controls, the bars that hold them, chrome titles, and the app dialog (section 5).
   "uiScale": 1.25,
-  // Ambient pane effects (section 4.23), both off by default: agentGlow breathes a glow inside
-  // panes where an AI agent is working; borderLights runs a light around each pane's border.
-  // borderLightsSpeed is 10 to 300 px per second; borderLightsDensity is 0.25 to 4 lights per
-  // 1000 px of a pane's border. Out of range falls back to the default.
+  // Section 4.23.
   "agentGlow": false,
   "borderLights": false,
   "borderLightsSpeed": 120,
   "borderLightsDensity": 1,
-  // The tab switch transition (section 4.30): the outgoing tab's panes recede as the incoming
-  // ones rise. On by default.
+  // Section 4.30.
   "tabTransition": true,
-  // Background tabs (section 4.30): every other tab drifts behind the active one as a cluster
-  // of its panes. Off by default.
   "showBackgroundTabs": false,
   "scrim": { "opacity": 0.5, "blurPx": 1 },
-  // style is none, lights (Swirling Lights), galaxy (Galaxy), matrix, wave, image, or
-  // slideshow; a missing or invalid value falls back to galaxy. animate false freezes lights,
-  // galaxy, matrix, and wave on a still frame (6.4); the other styles ignore it.
-  // maxFps applies to lights, galaxy, and wave, and 0 renders at the display's refresh rate.
-  // capacity, mutationRate, and zoom apply to lights and galaxy only: the simulation and camera
-  // controls (6.2, 6.6).
-  // matrix.color is green (#00ff41) or accent: accentColor at full brightness with its HSV
-  // saturation raised by half, so a gray accent stays gray. A #rrggbb value loads as green when it
-  // is #00ff41 and as accent otherwise. matrix.zoom is 0.5 to 3 (the base cell is 20 px);
-  // matrix.speed is a whole number of rain steps per second, 5 to 30; matrix.density (0.25 to 4)
-  // scales how often a new drop starts. wave is for the wave style (6.7): color is
-  // accent (accentColor brightened as for matrix), white (#e6e6e6), or spectrum; size (0.3 to 2)
-  // is the share of the window the figure fills, spilling past it above 1; speed (0.1 to 3)
-  // scales its spin, tilt, and detune sweep; lineWidth (1 to 8) is CSS pixels on the line's near side; echoes is a whole
-  // number from 0 to 15. image is for the image and slideshow styles (6.5): file
-  // and folder may contain %VARS% and are empty until set; fit is fill, fit, stretch, center, or
-  // tile; intervalSeconds is a whole number from 5 to 86400; crossfadeSeconds is 0 to 10. Out-of-range or invalid values fall
-  // back to their defaults.
+  // animate false freezes lights, galaxy, matrix, and wave on a still frame (6.4). capacity,
+  // mutationRate, and zoom drive lights and galaxy (6.2, 6.6); wave is 6.7, image 6.5. The
+  // accent color of matrix and wave is accentColor at full brightness with its HSV saturation
+  // raised by half, so a gray accent stays gray. A #rrggbb matrix.color loads as green when it
+  // is #00ff41 and as accent otherwise. matrix.speed, wave.echoes, and image.intervalSeconds are
+  // whole numbers.
   "backdrop": {
     "style": "galaxy",
     "animate": false,
@@ -299,16 +281,10 @@ the focused pane's folder.
     "image": { "file": "", "folder": "", "fit": "fill", "intervalSeconds": 600, "crossfadeSeconds": 5, "shuffle": true, "includeSubfolders": false }
   },
   "scrollback": 10000,
-  // A shell command that runs this many seconds and finishes unseen marks its terminal done or
-  // failed; 0 turns it off (4.8). notifyWhenWaiting raises a system notification when a terminal
-  // starts waiting (4.7), or a Needs you row newly breaks (4.28), while the window is unfocused.
+  // doneAfterSeconds is 4.8; notifyWhenWaiting is 4.7 and 4.28.
   "terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true },
-  // side is right or left; an unknown value falls back to right. sections shows or hides each
-  // dashboard element, and Pins (4.6). An older file's containers.enabled is still read when
-  // sections.containers is absent. clockStyle is both, time, or binary; an unknown value falls
-  // back to both. mediaArt, mediaTitle, and mediaArtist show the Media section's album art, title
-  // line, and artist line. systemRows shows or hides each System row. portRows (1 to 50) is how many ports the Ports section lists before counting
-  // the rest; anything else falls back to 10.
+  // Section 4.6. When the newer key is absent, an older file's sections.folder (Launch's old
+  // name) seeds sections.launch, and its containers.enabled seeds sections.containers.
   "dashboard": {
     "visibleOnStart": true,
     "peekOnWaiting": true,
@@ -338,49 +314,20 @@ the focused pane's folder.
     "systemRows": { "cpu": true, "memory": true, "network": true, "disk": true },
     "portRows": 10
   },
-  // walkAll makes the next-attention walk visit Ship and usage rows of the Needs you list as well
-  // as terminals (4.28). usagePercent (1 to 100) is the percent of an agent's usage window at
-  // which it becomes a row; anything else falls back to 80. stuckAgentMinutes (0 to 1440) is how
-  // long a background agent may go without writing to its transcript before its session shows as
-  // waiting (3.30); 0 turns the check off, and anything else falls back to 15.
+  // Section 4.28; stuckAgentMinutes is 3.30.
   "needsYou": { "walkAll": true, "usagePercent": 80, "stuckAgentMinutes": 15 },
-  // resumeSessions types each agent's resume command into restored terminals (4.9). An older
-  // file's resumeClaude is still read when resumeSessions is absent.
+  // Section 4.9. An older file's resumeClaude is read when resumeSessions is absent.
   "restore": { "enabled": true, "resumeSessions": true, "scrollback": true },
-  // Empty URLs use OLLAMA_HOST, then http://127.0.0.1:11434, for Ollama and
-  // http://127.0.0.1:1234 for LM Studio. minContext is the context length under which the Local
-  // models section warns (4.6); 0 turns the warning off.
+  // Section 3.19. An empty ollamaUrl uses OLLAMA_HOST, else http://127.0.0.1:11434; an empty
+  // lmStudioUrl uses http://127.0.0.1:1234.
   "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 },
-  // Host name to provider (github, gitlab, bitbucket, or azureDevOps) for a self-hosted host,
-  // matched without regard to case (3.20). A GitHub Enterprise Server host and a self-managed
-  // GitLab host are served; the Bitbucket provider refuses any host but bitbucket.org, and the
-  // Azure DevOps provider serves dev.azure.com only. Hosts the GitHub CLI is signed in to, and
-  // hosts in GitLab CLI's config, need no entry. An entry with
-  // another kind is dropped with a warning. No Settings tab field; edit the file.
-  // pinnedRepos lists the repos on the Ship Overview (4.20), in order: repo is
-  // "<host>/<path segments>" and is the pin's identity, root (optional) is a local clone, and
-  // branches (optional) adds health branches beyond the default branch and the open pull requests'
-  // targets. An entry with an empty or missing repo, or a root or branches of the wrong type, is
-  // dropped with a warning naming its position. overviewRefreshMinutes is the minutes between
-  // background refreshes of the Overview, 0 to 1440; 0 leaves only Refresh and the 60 s polling of
-  // a repo with a run in progress. It has a Settings tab field; pinnedRepos does not.
-  // For example { "repo": "bitbucket.org/keysys/kweb", "root": "C:/src/kweb", "branches": ["uat"] }.
-  // cliWrites lets `bb ci rerun` and `bb ci cancel` act on pipelines; off because pipelines often
-  // deploy. It has a Settings tab field.
+  // hosts (3.20) is matched without regard to case; pinnedRepos is 4.20.
   "ship": { "hosts": {}, "overviewRefreshMinutes": 5, "pinnedRepos": [], "cliWrites": false },
-  // bookmarks are { "name", "url" } pages for the Local Browser pane, in order. An entry with an
-  // empty or missing name or url, or a url that is not http or https on localhost or 127.0.0.1,
-  // is dropped with a warning naming its position. homeUrl is the page a new pane opens
-  // on, with the same host rule; empty opens the pane's start page. homeUrl has a Settings tab
-  // field; bookmarks does not. A bookmark or homeUrl may also be a file:/// URL to an .html or
-  // .htm file. trustedFolders are folders whose HTML files may reach any host (3.21); a file
-  // with Mark of the Web is never trusted. allowedHosts maps a folder to the hosts its pages may
-  // reach beyond cdnHosts; the pane's Allow button adds to it. A key is a folder, or a single
-  // file for a page opened directly from the home folder or a drive root, which is a mount of its
-  // own (3.21). cdnHosts are hosts every file page may load from. reloadOnChange reloads a file
-  // page when its file changes on disk. An entry that is not a string, or a folder or allowedHosts
-  // key that is not an absolute path, is dropped with a warning.
-  // reloadOnChange and trustedFolders have Settings tab fields; the rest do not.
+  // Section 3.21. A bookmark url or homeUrl must be http or https on localhost or 127.0.0.1,
+  // with an optional port and path, or a file:/// URL to an .html or .htm file. An allowedHosts
+  // key may be a single file, for a page opened directly from the home folder or a drive root.
+  // homeUrl, trustedFolders, and reloadOnChange have Settings tab fields; bookmarks,
+  // allowedHosts, and cdnHosts do not.
   "localBrowser": {
     "bookmarks": [],
     "homeUrl": "",
@@ -389,33 +336,17 @@ the focused pane's folder.
     "cdnHosts": ["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com", "fonts.gstatic.com"],
     "reloadOnChange": true
   },
-  // Linux only. disableDmabufRenderer, read once at launch (3.31), turns off WebKitGTK's DMA-BUF
-  // renderer, which draws a blank window on some GPU drivers: auto turns it off on NVIDIA's
-  // proprietary driver, on always, off never. A WEBKIT_DISABLE_DMABUF_RENDERER the user already
-  // set wins over all three. allowFileCredentials, read on each token save, lets forge tokens go
-  // to a 0600 file when no Secret Service answers (3.20); the Accounts tab sets it when the user
-  // allows that. Neither has a Settings tab field.
+  // Linux only. disableDmabufRenderer is read once at launch (3.31); allowFileCredentials on
+  // each token save (3.35).
   "linux": { "disableDmabufRenderer": "auto", "allowFileCredentials": false },
-  // zed, vscode, cursor, visualStudio, notepadpp, sublime, rider, intellij, webstorm,
-  // pycharm, rustrover, goland, clion, phpstorm, windsurf, vscodeInsiders, vscodium, vim, nvim,
-  // default (the file's default app), or a discovered editor: desktop:<desktop id> on Linux,
-  // app:<bundle id> on macOS. vim and nvim open in a pane. A non-empty command
-  // replaces it, with {path} and {line} filled in (3.12).
+  // Section 3.12.
   "editor": { "preferred": "default", "command": "" },
-  // Minutes between background fetches of repos with an open Git pane; 0 turns it off (3.9).
-  // branchSizeThreshold is the lines changed against the comparison ref (tests, lockfiles, and
-  // generated files excluded) above which the branch row and session cards show a size warning;
-  // 0 turns it off.
+  // autoFetchMinutes is 3.9.
   "git": { "autoFetchMinutes": 5, "branchSizeThreshold": 400 },
-  // badge shows the cloud context chip on terminal title strips and session cards (4.25);
-  // false hides them all. productionPattern is a JavaScript regular expression matched ignoring
-  // case against the AWS profile; a match turns the chip red. Empty never matches; invalid falls
-  // back to the default.
+  // Section 4.25.
   "cloud": { "badge": false, "productionPattern": "prod|prd|live" },
-  // Added to or overriding the defaults in 4.5. Actions that take an argument take it as
-  // a field: switchToTab takes "index" from 1 to 8. The Shortcuts tab (4.18) edits this list,
-  // rewriting it with one entry per line; comments inside the list are not kept, comments
-  // elsewhere in the file are.
+  // Added to or overriding the defaults in 4.5. The Shortcuts tab (4.18) rewrites this list
+  // one entry per line; comments inside it are not kept, comments elsewhere in the file are.
   "keybindings": [
     { "keys": "ctrl+alt+d", "action": "splitAuto" },
     { "keys": "ctrl+w", "action": "unbound" }

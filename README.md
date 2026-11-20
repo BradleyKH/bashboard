@@ -2,10 +2,11 @@ Bashboard
 =========
 
 **A terminal workspace for developers running AI coding agents.** Bashboard puts your shells, a
-live board of every AI agent session, and the Git, file, search, CI, port, and container views in one window, so you stop juggling apps while your
-agents work. It tracks Claude Code sessions in full, with previews for OpenAI Codex and GitHub
-Copilot CLI, and it works with any stack. It runs on Windows and, as an early build, on Debian
-and Ubuntu Linux, with macOS and other Linux packages available for testing.
+live board of every AI agent session, and the Git, file, search, CI, port, and container views
+in one window, so you stop juggling apps while your agents work. It tracks Claude Code
+sessions in full, with previews for OpenAI Codex and GitHub Copilot CLI, and it works with any
+stack. It runs on Windows and, as an early build, on Linux (`.deb`, `.rpm`, Arch package, and
+AppImage), with macOS builds available for testing.
 
 ![Bashboard with Claude Code, Files, Git, CI pipelines, and the session dashboard](assets/bashboard-screenshot.png)
 
@@ -74,27 +75,24 @@ Bashboard runs the tools you already use:
 
    Without Git, panes open in PowerShell or Command Prompt instead.
 
-2. **Claude Code**, for session status, attention, and the dashboard. Run `claude` once before
-   starting Bashboard so the setup wizard offers to install its hooks
-   (see [Claude Code hooks](docs/setup.md#claude-code-hooks)). Codex and Copilot CLI work the
-   same way, as a preview (see [Agent hooks](docs/setup.md#agent-hooks)).
+2. **Claude Code** (or Codex or Copilot CLI, as a preview). Run it once before starting
+   Bashboard so the setup wizard offers its hooks
+   (see [Claude Code hooks](docs/setup.md#claude-code-hooks)).
 
 3. **Optional:** Docker Desktop or Podman for the containers list.
 
-On first launch, a setup wizard walks you through the shell, the lines that let new panes open in
-the current folder, your editor, favorite repos, coding agent hooks, and the look. Each choice
-saves as you make it, and **Run setup** in the Help tab (F1) brings the wizard back. A short,
-skippable tour of the main keys follows; **Take the tour** in the Help tab replays it.
+On first launch, a setup wizard walks you through the shell, your editor, agent hooks, and the
+look; **Run setup** in the Help tab (F1) brings it back. [Shell and coding agent
+setup](docs/setup.md) covers each step by hand.
 
 WebView2 comes with Windows 11; on a machine without it, the installer downloads it. Uninstall
 from **Settings > Apps > Installed apps**.
 
 ### Linux
 
-Linux support is early. The `.deb` is tested on Kubuntu with KDE Plasma, under X11 and Wayland;
-GNOME is partly tested (on CachyOS), other desktops are not yet, and the Local Browser pane is
-Windows only. Download
-`bashboard_<version>_amd64.deb` from the
+Linux support is early. It is tested on Kubuntu (KDE Plasma, X11 and Wayland) with the `.deb`,
+and partly on GNOME (CachyOS, Arch package); other desktops are not yet, and the Local Browser
+pane is Windows only. Download `bashboard_<version>_amd64.deb` from the
 [latest release](https://github.com/BradleyKH/bashboard/releases/latest) and install it on
 Ubuntu 22.04 or newer, Debian 12 or newer, or a distro based on them:
 
@@ -115,14 +113,15 @@ from the same release and install it with pacman:
 sudo pacman -U bashboard-*-x86_64.pkg.tar.zst
 ```
 
-It has the same layout and file manager actions as the `.deb`, but does not update itself: install
-the next release's package the same way. Uninstall with `sudo pacman -R bashboard`.
+It has the same layout and file manager actions as the `.deb`, and updates itself the same way,
+installing the new package with pacman. Uninstall with `sudo pacman -R bashboard`.
 
 On Fedora, download `bashboard-<version>-1.x86_64.rpm` and install it with
 `sudo dnf install ./bashboard-*.x86_64.rpm` (on RHEL 10, `sudo dnf install epel-release` first).
 On any other distro, download `bashboard_<version>_amd64.AppImage`, make it executable with
 `chmod +x`, and run it; on first launch it offers to add itself to your applications menu.
-Neither updates itself: install or download the next release's file the same way.
+Both update themselves too: the `.rpm` asks for your password and installs with `rpm`, and the
+AppImage replaces its own file, so keep it in a folder you can write to.
 
 ### macOS
 

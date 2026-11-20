@@ -10,32 +10,28 @@ the running settings stay in effect and a notice appears until the file is fixed
 Most settings take effect on save. `dashboard.visibleOnStart` and `restore.*` apply at the next
 launch, and `shell.*` applies to panes opened after the change.
 
-`editor.preferred` picks the editor that Open in editor uses: `zed`, `vscode`, `cursor`,
+Most settings can also be changed in the Settings tab, which the dashboard's **⚙** button and
+Ctrl+Comma open; its filter field narrows the list as you type. Changes save to settings.json and
+keep its comments.
+
+## Editor
+
+`editor.preferred` (default `default`) picks the editor that Open in editor uses: `zed`, `vscode`, `cursor`,
 `visualStudio`, `notepadpp`, `sublime`, `rider`, `intellij`, `webstorm`, `pycharm`, `rustrover`,
 `goland`, `clion`, `phpstorm`, `windsurf`, `vscodeInsiders`, `vscodium`, `vim`, `nvim`, or
-`default` (the file's default app). Other editors installed on the machine are listed too, by
-their own names, and open the file without jumping to a line: on Linux any app whose desktop
-entry calls it a text editor or IDE (Kate, GNOME Text Editor, micro, Helix; id
-`desktop:<desktop id>`, such as `desktop:org.gnome.TextEditor`), and on macOS any app that
-declares itself an editor of plain text or source code (TextEdit, BBEdit, Xcode; id
-`app:<bundle id>`, such as `app:com.apple.TextEdit`). JetBrains IDEs installed through the Toolbox App or the
-standalone installer are both found. On Linux, editors from Flatpak, Snap, `~/.local/bin`, or an
-AppImage or tarball install with a `.desktop` file are found too. Vim and Neovim open in a new pane
-beside the focused one, which closes when you quit the editor; the Vim that comes with Git for
-Windows is found even though it is not on `PATH`. If the chosen editor is not installed or will not
-start, the file opens in the default app and a toast says so. Scripts, programs, and shortcuts
-(`.bat`, `.exe`, `.lnk`, `.ps1`, and the like) open in Notepad rather than their default app, which
-would run them. On macOS, runnable files (apps, scripts, installers, `.command` and `.tool` files,
-AppleScript, any file marked executable, and the like) open as text in the default text editor,
-through `open -t` (TextEdit unless you change it), for the same reason. On Linux, `.desktop` files,
-AppImages, packages, Windows programs, and any file marked executable open in the default app for
-plain text (`xdg-mime query default text/plain`), and are not opened at all when there is none.
-`editor.command` replaces the editor with your own command line, for example
+`default` (the file's default app). Editors found on the machine are offered too: on Linux by
+desktop entry, as `desktop:<desktop id>` (such as `desktop:org.gnome.TextEditor`), and on macOS by
+bundle, as `app:<bundle id>` (such as `app:com.apple.TextEdit`). The
+[user guide](user-guide.md#files-panes) covers which editors are found and how runnable files open.
+
+`editor.command` (default empty) replaces the editor with your own command line, for example
 `code.cmd -g "{path}:{line}"`. Double quotes group an argument, and no shell runs it, so the
 program name must include its extension when it is a shim such as `code.cmd`. `{path}` and
 `{line}` are filled in wherever they appear (and only there; a command without `{path}` gets no
 path), and `{line}` is 1 when no line applies. The Editor section of the Settings tab sets both
 fields and lists only the editors it found.
+
+## Appearance
 
 `font.family` (default `JetBrainsMono Nerd Font Mono, Cascadia Mono`) is the Font family field in
 the Appearance section of the Settings tab, which suggests installed fonts as you type and still
@@ -124,15 +120,12 @@ few times a second while they have new output. It is the Show other tabs in back
 toggle in the Appearance section, applies live, and the `toggleBackgroundTabs` action (no default key) switches it from the keyboard or
 the command palette.
 
-The Shortcuts tab of the app dialog (open it with F1 or the dashboard's **?** button, then click
-Shortcuts) lists every key in effect, including your own bindings. It is also where keys are changed: click a key to
-replace it, click `+` to add another, use Reset on a row to restore its defaults, and Reset all
-to drop every custom key. Giving a key to an action that already uses it moves it, and the notice
-that follows has Undo.
+## Keys
 
-Most settings can also be changed in the Settings tab, which the dashboard's **⚙** button and
-Ctrl+Comma open; its filter field narrows the list as you type. Changes save to settings.json and
-keep its comments. Keybindings are edited in the Shortcuts tab or in the file; the tab rewrites the `keybindings` list one entry per line and does not keep comments inside that list.
+The Shortcuts tab of the app dialog (F1, then Shortcuts) lists every key in effect, including your
+own. Click a key to replace it, `+` to add another, Reset on a row to restore its defaults, or Reset
+all to drop every custom key; giving a key to an action that already has one moves it, with Undo.
+The tab rewrites the `keybindings` list one entry per line and does not keep comments inside it.
 
 Entries in the `keybindings` list add to or override the default keys. To remove a default so
 the key reaches the shell, add an `unbound` entry. Ctrl+W closes a pane by default, so this
@@ -156,39 +149,36 @@ A chord names its modifiers with `ctrl`, `alt`, `shift`, and `win`. On macOS, wr
 Command and `option` for Option (`win` and `alt` still work); the macOS defaults are Cmd chords,
 so there the first example above is `{ "keys": "cmd+w", "action": "unbound" }`.
 
+## Background
+
 The background (the backdrop) has seven styles, chosen with `backdrop.style` or the Background
-select in the Background section of the Settings tab: `lights` (Swirling Lights, a
-living colony simulation), `galaxy` (Galaxy, the default, a slowly turning spiral galaxy), `matrix` (Matrix, falling glyph rain), `wave` (Wave, a large version of the
-dashboard's Wave), `image` (Image, a
+select in the Background section of the Settings tab: `lights` (Swirling Lights, a living colony
+simulation), `galaxy` (Galaxy, the default, a slowly turning spiral galaxy), `matrix` (Matrix,
+falling glyph rain), `wave` (Wave, a large version of the dashboard's Wave), `image` (Image, a
 picture from your disk), `slideshow` (Slideshow, the pictures in a folder in turn), and `none`
 (nothing is drawn behind the panes). A missing or invalid value falls back to `galaxy` with a
-notice. The choice applies live. `backdrop.animate` applies to Swirling Lights, Galaxy, Matrix, and Wave and starts
-`false`, a frozen still frame; set it to `true` to run the background. Ctrl+Shift+A pauses or
-resumes any of them and saves the choice to `backdrop.animate`; it does nothing under Image,
-Slideshow, or None, and the dialog shows Animate only for the four styles it affects. The dialog
-shows only the fields that apply to the chosen style. Brightness (the inverse of `scrim.opacity`,
-which dims the whole background) and Blur (`scrim.blurPx`, 0 to 20 pixels, default 1) apply to
-every style but None. Blur softens the whole background, including the gaps between panes, and
-stays on when Ctrl+Shift+B turns the scrim off; it costs some GPU time while the background
-animates.
+notice. The choice applies live, and the dialog shows only the fields that apply to it.
 
-**Swirling Lights** runs at up to 20 frames per second; raise that with `backdrop.maxFps` (20 to
-240, or 0 for the display's refresh rate). The simulation runs at 12 generations per second under a slow
-camera orbit, held still while the system is set to reduce motion. It is tuned with `capacity` (the
-population it sustains, 300 to 5000; Density in the Settings tab), `mutationRate` (how far
-offspring drift in color and strategy, 0 to 4; Color drift in the dialog), `zoom` (0.5 to 3;
-above 1 brings the colony closer so it fills more of the window). These apply to Swirling
-Lights and Galaxy. While `backdrop.animate` is off, the dialog hides the frame rate cap, Density,
-and Color drift, which a still frame cannot show.
+`backdrop.animate` (default `false`, a frozen still frame) runs Swirling Lights, Galaxy, Matrix, and
+Wave. Ctrl+Shift+A pauses or resumes any of them and saves the choice to `backdrop.animate`; it
+does nothing under Image, Slideshow, or None, and the dialog shows Animate only for the four styles
+it affects.
 
-**Galaxy** shares Swirling Lights' settings, read for a fixed starfield: `capacity` sets how many
-stars there are (8 per unit, up to 40,000), `mutationRate` how fast and how far hues wander across
-the disc (0 holds them still; 4 wanders the whole color wheel), and `zoom` how close the camera
-sits. The stars fill the disc in a swirl with only a hint of spiral arms, and its light is even
-from the center to the rim, so text reads the same wherever a pane sits. Density and Zoom change
-how fine and how close the field looks, not how bright it is. The disc turns
-slowly under a camera tilted 45 degrees from overhead, which sways a little unless Windows
-animation effects are off.
+`scrim.opacity` (default 0.5, 0 to 1) dims the whole background; the Settings tab shows it inverted,
+as Brightness. Ctrl+Shift+B cycles it through preset levels and saves the result to
+`scrim.opacity`. `scrim.blurPx` (default 1, 0 or more; the slider goes to 20) softens the whole
+background, including the gaps between panes, and costs some GPU time while the background
+animates. Blur stays as set while Ctrl+Shift+B cycles Brightness. Both apply to every style but
+None.
+
+**Swirling Lights** runs at up to `backdrop.maxFps` frames per second (default 20; 20 to 240, or 0
+for the display's refresh rate). `capacity` (300 to 5000; Density in the Settings tab) is the
+population it sustains, `mutationRate` (0 to 4; Color drift) is how far offspring drift in color
+and strategy, and `zoom` (0.5 to 3) is how close the camera sits. While `backdrop.animate` is off,
+the dialog hides the frame rate cap, Density, and Color drift, which a still frame cannot show.
+
+**Galaxy** shares those settings: `capacity` sets how many stars there are, `mutationRate` how fast
+and how far hues wander across the disc (0 holds them still), and `zoom` how close the camera sits.
 
 **Matrix** draws digital rain, one falling column of half-width katakana, digits, and symbols per
 cell column, in a system Japanese font (`MS Gothic` or `Yu Gothic` on Windows, Hiragino on macOS, Noto Sans CJK on Linux). Its fields live under
@@ -266,22 +256,62 @@ or over 100 MB) raises a notice; Slideshow skips it and moves on.
 }
 ```
 
-`shell.defaultProfile` picks the shell a plain split runs: `gitBash` (the default), `pwsh`
-(PowerShell 7), `powershell` (Windows PowerShell), or `cmd`. An unknown value falls back to
-`gitBash` with a notice. A profile that is not installed falls back to the first available profile
-in the order Git Bash, PowerShell 7, Windows PowerShell, Command Prompt, with a notice the first
-time each missing shell is asked for. On macOS and Linux the ids are `loginShell` (the default,
-the shell in `$SHELL`), `zsh`, `bash`, and `fish`, each offered when installed and not already
-the login shell, then any other shell listed in `/etc/shells` (nu, elvish, xonsh, pwsh, tcsh, and
-so on), whose id is its file name, such as `nu`. `shell.path` (default `C:\Program Files\Git\bin\bash.exe`) and `shell.args`
-(default `["--login", "-i"]`) configure Git Bash, so they apply, and show in the Settings tab, on
-Windows only. The
-Default shell select in the Terminal section of the Settings tab sets it too (see
-[PowerShell, Windows PowerShell, and Command Prompt](setup.md#powershell-windows-powershell-and-command-prompt)):
+## Terminal
+
+`shell.defaultProfile` picks the shell a plain split runs. On Windows it is `gitBash` (the
+default), `pwsh` (PowerShell 7), `powershell` (Windows PowerShell), or `cmd`. On macOS and Linux it
+is `loginShell` (the default, the shell in `$SHELL`), `zsh`, `bash`, `fish`, or any other shell
+listed in `/etc/shells` (nu, elvish, xonsh, pwsh, tcsh, and so on) by its file name, such as `nu`.
+A malformed id falls back to the default with a notice. A shell that is not installed falls back
+to the first available one (on Windows, in the order Git Bash, PowerShell 7, Windows PowerShell,
+Command Prompt), with a notice the first time each missing shell is asked for. The Default shell
+select in the Terminal section of the Settings tab sets it too (see
+[PowerShell, Windows PowerShell, and Command Prompt](setup.md#powershell-windows-powershell-and-command-prompt)).
+`shell.path` (default `C:\Program Files\Git\bin\bash.exe`) and `shell.args` (default
+`["--login", "-i"]`) configure Git Bash, so they apply, and show in the Settings tab, on Windows
+only.
 
 ```jsonc
 "shell": { "defaultProfile": "gitBash" }
 ```
+
+`scrollback` (default 10000) is how many lines each terminal keeps. `shell.startingDirectory`
+(default `%USERPROFILE%` on Windows and `%HOME%` elsewhere, and it may hold other `%VARS%`) is
+where a terminal starts when it has no folder to inherit. Both are in the Terminal section of the
+Settings tab.
+
+`terminal.doneAfterSeconds` (default 30, 0 to 86400) is the shortest shell command that marks its terminal
+`done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
+the `~/.bashrc` lines only (on macOS and Linux, the shell integration lines, which the Settings
+tab's hint for this field says it needs).
+
+`terminal.notifyWhenWaiting` (default `true`) shows a system notification (Windows, macOS, or Linux) when a
+terminal starts waiting while Bashboard is in the background; clicking it brings the window forward
+on that pane. It also sends one when a branch or pull request in the dashboard's Needs you list newly
+fails or gets changes requested while the window is in the background; clicking that opens its row.
+On macOS, the first notification asks for permission. On Linux, it goes to the desktop's notification
+daemon, so a session without one shows nothing. It is the "Notify when something needs you"
+toggle in the Terminal section of the Settings tab.
+
+```jsonc
+"terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true }
+```
+
+`cloud.badge` (default `false`), set to `true`, shows the cloud context chip on terminal title
+strips and session cards: the pane's AWS profile and region. The example below turns it on. The
+chip needs the `~/.bashrc` lines from
+[New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash, and works in
+PowerShell panes without setup; Command Prompt panes never show one.
+`cloud.productionPattern` (default `prod|prd|live`) is a JavaScript regular expression, matched
+ignoring case against the AWS profile. A match turns the chip red. An empty pattern never matches,
+and an invalid one falls back to the default. Both apply on save and are in the Terminal section of
+the Settings tab.
+
+```jsonc
+"cloud": { "badge": true, "productionPattern": "prod|prd|live" }
+```
+
+## Restore
 
 Restore on relaunch is controlled by `restore.enabled` (reopen the saved terminals),
 `restore.resumeSessions` (type the agent's resume command into terminals that had an agent session; an older `resumeClaude` key is still read), and
@@ -293,25 +323,31 @@ the scrollback already saved, at the next close:
 "restore": { "enabled": true, "resumeSessions": true, "scrollback": true }
 ```
 
+## Dashboard
+
 `dashboard.visibleOnStart` (default `true`) opens the dashboard at launch; it applies at the next
 launch. `dashboard.peekOnWaiting` (default `true`) peeks the hidden dashboard open for a few seconds
 when a terminal starts waiting. They are the "Show the dashboard at launch" and "Peek when a
 terminal is waiting" toggles in the Dashboard section of the Settings tab.
 
 `dashboard.side` (`"right"` by default, or `"left"`) docks the dashboard on that side of the
-window; an unknown value falls back to `right` with a notice. `dashboard.sections` shows or hides
-each dashboard element: `launch`, `pins`, `needs`, `panes`, `containers`, `ports`, `ship`, `localModels`, `external`, and `media` default to
-`true`, and `favorites`, `layouts`, `branch`, `system`, `wave`, and `clock` to `false`. While `favorites` or `layouts` is off,
-the panel's top bar has a button for it instead, and while `launch` is off, a **+** button that
-drops the Launch menu. While `pins` is off, the top bar's pin button lists the focused repo's
-pins, then the global ones. A settings file that still has `sections.folder` and no `sections.launch`
-uses it for Launch. A settings file that still has `containers.enabled` and no
-`sections.containers` uses it for the Containers section. These only affect the dashboard; the
-kind menu offers a Containers pane whenever a container engine is found, and a Ports pane
-always. The Needs you section lists what you should act on: waiting, failed, and finished terminals, and across the repos pinned to the Ship Overview a red health branch, your own pull request with changes requested, failing checks, or approval, pull requests awaiting your review, and a sign-in when a pinned repo needs one. The Ship section shows the running pipelines and a count of open pull requests, and offers to pin repos while none is pinned. The Branch section follows the focused pane's worktree, showing its branch size meter against `git.branchSizeThreshold`, ahead and behind counts, uncommitted changes, and the branch's latest CI run, and hides itself while the focused folder is not in a git repo. The Local AI models section (a preview) hides itself while no Ollama or LM Studio server answers. The Media section shows what Spotify or another app is playing, with play/pause, skip, and volume, and hides itself while nothing has a media session; it works on Windows and Linux and is hidden on macOS. All of them apply on save and are toggles in the Dashboard section of the Settings tab, under
-the groups Start work (Launch, Pins, Favorites, Layouts), Sessions (Needs you, Panes, External
-sessions), Git & CI (Ship, Branch), Local services (Containers, Ports, Local AI models), and
-Ambient (System, Media, Clock, Wave). The panel's right-click menu lists them under the same headings.
+window; an unknown value falls back to `right` with a notice.
+
+`dashboard.sections` shows or hides each dashboard element: `launch`, `pins`, `needs`, `panes`,
+`containers`, `ports`, `ship`, `localModels`, `external`, and `media` default to `true`, and
+`favorites`, `layouts`, `branch`, `system`, `wave`, and `clock` to `false`. The
+[user guide](user-guide.md#dashboard) describes each section; Media is hidden on macOS. They apply
+on save and are toggles in the Dashboard section of the Settings tab, under the groups Start work
+(Launch, Pins, Favorites, Layouts), Sessions (Needs you, Panes, External sessions), Git & CI (Ship,
+Branch), Local services (Containers, Ports, Local AI models), and Ambient (System, Media, Clock,
+Wave). The panel's right-click menu lists them under the same headings.
+
+While `favorites` or `layouts` is off, the panel's top bar has a button for it instead, and while
+`launch` is off, a **+** button that drops the Launch menu. While `pins` is off, the top bar's pin
+button lists the focused repo's pins, then the global ones. These only affect the dashboard; the
+kind menu offers a Containers pane whenever a container engine is found, and a Ports pane always.
+An older settings file's `sections.folder` is still read for Launch, and its `containers.enabled`
+for Containers, when the newer key is absent.
 
 `dashboard.clockStyle` picks what the clock shows: `"both"` (the default) for the binary dots and
 the time, `"time"` for the time only, or `"binary"` for the dots only. An unknown value falls back
@@ -364,6 +400,8 @@ while the Ports section is on.
 }
 ```
 
+## Needs you
+
 `needsYou.walkAll` (default `true`) makes the next-attention walk (Ctrl+Shift+N) visit the Needs you
 list's Ship and usage rows as well as terminals; `false` limits it to terminals. It applies on save
 and is the "Ctrl+Shift+N walks Ship and usage rows too" toggle under Sessions in the Dashboard section
@@ -379,40 +417,7 @@ save and is the "Flag a background agent as stuck after" field there.
 "needsYou": { "walkAll": true, "usagePercent": 80, "stuckAgentMinutes": 15 }
 ```
 
-`terminal.doneAfterSeconds` (default 30, 0 to 86400) is the shortest shell command that marks its terminal
-`done` or `failed` when it finishes out of view; 0 turns the marks off. It applies to Git Bash with
-the `~/.bashrc` lines only (on macOS and Linux, the shell integration lines, which the Settings
-tab's hint for this field says it needs).
-
-`terminal.notifyWhenWaiting` (default `true`) shows a system notification (Windows, macOS, or Linux) when a
-terminal starts waiting while Bashboard is in the background; clicking it brings the window forward
-on that pane. It also sends one when a branch or pull request in the dashboard's Needs you list newly
-fails or gets changes requested while the window is in the background; clicking that opens its row.
-On macOS, the first notification asks for permission. On Linux, it goes to the desktop's notification
-daemon, so a session without one shows nothing. It is the "Notify when something needs you"
-toggle in the Terminal section of the Settings tab.
-
-```jsonc
-"terminal": { "doneAfterSeconds": 30, "notifyWhenWaiting": true }
-```
-
-`cloud.badge` (default `false`), set to `true`, shows the cloud context chip on terminal title
-strips and session cards: the pane's AWS profile and region. The example below turns it on. The
-chip needs the `~/.bashrc` lines from
-[New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash, and works in
-PowerShell panes without setup; Command Prompt panes never show one.
-`cloud.productionPattern` (default `prod|prd|live`) is a JavaScript regular expression, matched
-ignoring case against the AWS profile. A match turns the chip red. An empty pattern never matches,
-and an invalid one falls back to the default. Both apply on save and are in the Terminal section of
-the Settings tab.
-
-```jsonc
-"cloud": { "badge": true, "productionPattern": "prod|prd|live" }
-```
-
-`scrollback` (default 10000) is how many lines each terminal keeps. `shell.startingDirectory`
-(default `%USERPROFILE%` on Windows and `%HOME%` elsewhere, and it may hold other `%VARS%`) is where a terminal starts when it has
-no folder to inherit. All of these are in the Terminal section of the Settings tab.
+## Git
 
 `git.autoFetchMinutes` (default 5, 0 to 1440) is the number of minutes between background fetches
 of repos with an open Git pane; 0 turns them off. It applies on save and is also in the Git
@@ -428,6 +433,8 @@ tab.
 "git": { "autoFetchMinutes": 5, "branchSizeThreshold": 400 }
 ```
 
+## Local AI models
+
 `localModels.ollamaUrl` and `localModels.lmStudioUrl` (both default empty) set the address Bashboard
 asks for local AI models. An empty Ollama URL uses `OLLAMA_HOST` when it is set (a bind address such as
 `0.0.0.0` maps to `127.0.0.1`), else `http://127.0.0.1:11434`; an empty LM Studio URL uses
@@ -439,19 +446,13 @@ Settings tab.
 "localModels": { "ollamaUrl": "", "lmStudioUrl": "", "minContext": 64000 }
 ```
 
-`ship.hosts` (default `{}`) tells Bashboard which provider a self-hosted host runs. It maps a
-host name, such as `ghe.example.com`, to `github`, `gitlab`, `bitbucket`, or `azureDevOps`. Use it
-for a self-hosted GitHub Enterprise Server host the GitHub CLI (`gh`) is not signed in to, or a
-self-managed GitLab host that GitLab CLI's (`glab`) config does not list; a host you are signed in
-to with `gh` or `glab` is found without an entry. Of the four kinds, `github` and `gitlab` are
-served for a self-hosted host. `azureDevOps` names Azure DevOps Services (dev.azure.com), whose
-clone URLs are recognized without an entry; an entry for another host does not make Azure
-DevOps Server work, since Bashboard calls dev.azure.com only. The Bitbucket provider speaks only
-Bitbucket Cloud (bitbucket.org), so any other Bitbucket host is refused with "Bitbucket Data Center
-isn't supported yet" before a request is sent. Host names are
-lowercased when the file loads, so their case does not matter. An entry with any other kind is
-dropped with a notice, and the other entries still apply. The map has no field in the Settings tab;
-edit it in the file. See [Code hosts](setup.md#code-hosts) for what the Ship pane needs.
+## Ship
+
+`ship.hosts` (default `{}`) maps a self-hosted host name, such as `ghe.example.com`, to the
+provider it runs (`github`, `gitlab`, `bitbucket`, or `azureDevOps`); a host you are signed in to
+with `gh` or `glab` needs no entry, and an entry with any other kind is dropped with a notice. It
+has no field in the Settings tab; [Code hosts](setup.md#code-hosts) says which hosts each provider
+serves.
 
 ```jsonc
 "ship": { "hosts": { "ghe.example.com": "github" } }
@@ -468,12 +469,9 @@ the Settings tab.
 
 `ship.overviewRefreshMinutes` (default 5, 0 to 1440) is the number of minutes between background
 refreshes of the Overview; 0 turns them off, leaving the Refresh button. A repo with a pipeline
-queued or running on any branch is refreshed every 60 seconds whatever the interval. Each
-refresh costs about 3 requests (its runs, its open pull requests, and the statuses of open pull
-requests that changed), and Bitbucket allows 1,000 requests an hour per user, so Bitbucket repos
-stay within 600 an hour between them: with more than three pinned, each is refreshed no more often
-than every 18 seconds times the number pinned (every 3 minutes for ten), even when this interval
-is shorter. It applies on save and is also in the Ship section of the Settings tab.
+queued or running on any branch is refreshed every 60 seconds whatever the interval, and Bitbucket
+repos may refresh less often to stay within rate limits. It applies on save and is also in the
+Ship section of the Settings tab.
 
 `ship.cliWrites` (default `false`) lets `bb ci rerun` and `bb ci cancel` act on pipelines; off by
 default because pipelines often deploy. It applies on save and is also in the Ship section of the
@@ -509,7 +507,7 @@ section of the Settings tab.
 any host. Each entry is an absolute folder path. A file in any other folder reaches only its own
 folder's files, the CDN hosts below, and the hosts you allow for its folder. A file that Windows marks as
 downloaded from the internet (Mark of the Web) is never trusted, even in a trusted folder. An entry
-that is not a string, or is not an absolute path, is dropped with a notice, and the other entries
+that is not a non-empty string, or is not an absolute path, is dropped with a notice, and the other entries
 still apply. It applies on save and is also in the Local Browser section of the Settings tab, one
 folder per line.
 
@@ -526,8 +524,8 @@ file.
 
 `localBrowser.cdnHosts` (default `["cdnjs.cloudflare.com", "cdn.jsdelivr.net", "unpkg.com",
 "fonts.googleapis.com", "fonts.gstatic.com"]`) lists the hosts every HTML file page may load
-scripts, styles, and fonts from, whatever its folder. An entry that is not a string is dropped
-with a notice naming its position. An empty list means pages load nothing from the network unless
+scripts, styles, and fonts from, whatever its folder. An entry that is not a non-empty string is
+dropped with a notice naming its position. An empty list means pages load nothing from the network unless
 their folder allows it. It has no field in the Settings tab; edit the file.
 
 `localBrowser.reloadOnChange` (default `true`) reloads an HTML file page in the pane when its file
@@ -561,27 +559,22 @@ field in the Settings tab; edit the file.
 "linux": { "disableDmabufRenderer": "on" }
 ```
 
-`linux.allowFileCredentials` (default `false`) decides where forge tokens go when no keyring is
-running. Bashboard keeps the Bitbucket and Azure DevOps tokens you save in the system keyring
-(GNOME Keyring, KWallet, or another Secret Service). When none answers, it can keep them in
-`~/.local/share/bashboard/credentials.json` (under `$XDG_DATA_HOME` when that is set), a file only
-you can read, but only with this setting on. You rarely set it by hand: the first time a save finds
-no keyring, the Accounts tab asks, and **Allow** turns it on. With it off, a save from the Accounts
-tab with no keyring asks again instead of writing the file; tokens already there stay readable
-until you remove them or use **Move to keyring** on the Accounts tab. `bb auth` cannot read this
-setting, so it goes by the file instead: with no keyring it writes to the file whenever the file
-exists, whatever the setting says, and refuses when it does not. To stop `bb` too, delete the
-file once its tokens are moved or removed. It has no field in the Settings tab, and other OSes
-ignore it.
+`linux.allowFileCredentials` (default `false`) lets Bashboard keep the Bitbucket and Azure DevOps
+tokens you save in a file only you can read when no system keyring is running. You rarely set it by
+hand: the first time a save finds no keyring, the Accounts tab asks, and **Allow** turns it on.
+`bb auth` cannot read this setting; [Tokens on Linux](setup.md#tokens-on-linux) covers where tokens
+go and how `bb auth` decides. It has no field in the Settings tab, and other OSes ignore it.
 
 ```jsonc
 "linux": { "allowFileCredentials": true }
 ```
 
-Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, and `workspace.json` next to
-`settings.json`. Bashboard rewrites `workspace.json` itself (version 3, holding every tab);
-`favorites.json`, `layouts.json`, and `repos.json` are plain JSON you can edit by hand, and the
-panel updates when you save them.
+## Other files
+
+Bashboard also keeps `favorites.json`, `layouts.json`, `repos.json`, `pins.json`, and
+`workspace.json` next to `settings.json`. Bashboard rewrites `workspace.json` itself (version 3,
+holding every tab); `favorites.json`, `layouts.json`, `repos.json`, and `pins.json` are plain JSON
+you can edit by hand, and the panel updates when you save them.
 
 The default keys are in [docs/design/keys.md](design/keys.md) section 4.5, and the schema in
 [docs/design/data.md](design/data.md) section 8.

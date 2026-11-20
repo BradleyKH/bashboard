@@ -1,16 +1,17 @@
 # Backdrop
 
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
+
+## 6. Backdrop
+
 The backdrop has seven styles, set by `backdrop.style` (section 8): `lights` (Swirling Lights),
 `galaxy` (Galaxy, the default), `matrix` (Matrix), `wave` (Wave), `image` (Image),
 `slideshow` (Slideshow), and `none`. Swirling Lights is the colony simulation drawn by Three.js. Galaxy is a fixed swirling
 starfield on the same Three.js viewport and settings (6.6).
-Matrix is falling glyph rain drawn with Canvas 2D. Wave is the dashboard's Wave drawn across
+Matrix is falling glyph rain drawn with Canvas 2D (6.8). Wave is the dashboard's Wave drawn across
 the window with Canvas 2D (6.7). Image and Slideshow draw local pictures with
 Canvas 2D (6.5). None mounts nothing, so z0 is empty. Exactly one style is mounted at a time, and
 changing the setting swaps it live.
-
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
 
 ## 6.1 Modules
 
@@ -22,16 +23,20 @@ The backdrop code lives in `src/backdrop/`.
 - `src/backdrop/galaxy/` is the Galaxy style (6.6): pure modules for the disc's shape, the
   starfield, the color drift, and the baked textures (each unit tested), the
   Three.js layers that draw them, and `galaxyBackdrop.ts`, which mounts them.
-- `src/backdrop/matrix/` is the Matrix style: `matrixModel.ts` is the pure, DOM-free rain model
-  (unit tested), and `matrixBackdrop.ts` draws it on a canvas and runs its step clock.
+- `src/backdrop/matrix/` is the Matrix style (6.8): `matrixModel.ts` is the pure, DOM-free rain
+  model and `rainColor.ts` resolves the color mode (both unit tested), and `matrixBackdrop.ts`
+  draws the rain on a canvas and runs its step clock.
 - `src/backdrop/wave/` is the Wave style (6.7): `waveColor.ts` resolves the color
   mode (unit tested), and `waveBackdrop.ts` samples the system and draws the figure. The
   figure itself comes from the Wave's `src/waveModel.ts` and `src/waveDraw.ts`, shared with the
   dashboard.
 - `src/backdrop/image/` is the Image and Slideshow styles: `imageFit.ts` (where a picture is drawn
-  for each fit) and `slideshowOrder.ts` (which picture is next) are pure and unit tested, and
-  `imageBackdrop.ts` loads, draws, crossfades, and times the pictures. The core's
-  `backdrop_image.rs` reads and lists the files (6.5).
+  for each fit) and `slideshowOrder.ts` (which picture is next) are pure and unit tested,
+  `imageBackdrop.ts` loads, draws, crossfades, and times the pictures, and `imagePick.ts` opens
+  the Settings tab's file or folder picker. The core's `backdrop_image.rs` reads and lists the
+  files (6.5).
+- `framePacer.ts` is the `FramePacer` that Swirling Lights, Galaxy, and Wave share to honor
+  `backdrop.maxFps` (6.4).
 - `backdropHandle.ts` holds `StyleBackdrop`, the interface every style exposes. `backdropHost.ts`
   is the `BackdropHost`, which owns the canvas and the mounted style (6.2).
 - The backdrop has no HUD, controls, or pointer handling; it never shows an interface or takes
@@ -48,7 +53,7 @@ fails to mount, which shows a "Could not start the background animation" toast.
 
 - **A fresh canvas per style.** Switching styles disposes the mounted one and replaces the canvas
   element with a clone of the original, taken before any style touched it. A canvas that has held
-  a WebGL context cannot give a 2D one, and Matrix sets a mirror transform (6.4) on its canvas,
+  a WebGL context cannot give a 2D one, and Matrix sets a mirror transform (6.8) on its canvas,
   which Swirling Lights must not inherit.
 - **Lazy loading.** Each style is loaded with a dynamic import when it is first mounted, so
   Three.js is parsed only when Swirling Lights or Galaxy is shown, and the simulation only for
@@ -182,36 +187,10 @@ Swirling Lights' colony tends itself so the window never sits empty for long
 
 **Matrix**
 
-- It is a Canvas 2D renderer, `src/backdrop/matrix/matrixBackdrop.ts`, over the pure model in
-  `matrixModel.ts`. The model is a grid of cells sized from the canvas and the cell size, with
-  one falling drop per column. Each step moves every drop down one row and returns the glyphs to
-  draw: the drop's new head cell, and the previous head cell again as ordinary trail so the bright
-  head does not leave a white streak. A column whose drop has fallen off the bottom sits idle,
-  and each step an idle column starts a new drop at the top with a fixed chance (3 percent times
-  `backdrop.matrix.density`, 0.25 to 4, default 3). Columns start independently, which keeps them
-  out of lockstep, and the window opens with every column idle, so the rain arrives rather than
-  appearing all at once.
-- Glyphs are half-width katakana, the digits, and a few symbols, drawn in the first installed
-  of `MS Gothic`, `Yu Gothic` (Windows), `Hiragino Sans` (macOS), or `Noto Sans Mono CJK JP` and
-  `Noto Sans CJK JP` (Linux), with `monospace` as the fallback. No font is
-  bundled. Drawing waits for the font to load, so the first frames do not cache fallback glyphs.
-- The film's glyphs are mirrored. The renderer sets `transform: scaleX(-1)` on its canvas, which
-  the compositor applies for free; drops are column-symmetric, so only the glyph shapes change.
-- A cell is 20 px times `backdrop.matrix.zoom`, and the canvas is drawn at the device pixel ratio
-  and rebuilt when the window resizes.
-- The step rate is `backdrop.matrix.speed` (5 to 30, default 10 steps per second); `maxFps` does
-  not apply. Steps are scheduled by elapsed time on `requestAnimationFrame`, at most four per
-  frame, so a stall never bursts. The setting hot-reloads.
-- Each step paints black over the whole canvas at 8 percent alpha, which fades trails. Alpha
-  blending alone stalls once 8-bit rounding stops lowering a channel, leaving a faint permanent
-  residue, so every fourth step also applies a color-burn fill with a near-white source that
-  subtracts a few levels and clamps at zero. Trails therefore fade to true black. Heads are drawn
-  in the chosen color mixed 90 percent toward white.
-- `backdrop.animate: false`, or the OS asking for reduced motion, stops the loop on a still frame.
-  The frame is built by stepping the rain on a cleared canvas for a screen's worth of rows plus
-  two mean idle gaps (at most 400 steps), so the frozen view looks like a running one rather than
-  an empty screen. A change to the zoom or the window size rebuilds it, and so does a change of
-  color or density.
+- A Canvas 2D renderer with no WebGL context. `maxFps` does not apply: steps run at
+  `backdrop.matrix.speed` (6.8), scheduled by elapsed time on `requestAnimationFrame`, at most four
+  per frame, so a stall never bursts. The mirror transform (6.8) is applied by the compositor for
+  free.
 
 **All styles**
 
@@ -334,3 +313,39 @@ the sizing differ.
   halves the Wave's pace, since the same angular speed covers far more of the screen at full size.
 - **Frame rate.** It renders at up to `backdrop.maxFps` through the shared `FramePacer`, and each
   frame's step is clamped to 250 ms so a throttled window does not jump the figure.
+
+## 6.8 Matrix
+
+Matrix draws falling glyph rain with Canvas 2D (`src/backdrop/matrix/matrixBackdrop.ts`) over the
+pure model in `matrixModel.ts`.
+
+- **The rain.** The model is a grid of cells sized from the canvas and the cell size, with one
+  falling drop per column. Each step moves every drop down one row and returns the glyphs to draw:
+  the drop's new head cell, and the previous head cell again as ordinary trail so the bright head
+  does not leave a white streak. A column whose drop has fallen off the bottom sits idle, and each
+  step an idle column starts a new drop at the top with a fixed chance (3 percent times
+  `backdrop.matrix.density`, 0.25 to 4, default 3). Columns start independently, which keeps them
+  out of lockstep, and the window opens with every column idle, so the rain arrives rather than
+  appearing all at once.
+- **Glyphs.** Half-width katakana, the digits, and a few symbols, drawn in the first installed of
+  `MS Gothic`, `Yu Gothic` (Windows), `Hiragino Sans` (macOS), or `Noto Sans Mono CJK JP` and
+  `Noto Sans CJK JP` (Linux), with `monospace` as the fallback. No font is bundled. Drawing waits
+  for the font to load, so the first frames do not cache fallback glyphs. The glyphs are mirrored,
+  as in the film: the renderer sets `transform: scaleX(-1)` on its canvas, and since drops are
+  column-symmetric, only the glyph shapes change.
+- **Size.** A cell is 20 px times `backdrop.matrix.zoom`, and the canvas is drawn at the device
+  pixel ratio and rebuilt when the window resizes.
+- **Pace.** `backdrop.matrix.speed` sets the step rate (5 to 30, default 10 steps per second). The
+  setting hot-reloads.
+- **Fading.** Each step paints black over the whole canvas at 8 percent alpha, which fades trails.
+  Alpha blending alone stalls once 8-bit rounding stops lowering a channel, leaving a faint
+  permanent residue, so every fourth step also applies a color-burn fill with a near-white source
+  that subtracts a few levels and clamps at zero. Trails therefore fade to true black.
+- **Color.** `green` draws `#00ff41`; `accent` draws the accent at full brightness with its
+  saturation raised (`accentRain` in `rainColor.ts`). Heads are drawn in the chosen color mixed 90
+  percent toward white.
+- **Still frame.** `backdrop.animate: false`, or the OS asking for reduced motion, stops the loop
+  on a still frame. The frame is built by stepping the rain on a cleared canvas for a screen's
+  worth of rows plus two mean idle gaps (at most 400 steps), so the frozen view looks like a
+  running one rather than an empty screen. A change to the zoom, the window size, the color, or
+  the density rebuilds it.

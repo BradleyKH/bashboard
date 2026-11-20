@@ -225,7 +225,7 @@ pub struct Restore {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalModels {
-    /// Empty means the default `http://127.0.0.1:11434`.
+    /// Empty means `OLLAMA_HOST`, else `http://127.0.0.1:11434`.
     pub ollama_url: String,
     /// Empty means the default `http://127.0.0.1:1234`.
     pub lm_studio_url: String,

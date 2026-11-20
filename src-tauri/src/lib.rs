@@ -53,6 +53,7 @@ mod login_path;
 mod mac_menu;
 mod model_servers;
 mod mount_info;
+mod pacman_update;
 mod page_watchdog;
 mod platform;
 mod proc_name;
@@ -292,6 +293,8 @@ pub fn run() {
             shell_integration::shell_integration_install,
             appimage_entry::appimage_entry_status,
             appimage_entry::appimage_entry_install,
+            pacman_update::update_target,
+            pacman_update::update_install_pacman,
             git_install::git_install_status,
             git_install::git_install,
             links::open_url,

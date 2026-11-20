@@ -170,7 +170,7 @@ impl Default for Http {
             // another host (GitHub's job logs redirect to blob storage).
             .max_redirects(0)
             .http_status_as_error(false)
-            // The Windows certificate store, so corporate TLS inspection roots are trusted.
+            // The OS trust store on each platform, so corporate TLS inspection roots are trusted.
             .tls_config(
                 TlsConfig::builder()
                     .root_certs(RootCerts::PlatformVerifier)

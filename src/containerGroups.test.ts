@@ -155,8 +155,8 @@ describe('engineLabel and shellCommand', () => {
   });
 
   it('builds the exec command', () => {
-    expect(shellCommand({ engine: 'podman', id: 'abc' })).toEqual([
-      'podman.exe',
+    expect(shellCommand({ engine: 'podman', id: 'abc' }, 'linux')).toEqual([
+      'podman',
       'exec',
       '-it',
       '--',
@@ -165,5 +165,10 @@ describe('engineLabel and shellCommand', () => {
       '-c',
       'command -v bash >/dev/null && exec bash || exec sh',
     ]);
+  });
+
+  it('runs the engine .exe only on Windows', () => {
+    expect(shellCommand({ engine: 'docker', id: 'abc' }, 'windows')[0]).toBe('docker.exe');
+    expect(shellCommand({ engine: 'docker', id: 'abc' }, 'macos')[0]).toBe('docker');
   });
 });

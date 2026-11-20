@@ -25,6 +25,7 @@
 - [Attention and status](#attention-and-status)
 - [Cloud context chip](#cloud-context-chip)
 - [Command palette](#command-palette)
+- [Sessions](#sessions)
 - [Find and links](#find-and-links)
 - [Text size](#text-size)
 - [Background and effects](#background-and-effects)
@@ -49,9 +50,8 @@ to it, so the pane can dock there.
 
 To move a pane into a tab of its own, right-click its title strip and choose Move to new tab, or
 drag its title strip (or its dashboard card) onto the tab strip past the last tab and drop it
-there. Either way the new tab opens with just that pane. The drop target needs the tab strip, so
-with a single tab use the menu item. Neither is offered for a pane that is already alone in its
-tab. A favorite or recent folder dropped in the same spot opens a new tab with a terminal there.
+there. Either way the new tab opens with just that pane. With a single tab there's no strip to drop
+on, so use the menu item. Neither works for a pane already alone in its tab. A favorite or recent folder dropped in the same spot opens a new tab with a terminal there.
 
 Ctrl+Shift+T opens a new tab and Ctrl+Shift+W closes the current one (it asks first when a
 terminal there is busy or a scratch pad there has text). Ctrl+Tab and Ctrl+Shift+Tab move to the next and previous tab,
@@ -103,8 +103,7 @@ does. Right-click a title strip for the same actions, plus **Move to new tab** (
 [Tabs](#tabs)) and, on a terminal, **New pin** (see [Pins](#pins)).
 
 Ctrl+Shift+M, or the collapse button on a pane's title strip, collapses a pane into its card; the
-terminal keeps running. Click a collapsed card to expand it. With a single pane the title strip
-stays out of the way and appears when you hover the top edge of the terminal.
+terminal keeps running. Click a collapsed card to expand it.
 
 Ctrl+Shift+Z, or the zoom button on a pane's title strip, fills the tab's pane area with the
 focused pane, whatever its kind, and the same again restores the layout. The zoom button
@@ -241,9 +240,25 @@ The preview depends on the file:
   size and scroll around; click again, or Fit, to fit it back. Transparent areas show a
   checkerboard, and the image updates when the file changes on disk.
 - **Binary and large files** (other files over 2 MiB, or text containing NUL bytes) show a notice with the name and
-  size, an Open with default app button (the app Windows uses for that file type, such as a PDF
+  size, an Open with default app button (the system's app for that file type, such as a PDF
   reader), and an Open in editor button. Programs, scripts, installers, and shortcuts get only
   Open in editor, so a click in the preview never runs them.
+
+**Open in editor**, here and elsewhere, uses the editor chosen in the Editor section of Settings
+(see [Settings](settings.md#settings)). Besides the common editors it lists any other editor
+installed on the machine, which opens the file without jumping to a line: on Linux, apps whose
+desktop entry calls them a text editor or IDE (including Flatpak, Snap, `~/.local/bin`, and
+AppImage or tarball installs with a `.desktop` file), and on macOS, apps that declare themselves
+editors of plain text or source code. JetBrains IDEs are found whether installed through the
+Toolbox App or on their own, and so is the Vim that comes with Git for Windows. Vim and Neovim open
+in a new pane beside the focused one, which closes when you quit the editor. If the editor is
+missing or will not start, the file opens in its default app and a toast says so.
+
+Runnable files never open in their default app, which would run them. On Windows, scripts,
+programs, and shortcuts (`.bat`, `.exe`, `.lnk`, `.ps1`, and the like) open in Notepad. On macOS,
+apps, scripts, installers, and any file marked executable open as text in the default text editor
+(TextEdit unless you change it). On Linux, `.desktop` files, AppImages, packages, Windows programs,
+and executable files open in the default app for plain text, or not at all when there is none.
 
 Text previews have a Find button (or Ctrl+Shift+F in the Files pane) that searches the file,
 ignoring case, and highlights every match. Enter and Shift+Enter step through them, and Esc
@@ -340,12 +355,9 @@ drops a menu of them, sorted by name. While the whole Pins section is hidden, th
 the focused repo's pins first, then the global ones, with **+ Add** for a new command pin. The
 command palette lists them too.
 
-Pins are kept in `repos.json` next to `settings.json`, as a list of entries, each with a repo
-`root` and its `pins`. A pin's
-`path` is relative to the root with forward slashes when it is inside the repo, and absolute
-otherwise; `label` is optional, and a command pin adds a `command`. Roots and pins match without regard to case, except on Linux, where case counts. Global pins are
-kept in `pins.json` beside it, as a list of `{ "label": ..., "command": ... }` entries. Both files
-are plain JSON you can edit by hand, and the panel updates when you save them.
+Pins are kept in `repos.json`, and global pins in `pins.json`, next to `settings.json` (see
+[Settings](settings.md#settings)); both are plain JSON you can edit by hand, and the panel updates
+when you save them.
 
 ## Git pane
 
@@ -468,13 +480,9 @@ After a delete or clean-up, a toast offers **Restore** for a few seconds, puttin
 where they were. A right-click on a row also offers Copy name and Insert name, which types the name
 into the tab's most recent terminal.
 
-The pane refreshes when git changes the repo's `HEAD`, index, or refs (the watcher skips the
-`objects` folder, and changes are debounced about 300 ms), when its window regains focus, and when
-it comes back on screen. A pane in a background tab or a collapsed pane does not refresh until it is
-shown again. A pane whose folder is outside a repo or missing shows a notice in place of its body.
-
-The pane runs `git` from `PATH`, or else from the Git for Windows install that Git Bash comes from.
-Without either, the pane shows git's "not found" error in its body.
+The pane refreshes when git changes the repo, when its window regains focus, and when it comes back
+on screen; a pane in a background tab or a collapsed pane waits until it is shown again. A pane
+whose folder is outside a repo or missing shows a notice in place of its body.
 
 Opening a Git pane runs `git status` and `git diff` in the repo, and a repo's own git config can
 make those run programs (`core.fsmonitor`, diff and textconv drivers), as it can for `git` in a
@@ -595,13 +603,10 @@ has no checked-out branch, so its This branch checkbox is disabled and it has no
 uses the host's default account.
 
 The Overview shows when it was last updated and has an **Add** button (see Pinning), its own **Accounts** button, which opens the
-Accounts tab, and a **Refresh** button. It refreshes by
-itself every 5 minutes (`ship.overviewRefreshMinutes`; 0 turns this off),
-every minute while a health branch is running, and when you focus the pane after more than 30
-seconds away. It polls only while the Overview or the dashboard's Ship section is on screen, or
-the Needs you list is turned on, and the window is visible. Bitbucket allows 1,000 requests an hour per user and a refresh costs about
-3 per repo, so with more than three Bitbucket repos pinned they refresh less often (every 3 minutes
-for ten, even while running), and the bar shows the pace, such as "Bitbucket every 3 min".
+Accounts tab, and a **Refresh** button. It refreshes by itself while the window is visible and the
+Overview or the dashboard's Ship section is on screen or the Needs you list is on, more often while
+a run is going. Bitbucket is polled more slowly, and the bar shows its pace, such as "Bitbucket every 3
+min". `ship.overviewRefreshMinutes` sets the interval (see [Settings](settings.md#settings)).
 
 **Pinning.** A repo's own view has a **Pin to Overview** button (**Unpin** while it is
 pinned). The Overview's add box pins a repo without opening it. With nothing pinned it shows
@@ -654,17 +659,15 @@ state, with merged and closed ones marked. The pane remembers these choices acro
   **Fix with agent** on a failed run (see below).
   In a narrow pane the buttons are hidden and the right-click menu has them all. Cancel asks first, with a
   button that reads "Cancel workflow run", "Cancel pipeline", or "Cancel build"; Re-run does not ask. A Bitbucket
-  pipeline's jobs are its steps and have no per-command list. Re-run and Cancel on Bitbucket need
-  the optional `write:pipeline:bitbucket` scope. On Azure DevOps, Re-run failed re-runs the build's
-  failed stages and there is no plain Re-run, and Re-run and Cancel need the Build (Read & execute)
-  scope. On GitLab, Re-run and Re-run failed both retry the pipeline's failed jobs, and with Cancel
-  they need a token with the `api` scope.
+  pipeline's jobs are its steps and have no per-command list. On Azure DevOps, Re-run failed re-runs
+  the build's failed stages and there is no plain Re-run. On GitLab, Re-run and Re-run failed both
+  retry the pipeline's failed jobs. Re-run and Cancel need a token with write scopes on Bitbucket,
+  GitLab, and Azure DevOps; see the scope tables under [Code hosts](setup.md#code-hosts).
 - **Pull requests** lists pull requests in groups: **Review requested** (you are a requested
   reviewer who has not reviewed), **Yours**, and **Others**, each row with its author, branches,
   review state, checks, and last update. Click one to open it in the browser, or right-click to
   copy its link or branch name. The list holds the 50 most recently updated, and a note below the
-  groups, such as "Showing the latest 50 of 60 open pull requests.", says when the repo has more. Bitbucket pull requests need the
-  `read:user:bitbucket` scope, which sorts them into these groups. GitLab calls them merge requests,
+  groups, such as "Showing the latest 50 of 60 open pull requests.", says when the repo has more. GitLab calls them merge requests,
   and a merge request's approvals and pipeline status appear one poll after the list does. On Azure
   DevOps, a reviewer's Approved or Approved with suggestions vote reads as approved, and Waiting for
   the author or Rejected as changes requested.
@@ -682,11 +685,9 @@ button (see [Containers](#containers)).
 
 A finished run raises a toast, such as "Workflow run passed: CI on main", whose **Open** action
 opens the run. Several Ship panes on one repo share their requests and each finished run toasts
-once. A pane showing a repo polls only while it is expanded: runs every 15 seconds while one is
-queued or running and every minute otherwise, and pull requests only while their tab is showing. Bitbucket is
-polled more slowly, since it allows 1,000 requests an hour per user, and Azure DevOps is never
-polled faster than every 20 seconds (its pull requests every 80). Polling pauses while the
-window is hidden.
+once. A pane showing a repo polls only while it is expanded and the window is visible, faster while
+a run is queued or running, and its pull requests only while their tab is showing. Bitbucket and
+Azure DevOps are polled more slowly.
 
 **Accounts.** When you are signed in to several GitHub accounts on one host, the bar shows
 "as @name". Click it to pick the account this repo uses, to sign in another one, or to open
@@ -709,7 +710,7 @@ line with the run's name, number, and status (`build #42 running`, `passed`, or 
 hovering shows the name and link. If several terminals share the worktree and branch, the one you
 focused most recently gets it. The run stays on the card until a newer one starts or the terminal
 moves to another branch. When it finishes while you are not looking at the terminal, a pass marks
-it `done` and a failure marks it `failed`, which show on the title strip, card, and tab and join
+it `done` and a failure marks it `failed` (canceled and skipped runs mark nothing), which show on the title strip, card, and tab and join
 Ctrl+Shift+N, as in [Attention and status](#attention-and-status). Bashboard only watches: it never
 types into the terminal or re-runs anything, and it shows nothing when no code host account is
 signed in.
@@ -769,51 +770,63 @@ its query and options, and a non-empty query runs again as soon as the pane load
 ## Dashboard
 
 The panel opens on the right (or the left, with `dashboard.side`) on start (set
-`dashboard.visibleOnStart` to `false` to start without it) and Ctrl+Shift+D toggles it. Its top
+`dashboard.visibleOnStart` to `false` to start without it), and Ctrl+Shift+D toggles it. Its top
 bar holds the **⚙** (Settings, also Ctrl+,) and **?** (Help, also F1) buttons, which open the
-[app dialog](#help-settings-and-shortcuts) on those tabs, and
-the × at its right end hides the panel too, the first time with a notice naming the ways back. While it is hidden, a
-small handle sits on that edge of the window, halfway down; click it to bring the panel back. F6 moves focus
-into it (showing it for the moment if it is hidden), where the arrow keys move between rows, Enter
-clicks the focused row, Left and Right collapse and expand sections, Tab reaches a row's buttons,
-F2 renames the focused favorite, layout, pin, or tab group header, and F6 or Escape returns to the pane. Drag its inner
-edge to make it wider or narrower; the width is saved with the workspace. Drag it past 600 px
-and the panel splits into two columns, each with its own top slot and list and each scrolling on
-its own (a column's scrollbar appears while the pointer or focus is in it); narrower than that,
+[app dialog](#help-settings-and-shortcuts) on those tabs, and the × at its right end hides the
+panel, the first time with a notice naming the ways back. While it is hidden, a small handle sits
+on that edge of the window, halfway down; click it to bring the panel back.
+
+F6 moves focus into the panel (showing it for the moment if it is hidden). There the arrow keys
+move between rows, Enter clicks the focused row, Left and Right collapse and expand sections, Tab
+reaches a row's buttons, F2 renames the focused favorite, layout, pin, or tab group header, and F6
+or Escape returns to the pane.
+
+Drag the panel's inner edge to make it wider or narrower; the width is saved with the workspace.
+Past 600 px the panel splits into two columns, each with its own top slot and list, each scrolling
+on its own (a column's scrollbar appears while the pointer or focus is in it); narrower than that,
 the two stack back into one. The first split puts the clock, Wave, Media, System, Local AI models,
-Containers, and Ports on the right, and the rest on the left. **Panes** has a card for every pane in the order
-they were opened (with two or more tabs, grouped under a header for each tab showing its name,
-pane count, and status; click a header to switch to that tab, or right-click it to rename the tab). A terminal's card shows its status (a green check mark when it is done),
-folder, and time since its status last changed, plus, while a coding agent session runs in it, the model
-and the tokens in its context on a line below the folder (as "Opus 5.5 · 112k / 200k" for Claude Code, and
-"Codex · gpt-5.5 · 112k / 272k" for the others, which lead with the agent's name). When the context window
-is known, a small bar after the count shows how full it is, turning amber at 80% and red at 90%; Claude Code's
-window comes from its status line, so it appears once the status line has drawn with the Claude hooks installed
-(see [Usage limits and your status line](setup.md#usage-limits-and-your-status-line)). A card for any other kind of pane shows the
-kind's icon and the pane's title. A terminal in a branch over the size limit also gets an amber chip
-with its line count on that line (see the [size badge](#git-pane)). Folder paths under the card titles are hidden by default; the
-**↳** button on the Panes header shows them, and the choice is saved with the workspace. While
-they're hidden, hover a card's title to see its full path. The sparkle button beside it shows only the
-terminals running a coding agent (Claude Code, Codex, or Copilot), and that choice is saved too.
-Each tab's header still counts all its panes, so a tab with no agent shows just its header; with a
-single tab, the other panes fold into one "(2 other panes)" row instead. Click a card to focus its pane (for a pane hidden by a zoom, that brings it back and ends
-the zoom in its tab), or use its close button, which
-asks first when a Claude session is running there or a scratch pad has text. Click a section's
-header to collapse or expand it; the choice is remembered across launches. Drag a section's
-header, or the clock, to put the sections in a different order, in the top slot above Pins or
-the list at the bottom, in either column; that is remembered too. Dragged while the panel shows
-one column, a section joins the column of the section just above where you drop it. With two
-columns, drag the Pins header to move Pins to the other column; they always sit at the end of
-that column's top slot. Right-click an empty spot or a section header
-for a menu that shows or hides each section, or use Settings (see
-[Settings](settings.md#settings)). **External sessions** lists Claude Code sessions running outside Bashboard, such as in
-Windows Terminal or VS Code; click one to see its folder and session id with copy buttons. The
-section appears only while there are some. Hover any card or session for a folder button that
-opens its folder in File Explorer, and an Open menu beside it that opens the row's repo root as a
-Terminal, as Files (see [Files panes](#files-panes)), as Git (see [Git pane](#git-pane), for a
-git repo only), as Search (see [Code search](#code-search)), or in your Editor. Favorites and
-recent folders show the same Open menu, which also lists File Explorer, and a favorite shows a ✎
-to rename it.
+Containers, and Ports on the right, and the rest on the left.
+
+**Panes** has a card for every pane in the order they were opened. With two or more tabs, the
+cards are grouped under a header for each tab showing its name, pane count, and status; click a
+header to switch to that tab, or right-click it to rename the tab. A terminal's card shows its
+status (a green check mark when it is done), folder, and time since its status last changed. While
+a coding agent session runs in it, a line below the folder shows the model and the tokens in its
+context, as "Opus 5.5 · 112k / 200k" for Claude Code and "Codex · gpt-5.5 · 112k / 272k" for the
+others, which lead with the agent's name. When the context window is known, a small bar after the
+count shows how full it is, turning amber at 80% and red at 90%; Claude Code's window comes from
+its status line, so it appears once the status line has drawn with the Claude hooks installed (see
+[Usage limits and your status line](setup.md#usage-limits-and-your-status-line)). A terminal in a
+branch over the size limit also gets an amber chip with its line count on that line (see the
+[size badge](#git-pane)). A card for any other kind of pane shows the kind's icon and the pane's
+title.
+
+Folder paths under the card titles are hidden by default; the **↳** button on the Panes header
+shows them, and the choice is saved with the workspace. While they're hidden, hover a card's title
+to see its full path. The sparkle button beside it shows only the terminals running a coding agent
+(Claude Code, Codex, or Copilot), and that choice is saved too. Each tab's header still counts all
+its panes, so a tab with no agent shows just its header; with a single tab, the other panes fold
+into one "(2 other panes)" row instead. Click a card to focus its pane (for a pane hidden by a
+zoom, that brings it back and ends the zoom in its tab), or use its close button, which asks first
+when a Claude session is running there or a scratch pad has text.
+
+Click a section's header to collapse or expand it; the choice is remembered across launches. Drag
+a section's header, or the clock, to put the sections in a different order, in the top slot above
+Pins or the list at the bottom, in either column; that is remembered too. Dragged while the panel
+shows one column, a section joins the column of the section just above where you drop it. With two
+columns, drag the Pins header to move Pins to the other column; they always sit at the end of that
+column's top slot. Right-click an empty spot or a section header for a menu that shows or hides
+each section, or use Settings (see [Settings](settings.md#settings)).
+
+**External sessions** lists Claude Code sessions running outside Bashboard, such as in another
+terminal app or VS Code; click one to see its folder and session id with copy buttons. The section
+appears only while there are some.
+
+Hover any card or session for a folder button that opens its folder in File Explorer, and an Open
+menu beside it that opens the row's repo root as a Terminal, as Files (see
+[Files panes](#files-panes)), as Git (see [Git pane](#git-pane), for a git repo only), as Search
+(see [Code search](#code-search)), or in your Editor. Favorites and recent folders show the same
+Open menu, which also lists File Explorer, and a favorite shows a ✎ to rename it.
 
 **Launch** sits at the top by default and appears while the focused pane is in a folder (a
 scratch pad keeps the last one shown). Its row of icons opens a Terminal, Files, Git, Scratch, Search (see
@@ -905,7 +918,7 @@ it weaves tighter as CPU load rises, spins faster with network traffic, and chan
 as memory fills, while it slowly tumbles end over end. Hover it
 for the readings. Like the clock it has no header; drag it anywhere on the panel to move it. It
 keeps moving when the background animation is paused (Ctrl+Shift+A), and holds still only when
-Windows asks apps to reduce motion.
+your system asks apps to reduce motion.
 
 The **Branch** section is off by default; right-click the panel and choose Branch, or turn it on
 under Git & CI in the Dashboard section of Settings. It follows the folder of the focused pane (or the last
@@ -1060,11 +1073,9 @@ Local Browser** entry in the port and container menus, or by Ctrl+clicking a `lo
 a terminal. Ctrl+Shift+click on such a link, and **Open in system browser** in the menus, use your
 system browser instead.
 
-The Local Browser is Windows only. On macOS and Linux it has no entry in the kind menu or the
-Launch menu, the Files pane has no **Open in Local Browser**, the port and container menus offer
-only **Open in system browser**, a Ports pane row's Open and double-click use your system browser, Ctrl+clicking a `localhost` link opens your system browser,
-`bb browse` opens a `localhost` address in your system browser and refuses an `.html` file with a
-notice, and a saved workspace or layout that holds a Local Browser pane opens without it.
+The Local Browser is Windows only. On macOS and Linux every Local Browser entry point opens your
+system browser instead, `bb browse` refuses `.html` files, and a saved workspace or layout that
+holds a Local Browser pane opens without it.
 
 **Address bar.** Type a bare port (`5173`), `:5173`, `localhost:3000/app`, or a full URL; a missing
 host means `localhost`, and a missing scheme means `http`. An `http` address on a port that only
@@ -1083,29 +1094,16 @@ opens from `bb browse <file>` (see [Pane CLI](#pane-cli)) and from **Open in Loc
 Files pane's menu for an `.html` or `.htm` file. Saving the file reloads the page; with
 `localBrowser.reloadOnChange` off, a "Changed on disk" notice with a Reload button appears instead.
 
-Each file page shows a trust badge in the toolbar. **Trusted** is a file in a folder listed in
-`localBrowser.trustedFolders`, which may reach any host. **Local** is any other file on this
-machine, which may reach its own folder, the CDN hosts a generated page usually loads from, and the
-hosts allowed for its folder. **Downloaded** is a file Windows marks as downloaded from the internet
-(Mark of the Web), even inside a trusted folder; it reaches what Local reaches, but reads only other
-downloaded files in its folder and is kept apart from the folder's Trusted and Local pages. Following
-a link from a Local page to a downloaded file beside it opens that file as a Downloaded page.
-
-When a file page's request to a host is refused, a bar under the toolbar lists each host with a
-count of its refused requests. **Allow** adds the host to that folder's allowed hosts and reloads
-the page, and every file in the folder gets it. A page opened straight from your home folder or a
-drive root keeps its allowed hosts to itself. On a Downloaded page, Allow asks first, and a
-Downloaded page can never reach a service on this machine (`localhost`, `127.0.0.1`, and the like):
-the bar shows "Downloaded pages can't reach local services" for one instead of Allow, and an
-allowed-hosts entry for one is ignored. On a Local page, Allow for a local service asks first,
-naming its port. The four settings behind these, `trustedFolders`, `allowedHosts`, `cdnHosts`, and
-`reloadOnChange`, are described in [Settings](settings.md#local-browser).
-
-A file page never opens another site by itself. When it tries to navigate to one, the pane shows
-"This page tried to open example.com" with an **Open** button, and the address goes to your system
-browser only when you click it. A Downloaded page that tries to navigate to a service on this
-machine stays put, and the pane shows "Downloaded pages can't open local services"; the address
-field, Home, bookmarks, and Back still take you anywhere.
+Each file page shows a trust badge in the toolbar. **Trusted** is a file in one of your trusted
+folders, which may reach any host. **Local** is any other file on this machine, which may reach its
+own folder, common CDN hosts, and the hosts allowed for its folder. **Downloaded** is a file Windows
+marks as downloaded from the internet, even inside a trusted folder; it is kept apart from the
+folder's other pages and can never reach a service on this machine. When a page's request to a host
+is refused, a bar under the toolbar lists the host with an **Allow** button, which allows it for the
+whole folder and reloads (asking first on a Downloaded page or for a local service). A file page
+never navigates to another site by itself; the pane offers an **Open** button that sends the address
+to your system browser. The rules and the settings behind them are in
+[Settings](settings.md#local-browser).
 
 **https.** An https page loads only when Windows trusts its certificate; there is no "proceed
 anyway". When it doesn't, the pane says so and names the fix: for an ASP.NET Core project, run
@@ -1195,14 +1193,13 @@ Without hooks, Claude Code 2.1.295 or later and Codex still report working, wait
 through the terminal itself, once the terminal answers their probe, and the pane shows them the
 same way. That needs the terminal's reply to reach the program, which works on macOS and Linux; on
 Windows the reply does not reach the program, so status comes from hooks. The dashboard's session details
-(model, context, and resume) still need hooks. A bound session's hooks take precedence, unless
-they have been silent for over 2 minutes while the program reports it is working or waiting.
+(model, context, and resume) still need hooks. When both report, the hooks win; if the hooks go
+quiet for 2 minutes while the program says it is working or waiting, the terminal's own report
+wins.
 
-Sessions come from the files Claude Code keeps in `~/.claude/sessions`. A session belongs to a
-pane when its process descends from that pane's shell, so running `claude` in a pane names the
-card after the session and shows when it is working, usually within about 10 seconds. Codex and
-Copilot keep no such file, so their sessions come from their hooks and appear in the pane where
-the agent sent its first hook.
+Running `claude` in a pane names its card after the session and shows when it is working, usually
+within about 10 seconds. Codex and Copilot sessions appear in the pane where the agent sent its
+first hook.
 
 Ctrl+Shift+N jumps to the next thing that needs you, across all tabs, in the order of the
 dashboard's Needs you list: waiting terminals first, oldest first, then failed terminals and
@@ -1222,13 +1219,13 @@ pulse, taskbar flash, or peek, and is not saved, so restored terminals start wit
 A long shell command marks its terminal the same way, with no agent session needed. A command that
 runs at least `terminal.doneAfterSeconds` and finishes while you are not looking at the terminal
 marks it `done`, or `failed` (a still red cross) when it exited nonzero; Ctrl+C is not a failure.
-Only Git Bash with the `~/.bashrc` lines from [New panes in the current folder](setup.md#new-panes-in-the-current-folder)
-reports commands, and a bound agent session's own status takes precedence.
+Only a shell with the lines from
+[New panes in the current folder](setup.md#new-panes-in-the-current-folder) (Git Bash, or bash 4.4
+or later, zsh, or fish on macOS and Linux) reports commands; PowerShell and Command Prompt do not. A bound
+agent session's own status takes precedence.
 
-A CI run that starts on a terminal's branch, typically after that terminal pushes, shows as a chip
-on the terminal's card (such as `build #42 running`), and marks the terminal `done` or `failed` when
-the run passes or fails while you are not looking at it. Canceled and skipped runs mark nothing.
-See [Runs on a terminal's branch](#runs-on-a-terminals-branch).
+A CI run on a terminal's branch marks it the same way; see
+[Runs on a terminal's branch](#runs-on-a-terminals-branch).
 
 ## Cloud context chip
 
@@ -1242,9 +1239,9 @@ profile reads `aws default · us-east-1`. The chip is hidden while neither is se
 The chip is gray, and red when the profile matches the production pattern (`prod|prd|live` by
 default, matched ignoring case). Hover it for the provider, profile, and region.
 
-The chip needs the `~/.bashrc` lines from
-[New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash; PowerShell
-panes report without setup, and Command Prompt panes show none. `cloud.badge` and
+The chip needs the shell lines from
+[New panes in the current folder](setup.md#new-panes-in-the-current-folder) in Git Bash, bash, zsh,
+or fish; PowerShell panes report without setup, and Command Prompt panes show none. `cloud.badge` and
 `cloud.productionPattern` are in [Settings](settings.md#settings).
 
 ## Command palette
@@ -1252,7 +1249,8 @@ panes report without setup, and Command Prompt panes show none. `cloud.badge` an
 Ctrl+Shift+P opens one list over your panes, tabs, favorites, layouts, the focused repo's pins and
 worktrees, and the actions, each with its keys. The actions include Open the Containers tab, Open
 the Ports tab, and Open the Ship tab (the Ship [Overview](#overview)), which switch to that pane or
-add a tab holding one. **New worktree...** creates a [worktree](#new-worktree) for the focused repo. Typing filters the list fuzzily, and a leading `>`
+add a tab holding one. **New worktree...** creates a [worktree](#new-worktree) for the focused
+repo, and **Check for updates** checks for a new version as the About tab's button does. Typing filters the list fuzzily, and a leading `>`
 shows only actions. Enter focuses a pane, switches to a tab, opens a favorite, layout, pin, or
 worktree, or runs an action; a favorite or worktree opens as a split, or collapsed with Ctrl+Enter.
 With an empty box, your recent picks come first.
@@ -1313,7 +1311,9 @@ The Background choice in the Settings tab picks what draws behind the panes (see
 [Settings](settings.md#settings)): Swirling Lights, a drifting colony simulation; Galaxy, a
 slowly turning swirl of stars; Matrix; Wave, a large version of the dashboard's Wave that
 follows your machine's load; Image and Slideshow, which show your own pictures; or None.
-Ctrl+Shift+A pauses or resumes Swirling Lights, Galaxy, Matrix, or Wave. Ctrl+Shift+B cycles
+The drawn backgrounds start still; Ctrl+Shift+A, or **Animate** in Settings, sets Swirling Lights,
+Galaxy, Matrix, or Wave moving, and pauses it again. It does nothing on Image or Slideshow.
+Ctrl+Shift+B cycles
 the background's brightness through full, three quarters, half, and a quarter, and saves the choice as
 Brightness in the Settings tab; the blur stays as set there.
 
@@ -1342,44 +1342,22 @@ those keys themselves.
   setup wizard.
 - **Settings** edits every setting (see [Settings](settings.md)); type in its filter to narrow the
   list. The window behind it stays undimmed, so color and brightness changes show as they will look.
-- **Accounts** shows, for each code host, where the Ship pane gets its token, and manages it. It
-  has a card for GitHub (and each GitHub Enterprise Server host you use), GitLab (and each
-  self-managed host), Bitbucket, and Azure DevOps. The hosts it detected on this machine come first
-  (a CLI signed in to them, a stored token, or a pinned repo, open Ship pane, or terminal pane on
-  them; hover a card to see why), and the other public hosts fold under a **More hosts (N)**
-  toggle, which reveals them dimmed. A card shows status only, never a token. A GitHub card says whether the GitHub CLI is installed
-  and lists its signed-in accounts, with the active one marked. **Sign in** (or **Sign in another
-  account**) runs `gh auth login` in a new terminal pane and closes the dialog so you can see it,
-  **Install GitHub CLI** runs `winget` the same way (Homebrew on macOS and Linux, or opens cli.github.com
-  when Homebrew is not installed), **Make active** switches accounts, and
-  **Sign out** asks first and then signs that account out of the GitHub CLI for every app that
-  uses it. The GitLab card says whether the GitLab CLI is installed and who is signed in;
-  **Sign in** runs `glab auth login` in a new terminal pane the same way, **Install GitLab CLI**
-  runs `winget` or Homebrew the same way, and **Sign out** asks first and then signs out of the GitLab CLI for every app that
-  uses it. The Bitbucket card says whether an API token is stored; **Add token** (or **Replace
-  token**) opens a password field, **Save** stores the token in Windows Credential Manager, the macOS Keychain, or
-  the Linux keyring (GNOME Keyring, KWallet, or another Secret Service), and
-  **Remove token** asks first and deletes it. On Linux with no keyring running, the first **Save**
-  asks whether to keep tokens in a file only you can read (`~/.local/share/bashboard/credentials.json`);
-  **Allow** stores it there and saves later tokens there without asking, and **Cancel** stores
-  nothing. On Linux each stored token says whether it is in the keyring or in a file, and once a
-  keyring is running, **Move to keyring** moves the file's tokens into it. It also lists the scopes the token needs, with
-  **Open the API token page** and **Copy scopes**. The Azure DevOps card has one row for each
-  organization with a stored personal access token, each with **Replace**, **Remove** (which asks
-  first), and **Test**; **Add token** opens a form with an organization field and a password
-  field, **Sign in with Azure CLI** appears when `az` is installed, and **Open the token page**
-  and **Copy scopes** help make the token. **Test** asks the host who the credential belongs to
-  and shows the login, the granted scopes on GitHub, or the error, which for Bitbucket names a
-  missing scope. On GitHub it tests each account in turn, and on Azure DevOps each organization
-  with a stored token plus each one a pinned repo or open Ship pane is in. The tab refreshes when you
-  return to the window, so a sign-in finished in a terminal shows up. Open it from the Ship pane's
-  **Accounts** button, the account menu's **Manage accounts**, a Ship notice, or the command
-  palette ("Manage code host accounts").
+- **Accounts** has a card for each code host the Ship pane reads: GitHub (and each GitHub
+  Enterprise Server host you use), GitLab (and each self-managed host), Bitbucket, and Azure
+  DevOps. Hosts found on this machine come first, and the rest fold under **More hosts (N)**. A
+  card shows status, never a token. The GitHub and GitLab cards show whether the CLI is installed
+  and who is signed in, with buttons to install it, sign in (in a new terminal pane), switch the
+  active GitHub account, and sign out; the Bitbucket and Azure DevOps cards add, replace, and remove
+  stored tokens and help you make one. **Test** asks the host who a credential belongs to. The tab
+  refreshes when you return to the window. Open it from the Ship pane's **Accounts** button, a Ship
+  notice, or the palette's "Manage code host accounts". See [Code hosts](setup.md#code-hosts), and
+  [Tokens on Linux](setup.md#tokens-on-linux) for where tokens are kept there.
 - **Shortcuts** lists every key and is where keys are changed (see [Settings](settings.md)).
 - **CLI** lists the `bb` commands below, with examples to copy.
 - **About** shows the version, **Check for updates**, and links to the release notes and docs.
-  On Linux the `.deb` updates itself, asking for your password to install the new package; an
-  AppImage or `.rpm` install cannot, so the check offers **Download** to open the latest release.
+  On Linux the `.deb`, `.rpm`, and Arch package update themselves, asking for your password to
+  install the new package; the AppImage replaces its own file, which needs no password but does
+  need a folder you can write to.
   If an update fails to install, the banner says why, the running version stays as it was, and
   **Try again** or **Download** finishes the job.
 
@@ -1389,9 +1367,10 @@ those keys themselves.
 CLI tab lists the same commands, with examples to copy. A command that opens a pane splits the
 pane that ran it, in that pane's tab, and focus moves to the new pane. `bb open` and `bb git`
 first look for a Files or Git pane for the same repo in that tab and, when there is one, show the
-folder in it or focus it instead. `bb ship`, `bb ports`, and `bb containers` work as their keys
-do: they show the existing pane wherever it is, or open a tab of their own, so `--collapsed` does
-not apply to them. `bb edit` opens a pane only when your editor is Vim or Neovim.
+folder in it or focus it instead. `bb ship`, `bb ports`, and `bb containers` work as the palette's
+Open the Ship, Ports, and Containers tab entries do: they show the existing pane wherever it is,
+or open a tab of their own (`bb ship` on the current folder's repo), so `--collapsed` does not
+apply to them. `bb edit` opens a pane only when your editor is Vim or Neovim.
 
 | Command                       | What it does                                                                  |
 | ----------------------------- | ----------------------------------------------------------------------------- |
@@ -1442,26 +1421,14 @@ syntax and the shell stays open after the command ends. `bb term --tab -- pnpm d
 server a tab of its own.
 
 `bb ci` reads the CI of the repo of the folder you are in, on any host the Ship pane supports,
-with the same sign-in the Ship pane uses. `--branch` and `--json` (machine-readable output) work
-on every `bb ci` command, and `--flag=value` works too. `bb ci wait` checks every 30 seconds
-(`--interval`; a value below 10 is raised to 10), prints a line each time something changes, and
-gives up after 30 minutes (`--timeout`: seconds, or amounts such as `90s`, `10m`, `1h`, or
-`1h30m`). It exits 0 when every run on the latest commit has finished without failing or the
-pull request merged, 1 when a run failed or was canceled, and 2 when it could not tell: the
-timeout passed, no run appeared within 5 minutes of the latest commit, eight reads in a row
-failed, or the pull request was closed unmerged. It also exits 2 when the request itself is
-refused or invalid (bad arguments, a command run outside a pane, a rejected token), so that 1
-always means CI failed. A run waiting for someone to approve it is not finished, and exit 2 is
-not a failure. `bb ci log` prints the same failure report as Fix with agent, or with
-`--run` and `--job` the whole log of one job; with no failed run on the branch it says so and
-exits 1. `bb ci status` does not list run or job ids. `bb ci rerun` and `bb ci cancel` change a
-pipeline that may deploy, so they do nothing until you turn on `ship.cliWrites` in
-[Settings](settings.md#settings); the error says so. Azure DevOps can only re-run failed jobs, so
-use `--failed` there. A refused or failed command prints the error text and exits 1. `bb skill
-install` writes a skill to `~/.claude/skills/bashboard/SKILL.md` under your home folder that
-tells Claude Code to run `bb ci wait` after a push and `bb ci log` after a failure (see
-[Setup](setup.md#telling-an-agent-about-bb)). It works in any terminal, says so when the file is
-already up to date, and refuses, with exit 1, to replace a file it did not write.
+with the Ship pane's sign-in. `--branch` and `--json` work on every `bb ci` command, and
+`--flag=value` works too. `bb ci wait` polls until CI on the latest commit settles, then exits 0
+when it passed (or the pull request merged), 1 when a run failed or was canceled, and 2 when it gave
+up or the command itself failed, so 1 always means CI failed. `bb ci log` prints the same failure
+report as Fix with agent. `bb ci rerun` and `bb ci cancel` do nothing until you turn on
+`ship.cliWrites` in [Settings](settings.md#settings), since pipelines may deploy. The CLI tab gives
+every option and rule. `bb skill install` writes a Claude Code skill that teaches agents these
+commands (see [Telling an agent about `bb`](setup.md#telling-an-agent-about-bb)).
 
 `bb pr size` counts the lines and files the current worktree changes against the merge base with
 its comparison ref, the same count as the size badge: committed, staged, unstaged, and untracked
@@ -1474,21 +1441,19 @@ including running outside a pane or outside a git repo, exits 2, so that 1 alway
 The skill from `bb skill install` tells Claude Code to run it before committing and, when it is
 over, to propose splitting the work.
 
-`bb worktree new <branch>` creates a worktree on a new branch and opens a terminal in it, split
-beside the pane that ran it. It fetches the remote and branches from the repo's comparison ref;
-`--from <ref>` picks another base and `--from HEAD` the commit you are on. Before it changes
-anything it prints the plan, such as "Branching feat/login from origin/main (a1b2c3d); pass --from
-HEAD to branch from your current commit" (the hint is left out when you gave `--from`). It then
-prints the created path, each path copied from `.worktreeinclude`, any warnings, and what happens
-next in the new pane: setup runs, or the script waits for your approval in Bashboard. `--agent`
-(`claude`, `codex`, or `copilot`) starts that agent in the new pane once setup has succeeded, and
-`--prompt` gives it a first message; `--prompt` needs `--agent`. The worktree, `.worktreeinclude`,
-the setup script and its variables, and the approval are described in
-[New worktree](#new-worktree).
+`bb worktree new <branch>` prints its plan before changing anything, such as "Branching
+feat/login from origin/main (a1b2c3d)", then the created path, each path copied from
+`.worktreeinclude`, any warnings, and whether setup runs or waits for your approval. `--prompt`
+needs `--agent`. See [New worktree](#new-worktree) for the rest.
 
-`bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any terminal. They ask for the token with the input hidden (or read it from standard
-input), save it in Windows Credential Manager, the macOS Keychain, or the Linux keyring (the same place the Accounts tab's **Add token** saves it), and do not open a pane. On Linux with no keyring running, they use the credentials file only after you allowed it from the Accounts tab, and otherwise say to start a keyring or save a token there once. `--clear` removes it. Each
-Azure DevOps organization has its own token. See Code hosts for [Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
+`bb auth bitbucket` and `bb auth azure-devops <org>` never talk to Bashboard, so they work in any
+terminal. They ask for the token with the input hidden (or read it from standard input) and save it
+where the Accounts tab's **Add token** does, without opening a pane; `--clear` removes it. Each
+Azure DevOps organization has its own token.
+
+On Linux with no keyring running, they use the credentials file only after you allowed it from the
+Accounts tab, and otherwise say to start a keyring or save a token there once. See Code hosts for
+[Bitbucket](setup.md#bitbucket-cloud) and [Azure DevOps](setup.md#azure-devops).
 
 ```sh
 bb open docs
@@ -1502,13 +1467,12 @@ bb worktree new fix-typo --from HEAD
 bb worktree new spike --agent claude --prompt "try the new parser"
 ```
 
-`bb` works in all four shells because Bashboard puts the folder holding `bb.exe` first on every
-pane's `PATH`. `bb help`, `bb auth`, and `bb skill install` work anywhere; outside a Bashboard pane every other command prints
-`bb: only works inside a Bashboard pane` and exits 1. Any failure, such as a missing path, an
-unknown option, or an app that cannot be reached, prints a `bb: ` message to standard error and
-exits 1. A successful command prints nothing, apart from `bb auth` saying what it stored or removed and
-`bb ci`, `bb pr size`, and `bb skill install` reporting their results, and exits 0 (`bb ci wait` also exits 1 or 2, above, and
-exits 2 rather than 1 on any error; so does `bb pr size`).
+`bb` works in every pane's shell because Bashboard puts its own folder first on the pane's
+`PATH`. `bb help`, `bb auth`, and `bb skill install` work anywhere; outside a Bashboard pane every
+other command fails with `bb: only works inside a Bashboard pane`. Success exits 0 and
+prints nothing except the reporting commands' output; any error, such as a missing path, an unknown
+option, or an app that cannot be reached, prints `bb: ...` to standard error and exits 1, except
+`bb ci wait` and `bb pr size`, which use 2 for errors (see above).
 
 ## Keys on macOS
 

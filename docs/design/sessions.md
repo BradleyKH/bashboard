@@ -1,7 +1,6 @@
 # Agent sessions and hooks
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.2 SessionRoster (`src-tauri/src/roster.rs`)
 
@@ -9,7 +8,8 @@ Section numbers are ids shared across every file in `docs/design/`, so a citatio
 table, `src/agents.json` (3.24), which carries its display name, home folder, the executables
 that identify its process, and the rest of what the roster, hook installer, and front end share.
 `src-tauri/src/agents.rs` parses it into an `Agent` per `AgentId` (serialized in lowercase and
-parsed by `AgentId::parse`), and the home folders sit under the user's home (`USERPROFILE`, else `HOME`, on Windows; `HOME` elsewhere). An agent counts as
+parsed by `AgentId::parse`). The home folders sit under the user's home: `USERPROFILE`, else
+`HOME`, on Windows, and `HOME` elsewhere. An agent counts as
 detected when its home folder exists (for Copilot, with a `session-state` folder inside, since
 VS Code's Copilot extension creates `~/.copilot` on its own), which is what `agents_detected()`
 reports; detection never consults `PATH`, since VS Code installs a `copilot-shim\copilot.exe`
@@ -47,6 +47,7 @@ This format is internal to Claude Code and undocumented, so the roster treats it
   sweep re-checks liveness, since a killed process may never delete its file.
 - **Events.** The roster emits `sessions://changed` with the full list whenever anything
   differs. The list is small (tens of entries), so diffs are not worth the complexity.
+  `sessions_get()` returns the last list emitted, for the front end's first load.
 - **Hook-born sessions.** Codex and Copilot write no session files, so their sessions are built
   from the hook overlay (3.3): one per overlay entry that carries a pane id, with the overlay's
   newest `cwd`, its first event's time as `startedAt`, and its status and waiting reason. Codex
@@ -142,8 +143,8 @@ exact transitions as they happen.
 
   Because the variables exist only inside this app's panes, the same global hook config does
   nothing for sessions in Windows Terminal or VS Code.
-- Claude Code hook registration in `~/.claude/settings.json`, merged next to the existing
-  `Notification` hooks (the toast and bell stay):
+- Claude Code hook registration in `~/.claude/settings.json`, merged beside any hooks the user
+  already has, which keep working:
 
   | Event | Meaning in the app |
   | --- | --- |
@@ -355,10 +356,6 @@ What stays code, because it is behavior rather than data: each agent's hook even
 (`transcript/`, 3.4). Tests hold the enum, the TypeScript union, and the JSON to the same ids, so
 a row without its variant, or the reverse, fails the build.
 
-Adding an agent takes a row, the `AgentId` variant in `agents.rs` and the id in the
-`agentTable.ts` union, its status table in `hooks.rs`, its installer in `hook_install.rs`, and its
-transcript reader.
-
 ## 3.28 Usage limits (`src-tauri/src/usage.rs`, `src-tauri/src/statusline_client.rs`, `src/usageModel.ts`)
 
 A subscription limits an agent's use to windows (a 5-hour window, a weekly one). Bashboard learns
@@ -476,10 +473,7 @@ are never judged.
 
 The check sees only transcript writes, so a subagent blocked on one long tool call, or on a
 background shell of its own, past the threshold reads as stuck while it may not be; the threshold
-is the trade between that and how long a hung agent goes unnoticed. Across 591 past subagent
-transcripts the longest silence was under 3 minutes in 95 percent of them, and nearly every
-silence past 10 minutes was an agent waiting on agents of its own, which the descendant rule
-covers.
+is the trade between that and how long a hung agent goes unnoticed.
 
 ## 3.33 Session history (`src-tauri/src/history/`)
 
@@ -490,6 +484,8 @@ it on disk, and keeps it current as transcripts change.
 **Commands and events.** `session_history_list()` returns the cached list, sorted by `updatedAt`
 descending. The first call builds the index on a worker thread, so the command never blocks the
 main thread. `history://changed` carries the full list whenever the index changes.
+`session_history_repo_root(cwd)` returns the main repo root holding a folder, so the Sessions
+dialog (4.32) can scope to a terminal's repo even when it has no indexed sessions.
 
 **Entry.** `PastSession` is serialized camelCase, with these fields:
 
@@ -533,15 +529,17 @@ git folder, whose `commondir` file names the main repo's `.git`, and the main re
 folder's parent. Nothing shells out to git. The lookup, along with whether the cwd exists, is
 memoized per cwd during a build.
 
-**Reads.** Only the first 8 KB and the last 64 KB of each transcript are read. Readers tolerate a
+**Reads.** Only the first 16 KB and the last 64 KB of each transcript are read. Readers tolerate a
 partial first or last line, since a window can start or end mid-record.
 
 **Cache.** `history-cache.json` in the app's config folder maps each path to its `(size, mtime,
 PastSession)`, written atomically. A build re-reads only files that were added or whose size or
-modified time changed, and drops entries whose files are gone.
+modified time changed, and drops entries whose files are gone. A cache written with an older
+`CACHE_VERSION` is discarded, so a reader change re-reads every file.
 
 **Watcher.** Each agent's transcript root is watched recursively with `notify`, debounced by one
-second. Each change triggers an incremental rebuild on a worker thread, and `history://changed`
+second and cut off after 5 seconds (`DEBOUNCE_MAX`), since a streaming transcript never goes quiet.
+A root missing at startup (an agent installed later) is retried every 30 seconds. Each change triggers an incremental rebuild on a worker thread, and `history://changed`
 fires only when the rebuilt list differs from the last one sent.
 
 ## 4.7 Attention
@@ -561,27 +559,16 @@ existing `printf '\a'` hook):
   it brings the window forward and focuses that pane. A debug build on Windows sends it under
   PowerShell's AppUserModelID, since Windows drops toasts from an id no Start menu shortcut
   registers. On macOS the first notification asks for permission, and a build without an app
-  bundle (`pnpm tauri dev`) sends none. On Linux the notification goes over the session bus to
-  the desktop's freedesktop notification daemon (GNOME Shell, KDE Plasma, dunst, and the like)
-  through zbus, which links no libdbus. It is posted on the same connection that waits for the
-  click, since GNOME's daemon sends the click and its activation token only to the connection
-  that posted the notification (Plasma broadcasts them). It carries the app name
-  "Bashboard", the icon name `bashboard`, and a `default` action, which daemons trigger when the
-  notification body is clicked. The send and the wait for the click run on a background thread,
-  so the command never blocks; the thread ends when the notification is clicked or the daemon
-  reports it closed. At most 32 such threads wait at once; past that a notification still shows
-  but a click on it does nothing. With no session bus or no notification daemon the notification
-  is dropped and one line is logged.
+  bundle (`pnpm tauri dev`) sends none. On Linux it goes to the desktop's freedesktop notification daemon over
+  the session bus; `toast_linux.rs` covers the click routing and limits, and with no daemon the
+  notification is dropped and one line is logged.
 
 `done` and `failed` (4.8) are quieter: they change the status dot on the title strip, card,
 tab, and group header, and nothing else. They raise no attention, so no pulse, taskbar flash, or
 panel peek.
 
-**Next thing that needs you.** `nextAttention` (Ctrl+Shift+N) walks the Needs you list (4.28) in
-its order: every `waiting` terminal, oldest `statusChangedAt` first, then the Broken rows (a
-`failed` terminal, a failed branch, a pull request failing or with changes requested), then the Ready
-rows (a `done` terminal, an approved pull request, a review request, the sign-in row), oldest first
-within each group. Terminals that rang the bell without a status are not included; their pulse stays
+**Next thing that needs you.** `nextAttention` (Ctrl+Shift+N) walks the Needs you list in its
+order (4.28, Groups and order). Terminals that rang the bell without a status are not included; their pulse stays
 the cue. With `needsYou.walkAll` (section 8, default on) the walk visits every row; off, it visits only
 the terminals. Rows the user has hidden (4.28) are skipped. The jump goes to the row after the current
 position, wrapping, or to the first row when there is none. The position is the focused terminal's row,
@@ -590,10 +577,7 @@ means, since opening a Ship pane would otherwise lose the place. `waiting` does 
 repeated presses walk the whole list; `done` and `failed` clear on focus, so they drop out as they are
 visited, and a walk whose row left the list resumes at the row now in its place.
 
-A terminal row switches to the pane's tab if needed and focuses it; a collapsed terminal expands as
-clicking its card does (4.3), and a zoomed pane (4.2) in the target tab unzooms first. A Ship row
-opens the repo in a Ship pane and the sign-in row opens the Accounts tab, as clicking them does
-(4.28). When the walk is empty, the chord cycles the terminals with a bound agent session (3.4)
+Each row it lands on acts as clicking that row does (4.28). When the walk is empty, the chord cycles the terminals with a bound agent session (3.4)
 instead, in reading order within each tab (collapsed cards last) and tab order across tabs, with the
 same after-the-focused-one rule. With no agent terminals either, it shows a toast, "Nothing needs
 you, and no agent sessions are open".
@@ -683,17 +667,14 @@ status wins. With no bound session, or an `unknown` one, the program status wins
 **Scope.** Program status carries status only. A dashboard card's model, context, and resume
 details still come from the hook session and its transcript (3.3, 3.4), so they need hooks.
 
-**Current limitation on Windows.** ConPTY as `portable-pty` creates it requests
-`PSEUDOCONSOLE_WIN32_INPUT_MODE`, which drops OSC sequences written to its input, so the probe
-reply never reaches the program and Claude Code does not start reporting in a pane. The pane side
-is complete and reacts to any report that arrives, as a manual report from the shell shows;
-hookless status works where the pty passes the reply through (macOS and Linux), and Windows
-status comes from hooks.
+**Current limitation on Windows.** ConPTY as `portable-pty` creates it drops OSC sequences written
+to its input, so the probe reply never reaches the program and Windows status comes from hooks
+(see `docs/discoveries.md`). Hookless status works on macOS and Linux.
 
 ## 4.32 Sessions dialog (`src/sessionsDialog.ts`, `src/sessionHistoryModel.ts`)
 
 The Sessions dialog lists live and past agent sessions and resumes one. It is about the size of the
-Settings dialog (4.18). It opens from the command palette action "Resume session" (`openSessions`,
+app dialog (4.18). It opens from the command palette action "Resume session" (`openSessions`,
 with no default chord), or from a history button (a clock with an arrow) in a terminal's title
 strip, beside the pin button. The history button shows on focus or hover, as the pin button does,
 and is absent on container shells.
@@ -732,7 +713,8 @@ original folder. If that folder is gone (a deleted worktree, for example), the r
 opens in the main repo root instead, with a toast.
 
 **Row menu.** Right-clicking a row (`src/contextMenu.ts`) offers Resume, Copy session id, Copy
-resume command, and Open folder in File Explorer.
+resume command, and Open folder in the OS file manager (File Explorer, Finder, or File Manager;
+`fileManagerName` in `src/platform.ts`).
 
 **Modules.** The pure logic (scope, query matching, grouping, the live merge, and the resume plan)
 lives in `src/sessionHistoryModel.ts`, with no DOM. The rows render in `src/sessionHistoryRow.ts`.

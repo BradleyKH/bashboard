@@ -1,7 +1,6 @@
 # Files, search, editors, and scratch pads
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.8 Repo files (`src-tauri/src/files.rs`)
 
@@ -40,12 +39,14 @@ cross-drive move, which removes its source.
 streams results over a `Channel`; `search_cancel(id)` stops it, and a new search from the same
 pane cancels the previous one.
 
-- The walk uses `ignore`, so `.gitignore`, `.ignore`, and global git excludes apply, and hidden
-  files and `.git` are skipped. Files over 2 MiB and binary files are skipped.
+- The walk uses `ignore`, so `.gitignore`, `.ignore`, `.git/info/exclude`, and global git
+  excludes apply, even in a folder outside any git repo, and hidden files and `.git` are skipped. Files over 2 MiB and binary files are skipped.
 - The query is literal unless `regex` is set; `caseSensitive`, `wholeWord`, and an `include`
   glob narrow it (section 7).
 - Paths whose file name contains the query arrive first, as one batch. Line matches follow,
-  batched per file with line numbers and match offsets.
+  batched per file with line numbers and match offsets. A line's text is cut to its first 1,000
+  UTF-16 units, keeping a minified file's long lines off the channel, and matches past the cut
+  are dropped.
 - A search stops at 5,000 matches and reports that it was truncated.
 
 ## 3.12 Editors (`src-tauri/src/editors.rs`)
@@ -83,9 +84,7 @@ With no line, each editor above except Visual Studio and the default app takes t
 
 Windsurf, VS Code Insiders, and VSCodium, like VS Code, put only a `.cmd` shim on `PATH`
 (`windsurf.cmd`, `code-insiders.cmd`, `codium.cmd`), which is traded for the exe one folder up.
-Their install folders are `%LOCALAPPDATA%\Programs\Windsurf`; `%LOCALAPPDATA%\Programs\Microsoft
-VS Code Insiders` then `%ProgramFiles%\Microsoft VS Code Insiders`; and
-`%LOCALAPPDATA%\Programs\VSCodium` then `%ProgramFiles%\VSCodium`.
+Each editor's usual install folders, tried in order, are in `install_candidates` in `editors.rs`.
 
 The JetBrains launchers hand the file to a running instance of the same IDE and exit, and a
 folder opens as a project. Each IDE is found in three steps, first match wins: its launcher exe
@@ -104,28 +103,15 @@ JetBrains Toolbox App installs), first match winning, then by a bare name on `PA
 `PATH`), then, for JetBrains, as a Toolbox App script in `~/Library/Application
 Support/JetBrains/Toolbox/scripts`, which is a shell script run directly. A bundle outranks
 `PATH` because a `PATH` entry is usually a symlink into it. Visual Studio and Notepad++ are never
-listed.
-
-| Id | Bundle CLI | Bare name |
-| --- | --- | --- |
-| `zed` | `Zed.app/Contents/MacOS/cli` | `zed` |
-| `vscode` | `Visual Studio Code.app/Contents/Resources/app/bin/code` | `code` |
-| `vscodeInsiders` | `Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders`, else `.../bin/code` | `code-insiders` |
-| `cursor` | `Cursor.app/Contents/Resources/app/bin/cursor`, else `.../bin/code` | `cursor` |
-| `windsurf` | `Windsurf.app/Contents/Resources/app/bin/windsurf` | `windsurf` |
-| `vscodium` | `VSCodium.app/Contents/Resources/app/bin/codium` | `codium` |
-| `sublime` | `Sublime Text.app/Contents/SharedSupport/bin/subl` | `subl` |
-| `intellij` | `IntelliJ IDEA.app` or `IntelliJ IDEA CE.app`, `Contents/MacOS/idea` | `idea` |
-| `pycharm` | `PyCharm.app`, `PyCharm CE.app`, or `PyCharm Professional Edition.app`, `Contents/MacOS/pycharm` | `pycharm` |
-| `rider`, `webstorm`, `rustrover`, `goland`, `clion`, `phpstorm` | `Rider.app`, `WebStorm.app`, `RustRover.app`, `GoLand.app`, `CLion.app`, `PhpStorm.app`, `Contents/MacOS/<lowercase product name>` | the same lowercase name |
+listed. The bundle paths, several where editions differ (IntelliJ IDEA CE, PyCharm CE), are
+`bundle_candidates` in `editors.rs`, and the bare names (`code`, `codium`, `subl`, `idea`, ...)
+are `posix_path_names`.
 
 On Linux each editor is looked for in four places, first match winning:
 
 1. A bare name on `PATH`, then in `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`,
-   `~/.local/bin`, and `/snap/bin`, using the bare names in the table above (`code`, `codium`,
-   `subl`, `idea`, ...). The IntelliJ IDEA and PyCharm snaps are named
-   `intellij-idea-community`, `intellij-idea-ultimate`, `pycharm-community`, and
-   `pycharm-professional`, and those names are tried too.
+   `~/.local/bin`, and `/snap/bin`, using `posix_path_names` plus the IntelliJ IDEA and PyCharm
+   snaps' own command names (`snap_command_names`).
 2. For JetBrains, a Toolbox App script in `~/.local/share/JetBrains/Toolbox/scripts`, a shell
    script run directly.
 3. A Flatpak's exported launcher, in `/var/lib/flatpak/exports/bin` and then
@@ -264,12 +250,9 @@ inside moves to the folder.
 Switching to the Folder view shows the folder holding the cursor's row, keeping it selected and
 previewed; switching to the tree keeps the folder shown as its top.
 
-**Title strip buttons.** After the folder's name, the title strip (4.4) carries a pin button,
-Open in File Explorer, Search in this folder (described below), and Open terminal here, all for
-the current folder. The pin button drops a picker like the dashboard's favorites one (4.6) with
-the repo's file and folder pins in their order, each marked File or Folder; choosing one shows it
-in this pane (a file in its folder, selected). Its "+ Add" pins the current folder, disabled while
-that folder is pinned, and the rows rename and remove as the favorites picker's do.
+**Title strip buttons.** After the folder's name, the title strip (4.4) carries the pin picker
+(Pins, below), Open in File Explorer, Search in this folder (described below), and Open terminal
+here, all for the current folder.
 
 The preview depends on the file:
 
@@ -319,7 +302,7 @@ does nothing.
 
 **Zoom.** The preview toolbar ends in − and + buttons that step the preview's text size through
 browser-style levels from 50% to 300%; the breadcrumb has the same pair for the list, between
-the sort button and the pin button. Ctrl+wheel over the list or the preview steps that
+the sort button and the pin toggle. Ctrl+wheel over the list or the preview steps that
 one's level too: a mouse notch is one step, and a touchpad pinch adds up its small deltas so it
 steps a level at a time rather than jumping to either end. Each scales from its base size, which
 follows `font.size` (section 5) and holds while browsing the pane. Every step is
@@ -392,7 +375,7 @@ Delete.
 
 - Open terminal here (folders only): a new terminal of the default profile in that folder, as a
   split of the Files pane.
-- Search in this folder (folders only): as the title strip button below.
+- Search in this folder (folders only): as the title strip's button (described below).
 - Open in editor.
 - Open in Local Browser (a single selected `.html` or `.htm` file, Windows only): a Local Browser
   pane (4.21) on the file's `file:///` URL, beside the Files pane. A path off a local drive (a
@@ -419,8 +402,7 @@ one), with Files to include set to the folder as an anchored glob (`/src/ui/**`,
 escaped and a comma standing in as `?`; `folderInclude`), or empty at the repo root, and focuses
 its query field. A right-click on the breadcrumb, or on the list outside any row (or the
 Menu key with no row selected), opens a menu for the current folder: Open terminal here, Open in
-File Explorer, Search in this folder, Paste (into the current folder), Copy path, Pin, which reads Unpin while the folder is pinned and toggles it as the pin button
-does, and Tree view, as on a row's right-click menu.
+File Explorer, Search in this folder, Paste (into the current folder), Copy path, Pin (Unpin while the folder is pinned, as the pin toggle), and Tree view, as on a row's right-click menu.
 
 A right-click in the preview outside the text editor offers Copy (with text selected), Find
 (disabled when the preview has no find bar), Open in editor, and Copy path, for the previewed
@@ -471,8 +453,13 @@ History is not saved.
 
 **Pins** are files and folders kept per repo in `repos.json` (section 7). A pin inside the repo
 is stored relative to its root; one outside it, such as a meeting notes folder, is stored as an
-absolute path. The breadcrumb's pin button (a pushpin, lit while the folder is pinned) pins the
-current folder or unpins it. In the Pins section
+absolute path. The pane has two pin buttons. The **pin toggle** at the breadcrumb's right end
+(a pushpin, lit while the folder is pinned; `filesBreadcrumb.ts`) pins the current folder or
+unpins it. The **pin picker** on the title strip drops a list like the dashboard's favorites
+picker (4.6) with the repo's file and folder pins in their order, each marked File or Folder;
+choosing one shows it in this pane (a file in its folder, selected), its "+ Add" pins the current
+folder (disabled while that folder is pinned), and its rows rename and remove as the favorites
+picker's do. In the Pins section
 (4.6), clicking a pinned folder shows it in the active tab's Files pane for that repo, or opens
 one; clicking a pinned file does the same with its folder and selects it. A pin whose path no
 longer exists is shown dimmed and opens nothing. A pin can also hold a shell command, its path

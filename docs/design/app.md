@@ -1,7 +1,6 @@
 # Pane CLI, install, updates, and the app dialog
 
-Section numbers are ids shared across every file in `docs/design/`, so a citation such as
-"section 4.5" names one section wherever it lives; [the index](README.md#index) maps each to its file.
+Section numbers are ids shared across `docs/design/`; [the index](README.md#index) maps each to its file.
 
 ## 3.13 Pane CLI (`bb`)
 
@@ -21,8 +20,8 @@ layout, each from its own payload: the bundler patches the binary with the packa
 updater reads, so the two binaries differ. The `.rpm` keeps the bundler's soname requirements
 (`libwebkit2gtk-4.1.so.0`, `libgtk-3.so.0`). The Arch package
 (`scripts/linux/build-arch-package.sh`, from `scripts/linux/arch/PKGBUILD`) repackages the
-relaid-out `.rpm`'s payload, so it has the same layout and the `.rpm`'s binary (3.16 says why
-that binary), adds the MIT license under `/usr/share/licenses`, and declares the Arch names of the
+relaid-out `.rpm`'s payload, so it has the same layout and the `.rpm`'s binary (3.16 says how it
+still updates with pacman), adds the MIT license under `/usr/share/licenses`, and declares the Arch names of the
 libraries the binary links. The AppImage keeps both in its own `usr/bin`, which is on no `PATH`
 outside it.
 
@@ -111,8 +110,8 @@ from the command; for the other commands the words after it are ordinary argumen
   commit, a run's status, or the pull request changes (with `--json`, the answer itself, and the
   closing line goes to stderr). `--timeout` takes seconds, or `s`, `m`, and `h` amounts such as
   `90s`, `30m`, `1h`, or `1h30m`, defaults to 30m, and must be more than zero. It stops when:
-  every run on the head commit is final and none failed or was cancelled, or the pull request
-  merged (exit 0); a final run failed or was cancelled (exit 1); or it gives up (exit 2): the
+  every run on the head commit is final and none failed or was canceled, or the pull request
+  merged (exit 0); a final run failed or was canceled (exit 1); or it gives up (exit 2): the
   `--timeout` passed, no run appeared on the head commit within 5 minutes (the clock restarts
   when the head commit changes, as after a push), 8 reads in a row failed, or the pull request
   was closed without merging. A read fails, and counts toward the 8, only when Bashboard is
@@ -137,25 +136,17 @@ from the command; for the other commands the words after it are ordinary argumen
 - **`bb auth`** talks only to the OS credential store, never to the app, so it works in
   any terminal. `bb auth bitbucket` stores a Bitbucket API token, and `bb auth azure-devops <org>`
   an Azure DevOps personal access token (PAT) for that one organization, so each organization
-  needs its own (a PAT made for all accessible organizations stops working on January 27, 2027).
-  Each reads the token from a hidden prompt (console echo off), or from standard input when that
-  is not a terminal (up to 1 MiB, first line used), and stores it under a target: `bashboard:bitbucket.org`, or
-  `bashboard:dev.azure.com/<org>` with the organization lowercased. On Windows the target names a
-  Windows Credential Manager generic credential persisted for the local machine, with the user
-  name `x-bitbucket-api-token-auth` or `x-azure-devops-pat`. On macOS it is the account of a
-  generic password in the login Keychain under the service `bashboard`; the user name is not
-  stored there. On Linux it is a Secret Service item, or an entry in the fallback credentials
-  file when no keyring answers (docs/design/ship.md section 3.20); `bb` cannot read the app's
-  settings, so it writes that file only when it already exists, which means the user allowed it
-  in the Accounts tab, and otherwise fails with a message saying to start a keyring or save a
-  token once from the Accounts tab. A token that is empty or over 2,560 bytes (the Credential Manager blob limit,
-  applied on every platform so both accept the same tokens) is refused, as is an organization that is empty, holds a slash,
-  whitespace, or a control character, or is written as a flag. `--clear` follows the provider
-  (and the organization) and deletes the credential, saying when none was stored. The Ship pane's
-  token sources (3.20) read these credentials. The command and the app dialog's Accounts tab
-  (4.20) share one store, `credential_store.rs`, which both `bb` and the app compile, so they
-  agree on the targets, the user names, the size limit, and how a token is cleaned; nothing else
-  writes them.
+  needs its own. Each reads the token from a hidden prompt (console echo off), or from standard
+  input when that is not a terminal (up to 1 MiB, first line used). A token that is empty or over
+  2,560 bytes is refused, as is an organization that is empty, holds a slash, whitespace, or a
+  control character, or is written as a flag. `--clear` follows the provider (and the
+  organization) and deletes the credential, saying when none was stored. Where and under which
+  names the token is stored is the credential store's (3.35), which `bb`, the Accounts tab
+  (4.20), and the Ship pane's token sources (3.20) share, so they agree on targets, size limit,
+  and cleanup. On Linux, `bb` cannot read the app's settings, so it writes the fallback
+  credentials file only when that file already exists, which means the user allowed it in the
+  Accounts tab, and otherwise fails with a message saying to start a keyring or save a token once
+  from the Accounts tab.
 - The core emits `cli://command` with the pane id and the resolved request; the front end's
   `Workspace` carries it out exactly as the matching dashboard or keyboard action would, so `bb`
   can do nothing the UI cannot.
@@ -282,15 +273,25 @@ Installed apps update themselves through Tauri's updater plugin. `plugins.update
 the newest non-prerelease release. The Windows install mode is `passive`: the NSIS installer
 shows its progress without prompts.
 
-`latest.json` holds one entry per package that updates itself: the NSIS installer and the Linux
-`.deb` (`linux-x86_64-deb`). The plugin looks up `<os>-<arch>-<package type>` and then
-`<os>-<arch>`, reading the package type the bundler patched into the binary (3.13). On a `.deb`
-install it downloads the package and runs `dpkg -i` through `pkexec`, then a zenity or kdialog
-password prompt, then a terminal `sudo`. An AppImage, `.rpm`, or macOS build finds no entry, and
-there is deliberately no bare `linux-x86_64` entry: the plugin would hand the `.deb` to an
-AppImage or `.rpm` install, which cannot install it. The Arch package carries the `.rpm`'s
-binary for the same reason: a `.deb` binary would find the `.deb` entry and try to install it on
-Arch, where the `rpm` one finds nothing and points to the package manager.
+`latest.json` holds one entry per package: the NSIS installer and the Linux `.deb`, `.rpm`,
+AppImage, and Arch package (`linux-x86_64-deb`, `-rpm`, `-appimage`, `-arch`). The plugin looks
+up `<os>-<arch>-<package type>` and then `<os>-<arch>`, reading the package type the bundler
+patched into the binary (3.13). On a `.deb` or `.rpm` install it downloads the package and runs
+`dpkg -i` or `rpm -U` through `pkexec`, then a zenity or kdialog password prompt, then a terminal
+`sudo`. On an AppImage it writes the new AppImage over the running one's file (`$APPIMAGE`),
+keeping its mode, so the file's folder has to be writable; the menu entry 3.32 wrote still
+points at it. There is deliberately no bare `linux-x86_64` entry, which every type would fall
+back to. A macOS build finds no entry.
+
+The Arch package carries the `.rpm`'s binary, so the plugin alone would run `rpm -U` on Arch.
+`pacman_update.rs` handles it instead: `update_target` asks `pacman -Qqo` whether pacman owns the
+running binary (once, before an update can replace it, and never inside an AppImage), and if so
+returns `linux-x86_64-arch`, which `updater.ts` passes to `check()`. Installing then goes through
+`update_install_pacman`, which checks that target from Rust, downloads with the plugin (verifying
+the signature), sends the plugin's own download events over a channel so the banner reads the
+same, writes the package to a temporary folder, and runs `pkexec pacman -U --noconfirm`. Its
+errors use the plugin's wording (pkexec's 126 and 127 become "Authentication failed or was
+cancelled", any other failure "Failed to install package" with pacman's last line).
 
 `src/updater.ts` exports `checkForUpdate({ manual, confirm })`. It runs once at launch after the
 workspace is up, quietly, and again from the app dialog's About tab (4.18) or the
@@ -301,60 +302,27 @@ Install and restart and Later. Installing first asks for confirmation through th
 because restarting ends every running shell and any command or Claude session in it; the
 confirmation notes that the layout reopens on the next launch when `restore.enabled` is on. The
 update then downloads with progress shown in the banner (on Linux, "Installing update..." while
-the password prompt and `dpkg` run), installs, and relaunches the app.
+the password prompt and the package manager run), installs, and relaunches the app.
 
 **Failures.** `updateErrorModel.ts` turns the plugin's error text into a sentence, and says
 whether to offer a Download button that opens the latest release page. A manual check that fails
-shows it in a toast; one with no entry for the install (an AppImage, `.rpm`, or Arch package) says the install
-cannot update itself and offers Download. A failed install leaves the running app as it was and
-turns the banner red with Later, Download when offered, and Try again. On Linux, a cancelled
+shows it in a toast; one with no entry for the install (a macOS build, or a Linux binary no
+bundler stamped) says the install cannot update itself and offers Download. A failed install leaves the running app as it was and
+turns the banner red with Later, Download when offered, and Try again. On Linux, a canceled
 password prompt usually surfaces as the package error (the terminal `sudo` fallback fails with
 no terminal), so both say the update was not installed and suggest trying again or installing
-the downloaded `.deb` with apt. If the install succeeds but the relaunch fails, the banner says
+the downloaded package with the package manager. If the install succeeds but the relaunch fails, the banner says
 the new version is installed and to reopen Bashboard.
 
-**Signing.** Update packages are signed with a minisign key pair made by `tauri signer
-generate`. The public key is committed in `tauri.conf.json`; the private key and its password
-are never committed. The release workflow reads them from the repository secrets
-`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and the maintainer keeps
-the key file (`~/.tauri/bashboard.key`) and its password outside the repo. Losing the private key
-means installed apps cannot verify later updates, so the key is backed up. Local builds and the
-CI workflow need no key: only the release workflow turns on `bundle.createUpdaterArtifacts`,
-through `--config`.
-
-**Authenticode.** When the `AZURE_CLIENT_ID` secret is set, the release workflow also sets
-`bundle.windows.signCommand` to Azure Artifact Signing's `artifact-signing-cli` (from the
-`AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, and `AZURE_SIGNING_PROFILE` repository
-variables), so `bashboard.exe`, `bb.exe`, and the installer are signed, and a later step fails
-the release unless each signature is valid. Without the secret the release ships unsigned. The
-command is built in the workflow rather than kept in `tauri.conf.json` so a local build does not
-try to sign.
-
-**Release workflow** (`.github/workflows/release.yml`). `pnpm version:set <version>`
-(`scripts/bump-version.ts`) sets the version in `package.json`, `src-tauri/Cargo.toml`, and
-`src-tauri/Cargo.lock`; `tauri.conf.json` reads `package.json`. Pushing a `v<version>` tag runs
-the workflow. Its `windows` job checks that the tag matches `package.json`, runs the type
-check, the front end tests, and the Rust tests, then builds with `tauri-action` into a draft
-release named "Bashboard v<version> (beta)", not marked as a prerelease, with the NSIS
-installer, its `.sig`, and `latest.json`. The release body, which also becomes the `notes` in
-`latest.json`, is the annotated tag's message (if any) followed by the standard beta
-SmartScreen text, which says the installer is unsigned or, when it is signed, that SmartScreen
-may still warn until it builds reputation; a lightweight tag gets the standard text alone. A step then checks that `bb.exe` was built and is
-listed in the installer script (3.13), and only after that is the release published, so a
-broken build never becomes the release the updater reads.
-
-A `linux` job runs alongside on Ubuntu 22.04, the glibc floor every Linux package targets. It
-runs the Rust tests, builds the `.deb`, `.rpm`, and AppImage (the relayout and assert scripts,
-3.13, take all three), builds the Arch package from the `.rpm` in an `archlinux:base-devel`
-container that also installs it with pacman and lints it with namcap, and signs the relaid-out `.deb` with `tauri signer sign --app-version`.
-The signature has to be made after `relayout-packages.sh` rebuilds the package, so the bundler's
-own updater artifacts stay off on Linux. A `publish` job that needs both attaches the `.deb`,
-`.rpm`, AppImage, and Arch package to the draft, adds the `.deb`'s `linux-x86_64-deb` entry to
-`latest.json`, checks the result still lists Windows, and only then publishes. The other three get
-no entry; an `rpm` one would also reach the Arch package, which carries the `.rpm`'s binary. The
-release body's standard text gains a line saying Linux is early, where the packages are tested,
-how to install the `.deb` with apt, the Arch package with pacman, or the `.rpm` with dnf, and
-that only the `.deb` updates itself.
+**Signing and releases.** Every update package is signed with a minisign key pair whose public
+key is committed in `tauri.conf.json`, so an installed app installs only packages the maintainer
+built; losing the private key would strand installed apps, so it is backed up. On Windows,
+`bashboard.exe`, `bb.exe`, and the installer are also Authenticode signed through Azure Artifact
+Signing when the release workflow has its credentials, so SmartScreen warns less. Pushing a
+`v<version>` tag runs `.github/workflows/release.yml`, which publishes the NSIS installer, the
+`.deb`, `.rpm`, Arch package, and AppImage, a `.sig` for each, and `latest.json`, only after every
+check passes, so a broken build never becomes the release the updater reads. The steps, secrets,
+and release notes are in [development.md](../development.md#releasing).
 
 **Installer.** The NSIS installer installs per user, shows the license page, carries the
 Bashboard header and sidebar images (`src-tauri/installer/`), sets the publisher, and offers a
@@ -398,24 +366,12 @@ per file manager: a KDE service menu (`/usr/share/kio/servicemenus/bashboard.des
 folder, and a Nemo action (`/usr/share/nemo/actions/bashboard.nemo_action`) does it in Cinnamon's
 Nemo; both run `bashboard %F`. Such a launch carries no startup token (Dolphin sets neither
 `DESKTOP_STARTUP_ID` nor `XDG_ACTIVATION_TOKEN`, on X11 or on Plasma 5.27 or 6 Wayland), so the running instance's own raise would be
-refused by focus-stealing prevention and the new tab would open behind the file manager. On X11
-`src-tauri/src/window_raise.rs` therefore also sends the root window `_NET_ACTIVE_WINDOW` with a
-pager's source indication, which window managers honor as the user's request, as a taskbar click
-is; the request is checked, since one that is only flushed can be lost when its connection closes
-at once. Wayland has no such request, so there the window asks KWin through its scripting
-interface on the session bus: it writes a script that makes its own process's normal window
-active to `$XDG_RUNTIME_DIR`, loads it with `/Scripting` `loadScript`, runs it, and unloads it.
-The script runs inside the compositor, which focus-stealing prevention does not apply to, and it
-uses Plasma 6's `windowList` and `activeWindow` where they exist and Plasma 5's `clientList` and
-`activeClient` otherwise. The script object to run sits at `/Scripting/Script<id>` on Plasma 6
-and at `/<id>` on Plasma 5; both are tried, newest first. Every step probes for what exists
-rather than checking a Plasma version, and since KWin accepts a script that then fails inside the
-compositor, the app checks its window's focus afterward and logs when the raise did not take,
-while the script prints why (no window API, or no window of the process) to the user journal
-under `bashboard-raise`. A failure only leaves the tab behind. Other Wayland compositors (Mutter) offer nothing comparable, so there
-the new tab opens behind the file manager. The application's own desktop file declares no
-`MimeType`: listing
-`inode/directory` there would make Bashboard a candidate default for opening folders, and where no
+refused by focus-stealing prevention and the new tab would open behind the file manager.
+`src-tauri/src/window_raise.rs` works around it on X11 (a `_NET_ACTIVE_WINDOW` request posing as
+a pager) and on KWin's Wayland (a one-shot KWin script); elsewhere, as under Mutter, the new tab
+still opens behind the file manager.
+
+The application's own desktop file declares no `MimeType`: listing `inode/directory` there would make Bashboard a candidate default for opening folders, and where no
 default is set (KDE sets none for GIO) GIO apps such as a browser's Show in folder would open
 Bashboard instead of the file manager. Nautilus (GNOME), Thunar (Xfce), and Caja (MATE) take no
 action file a package can ship, so there Bashboard opens a folder only from a shell or from the
@@ -513,12 +469,10 @@ The install writes the desktop file with the keys of the package's template, exc
 and `TryExec` name the AppImage: `Exec="<path>" %F` (quoted per the Desktop Entry Specification
 when the path has spaces or other reserved characters, with `%` doubled), `Icon=bashboard`,
 no `MimeType` (3.18 says why), the same `Categories` and `Keywords`, and `StartupWMClass=bashboard`.
-Every Linux entry, the packages' included, is named `bashboard.desktop`: a Wayland compositor
-finds a window's icon by looking up a desktop file named after its app id (`bashboard`), case
-sensitively, so the packages' `Bashboard.desktop` showed the generic icon in KWin 6's title bar.
-The packager names the file after the product name, so `tauri.linux.conf.json` sets
-`productName` to `bashboard` (which also lowercases the package file names), and the template
-spells `Name=Bashboard` itself rather than taking the product name.
+Every Linux entry, the packages' included, is named `bashboard.desktop` to match the app id
+(`bashboard`), which a Wayland compositor uses to find a window's icon. The packager names the
+file after the product name, so `tauri.linux.conf.json` sets `productName` to `bashboard`, and the
+template spells `Name=Bashboard` itself.
 Beside it go the two file manager actions of 3.18, each running the AppImage: the KDE service
 menu at `$XDG_DATA_HOME/kio/servicemenus/bashboard.desktop`, made executable since KDE runs a
 service menu from the user's folder only then, and the Nemo action at
@@ -580,7 +534,7 @@ has Back, Next, and Skip setup.
 7. **Look.** Applied live, in the Settings tab's terms (6.2). Background (None, Swirling
    Lights, Galaxy, Matrix, Wave, Image, Slideshow; `backdrop.style`). Image and Slideshow open the native picker
    (`backdrop_image_pick`, 6.5) for a file or folder and save the style only once it returns a
-   path (`backdrop.image.file` or `backdrop.image.folder`), so cancelling changes nothing; a line
+   path (`backdrop.image.file` or `backdrop.image.folder`), so canceling changes nothing; a line
    under the row then names the picked path with a Change button, and Fit and the slideshow's
    timing stay at their defaults for the Settings tab. Animate the background
    (`backdrop.animate`), shown only for Swirling Lights, Galaxy, Matrix, and Wave, and Brightness (Low, Medium,
@@ -629,7 +583,7 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
   Missing lines warn only for the default shell; other shells get the button without the warning.
   The checks rerun on each visit and after each fix. Run setup closes the dialog and opens the
   setup wizard (4.17).
-- **Settings** is the settings editor (4.6).
+- **Settings** (`settingsTab.ts`) edits every user-facing setting; see Settings tab below.
 - **Accounts** (`accountsTab.ts`) shows where each code host's token comes from and manages it,
   with one card per host (4.20).
 - **Shortcuts** is the shortcut guide and keybinding editor (4.5).
@@ -639,6 +593,38 @@ The Shortcuts tab's recorder sees keys first while it records (4.5).
   the Settings tab's: titles in a left column and a rule across the tab above each section.
 - **About** (`aboutTab.ts`) shows the version, Check for updates (3.16), and links to this
   version's release notes on GitHub, the documentation, and the source.
+
+**Settings tab.** The sections are Terminal, Dashboard, Appearance, Background, Editor, Git, Ship,
+Local Browser (Windows only, 4.21), Local AI models, and Restore. A filter field above them shows
+only the fields whose label, hint, group, or section holds every word typed, and hides sections
+left empty.
+
+- **Dashboard** holds Show the dashboard at launch, Peek when a terminal is waiting
+  (`dashboard.peekOnWaiting`), the side choice, Left or Right, and a checkbox per element under
+  five group subheadings (Start work, Sessions, Git & CI, Local services, Ambient). Each group's
+  checkboxes come first, then the fields tuning its elements, each shown while its element is on:
+  the Needs you options under Sessions, Ports listed under Local services, and Album art, Media
+  title, and Media artist under Ambient (the clock's style and the System rows are set from those
+  elements' own menus).
+- **Terminal** includes a Default shell select listing the available profiles. **Editor** selects
+  the preferred editor from those found (3.12), plus a custom command field. **Ship** holds the
+  Overview refresh interval (4.20).
+- **Appearance**'s Font family field suggests installed fonts as you type (3.17), monospace first,
+  with the bundled JetBrainsMono Nerd Font Mono (3.16) leading. It stays a text field, so a name
+  that is not installed or a comma-separated fallback list saves as typed; picking an entry
+  replaces the whole value and saves it at once. The list loads after the tab opens.
+
+Each change is written to settings.json through the app, so the file's comments survive. Toggles
+save immediately; number and text fields save on blur or Enter; the shell arguments list (one
+argument per line) saves on blur or Ctrl+Enter; sliders save shortly after the drag stops and show
+the live value. Invalid input (out of range, empty, or not a number) shows an inline error and is
+not saved, and a failed save shows an inline error too. When settings.json changes on disk while
+the tab is open, every control except the focused one refreshes. Fields that do not apply live say
+so beside the control: `dashboard.visibleOnStart` and `restore.*` apply at the next launch, and
+`shell.*` applies to panes opened afterward. Warnings about the current settings appear at the top
+of the tab. The Open settings.json button in the footer opens the file in the default editor, with
+the note "Keyboard shortcuts are changed in the Shortcuts tab; keys that type text are added to
+the "keybindings" list in settings.json."
 
 ## 4.29 Tour (`src/tourModel.ts`, `src/tourController.ts`, `src/tourCard.ts`)
 

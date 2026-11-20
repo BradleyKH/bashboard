@@ -2,8 +2,11 @@
 
 ## New panes in the current folder
 
-A new pane opens in the focused pane's working directory. Git Bash does not report its working
-directory by default, so when Git Bash is the default shell, the setup wizard offers to add these
+A new pane opens in the focused pane's working directory.
+
+### Git Bash on Windows
+
+Git Bash does not report its working directory by default, so when Git Bash is the default shell, the setup wizard offers to add these
 lines to `~/.bashrc`, in a block
 marked `# >>> bashboard shell integration >>>` and `# <<< bashboard shell integration <<<` at the
 end of the file, below any prompt framework's init line. It backs the file up to
@@ -345,7 +348,8 @@ Bashboard reads GitHub through the GitHub CLI, then falls back to Git Credential
 
 1. Install the GitHub CLI. In the Accounts tab, the GitHub card's **Install GitHub CLI** runs
    `winget install --id GitHub.cli -e` in a terminal pane (`brew install gh` on macOS and Linux,
-   when Homebrew is installed). You can run that command yourself, or use the installer from
+   when Homebrew is installed; otherwise use your distro's package or the CLI's install page, which
+   the card links to). You can run that command yourself, or use the installer from
    [cli.github.com](https://cli.github.com). Restart any terminals that were
    open, so they see it.
 2. Sign in. In the Accounts tab, choose **Sign in** on the GitHub card; it closes the dialog and
@@ -423,19 +427,8 @@ the `<scope>` scope." Scopes cannot be added to an existing token, so make a new
 list and store it with **Replace token** on the Bitbucket card (or `bb auth bitbucket`). A running
 Bashboard picks the replacement up at once; no restart is needed.
 
-**Where it goes.** The Accounts tab and `bb auth bitbucket` save the token for this machine only.
-On Windows it is the Windows Credential Manager generic credential `bashboard:bitbucket.org`; check
-it with `cmdkey /list:bashboard:bitbucket.org`. On macOS it is a generic password in the login
-Keychain with the service `bashboard` and the account `bashboard:bitbucket.org`; check it with
-`security find-generic-password -s bashboard -a bashboard:bitbucket.org`, which prints the item
-without its password. On Linux it is a keyring item with the attributes `application bashboard`
-and `target bashboard:bitbucket.org`; check it with `secret-tool search application bashboard`
-(from `libsecret-tools`), or see [Tokens on Linux](#tokens-on-linux) for the file. Remove it with **Remove token** (after a confirmation)
-or `bb auth bitbucket --clear`. The command works in any terminal, not only a Bashboard pane.
-Bashboard reads the token from there and sends it to Bitbucket only. The Accounts tab never shows
-the token again after you save it, and Bashboard writes it nowhere else; the field in the tab is
-the one place a token is typed into the app, and it is emptied when you save, cancel, or close the
-dialog.
+**Where it goes.** The token is saved for this machine only; see
+[Where tokens are stored](#where-tokens-are-stored).
 
 **Renewing.** When the token expires, the pane says Bitbucket rejected it. Make a new one with the
 steps above and choose **Replace token** on the card, or run `bb auth bitbucket` again; either
@@ -452,7 +445,8 @@ GitHub says "pull request".
 
 1. Install the GitLab CLI. In the Accounts tab, the GitLab card's **Install GitLab CLI** runs
    `winget install --id GLab.GLab -e` in a terminal pane (`brew install glab` on macOS and Linux,
-   when Homebrew is installed). Restart any terminals that were open, so
+   when Homebrew is installed; otherwise use your distro's package or the CLI's install page, which
+   the card links to). Restart any terminals that were open, so
    they see it.
 2. Sign in. In the Accounts tab, choose **Sign in** on the GitLab card; it closes the dialog and
    runs `glab auth login --hostname gitlab.com` in a terminal pane, where you follow the prompts.
@@ -471,9 +465,8 @@ card. One that `glab` is not signed in to needs an entry in `ship.hosts` naming 
 requests, and refuses those two. A merge request's approvals and pipeline status appear one poll
 after the list does.
 
-**Troubleshooting.** "GitLab CLI isn't installed" right after installing it: Bashboard looks in the
-CLI's install folders too, so the pane finds it, but a terminal that was open before the install
-does not have it on its `PATH`. Open a new pane.
+**Troubleshooting.** "GitLab CLI isn't installed" right after installing it has the same cause and
+fix as [the GitHub CLI's](#github): open a new pane.
 
 ### Azure DevOps
 
@@ -519,21 +512,8 @@ Build (Read & execute) when it has less. Scopes cannot be added to an existing t
 one with the full list and store it with **Replace** on the organization's row (or `bb auth
 azure-devops <org>` again). A running Bashboard picks the replacement up at once.
 
-**Where it goes.** The token is saved for this machine only, under the name
-`bashboard:dev.azure.com/<org>` with the organization lowercased. On Windows it is a Windows
-Credential Manager generic credential with the user name `x-azure-devops-pat`; check it with
-`cmdkey /list:bashboard:dev.azure.com/*`. On macOS it is a generic password in the login Keychain
-with the service `bashboard` and that name as the account; check it with `security
-find-generic-password -s bashboard -a bashboard:dev.azure.com/<org>`, which prints the item without
-its password. On Linux it is a keyring item with the attributes `application bashboard` and
-`target bashboard:dev.azure.com/<org>` (see [Tokens on Linux](#tokens-on-linux)). Remove it with **Remove** on the organization's row (after a confirmation) or `bb
-auth azure-devops <org> --clear`. Bashboard sends it to dev.azure.com only, and the Accounts tab
-never shows it again after you save it.
-
-**Keychain access on macOS.** `bb` is a separate program from the app, so macOS may ask you to
-allow Keychain access the first time `bb auth` changes a token the app stored, or the app reads one
-`bb` stored, and again after an update, since preview builds are ad-hoc signed. Choose **Always
-Allow**.
+**Where it goes.** Each organization's token is saved for this machine only; see
+[Where tokens are stored](#where-tokens-are-stored).
 
 **Environment variable.** Bashboard reads the environment it was started with, so set
 `AZURE_DEVOPS_EXT_PAT` where its launcher sees it and restart Bashboard. On Windows, make it a user
@@ -554,6 +534,33 @@ failed and not a plain Re-run.
 **Renewing.** When a token expires, the pane says Azure DevOps rejected it. Make a new one and
 choose **Replace** on the organization's row, or run `bb auth azure-devops <org>` again.
 
+### Where tokens are stored
+
+The Accounts tab and `bb auth` save each token for this machine only, under a name:
+`bashboard:bitbucket.org` for Bitbucket, and `bashboard:dev.azure.com/<org>`, with the organization
+lowercased, for each Azure DevOps organization.
+
+- On Windows, a Windows Credential Manager generic credential with that name (an Azure DevOps one
+  has the user name `x-azure-devops-pat`). Check with `cmdkey /list:bashboard:*`.
+- On macOS, a generic password in the login Keychain with the service `bashboard` and that name as
+  the account. `security find-generic-password -s bashboard -a <name>` prints the item without its
+  password.
+- On Linux, a keyring item with the attributes `application bashboard` and `target <name>`. Check
+  with `secret-tool search application bashboard` (from `libsecret-tools`), or see
+  [Tokens on Linux](#tokens-on-linux) for the file used when no keyring runs.
+
+Remove a token with **Remove token** on the Bitbucket card or **Remove** on an Azure DevOps
+organization's row (after a confirmation), or with `bb auth bitbucket --clear` or
+`bb auth azure-devops <org> --clear`; `bb auth` works in any terminal, not only a Bashboard pane.
+Bashboard sends each token only to its own host and writes it nowhere else. The Accounts tab never
+shows a token again after you save it; its field is the one place a token is typed into the app,
+and it is emptied when you save, cancel, or close the dialog.
+
+**Keychain access on macOS.** `bb` is a separate program from the app, so macOS may ask you to
+allow Keychain access the first time `bb auth` changes a token the app stored, or the app reads one
+`bb` stored, and again after an update, since preview builds are ad-hoc signed. Choose **Always
+Allow**.
+
 ### Tokens on Linux
 
 Bashboard and `bb auth` keep tokens in the system keyring through the Secret Service API, which
@@ -563,10 +570,17 @@ headless session), the first save from the Accounts tab asks whether to keep tok
 `~/.local/share/bashboard/credentials.json` instead (`$XDG_DATA_HOME/bashboard/` when that is set).
 The file and its folder are readable only by you (`0600` and `0700`). **Allow** turns on
 `linux.allowFileCredentials` (see [Settings](settings.md#linux)); later saves go to the file
-without asking. `bb auth` writes to the file only once it exists, so allow it from the Accounts
-tab first, or start a keyring. Each stored token on the Accounts tab says whether it is in the
-keyring or in a file, and once a keyring is running, **Move to keyring** moves the file's tokens
-into it and removes them from the file.
+without asking. With the setting off, a save from the Accounts tab asks again instead of writing
+the file, and tokens already in it stay readable until you remove them or move them to a keyring.
+
+`bb auth` cannot read the setting, so it goes by the file instead: with no keyring it writes to the
+file whenever the file exists, whatever the setting says, and refuses when it does not. So allow
+the file from the Accounts tab first, or start a keyring. To stop `bb` writing there too, delete
+the file once its tokens are moved or removed.
+
+Each stored token on the Accounts tab says whether it is in the keyring or in a file, and once a
+keyring is running, **Move to keyring** moves the file's tokens into it and removes them from the
+file.
 
 ## AppImage on Linux
 

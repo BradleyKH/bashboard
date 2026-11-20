@@ -23,7 +23,7 @@ instructions, a doc index, and a short feature summary above them.
 
 ```sh
 pnpm tauri dev                              # run the app (Vite on port 1420 plus the Rust core)
-pnpm tauri:debug                            # the same, with WebView2 remote debugging on port 9222
+pnpm tauri:debug                            # the same, with WebView2 remote debugging (Windows)
 pnpm dev                                    # front end only, in a plain browser (see below)
 pnpm test                                   # Vitest, all src/**/*.test.ts
 pnpm exec vitest run src/keys.test.ts       # one test file
@@ -48,7 +48,8 @@ seeds `settings.json` from the installed app unless `BASHBOARD_NO_DEV_SEED=1` is
 `BASHBOARD_KEYLOG=<file>` logs every keystroke and paste sent to a shell, to confirm a chord
 reaches bash rather than being eaten by WebView2 or xterm.js.
 `pnpm tauri:debug` opens WebView2's DevTools port, so a CDP client can drive the real window
-beside the installed app (see "Development" in `docs/development.md`).
+beside the installed app (see "Development" in `docs/development.md`). It is Windows only; on
+Linux, `WEBKIT_INSPECTOR_SERVER` does the same for WebKitGTK (see `docs/linux-testing.md`).
 
 Releases follow "Releasing" in `docs/development.md`. The step that is easy to get wrong: release
 notes come from an annotated tag made with `git tag -a v<version> --cleanup=whitespace -F notes.md`,
@@ -61,7 +62,8 @@ notice. That is expected; it is still useful for checking layout, scrims, and th
 ## Architecture
 
 **Rust core (`src-tauri/src`)** owns everything that touches the OS, one module per concern
-(git, files, search, containers, system load, transcripts, and so on). The ones that shape the
+(git, files, search, containers, system load, live transcripts in `transcript/`, past sessions
+in `history/`, and so on). The ones that shape the
 rest: `pty.rs` runs one pty per pane via `portable-pty` (ConPTY on Windows) and streams output
 to the front end over a Tauri `Channel`, keeping a tail of each (`pty_tail.rs`) so a page that
 replaces a crashed or reloaded one reattaches to running shells (`crash_recovery.rs` rebuilds a
@@ -153,4 +155,5 @@ and freeze on a still frame when `backdrop.animate` is false.
   shell, and the rest; `docs/design/sessions.md` section 3.24), the `AgentId` variant in
   `src-tauri/src/agents.rs` and the id in the `AgentId` union in `src/agentTable.ts` (tests fail
   if the enum, the union, and the JSON disagree), its status table in `hooks.rs`, its installer
-  in `hook_install.rs`, and its transcript reader under `src-tauri/src/transcript/`.
+  in `hook_install.rs`, its transcript reader under `src-tauri/src/transcript/`, and its session
+  history reader under `src-tauri/src/history/` (the `AgentId` matches in `history/index.rs`).

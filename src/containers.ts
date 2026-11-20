@@ -1,5 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { platformOs, type Os } from './platform';
 
 export type Engine = 'docker' | 'podman';
 
@@ -113,11 +114,11 @@ export async function onContainersChanged(cb: (s: ContainersSnapshot) => void): 
 /**
  * The pty_spawn command for a shell inside a container (docs/design/containers.md section 3.10).
  */
-export function shellCommand(container: Pick<Container, 'engine' | 'id'>): string[] {
+export function shellCommand(container: Pick<Container, 'engine' | 'id'>, os: Os = platformOs()): string[] {
   return [
-    // Docker Desktop puts an extension-less shell script named docker beside docker.exe, and the
-    // pty would resolve the bare name to it.
-    `${container.engine}.exe`,
+    // On Windows, Docker Desktop puts an extension-less shell script named docker beside
+    // docker.exe, and the pty would resolve the bare name to it.
+    os === 'windows' ? `${container.engine}.exe` : container.engine,
     'exec',
     '-it',
     '--',

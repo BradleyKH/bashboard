@@ -1,5 +1,5 @@
 // Matrix backdrop style: Canvas 2D digital rain driven by MatrixRain (docs/design/backdrop.md
-// section 6.2).
+// section 6.8).
 import type { StyleBackdrop } from '../backdropHandle';
 import { GLYPHS, MATRIX_FONT_FAMILY, MatrixRain, type Glyph } from './matrixModel';
 

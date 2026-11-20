@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import type { Update } from '@tauri-apps/plugin-updater';
+import { Channel, invoke } from '@tauri-apps/api/core';
+import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import type { ConfirmOptions } from './confirmDialog';
 import { platformOs } from './platform';
@@ -24,6 +24,8 @@ export class UpdateNotice {
   constructor(
     private readonly update: Update,
     private readonly confirm: ConfirmFn,
+    /** Install with pacman (pacman_update.rs) rather than the plugin's own installer. */
+    private readonly viaPacman: boolean,
     private readonly onDismiss: () => void,
   ) {}
 
@@ -93,17 +95,24 @@ export class UpdateNotice {
       let received = 0;
       this.render('Downloading update...');
       try {
-        await this.update.downloadAndInstall((event) => {
+        const onEvent = (event: DownloadEvent): void => {
           if (event.event === 'Started') total = event.data.contentLength ?? 0;
           else if (event.event === 'Progress') received += event.data.chunkLength;
           else if (event.event === 'Finished') {
-            // On Linux the package manager runs next, behind a password prompt.
+            // On Linux a package install runs next, behind a password prompt (an AppImage needs none).
             this.render(platformOs() === 'linux' ? 'Installing update...' : 'Downloading update... 100%');
             return;
           } else return;
           const pct = total > 0 ? ` ${Math.min(100, Math.round((received / total) * 100))}%` : '';
           this.render(`Downloading update...${pct}`);
-        });
+        };
+        if (this.viaPacman) {
+          const channel = new Channel<DownloadEvent>();
+          channel.onmessage = onEvent;
+          await invoke('update_install_pacman', { onEvent: channel });
+        } else {
+          await this.update.downloadAndInstall(onEvent);
+        }
       } catch (err) {
         const view = describeUpdateError(err, 'install', platformOs());
         this.render(view.message, { isError: true, install: 'Try again', download: view.offerDownload });

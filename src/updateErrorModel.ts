@@ -19,9 +19,9 @@ export interface UpdateErrorView {
 export function describeUpdateError(err: unknown, phase: UpdatePhase, os: Os): UpdateErrorView {
   const text = String(err);
 
-  // latest.json lists one entry per platform and package type: Windows NSIS and the Linux .deb.
-  // An AppImage, .rpm, Arch package (built from the .rpm's binary), or macOS build finds no entry
-  // of its own.
+  // latest.json lists one entry per platform and package type: Windows NSIS and the Linux .deb,
+  // .rpm, AppImage, and Arch package. A macOS build, or a Linux binary no bundler stamped (a
+  // local build run in place), finds no entry of its own.
   if (/fallback platforms|platform `[^`]*` was not found/i.test(text)) {
     const message =
       os === 'linux'
@@ -37,7 +37,7 @@ export function describeUpdateError(err: unknown, phase: UpdatePhase, os: Os): U
     if (/authentication failed or was cancelled|failed to install (\.deb )?package/i.test(text)) {
       return {
         message:
-          'The update was not installed. If you cancelled the password prompt, try again; otherwise download the .deb from the latest release and install it with apt to see why.',
+          'The update was not installed. If you cancelled the password prompt, try again; otherwise download the package from the latest release and install it with your package manager to see why.',
         offerDownload: true,
       };
     }
