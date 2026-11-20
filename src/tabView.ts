@@ -92,6 +92,7 @@ export class TabView {
         for (const id of hidden) if (onScreen.includes(id)) ctx.paneViews.get(id)?.setExpanded(true);
       }
     }
+    for (const id of zoomed !== null ? [zoomed] : leaves(tree)) ctx.paneViews.get(id)?.redraw?.();
     this.syncZoomButtons();
     if (!ctx.findBar.isOpen()) ctx.paneViews.get(ctx.store.focusedId)?.focus();
   }

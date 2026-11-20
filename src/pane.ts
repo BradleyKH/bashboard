@@ -502,6 +502,16 @@ export class TerminalPane implements PaneView {
   }
 
   /**
+   * WebKitGTK drops a WebGL canvas's last frame when its host is detached and reattached, and
+   * xterm.js redraws only rows that change or a resize, so a pane a split left the same size
+   * stayed blank until its next output. WebView2 keeps the frame; there this is one spare draw.
+   */
+  redraw(): void {
+    if (this.disposed || !this.expanded || this.webgl === null) return;
+    this.term.refresh(0, this.term.rows - 1);
+  }
+
+  /**
    * The visible rows drawn into a 2D canvas, for a tab transition ghost (4.30); null on the DOM
    * renderer, whose rows a cloned host already carries. The WebGL canvas cannot be copied: its
    * drawing buffer is cleared once composited.

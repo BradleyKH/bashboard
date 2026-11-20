@@ -15,6 +15,8 @@ export interface PaneView {
   readonly stripActions?: HTMLElement;
   focus(): void;
   setExpanded(expanded: boolean): void;
+  /** Draws the pane again after a layout render re-parented its host; kinds with no canvas omit it. */
+  redraw?(): void;
   cellSize(): CellSize;
   applySettings(settings: Settings): void;
   dispose(): void;
