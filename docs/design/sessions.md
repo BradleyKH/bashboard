@@ -41,8 +41,10 @@ This format is internal to Claude Code and undocumented, so the roster treats it
 - `status` maps to `busy`, `idle`, or `unknown`. Unknown values pass through as `unknown`
   with the raw string kept for display.
 - **Liveness.** A session counts as live only if its `pid` exists and the process start time
-  matches `procStart` (a Windows FILETIME), which guards against pid reuse after a crash left a
-  stale file behind.
+  matches `procStart`, which guards against pid reuse after a crash left a stale file behind.
+  `procStart` is in the OS's own unit: a FILETIME on Windows, clock ticks since boot on Linux
+  (field 22 of `/proc/<pid>/stat`). On macOS its unit is unconfirmed, so it goes unused and
+  liveness rests on the pid alone.
 - **Watching.** `notify` watches the directory; changes are debounced 100 ms. A 10 second
   sweep re-checks liveness, since a killed process may never delete its file.
 - **Events.** The roster emits `sessions://changed` with the full list whenever anything

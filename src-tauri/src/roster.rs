@@ -31,7 +31,7 @@ use crate::transcript::{self, Transcripts};
 
 const SWEEP: Duration = Duration::from_secs(10);
 const MAX_HOPS: usize = 32;
-/// FILETIME and sysinfo start times come from different clocks and roundings.
+/// `procStart` and sysinfo start times come from different clocks and roundings.
 const START_TOLERANCE_SECS: i64 = 2;
 /// How long a hook-born session with no process found survives without events.
 const HOOK_BORN_IDLE_MS: u64 = 30 * 60 * 1000;
@@ -130,16 +130,44 @@ fn to_session(raw: RawSession) -> Option<Session> {
 }
 
 /// Converts a FILETIME (100 ns ticks since 1601-01-01) to unix seconds.
+#[cfg(any(windows, test))]
 fn filetime_to_unix(ticks: u64) -> i64 {
     (ticks / 10_000_000) as i64 - 11_644_473_600
+}
+
+/// Converts clock ticks since boot (field 22 of `/proc/<pid>/stat`) to unix seconds.
+#[cfg(any(target_os = "linux", test))]
+fn boot_ticks_to_unix(ticks: u64, boot_time: u64, ticks_per_sec: u64) -> i64 {
+    (boot_time + ticks / ticks_per_sec) as i64
+}
+
+/// `procStart` as unix seconds. Its unit is the OS's own process start time: a FILETIME on
+/// Windows, clock ticks since boot on Linux. Elsewhere the unit is unknown, so it goes unused and
+/// liveness rests on the pid alone; misreading it would drop every live session.
+#[cfg(windows)]
+fn proc_start_unix(raw: &str) -> Option<i64> {
+    raw.trim().parse::<u64>().ok().map(filetime_to_unix)
+}
+
+#[cfg(target_os = "linux")]
+fn proc_start_unix(raw: &str) -> Option<i64> {
+    let ticks = raw.trim().parse::<u64>().ok()?;
+    // SAFETY: sysconf only reads a system constant.
+    let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+    (hz > 0).then(|| boot_ticks_to_unix(ticks, System::boot_time(), hz as u64))
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn proc_start_unix(_raw: &str) -> Option<i64> {
+    None
 }
 
 /// Live when the pid exists and, if `procStart` is usable, the process started at that time;
 /// the start check catches a pid reused after a crash left a stale file behind.
 fn is_live(pid: u32, proc_start: Option<&str>, procs: &ProcTable) -> bool {
     let Some(info) = procs.get(&pid) else { return false };
-    match proc_start.and_then(|s| s.trim().parse::<u64>().ok()) {
-        Some(ticks) => (info.start as i64 - filetime_to_unix(ticks)).abs() <= START_TOLERANCE_SECS,
+    match proc_start.and_then(proc_start_unix) {
+        Some(start) => (info.start as i64 - start).abs() <= START_TOLERANCE_SECS,
         None => true,
     }
 }
@@ -763,12 +791,35 @@ mod tests {
     }
 
     #[test]
-    fn liveness() {
+    fn boot_ticks_convert_to_unix_seconds() {
+        // A real Linux session file: boot at 1795188472, procStart 2279226 at 100 ticks a second.
+        assert_eq!(boot_ticks_to_unix(2279226, 1795188472, 100), 1795211264);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn liveness_checks_filetime_start() {
         let table = procs(&[(10, None, 1792962680)]);
         assert!(is_live(10, Some("134374362796412897"), &table));
         // Same pid, but a process started an hour later: the pid was reused.
         let reused = procs(&[(10, None, 1792966279)]);
         assert!(!is_live(10, Some("134374362796412897"), &reused));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn liveness_checks_boot_tick_start() {
+        let hz = unsafe { libc::sysconf(libc::_SC_CLK_TCK) } as u64;
+        let boot = System::boot_time();
+        let ticks = (3600 * hz).to_string();
+        assert!(is_live(10, Some(&ticks), &procs(&[(10, None, boot + 3600)])));
+        // Same pid, but a process started an hour later: the pid was reused.
+        assert!(!is_live(10, Some(&ticks), &procs(&[(10, None, boot + 7200)])));
+    }
+
+    #[test]
+    fn liveness() {
+        let table = procs(&[(10, None, 1792962680)]);
         assert!(is_live(10, None, &table));
         assert!(is_live(10, Some("garbage"), &table));
         assert!(!is_live(11, None, &table));
